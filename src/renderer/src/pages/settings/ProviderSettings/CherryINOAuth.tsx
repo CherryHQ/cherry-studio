@@ -5,10 +5,9 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import type { MenuProps } from 'antd'
-import { Button, Dropdown, Skeleton } from 'antd'
+import { Button, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
-import { ChevronDown, CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -30,14 +29,6 @@ export const getAvatarInitials = (name: string): string => {
   return trimmed.slice(0, 2).toUpperCase()
 }
 
-interface UserInfo {
-  id: number
-  username: string
-  displayName?: string
-  email: string
-  group?: string
-}
-
 interface BalanceInfo {
   balance: number
 }
@@ -54,7 +45,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
   const [hasOAuthToken, setHasOAuthToken] = useState<boolean | null>(null)
 
@@ -88,21 +78,10 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   }, [])
 
   useEffect(() => {
-    // Only fetch user info and balance if logged in via OAuth
+    // Only fetch balance if logged in via OAuth
     if (isOAuthLoggedIn) {
-      window.api.cherryin
-        .getUserInfo(CHERRYIN_OAUTH_SERVER)
-        .then((info) => {
-          setUserInfo(info)
-        })
-        .catch((error) => {
-          logger.warn('Failed to fetch user info:', error as Error)
-          setUserInfo(null)
-        })
-
       fetchData()
     } else {
-      setUserInfo(null)
       setBalanceInfo(null)
     }
   }, [isOAuthLoggedIn, fetchData])
@@ -146,14 +125,12 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
       updateProvider({ apiKey: '' })
       setHasOAuthToken(false)
-      setUserInfo(null)
       setBalanceInfo(null)
       window.toast.success(t('settings.provider.oauth.logout_success'))
     } catch (error) {
       logger.error('Logout error:', error as Error)
       updateProvider({ apiKey: '' })
       setHasOAuthToken(false)
-      setUserInfo(null)
       setBalanceInfo(null)
       window.toast.warning(t('settings.provider.oauth.logout_success'))
     } finally {
@@ -166,17 +143,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   }, [])
 
   const providerWebsite = PROVIDER_URLS[provider.id]?.websites.official
-
-  const dropdownItems: MenuProps['items'] = [
-    {
-      key: 'logout',
-      label: t('settings.provider.oauth.logout'),
-      icon: <LogOut size={14} />,
-      danger: true,
-      disabled: isLoggingOut,
-      onClick: handleLogout
-    }
-  ]
 
   // Render logic:
   // 1. No API key → Show login button
@@ -240,16 +206,10 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 
   return (
     <Container>
-      {isOAuthLoggedIn && userInfo && (
-        <DropdownCorner>
-          <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="bottomRight">
-            <UserDropdownTrigger>
-              <UserAvatar>{getAvatarInitials(userInfo.displayName || userInfo.username)}</UserAvatar>
-              <UserName>{userInfo.displayName || userInfo.username}</UserName>
-              <ChevronDown size={14} />
-            </UserDropdownTrigger>
-          </Dropdown>
-        </DropdownCorner>
+      {isOAuthLoggedIn && (
+        <LogoutCorner onClick={handleLogout} disabled={isLoggingOut}>
+          <LogOut size={14} />
+        </LogoutCorner>
       )}
       <ProviderLogo src={CherryINProviderLogo} />
       {renderContent()}
@@ -278,49 +238,31 @@ const Container = styled.div`
   padding: 20px;
 `
 
-const DropdownCorner = styled.div`
+const LogoutCorner = styled.button`
   position: absolute;
   top: 8px;
   right: 8px;
-`
-
-const UserDropdownTrigger = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 8px 4px 4px;
-  border-radius: 20px;
-  transition: all 0.2s;
-  color: var(--color-text-2);
-
-  &:hover {
-    background: var(--color-background-soft);
-  }
-`
-
-const UserAvatar = styled.div`
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-`
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  transition: all 0.2s;
 
-const UserName = styled.span`
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-1);
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  &:hover {
+    background: var(--color-background-soft);
+    color: var(--color-error);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 `
 
 const ProviderLogo = styled.img`
@@ -333,11 +275,17 @@ const BalanceCapsule = styled.button`
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0;
+  padding: 0 15px;
   height: 32px;
-  border: none;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
   background: transparent;
   cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
 
   &:disabled {
     cursor: not-allowed;
