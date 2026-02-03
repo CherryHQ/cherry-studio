@@ -456,7 +456,7 @@ export class PluginService {
 
     try {
       await this.runCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
@@ -493,7 +493,7 @@ export class PluginService {
       const output = await this.captureCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'])
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
       return match?.[1] ?? null
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to resolve default branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
@@ -613,7 +613,7 @@ export class PluginService {
           filename: component.filename,
           type: component.type
         })
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Failed to uninstall component', {
           filename: component.filename,
           type: component.type,
@@ -632,7 +632,7 @@ export class PluginService {
         directoryRemoved = true
         logger.info('Package directory removed', { packageDirPath })
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to remove package directory', {
         packageDirPath,
         error: error instanceof Error ? error.message : String(error)
@@ -764,7 +764,7 @@ export class PluginService {
     try {
       await deleteDirectoryRecursive(dirPath)
       logger.debug('Cleaned up temp directory', { dirPath })
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to clean up temp directory', {
         dirPath,
         error: error instanceof Error ? error.message : String(error)
@@ -781,7 +781,7 @@ export class PluginService {
       if (!zipFilePath.toLowerCase().endsWith('.zip')) {
         throw { type: 'INVALID_ZIP_FORMAT', path: zipFilePath, reason: 'Not a ZIP file' } as PluginError
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if ((error as PluginError).type) throw error
       throw { type: 'FILE_NOT_FOUND', path: zipFilePath } as PluginError
     }
@@ -818,7 +818,7 @@ export class PluginService {
 
       await zip.extract(null, destDir)
       logger.debug('ZIP extracted successfully', { zipFilePath, destDir, totalSize, fileCount })
-    } catch (error) {
+    } catch (error: unknown) {
       // Re-throw PluginError as-is
       if (error && typeof error === 'object' && 'type' in error) {
         throw error
@@ -928,7 +928,7 @@ export class PluginService {
       try {
         const result = await this.installSinglePlugin(pluginRoot, workdir, agent)
         packages.push(result)
-      } catch (error) {
+      } catch (error: unknown) {
         packages.push({
           pluginName: path.basename(pluginRoot),
           installed: [],
@@ -1017,7 +1017,7 @@ export class PluginService {
       const content = await fs.promises.readFile(manifestPath, 'utf-8')
       const json = JSON.parse(content)
       return PluginManifestSchema.parse(json)
-    } catch (error) {
+    } catch (error: unknown) {
       if ((error as PluginError).type) throw error
       throw {
         type: 'PLUGIN_MANIFEST_INVALID',
@@ -1156,7 +1156,7 @@ export class PluginService {
         } else {
           logger.warn('Marketplace plugin source not found', { name: entry.name, sourcePath })
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Failed to resolve marketplace plugin source', {
           name: entry.name,
           error: error instanceof Error ? error.message : String(error)
@@ -1190,7 +1190,7 @@ export class PluginService {
       const content = await fs.promises.readFile(manifestPath, 'utf-8')
       const json = JSON.parse(content)
       return MarketplaceManifestSchema.parse(json)
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to parse marketplace.json', {
         path: manifestPath,
         error: error instanceof Error ? error.message : String(error)
@@ -1317,7 +1317,7 @@ export class PluginService {
               results.installed.push(metadata)
             }
           }
-        } catch (error) {
+        } catch (error: unknown) {
           results.failed.push({
             path: entryPath,
             error: error instanceof Error ? error.message : String(error)
@@ -1329,7 +1329,7 @@ export class PluginService {
           })
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to scan directory', {
         dirPath,
         error: error instanceof Error ? error.message : String(error)
@@ -1562,7 +1562,7 @@ export class PluginService {
     // Verify workdir exists and is accessible
     try {
       await fs.promises.access(workdir, fs.constants.R_OK | fs.constants.W_OK)
-    } catch (error) {
+    } catch (error: unknown) {
       throw {
         type: 'WORKDIR_NOT_FOUND',
         workdir,
@@ -1678,7 +1678,7 @@ export class PluginService {
     try {
       await fs.promises.mkdir(typeDir, { recursive: true })
       logger.debug('Ensured directory exists', { typeDir })
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to create directory', {
         typeDir,
         error: error instanceof Error ? error.message : String(error)
