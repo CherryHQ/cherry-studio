@@ -3,7 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
+import { findCommandInShellEnv } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType } from '@types'
 import { type ChildProcess, spawn } from 'child_process'
@@ -131,7 +134,6 @@ class OpenClawService {
    * Install OpenClaw using npm with China mirror acceleration
    */
   public async install(): Promise<{ success: boolean; message: string }> {
-    const isWindows = process.platform === 'win32'
     const inChina = await isUserInChina()
 
     // Build npm install command with registry option for China users
@@ -145,14 +147,12 @@ class OpenClawService {
       try {
         let installProcess: ChildProcess
 
-        if (isWindows) {
-          // Windows: Use cmd to run npm
+        if (isWin) {
           installProcess = spawn('cmd.exe', ['/c', npmCommand], {
             stdio: 'pipe',
             env: { ...process.env }
           })
         } else {
-          // macOS/Linux: Use bash to run npm
           installProcess = spawn('/bin/bash', ['-c', npmCommand], {
             stdio: 'pipe',
             env: { ...process.env }
@@ -501,42 +501,31 @@ class OpenClawService {
    * Find OpenClaw binary in PATH or common locations
    */
   private async findOpenClawBinary(): Promise<string | null> {
-    // Check common locations
-    const possiblePaths = [
-      path.join(os.homedir(), '.openclaw', 'bin', 'openclaw'),
-      path.join(os.homedir(), '.local', 'bin', 'openclaw'),
-      '/usr/local/bin/openclaw',
-      '/opt/homebrew/bin/openclaw'
-    ]
-
-    // Add Windows paths
-    if (process.platform === 'win32') {
-      possiblePaths.push(
-        path.join(os.homedir(), 'AppData', 'Local', 'openclaw', 'openclaw.exe'),
-        path.join(os.homedir(), '.openclaw', 'bin', 'openclaw.exe')
-      )
+    // Try PATH lookup in user's login shell environment (best for npm global installs)
+    const shellEnv = await getShellEnv()
+    const binaryPath = await findCommandInShellEnv('openclaw', shellEnv)
+    if (binaryPath) {
+      logger.info('Found OpenClaw in PATH: ' + binaryPath)
+      return binaryPath
     }
+
+    // Check common locations as fallback
+    const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
+    const home = os.homedir()
+    const possiblePaths = isWin
+      ? [path.join(home, 'AppData', 'Local', 'openclaw', binaryName), path.join(home, '.openclaw', 'bin', binaryName)]
+      : [
+          path.join(home, '.openclaw', 'bin', binaryName),
+          path.join(home, '.local', 'bin', binaryName),
+          `/usr/local/bin/${binaryName}`,
+          `/opt/homebrew/bin/${binaryName}`
+        ]
 
     for (const p of possiblePaths) {
       if (fs.existsSync(p)) {
         logger.info('Found OpenClaw binary at: ' + p)
         return p
       }
-    }
-
-    // Try to find in PATH using which/where
-    try {
-      const { promisify } = await import('util')
-      const exec = promisify((await import('child_process')).exec)
-      const cmd = process.platform === 'win32' ? 'where openclaw' : 'which openclaw'
-      const { stdout } = await exec(cmd)
-      const binaryPath = stdout.trim().split('\n')[0]
-      if (binaryPath && fs.existsSync(binaryPath)) {
-        logger.info('Found OpenClaw in PATH: ' + binaryPath)
-        return binaryPath
-      }
-    } catch {
-      logger.debug('OpenClaw not found in PATH')
     }
 
     return null
