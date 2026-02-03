@@ -603,9 +603,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_UninstallPackage, options),
     listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
-    invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache),
-    readContent: (sourcePath: string): Promise<PluginResult<string>> =>
-      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
     writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options),
     installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromSourceResult>> =>

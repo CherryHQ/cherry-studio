@@ -58,12 +58,7 @@ export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) =>
   return (
     <div className="flex h-full flex-col overflow-hidden pt-4 pr-2">
       <div className="min-h-0 flex-1">
-        <PluginBrowser
-          agentId={agentBase.id}
-          installedPlugins={plugins}
-          onInstall={handleInstall}
-          onUninstall={handleUninstall}
-        />
+        <PluginBrowser installedPlugins={plugins} onInstall={handleInstall} onUninstall={handleUninstall} />
       </div>
     </div>
   )

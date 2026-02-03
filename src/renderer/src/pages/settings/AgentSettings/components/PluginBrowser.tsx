@@ -17,7 +17,6 @@ import { PluginDetailModal } from './PluginDetailModal'
 export type PluginFilterType = 'plugin' | 'skill'
 
 export interface PluginBrowserProps {
-  agentId: string
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
@@ -41,7 +40,7 @@ type PluginRow = {
   entries: MarketplaceEntry[]
 }
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugins, onInstall, onUninstall, kind }) => {
+export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInstall, onUninstall, kind }) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [searchQuery, setSearchQuery] = useState('')
@@ -378,7 +377,6 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
 
       {/* Plugin Detail Modal */}
       <PluginDetailModal
-        agentId={agentId}
         plugin={selectedPlugin}
         isOpen={isModalOpen}
         onClose={handleModalClose}

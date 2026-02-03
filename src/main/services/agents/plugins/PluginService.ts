@@ -738,19 +738,6 @@ export class PluginService {
     return pluginPaths
   }
 
-  /**
-   * Invalidate plugin cache.
-   *
-   * Note: This method is intentionally a no-op as the new architecture uses
-   * file-based caching that doesn't require manual invalidation. The method
-   * is kept for API compatibility with the IPC interface.
-   *
-   * @deprecated No longer needed - cache is automatically maintained
-   */
-  invalidateCache(): void {
-    logger.info('Plugin cache invalidated (no-op)')
-  }
-
   private async safeRemoveDirectory(dirPath: string): Promise<void> {
     try {
       await deleteDirectoryRecursive(dirPath)
@@ -1383,27 +1370,6 @@ export class PluginService {
   async listInstalledFromCache(workdir: string): Promise<InstalledPlugin[]> {
     logger.debug('Listing installed plugins from cache', { workdir })
     return await this.cacheStore.listInstalled(workdir)
-  }
-
-  /**
-   * Read plugin content from source (resources directory).
-   *
-   * Note: This method is intentionally disabled. Reading preset plugin content
-   * from the bundled resources directory is no longer supported in the new
-   * plugin architecture. Plugins are now installed and read from the agent's
-   * .claude directory. The method is kept for API compatibility with the IPC
-   * interface and throws an error to indicate the feature is not available.
-   *
-   * @deprecated Use installed plugin files directly instead
-   * @throws Always throws INVALID_METADATA error
-   */
-  async readContent(sourcePath: string): Promise<string> {
-    logger.info('Reading plugin content', { sourcePath })
-    throw {
-      type: 'INVALID_METADATA',
-      reason: 'Reading local preset plugin content is disabled',
-      path: sourcePath
-    } as PluginError
   }
 
   /**

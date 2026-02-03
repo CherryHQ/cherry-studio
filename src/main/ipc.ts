@@ -1074,40 +1074,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
-    try {
-      pluginService.invalidateCache()
-      return { success: true, data: undefined }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to invalidate plugin cache', pluginError)
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to invalidate plugin cache', err)
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'invalidate-cache',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
-    try {
-      const data = await pluginService.readContent(sourcePath)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to read plugin content', { sourcePath, error })
-      return { success: false, error }
-    }
-  })
-
   ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
     try {
       await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
