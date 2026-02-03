@@ -128,7 +128,10 @@ export const useMarketplaceBrowser = ({ kind, query, sort, limit }: UseMarketpla
     [kind]
   )
 
-  useEffect(() => {
+  /**
+   * Shared helper to reset state and load the first page
+   */
+  const loadFirstPage = useCallback(() => {
     requestIdRef.current += 1
     const requestId = requestIdRef.current
     setEntries([])
@@ -161,6 +164,10 @@ export const useMarketplaceBrowser = ({ kind, query, sort, limit }: UseMarketpla
         }
       })
   }, [mapEntries, pager])
+
+  useEffect(() => {
+    loadFirstPage()
+  }, [loadFirstPage])
 
   const loadMore = useCallback(() => {
     if (isLoading || isLoadingMore || !hasMore) return
@@ -192,40 +199,6 @@ export const useMarketplaceBrowser = ({ kind, query, sort, limit }: UseMarketpla
       })
   }, [hasMore, isLoading, isLoadingMore, mapEntries, pager])
 
-  const refetch = useCallback(() => {
-    requestIdRef.current += 1
-    const requestId = requestIdRef.current
-    setEntries([])
-    setTotal(0)
-    setHasMore(true)
-    setError(null)
-    setIsLoading(true)
-    pager.reset()
-
-    pager
-      .loadFirst()
-      .then((page) => {
-        if (requestId !== requestIdRef.current) return
-        const nextEntries = mapEntries(page.items)
-        setEntries(nextEntries)
-        setTotal(page.total)
-        setHasMore(page.hasMore)
-      })
-      .catch((fetchError) => {
-        if (requestId === requestIdRef.current) {
-          const message = fetchError instanceof Error ? fetchError.message : 'Failed to load marketplace data'
-          logger.error('Marketplace fetch failed', fetchError as Error)
-          setError(message)
-          setHasMore(false)
-        }
-      })
-      .finally(() => {
-        if (requestId === requestIdRef.current) {
-          setIsLoading(false)
-        }
-      })
-  }, [mapEntries, pager])
-
   const sortedEntries = useMemo(() => sortEntries(entries, sort), [entries, sort])
 
   return {
@@ -236,6 +209,6 @@ export const useMarketplaceBrowser = ({ kind, query, sort, limit }: UseMarketpla
     isLoadingMore,
     error,
     loadMore,
-    refetch
+    refetch: loadFirstPage
   }
 }

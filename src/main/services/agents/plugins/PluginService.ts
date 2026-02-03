@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 
 import { loggerService } from '@logger'
-import { isPathInside } from '@main/utils/file'
+import { directoryExists, fileExists, isPathInside, pathExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import {
   findAllSkillDirectories,
@@ -14,8 +14,8 @@ import {
   type GetAgentResponse,
   type InstalledPlugin,
   type InstallFromDirectoryOptions,
+  type InstallFromSourceResult,
   type InstallFromZipOptions,
-  type InstallFromZipResult,
   type InstallPluginOptions,
   type MarketplaceManifest,
   MarketplaceManifestSchema,
@@ -364,18 +364,18 @@ export class PluginService {
     const gitCommand = findExecutable('git') ?? 'git'
     const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
     if (branch) {
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, repoUrl, destDir])
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
       return
     }
 
     try {
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', repoUrl, destDir])
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
     } catch (error) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
       })
-      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', repoUrl, destDir])
+      await this.runCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
     }
   }
 
@@ -404,7 +404,7 @@ export class PluginService {
 
   private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
     try {
-      const output = await this.captureCommand(command, ['ls-remote', '--symref', repoUrl, 'HEAD'])
+      const output = await this.captureCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'])
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
       return match?.[1] ?? null
     } catch (error) {
@@ -522,7 +522,7 @@ export class PluginService {
     const sanitizedPackageName = this.sanitizeFolderName(packageName)
     const packageDirPath = path.join(workdir, '.claude', 'plugins', sanitizedPackageName)
     try {
-      if (await this.directoryExists(packageDirPath)) {
+      if (await directoryExists(packageDirPath)) {
         await deleteDirectoryRecursive(packageDirPath)
         directoryRemoved = true
         logger.info('Package directory removed', { packageDirPath })
@@ -627,7 +627,7 @@ export class PluginService {
       const pluginPath = path.join(workdir, '.claude', 'plugins', packageName)
       const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json')
 
-      if (await this.fileExists(manifestPath)) {
+      if (await fileExists(manifestPath)) {
         pluginPaths.push(pluginPath)
       } else {
         logger.warn('Skipping plugin without manifest', { pluginPath, manifestPath })
@@ -643,7 +643,13 @@ export class PluginService {
   }
 
   /**
-   * Invalidate plugin cache (for development/testing)
+   * Invalidate plugin cache.
+   *
+   * Note: This method is intentionally a no-op as the new architecture uses
+   * file-based caching that doesn't require manual invalidation. The method
+   * is kept for API compatibility with the IPC interface.
+   *
+   * @deprecated No longer needed - cache is automatically maintained
    */
   invalidateCache(): void {
     logger.info('Plugin cache invalidated (no-op)')
@@ -727,7 +733,7 @@ export class PluginService {
    * Supports complete plugin packages with .claude-plugin/plugin.json
    * Supports multiple plugin packages in a single ZIP
    */
-  async installFromZip(options: InstallFromZipOptions): Promise<InstallFromZipResult> {
+  async installFromZip(options: InstallFromZipOptions): Promise<InstallFromSourceResult> {
     const { agentId, zipFilePath } = options
     logger.info('Installing plugin package from ZIP', { agentId, zipFilePath })
 
@@ -752,7 +758,7 @@ export class PluginService {
    * Supports complete plugin packages with .claude-plugin/plugin.json
    * Supports multiple plugin packages in a single directory
    */
-  async installFromDirectory(options: InstallFromDirectoryOptions): Promise<InstallFromZipResult> {
+  async installFromDirectory(options: InstallFromDirectoryOptions): Promise<InstallFromSourceResult> {
     const { agentId, directoryPath } = options
     logger.info('Installing plugin package from directory', { agentId, directoryPath })
 
@@ -760,7 +766,7 @@ export class PluginService {
     const workdir = this.getWorkdirOrThrow(agent, agentId)
     await this.validateWorkdir(agent, workdir)
 
-    if (!(await this.directoryExists(directoryPath))) {
+    if (!(await directoryExists(directoryPath))) {
       throw { type: 'FILE_NOT_FOUND', path: directoryPath } as PluginError
     }
 
@@ -783,7 +789,7 @@ export class PluginService {
     agent: GetAgentResponse,
     agentId: string,
     sourceType: 'ZIP' | 'directory'
-  ): Promise<InstallFromZipResult> {
+  ): Promise<InstallFromSourceResult> {
     const pluginRoots = await this.findPluginRoots(sourceDir)
 
     if (pluginRoots.length === 0) {
@@ -940,6 +946,12 @@ export class PluginService {
   }
 
   /**
+   * Maximum recursion depth for findPluginRoots to prevent infinite loops
+   * from symlink cycles or deeply nested directories
+   */
+  private static readonly MAX_PLUGIN_ROOT_DEPTH = 10
+
+  /**
    * Find all plugin root directories.
    * Supports: single plugin, single plugin with wrapper directory, multiple plugins, marketplace.
    * e.g., if ZIP extracts to: tempDir/plugin-name/.claude-plugin/plugin.json
@@ -948,7 +960,17 @@ export class PluginService {
    * this method returns: [tempDir/plugins/plugin1, tempDir/plugins/plugin2]
    * e.g., if directory has .claude-plugin/marketplace.json, resolve plugin sources from it
    */
-  private async findPluginRoots(extractedDir: string): Promise<string[]> {
+  private async findPluginRoots(extractedDir: string, depth = 0): Promise<string[]> {
+    // Prevent infinite recursion from symlink cycles or deeply nested directories
+    if (depth > PluginService.MAX_PLUGIN_ROOT_DEPTH) {
+      logger.warn('Max recursion depth reached while finding plugin roots', {
+        extractedDir,
+        depth,
+        maxDepth: PluginService.MAX_PLUGIN_ROOT_DEPTH
+      })
+      return []
+    }
+
     // Case 0: Check for marketplace.json first
     const marketplace = await this.readMarketplaceManifest(extractedDir)
     if (marketplace) {
@@ -987,7 +1009,7 @@ export class PluginService {
     // Case 3: Single wrapper directory, recursively check inside
     if (directories.length === 1) {
       const subDir = path.join(extractedDir, directories[0].name)
-      return this.findPluginRoots(subDir)
+      return this.findPluginRoots(subDir, depth + 1)
     }
 
     // No plugins found
@@ -1013,7 +1035,7 @@ export class PluginService {
         const sourcePath = this.resolveMarketplacePluginSource(marketplaceDir, entry, pluginRoot)
 
         // For relative paths, check if directory exists and has .claude-plugin
-        if (await this.directoryExists(sourcePath)) {
+        if (await directoryExists(sourcePath)) {
           if (await this.hasPluginJson(sourcePath)) {
             roots.push(sourcePath)
             logger.debug('Resolved marketplace plugin', { name: entry.name, sourcePath })
@@ -1044,7 +1066,7 @@ export class PluginService {
    * Check if directory contains .claude-plugin/plugin.json
    */
   private async hasPluginJson(dir: string): Promise<boolean> {
-    return this.fileExists(path.join(dir, '.claude-plugin', 'plugin.json'))
+    return fileExists(path.join(dir, '.claude-plugin', 'plugin.json'))
   }
 
   /**
@@ -1118,7 +1140,7 @@ export class PluginService {
 
     // 1. Scan default directory
     const defaultPath = path.join(pluginDir, defaultSubDir)
-    if (await this.directoryExists(defaultPath)) {
+    if (await directoryExists(defaultPath)) {
       scannedPaths.add(defaultPath)
       const result = await this.scanAndRegisterComponents(defaultPath, type, workdir, agent, packageInfo)
       results.installed.push(...result.installed)
@@ -1142,7 +1164,7 @@ export class PluginService {
 
         if (!scannedPaths.has(fullPath)) {
           scannedPaths.add(fullPath)
-          if (await this.pathExists(fullPath)) {
+          if (await pathExists(fullPath)) {
             const result = await this.scanAndRegisterComponents(fullPath, type, workdir, agent, packageInfo)
             results.installed.push(...result.installed)
             results.failed.push(...result.failed)
@@ -1249,42 +1271,6 @@ export class PluginService {
     return metadataWithInstall
   }
 
-  /**
-   * Check if directory exists
-   */
-  private async directoryExists(dirPath: string): Promise<boolean> {
-    try {
-      const stats = await fs.promises.stat(dirPath)
-      return stats.isDirectory()
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Check if path exists (file or directory)
-   */
-  private async pathExists(p: string): Promise<boolean> {
-    try {
-      await fs.promises.access(p, fs.constants.R_OK)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Check if file exists
-   */
-  private async fileExists(filePath: string): Promise<boolean> {
-    try {
-      const stats = await fs.promises.stat(filePath)
-      return stats.isFile()
-    } catch {
-      return false
-    }
-  }
-
   // ============================================================================
   // Cache File Management (for installed plugins)
   // ============================================================================
@@ -1304,7 +1290,16 @@ export class PluginService {
   }
 
   /**
-   * Read plugin content from source (resources directory)
+   * Read plugin content from source (resources directory).
+   *
+   * Note: This method is intentionally disabled. Reading preset plugin content
+   * from the bundled resources directory is no longer supported in the new
+   * plugin architecture. Plugins are now installed and read from the agent's
+   * .claude directory. The method is kept for API compatibility with the IPC
+   * interface and throws an error to indicate the feature is not available.
+   *
+   * @deprecated Use installed plugin files directly instead
+   * @throws Always throws INVALID_METADATA error
    */
   async readContent(sourcePath: string): Promise<string> {
     logger.info('Reading plugin content', { sourcePath })

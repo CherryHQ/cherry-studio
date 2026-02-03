@@ -132,12 +132,15 @@ export interface SinglePluginInstallResult {
   failed: Array<{ path: string; error: string }> // Failed items
 }
 
-// Plugin package installation result (supports multiple packages)
-export interface InstallFromZipResult {
+// Plugin package installation result (supports multiple packages from ZIP, directory, or marketplace)
+export interface InstallFromSourceResult {
   packages: SinglePluginInstallResult[] // Results for each plugin package
   totalInstalled: number // Total successfully installed components
   totalFailed: number // Total failed components
 }
+
+/** @deprecated Use InstallFromSourceResult instead */
+export type InstallFromZipResult = InstallFromSourceResult
 
 // Plugin directory installation options (for folder upload)
 export interface InstallFromDirectoryOptions {

@@ -501,3 +501,39 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
 
   return sanitized
 }
+
+/**
+ * Check if a directory exists at the given path
+ */
+export async function directoryExists(dirPath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(dirPath)
+    return stats.isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if a path exists (file or directory)
+ */
+export async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(targetPath, fs.constants.R_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if a file exists at the given path
+ */
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(filePath)
+    return stats.isFile()
+  } catch {
+    return false
+  }
+}

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { InstallFromZipResult, PluginError, PluginResult } from '@renderer/types/plugin'
+import type { InstallFromSourceResult, PluginError, PluginResult } from '@renderer/types/plugin'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useState } from 'react'
 
@@ -7,15 +7,15 @@ const logger = loggerService.withContext('usePluginInstall')
 
 export interface UsePluginInstallOptions {
   agentId: string
-  onSuccess?: (result: InstallFromZipResult) => void
+  onSuccess?: (result: InstallFromSourceResult) => void
   onError?: (error: string) => void
 }
 
 export interface UsePluginInstallResult {
   uploading: boolean
-  uploadFromPath: (zipFilePath: string) => Promise<PluginResult<InstallFromZipResult>>
-  uploadFromFile: (file: File) => Promise<PluginResult<InstallFromZipResult>>
-  uploadFromDirectory: (directoryPath: string) => Promise<PluginResult<InstallFromZipResult>>
+  uploadFromPath: (zipFilePath: string) => Promise<PluginResult<InstallFromSourceResult>>
+  uploadFromFile: (file: File) => Promise<PluginResult<InstallFromSourceResult>>
+  uploadFromDirectory: (directoryPath: string) => Promise<PluginResult<InstallFromSourceResult>>
 }
 
 export function usePluginInstall(options: UsePluginInstallOptions): UsePluginInstallResult {
@@ -27,10 +27,10 @@ export function usePluginInstall(options: UsePluginInstallOptions): UsePluginIns
    */
   const executeInstall = useCallback(
     async <TOptions>(
-      installFn: (opts: TOptions) => Promise<PluginResult<InstallFromZipResult>>,
+      installFn: (opts: TOptions) => Promise<PluginResult<InstallFromSourceResult>>,
       installOptions: TOptions,
       operationName: string
-    ): Promise<PluginResult<InstallFromZipResult>> => {
+    ): Promise<PluginResult<InstallFromSourceResult>> => {
       setUploading(true)
       try {
         const result = await installFn(installOptions)
@@ -74,7 +74,7 @@ export function usePluginInstall(options: UsePluginInstallOptions): UsePluginIns
   )
 
   const uploadFromFile = useCallback(
-    async (file: File): Promise<PluginResult<InstallFromZipResult>> => {
+    async (file: File): Promise<PluginResult<InstallFromSourceResult>> => {
       const filePath = window.api.file.getPathForFile(file)
       if (!filePath) {
         const error = 'Failed to get file path'

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isPathInside, writeWithLock } from '@main/utils/file'
+import { directoryExists, fileExists, isPathInside, pathExists, writeWithLock } from '@main/utils/file'
 import {
   findAllSkillDirectories,
   findSkillMdPath,
@@ -207,7 +207,7 @@ export class PluginCacheStore {
     const claudePath = this.deps.getClaudeBasePath(workdir)
     const pluginsPath = path.join(claudePath, 'plugins')
 
-    if (!(await this.directoryExists(pluginsPath))) {
+    if (!(await directoryExists(pluginsPath))) {
       return
     }
 
@@ -221,7 +221,7 @@ export class PluginCacheStore {
       const pluginDir = path.join(pluginsPath, entry.name)
       const manifestPath = path.join(pluginDir, '.claude-plugin', 'plugin.json')
 
-      if (!(await this.fileExists(manifestPath))) {
+      if (!(await fileExists(manifestPath))) {
         logger.debug('Plugin manifest not found while rebuilding cache', { pluginDir })
         continue
       }
@@ -260,7 +260,7 @@ export class PluginCacheStore {
     const scannedPaths = new Set<string>()
 
     const defaultPath = path.join(pluginDir, defaultSubDir)
-    if (await this.directoryExists(defaultPath)) {
+    if (await directoryExists(defaultPath)) {
       scannedPaths.add(defaultPath)
       await this.scanAndCollectComponents(defaultPath, type, plugins, packageInfo)
     }
@@ -277,7 +277,7 @@ export class PluginCacheStore {
           continue
         }
 
-        if (!scannedPaths.has(fullPath) && (await this.pathExists(fullPath))) {
+        if (!scannedPaths.has(fullPath) && (await pathExists(fullPath))) {
           scannedPaths.add(fullPath)
           await this.scanAndCollectComponents(fullPath, type, plugins, packageInfo)
         }
@@ -341,33 +341,6 @@ export class PluginCacheStore {
         dirPath,
         error: error instanceof Error ? error.message : String(error)
       })
-    }
-  }
-
-  private async directoryExists(dirPath: string): Promise<boolean> {
-    try {
-      const stats = await fs.promises.stat(dirPath)
-      return stats.isDirectory()
-    } catch {
-      return false
-    }
-  }
-
-  private async pathExists(targetPath: string): Promise<boolean> {
-    try {
-      await fs.promises.access(targetPath, fs.constants.R_OK)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  private async fileExists(filePath: string): Promise<boolean> {
-    try {
-      const stats = await fs.promises.stat(filePath)
-      return stats.isFile()
-    } catch {
-      return false
     }
   }
 

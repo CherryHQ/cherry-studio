@@ -49,8 +49,8 @@ import type { CreateDirectoryOptions } from 'webdav'
 import type {
   InstalledPlugin,
   InstallFromDirectoryOptions,
+  InstallFromSourceResult,
   InstallFromZipOptions,
-  InstallFromZipResult,
   InstallPluginOptions,
   PluginMetadata,
   PluginResult,
@@ -608,9 +608,9 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
     writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options),
-    installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromZipResult>> =>
+    installFromZip: (options: InstallFromZipOptions): Promise<PluginResult<InstallFromSourceResult>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromZip, options),
-    installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromZipResult>> =>
+    installFromDirectory: (options: InstallFromDirectoryOptions): Promise<PluginResult<InstallFromSourceResult>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, options)
   },
   localTransfer: {
