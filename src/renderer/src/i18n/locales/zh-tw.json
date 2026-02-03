@@ -2506,6 +2506,11 @@
       "stopped": "已停止"
     },
     "title": "OpenClaw",
+    "uninstall_progress": "[to be translated]:Uninstall Progress",
+    "uninstalled": {
+      "description": "[to be translated]:OpenClaw has been successfully uninstalled.",
+      "title": "[to be translated]:Uninstall Complete"
+    },
     "uninstalling": {
       "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
       "title": "[to be translated]:Uninstalling OpenClaw"
