@@ -24,11 +24,11 @@ import MiniAppIconsManager from './MiniAppIconsManager'
 // 默认小程序缓存数量
 const DEFAULT_MAX_KEEPALIVE = 3
 
-// 地区选择器组件
+// Region selector component with defensive default value
 const RegionSelector: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion)
+  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion) ?? 'auto'
 
   const onMinAppRegionChange = (value: MinAppRegionFilter) => {
     dispatch(setMinAppRegion(value))
