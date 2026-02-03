@@ -253,49 +253,42 @@ class AgentMessageRepository extends BaseService {
           if (parsed?.message?.id !== messageId) continue
 
           const blockIdsToRemove = new Set(blockIds)
-          let modified = false
+          const foundBlockIds = new Set<string>()
 
-          // Remove blockIds from message.blocks array
-          const originalBlockIdsCount = parsed.message.blocks?.length ?? 0
+          // Remove blockIds from message.blocks array and track found IDs
           if (parsed.message.blocks) {
-            parsed.message.blocks = parsed.message.blocks.filter((id) => !blockIdsToRemove.has(id))
-            if (parsed.message.blocks.length !== originalBlockIdsCount) {
-              modified = true
-            }
-          }
-
-          // Remove actual block data from blocks array
-          const originalBlocksCount = parsed.blocks?.length ?? 0
-          if (parsed.blocks) {
-            const removedBlockIds = new Set<string>()
-            parsed.blocks = parsed.blocks.filter((block) => {
-              if (blockIdsToRemove.has(block.id)) {
-                removedBlockIds.add(block.id)
+            const originalLength = parsed.message.blocks.length
+            parsed.message.blocks = parsed.message.blocks.filter((id) => {
+              if (blockIdsToRemove.has(id)) {
+                foundBlockIds.add(id)
                 return false
               }
               return true
             })
-            if (parsed.blocks.length !== originalBlocksCount) {
-              modified = true
-              result.removedCount = removedBlockIds.size
+            if (parsed.message.blocks.length !== originalLength) {
+              // Some blocks were removed from message.blocks
             }
           }
 
-          // Track blocks that weren't found
-          for (const blockId of blockIds) {
-            const wasInBlockIds = originalBlockIdsCount !== (parsed.message.blocks?.length ?? 0)
-            const wasInBlocks = result.removedCount > 0
-            if (!wasInBlockIds && !wasInBlocks) {
-              // Check if this specific block was found
-              const foundInMessage = parsed.message.blocks?.includes(blockId) === false
-              const foundInBlocks = parsed.blocks?.some((b) => b.id === blockId) === false
-              if (!foundInMessage && !foundInBlocks) {
-                result.failedIds.push(blockId)
+          // Remove actual block data from blocks array and track found IDs
+          if (parsed.blocks) {
+            const originalLength = parsed.blocks.length
+            parsed.blocks = parsed.blocks.filter((block) => {
+              if (blockIdsToRemove.has(block.id)) {
+                foundBlockIds.add(block.id)
+                return false
               }
+              return true
+            })
+            if (parsed.blocks.length !== originalLength) {
+              // Some blocks were removed from blocks array
             }
           }
 
-          if (!modified) {
+          result.removedCount = foundBlockIds.size
+          result.failedIds = blockIds.filter((id) => !foundBlockIds.has(id))
+
+          if (foundBlockIds.size === 0) {
             logger.warn(`No blocks found to remove from message ${messageId}`, { blockIds })
             result.failedIds = blockIds
             return result
