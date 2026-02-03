@@ -1733,26 +1733,22 @@ export const removeBlocksThunk =
       // 2. Update database - different path for agent sessions
       if (isAgentSessionTopicId(topicId)) {
         const sessionId = extractAgentSessionIdFromTopicId(topicId)
-        const failedBlockIds: string[] = []
 
-        for (const blockId of blockIdsToRemove) {
-          try {
-            await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlock, {
-              sessionId,
-              messageId,
-              blockId
-            })
-          } catch (ipcError) {
-            logger.error(`[removeBlocksFromMessageThunk] Failed to remove block ${blockId} via IPC:`, ipcError as Error)
-            failedBlockIds.push(blockId)
+        try {
+          const result = await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlocks, {
+            sessionId,
+            messageId,
+            blockIds: blockIdsToRemove
+          })
+
+          if (result.failedIds?.length > 0) {
+            logger.warn(
+              `[removeBlocksFromMessageThunk] ${result.failedIds.length} of ${blockIdsToRemove.length} blocks failed to remove:`,
+              result.failedIds
+            )
           }
-        }
-
-        if (failedBlockIds.length > 0) {
-          logger.warn(
-            `[removeBlocksFromMessageThunk] ${failedBlockIds.length} of ${blockIdsToRemove.length} blocks failed to remove:`,
-            failedBlockIds
-          )
+        } catch (ipcError) {
+          logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks via IPC:`, ipcError as Error)
         }
       } else {
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
