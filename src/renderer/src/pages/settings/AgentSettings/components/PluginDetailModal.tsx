@@ -35,13 +35,21 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
   const [editedContent, setEditedContent] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
-  // Fetch plugin content when modal opens or plugin changes
+  // Fetch plugin content when modal opens or plugin changes (only for installed plugins)
   useEffect(() => {
     if (!isOpen || !plugin) {
       setContent('')
       setContentError(null)
       setIsEditing(false)
       setEditedContent('')
+      return
+    }
+
+    // Only fetch content for installed plugins (not marketplace plugins)
+    if (!installed) {
+      setContent('')
+      setContentError(null)
+      setContentLoading(false)
       return
     }
 
@@ -62,7 +70,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
         } else {
           setContentError(`Failed to load content: ${result.error.type}`)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         setContentError(`Error loading content: ${error instanceof Error ? error.message : String(error)}`)
       } finally {
         setContentLoading(false)
@@ -70,7 +78,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
     }
 
     fetchContent()
-  }, [isOpen, plugin])
+  }, [isOpen, plugin, installed])
 
   const handleEdit = () => {
     setEditedContent(content)
@@ -251,61 +259,63 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Content */}
-        <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-semibold text-small">{t('plugins.detail.content')}</h3>
-            {installed && !contentLoading && !contentError && (
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
-                    <Button
-                      danger
-                      variant="filled"
-                      icon={<X className="h-3 w-3" />}
-                      iconPosition="start"
-                      onClick={handleCancelEdit}
-                      disabled={saving}>
-                      {t('common.cancel')}
+        {/* Content - only shown for installed plugins */}
+        {installed && (
+          <div className="mb-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-semibold text-small">{t('plugins.detail.content')}</h3>
+              {!contentLoading && !contentError && (
+                <div className="flex gap-2">
+                  {isEditing ? (
+                    <>
+                      <Button
+                        danger
+                        variant="filled"
+                        icon={<X className="h-3 w-3" />}
+                        iconPosition="start"
+                        onClick={handleCancelEdit}
+                        disabled={saving}>
+                        {t('common.cancel')}
+                      </Button>
+                      <Button
+                        color="primary"
+                        variant="filled"
+                        icon={saving ? <Spin size="small" /> : <Save className="h-3 w-3" />}
+                        onClick={handleSave}
+                        disabled={saving}>
+                        {t('common.save')}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="filled" icon={<Edit className="h-3 w-3" />} onClick={handleEdit}>
+                      {t('common.edit')}
                     </Button>
-                    <Button
-                      color="primary"
-                      variant="filled"
-                      icon={saving ? <Spin size="small" /> : <Save className="h-3 w-3" />}
-                      onClick={handleSave}
-                      disabled={saving}>
-                      {t('common.save')}
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="filled" icon={<Edit className="h-3 w-3" />} onClick={handleEdit}>
-                    {t('common.edit')}
-                  </Button>
-                )}
+                  )}
+                </div>
+              )}
+            </div>
+            {contentLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Spin size="small" />
               </div>
+            ) : contentError ? (
+              <div className="rounded-md bg-danger-50 p-3 text-danger text-small">{contentError}</div>
+            ) : isEditing ? (
+              <Input.TextArea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                autoSize={{ minRows: 20 }}
+                classNames={{
+                  textarea: 'font-mono text-tiny'
+                }}
+              />
+            ) : (
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-default-100 p-3 font-mono text-tiny">
+                {content}
+              </pre>
             )}
           </div>
-          {contentLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Spin size="small" />
-            </div>
-          ) : contentError ? (
-            <div className="rounded-md bg-danger-50 p-3 text-danger text-small">{contentError}</div>
-          ) : isEditing ? (
-            <Input.TextArea
-              value={editedContent}
-              onChange={(e) => setEditedContent(e.target.value)}
-              autoSize={{ minRows: 20 }}
-              classNames={{
-                textarea: 'font-mono text-tiny'
-              }}
-            />
-          ) : (
-            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-default-100 p-3 font-mono text-tiny">
-              {content}
-            </pre>
-          )}
-        </div>
+        )}
       </div>
     </Modal>
   )
