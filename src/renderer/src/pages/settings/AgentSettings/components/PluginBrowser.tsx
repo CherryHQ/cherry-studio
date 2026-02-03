@@ -2,12 +2,13 @@ import { RefreshIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import DynamicVirtualList from '@renderer/components/VirtualList/dynamic'
 import { type MarketplaceEntry, useMarketplaceBrowser } from '@renderer/hooks/useMarketplaceBrowser'
+import { useTimer } from '@renderer/hooks/useTimer'
 import type { MarketplaceSort } from '@renderer/services/MarketplaceService'
 import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
 import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs, Tooltip } from 'antd'
 import { AlertCircle, Search } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PluginCard } from './PluginCard'
@@ -42,6 +43,7 @@ type PluginRow = {
 
 export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugins, onInstall, onUninstall, kind }) => {
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [internalActiveType, setInternalActiveType] = useState<PluginFilterType>('plugin')
@@ -55,13 +57,20 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery.trim())
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+  // Debounce search query
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value)
+      setTimeoutTimer(
+        'search-debounce',
+        () => {
+          setDebouncedSearchQuery(value.trim())
+        },
+        300
+      )
+    },
+    [setTimeoutTimer]
+  )
 
   const normalizedQuery = debouncedSearchQuery.trim()
 
@@ -181,11 +190,6 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
     } finally {
       setActioningPlugin(null)
     }
-  }
-
-  // Reset display count when filters change
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value)
   }
 
   const handleTypeChange = (type: string | number) => {
