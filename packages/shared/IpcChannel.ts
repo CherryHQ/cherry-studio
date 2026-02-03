@@ -101,7 +101,6 @@ export enum IpcChannel {
   // agent messages
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
   AgentMessage_GetHistory = 'agent-message:get-history',
-  AgentMessage_RemoveBlock = 'agent-message:remove-block',
   AgentMessage_RemoveBlocks = 'agent-message:remove-blocks',
 
   AgentToolPermission_Request = 'agent-tool-permission:request',
