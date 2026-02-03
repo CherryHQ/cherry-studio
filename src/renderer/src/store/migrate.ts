@@ -2354,9 +2354,7 @@ const migrateConfig = {
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
         openai_image_edit: state?.paintings?.openai_image_edit || [],
-        ovms_paintings: [],
-        ppio_draw: [],
-        ppio_edit: []
+        ovms_paintings: []
       }
 
       return state
@@ -3191,7 +3189,21 @@ const migrateConfig = {
       logger.error('migrate 194 error', error as Error)
       return state
     }
-  }
+  },
+  '195': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.ppio_draw) {
+        state.paintings.ppio_draw = []
+      }
+      if (state.paintings && !state.paintings.ppio_edit) {
+        state.paintings.ppio_edit = []
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 140 error', error as Error)
+      return state
+    }
+  },
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
