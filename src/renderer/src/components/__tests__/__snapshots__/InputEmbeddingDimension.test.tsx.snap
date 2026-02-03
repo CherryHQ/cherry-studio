@@ -17,7 +17,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
     data-title="自动设置维度"
   >
     <button
-      aria-label="Get embedding dimension"
+      aria-label="Get Embedding Dimension"
       role="button"
       type="button"
     >
@@ -52,7 +52,7 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
     data-title="自动设置维度"
   >
     <button
-      aria-label="Get embedding dimension"
+      aria-label="Get Embedding Dimension"
       disabled=""
       role="button"
       type="button"

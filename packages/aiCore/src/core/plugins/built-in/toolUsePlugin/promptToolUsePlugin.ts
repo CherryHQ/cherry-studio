@@ -314,6 +314,16 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         context.mcpTools = promptTools
       }
 
+      // 递归调用时，不重新构建 system prompt，避免重复追加工具定义
+      if (context.isRecursiveCall) {
+        const transformedParams = {
+          ...params,
+          tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
+        }
+        context.originalParams = transformedParams
+        return transformedParams
+      }
+
       // 构建系统提示符（只包含非 provider-defined 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
       const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools, mcpMode)

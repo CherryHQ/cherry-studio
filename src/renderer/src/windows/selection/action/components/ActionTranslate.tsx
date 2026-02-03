@@ -15,12 +15,12 @@ import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { Tooltip } from 'antd'
-import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
+import { Dropdown, Tooltip } from 'antd'
+import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { createGlobalStyle } from 'styled-components'
 
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
@@ -47,12 +47,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   })
 
   const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
+  const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
 
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
   const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
   const [contentToCopy, setContentToCopy] = useState('')
   const [initialized, setInitialized] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Use useRef for values that shouldn't trigger re-renders
   const assistantRef = useRef<Assistant | null>(null)
@@ -156,6 +159,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
+    // Set detected language for UI display
+    const detectedLang = getLanguageByLangcode(sourceLanguageCode)
+    setDetectedLanguage(detectedLang)
+
     let translateLang: TranslateLanguage
 
     if (sourceLanguageCode === UNKNOWN.langCode) {
@@ -170,11 +177,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       }
     }
 
+    // Set actual target language for UI display
+    setActualTargetLanguage(translateLang)
+
     const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
     logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized])
+  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized, getLanguageByLangcode])
 
   useEffect(() => {
     fetchResult()
@@ -213,16 +223,88 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const isPreparing = status === 'preparing'
   const isStreaming = status === 'streaming'
 
-  const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
-    if (!initialized) {
-      return
-    }
-    setTargetLanguage(targetLanguage)
-    targetLangRef.current = targetLanguage
-    setAlterLanguage(alterLanguage)
+  const handleChangeLanguage = useCallback(
+    (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {
+      if (!initialized) {
+        return
+      }
+      setTargetLanguage(newTargetLanguage)
+      targetLangRef.current = newTargetLanguage
+      setAlterLanguage(newAlterLanguage)
 
-    db.settings.put({ id: 'translate:bidirectional:pair', value: [targetLanguage.langCode, alterLanguage.langCode] })
-  }
+      db.settings.put({
+        id: 'translate:bidirectional:pair',
+        value: [newTargetLanguage.langCode, newAlterLanguage.langCode]
+      })
+    },
+    [initialized]
+  )
+
+  // Handle direct target language change from the main dropdown
+  const handleDirectTargetChange = useCallback(
+    (langCode: TranslateLanguageCode) => {
+      if (!initialized) return
+      const newLang = getLanguageByLangcode(langCode)
+      setActualTargetLanguage(newLang)
+
+      // Update settings: if new target equals current target, keep as is
+      // Otherwise, swap if needed or just update target
+      if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
+        // New language is different from both, update target
+        setTargetLanguage(newLang)
+        targetLangRef.current = newLang
+        db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
+      }
+    },
+    [initialized, getLanguageByLangcode, targetLanguage.langCode, alterLanguage.langCode]
+  )
+
+  // Settings dropdown menu items
+  const settingsMenuItems = useMemo(
+    () => [
+      {
+        key: 'preferred',
+        label: (
+          <SettingsMenuItem>
+            <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
+            <LanguageSelect
+              value={targetLanguage.langCode}
+              style={{ width: '100%' }}
+              listHeight={160}
+              size="small"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(value) => {
+                handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)
+                setSettingsOpen(false)
+              }}
+              disabled={isStreaming}
+            />
+          </SettingsMenuItem>
+        )
+      },
+      {
+        key: 'alter',
+        label: (
+          <SettingsMenuItem>
+            <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
+            <LanguageSelect
+              value={alterLanguage.langCode}
+              style={{ width: '100%' }}
+              listHeight={160}
+              size="small"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(value) => {
+                handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))
+                setSettingsOpen(false)
+              }}
+              disabled={isStreaming}
+            />
+          </SettingsMenuItem>
+        )
+      }
+    ],
+    [t, targetLanguage, alterLanguage, isStreaming, getLanguageByLangcode, handleChangeLanguage]
+  )
 
   const handlePause = () => {
     // FIXME: It doesn't work because abort signal is not set.
@@ -242,39 +324,58 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
+      <SettingsDropdownStyles />
       <Container>
         <MenuContainer>
-          <Tooltip placement="bottom" title={t('translate.any.language')} arrow>
-            <Globe size={16} style={{ flexShrink: 0 }} />
-          </Tooltip>
-          <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.target_language')} arrow>
+          <LeftGroup>
+            {/* Detected language display (read-only) */}
+            <DetectedLanguageTag>
+              {isPreparing ? (
+                <span>{t('translate.detecting')}</span>
+              ) : (
+                <>
+                  <span style={{ marginRight: 4 }}>{detectedLanguage?.emoji || '🌐'}</span>
+                  <span>{detectedLanguage?.label() || t('translate.detected_source')}</span>
+                </>
+              )}
+            </DetectedLanguageTag>
+
+            <ArrowRight size={16} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
+
+            {/* Target language selector */}
             <LanguageSelect
-              value={targetLanguage.langCode}
-              style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
+              value={actualTargetLanguage.langCode}
+              style={{ minWidth: 100, maxWidth: 160 }}
               listHeight={160}
-              title={t('translate.target_language')}
+              size="small"
               optionFilterProp="label"
-              onChange={(value) => handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)}
+              onChange={handleDirectTargetChange}
               disabled={isStreaming}
             />
-          </Tooltip>
-          <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.alter_language')} arrow>
-            <LanguageSelect
-              value={alterLanguage.langCode}
-              style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
-              listHeight={160}
-              title={t('translate.alter_language')}
-              optionFilterProp="label"
-              onChange={(value) => handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))}
-              disabled={isStreaming}
-            />
-          </Tooltip>
-          <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
-            <QuestionIcon size={14} style={{ marginLeft: 4 }} />
-          </Tooltip>
-          <Spacer />
+
+            {/* Settings dropdown */}
+            <Dropdown
+              menu={{
+                items: settingsMenuItems,
+                selectable: false,
+                className: 'settings-dropdown-menu'
+              }}
+              trigger={['click']}
+              placement="bottomRight"
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}>
+              <Tooltip title={t('translate.language_settings')} placement="bottom">
+                <SettingsButton>
+                  <Settings2 size={14} />
+                </SettingsButton>
+              </Tooltip>
+            </Dropdown>
+
+            <Tooltip title={t('selection.action.translate.smart_translate_tips')} placement="bottom">
+              <HelpIcon size={14} />
+            </Tooltip>
+          </LeftGroup>
+
           <OriginalHeader onClick={() => setShowOriginal(!showOriginal)}>
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
@@ -390,12 +491,72 @@ const ErrorMsg = styled.div`
   word-break: break-all;
 `
 
-const Spacer = styled.div`
-  flex-grow: 0.5;
+const LeftGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 1;
+  min-width: 0;
 `
-const QuestionIcon = styled(CircleHelp)`
+
+const DetectedLanguageTag = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: var(--color-background-soft);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+`
+
+const SettingsButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   cursor: pointer;
   color: var(--color-text-3);
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    color: var(--color-text);
+  }
+`
+
+const SettingsMenuItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+  min-width: 180px;
+  cursor: default;
+`
+
+const SettingsLabel = styled.span`
+  font-size: 12px;
+  color: var(--color-text-secondary);
+`
+
+const HelpIcon = styled(CircleHelp)`
+  cursor: pointer;
+  color: var(--color-text-3);
+  flex-shrink: 0;
+`
+
+const SettingsDropdownStyles = createGlobalStyle`
+  .settings-dropdown-menu {
+    .ant-dropdown-menu-item {
+      cursor: default !important;
+      &:hover {
+        background-color: transparent !important;
+      }
+    }
+  }
 `
 
 export default ActionTranslate
