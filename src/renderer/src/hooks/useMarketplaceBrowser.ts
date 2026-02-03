@@ -67,8 +67,42 @@ const mapPluginToEntry = (item: MarketplacePlugin): MarketplaceEntry => {
 
 const mapSkillToEntry = (item: MarketplaceSkill): MarketplaceEntry => {
   const baseId = sanitizeIdentifier(item.name)
-  const sourceKey = item.namespace ? `${item.namespace}/${item.name}` : item.name
+  // Use metadata.repoOwner/repoName for the install API endpoint
+  // API expects: /api/skills/{owner}/{repo}/{skillName}
+  const repoOwner = item.metadata?.repoOwner
+  const repoName = item.metadata?.repoName
+
+  // Build sourceKey: needs format "owner/repo/skillName"
+  let sourceKey: string
+  if (repoOwner && repoName) {
+    // Best case: explicit owner/repo from metadata
+    sourceKey = `${repoOwner}/${repoName}/${item.name}`
+  } else if (item.namespace) {
+    // Parse namespace - it might be "@owner/repo" or "owner/repo" or "@owner/repo/skillName"
+    const cleanNamespace = item.namespace.replace(/^@/, '') // Remove leading @
+    const nsParts = cleanNamespace.split('/').filter(Boolean)
+    if (nsParts.length >= 2) {
+      // namespace contains owner/repo (possibly with skill name)
+      const [nsOwner, nsRepo] = nsParts
+      sourceKey = `${nsOwner}/${nsRepo}/${item.name}`
+    } else {
+      // namespace is just a single identifier
+      sourceKey = `${cleanNamespace}/${item.name}`
+    }
+  } else {
+    sourceKey = item.name
+  }
+
   const sourcePath = `marketplace:skill:${sourceKey}`
+  // Debug logging for skill source path construction
+  logger.debug('mapSkillToEntry', {
+    name: item.name,
+    namespace: item.namespace,
+    repoOwner,
+    repoName,
+    sourceKey,
+    sourcePath
+  })
   const version = item.version ?? undefined
 
   return {

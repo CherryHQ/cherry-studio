@@ -238,18 +238,40 @@ export class PluginService {
     identifier: MarketplaceIdentifier,
     context: InstallContext
   ): Promise<PluginMetadata> {
-    const resolveUrl = `${MARKETPLACE_API_BASE_URL}/api/skills/${identifier.owner}/${identifier.repository}/${identifier.name}`
-    const payload = await this.requestMarketplaceJson(resolveUrl)
-    const sourceUrl = this.extractSkillSourceUrl(payload)
-    const directoryPath = this.extractSkillDirectoryPath(payload)
+    // Use v2 resolve API endpoint
+    const resolveUrl = `${MARKETPLACE_API_BASE_URL}/api/v2/skills/resolve`
+    const target = `${identifier.owner}/${identifier.repository}/${identifier.name}`
+    logger.info('Installing marketplace skill', {
+      identifier,
+      resolveUrl,
+      target
+    })
 
-    if (!sourceUrl) {
+    const payload = await this.resolveSkillV2(resolveUrl, target)
+    const resolvedSkill = this.extractResolvedSkill(payload, identifier.name)
+
+    if (!resolvedSkill) {
+      throw {
+        type: 'INVALID_METADATA',
+        reason: 'Marketplace skill not found in resolve response',
+        path: target
+      } as PluginError
+    }
+
+    const rawSourceUrl = resolvedSkill.sourceUrl
+    const directoryPath = resolvedSkill.relDir
+
+    if (!rawSourceUrl) {
       throw {
         type: 'INVALID_METADATA',
         reason: 'Marketplace skill response missing source URL',
-        path: resolveUrl
+        path: target
       } as PluginError
     }
+
+    // Extract base repo URL from tree URL (e.g., https://github.com/owner/repo/tree/main/path -> https://github.com/owner/repo)
+    const sourceUrl = this.extractBaseRepoUrl(rawSourceUrl)
+    logger.debug('Extracted base repo URL', { rawSourceUrl, sourceUrl, directoryPath })
 
     const tempDir = await this.createMarketplaceTempDir(identifier)
 
@@ -320,20 +342,71 @@ export class PluginService {
     return typeof url === 'string' && url.length > 0 ? url : null
   }
 
-  private extractSkillSourceUrl(payload: unknown): string | null {
-    if (!payload || typeof payload !== 'object') return null
-    const record = payload as Record<string, unknown>
-    const sourceUrl = record.sourceUrl ?? record.source_url
-    return typeof sourceUrl === 'string' && sourceUrl.length > 0 ? sourceUrl : null
+  /**
+   * Resolve skill using the v2 API endpoint
+   * POST /api/v2/skills/resolve with body { target, limit, offset }
+   */
+  private async resolveSkillV2(
+    url: string,
+    target: string
+  ): Promise<{ skills: Array<{ namespace: string; name: string; relDir: string; sourceUrl: string }> }> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'CherryStudio'
+      },
+      body: JSON.stringify({
+        target,
+        limit: 10,
+        offset: 0
+      })
+    })
+
+    if (!response.ok) {
+      throw {
+        type: 'TRANSACTION_FAILED',
+        operation: 'marketplace-fetch',
+        reason: `HTTP ${response.status}: ${response.statusText}`
+      } as PluginError
+    }
+
+    return response.json()
   }
 
-  private extractSkillDirectoryPath(payload: unknown): string | null {
-    if (!payload || typeof payload !== 'object') return null
-    const record = payload as Record<string, unknown>
-    const metadata = record.metadata
-    if (!metadata || typeof metadata !== 'object') return null
-    const directoryPath = (metadata as Record<string, unknown>).directoryPath
-    return typeof directoryPath === 'string' && directoryPath.length > 0 ? directoryPath : null
+  /**
+   * Extract the resolved skill from the v2 API response
+   */
+  private extractResolvedSkill(
+    payload: { skills: Array<{ namespace: string; name: string; relDir: string; sourceUrl: string }> },
+    skillName: string
+  ): { namespace: string; name: string; relDir: string; sourceUrl: string } | null {
+    if (!payload?.skills || !Array.isArray(payload.skills)) return null
+
+    // Find the skill by name (case-insensitive)
+    const skill = payload.skills.find((s) => s.name.toLowerCase() === skillName.toLowerCase())
+    return skill ?? payload.skills[0] ?? null
+  }
+
+  /**
+   * Extract base repository URL from a GitHub tree URL
+   * e.g., https://github.com/owner/repo/tree/main/path -> https://github.com/owner/repo
+   */
+  private extractBaseRepoUrl(url: string): string {
+    // Match GitHub tree URLs: https://github.com/owner/repo/tree/branch/path
+    const treeMatch = url.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/tree\//)
+    if (treeMatch) {
+      return treeMatch[1]
+    }
+
+    // Match GitHub blob URLs: https://github.com/owner/repo/blob/branch/path
+    const blobMatch = url.match(/^(https:\/\/github\.com\/[^/]+\/[^/]+)\/blob\//)
+    if (blobMatch) {
+      return blobMatch[1]
+    }
+
+    // Already a base URL or other format, return as-is
+    return url
   }
 
   private async resolveSkillDirectory(

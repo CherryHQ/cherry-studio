@@ -1,9 +1,8 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledPlugins, usePluginActions } from '@renderer/hooks/usePlugins'
 import type { GetAgentResponse, GetAgentSessionResponse, UpdateAgentFunctionUnion } from '@renderer/types/agent'
-import { Card, Segmented } from 'antd'
+import { Card } from 'antd'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,32 +15,73 @@ interface PluginSettingsProps {
   update: UpdateAgentFunctionUnion
 }
 
-const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
+/**
+ * Plugin Browser Settings - shows the marketplace browser for plugins and skills
+ */
+export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<string>('available')
 
-  // Fetch installed plugins
-  const { plugins, loading: loadingInstalled, error: errorInstalled, refresh } = useInstalledPlugins(agentBase.id)
+  // Fetch installed plugins for checking installation status
+  const { plugins, refresh } = useInstalledPlugins(agentBase.id)
 
   // Plugin actions
-  const { install, uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage } = usePluginActions(
-    agentBase.id,
-    refresh
-  )
+  const { install, uninstall } = usePluginActions(agentBase.id, refresh)
 
-  // Handle install action - switch to installed tab on success
+  // Handle install action
   const handleInstall = useCallback(
     async (sourcePath: string, type: 'agent' | 'command' | 'skill') => {
       const result = await install(sourcePath, type)
 
       if (result.success) {
         window.toast.success(t('agent.settings.plugins.success.install'))
-        setActiveTab('installed')
       } else {
         window.toast.error(t('agent.settings.plugins.error.install') + (result.error ? ': ' + result.error : ''))
       }
     },
     [install, t]
+  )
+
+  // Handle uninstall action
+  const handleUninstall = useCallback(
+    async (filename: string, type: 'agent' | 'command' | 'skill') => {
+      const result = await uninstall(filename, type)
+
+      if (result.success) {
+        window.toast.success(t('agent.settings.plugins.success.uninstall'))
+      } else {
+        window.toast.error(t('agent.settings.plugins.error.uninstall') + (result.error ? ': ' + result.error : ''))
+      }
+    },
+    [uninstall, t]
+  )
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden pt-4 pr-2">
+      <div className="min-h-0 flex-1">
+        <PluginBrowser
+          agentId={agentBase.id}
+          installedPlugins={plugins}
+          onInstall={handleInstall}
+          onUninstall={handleUninstall}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Installed Plugins Settings - shows the list of installed plugins with upload capability
+ */
+export const InstalledPluginsSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
+  const { t } = useTranslation()
+
+  // Fetch installed plugins
+  const { plugins, loading: loadingInstalled, error: errorInstalled, refresh } = useInstalledPlugins(agentBase.id)
+
+  // Plugin actions
+  const { uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage } = usePluginActions(
+    agentBase.id,
+    refresh
   )
 
   // Handle uninstall action
@@ -75,81 +115,26 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
     [uninstallPackage, t]
   )
 
-  const segmentOptions = useMemo(() => {
-    return [
-      {
-        value: 'available',
-        label: t('agent.settings.plugins.available.title')
-      },
-      {
-        value: 'installed',
-        label: t('agent.settings.plugins.install.title')
-      }
-    ]
-  }, [t])
-
-  const renderContent = useMemo(() => {
-    if (activeTab === 'available') {
-      return (
-        <div className="flex h-full flex-col overflow-hidden pt-4 pr-2">
-          <div className="min-h-0 flex-1">
-            <PluginBrowser
-              agentId={agentBase.id}
-              installedPlugins={plugins}
-              onInstall={handleInstall}
-              onUninstall={handleUninstall}
-            />
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden pt-4 pr-2">
-        <PluginUploader agentId={agentBase.id} onUploadSuccess={refresh} disabled={installing} />
-        {errorInstalled ? (
-          <Card className="bg-danger-50 dark:bg-danger-900/20">
-            <p className="text-danger">
-              {t('agent.settings.plugins.error.load')}: {errorInstalled}
-            </p>
-          </Card>
-        ) : (
-          <Scrollbar className="min-h-0 flex-1 pr-1">
-            <InstalledPluginsList
-              plugins={plugins}
-              onUninstall={handleUninstall}
-              onUninstallPackage={handleUninstallPackage}
-              loading={loadingInstalled || uninstalling}
-              uninstallingPackage={uninstallingPackage}
-            />
-          </Scrollbar>
-        )}
-      </div>
-    )
-  }, [
-    activeTab,
-    agentBase.id,
-    errorInstalled,
-    handleInstall,
-    handleUninstall,
-    handleUninstallPackage,
-    installing,
-    loadingInstalled,
-    plugins,
-    refresh,
-    t,
-    uninstalling,
-    uninstallingPackage
-  ])
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex justify-center">
-        <Segmented options={segmentOptions} value={activeTab} onChange={(value) => setActiveTab(value as string)} />
-      </div>
-      {renderContent}
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden pt-4 pr-2">
+      <PluginUploader agentId={agentBase.id} onUploadSuccess={refresh} disabled={installing} />
+      {errorInstalled ? (
+        <Card className="bg-danger-50 dark:bg-danger-900/20">
+          <p className="text-danger">
+            {t('agent.settings.plugins.error.load')}: {errorInstalled}
+          </p>
+        </Card>
+      ) : (
+        <Scrollbar className="min-h-0 flex-1 pr-1">
+          <InstalledPluginsList
+            plugins={plugins}
+            onUninstall={handleUninstall}
+            onUninstallPackage={handleUninstallPackage}
+            loading={loadingInstalled || uninstalling}
+            uninstallingPackage={uninstallingPackage}
+          />
+        </Scrollbar>
+      )}
     </div>
   )
 }
-
-export default PluginSettings

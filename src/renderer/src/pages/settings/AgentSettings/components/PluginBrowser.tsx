@@ -13,14 +13,16 @@ import { useTranslation } from 'react-i18next'
 import { PluginCard } from './PluginCard'
 import { PluginDetailModal } from './PluginDetailModal'
 
+export type PluginFilterType = 'plugin' | 'skill'
+
 export interface PluginBrowserProps {
   agentId: string
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
+  /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
+  kind?: PluginFilterType
 }
-
-type PluginFilterType = 'plugin' | 'skill'
 
 const SORT_OPTIONS: Array<{ key: MarketplaceSort; labelKey: string }> = [
   { key: 'relevance', labelKey: 'plugins.sort.relevance' },
@@ -38,11 +40,15 @@ type PluginRow = {
   entries: MarketplaceEntry[]
 }
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugins, onInstall, onUninstall }) => {
+export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugins, onInstall, onUninstall, kind }) => {
   const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const [activeType, setActiveType] = useState<PluginFilterType>('plugin')
+  const [internalActiveType, setInternalActiveType] = useState<PluginFilterType>('plugin')
+
+  // Use the provided kind prop if available, otherwise use internal state
+  const activeType = kind ?? internalActiveType
+  const showTypeTabs = kind === undefined
   const [sortOption, setSortOption] = useState<MarketplaceSort>('relevance')
   const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
@@ -183,7 +189,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
   }
 
   const handleTypeChange = (type: string | number) => {
-    setActiveType(type as PluginFilterType)
+    setInternalActiveType(type as PluginFilterType)
   }
 
   const handlePluginClick = (plugin: PluginMetadata) => {
@@ -246,6 +252,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
           <AntButton
             variant="outlined"
             size="middle"
+            className="flex aspect-square items-center justify-center"
             icon={<RefreshIcon size={16} className={isLoading ? 'animation-rotate' : ''} />}
             onClick={refetch}
             disabled={isLoading}
@@ -263,17 +270,19 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
         </AntDropdown>
       </div>
 
-      {/* Type Tabs */}
-      <div className="-mb-3 flex w-full justify-center">
-        <AntTabs
-          activeKey={activeType}
-          onChange={handleTypeChange}
-          items={pluginTypeTabItems}
-          className="w-full"
-          size="small"
-          centered
-        />
-      </div>
+      {/* Type Tabs - only shown when kind prop is not provided */}
+      {showTypeTabs && (
+        <div className="-mb-3 flex w-full justify-center">
+          <AntTabs
+            activeKey={activeType}
+            onChange={handleTypeChange}
+            items={pluginTypeTabItems}
+            className="w-full"
+            size="small"
+            centered
+          />
+        </div>
+      )}
 
       {/* Result Count */}
       <div className="flex items-center gap-2">
@@ -339,7 +348,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ agentId, installedPlugin
             }
 
             return (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 pb-4 md:grid-cols-2">
                 {row.entries.map((entry) => {
                   const plugin = entry.metadata
                   const installed = isPluginInstalled(plugin)

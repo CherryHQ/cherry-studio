@@ -19,7 +19,7 @@ export interface PluginCardProps {
 }
 
 const labelMap = {
-  skills: t('plugins.skills'),
+  skill: t('plugins.skills'),
   agent: t('plugins.agents'),
   command: t('plugins.commands')
 }
