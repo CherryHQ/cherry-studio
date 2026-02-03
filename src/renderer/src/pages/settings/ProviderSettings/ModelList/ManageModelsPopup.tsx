@@ -1,6 +1,6 @@
+import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -21,7 +21,7 @@ import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
@@ -226,35 +226,29 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
 
     return (
-      <HStack gap={8}>
+      <RowFlex className="gap-2">
         <Tooltip
-          title={
+          content={
             isAllFilteredInProvider
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
-          }
-          mouseLeaveDelay={0}>
+          }>
           <Button
-            type="default"
-            icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
-            size="large"
-            onClick={(e) => {
-              e.stopPropagation()
+            variant="ghost"
+            size="icon-lg"
+            onClick={() => {
               isAllFilteredInProvider ? onRemoveAll() : onAddAll()
             }}
-            disabled={loadingModels || list.length === 0}
-          />
+            disabled={loadingModels || list.length === 0}>
+            {isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
+          </Button>
         </Tooltip>
-        <Tooltip title={t('settings.models.manage.refetch_list')} mouseLeaveDelay={0}>
-          <Button
-            type="default"
-            icon={<RefreshCcw size={16} />}
-            size="large"
-            onClick={() => loadModels(provider)}
-            disabled={loadingModels}
-          />
+        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
+          <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
+            <RefreshCcw size={16} />
+          </Button>
         </Tooltip>
-      </HStack>
+      </RowFlex>
     )
   }, [list, t, loadingModels, provider, onRemoveAll, onAddAll, loadModels])
 

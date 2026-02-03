@@ -1,9 +1,9 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -26,8 +26,7 @@ interface Props {
 }
 
 const ChatNavbarContent: FC<Props> = ({ assistant }) => {
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent: activeAgent } = useActiveAgent()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)

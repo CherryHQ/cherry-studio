@@ -12,11 +12,11 @@ import type {
   SDKMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
-import { configManager } from '@main/services/ConfigManager'
+import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -36,7 +36,7 @@ const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
 const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+  `IMPORTANT: You MUST use ${getAppLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
 
 type UserInputMessage = {
   type: 'user'
@@ -108,7 +108,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = await apiConfigService.get()
+    const apiConfig = preferenceService.getMultiple({
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    })
     const loginShellEnv = await getLoginShellEnvironment()
     const loginShellEnvWithoutProxies = Object.fromEntries(
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
@@ -129,9 +133,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       // prevent claude agent sdk using bedrock api
       CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,

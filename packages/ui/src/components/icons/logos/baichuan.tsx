@@ -1,0 +1,25 @@
+import type { SVGProps } from 'react'
+const Baichuan = (props: SVGProps<SVGSVGElement>) => (
+  <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M8.58154 1.7793H5.52779L3.34655 6.20409V17.7335L0.916016 22.2206H6.21333L8.58154 17.7335V1.7793ZM10.5761 1.7793H15.8111V22.2206H10.5761V1.7793ZM22.9166 1.7793H17.6816V6.01712H22.9166V1.7793ZM22.9166 7.38818H17.6816V22.2206H22.9166V7.38818Z"
+      fill="url(#baichuan__paint0_radial_1002_325039)"
+    />
+    <defs>
+      <radialGradient
+        id="baichuan__paint0_radial_1002_325039"
+        cx={0}
+        cy={0}
+        r={1}
+        gradientUnits="userSpaceOnUse"
+        gradientTransform="translate(5.5 5.5) rotate(45) scale(20.5061 22.0704)">
+        <stop stopColor="#FEBD3F" />
+        <stop offset={0.77608} stopColor="#FF6933" />
+      </radialGradient>
+    </defs>
+  </svg>
+)
+export { Baichuan }
+export default Baichuan

@@ -1,11 +1,11 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { Button, Input } from 'antd'
+import { Input } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { HStack } from './Layout'
 
 interface NewFolderProps {
   onConfirm: (name: string) => void
@@ -36,10 +36,10 @@ function NewFolder(props: NewFolderProps) {
     <NewFolderContainer>
       <FolderIcon className={props.className}></FolderIcon>
       <Input type="text" style={{ flex: 1 }} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      <Button type="primary" size="small" onClick={() => onConfirm(name)}>
+      <Button color="primary" size="sm" onClick={() => onConfirm(name)}>
         {t('settings.data.nutstore.new_folder.button.confirm')}
       </Button>
-      <Button type="default" size="small" onClick={() => onCancel()}>
+      <Button size="sm" onClick={() => onCancel()}>
         {t('settings.data.nutstore.new_folder.button.cancel')}
       </Button>
     </NewFolderContainer>
@@ -215,7 +215,7 @@ export function NutstorePathSelector(props: Props) {
   )
 }
 
-const FooterContainer = styled(HStack)`
+const FooterContainer = styled(RowFlex)`
   background: transparent;
   margin-top: 12px;
   padding: 0;
@@ -233,21 +233,19 @@ interface FooterProps {
 export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
   return (
-    <FooterContainer justifyContent="space-between">
-      <HStack gap={8} alignItems="center">
+    <FooterContainer className="justify-between">
+      <RowFlex className="items-center gap-2">
         <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
-        <Button size="small" type="link" onClick={props.mkdir}>
+        <Button size="sm" variant="ghost" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
-      </HStack>
-      <HStack gap={8} alignItems="center">
-        <Button type="default" onClick={props.cancel}>
-          {t('settings.data.nutstore.new_folder.button.cancel')}
-        </Button>
-        <Button type="primary" onClick={props.confirm}>
+      </RowFlex>
+      <RowFlex className="items-center gap-2">
+        <Button onClick={props.cancel}>{t('settings.data.nutstore.new_folder.button.cancel')}</Button>
+        <Button color="primary" onClick={props.confirm}>
           {t('backup.confirm.button')}
         </Button>
-      </HStack>
+      </RowFlex>
     </FooterContainer>
   )
 }

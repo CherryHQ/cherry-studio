@@ -1,7 +1,9 @@
 import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
-import { Button, Input, InputNumber, Select, Switch, Upload } from 'antd'
+import { Input, InputNumber, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -76,15 +78,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               handleImageUpload(propertyName, file, onChange)
               return false
             }}>
-            <Button
-              icon={<UploadOutlined />}
-              title={t('common.upload_image')}
-              style={{
-                borderTopLeftRadius: 0,
-                borderBottomLeftRadius: 0,
-                height: '32px'
-              }}
-            />
+            <Button title={t('common.upload_image')} className="h-8 rounded-l-none">
+              <UploadOutlined />
+            </Button>
           </Upload>
         </div>
 
@@ -124,13 +120,13 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               {value.startsWith('data:') ? t('common.uploaded_image') : t('common.image_url')}
             </div>
             <Button
-              size="small"
-              danger
-              icon={<CloseOutlined />}
+              size="sm"
+              variant="destructive"
               onClick={() => onChange(propertyName, '')}
               title={t('common.remove_image')}
-              style={{ flexShrink: 0, minWidth: 'auto', padding: '0 8px' }}
-            />
+              className="min-w-0 shrink-0 px-2">
+              <CloseOutlined />
+            </Button>
           </div>
         )}
       </div>
@@ -181,11 +177,11 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           max={schemaProperty.maximum}
         />
         <Button
-          size="small"
-          icon={<RedoOutlined />}
+          size="sm"
           onClick={() => onChange(propertyName, generateRandomSeed())}
-          title={t('common.generate_random_seed')}
-        />
+          title={t('common.generate_random_seed')}>
+          <RedoOutlined />
+        </Button>
       </div>
     )
   }
@@ -208,7 +204,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
     return (
       <Switch
         checked={value !== undefined ? value : defaultValue}
-        onChange={(checked) => onChange(propertyName, checked)}
+        onCheckedChange={(checked) => onChange(propertyName, checked)}
         style={{ width: '2px' }}
       />
     )

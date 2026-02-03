@@ -9,6 +9,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileType, Model } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import { useNavigate } from '@tanstack/react-router'
 import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
@@ -16,7 +17,6 @@ import { AtSign, CircleX, Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
@@ -194,7 +194,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     items.push({
       label: t('settings.models.add.add_model') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/provider'),
+      action: () => navigate({ to: '/settings/provider' }),
       isSelected: false
     })
 

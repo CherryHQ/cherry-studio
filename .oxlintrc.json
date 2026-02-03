@@ -20,14 +20,15 @@
     "src/main/integration/nutstore/sso/lib/**",
     "src/renderer/src/ui/**",
     "packages/**/dist",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "v2-refactor-temp/**"
   ],
   "overrides": [
     {
       "env": {
         "node": true
       },
-      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts"]
+      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts", "packages/ui/scripts/**"]
     },
     {
       "env": {
@@ -36,7 +37,8 @@
       "files": [
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
-        "packages/extension-table-plus/**"
+        "packages/extension-table-plus/**",
+        "packages/ui/**"
       ]
     },
     {

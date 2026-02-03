@@ -1,8 +1,7 @@
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import type { Provider } from '@renderer/types'
-import { objectKeys } from '@renderer/types'
+import { objectKeys, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils'
 import { withoutTrailingApiVersion } from '@shared/utils'
 
