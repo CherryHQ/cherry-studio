@@ -227,6 +227,45 @@ export type MarketplacePluginEntry = z.infer<typeof MarketplacePluginEntrySchema
 export type MarketplaceMetadata = z.infer<typeof MarketplaceMetadataSchema>
 export type MarketplaceManifest = z.infer<typeof MarketplaceManifestSchema>
 
+// ============================================================================
+// Marketplace API Response Schemas
+// ============================================================================
+
+/**
+ * Schema for plugin resolve API response
+ * Handles various property naming conventions (camelCase, snake_case)
+ */
+export const PluginResolveResponseSchema = z.object({
+  gitUrl: z.string().optional(),
+  git_url: z.string().optional(),
+  url: z.string().optional(),
+  repoUrl: z.string().optional(),
+  repo_url: z.string().optional()
+})
+
+export type PluginResolveResponse = z.infer<typeof PluginResolveResponseSchema>
+
+/**
+ * Schema for a resolved skill from v2 API
+ */
+export const ResolvedSkillSchema = z.object({
+  namespace: z.string(),
+  name: z.string(),
+  relDir: z.string(),
+  sourceUrl: z.string()
+})
+
+export type ResolvedSkill = z.infer<typeof ResolvedSkillSchema>
+
+/**
+ * Schema for v2 skills resolve API response
+ */
+export const SkillsResolveResponseSchema = z.object({
+  skills: z.array(ResolvedSkillSchema)
+})
+
+export type SkillsResolveResponse = z.infer<typeof SkillsResolveResponseSchema>
+
 // IPC Channel Constants
 export const CLAUDE_CODE_PLUGIN_IPC_CHANNELS = {
   LIST_AVAILABLE: 'claudeCodePlugin:list-available',

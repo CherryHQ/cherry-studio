@@ -1,3 +1,4 @@
+import { type ResolvedSkill } from '@types'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -23,20 +24,13 @@ function extractBaseRepoUrl(url: string): string {
   return url
 }
 
-// extractResolvedSkill implementation
-interface ResolvedSkill {
-  namespace: string
-  name: string
-  relDir: string
-  sourceUrl: string
-}
-
-function extractResolvedSkill(payload: { skills: ResolvedSkill[] }, skillName: string): ResolvedSkill | null {
-  if (!payload?.skills || !Array.isArray(payload.skills)) return null
+// extractResolvedSkill implementation (matches PluginService signature)
+function extractResolvedSkill(skills: ResolvedSkill[], skillName: string): ResolvedSkill | null {
+  if (!skills || skills.length === 0) return null
 
   // Find the skill by name (case-insensitive)
-  const skill = payload.skills.find((s) => s.name.toLowerCase() === skillName.toLowerCase())
-  return skill ?? payload.skills[0] ?? null
+  const skill = skills.find((s) => s.name.toLowerCase() === skillName.toLowerCase())
+  return skill ?? skills[0] ?? null
 }
 
 describe('PluginService', () => {
@@ -99,49 +93,37 @@ describe('PluginService', () => {
     ]
 
     it('should find skill by exact name match', () => {
-      const payload = { skills: mockSkills }
-      const result = extractResolvedSkill(payload, 'skill-writer')
+      const result = extractResolvedSkill(mockSkills, 'skill-writer')
       expect(result).toEqual(mockSkills[0])
     })
 
     it('should find skill by name case-insensitively', () => {
-      const payload = { skills: mockSkills }
-      const result = extractResolvedSkill(payload, 'SKILL-WRITER')
+      const result = extractResolvedSkill(mockSkills, 'SKILL-WRITER')
       expect(result).toEqual(mockSkills[0])
     })
 
     it('should find skill by name with mixed case', () => {
-      const payload = { skills: mockSkills }
-      const result = extractResolvedSkill(payload, 'Code-Reviewer')
+      const result = extractResolvedSkill(mockSkills, 'Code-Reviewer')
       expect(result).toEqual(mockSkills[1])
     })
 
     it('should return first skill when name not found', () => {
-      const payload = { skills: mockSkills }
-      const result = extractResolvedSkill(payload, 'non-existent')
+      const result = extractResolvedSkill(mockSkills, 'non-existent')
       expect(result).toEqual(mockSkills[0])
     })
 
     it('should return null when skills array is empty', () => {
-      const payload = { skills: [] }
-      const result = extractResolvedSkill(payload, 'skill-writer')
+      const result = extractResolvedSkill([], 'skill-writer')
       expect(result).toBeNull()
     })
 
-    it('should return null when payload has no skills property', () => {
-      const payload = {} as { skills: ResolvedSkill[] }
-      const result = extractResolvedSkill(payload, 'skill-writer')
+    it('should return null when skills is null', () => {
+      const result = extractResolvedSkill(null as unknown as ResolvedSkill[], 'skill-writer')
       expect(result).toBeNull()
     })
 
-    it('should return null when skills is not an array', () => {
-      const payload = { skills: 'not-an-array' } as unknown as { skills: ResolvedSkill[] }
-      const result = extractResolvedSkill(payload, 'skill-writer')
-      expect(result).toBeNull()
-    })
-
-    it('should return null when payload is null', () => {
-      const result = extractResolvedSkill(null as unknown as { skills: ResolvedSkill[] }, 'skill-writer')
+    it('should return null when skills is undefined', () => {
+      const result = extractResolvedSkill(undefined as unknown as ResolvedSkill[], 'skill-writer')
       expect(result).toBeNull()
     })
   })

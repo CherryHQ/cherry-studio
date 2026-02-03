@@ -24,8 +24,11 @@ import {
   type PluginManifest,
   PluginManifestSchema,
   type PluginMetadata,
+  PluginResolveResponseSchema,
   type PluginType,
+  type ResolvedSkill,
   type SinglePluginInstallResult,
+  SkillsResolveResponseSchema,
   type UninstallPluginOptions,
   type UninstallPluginPackageOptions,
   type UninstallPluginPackageResult
@@ -247,8 +250,8 @@ export class PluginService {
       target
     })
 
-    const payload = await this.resolveSkillV2(resolveUrl, target)
-    const resolvedSkill = this.extractResolvedSkill(payload, identifier.name)
+    const skills = await this.resolveSkillV2(resolveUrl, target)
+    const resolvedSkill = this.extractResolvedSkill(skills, identifier.name)
 
     if (!resolvedSkill) {
       throw {
@@ -334,22 +337,25 @@ export class PluginService {
     return response.json()
   }
 
+  /**
+   * Extract repository URL from plugin resolve API response using Zod schema
+   */
   private extractRepositoryUrl(payload: unknown): string | null {
     if (typeof payload === 'string') return payload
-    if (!payload || typeof payload !== 'object') return null
-    const record = payload as Record<string, unknown>
-    const url = record.gitUrl ?? record.git_url ?? record.url ?? record.repoUrl ?? record.repo_url
-    return typeof url === 'string' && url.length > 0 ? url : null
+
+    const result = PluginResolveResponseSchema.safeParse(payload)
+    if (!result.success) return null
+
+    const { gitUrl, git_url, url, repoUrl, repo_url } = result.data
+    const resolvedUrl = gitUrl ?? git_url ?? url ?? repoUrl ?? repo_url
+    return resolvedUrl && resolvedUrl.length > 0 ? resolvedUrl : null
   }
 
   /**
    * Resolve skill using the v2 API endpoint
    * POST /api/v2/skills/resolve with body { target, limit, offset }
    */
-  private async resolveSkillV2(
-    url: string,
-    target: string
-  ): Promise<{ skills: Array<{ namespace: string; name: string; relDir: string; sourceUrl: string }> }> {
+  private async resolveSkillV2(url: string, target: string): Promise<ResolvedSkill[]> {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -371,21 +377,30 @@ export class PluginService {
       } as PluginError
     }
 
-    return response.json()
+    const json = await response.json()
+    const result = SkillsResolveResponseSchema.safeParse(json)
+
+    if (!result.success) {
+      logger.warn('Invalid skills resolve response', { error: result.error.message })
+      throw {
+        type: 'INVALID_METADATA',
+        reason: `Invalid skills resolve response: ${result.error.message}`,
+        path: url
+      } as PluginError
+    }
+
+    return result.data.skills
   }
 
   /**
    * Extract the resolved skill from the v2 API response
    */
-  private extractResolvedSkill(
-    payload: { skills: Array<{ namespace: string; name: string; relDir: string; sourceUrl: string }> },
-    skillName: string
-  ): { namespace: string; name: string; relDir: string; sourceUrl: string } | null {
-    if (!payload?.skills || !Array.isArray(payload.skills)) return null
+  private extractResolvedSkill(skills: ResolvedSkill[], skillName: string): ResolvedSkill | null {
+    if (!skills || skills.length === 0) return null
 
     // Find the skill by name (case-insensitive)
-    const skill = payload.skills.find((s) => s.name.toLowerCase() === skillName.toLowerCase())
-    return skill ?? payload.skills[0] ?? null
+    const skill = skills.find((s) => s.name.toLowerCase() === skillName.toLowerCase())
+    return skill ?? skills[0] ?? null
   }
 
   /**
