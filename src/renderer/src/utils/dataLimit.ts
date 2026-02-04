@@ -10,7 +10,7 @@ const CHECK_INTERVAL_NORMAL = 1000 * 60 * 10 // 10 minutes
 const CHECK_INTERVAL_WARNING = 1000 * 60 * 1 // 1 minute when warning is active
 
 let currentInterval: NodeJS.Timeout | null = null
-let currentToastId: string | null = null
+let diskWarningNotificationKey: string | null = null
 
 async function checkAppStorageQuota() {
   try {
@@ -65,7 +65,7 @@ export async function checkDataLimit() {
     const shouldShowWarning = isStorageQuotaLow || isAppDataDiskQuotaLow
 
     // Show or hide notification based on warning state
-    if (shouldShowWarning && !currentToastId) {
+    if (shouldShowWarning && !diskWarningNotificationKey) {
       const key = `disk-warning-${Date.now()}`
       notification.warning({
         message: t('settings.data.limit.appDataDiskQuota'),
@@ -73,7 +73,7 @@ export async function checkDataLimit() {
         duration: 0,
         key
       })
-      currentToastId = key
+      diskWarningNotificationKey = key
 
       // Switch to warning mode with shorter interval
       logger.info('Disk space low, switching to 1-minute check interval')
@@ -81,10 +81,10 @@ export async function checkDataLimit() {
         clearInterval(currentInterval)
       }
       currentInterval = setInterval(check, CHECK_INTERVAL_WARNING)
-    } else if (!shouldShowWarning && currentToastId) {
+    } else if (!shouldShowWarning && diskWarningNotificationKey) {
       // Dismiss notification when space is recovered
-      notification.destroy(currentToastId)
-      currentToastId = null
+      notification.destroy(diskWarningNotificationKey)
+      diskWarningNotificationKey = null
 
       // Switch back to normal mode
       logger.info('Disk space recovered, switching back to 10-minute check interval')
