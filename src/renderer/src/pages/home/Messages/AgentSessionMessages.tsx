@@ -125,7 +125,10 @@ const LoadingState = styled.div`
 `
 
 const PinnedTodoPanelWrapper = styled.div`
+  position: sticky;
+  bottom: 0;
   padding: 0 18px 12px 18px;
+  z-index: 10;
 `
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
