@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -265,6 +266,7 @@ class OpenClawService {
 
   /**
    * Uninstall OpenClaw using npm
+   * Uninstalls both the standard and Chinese packages to ensure clean removal
    */
   public async uninstall(): Promise<{ success: boolean; message: string }> {
     // First stop the gateway if running
@@ -272,7 +274,8 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    const npmCommand = 'npm uninstall -g openclaw'
+    // Uninstall both packages to handle both standard and Chinese editions
+    const npmCommand = 'npm uninstall -g openclaw @qingchencloud/openclaw-zh'
     logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
@@ -410,9 +413,22 @@ class OpenClawService {
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      // If we have a process reference, kill it
+      // If we have a process reference, kill it and wait for exit
       if (this.gatewayProcess) {
-        this.gatewayProcess.kill('SIGTERM')
+        const process = this.gatewayProcess
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            process.kill('SIGKILL')
+            resolve()
+          }, 5000)
+
+          process.once('exit', () => {
+            clearTimeout(timeout)
+            resolve()
+          })
+
+          process.kill('SIGTERM')
+        })
         this.gatewayProcess = null
       }
 
@@ -522,15 +538,10 @@ class OpenClawService {
   }
 
   /**
-   * Generate a random auth token
+   * Generate a cryptographically secure random auth token
    */
   private generateAuthToken(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let token = ''
-    for (let i = 0; i < 32; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return token
+    return crypto.randomBytes(24).toString('base64url')
   }
 
   /**
@@ -793,6 +804,7 @@ class OpenClawService {
 
   /**
    * Wait for Gateway to start by checking port connectivity
+   * @throws Error if gateway fails to start within the timeout
    */
   private async waitForGateway(maxAttempts = 10): Promise<void> {
     for (let i = 0; i < maxAttempts; i++) {
@@ -802,6 +814,7 @@ class OpenClawService {
         return
       }
     }
+    throw new Error(`Gateway failed to start on port ${this.gatewayPort} after ${maxAttempts} attempts`)
   }
 
   /**
