@@ -2465,7 +2465,6 @@
       "start": "启动",
       "status": "状态",
       "stop": "停止",
-      "title": "网关控制",
       "version": "版本"
     },
     "install_progress": "安装进度",

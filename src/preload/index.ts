@@ -666,7 +666,7 @@ const api = {
     getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
     checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
-    openDashboard: (): Promise<void> => ipcRenderer.invoke(IpcChannel.OpenClaw_OpenDashboard),
+    getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
     syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
     getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)

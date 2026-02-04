@@ -2453,74 +2453,73 @@
     "title": "Ollama"
   },
   "openclaw": {
-    "checking_installation": "[to be translated]:Checking OpenClaw installation...",
-    "description": "[to be translated]:Integrate Cherry Studio providers with OpenClaw Gateway to enable AI coding agents like Claude Code, Qwen-Coder, and more.",
+    "checking_installation": "OpenClawのインストールを確認しています...",
+    "description": "Cherry Studio プロバイダーを OpenClaw Gateway と統合し、Claude Code、Qwen-Coder などの AI コーディングエージェントを有効にします。",
     "error": {
-      "select_provider_model": "[to be translated]:Please select a provider and model first"
+      "select_provider_model": "プロバイダーとモデルをまず選択してください"
     },
     "gateway": {
-      "health": "[to be translated]:Health",
-      "port": "[to be translated]:Port",
-      "restart": "[to be translated]:Restart",
-      "start": "[to be translated]:Start Gateway",
-      "status": "[to be translated]:Status",
-      "stop": "[to be translated]:Stop",
-      "title": "[to be translated]:Gateway Control",
-      "version": "[to be translated]:Version"
+      "health": "健康",
+      "port": "ポート",
+      "restart": "再起動",
+      "start": "スタートゲートウェイ",
+      "status": "ステータス",
+      "stop": "止まれ",
+      "version": "バージョン"
     },
-    "install_progress": "[to be translated]:Install Progress",
-    "installed_at": "[to be translated]:OpenClaw installed at: {{path}}",
+    "install_progress": "インストール進行状況",
+    "installed_at": "OpenClawのインストール先: {{path}}",
     "model_config": {
-      "auth_token": "[to be translated]:Auth Token",
-      "auth_token_hint": "[to be translated]:Token for gateway authentication. Leave empty to disable authentication.",
-      "auth_token_placeholder": "[to be translated]:Enter or generate a token",
-      "generate_token": "[to be translated]:Generate",
-      "model": "[to be translated]:Model",
-      "provider": "[to be translated]:Provider",
-      "select_model": "[to be translated]:Select a model",
-      "select_provider": "[to be translated]:Select a provider",
-      "sync_hint": "[to be translated]:Selected provider and model will be synced to OpenClaw config file",
-      "title": "[to be translated]:Model Configuration"
+      "auth_token": "認証トークン",
+      "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
+      "auth_token_placeholder": "トークンを入力または生成してください",
+      "generate_token": "生成",
+      "model": "モデル",
+      "provider": "プロバイダー",
+      "select_model": "モデルを選択",
+      "select_provider": "プロバイダーを選択",
+      "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
+      "title": "モデル設定"
     },
     "not_installed": {
-      "description": "[to be translated]:OpenClaw is not installed on your system. Please install it first to use this feature.",
-      "install_button": "[to be translated]:Install OpenClaw",
-      "install_guide_title": "[to be translated]:Installation Guide",
-      "macos_linux_title": "[to be translated]:macOS / Linux",
-      "refresh": "[to be translated]:Refresh",
-      "step2_hint": "[to be translated]:After installation, click the Refresh button above to detect OpenClaw",
-      "step2_title": "[to be translated]:Step 2: Verify installation",
-      "title": "[to be translated]:OpenClaw Not Installed",
-      "windows_title": "[to be translated]:Windows"
+      "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
+      "install_button": "OpenClawをインストール",
+      "install_guide_title": "インストールガイド",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "更新",
+      "step2_hint": "インストール後、上の「更新」ボタンをクリックしてOpenClawを検出してください。",
+      "step2_title": "ステップ2: インストールを確認する",
+      "title": "OpenClaw がインストールされていません",
+      "windows_title": "Windows"
     },
     "npm_missing": {
-      "description": "[to be translated]:OpenClaw requires Node.js/npm. Please install Node.js first, then restart Cherry Studio.",
-      "download_button": "[to be translated]:Download Node.js",
-      "hint": "[to be translated]:macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "[to be translated]:Node.js Required"
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
     },
     "quick_actions": {
-      "open_dashboard": "[to be translated]:Open Dashboard",
-      "title": "[to be translated]:Quick Actions",
-      "uninstall": "[to be translated]:Uninstall",
-      "view_docs": "[to be translated]:View Documentation"
+      "open_dashboard": "ダッシュボードを開く",
+      "title": "クイックアクション",
+      "uninstall": "アンインストール",
+      "view_docs": "ドキュメントを表示"
     },
     "status": {
-      "error": "[to be translated]:Error",
-      "running": "[to be translated]:Running",
-      "starting": "[to be translated]:Starting",
-      "stopped": "[to be translated]:Stopped"
+      "error": "エラー",
+      "running": "走っている",
+      "starting": "開始",
+      "stopped": "停止しました"
     },
-    "title": "[to be translated]:OpenClaw",
-    "uninstall_confirm": "[to be translated]:Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "[to be translated]:Uninstall Progress",
+    "title": "オープンクロー",
+    "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
+    "uninstall_progress": "アンインストールの進行状況",
     "uninstalled": {
-      "description": "[to be translated]:OpenClaw has been successfully uninstalled.",
-      "title": "[to be translated]:Uninstall Complete"
+      "description": "OpenClawは正常にアンインストールされました。",
+      "title": "アンインストール完了"
     },
     "uninstalling": {
-      "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
-      "title": "[to be translated]:Uninstalling OpenClaw"
+      "description": "OpenClawがアンインストールされるまでお待ちください...",
+      "title": "OpenClawのアンインストール"
     }
   },
   "ovms": {
@@ -5221,7 +5220,7 @@
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
     "notes": "ノート",
-    "openclaw": "[to be translated]:OpenClaw",
+    "openclaw": "オープンクロー",
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",

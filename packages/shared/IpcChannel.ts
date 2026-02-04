@@ -409,7 +409,7 @@ export enum IpcChannel {
   OpenClaw_RestartGateway = 'openclaw:restart-gateway',
   OpenClaw_GetStatus = 'openclaw:get-status',
   OpenClaw_CheckHealth = 'openclaw:check-health',
-  OpenClaw_OpenDashboard = 'openclaw:open-dashboard',
+  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
   OpenClaw_GetChannels = 'openclaw:get-channels'
 }

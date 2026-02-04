@@ -2465,7 +2465,6 @@
       "start": "Start",
       "status": "Status",
       "stop": "Stop",
-      "title": "Gateway Control",
       "version": "Version"
     },
     "install_progress": "Install Progress",
