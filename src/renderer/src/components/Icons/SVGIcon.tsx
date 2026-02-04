@@ -1,6 +1,6 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { motion } from 'motion/react'
-import type { SVGProps } from 'react'
+import { type SVGProps, useId } from 'react'
 
 export const StreamlineGoodHealthAndWellBeing = (
   props: SVGProps<SVGSVGElement> & {
@@ -327,9 +327,15 @@ export function PoeLogo(props: SVGProps<SVGSVGElement>) {
 
 // https://code.visualstudio.com/brand
 export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
+  const uid = useId()
+  const maskId = `mask0${uid}`
+  const filter0Id = `filter0_d${uid}`
+  const filter1Id = `filter1_d${uid}`
+  const gradientId = `paint0_linear${uid}`
+
   return (
     <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <mask id="mask0" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <mask id={maskId} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
         <path
           fillRule="evenodd"
           clipRule="evenodd"
@@ -337,18 +343,18 @@ export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
           fill="white"
         />
       </mask>
-      <g mask="url(#mask0)">
+      <g mask={`url(#${maskId})`}>
         <path
           d="M96.4614 10.7962L75.8569 0.875542C73.4719 -0.272773 70.6217 0.211611 68.75 2.08333L1.29858 63.5832C-0.515693 65.2373 -0.513607 68.0937 1.30308 69.7452L6.81272 74.754C8.29793 76.1042 10.5347 76.2036 12.1338 74.9905L93.3609 13.3699C96.086 11.3026 100 13.2462 100 16.6667V16.4275C100 14.0265 98.6246 11.8378 96.4614 10.7962Z"
           fill="#0065A9"
         />
-        <g filter="url(#filter0_d)">
+        <g filter={`url(#${filter0Id})`}>
           <path
             d="M96.4614 89.2038L75.8569 99.1245C73.4719 100.273 70.6217 99.7884 68.75 97.9167L1.29858 36.4169C-0.515693 34.7627 -0.513607 31.9063 1.30308 30.2548L6.81272 25.246C8.29793 23.8958 10.5347 23.7964 12.1338 25.0095L93.3609 86.6301C96.086 88.6974 100 86.7538 100 83.3334V83.5726C100 85.9735 98.6246 88.1622 96.4614 89.2038Z"
             fill="#007ACC"
           />
         </g>
-        <g filter="url(#filter1_d)">
+        <g filter={`url(#${filter1Id})`}>
           <path
             d="M75.8578 99.1263C73.4721 100.274 70.6219 99.7885 68.75 97.9166C71.0564 100.223 75 98.5895 75 95.3278V4.67213C75 1.41039 71.0564 -0.223106 68.75 2.08329C70.6219 0.211402 73.4721 -0.273666 75.8578 0.873633L96.4587 10.7807C98.6234 11.8217 100 14.0112 100 16.4132V83.5871C100 85.9891 98.6234 88.1786 96.4586 89.2196L75.8578 99.1263Z"
             fill="#1F9CF0"
@@ -359,13 +365,13 @@ export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
             fillRule="evenodd"
             clipRule="evenodd"
             d="M70.8511 99.3171C72.4261 99.9306 74.2221 99.8913 75.8117 99.1264L96.4 89.2197C98.5634 88.1787 99.9392 85.9892 99.9392 83.5871V16.4133C99.9392 14.0112 98.5635 11.8217 96.4001 10.7807L75.8117 0.873695C73.7255 -0.13019 71.2838 0.115699 69.4527 1.44688C69.1912 1.63705 68.942 1.84937 68.7082 2.08335L29.2943 38.0414L12.1264 25.0096C10.5283 23.7964 8.29285 23.8959 6.80855 25.246L1.30225 30.2548C-0.513334 31.9064 -0.515415 34.7627 1.29775 36.4169L16.1863 50L1.29775 63.5832C-0.515415 65.2374 -0.513334 68.0937 1.30225 69.7452L6.80855 74.754C8.29285 76.1042 10.5283 76.2036 12.1264 74.9905L29.2943 61.9586L68.7082 97.9167C69.3317 98.5405 70.0638 99.0104 70.8511 99.3171ZM74.9544 27.2989L45.0483 50L74.9544 72.7012V27.2989Z"
-            fill="url(#paint0_linear)"
+            fill={`url(#${gradientId})`}
           />
         </g>
       </g>
       <defs>
         <filter
-          id="filter0_d"
+          id={filter0Id}
           x="-8.39411"
           y="15.8291"
           width="116.727"
@@ -381,7 +387,7 @@ export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
           <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape" />
         </filter>
         <filter
-          id="filter1_d"
+          id={filter1Id}
           x="60.4167"
           y="-8.07558"
           width="47.9167"
@@ -397,7 +403,7 @@ export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
           <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape" />
         </filter>
         <linearGradient
-          id="paint0_linear"
+          id={gradientId}
           x1="49.9392"
           y1="0.257812"
           x2="49.9392"
