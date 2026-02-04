@@ -20,6 +20,7 @@ import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
+  Bot,
   FileSearch,
   Folder,
   Home,
@@ -105,6 +106,8 @@ const getTabIcon = (
       return <Settings size={14} />
     case 'code':
       return <Terminal size={14} />
+    case 'openclaw':
+      return <Bot size={14} />
     default:
       return null
   }

@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "OpenClawのインストールを確認しています...",
+    "description": "Cherry Studio プロバイダーを OpenClaw Gateway と統合し、Claude Code、Qwen-Coder などの AI コーディングエージェントを有効にします。",
+    "error": {
+      "select_provider_model": "プロバイダーとモデルをまず選択してください"
+    },
+    "gateway": {
+      "port": "ポート",
+      "restart": "再起動",
+      "start": "スタートゲートウェイ",
+      "status": "ステータス",
+      "stop": "止まれ",
+      "version": "バージョン"
+    },
+    "install_progress": "インストール進行状況",
+    "installed_at": "OpenClawのインストール先: {{path}}",
+    "model_config": {
+      "auth_token": "認証トークン",
+      "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
+      "auth_token_placeholder": "トークンを入力または生成してください",
+      "generate_token": "生成",
+      "model": "モデル",
+      "provider": "プロバイダー",
+      "select_model": "モデルを選択",
+      "select_provider": "プロバイダーを選択",
+      "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
+      "title": "モデル設定"
+    },
+    "not_installed": {
+      "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
+      "install_button": "OpenClawをインストール",
+      "install_guide_title": "インストールガイド",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "更新",
+      "step2_hint": "インストール後、上の「更新」ボタンをクリックしてOpenClawを検出してください。",
+      "step2_title": "ステップ2: インストールを確認する",
+      "title": "OpenClaw がインストールされていません",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
+    },
+    "quick_actions": {
+      "open_dashboard": "ダッシュボードを開く",
+      "title": "クイックアクション",
+      "uninstall": "アンインストール",
+      "view_docs": "ドキュメントを表示"
+    },
+    "status": {
+      "error": "エラー",
+      "running": "走っている",
+      "starting": "開始",
+      "stopped": "停止しました"
+    },
+    "title": "オープンクロー",
+    "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
+    "uninstall_progress": "アンインストールの進行状況",
+    "uninstalled": {
+      "description": "OpenClawは正常にアンインストールされました。",
+      "title": "アンインストール完了"
+    },
+    "uninstalling": {
+      "description": "OpenClawがアンインストールされるまでお待ちください...",
+      "title": "OpenClawのアンインストール"
+    }
+  },
   "ovms": {
     "action": {
       "install": "インストール",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
     "notes": "ノート",
+    "openclaw": "オープンクロー",
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",

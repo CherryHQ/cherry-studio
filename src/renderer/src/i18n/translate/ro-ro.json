@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Verificare instalare OpenClaw...",
+    "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
+    "error": {
+      "select_provider_model": "Vă rugăm să selectați mai întâi un furnizor și un model"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Repornire",
+      "start": "Pornește Gateway",
+      "status": "Stare",
+      "stop": "Oprește",
+      "version": "Versiune"
+    },
+    "install_progress": "Progresul instalării",
+    "installed_at": "OpenClaw instalat la: {{path}}",
+    "model_config": {
+      "auth_token": "Token de autentificare",
+      "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
+      "auth_token_placeholder": "Introduceți sau generați un token",
+      "generate_token": "Generează",
+      "model": "Model",
+      "provider": "Furnizor",
+      "select_model": "Selectați un model",
+      "select_provider": "Selectați un furnizor",
+      "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
+      "title": "Configurare model"
+    },
+    "not_installed": {
+      "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
+      "install_button": "Instalează OpenClaw",
+      "install_guide_title": "Ghid de instalare",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Reîmprospătare",
+      "step2_hint": "După instalare, faceți clic pe butonul „Reîmprospătare” de mai sus pentru a detecta OpenClaw",
+      "step2_title": "Pasul 2: Verifică instalarea",
+      "title": "OpenClaw Nu Este Instalat",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
+      "download_button": "Descarcă Node.js",
+      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
+      "title": "Node.js necesar"
+    },
+    "quick_actions": {
+      "open_dashboard": "Deschide Tabloul de Bord",
+      "title": "Acțiuni rapide",
+      "uninstall": "Dezinstalare",
+      "view_docs": "Vizualizați documentația"
+    },
+    "status": {
+      "error": "Eroare",
+      "running": "Alergare",
+      "starting": "Pornind",
+      "stopped": "Oprit"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
+    "uninstall_progress": "Progresul dezinstalării",
+    "uninstalled": {
+      "description": "OpenClaw a fost dezinstalat cu succes.",
+      "title": "Dezinstalare completă"
+    },
+    "uninstalling": {
+      "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
+      "title": "Dezinstalarea OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Instalează",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
+    "openclaw": "OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",

@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Έλεγχος εγκατάστασης του OpenClaw...",
+    "description": "Ενσωματώστε τους παρόχους Cherry Studio με την πύλη OpenClaw για να ενεργοποιήσετε πράκτορες κωδικοποίησης AI όπως το Claude Code, το Qwen-Coder και άλλοι.",
+    "error": {
+      "select_provider_model": "Παρακαλώ επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο"
+    },
+    "gateway": {
+      "port": "Λιμάνι",
+      "restart": "Επανεκκίνηση",
+      "start": "Έναρξη πύλης",
+      "status": "Κατάσταση",
+      "stop": "Σταμάτα",
+      "version": "Έκδοση"
+    },
+    "install_progress": "Πρόοδος Εγκατάστασης",
+    "installed_at": "Το OpenClaw εγκαταστάθηκε στο: {{path}}",
+    "model_config": {
+      "auth_token": "Διακριτικό Πιστοποίησης",
+      "auth_token_hint": "Διακριτικό για έλεγχο ταυτότητας πύλης. Αφήστε το κενό για να απενεργοποιήσετε τον έλεγχο ταυτότητας.",
+      "auth_token_placeholder": "Εισάγετε ή δημιουργήστε ένα διακριτικό",
+      "generate_token": "Δημιουργώ",
+      "model": "Μοντέλο",
+      "provider": "Πάροχος",
+      "select_model": "Επιλέξτε ένα μοντέλο",
+      "select_provider": "Επιλέξτε πάροχο",
+      "sync_hint": "Ο επιλεγμένος πάροχος και μοντέλο θα συγχρονιστούν στο αρχείο ρυθμίσεων του OpenClaw",
+      "title": "Διαμόρφωση Μοντέλου"
+    },
+    "not_installed": {
+      "description": "Το OpenClaw δεν είναι εγκατεστημένο στο σύστημά σας. Παρακαλούμε εγκαταστήστε το πρώτα για να χρησιμοποιήσετε αυτή τη λειτουργία.",
+      "install_button": "Εγκατάσταση του OpenClaw",
+      "install_guide_title": "Οδηγός Εγκατάστασης",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Ανανέωση",
+      "step2_hint": "Μετά την εγκατάσταση, κάντε κλικ στο κουμπί Ανανέωση παραπάνω για να εντοπίσετε το OpenClaw",
+      "step2_title": "Βήμα 2: Επαληθεύστε την εγκατάσταση",
+      "title": "Το OpenClaw δεν είναι εγκατεστημένο",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "Το OpenClaw απαιτεί Node.js/npm. Παρακαλώ εγκαταστήστε πρώτα το Node.js και, στη συνέχεια, επανεκκινήστε το Cherry Studio.",
+      "download_button": "Κατεβάστε το Node.js",
+      "hint": "macOS: brew install node | Windows: Κατεβάστε την έκδοση LTS από το nodejs.org",
+      "title": "Απαιτείται Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "Άνοιγμα Πίνακα Ελέγχου",
+      "title": "Γρήγορες Ενέργειες",
+      "uninstall": "Απεγκατάσταση",
+      "view_docs": "Δείτε την Τεκμηρίωση"
+    },
+    "status": {
+      "error": "Σφάλμα",
+      "running": "Τρέξιμο",
+      "starting": "Έναρξη",
+      "stopped": "Σταμάτησε"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε το OpenClaw; Πατήστε OK για επιβεβαίωση.",
+    "uninstall_progress": "Πρόοδος Απεγκατάστασης",
+    "uninstalled": {
+      "description": "Το OpenClaw απεγκαταστάθηκε με επιτυχία.",
+      "title": "Η απεγκατάσταση ολοκληρώθηκε"
+    },
+    "uninstalling": {
+      "description": "Παρακαλώ περιμένετε ενώ γίνεται η απεγκατάσταση του OpenClaw...",
+      "title": "Απεγκατάσταση του OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Εγκατάσταση",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "Διακομιστές MCP",
     "memories": "Μνήμες",
     "notes": "σημειώσεις",
+    "openclaw": "OpenClaw",
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
     "store": "Βιβλιοθήκη βοηθών",

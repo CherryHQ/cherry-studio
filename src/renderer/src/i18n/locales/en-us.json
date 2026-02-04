@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Checking OpenClaw installation...",
+    "description": "Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
+    "error": {
+      "select_provider_model": "Please select a provider and model first"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Restart",
+      "start": "Start",
+      "status": "Status",
+      "stop": "Stop",
+      "version": "Version"
+    },
+    "install_progress": "Install Progress",
+    "installed_at": "OpenClaw installed at: {{path}}",
+    "model_config": {
+      "auth_token": "Auth Token",
+      "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
+      "auth_token_placeholder": "Enter or generate a token",
+      "generate_token": "Generate",
+      "model": "Model",
+      "provider": "Provider",
+      "select_model": "Select a model",
+      "select_provider": "Select a provider",
+      "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
+      "title": "Model Configuration"
+    },
+    "not_installed": {
+      "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
+      "install_button": "Install OpenClaw",
+      "install_guide_title": "Installation Guide",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Refresh",
+      "step2_hint": "After installation, click the Refresh button above to detect OpenClaw",
+      "step2_title": "Step 2: Verify installation",
+      "title": "OpenClaw Not Installed",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "quick_actions": {
+      "open_dashboard": "Open Dashboard",
+      "title": "Quick Actions",
+      "uninstall": "Uninstall",
+      "view_docs": "View Documentation"
+    },
+    "status": {
+      "error": "Error",
+      "running": "Running",
+      "starting": "Starting",
+      "stopped": "Stopped"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
+    "uninstall_progress": "Uninstall Progress",
+    "uninstalled": {
+      "description": "OpenClaw has been successfully uninstalled.",
+      "title": "Uninstall Complete"
+    },
+    "uninstalling": {
+      "description": "Please wait while OpenClaw is being uninstalled...",
+      "title": "Uninstalling OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Install",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
     "notes": "Notes",
+    "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",

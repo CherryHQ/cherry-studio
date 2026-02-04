@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Проверка установки OpenClaw...",
+    "description": "Интегрируйте провайдеров Cherry Studio с шлюзом OpenClaw, чтобы включить агентов кодирования ИИ, таких как Claude Code, Qwen-Coder и другие.",
+    "error": {
+      "select_provider_model": "Пожалуйста, сначала выберите поставщика и модель"
+    },
+    "gateway": {
+      "port": "Порт",
+      "restart": "Перезапуск",
+      "start": "Запустить шлюз",
+      "status": "Статус",
+      "stop": "Остановиться",
+      "version": "Версия"
+    },
+    "install_progress": "Прогресс установки",
+    "installed_at": "OpenClaw установлен в: {{path}}",
+    "model_config": {
+      "auth_token": "Токен аутентификации",
+      "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",
+      "auth_token_placeholder": "Введите или сгенерируйте токен",
+      "generate_token": "Сгенерировать",
+      "model": "Модель",
+      "provider": "Поставщик",
+      "select_model": "Выберите модель",
+      "select_provider": "Выберите поставщика",
+      "sync_hint": "Выбранный поставщик и модель будут синхронизированы с конфигурационным файлом OpenClaw",
+      "title": "Конфигурация модели"
+    },
+    "not_installed": {
+      "description": "OpenClaw не установлен в вашей системе. Пожалуйста, установите его сначала, чтобы использовать эту функцию.",
+      "install_button": "Установить OpenClaw",
+      "install_guide_title": "Руководство по установке",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Обновить",
+      "step2_hint": "После установки нажмите кнопку «Обновить» выше, чтобы обнаружить OpenClaw",
+      "step2_title": "Шаг 2: Проверка установки",
+      "title": "OpenClaw не установлен",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw требует Node.js/npm. Пожалуйста, сначала установите Node.js, затем перезапустите Cherry Studio.",
+      "download_button": "Скачать Node.js",
+      "hint": "macOS: brew install node | Windows: Скачайте LTS-версию с nodejs.org",
+      "title": "Требуется Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "Открыть панель управления",
+      "title": "Быстрые действия",
+      "uninstall": "Удалить",
+      "view_docs": "Просмотреть документацию"
+    },
+    "status": {
+      "error": "Ошибка",
+      "running": "Бег",
+      "starting": "Начало",
+      "stopped": "Остановлено"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Вы уверены, что хотите удалить OpenClaw? Нажмите OK для подтверждения.",
+    "uninstall_progress": "Прогресс удаления",
+    "uninstalled": {
+      "description": "OpenClaw был успешно удалён.",
+      "title": "Удаление завершено"
+    },
+    "uninstalling": {
+      "description": "Пожалуйста, подождите, пока OpenClaw удаляется...",
+      "title": "Удаление OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Установить",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "MCP серверы",
     "memories": "Память",
     "notes": "заметки",
+    "openclaw": "OpenClaw",
     "paintings": "Рисунки",
     "settings": "Настройки",
     "store": "Библиотека помощников",

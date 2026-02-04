@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Vérification de l'installation d'OpenClaw...",
+    "description": "Intégrer les fournisseurs Cherry Studio avec la passerelle OpenClaw pour permettre aux agents de codage IA comme Claude Code, Qwen-Coder, et bien d'autres.",
+    "error": {
+      "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Redémarrer",
+      "start": "Démarrer la passerelle",
+      "status": "Statut",
+      "stop": "Arrête",
+      "version": "Version"
+    },
+    "install_progress": "Progression de l'installation",
+    "installed_at": "OpenClaw installé à : {{path}}",
+    "model_config": {
+      "auth_token": "Jeton d'authentification",
+      "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",
+      "auth_token_placeholder": "Entrez ou générez un jeton",
+      "generate_token": "Générer",
+      "model": "Modèle",
+      "provider": "Fournisseur",
+      "select_model": "Sélectionner un modèle",
+      "select_provider": "Sélectionnez un fournisseur",
+      "sync_hint": "Le fournisseur et le modèle sélectionnés seront synchronisés avec le fichier de configuration OpenClaw.",
+      "title": "Configuration du modèle"
+    },
+    "not_installed": {
+      "description": "OpenClaw n’est pas installé sur votre système. Veuillez d’abord l’installer pour utiliser cette fonctionnalité.",
+      "install_button": "Installer OpenClaw",
+      "install_guide_title": "Guide d'installation",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Actualiser",
+      "step2_hint": "Après l'installation, cliquez sur le bouton Actualiser ci-dessus pour détecter OpenClaw",
+      "step2_title": "Étape 2 : Vérifier l'installation",
+      "title": "OpenClaw Non Installé",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw nécessite Node.js/npm. Veuillez d'abord installer Node.js, puis redémarrez Cherry Studio.",
+      "download_button": "Télécharger Node.js",
+      "hint": "macOS : brew install node | Windows : Télécharger la version LTS depuis nodejs.org",
+      "title": "Node.js requis"
+    },
+    "quick_actions": {
+      "open_dashboard": "Ouvrir le tableau de bord",
+      "title": "Actions rapides",
+      "uninstall": "Désinstaller",
+      "view_docs": "Voir la documentation"
+    },
+    "status": {
+      "error": "Erreur",
+      "running": "Courir",
+      "starting": "Commencement",
+      "stopped": "Arrêté"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Êtes-vous sûr de vouloir désinstaller OpenClaw ? Appuyez sur OK pour confirmer.",
+    "uninstall_progress": "Progression de la désinstallation",
+    "uninstalled": {
+      "description": "OpenClaw a été désinstallé avec succès.",
+      "title": "Désinstallation terminée"
+    },
+    "uninstalling": {
+      "description": "Veuillez patienter pendant la désinstallation d'OpenClaw...",
+      "title": "Désinstallation d'OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Installer",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "Serveurs MCP",
     "memories": "Mémoires",
     "notes": "notes",
+    "openclaw": "OpenClaw",
     "paintings": "Peintures",
     "settings": "Paramètres",
     "store": "Bibliothèque d'assistants",

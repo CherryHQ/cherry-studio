@@ -395,5 +395,21 @@ export enum IpcChannel {
   LocalTransfer_Disconnect = 'local-transfer:disconnect',
   LocalTransfer_ClientEvent = 'local-transfer:client-event',
   LocalTransfer_SendFile = 'local-transfer:send-file',
-  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer'
+  LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer',
+
+  // OpenClaw
+  OpenClaw_CheckInstalled = 'openclaw:check-installed',
+  OpenClaw_CheckNpmAvailable = 'openclaw:check-npm-available',
+  OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
+  OpenClaw_Install = 'openclaw:install',
+  OpenClaw_Uninstall = 'openclaw:uninstall',
+  OpenClaw_InstallProgress = 'openclaw:install-progress',
+  OpenClaw_StartGateway = 'openclaw:start-gateway',
+  OpenClaw_StopGateway = 'openclaw:stop-gateway',
+  OpenClaw_RestartGateway = 'openclaw:restart-gateway',
+  OpenClaw_GetStatus = 'openclaw:get-status',
+  OpenClaw_CheckHealth = 'openclaw:check-health',
+  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
+  OpenClaw_SyncConfig = 'openclaw:sync-config',
+  OpenClaw_GetChannels = 'openclaw:get-channels'
 }

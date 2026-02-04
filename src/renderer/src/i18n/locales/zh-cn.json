@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "正在检查 OpenClaw 安装状态...",
+    "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "请先选择服务商和模型"
+    },
+    "gateway": {
+      "port": "端口",
+      "restart": "重启",
+      "start": "启动",
+      "status": "状态",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "install_progress": "安装进度",
+    "installed_at": "OpenClaw 安装路径：{{path}}",
+    "model_config": {
+      "auth_token": "认证令牌",
+      "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",
+      "auth_token_placeholder": "输入或生成令牌",
+      "generate_token": "生成",
+      "model": "模型",
+      "provider": "服务商",
+      "select_model": "选择模型",
+      "select_provider": "选择服务商",
+      "sync_hint": "选择的服务商和模型将同步到 OpenClaw 配置文件",
+      "title": "模型配置"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安装在您的系统上。请先安装它以使用此功能。",
+      "install_button": "安装 OpenClaw",
+      "install_guide_title": "安装指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "刷新",
+      "step2_hint": "安装完成后，点击上方的刷新按钮来检测 OpenClaw",
+      "step2_title": "第二步：验证安装",
+      "title": "OpenClaw 未安装",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",
+      "download_button": "下载 Node.js",
+      "hint": "macOS: brew install node | Windows: 从 nodejs.org 下载 LTS 版本",
+      "title": "需要安装 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "打开控制面板",
+      "title": "快捷操作",
+      "uninstall": "卸载",
+      "view_docs": "查看文档"
+    },
+    "status": {
+      "error": "错误",
+      "running": "运行中",
+      "starting": "启动中",
+      "stopped": "已停止"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
+    "uninstall_progress": "卸载进度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功卸载。",
+      "title": "卸载完成"
+    },
+    "uninstalling": {
+      "description": "正在卸载 OpenClaw，请稍候...",
+      "title": "正在卸载 OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安装",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
     "notes": "笔记",
+    "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
     "store": "助手库",

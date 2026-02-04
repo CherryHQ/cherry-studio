@@ -2483,6 +2483,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
+    "description": "使用 Cherry Studio 服務商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "請先選擇服務商和模型"
+    },
+    "gateway": {
+      "port": "連接埠",
+      "restart": "重新啟動",
+      "start": "啟動",
+      "status": "狀態",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "install_progress": "安裝進度",
+    "installed_at": "OpenClaw 安裝路徑：{{path}}",
+    "model_config": {
+      "auth_token": "認證令牌",
+      "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
+      "auth_token_placeholder": "輸入或產生令牌",
+      "generate_token": "產生",
+      "model": "模型",
+      "provider": "服務商",
+      "select_model": "選擇模型",
+      "select_provider": "選擇服務商",
+      "sync_hint": "選擇的服務商和模型將同步到 OpenClaw 設定檔",
+      "title": "模型設定"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安裝在您的系統上。請先安裝它以使用此功能。",
+      "install_button": "安裝 OpenClaw",
+      "install_guide_title": "安裝指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "重新整理",
+      "step2_hint": "安裝完成後，點擊上方的重新整理按鈕來偵測 OpenClaw",
+      "step2_title": "第二步：驗證安裝",
+      "title": "OpenClaw 未安裝",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
+      "download_button": "下載 Node.js",
+      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
+      "title": "需要 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "開啟控制面板",
+      "title": "快捷操作",
+      "uninstall": "解除安裝",
+      "view_docs": "檢視文件"
+    },
+    "status": {
+      "error": "錯誤",
+      "running": "執行中",
+      "starting": "啟動中",
+      "stopped": "已停止"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
+    "uninstall_progress": "解除安裝進度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功解除安裝。",
+      "title": "解除安裝完成"
+    },
+    "uninstalling": {
+      "description": "請稍候，正在解除安裝 OpenClaw...",
+      "title": "解除安裝 OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安裝",
@@ -5194,6 +5263,7 @@
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
     "notes": "筆記",
+    "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",
