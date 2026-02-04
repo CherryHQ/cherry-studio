@@ -1430,7 +1430,7 @@
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect",
       "file_locked": "Impossible de restaurer : certains fichiers sont utilisés. Veuillez fermer toutes les bases de connaissances ou redémarrer l'application et réessayer.",
-      "file_not_found": "Fichier de sauvegarde introuvable ou corrompu"
+      "file_not_found": "Fichier de sauvegarde introuvable. Il a peut-être été déplacé ou supprimé."
     },
     "base64DataTruncated": "Données d'image Base64 tronquées, taille",
     "boundary": {

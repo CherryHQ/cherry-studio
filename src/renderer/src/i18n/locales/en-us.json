@@ -1430,7 +1430,7 @@
     "backup": {
       "file_format": "Backup file format error",
       "file_locked": "Cannot restore: Some files are in use. Please close all knowledge bases or restart the app and try again.",
-      "file_not_found": "Backup file not found or is corrupted"
+      "file_not_found": "Backup file not found. It may have been moved or deleted."
     },
     "base64DataTruncated": "Base64 image data truncated, size",
     "boundary": {

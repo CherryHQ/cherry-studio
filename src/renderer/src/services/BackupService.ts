@@ -92,7 +92,7 @@ function showBackupError(error: any): void {
       window.toast.error(i18n.t('error.backup.file_format'))
       break
     default:
-      window.toast.error(i18n.t('error.backup.file_format') + ': ' + error.message)
+      window.toast.error(i18n.t('error.backup.file_format'))
   }
 }
 
@@ -135,7 +135,7 @@ export async function restore() {
         channel: 'system'
       })
     } catch (error: any) {
-      logger.error('restore: Error restoring backup file:', error as Error)
+      logger.error('restore: Error restoring backup file:', error)
       showBackupError(error)
     }
   }
@@ -345,12 +345,13 @@ export async function restoreFromWebdav(fileName?: string) {
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
+    return
   }
 
   try {
     await handleData(JSON.parse(data))
   } catch (error: any) {
-    logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
+    logger.error('[Backup] Error downloading file from WebDAV:', error)
     showBackupError(error)
   }
 }
@@ -1107,7 +1108,7 @@ export async function restoreFromLocal(fileName: string) {
 
     return true
   } catch (error: any) {
-    logger.error('[LocalBackup] Restore failed:', error as Error)
+    logger.error('[LocalBackup] Restore failed:', error)
     showBackupError(error)
     throw error
   }

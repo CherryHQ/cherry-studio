@@ -1430,7 +1430,7 @@
     "backup": {
       "file_format": "Backup-Dateiformat fehlerhaft",
       "file_locked": "Kann nicht wiederhergestellt: Einige Dateien sind in Gebrauch. Bitte schließen Sie alle Wissensdatenbanken oder starten Sie die App neu und versuchen Sie es erneut.",
-      "file_not_found": "Sicherungsdatei nicht gefunden oder beschädigt"
+      "file_not_found": "Sicherungsdatei nicht gefunden. Sie wurde möglicherweise verschoben oder gelöscht."
     },
     "base64DataTruncated": "Base64-Bilddaten abgeschnitten, Größe",
     "boundary": {
