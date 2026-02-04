@@ -8,7 +8,9 @@ import { updateTopic } from '@renderer/store/assistants'
 import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
+import { getErrorMessage } from '@renderer/utils/error'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
+import { getBriefInfo } from '@renderer/utils/naming'
 import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
@@ -159,7 +161,12 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
           const data = { ...topic, name: summaryText }
           topic.id === _activeTopic.id && _setActiveTopic(data)
           store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+        } else {
+          window.toast?.error(i18n.t('message.error.fetchTopicName'))
         }
+      } catch (error) {
+        const errorMsg = getErrorMessage(error)
+        window.toast?.error(`${i18n.t('message.error.fetchTopicName')}: ${getBriefInfo(errorMsg, 100)}`)
       } finally {
         finishTopicRenaming(topicId)
       }
