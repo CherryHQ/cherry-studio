@@ -18,11 +18,6 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
   }
 
   const firstAccessiblePath = session.accessible_paths?.[0]
-  // const permissionMode = (session.configuration?.permission_mode ?? 'default') as PermissionMode
-  // const permissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
-  // const permissionModeLabel = permissionModeCard
-  //   ? t(permissionModeCard.titleKey, permissionModeCard.titleFallback)
-  //   : permissionMode
 
   const getLastFolderName = (path: string): string => {
     const trimmedPath = path.replace(/[/\\]+$/, '')
@@ -41,7 +36,6 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
     text: string
     tooltip?: string
     className?: string
-    classNames?: {}
     onClick?: (e: React.MouseEvent) => void
   }) => (
     <div
@@ -56,8 +50,6 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
       <span className="block truncate">{text}</span>
     </div>
   )
-
-  // infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
 
   if (firstAccessiblePath) {
     infoItems.push(
@@ -78,8 +70,6 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
       />
     )
   }
-
-  // infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
 
   if (infoItems.length === 0) {
     return null
