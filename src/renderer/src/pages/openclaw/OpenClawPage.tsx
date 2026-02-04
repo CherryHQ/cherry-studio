@@ -1,6 +1,7 @@
 import OpenClawLogo from '@renderer/assets/images/providers/openclaw.svg'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -25,6 +26,7 @@ const OpenClawPage: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { providers } = useProviders()
+  const { openSmartMinapp } = useMinappPopup()
 
   const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
 
@@ -256,6 +258,15 @@ const OpenClawPage: FC = () => {
       }
 
       dispatch(setGatewayStatus('running'))
+
+      // Auto open dashboard after successful start
+      const dashboardUrl = await window.api.openclaw.getDashboardUrl()
+      openSmartMinapp({
+        id: 'openclaw-dashboard',
+        name: t('openclaw.quick_actions.open_dashboard'),
+        url: dashboardUrl,
+        logo: OpenClawLogo
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -296,7 +307,13 @@ const OpenClawPage: FC = () => {
   }
 
   const handleOpenDashboard = async () => {
-    await window.api.openclaw.openDashboard()
+    const dashboardUrl = await window.api.openclaw.getDashboardUrl()
+    openSmartMinapp({
+      id: 'openclaw-dashboard',
+      name: t('openclaw.quick_actions.open_dashboard'),
+      url: dashboardUrl,
+      logo: OpenClawLogo
+    })
   }
 
   const getStatusTag = () => {

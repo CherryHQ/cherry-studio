@@ -11,7 +11,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType } from '@types'
 import { type ChildProcess, spawn } from 'child_process'
-import { shell } from 'electron'
 
 import { windowService } from './WindowService'
 
@@ -120,7 +119,7 @@ class OpenClawService {
     this.restartGateway = this.restartGateway.bind(this)
     this.getStatus = this.getStatus.bind(this)
     this.checkHealth = this.checkHealth.bind(this)
-    this.openDashboard = this.openDashboard.bind(this)
+    this.getDashboardUrl = this.getDashboardUrl.bind(this)
     this.syncProviderConfig = this.syncProviderConfig.bind(this)
     this.getChannelStatus = this.getChannelStatus.bind(this)
   }
@@ -504,16 +503,15 @@ class OpenClawService {
   }
 
   /**
-   * Open OpenClaw Dashboard in browser
+   * Get OpenClaw Dashboard URL (for opening in minapp)
    */
-  public async openDashboard(): Promise<void> {
+  public getDashboardUrl(): string {
     let dashboardUrl = `http://localhost:${this.gatewayPort}`
     // Include auth token in URL for dashboard authentication
     if (this.gatewayAuthToken) {
       dashboardUrl += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
-    await shell.openExternal(dashboardUrl)
-    logger.info('Opened OpenClaw Dashboard', { url: dashboardUrl })
+    return dashboardUrl
   }
 
   /**
