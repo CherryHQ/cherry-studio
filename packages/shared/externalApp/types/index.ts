@@ -8,6 +8,5 @@ export interface ExternalAppConfig {
 }
 
 export interface ExternalAppInfo extends ExternalAppConfig {
-  installed: boolean
-  path?: string
+  path: string
 }

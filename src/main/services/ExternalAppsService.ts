@@ -14,30 +14,32 @@ class ExternalAppsService {
       return this.cache.apps
     }
 
-    const results = await Promise.all(
-      EXTERNAL_APPS.map(async (appConfig) => {
-        try {
-          const info = await app.getApplicationInfoForProtocol(appConfig.protocol)
-          const installed = !!info.name
-          if (installed) {
-            logger.info(`Detected ${appConfig.name} at ${info.path}`)
+    const results = (
+      await Promise.all(
+        EXTERNAL_APPS.map(async (appConfig) => {
+          try {
+            const info = await app.getApplicationInfoForProtocol(appConfig.protocol)
+            const installed = !!info.name
+            if (!installed) {
+              return null
+            }
+            if (installed) {
+              logger.info(`Detected ${appConfig.name} at ${info.path}`)
+            }
+            return {
+              ...appConfig,
+              path: info.path
+            }
+          } catch (error) {
+            logger.debug(`Failed to detect ${appConfig.name}:`, error as Error)
+            return null
           }
-          return {
-            ...appConfig,
-            installed,
-            path: info.path || undefined
-          }
-        } catch (error) {
-          logger.debug(`Failed to detect ${appConfig.name}:`, error as Error)
-          return { ...appConfig, installed: false }
-        }
-      })
-    )
+        })
+      )
+    ).filter((result) => result !== null)
 
-    const installedApps = results.filter((config) => config.installed)
-
-    this.cache = { apps: installedApps, timestamp: Date.now() }
-    return installedApps
+    this.cache = { apps: results, timestamp: Date.now() }
+    return results
   }
 }
 
