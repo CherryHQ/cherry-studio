@@ -894,6 +894,7 @@ export class PluginService {
 
   /**
    * Install plugin packages from a source directory (shared logic for ZIP and directory install)
+   * Supports both plugin packages (with .claude-plugin/plugin.json) and skills (with SKILL.md)
    */
   private async installFromSourceDir(
     sourceDir: string,
@@ -902,24 +903,107 @@ export class PluginService {
     agentId: string,
     sourceType: 'ZIP' | 'directory'
   ): Promise<InstallFromSourceResult> {
+    // First, try to find plugin roots (directories with .claude-plugin/plugin.json)
     const pluginRoots = await this.findPluginRoots(sourceDir)
 
-    if (pluginRoots.length === 0) {
-      throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: sourceDir } as PluginError
+    if (pluginRoots.length > 0) {
+      // Found plugins, install them
+      const packages = await this.installPluginRoots(pluginRoots, workdir, agent)
+      const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
+      const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+
+      logger.info(`Plugin package(s) installed from ${sourceType}`, {
+        agentId,
+        packageCount: packages.length,
+        totalInstalled,
+        totalFailed
+      })
+
+      return { packages, totalInstalled, totalFailed }
     }
 
-    const packages = await this.installPluginRoots(pluginRoots, workdir, agent)
-    const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
-    const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+    // No plugin roots found, try to find skill directories (with SKILL.md)
+    const skillDirs = await findAllSkillDirectories(sourceDir, sourceDir)
 
-    logger.info(`Plugin package(s) installed from ${sourceType}`, {
-      agentId,
-      packageCount: packages.length,
-      totalInstalled,
-      totalFailed
+    if (skillDirs.length > 0) {
+      // Found skills, install them
+      const packages = await this.installSkillRoots(skillDirs, workdir, agent)
+      const totalInstalled = packages.reduce((sum, p) => sum + p.installed.length, 0)
+      const totalFailed = packages.reduce((sum, p) => sum + p.failed.length, 0)
+
+      logger.info(`Skill(s) installed from ${sourceType}`, {
+        agentId,
+        skillCount: skillDirs.length,
+        totalInstalled,
+        totalFailed
+      })
+
+      return { packages, totalInstalled, totalFailed }
+    }
+
+    // Neither plugins nor skills found
+    throw { type: 'PLUGIN_MANIFEST_NOT_FOUND', path: sourceDir } as PluginError
+  }
+
+  /**
+   * Install multiple skill directories and collect results
+   */
+  private async installSkillRoots(
+    skillDirs: Array<{ folderPath: string; sourcePath: string }>,
+    workdir: string,
+    agent: GetAgentResponse
+  ): Promise<SinglePluginInstallResult[]> {
+    const packages: SinglePluginInstallResult[] = []
+    for (const skillDir of skillDirs) {
+      try {
+        const metadata = await this.installSkillFromDirectory(skillDir.folderPath, workdir, agent)
+        packages.push({
+          pluginName: metadata.name,
+          installed: [metadata],
+          failed: []
+        })
+      } catch (error: unknown) {
+        packages.push({
+          pluginName: path.basename(skillDir.folderPath),
+          installed: [],
+          failed: [{ path: skillDir.folderPath, error: error instanceof Error ? error.message : String(error) }]
+        })
+      }
+    }
+    return packages
+  }
+
+  /**
+   * Install a single skill from a directory containing SKILL.md
+   */
+  private async installSkillFromDirectory(
+    skillDir: string,
+    workdir: string,
+    agent: GetAgentResponse
+  ): Promise<PluginMetadata> {
+    const folderName = path.basename(skillDir)
+    const sourcePath = path.join('skills', folderName)
+
+    const metadata = await parseSkillMetadata(skillDir, sourcePath, 'skills')
+    const sanitizedName = this.sanitizeFolderName(metadata.filename)
+
+    await this.ensureClaudeDirectory(workdir, 'skill')
+    const destPath = this.getClaudePluginPath(workdir, 'skill', sanitizedName)
+    await this.installer.installSkill(agent.id, skillDir, destPath)
+
+    const { metadata: metadataWithInstall, installedPlugin } = this.createInstalledPluginMetadata(
+      metadata,
+      sanitizedName,
+      'skill'
+    )
+    await this.registerPluginInCache(workdir, installedPlugin, agent)
+
+    logger.info('Skill installed from directory', {
+      name: metadata.name,
+      destPath
     })
 
-    return { packages, totalInstalled, totalFailed }
+    return metadataWithInstall
   }
 
   /**
