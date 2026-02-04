@@ -103,9 +103,7 @@ function isAnthropicEndpointType(model: Model): boolean {
  * Type guard to check if a provider is a VertexProvider
  */
 function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return (
-    provider.type === 'vertexai'
-  )
+  return provider.type === 'vertexai'
 }
 
 class OpenClawService {
@@ -563,7 +561,7 @@ class OpenClawService {
       // Determine the API type based on model, not provider type
       // Mixed providers (cherryin, aihubmix, etc.) can have both OpenAI and Anthropic endpoints
       const apiType = this.determineApiType(provider, primaryModel)
-      const baseUrl = this.getBaseUrlForApiType(provider, apiType, primaryModel)
+      const baseUrl = this.getBaseUrlForApiType(provider, apiType)
 
       // Get API key - for vertexai, get access token from VertexAIService
       let apiKey = provider.apiKey
@@ -838,7 +836,7 @@ class OpenClawService {
    * For anthropic-messages, prefer anthropicApiHost if available
    * For openai-completions, use apiHost with proper formatting
    */
-  private getBaseUrlForApiType(provider: Provider, apiType: string, _model?: Model): string {
+  private getBaseUrlForApiType(provider: Provider, apiType: string): string {
     if (apiType === OPENCLAW_API_TYPES.ANTHROPIC) {
       // For Anthropic API type, prefer anthropicApiHost if available
       const host = provider.anthropicApiHost || provider.apiHost
