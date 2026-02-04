@@ -259,8 +259,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${AI.getApiKey()}`
     }
-    const url = newApiProvider.apiHost + `/v1/images/generations`
-    const editUrl = newApiProvider.apiHost + `/v1/images/edits`
+    // NOTE: newapi只接受v1/images/xxx的请求
+    const url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
+    const editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
 
     try {
       if (mode === 'openai_image_generate') {
@@ -271,7 +272,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           background: painting.background === 'auto' ? undefined : painting.background,
           n: painting.n,
           quality: painting.quality === 'auto' ? undefined : painting.quality,
-          moderation: painting.moderation === 'auto' ? undefined : painting.moderation
+          moderation: painting.moderation === 'auto' ? undefined : painting.moderation,
+          response_format: 'b64_json'
         }
 
         body = JSON.stringify(requestData)
