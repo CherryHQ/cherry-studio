@@ -1729,9 +1729,27 @@ export const removeBlocksThunk =
       dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
-      // 2. Update database
-      await dbService.updateMessage(topicId, messageId, { blocks: updatedBlockIds })
-      await dbService.deleteBlocks(blockIdsToRemove)
+      // 2. Update database - different handling for agent vs Dexie topics
+      if (isAgentSessionTopicId(topicId)) {
+        // For agent topics: use IPC to remove blocks from SQLite (atomic operation in backend)
+        const sessionId = extractAgentSessionIdFromTopicId(topicId)
+        if (sessionId) {
+          await window.electron?.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlocks, {
+            sessionId,
+            messageId,
+            blockIds: blockIdsToRemove
+          })
+        }
+      } else {
+        // For Dexie topics: use transaction for atomicity
+        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          if (blockIdsToRemove.length > 0) {
+            await db.message_blocks.bulkDelete(blockIdsToRemove)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {

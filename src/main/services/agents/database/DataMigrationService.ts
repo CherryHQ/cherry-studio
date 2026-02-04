@@ -113,7 +113,9 @@ export class DataMigrationService {
       logger.info(`Executing data migration ${migration.tag}: ${migration.description}`)
       const startTime = Date.now()
 
-      // Run the migration
+      // Note: If migrate() partially completes and then throws, the migration
+      // is NOT recorded as applied. On next startup it will re-run, which is
+      // safe because individual migrations are designed to be idempotent.
       await migration.migrate(this.db)
 
       // Record migration as applied

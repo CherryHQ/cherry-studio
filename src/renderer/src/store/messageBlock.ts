@@ -402,7 +402,8 @@ export const selectActiveTodoInfo = createSelector(
       for (const blockId of message.blocks) {
         const block = blockEntities[blockId]
         if (isTodoWriteBlock(block)) {
-          ;(blockIdsByMessage[messageId] ??= []).push(blockId)
+          const ids = (blockIdsByMessage[messageId] ??= [])
+          ids.push(blockId)
           const todos = block.metadata.rawMcpToolResponse?.arguments?.todos
           if (todos && hasIncompleteTodos(todos)) {
             latestBlock = block

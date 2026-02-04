@@ -35,12 +35,15 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ topicId }) => {
   const [isCollapsed, setIsCollapsed] = useState(true)
 
   const handleClose = useCallback(
-    (e: React.MouseEvent) => {
+    async (e: React.MouseEvent) => {
       e.stopPropagation()
       if (activeTodoInfo) {
-        for (const [messageId, blockIds] of Object.entries(activeTodoInfo.blockIdsByMessage)) {
-          dispatch(removeBlocksThunk(topicId, messageId, blockIds))
-        }
+        // Batch all removals with Promise.all to ensure they complete before unmounting
+        await Promise.all(
+          Object.entries(activeTodoInfo.blockIdsByMessage).map(([messageId, blockIds]) =>
+            dispatch(removeBlocksThunk(topicId, messageId, blockIds))
+          )
+        )
       }
     },
     [dispatch, topicId, activeTodoInfo]

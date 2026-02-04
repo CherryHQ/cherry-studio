@@ -485,7 +485,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     [sendMessageShortcut, t]
   )
 
-  const pinnedContent = useMemo(() => <PinnedTodoPanel topicId={sessionTopicId} />, [sessionTopicId])
+  const pinnedContent = <PinnedTodoPanel topicId={sessionTopicId} />
 
   return (
     <InputbarCore
