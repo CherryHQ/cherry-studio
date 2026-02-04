@@ -1,16 +1,12 @@
 import { loggerService } from '@logger'
 import { net } from 'electron'
-import fs from 'fs'
-import path from 'path'
 import * as z from 'zod'
 
-import { getConfigDir } from '../utils/file'
+import { reduxService } from './ReduxService'
 
 const logger = loggerService.withContext('CherryINOAuthService')
 
 const CONFIG = {
-  TOKEN_FILE_NAME: '.cherryin_oauth_token',
-  REFRESH_TOKEN_FILE_NAME: '.cherryin_oauth_refresh_token',
   CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d'
 }
 
@@ -78,16 +74,10 @@ class CherryINOAuthServiceError extends Error {
 }
 
 class CherryINOAuthService {
-  private readonly tokenFilePath: string
-  private readonly refreshTokenFilePath: string
-
-  constructor() {
-    this.tokenFilePath = path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
-    this.refreshTokenFilePath = path.join(getConfigDir(), CONFIG.REFRESH_TOKEN_FILE_NAME)
-  }
-
   /**
-   * Save OAuth tokens to local files
+   * Save OAuth tokens to Redux store
+   * @param accessToken - The access token to save
+   * @param refreshToken - The refresh token to save (only updates if provided and non-empty)
    */
   public saveToken = async (
     _: Electron.IpcMainInvokeEvent,
@@ -95,20 +85,17 @@ class CherryINOAuthService {
     refreshToken?: string
   ): Promise<void> => {
     try {
-      const dir = path.dirname(this.tokenFilePath)
-      if (!fs.existsSync(dir)) {
-        await fs.promises.mkdir(dir, { recursive: true })
-      }
-
-      // Save access token
-      await fs.promises.writeFile(this.tokenFilePath, accessToken, 'utf-8')
-
-      // Save refresh token if provided
+      // Only include refreshToken in payload if it's provided and non-empty
+      // This prevents clearing the existing refresh token when server doesn't return a new one
+      const payload: { accessToken: string; refreshToken?: string } = { accessToken }
       if (refreshToken) {
-        await fs.promises.writeFile(this.refreshTokenFilePath, refreshToken, 'utf-8')
+        payload.refreshToken = refreshToken
       }
-
-      logger.debug('Successfully saved CherryIN OAuth tokens')
+      await reduxService.dispatch({
+        type: 'llm/setCherryInTokens',
+        payload
+      })
+      logger.debug('Successfully saved CherryIN OAuth tokens to Redux')
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CherryINOAuthServiceError('Failed to save OAuth token', error)
@@ -116,14 +103,12 @@ class CherryINOAuthService {
   }
 
   /**
-   * Read OAuth access token from local file
+   * Read OAuth access token from Redux store
    */
   public getToken = async (): Promise<string | null> => {
     try {
-      if (!fs.existsSync(this.tokenFilePath)) {
-        return null
-      }
-      return await fs.promises.readFile(this.tokenFilePath, 'utf-8')
+      const token = await reduxService.select<string>('state.llm.settings.cherryIn.accessToken')
+      return token || null
     } catch (error) {
       logger.error('Failed to read token:', error as Error)
       return null
@@ -131,14 +116,12 @@ class CherryINOAuthService {
   }
 
   /**
-   * Read OAuth refresh token from local file
+   * Read OAuth refresh token from Redux store
    */
   private getRefreshToken = async (): Promise<string | null> => {
     try {
-      if (!fs.existsSync(this.refreshTokenFilePath)) {
-        return null
-      }
-      return await fs.promises.readFile(this.refreshTokenFilePath, 'utf-8')
+      const token = await reduxService.select<string>('state.llm.settings.cherryIn.refreshToken')
+      return token || null
     } catch (error) {
       logger.error('Failed to read refresh token:', error as Error)
       return null
@@ -149,7 +132,8 @@ class CherryINOAuthService {
    * Check if OAuth token exists
    */
   public hasToken = async (): Promise<boolean> => {
-    return fs.existsSync(this.tokenFilePath)
+    const token = await this.getToken()
+    return !!token
   }
 
   /**
@@ -351,7 +335,7 @@ class CherryINOAuthService {
   }
 
   /**
-   * Revoke OAuth token and delete local token files
+   * Revoke OAuth token and clear from Redux store
    */
   public logout = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<void> => {
     try {
@@ -372,20 +356,16 @@ class CherryINOAuthService {
           })
           logger.debug('Successfully revoked token on server')
         } catch (revokeError) {
-          // Log but don't fail - we still want to delete local token
+          // Log but don't fail - we still want to clear local token
           logger.warn('Failed to revoke token on server:', revokeError as Error)
         }
       }
 
-      // Delete local token files
-      if (fs.existsSync(this.tokenFilePath)) {
-        await fs.promises.unlink(this.tokenFilePath)
-        logger.debug('Successfully deleted local access token file')
-      }
-      if (fs.existsSync(this.refreshTokenFilePath)) {
-        await fs.promises.unlink(this.refreshTokenFilePath)
-        logger.debug('Successfully deleted local refresh token file')
-      }
+      // Clear tokens from Redux store
+      await reduxService.dispatch({
+        type: 'llm/clearCherryInTokens'
+      })
+      logger.debug('Successfully cleared CherryIN OAuth tokens from Redux')
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
       throw new CherryINOAuthServiceError('Failed to logout', error)
