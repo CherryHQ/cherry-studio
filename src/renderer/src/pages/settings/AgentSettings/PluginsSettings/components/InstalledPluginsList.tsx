@@ -2,7 +2,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { InstalledPlugin } from '@renderer/types/plugin'
 import type { TableProps } from 'antd'
 import { Button, Skeleton, Table as AntTable, Tag } from 'antd'
-import { Dot, Package, Trash2 } from 'lucide-react'
+import { Package, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -94,9 +94,9 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
   if (loading) {
     return (
       <div className="flex flex-col space-y-2">
-        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
-        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
-        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
+        <Skeleton.Node active className="w-full" style={{ width: '100%', height: 180, borderRadius: 10 }} />
+        <Skeleton.Node active className="w-full" style={{ width: '100%', height: 180, borderRadius: 10 }} />
+        <Skeleton.Node active className="w-full" style={{ width: '100%', height: 180, borderRadius: 10 }} />
       </div>
     )
   }
@@ -138,7 +138,6 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
       align: 'center',
       render: (_: unknown, plugin: InstalledPlugin) => (
         <Tag
-          icon={<Dot size={14} strokeWidth={8} />}
           style={{
             display: 'flex',
             flexDirection: 'row',
@@ -184,6 +183,7 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
               {group.packageName && onUninstallPackage && (
                 <Button
                   danger
+                  type="text"
                   size="small"
                   onClick={() => handleUninstallPackage(group.packageName!)}
                   loading={uninstallingPackage && uninstallingPackageName === group.packageName}

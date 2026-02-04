@@ -6,6 +6,7 @@ import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingsContainer } from '../shared'
 import { InstalledPluginsList } from './components/InstalledPluginsList'
 import { PluginBrowser } from './components/PluginBrowser'
 import { PluginUploader } from './components/PluginUploader'
@@ -56,7 +57,7 @@ export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) =>
   )
 
   return (
-    <div className="flex h-full flex-col overflow-hidden pt-4 pr-2">
+    <div className="flex h-full flex-col overflow-hidden p-[16px]">
       <div className="min-h-0 flex-1">
         <PluginBrowser installedPlugins={plugins} onInstall={handleInstall} onUninstall={handleUninstall} />
       </div>
@@ -111,7 +112,7 @@ export const InstalledPluginsSettings: FC<PluginSettingsProps> = ({ agentBase })
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden pt-4 pr-2">
+    <SettingsContainer>
       <PluginUploader agentId={agentBase.id} onUploadSuccess={refresh} disabled={installing} />
       {errorInstalled ? (
         <Card className="bg-danger-50 dark:bg-danger-900/20">
@@ -130,6 +131,6 @@ export const InstalledPluginsSettings: FC<PluginSettingsProps> = ({ agentBase })
           />
         </Scrollbar>
       )}
-    </div>
+    </SettingsContainer>
   )
 }

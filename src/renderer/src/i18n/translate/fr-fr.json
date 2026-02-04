@@ -154,7 +154,7 @@
         "error": {
           "install": "Échec de l'installation du plugin",
           "load": "Échec du chargement du plugin",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "Échec du chargement de plugins supplémentaires",
           "uninstall": "Échec de la désinstallation du plugin"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "Installer des plugins"
         },
         "installed": {
-          "empty": "Aucun plugin n'est encore installé. Parcourez les plugins disponibles pour commencer."
+          "empty": "Aucun plugin n'est encore installé. Parcourez les plugins disponibles pour commencer.",
+          "title": "Extensions installées"
         },
         "installing": "Installation en cours...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "Renommer",
     "required_field": "Champ obligatoire",
     "reset": "Réinitialiser",
-    "retry": "[to be translated]:Retry",
+    "retry": "Réessayer",
     "save": "Enregistrer",
     "saved": "enregistré",
     "search": "Rechercher",

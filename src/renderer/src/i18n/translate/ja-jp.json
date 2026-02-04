@@ -154,7 +154,7 @@
         "error": {
           "install": "プラグインのインストールに失敗しました",
           "load": "プラグインの読み込みに失敗しました",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "さらに多くのプラグインを読み込めませんでした",
           "uninstall": "プラグインのアンインストールに失敗しました"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "プラグインをインストール"
         },
         "installed": {
-          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。"
+          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
+          "title": "インストール済みプラグイン"
         },
         "installing": "インストール中...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "名前を変更",
     "required_field": "必須項目",
     "reset": "リセット",
-    "retry": "[to be translated]:Retry",
+    "retry": "リトライ",
     "save": "保存",
     "saved": "保存されました",
     "search": "検索",

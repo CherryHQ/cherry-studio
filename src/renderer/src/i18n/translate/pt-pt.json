@@ -154,7 +154,7 @@
         "error": {
           "install": "Falha na instalação do plugin",
           "load": "Falha ao carregar o plugin",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "Falha ao carregar mais plugins",
           "uninstall": "Falha ao desinstalar o plug-in"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "Instalar Plugins"
         },
         "installed": {
-          "empty": "Nenhum plugin foi instalado ainda. Explore os plugins disponíveis para começar."
+          "empty": "Nenhum plugin foi instalado ainda. Explore os plugins disponíveis para começar.",
+          "title": "Plugins Instalados"
         },
         "installing": "Instalando...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "Renomear",
     "required_field": "Campo obrigatório",
     "reset": "Redefinir",
-    "retry": "[to be translated]:Retry",
+    "retry": "Tentar novamente",
     "save": "Salvar",
     "saved": "Guardado",
     "search": "Pesquisar",

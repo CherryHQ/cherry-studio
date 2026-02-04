@@ -154,7 +154,7 @@
         "error": {
           "install": "安裝外掛失敗",
           "load": "載入外掛失敗",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "無法載入更多外掛程式",
           "uninstall": "解除安裝外掛失敗"
         },
         "filter": {
@@ -162,10 +162,11 @@
         },
         "install": {
           "button": "安裝",
-          "title": "[to be translated]:Install Plugins"
+          "title": "安裝外掛程式"
         },
         "installed": {
-          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。"
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
+          "title": "已安裝外掛程式"
         },
         "installing": "安裝中...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "重新命名",
     "required_field": "必填欄位",
     "reset": "重設",
-    "retry": "[to be translated]:Retry",
+    "retry": "重試",
     "save": "儲存",
     "saved": "已儲存",
     "search": "搜尋",

@@ -165,7 +165,8 @@
           "title": "安装插件"
         },
         "installed": {
-          "empty": "尚未安装任何插件。浏览可用插件以开始使用。"
+          "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
+          "title": "已安装插件"
         },
         "installing": "安装中...",
         "plugin_upload": {

@@ -27,7 +27,7 @@ export interface UseMarketplaceBrowserOptions {
   limit?: number
 }
 
-const DEFAULT_PAGE_SIZE = 100
+const DEFAULT_PAGE_SIZE = 40
 
 const sanitizeIdentifier = (value: string): string => {
   const sanitized = value

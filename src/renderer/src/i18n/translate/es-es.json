@@ -154,7 +154,7 @@
         "error": {
           "install": "Error al instalar el complemento",
           "load": "Error al cargar el complemento",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "Error al cargar más complementos",
           "uninstall": "Error al desinstalar el complemento"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "Instalar complementos"
         },
         "installed": {
-          "empty": "Aún no se ha instalado ningún complemento. Explora los complementos disponibles para comenzar."
+          "empty": "Aún no se ha instalado ningún complemento. Explora los complementos disponibles para comenzar.",
+          "title": "Plugins Instalados"
         },
         "installing": "Instalando...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "Renombrar",
     "required_field": "Campo obligatorio",
     "reset": "Restablecer",
-    "retry": "[to be translated]:Retry",
+    "retry": "Reintentar",
     "save": "Guardar",
     "saved": "Guardado",
     "search": "Buscar",

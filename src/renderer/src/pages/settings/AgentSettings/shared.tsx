@@ -1,4 +1,5 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import Scrollbar, { ScrollbarProps } from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
 import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -85,11 +86,15 @@ export const SettingsItem: React.FC<SettingsItemProps> = ({
   )
 }
 
-export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = ({ children, className, ...props }) => {
+export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & ScrollbarProps> = ({
+  children,
+  className,
+  ...props
+}) => {
   return (
-    <div className={cn('flex flex-1 flex-col overflow-y-auto overflow-x-hidden pr-2', className)} {...props}>
+    <Scrollbar className={cn('p-[16px]', className)} {...props}>
       {children}
-    </div>
+    </Scrollbar>
   )
 }
 
@@ -104,7 +109,6 @@ export const Settings = styled.div`
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 16px 16px;
 `
 
 export const StyledModal = styled(Modal)`

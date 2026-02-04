@@ -154,7 +154,7 @@
         "error": {
           "install": "Fehler beim Installieren des Plugins",
           "load": "Fehler beim Laden der Plugins",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "Weitere Plugins konnten nicht geladen werden",
           "uninstall": "Fehler beim Deinstallieren des Plugins"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "Install Plugins"
         },
         "installed": {
-          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen."
+          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
+          "title": "Installierte Plugins"
         },
         "installing": "Wird installiert...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "Umbenennen",
     "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
-    "retry": "[to be translated]:Retry",
+    "retry": "Wiederholen",
     "save": "Speichern",
     "saved": "Gespeichert",
     "search": "Suchen",

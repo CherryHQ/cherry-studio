@@ -1,6 +1,6 @@
 import type { PluginMetadata } from '@renderer/types/plugin'
 import { Button, Modal, Spin, Tag } from 'antd'
-import { Dot, Download, Trash2 } from 'lucide-react'
+import { Download, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +50,6 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <Tag
-              icon={<Dot size={14} strokeWidth={8} />}
               style={{
                 display: 'flex',
                 flexDirection: 'row',

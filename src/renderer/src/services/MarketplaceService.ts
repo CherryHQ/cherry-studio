@@ -274,7 +274,6 @@ export const createMarketplacePager = (options: {
     })()
 
     prefetchPromise = promise
-    await promise
   }
 
   const applyPage = async (page: MarketplacePage<MarketplacePlugin | MarketplaceSkill>) => {
@@ -284,7 +283,7 @@ export const createMarketplacePager = (options: {
     prefetch = null
 
     if (page.hasMore) {
-      await prefetchNext(nextOffset)
+      prefetchNext(nextOffset)
     }
 
     return page

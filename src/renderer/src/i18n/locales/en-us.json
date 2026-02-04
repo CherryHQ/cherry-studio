@@ -165,7 +165,8 @@
           "title": "Install Plugins"
         },
         "installed": {
-          "empty": "No plugins installed yet. Browse available plugins to get started."
+          "empty": "No plugins installed yet. Browse available plugins to get started.",
+          "title": "Installed Plugins"
         },
         "installing": "Installing...",
         "plugin_upload": {

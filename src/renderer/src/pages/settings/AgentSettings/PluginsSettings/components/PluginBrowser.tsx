@@ -204,16 +204,19 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   }
 
   const handleVirtualChange = useCallback(
-    (instance: { getVirtualItems: () => Array<{ index: number }> }) => {
+    (instance: { scrollOffset: number; getTotalSize: () => number; scrollElement: HTMLElement | null }) => {
       if (!hasMore || isLoading || isLoadingMore) return
-      const virtualItems = instance.getVirtualItems()
-      const lastItem = virtualItems[virtualItems.length - 1]
-      if (!lastItem) return
-      if (lastItem.index >= rows.length - 2) {
+      const { scrollOffset, scrollElement } = instance
+      if (!scrollElement) return
+      const clientHeight = scrollElement.clientHeight
+      const totalSize = instance.getTotalSize()
+      const distanceToBottom = totalSize - scrollOffset - clientHeight
+      // Trigger load when within 200px of the bottom
+      if (distanceToBottom < 200) {
         loadMore()
       }
     },
-    [hasMore, isLoading, isLoadingMore, loadMore, rows.length]
+    [hasMore, isLoading, isLoadingMore, loadMore]
   )
 
   const skeletonCards = useMemo(

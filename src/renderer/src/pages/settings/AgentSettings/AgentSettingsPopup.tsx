@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
 import EssentialSettings from './EssentialSettings'
-import { InstalledPluginsSettings, PluginBrowserSettings } from './PluginSettings'
+import { InstalledPluginsSettings, PluginBrowserSettings } from './PluginsSettings/PluginsSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
@@ -147,7 +147,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           flex: 1
         }
       }}
-      width="min(800px, 70vw)"
+      width="min(900px, 70vw)"
       centered>
       {renderModalContent()}
     </StyledModal>

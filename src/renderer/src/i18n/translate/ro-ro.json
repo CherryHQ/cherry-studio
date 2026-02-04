@@ -154,7 +154,7 @@
         "error": {
           "install": "Nu s-a putut instala pluginul",
           "load": "Nu s-au putut încărca pluginurile",
-          "load_more": "[to be translated]:Failed to load more plugins",
+          "load_more": "Nu s-au putut încărca mai multe pluginuri",
           "uninstall": "Nu s-a putut dezinstala pluginul"
         },
         "filter": {
@@ -165,7 +165,8 @@
           "title": "Instalați pluginuri"
         },
         "installed": {
-          "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe."
+          "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe.",
+          "title": "Plugin-uri instalate"
         },
         "installing": "Se instalează...",
         "plugin_upload": {
@@ -1313,7 +1314,7 @@
     "rename": "Redenumește",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
-    "retry": "[to be translated]:Retry",
+    "retry": "Reîncercare",
     "save": "Salvează",
     "saved": "Salvat",
     "search": "Caută",
