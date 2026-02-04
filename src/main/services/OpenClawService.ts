@@ -646,9 +646,9 @@ class OpenClawService {
     }
 
     // On Windows, npm global installs create .cmd files, not .exe files
-    // findCommandInShellEnv only accepts .exe, so we need to search for .cmd manually
+    // findCommandInShellEnv only accepts .exe, so we need to search for .cmd/.bat or files without extension
     if (isWin) {
-      const cmdPath = await this.findNpmGlobalCmd('openclaw')
+      const cmdPath = await this.findNpmGlobalCmd('openclaw', shellEnv)
       if (cmdPath) {
         return cmdPath
       }
@@ -684,10 +684,12 @@ class OpenClawService {
   /**
    * Find npm global command on Windows using 'where' command
    * Accepts .cmd files (npm global wrappers) and files without extension
+   * Uses shell environment to find commands in paths set by nvm, etc.
    */
-  private async findNpmGlobalCmd(command: string): Promise<string | null> {
+  private async findNpmGlobalCmd(command: string, shellEnv: Record<string, string>): Promise<string | null> {
     return new Promise((resolve) => {
       const child = spawn('where', [command], {
+        env: shellEnv,
         stdio: ['ignore', 'pipe', 'pipe']
       })
 
