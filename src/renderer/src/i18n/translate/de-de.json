@@ -2076,7 +2076,9 @@
       "raw": "Roh",
       "runningCount": "{{count}} Werkzeuge laufen",
       "sections": {
+        "args": "[to be translated]:Arguments",
         "command": "Befehl",
+        "content": "[to be translated]:Content",
         "exitCode": "Exit-Code",
         "input": "Eingabe",
         "output": "Ausgabe",

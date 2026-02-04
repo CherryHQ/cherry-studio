@@ -2076,7 +2076,9 @@
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "sections": {
+        "args": "[to be translated]:Arguments",
         "command": "Comando",
+        "content": "[to be translated]:Content",
         "exitCode": "Código de Salida",
         "input": "Entrada",
         "output": "Salida",

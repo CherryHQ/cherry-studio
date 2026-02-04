@@ -2076,7 +2076,9 @@
       "raw": "Brut",
       "runningCount": "{{count}} instrumente în execuție",
       "sections": {
+        "args": "[to be translated]:Arguments",
         "command": "Comandă",
+        "content": "[to be translated]:Content",
         "exitCode": "Cod de ieșire",
         "input": "Intrare",
         "output": "Ieșire",

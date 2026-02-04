@@ -2076,7 +2076,9 @@
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
       "sections": {
+        "args": "Arguments",
         "command": "Command",
+        "content": "Content",
         "exitCode": "Exit Code",
         "input": "Input",
         "output": "Output",

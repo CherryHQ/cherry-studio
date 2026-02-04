@@ -2076,7 +2076,9 @@
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
       "sections": {
+        "args": "[to be translated]:Arguments",
         "command": "Команда",
+        "content": "[to be translated]:Content",
         "exitCode": "Код выхода",
         "input": "Ввод",
         "output": "Вывод",
