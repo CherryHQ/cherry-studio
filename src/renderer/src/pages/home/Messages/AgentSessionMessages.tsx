@@ -4,6 +4,7 @@ import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { PinnedTodoPanel } from '@renderer/pages/home/Inputbar/components/PinnedTodoPanel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import { type Topic, TopicType } from '@renderer/types'
@@ -92,6 +93,9 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
       ref={scrollContainerRef}
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+        <PinnedTodoPanelWrapper>
+          <PinnedTodoPanel topicId={sessionTopicId} />
+        </PinnedTodoPanelWrapper>
         <ContextMenu>
           <ScrollContainer>
             {groupedMessages.length > 0 ? (
@@ -118,6 +122,10 @@ const LoadingState = styled.div`
   justify-content: center;
   align-items: center;
   padding: 20px 0;
+`
+
+const PinnedTodoPanelWrapper = styled.div`
+  padding: 0 0 12px 0;
 `
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
