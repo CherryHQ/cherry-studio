@@ -74,7 +74,7 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -207,7 +207,7 @@ jobs:
           echo "总计: $(find renamed-artifacts -type f | wc -l) 个文件"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: cherry-studio-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
           path: renamed-artifacts/*

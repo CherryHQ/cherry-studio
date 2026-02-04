@@ -15,7 +15,6 @@ import styled from 'styled-components'
 
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
@@ -34,7 +33,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
   const [activeKey, setActiveKey] = useState('files')
-  const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
@@ -42,11 +40,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   useEffect(() => {
     const handlers = [
-      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId, quota }) => {
+      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId }) => {
         setPreprocessMap((prev) => new Map(prev).set(itemId, true))
-        if (quota) {
-          setQuota(quota)
-        }
       }),
 
       window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
@@ -160,9 +155,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               </div>
             </Tooltip>
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
-            {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
-              <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
-            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">

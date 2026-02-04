@@ -35,7 +35,7 @@ import MiMoProviderLogo from '@renderer/assets/images/providers/mimo.svg'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
-import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.webp'
 import NewAPIProviderLogo from '@renderer/assets/images/providers/newapi.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
@@ -64,16 +64,15 @@ import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
+import { qwen3Next80BModel, qwen38bModel, SYSTEM_MODELS } from './models'
 
 export const CHERRYAI_PROVIDER: SystemProvider = {
   id: 'cherryai' as SystemProviderId,
   name: 'CherryAI',
   type: 'openai',
   apiKey: '',
-  apiHost: 'https://api.cherry-ai.com/',
-  anthropicApiHost: 'https://api.cherry-ai.com',
-  models: [glm45FlashModel, qwen38bModel],
+  apiHost: 'https://api.cherry-ai.com',
+  models: [qwen38bModel, qwen3Next80BModel],
   isSystem: true,
   enabled: true
 }
