@@ -1725,7 +1725,7 @@ export const removeBlocksThunk =
 
       const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
 
-      // 1. Update Redux state (optimistic)
+      // 1. Update Redux state
       dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
