@@ -2076,9 +2076,9 @@
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "sections": {
-        "args": "[to be translated]:Arguments",
+        "args": "議論",
         "command": "コマンド",
-        "content": "[to be translated]:Content",
+        "content": "コンテンツ",
         "exitCode": "終了コード",
         "input": "入力",
         "output": "出力",

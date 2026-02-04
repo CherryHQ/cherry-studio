@@ -2076,9 +2076,9 @@
       "raw": "Ακατέργαστο",
       "runningCount": "{{count}} εργαλεία εκτελούνται",
       "sections": {
-        "args": "[to be translated]:Arguments",
+        "args": "Επιχειρήματα",
         "command": "Εντολή",
-        "content": "[to be translated]:Content",
+        "content": "Περιεχόμενο",
         "exitCode": "Κωδικός Εξόδου",
         "input": "Εισαγωγή",
         "output": "Έξοδος",

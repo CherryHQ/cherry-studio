@@ -2076,9 +2076,9 @@
       "raw": "Brut",
       "runningCount": "{{count}} outils en cours d'exécution",
       "sections": {
-        "args": "[to be translated]:Arguments",
+        "args": "Arguments",
         "command": "Commande",
-        "content": "[to be translated]:Content",
+        "content": "Contenu",
         "exitCode": "Code de sortie",
         "input": "Entrée",
         "output": "Sortie",
