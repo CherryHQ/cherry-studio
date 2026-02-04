@@ -182,12 +182,12 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           <LogOut size={14} />
         </LogoutCorner>
       )}
-      <ProviderLogo src={CherryINProviderLogo} />
+      <ProviderLogo src={CherryINProviderLogo} onClick={() => window.open('https://open.cherryin.ai', '_blank')} />
       {renderContent()}
       <Description>
         {t('settings.provider.oauth.provided_by')}{' '}
-        <OfficialWebsite href="https://cherryin.ai" target="_blank" rel="noreferrer">
-          cherryin.ai
+        <OfficialWebsite href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
+          open.cherryin.ai
         </OfficialWebsite>
         {t('settings.provider.oauth.provided_by_suffix')}
       </Description>
@@ -236,6 +236,12 @@ const ProviderLogo = styled.img`
   width: 60px;
   height: 60px;
   border-radius: 50%;
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
 `
 
 const ButtonRow = styled.div`
