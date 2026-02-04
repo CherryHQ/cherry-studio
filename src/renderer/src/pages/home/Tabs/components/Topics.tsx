@@ -268,6 +268,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
               } else {
                 window.toast?.error(t('message.error.fetchTopicName'))
               }
+            } catch {
+              window.toast?.error(t('message.error.fetchTopicName'))
             } finally {
               finishTopicRenaming(topic.id)
             }

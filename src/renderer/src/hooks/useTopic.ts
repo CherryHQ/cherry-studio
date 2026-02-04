@@ -159,7 +159,11 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
           const data = { ...topic, name: summaryText }
           topic.id === _activeTopic.id && _setActiveTopic(data)
           store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+        } else {
+          window.toast?.error(i18n.t('message.error.fetchTopicName'))
         }
+      } catch {
+        window.toast?.error(i18n.t('message.error.fetchTopicName'))
       } finally {
         finishTopicRenaming(topicId)
       }
