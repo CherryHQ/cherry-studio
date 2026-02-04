@@ -210,7 +210,7 @@ class CodeToolsService {
       } else {
         backupContent = rawContent
       }
-      existingConfig = parseJSONC(rawContent)
+      existingConfig = JSON.parse(JSON.stringify(existingConfigForBackup))
       logger.info('Parsed existing opencode.json config')
     }
     this.openCodeConfigBackups.set(configPath, backupContent)
@@ -270,97 +270,100 @@ class CodeToolsService {
     }
 
     // Schedule new cleanup
-    const timer = setTimeout(() => {
-      this.openCodeCleanupTimers.delete(configPath)
+    const timer = setTimeout(
+      () => {
+        this.openCodeCleanupTimers.delete(configPath)
 
-      try {
-        // Check if file still exists
-        if (!fs.existsSync(configPath)) {
-          logger.info(`opencode.json already deleted: ${configPath}`)
-          this.openCodeConfigBackups.delete(configPath)
-          return
-        }
-
-        // Get backup content
-        const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
-
-        // Parse current config
-        const currentContent = fs.readFileSync(configPath, 'utf8')
-        const currentConfig = parseJSONC(currentContent)
-
-        if (!currentConfig || typeof currentConfig !== 'object') {
-          // Invalid config, fall back to backup or deletion
-          if (backupContent !== null) {
-            fs.writeFileSync(configPath, backupContent, 'utf8')
-            logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
-          } else {
-            fs.unlinkSync(configPath)
-            logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
+        try {
+          // Check if file still exists
+          if (!fs.existsSync(configPath)) {
+            logger.info(`opencode.json already deleted: ${configPath}`)
+            this.openCodeConfigBackups.delete(configPath)
+            return
           }
-          this.openCodeConfigBackups.delete(configPath)
-          return
-        }
 
-        // Remove Cherry-* providers from current config
-        if (currentConfig.provider && typeof currentConfig.provider === 'object') {
-          const providers = currentConfig.provider as Record<string, any>
-          const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
+          // Get backup content
+          const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
 
-          if (keysToDelete.length > 0) {
-            for (const key of keysToDelete) {
-              delete providers[key]
+          // Parse current config
+          const currentContent = fs.readFileSync(configPath, 'utf8')
+          const currentConfig = parseJSONC(currentContent)
+
+          if (!currentConfig || typeof currentConfig !== 'object') {
+            // Invalid config, fall back to backup or deletion
+            if (backupContent !== null) {
+              fs.writeFileSync(configPath, backupContent, 'utf8')
+              logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
+            } else {
+              fs.unlinkSync(configPath)
+              logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
             }
+            this.openCodeConfigBackups.delete(configPath)
+            return
+          }
 
-            // If provider object becomes empty, remove it
-            if (Object.keys(providers).length === 0) {
-              delete currentConfig.provider
-            }
+          // Remove Cherry-* providers from current config
+          if (currentConfig.provider && typeof currentConfig.provider === 'object') {
+            const providers = currentConfig.provider as Record<string, any>
+            const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
 
-            // Check if config is now "empty" (only contains non-functional fields like $schema)
-            const remainingKeys = getFunctionalKeys(currentConfig)
-            if (remainingKeys.length === 0) {
-              // Config is essentially empty after cleanup
-              // Check if backup also has no functional content
-              let backupHasFunctionalContent = false
-              if (backupContent !== null) {
-                try {
-                  const backupConfig = parseJSONC(backupContent)
-                  if (backupConfig && typeof backupConfig === 'object') {
-                    const backupKeys = getFunctionalKeys(backupConfig)
-                    backupHasFunctionalContent = backupKeys.length > 0
-                  }
-                } catch {
-                  // Parse failed, treat as no functional content
-                }
+            if (keysToDelete.length > 0) {
+              for (const key of keysToDelete) {
+                delete providers[key]
               }
 
-              if (backupHasFunctionalContent && backupContent !== null) {
-                // Restore original content (it had functional content)
-                fs.writeFileSync(configPath, backupContent, 'utf8')
-                logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
+              // If provider object becomes empty, remove it
+              if (Object.keys(providers).length === 0) {
+                delete currentConfig.provider
+              }
+
+              // Check if config is now "empty" (only contains non-functional fields like $schema)
+              const remainingKeys = getFunctionalKeys(currentConfig)
+              if (remainingKeys.length === 0) {
+                // Config is essentially empty after cleanup
+                // Check if backup also has no functional content
+                let backupHasFunctionalContent = false
+                if (backupContent !== null) {
+                  try {
+                    const backupConfig = parseJSONC(backupContent)
+                    if (backupConfig && typeof backupConfig === 'object') {
+                      const backupKeys = getFunctionalKeys(backupConfig)
+                      backupHasFunctionalContent = backupKeys.length > 0
+                    }
+                  } catch {
+                    // Parse failed, treat as no functional content
+                  }
+                }
+
+                if (backupHasFunctionalContent && backupContent !== null) {
+                  // Restore original content (it had functional content)
+                  fs.writeFileSync(configPath, backupContent, 'utf8')
+                  logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
+                } else {
+                  // No backup or backup had no functional content, delete the file
+                  fs.unlinkSync(configPath)
+                  logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
+                }
               } else {
-                // No backup or backup had no functional content, delete the file
-                fs.unlinkSync(configPath)
-                logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
+                // Write back the cleaned config
+                fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
+                logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
               }
             } else {
-              // Write back the cleaned config
-              fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
-              logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
+              logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
             }
           } else {
-            logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
+            logger.info(`No provider object in opencode.json: ${configPath}`)
           }
-        } else {
-          logger.info(`No provider object in opencode.json: ${configPath}`)
-        }
 
-        // Clean up backup
-        this.openCodeConfigBackups.delete(configPath)
-      } catch (error) {
-        logger.warn(`Failed to cleanup opencode.json: ${error}`)
-      }
-    }, 60 * 1000)
+          // Clean up backup
+          this.openCodeConfigBackups.delete(configPath)
+        } catch (error) {
+          logger.warn(`Failed to cleanup opencode.json: ${error}`)
+        }
+      },
+      5 * 60 * 1000
+    ) // 5 minutes timeout
 
     this.openCodeCleanupTimers.set(configPath, timer)
   }

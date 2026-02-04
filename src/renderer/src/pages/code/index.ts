@@ -6,8 +6,7 @@ import {
 } from '@renderer/config/models/reasoning'
 import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { sanitizeProviderName } from '@renderer/utils/naming'
-import { getFancyProviderName } from '@renderer/utils/naming'
+import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {

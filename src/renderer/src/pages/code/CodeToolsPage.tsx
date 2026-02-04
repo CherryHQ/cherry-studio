@@ -145,12 +145,7 @@ const CodeToolsPage: FC = () => {
         }
         // Check if model belongs to openai, openai-response, or anthropic type provider
         const provider = providers.find((p) => p.id === m.provider)
-        return !!(
-          provider?.type === 'anthropic' ||
-          provider?.type === 'openai' ||
-          provider?.type === 'openai-response' ||
-          provider?.type?.includes('openai')
-        )
+        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
       }
 
       return true
