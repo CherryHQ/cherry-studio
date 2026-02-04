@@ -75,7 +75,9 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
             <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
 
             {/* Open External Apps */}
-            <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} />
+            {activeSession.accessible_paths?.[0] && (
+              <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} />
+            )}
           </>
         )}
       </div>
