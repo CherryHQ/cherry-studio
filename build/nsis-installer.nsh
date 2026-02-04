@@ -9,6 +9,7 @@
 
 !include LogicLib.nsh
 !include x64.nsh
+!include FileFunc.nsh
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
@@ -80,6 +81,22 @@
 !endif
 
 !macro customInit
+  ; Handle silent updates: if the previous installation was per-machine (all users),
+  ; re-launch with elevation so the updater can close the running app and write to Program Files.
+  ${If} ${Silent}
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "QuietUninstallString"
+    ${If} $R0 != ""
+      UserInfo::GetAccountType
+      Pop $R1
+      ${If} $R1 != "admin"
+        ${GetParameters} $R2
+        ExecShell "runas" "$EXEPATH" "$R2"
+        SetErrorLevel 0
+        Quit
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+
   Push $0
   Push $1
   Push $2
