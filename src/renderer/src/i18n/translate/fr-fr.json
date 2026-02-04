@@ -2459,7 +2459,6 @@
       "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle"
     },
     "gateway": {
-      "health": "Santé",
       "port": "Port",
       "restart": "Redémarrer",
       "start": "Démarrer la passerelle",

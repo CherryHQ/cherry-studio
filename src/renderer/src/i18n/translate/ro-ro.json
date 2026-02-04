@@ -2456,37 +2456,36 @@
     "checking_installation": "Verificare instalare OpenClaw...",
     "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
     "error": {
-      "select_provider_model": "[to be translated]:Please select a provider and model first"
+      "select_provider_model": "Vă rugăm să selectați mai întâi un furnizor și un model"
     },
     "gateway": {
-      "health": "[to be translated]:Health",
-      "port": "[to be translated]:Port",
-      "restart": "[to be translated]:Restart",
-      "start": "[to be translated]:Start Gateway",
-      "status": "[to be translated]:Status",
-      "stop": "[to be translated]:Stop",
-      "version": "[to be translated]:Version"
+      "port": "Port",
+      "restart": "Repornire",
+      "start": "Pornește Gateway",
+      "status": "Stare",
+      "stop": "Oprește",
+      "version": "Versiune"
     },
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la: {{path}}",
     "model_config": {
-      "auth_token": "[to be translated]:Auth Token",
-      "auth_token_hint": "[to be translated]:Token for gateway authentication. Leave empty to disable authentication.",
-      "auth_token_placeholder": "[to be translated]:Enter or generate a token",
-      "generate_token": "[to be translated]:Generate",
-      "model": "[to be translated]:Model",
-      "provider": "[to be translated]:Provider",
-      "select_model": "[to be translated]:Select a model",
-      "select_provider": "[to be translated]:Select a provider",
-      "sync_hint": "[to be translated]:Selected provider and model will be synced to OpenClaw config file",
-      "title": "[to be translated]:Model Configuration"
+      "auth_token": "Token de autentificare",
+      "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
+      "auth_token_placeholder": "Introduceți sau generați un token",
+      "generate_token": "Generează",
+      "model": "Model",
+      "provider": "Furnizor",
+      "select_model": "Selectați un model",
+      "select_provider": "Selectați un furnizor",
+      "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
+      "title": "Configurare model"
     },
     "not_installed": {
-      "description": "[to be translated]:OpenClaw is not installed on your system. Please install it first to use this feature.",
-      "install_button": "[to be translated]:Install OpenClaw",
-      "install_guide_title": "[to be translated]:Installation Guide",
-      "macos_linux_title": "[to be translated]:macOS / Linux",
-      "refresh": "[to be translated]:Refresh",
+      "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
+      "install_button": "Instalează OpenClaw",
+      "install_guide_title": "Ghid de instalare",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Reîmprospătare",
       "step2_hint": "După instalare, faceți clic pe butonul „Reîmprospătare” de mai sus pentru a detecta OpenClaw",
       "step2_title": "Pasul 2: Verifică instalarea",
       "title": "OpenClaw Nu Este Instalat",
@@ -2512,7 +2511,7 @@
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
-    "uninstall_progress": "[to be translated]:Uninstall Progress",
+    "uninstall_progress": "Progresul dezinstalării",
     "uninstalled": {
       "description": "OpenClaw a fost dezinstalat cu succes.",
       "title": "Dezinstalare completă"

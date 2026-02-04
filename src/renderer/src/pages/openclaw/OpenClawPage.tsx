@@ -30,7 +30,7 @@ interface TitleSectionProps {
 }
 
 const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = false }) => (
-  <div className="mb-8 flex flex-col items-center text-center">
+  <div className="-mt-20 mb-8 flex flex-col items-center text-center">
     <Avatar
       src={OpenClawLogo}
       size={64}
@@ -288,9 +288,10 @@ const OpenClawPage: FC = () => {
 
       // Auto open dashboard first
       const dashboardUrl = await window.api.openclaw.getDashboardUrl()
+
       openSmartMinapp({
         id: 'openclaw-dashboard',
-        name: t('openclaw.quick_actions.open_dashboard'),
+        name: 'OpenClaw',
         url: dashboardUrl,
         logo: OpenClawLogo
       })
@@ -342,7 +343,7 @@ const OpenClawPage: FC = () => {
     const dashboardUrl = await window.api.openclaw.getDashboardUrl()
     openSmartMinapp({
       id: 'openclaw-dashboard',
-      name: t('openclaw.quick_actions.open_dashboard'),
+      name: 'OpenClaw',
       url: dashboardUrl,
       logo: OpenClawLogo
     })
@@ -565,6 +566,15 @@ const OpenClawPage: FC = () => {
     </div>
   )
 
+  const renderCheckingContent = () => (
+    <div id="content-container" className="flex flex-1 flex-col items-center justify-center">
+      <Spin size="large" />
+      <div className="mt-4" style={{ color: 'var(--color-text-3)' }}>
+        {t('openclaw.checking_installation')}
+      </div>
+    </div>
+  )
+
   // Render uninstalling page - only show logs
   const renderUninstallingContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
@@ -595,26 +605,19 @@ const OpenClawPage: FC = () => {
     </div>
   )
 
+  const renderContent = () => {
+    if (isUninstalling) return renderUninstallingContent()
+    if (isInstalled === null) return renderCheckingContent()
+    if (isInstalled) return renderInstalledContent()
+    return renderNotInstalledContent()
+  }
+
   return (
-    <div className="-mt- flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('openclaw.title')}</NavbarCenter>
       </Navbar>
-
-      {isUninstalling ? (
-        renderUninstallingContent()
-      ) : isInstalled === null ? (
-        <div id="content-container" className="flex flex-1 flex-col items-center justify-center">
-          <Spin size="large" />
-          <div className="mt-4" style={{ color: 'var(--color-text-3)' }}>
-            {t('openclaw.checking_installation')}
-          </div>
-        </div>
-      ) : isInstalled ? (
-        renderInstalledContent()
-      ) : (
-        renderNotInstalledContent()
-      )}
+      <div className="flex flex-1 flex-col">{renderContent()}</div>
     </div>
   )
 }

@@ -2459,7 +2459,6 @@
       "select_provider_model": "Por favor, selecione primeiro um provedor e um modelo."
     },
     "gateway": {
-      "health": "Saúde",
       "port": "Porto",
       "restart": "Reiniciar",
       "start": "Iniciar Gateway",

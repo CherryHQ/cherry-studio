@@ -2459,7 +2459,6 @@
       "select_provider_model": "請先選擇服務商和模型"
     },
     "gateway": {
-      "health": "健康狀態",
       "port": "連接埠",
       "restart": "重新啟動",
       "start": "啟動",
