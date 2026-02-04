@@ -21,15 +21,16 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OpenClawPage')
 
-const DOCS_URL = 'https://docs.openclaw.ai/'
+const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
 
 interface TitleSectionProps {
   title: string
   description: string
   clickable?: boolean
+  docsUrl?: string
 }
 
-const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = false }) => (
+const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = false, docsUrl }) => (
   <div className="-mt-20 mb-8 flex flex-col items-center text-center">
     <Avatar
       src={OpenClawLogo}
@@ -37,12 +38,12 @@ const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = f
       shape="square"
       className={clickable ? 'cursor-pointer' : undefined}
       style={{ borderRadius: 12 }}
-      onClick={clickable ? () => window.open(DOCS_URL, '_blank') : undefined}
+      onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}
     />
     <h1
       className={`mt-3 font-semibold text-2xl ${clickable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''}`}
       style={{ color: 'var(--color-text-1)' }}
-      onClick={clickable ? () => window.open(DOCS_URL, '_blank') : undefined}>
+      onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}>
       {title}
     </h1>
     <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
@@ -52,10 +53,18 @@ const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = f
 )
 
 const OpenClawPage: FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dispatch = useAppDispatch()
   const { providers } = useProviders()
   const { openSmartMinapp } = useMinappPopup()
+
+  const docsUrl = useMemo(() => {
+    const lang = i18n.language?.toLowerCase() ?? ''
+    if (lang.startsWith('zh-cn')) {
+      return 'https://docs.openclaw.ai/zh-CN'
+    }
+    return DEFAULT_DOCS_URL
+  }, [i18n.language])
 
   const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
 
@@ -402,7 +411,7 @@ const OpenClawPage: FC = () => {
               <Button
                 icon={<ExternalLink size={16} />}
                 disabled={isInstalling}
-                onClick={() => window.open(DOCS_URL, '_blank')}>
+                onClick={() => window.open(docsUrl, '_blank')}>
                 {t('openclaw.quick_actions.view_docs')}
               </Button>
             </Space>
@@ -453,7 +462,7 @@ const OpenClawPage: FC = () => {
   const renderInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
       <div className="m-auto min-h-fit w-[520px]">
-        <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable />
+        <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable docsUrl={docsUrl} />
 
         {/* Install Path - hide when gateway is running or restarting */}
         {installPath && gatewayStatus !== 'running' && !isRestarting && (
