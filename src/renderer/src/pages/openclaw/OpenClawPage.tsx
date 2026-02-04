@@ -453,8 +453,8 @@ const OpenClawPage: FC = () => {
       <div className="m-auto min-h-fit w-[520px]">
         <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable />
 
-        {/* Install Path - hide when gateway is running */}
-        {installPath && gatewayStatus !== 'running' && (
+        {/* Install Path - hide when gateway is running or restarting */}
+        {installPath && gatewayStatus !== 'running' && !isRestarting && (
           <div
             className="mb-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
@@ -468,8 +468,8 @@ const OpenClawPage: FC = () => {
           </div>
         )}
 
-        {/* Gateway Status Card - only show when running */}
-        {gatewayStatus === 'running' && (
+        {/* Gateway Status Card - show when running or restarting */}
+        {(gatewayStatus === 'running' || isRestarting) && (
           <div
             className="mb-6 flex items-center justify-between rounded-lg p-3"
             style={{ background: 'var(--color-background-soft)' }}>
@@ -518,8 +518,8 @@ const OpenClawPage: FC = () => {
           </div>
         )}
 
-        {/* Model Selector - only show when not running */}
-        {gatewayStatus !== 'running' && (
+        {/* Model Selector - only show when not running and not restarting */}
+        {gatewayStatus !== 'running' && !isRestarting && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
               {t('openclaw.model_config.model')}
@@ -542,8 +542,8 @@ const OpenClawPage: FC = () => {
 
         {showLogs && installLogs.length > 0 && renderLogContainer()}
 
-        {/* Action Button */}
-        {gatewayStatus !== 'running' && (
+        {/* Action Button - hide when restarting */}
+        {gatewayStatus !== 'running' && !isRestarting && (
           <Button
             type="primary"
             icon={<Play size={16} />}
@@ -555,7 +555,7 @@ const OpenClawPage: FC = () => {
             {t('openclaw.gateway.start')}
           </Button>
         )}
-        {gatewayStatus === 'running' && (
+        {(gatewayStatus === 'running' || isRestarting) && (
           <Button type="primary" onClick={handleOpenDashboard} size="large" block>
             {t('openclaw.quick_actions.open_dashboard')}
           </Button>
@@ -595,7 +595,7 @@ const OpenClawPage: FC = () => {
   )
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="-mt- flex flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('openclaw.title')}</NavbarCenter>
       </Navbar>
