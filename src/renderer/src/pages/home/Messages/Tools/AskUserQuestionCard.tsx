@@ -3,12 +3,13 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
-import { Button, Checkbox, Input, Radio, Skeleton, Tag } from 'antd'
+import { Button, Checkbox, Input, Radio, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SkeletonValue } from './MessageAgentTools/GenericTools'
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './MessageAgentTools/types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
@@ -19,22 +20,21 @@ const OTHER_OPTION_VALUE = '__other__'
 // ==================== Sub Components ====================
 
 interface CardHeaderProps {
-  isPending: boolean
   currentIndex: number
   totalQuestions: number
   extra?: ReactNode
 }
 
-function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHeaderProps) {
+function CardHeader({ currentIndex, totalQuestions, extra }: CardHeaderProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <HelpCircle className={cn('h-5 w-5 text-green-500', isPending && 'text-blue-500')} />
+        <HelpCircle className="h-5 w-5 text-(--color-primary)" />
         <span className="font-semibold text-default-700">{t('agent.askUserQuestion.title')}</span>
       </div>
       <span className="text-default-500 text-xs">
-        {currentIndex + 1} / {totalQuestions}
+        <SkeletonValue value={totalQuestions > 0 ? `${currentIndex + 1} / ${totalQuestions}` : null} width="40px" />
         {extra}
       </span>
     </div>
@@ -81,10 +81,8 @@ function OptionItem({ label, description, isSelected, control, onClick }: Option
     <div
       className={cn(
         'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
-        'hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20',
-        isSelected
-          ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
-          : 'border-default-200 bg-default-50'
+        'hover:border-(--color-primary) hover:bg-primary/10',
+        isSelected ? 'border-(--color-primary) bg-primary/10' : 'border-default-200 bg-default-50'
       )}
       onClick={onClick}>
       {control}
@@ -163,16 +161,18 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Tag color={answer ? 'green' : 'default'} className="m-0">
-          {question.header}
+        <Tag color={answer ? 'processing' : 'default'} className="m-0">
+          <SkeletonValue value={question?.header} width="60px" />
         </Tag>
-        {answer && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+        {answer && <CheckCircle2 className="h-4 w-4 text-(--color-primary)" />}
       </div>
-      <div className="text-default-700 text-sm">{question.question}</div>
+      <div className="text-default-700 text-sm">
+        <SkeletonValue value={question?.question} width="100%" />
+      </div>
       {answer && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2 dark:border-green-800 dark:bg-green-900/20">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-          <span className="text-green-700 text-sm dark:text-green-300">{answer}</span>
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-(--color-primary)" />
+          <span className="text-(--color-primary) text-sm">{answer}</span>
         </div>
       )}
     </div>
@@ -211,29 +211,38 @@ function PendingContent({
     <div className="space-y-3">
       {/* Header Tag */}
       <div className="flex items-center gap-2">
-        <Tag color={isAnswered ? 'green' : 'blue'} className="m-0">
-          {question.header}
+        <Tag color="processing" className="m-0">
+          <SkeletonValue value={question?.header} width="60px" />
         </Tag>
-        {question.multiSelect && (
-          <Tag color="purple" className="m-0">
+        {question?.multiSelect && (
+          <Tag color="processing" className="m-0">
             {t('agent.askUserQuestion.multiSelect')}
           </Tag>
         )}
-        {isAnswered && <CheckCircle className="h-4 w-4 text-green-500" />}
+        {isAnswered && <CheckCircle className="h-4 w-4 text-(--color-primary)" />}
       </div>
 
       {/* Question */}
-      <div className="font-medium text-default-700 text-sm">{question.question}</div>
+      <div className="font-medium text-default-700 text-sm">
+        <SkeletonValue value={question?.question} width="100%" />
+      </div>
 
       {/* Options */}
-      <OptionsList
-        options={question.options}
-        selected={selected}
-        hasCustomInput={hasCustomInput}
-        multiSelect={question.multiSelect}
-        onSelect={onSelect}
-        otherLabel={t('agent.askUserQuestion.other')}
-      />
+      {question?.options ? (
+        <OptionsList
+          options={question.options}
+          selected={selected}
+          hasCustomInput={hasCustomInput}
+          multiSelect={question.multiSelect}
+          onSelect={onSelect}
+          otherLabel={t('agent.askUserQuestion.other')}
+        />
+      ) : (
+        <div className="space-y-2">
+          <SkeletonValue value={null} width="100%" />
+          <SkeletonValue value={null} width="100%" />
+        </div>
+      )}
 
       {/* Custom input field */}
       {hasCustomInput && (
@@ -250,27 +259,34 @@ function PendingContent({
 }
 
 // ==================== Main Component ====================
-
-interface Props {
-  toolResponse: NormalToolResponse
-}
-
-export function AskUserQuestionCard({ toolResponse }: Props) {
+export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
 
   const isPending = toolResponse.status === 'pending' && !!request
 
+  // Parse from available sources - prefer request.input when pending, fall back to toolResponse.arguments
   const { questions, answers } = useMemo(() => {
-    const parsed = isPending
-      ? parseAskUserQuestionToolInput(request.input)
-      : parseAskUserQuestionToolInput(toolResponse.arguments)
+    const source = isPending ? request.input : toolResponse.arguments
+    const parsed = parseAskUserQuestionToolInput(source)
+
+    // Debug: log data source
+    if (!parsed?.questions?.length) {
+      logger.debug('AskUserQuestion: no questions parsed', {
+        isPending,
+        status: toolResponse.status,
+        hasRequestInput: !!request?.input,
+        hasArguments: !!toolResponse.arguments,
+        source
+      })
+    }
+
     return {
       questions: parsed?.questions ?? [],
       answers: parsed?.answers ?? {}
     }
-  }, [isPending, request?.input, toolResponse.arguments])
+  }, [isPending, request?.input, toolResponse.arguments, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   // Use question index as key to avoid collision when questions have identical text
@@ -371,44 +387,10 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     }
   }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
 
-  const isStreaming = toolResponse.status === 'streaming'
-
-  // Fallback states
-  // Note: when isPending is true, request is guaranteed to be truthy
   if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
         {t('agent.toolPermission.waiting')}
-      </div>
-    )
-  }
-
-  // Show skeleton during streaming when questions haven't been parsed yet
-  if (isStreaming && questions.length === 0) {
-    return (
-      <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
-        <div className="flex flex-col gap-3">
-          {/* Header skeleton */}
-          <div className="flex items-center gap-2">
-            <Skeleton.Avatar active size="small" shape="circle" />
-            <Skeleton.Input active size="small" style={{ width: 150 }} />
-          </div>
-          {/* Question skeleton */}
-          <Skeleton active paragraph={{ rows: 2 }} title={false} />
-          {/* Options skeleton */}
-          <div className="space-y-2">
-            <Skeleton.Input active size="default" block />
-            <Skeleton.Input active size="default" block />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (questions.length === 0) {
-    return (
-      <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
-        {t('agent.askUserQuestion.noQuestions')}
       </div>
     )
   }
@@ -458,7 +440,6 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
       <div className="flex flex-col gap-3">
         <CardHeader
-          isPending={isPending}
           currentIndex={currentIndex}
           totalQuestions={totalQuestions}
           extra={
@@ -477,7 +458,10 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
             onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentIndex]: value }))}
           />
         ) : (
-          <CompletedContent question={currentQuestion} answer={displayAnswers[currentQuestion.question]} />
+          <CompletedContent
+            question={currentQuestion}
+            answer={currentQuestion ? displayAnswers[currentQuestion.question] : undefined}
+          />
         )}
 
         {(totalQuestions > 1 || isPending) && (

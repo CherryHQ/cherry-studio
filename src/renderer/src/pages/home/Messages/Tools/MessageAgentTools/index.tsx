@@ -135,11 +135,6 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
   )
 
-  // AskUserQuestion uses a unified card for both pending and completed states
-  if (tool?.name === AgentToolsType.AskUserQuestion) {
-    return <AskUserQuestionCard toolResponse={toolResponse} />
-  }
-
   const parsedPartialArgs = useMemo(() => {
     if (!partialArguments) return undefined
     try {
@@ -148,6 +143,16 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
       return undefined
     }
   }, [partialArguments])
+
+  // AskUserQuestion uses a unified card for both pending and completed states
+  if (tool?.name === AgentToolsType.AskUserQuestion) {
+    const isLoading = status === 'streaming' || status === 'invoking'
+    return (
+      <StreamingContext value={isLoading}>
+        <AskUserQuestionCard toolResponse={toolResponse} />
+      </StreamingContext>
+    )
+  }
 
   // TodoWrite tools are always shown in PinnedTodoPanel, never in message stream
   if (tool?.name === AgentToolsType.TodoWrite) {
