@@ -315,6 +315,7 @@ const Main = styled(Flex)`
 `
 
 const PinnedTodoPanelWrapper = styled.div`
+  margin-top: auto;
   padding: 0 18px 8px 18px;
 `
 
