@@ -166,12 +166,16 @@ async function convertMessageToAssistantModelMessage(
   model?: Model
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
-  if (content) {
-    parts.push({ type: 'text', text: content })
-  }
 
+  // Add reasoning blocks first (required by AWS Bedrock for Claude extended thinking)
   for (const thinkingBlock of thinkingBlocks) {
     parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  }
+
+  // Add text content after reasoning blocks, only if non-empty after trimming
+  const trimmedContent = content?.trim()
+  if (trimmedContent) {
+    parts.push({ type: 'text', text: trimmedContent })
   }
 
   for (const fileBlock of fileBlocks) {

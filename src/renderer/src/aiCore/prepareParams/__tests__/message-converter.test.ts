@@ -252,12 +252,57 @@ describe('messageConverter', () => {
 
       const result = await convertMessageToSdkParam(message, false, model)
 
+      // Reasoning blocks must come before text blocks (required by AWS Bedrock for Claude extended thinking)
       expect(result).toEqual({
         role: 'assistant',
         content: [
-          { type: 'text', text: 'Here is my answer' },
-          { type: 'reasoning', text: 'Let me think...' }
+          { type: 'reasoning', text: 'Let me think...' },
+          { type: 'text', text: 'Here is my answer' }
         ]
+      })
+    })
+
+    it('excludes empty content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Empty content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('excludes whitespace-only content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '   \n\t  '
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Whitespace-only content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('trims content in assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '  Trimmed answer  \n'
+      message.__mockThinkingBlocks = []
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Trimmed answer' }]
       })
     })
   })
