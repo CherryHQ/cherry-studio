@@ -2104,7 +2104,9 @@
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
       "sections": {
+        "args": "Argumentos",
         "command": "Comando",
+        "content": "Conteúdo",
         "exitCode": "Código de Saída",
         "input": "Entrada",
         "output": "Saída",
@@ -2121,6 +2123,7 @@
         "running": "Correndo",
         "success": "Sucesso"
       },
+      "streaming": "Transmissão",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Concluído",

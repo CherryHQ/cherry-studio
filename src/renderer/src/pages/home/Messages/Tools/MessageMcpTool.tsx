@@ -18,7 +18,7 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useMcpToolApproval } from './hooks/useMcpToolApproval'
+import { useToolApproval } from './hooks/useToolApproval'
 import {
   getEffectiveStatus,
   SkeletonSpan,
@@ -52,7 +52,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const { setTimeoutTimer } = useTimer()
 
   // Use the unified approval hook
-  const approval = useMcpToolApproval(block)
+  const approval = useToolApproval(block)
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 

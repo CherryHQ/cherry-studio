@@ -2104,7 +2104,9 @@
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "sections": {
+        "args": "議論",
         "command": "コマンド",
+        "content": "コンテンツ",
         "exitCode": "終了コード",
         "input": "入力",
         "output": "出力",
@@ -2121,6 +2123,7 @@
         "running": "走っている",
         "success": "成功"
       },
+      "streaming": "ストリーミング",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
         "done_one": "{{count}} 完了",

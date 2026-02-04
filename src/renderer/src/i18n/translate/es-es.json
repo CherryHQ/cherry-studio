@@ -2104,7 +2104,9 @@
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "sections": {
+        "args": "Argumentos",
         "command": "Comando",
+        "content": "Contenido",
         "exitCode": "Código de Salida",
         "input": "Entrada",
         "output": "Salida",
@@ -2121,6 +2123,7 @@
         "running": "Corriendo",
         "success": "Éxito"
       },
+      "streaming": "Transmisión",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Hecho",

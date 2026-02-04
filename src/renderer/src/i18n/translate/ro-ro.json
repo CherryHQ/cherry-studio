@@ -2104,7 +2104,9 @@
       "raw": "Brut",
       "runningCount": "{{count}} instrumente în execuție",
       "sections": {
+        "args": "Argumente",
         "command": "Comandă",
+        "content": "Conținut",
         "exitCode": "Cod de ieșire",
         "input": "Intrare",
         "output": "Ieșire",
@@ -2121,6 +2123,7 @@
         "running": "Alergare",
         "success": "Succes"
       },
+      "streaming": "Streaming",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
         "done_one": "{{count}} Finalizat",

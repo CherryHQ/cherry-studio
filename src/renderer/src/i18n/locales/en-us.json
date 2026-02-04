@@ -2104,7 +2104,9 @@
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
       "sections": {
+        "args": "Arguments",
         "command": "Command",
+        "content": "Content",
         "exitCode": "Exit Code",
         "input": "Input",
         "output": "Output",
@@ -2121,6 +2123,7 @@
         "running": "Running",
         "success": "Success"
       },
+      "streaming": "Streaming",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
         "done_one": "{{count}} Done",

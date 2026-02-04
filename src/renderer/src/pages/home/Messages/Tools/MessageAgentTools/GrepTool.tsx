@@ -28,11 +28,7 @@ export function GrepTool({
             {input?.output_mode && <span className="ml-1">({input.output_mode})</span>}
           </>
         }
-        stats={
-          output
-            ? `${resultLines} ${t(resultLines === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}`
-            : undefined
-        }
+        stats={output ? t('message.tools.units.line', { count: resultLines }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />

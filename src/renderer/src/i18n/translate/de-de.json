@@ -2104,7 +2104,9 @@
       "raw": "Roh",
       "runningCount": "{{count}} Werkzeuge laufen",
       "sections": {
+        "args": "Argumente",
         "command": "Befehl",
+        "content": "Inhalt",
         "exitCode": "Exit-Code",
         "input": "Eingabe",
         "output": "Ausgabe",
@@ -2121,6 +2123,7 @@
         "running": "Laufen",
         "success": "Erfolg"
       },
+      "streaming": "Streaming",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
         "done_one": "{{count}} Erledigt",

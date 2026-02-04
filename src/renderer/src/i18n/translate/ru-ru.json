@@ -2104,7 +2104,9 @@
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
       "sections": {
+        "args": "Аргументы",
         "command": "Команда",
+        "content": "Контент",
         "exitCode": "Код выхода",
         "input": "Ввод",
         "output": "Вывод",
@@ -2121,6 +2123,7 @@
         "running": "Бег",
         "success": "Успех"
       },
+      "streaming": "Стриминг",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
         "done_one": "{{count}} Готово",

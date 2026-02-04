@@ -2104,7 +2104,9 @@
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
       "sections": {
+        "args": "參數",
         "command": "命令",
+        "content": "內容",
         "exitCode": "退出碼",
         "input": "輸入",
         "output": "輸出",
@@ -2121,6 +2123,7 @@
         "running": "執行中",
         "success": "成功"
       },
+      "streaming": "串流",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 完成",
