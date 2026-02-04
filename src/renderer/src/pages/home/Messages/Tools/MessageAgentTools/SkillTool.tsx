@@ -16,7 +16,7 @@ export function SkillTool({
   return {
     key: 'tool',
     label: (
-      <ToolHeader toolName={AgentToolsType.Skill} params={input?.command} variant="collapse-label" showStatus={false} />
+      <ToolHeader toolName={AgentToolsType.Skill} params={input?.skill} variant="collapse-label" showStatus={false} />
     ),
     children: (
       <div>
