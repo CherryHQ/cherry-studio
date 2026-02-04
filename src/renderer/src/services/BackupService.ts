@@ -63,6 +63,11 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 }
 
 // Helper function to classify backup errors
+/**
+ * Classifies backup error types based on error code and message
+ * @param error - The error object from backup operation
+ * @returns Error type: 'file_locked' | 'file_not_found' | 'format' | 'unknown'
+ */
 function classifyBackupError(error: any): 'file_locked' | 'file_not_found' | 'format' | 'unknown' {
   const errorCode = error.code || ''
   const errorMessage = String(error.message || '').toLowerCase()
@@ -71,13 +76,20 @@ function classifyBackupError(error: any): 'file_locked' | 'file_not_found' | 'fo
     return 'file_locked'
   } else if (errorCode === 'ENOENT' || errorMessage.includes('no such file')) {
     return 'file_not_found'
-  } else if (error instanceof SyntaxError || /Unexpected token|in JSON at position|JSON\.parse/i.test(errorMessage)) {
+  } else if (
+    error instanceof SyntaxError ||
+    (/SyntaxError/.test(String(error.constructor)) && /Unexpected token|in JSON/.test(errorMessage))
+  ) {
     return 'format'
   }
   return 'unknown'
 }
 
 // Helper function to show backup error toast messages
+/**
+ * Shows backup error toast messages based on error type
+ * @param error - The error object from backup operation
+ */
 function showBackupError(error: any): void {
   const errorType = classifyBackupError(error)
 
@@ -335,23 +347,18 @@ export async function backupToWebdav({
 // 从 webdav 恢复
 export async function restoreFromWebdav(fileName?: string) {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
-  let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+    const data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+
+    try {
+      await handleData(JSON.parse(data))
+    } catch (error: any) {
+      logger.error('[Backup] Error parsing WebDAV backup data:', error)
+      showBackupError(error)
+    }
   } catch (error: any) {
     logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
-    window.modal.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
-    return
-  }
-
-  try {
-    await handleData(JSON.parse(data))
-  } catch (error: any) {
-    logger.error('[Backup] Error downloading file from WebDAV:', error)
     showBackupError(error)
   }
 }
@@ -500,12 +507,17 @@ export async function restoreFromS3(fileName?: string) {
   }
 
   if (fileName) {
-    const restoreData = await window.api.backup.restoreFromS3({
-      ...s3Config,
-      fileName
-    })
-    const data = JSON.parse(restoreData)
-    await handleData(data)
+    try {
+      const restoreData = await window.api.backup.restoreFromS3({
+        ...s3Config,
+        fileName
+      })
+      const data = JSON.parse(restoreData)
+      await handleData(data)
+    } catch (error: any) {
+      logger.error('[Backup] restoreFromS3: Error restoring backup:', error)
+      showBackupError(error)
+    }
   }
 }
 
