@@ -38,7 +38,7 @@ const OpenExternalAppButton = ({ workdir }: { workdir: string }) => {
         case 'zed':
           // https://code.visualstudio.com/docs/configure/command-line#_opening-vs-code-with-urls
           // cursor and zed are just same with vscode
-          const appUrl = `${app.protocol}file/${workdir}`
+          const appUrl = `${app.protocol}file/${encodeURI(workdir)}`
           window.open(appUrl, '_blank')
           break
         default:
