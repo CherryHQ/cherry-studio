@@ -2512,6 +2512,7 @@
       "stopped": "已停止"
     },
     "title": "OpenClaw",
+    "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
     "uninstall_progress": "卸载进度",
     "uninstalled": {
       "description": "OpenClaw 已成功卸载。",

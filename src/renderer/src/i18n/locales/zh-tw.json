@@ -2468,7 +2468,7 @@
       "title": "閘道控制",
       "version": "版本"
     },
-    "install_progress": "安裝進度",
+    "install_progress": "[to be translated]:Install Progress",
     "installed_at": "OpenClaw 安裝路徑：{{path}}",
     "model_config": {
       "auth_token": "認證令牌",
@@ -2494,15 +2494,15 @@
       "windows_title": "Windows"
     },
     "npm_missing": {
-      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
-      "download_button": "下載 Node.js",
-      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
-      "title": "需要 Node.js"
+      "description": "[to be translated]:OpenClaw requires Node.js/npm. Please install Node.js first, then restart Cherry Studio.",
+      "download_button": "[to be translated]:Download Node.js",
+      "hint": "[to be translated]:macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "[to be translated]:Node.js Required"
     },
     "quick_actions": {
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",
-      "uninstall": "解除安裝",
+      "uninstall": "[to be translated]:Uninstall",
       "view_docs": "檢視文件"
     },
     "status": {
@@ -2512,14 +2512,15 @@
       "stopped": "已停止"
     },
     "title": "OpenClaw",
-    "uninstall_progress": "解除安裝進度",
+    "uninstall_confirm": "[to be translated]:Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
+    "uninstall_progress": "[to be translated]:Uninstall Progress",
     "uninstalled": {
-      "description": "OpenClaw 已成功解除安裝。",
-      "title": "解除安裝完成"
+      "description": "[to be translated]:OpenClaw has been successfully uninstalled.",
+      "title": "[to be translated]:Uninstall Complete"
     },
     "uninstalling": {
-      "description": "請稍候，正在解除安裝 OpenClaw...",
-      "title": "解除安裝 OpenClaw"
+      "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
+      "title": "[to be translated]:Uninstalling OpenClaw"
     }
   },
   "ovms": {
@@ -5220,7 +5221,7 @@
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
     "notes": "筆記",
-    "openclaw": "OpenClaw",
+    "openclaw": "[to be translated]:OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",

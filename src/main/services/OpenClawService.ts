@@ -682,7 +682,8 @@ class OpenClawService {
   }
 
   /**
-   * Find npm global .cmd file on Windows using 'where' command
+   * Find npm global command on Windows using 'where' command
+   * Accepts .cmd files (npm global wrappers) and files without extension
    */
   private async findNpmGlobalCmd(command: string): Promise<string | null> {
     return new Promise((resolve) => {
@@ -704,11 +705,19 @@ class OpenClawService {
         clearTimeout(timeoutId)
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
-          // Accept .cmd files for npm global packages
+          // Prefer .cmd files (npm global wrappers), then accept files without .exe extension
+          // Skip .exe files as they should be found by findCommandInShellEnv
           const cmdPath = paths.find((p) => p.toLowerCase().endsWith('.cmd'))
           if (cmdPath) {
             logger.info(`Found npm global command '${command}' at: ${cmdPath}`)
             resolve(cmdPath)
+            return
+          }
+          // Accept files without extension (e.g., openclaw without .exe)
+          const noExtPath = paths.find((p) => !p.toLowerCase().endsWith('.exe'))
+          if (noExtPath) {
+            logger.info(`Found command '${command}' (no extension) at: ${noExtPath}`)
+            resolve(noExtPath)
             return
           }
         }
@@ -724,11 +733,12 @@ class OpenClawService {
 
   /**
    * Spawn OpenClaw process with proper Windows handling
-   * On Windows, .cmd files need to be executed via cmd.exe
+   * On Windows, .cmd files and npm shims (no extension) need to be executed via cmd.exe
    */
   private spawnOpenClaw(openclawPath: string, args: string[]): ChildProcess {
-    if (isWin && openclawPath.toLowerCase().endsWith('.cmd')) {
-      // Use cmd.exe to execute .cmd files
+    const lowerPath = openclawPath.toLowerCase()
+    // On Windows, use cmd.exe for .cmd files and files without .exe extension (npm shims)
+    if (isWin && !lowerPath.endsWith('.exe')) {
       return spawn('cmd.exe', ['/c', openclawPath, ...args], {
         detached: false,
         stdio: 'pipe',

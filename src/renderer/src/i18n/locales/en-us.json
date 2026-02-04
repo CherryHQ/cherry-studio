@@ -2512,6 +2512,7 @@
       "stopped": "Stopped"
     },
     "title": "OpenClaw",
+    "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
     "uninstall_progress": "Uninstall Progress",
     "uninstalled": {
       "description": "OpenClaw has been successfully uninstalled.",

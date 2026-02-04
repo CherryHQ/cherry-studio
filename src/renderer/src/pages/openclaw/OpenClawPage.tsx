@@ -13,7 +13,7 @@ import {
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin, Tag } from 'antd'
-import { Circle, Download, ExternalLink, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
+import { Circle, Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -141,6 +141,12 @@ const OpenClawPage: FC = () => {
   }, [checkInstallation])
 
   const handleUninstall = useCallback(async () => {
+    // Use window.confirm for confirmation
+    const confirmed = window.confirm(t('openclaw.uninstall_confirm'))
+    if (!confirmed) {
+      return // User cancelled
+    }
+
     setIsUninstalling(true)
     setUninstallSuccess(false)
     setInstallError(null)
@@ -159,7 +165,7 @@ const OpenClawPage: FC = () => {
       setInstallError(err instanceof Error ? err.message : String(err))
       setIsUninstalling(false)
     }
-  }, [])
+  }, [t])
 
   const handleUninstallComplete = useCallback(() => {
     setShowLogs(false)
@@ -397,11 +403,13 @@ const OpenClawPage: FC = () => {
           <TitleContent>
             <Title>{t('openclaw.title')}</Title>
             <DescriptionRow>
-              <Description>{t('openclaw.description')}</Description>
-              <DocsLink onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
-                {t('openclaw.quick_actions.view_docs')}
-                <ExternalLink size={12} />
-              </DocsLink>
+              <Description>
+                {t('openclaw.description')}
+                <DocsLink onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
+                  {t('openclaw.quick_actions.view_docs')}
+                  <ExternalLink size={12} />
+                </DocsLink>
+              </Description>
             </DescriptionRow>
           </TitleContent>
         </TitleWrapper>
@@ -412,15 +420,11 @@ const OpenClawPage: FC = () => {
               message={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{t('openclaw.installed_at', { path: installPath })}</span>
-                  <Button
-                    size="small"
-                    icon={<Trash2 size={14} />}
-                    onClick={handleUninstall}
-                    loading={isUninstalling}
-                    disabled={isUninstalling || gatewayStatus === 'running'}
-                    danger>
+                  <UninstallLink
+                    onClick={gatewayStatus === 'running' ? undefined : handleUninstall}
+                    $disabled={gatewayStatus === 'running'}>
                     {t('openclaw.quick_actions.uninstall')}
-                  </Button>
+                  </UninstallLink>
                 </div>
               }
               type="success"
@@ -666,23 +670,34 @@ const Description = styled.span`
 
 const DescriptionRow = styled.div`
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
 `
 
 const DocsLink = styled.span`
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
   color: var(--color-primary);
   cursor: pointer;
   white-space: nowrap;
-  flex-shrink: 0;
+  margin-left: auto;
+  float: right;
 
   &:hover {
     text-decoration: underline;
+  }
+`
+
+const UninstallLink = styled.span<{ $disabled?: boolean }>`
+  font-size: 12px;
+  color: ${({ $disabled }) => ($disabled ? 'var(--color-text-4)' : 'var(--color-text-3)')};
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  white-space: nowrap;
+
+  &:hover {
+    color: ${({ $disabled }) => ($disabled ? 'var(--color-text-4)' : 'var(--color-error)')};
   }
 `
 
