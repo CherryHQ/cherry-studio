@@ -135,7 +135,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </HStack>
         <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
-          {isBubbleStyle && (
+          {isBubbleStyle && message.usage !== undefined && (
             <>
               |
               <MessageTokens message={message} />
