@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
-import { Button, Checkbox, Input, Radio, Tag } from 'antd'
+import { Button, Checkbox, Input, Radio, Skeleton, Tag } from 'antd'
 import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -31,9 +31,7 @@ function CardHeader({ isPending, currentIndex, totalQuestions, extra }: CardHead
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <HelpCircle className={cn('h-5 w-5 text-green-500', isPending && 'text-blue-500')} />
-        <span className="font-semibold text-default-700">
-          {t('agent.askUserQuestion.title', 'Questions from Agent')}
-        </span>
+        <span className="font-semibold text-default-700">{t('agent.askUserQuestion.title')}</span>
       </div>
       <span className="text-default-500 text-xs">
         {currentIndex + 1} / {totalQuestions}
@@ -61,7 +59,7 @@ function Navigation({ showPrevious = true, isFirst, onPrevious, rightButton }: N
       )}>
       {showPrevious && (
         <Button icon={<ChevronLeft size={16} />} disabled={isFirst} onClick={onPrevious} className="flex items-center">
-          {t('agent.askUserQuestion.previous', 'Previous')}
+          {t('agent.askUserQuestion.previous')}
         </Button>
       )}
       {rightButton}
@@ -218,7 +216,7 @@ function PendingContent({
         </Tag>
         {question.multiSelect && (
           <Tag color="purple" className="m-0">
-            {t('agent.askUserQuestion.multiSelect', 'Multi-select')}
+            {t('agent.askUserQuestion.multiSelect')}
           </Tag>
         )}
         {isAnswered && <CheckCircle className="h-4 w-4 text-green-500" />}
@@ -234,14 +232,14 @@ function PendingContent({
         hasCustomInput={hasCustomInput}
         multiSelect={question.multiSelect}
         onSelect={onSelect}
-        otherLabel={t('agent.askUserQuestion.other', 'Other')}
+        otherLabel={t('agent.askUserQuestion.other')}
       />
 
       {/* Custom input field */}
       {hasCustomInput && (
         <Input
           className="mt-2"
-          placeholder={t('agent.askUserQuestion.customPlaceholder', 'Enter your answer...')}
+          placeholder={t('agent.askUserQuestion.customPlaceholder')}
           value={customInputValue}
           onChange={(e) => onCustomInputChange(e.target.value)}
           autoFocus
@@ -373,6 +371,8 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     }
   }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
 
+  const isStreaming = toolResponse.status === 'streaming'
+
   // Fallback states
   // Note: when isPending is true, request is guaranteed to be truthy
   if (isPending && (questions.length === 0 || !currentQuestion)) {
@@ -383,10 +383,32 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
     )
   }
 
+  // Show skeleton during streaming when questions haven't been parsed yet
+  if (isStreaming && questions.length === 0) {
+    return (
+      <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3">
+          {/* Header skeleton */}
+          <div className="flex items-center gap-2">
+            <Skeleton.Avatar active size="small" shape="circle" />
+            <Skeleton.Input active size="small" style={{ width: 150 }} />
+          </div>
+          {/* Question skeleton */}
+          <Skeleton active paragraph={{ rows: 2 }} title={false} />
+          {/* Options skeleton */}
+          <div className="space-y-2">
+            <Skeleton.Input active size="default" block />
+            <Skeleton.Input active size="default" block />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (questions.length === 0) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
-        {t('agent.askUserQuestion.noQuestions', 'No questions available')}
+        {t('agent.askUserQuestion.noQuestions')}
       </div>
     )
   }
@@ -400,7 +422,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
       loading={isSubmitting}
       disabled={!allAnswered || isSubmitting}
       onClick={handleSubmit}>
-      {t('agent.askUserQuestion.submit', 'Submit')}
+      {t('agent.askUserQuestion.submit')}
     </Button>
   )
 
@@ -416,7 +438,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
           onClick={handleNext}
           iconPosition="end"
           icon={<ChevronRight size={16} />}>
-          {t('agent.askUserQuestion.next', 'Next')}
+          {t('agent.askUserQuestion.next')}
         </Button>
       )
     }
@@ -427,7 +449,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
         className="flex items-center"
         iconPosition="end"
         icon={<ChevronRight size={16} />}>
-        {t('agent.askUserQuestion.next', 'Next')}
+        {t('agent.askUserQuestion.next')}
       </Button>
     )
   }
@@ -440,9 +462,7 @@ export function AskUserQuestionCard({ toolResponse }: Props) {
           currentIndex={currentIndex}
           totalQuestions={totalQuestions}
           extra={
-            !isPending && answeredCount > 0
-              ? ` · ${answeredCount} ${t('agent.askUserQuestion.answered', 'answered')}`
-              : undefined
+            !isPending && answeredCount > 0 ? ` · ${answeredCount} ${t('agent.askUserQuestion.answered')}` : undefined
           }
         />
 

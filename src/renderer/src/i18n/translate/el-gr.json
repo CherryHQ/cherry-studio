@@ -14,6 +14,18 @@
         "placeholder": "Επιλέξτε τύπο Agent"
       }
     },
+    "askUserQuestion": {
+      "answered": "[to be translated]:answered",
+      "customPlaceholder": "[to be translated]:Enter your answer...",
+      "loading": "[to be translated]:Loading questions...",
+      "multiSelect": "[to be translated]:Multi-select",
+      "next": "[to be translated]:Next",
+      "noQuestions": "[to be translated]:No questions available",
+      "other": "[to be translated]:Other",
+      "previous": "[to be translated]:Previous",
+      "submit": "[to be translated]:Submit",
+      "title": "[to be translated]:Questions from Agent"
+    },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
       "error": {

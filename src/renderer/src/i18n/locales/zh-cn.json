@@ -14,6 +14,18 @@
         "placeholder": "选择 Agent 类型"
       }
     },
+    "askUserQuestion": {
+      "answered": "已回答",
+      "customPlaceholder": "输入您的回答...",
+      "loading": "正在加载问题...",
+      "multiSelect": "多选",
+      "next": "下一个",
+      "noQuestions": "暂无问题",
+      "other": "其他",
+      "previous": "上一个",
+      "submit": "提交",
+      "title": "来自 Agent 的问题"
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
