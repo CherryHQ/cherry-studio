@@ -23,9 +23,8 @@ class ExternalAppsService {
             if (!installed) {
               return null
             }
-            if (installed) {
-              logger.info(`Detected ${appConfig.name} at ${info.path}`)
-            }
+            logger.info(`Detected ${appConfig.name} at ${info.path}`)
+
             return {
               ...appConfig,
               path: info.path

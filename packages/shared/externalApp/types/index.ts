@@ -1,7 +1,9 @@
 export type ExternalAppTag = 'code-editor'
 
+export type ExternalAppId = 'vscode' | 'cursor' | 'zed'
+
 export interface ExternalAppConfig {
-  id: string
+  id: ExternalAppId
   name: string
   protocol: string
   tags: ExternalAppTag[]

@@ -8,6 +8,7 @@ import { ChevronRight } from 'lucide-react'
 import { useCallback } from 'react'
 
 import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
+import OpenExternalAppButton from './OpenExternalAppButton'
 import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 
 type AgentContentProps = {
@@ -72,6 +73,9 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
 
             {/* Workspace Meta */}
             <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
+
+            {/* Open External Apps */}
+            <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} />
           </>
         )}
       </div>
