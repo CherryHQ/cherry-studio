@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { AppInfo } from '@renderer/types'
 import { GB, MB } from '@shared/config/constant'
+import { notification } from 'antd'
 import { t } from 'i18next'
 
 const logger = loggerService.withContext('useDataLimit')
@@ -63,18 +64,16 @@ export async function checkDataLimit() {
 
     const shouldShowWarning = isStorageQuotaLow || isAppDataDiskQuotaLow
 
-    // Show or hide toast based on warning state
+    // Show or hide notification based on warning state
     if (shouldShowWarning && !currentToastId) {
-      // Show persistent toast without close button
-      const toastId = window.toast.warning({
-        title: t('settings.data.limit.appDataDiskQuota'),
+      const key = `disk-warning-${Date.now()}`
+      notification.warning({
+        message: t('settings.data.limit.appDataDiskQuota'),
         description: t('settings.data.limit.appDataDiskQuotaDescription'),
-        timeout: 0 // Never auto-dismiss
-        // hideCloseButton: true // Hide close button so user cannot dismiss
-        // commented out because antd message doesn't support hiding close button
-        // so we just rely on the timeout: 0 to keep it persistent
+        duration: 0,
+        key
       })
-      currentToastId = toastId
+      currentToastId = key
 
       // Switch to warning mode with shorter interval
       logger.info('Disk space low, switching to 1-minute check interval')
@@ -83,8 +82,8 @@ export async function checkDataLimit() {
       }
       currentInterval = setInterval(check, CHECK_INTERVAL_WARNING)
     } else if (!shouldShowWarning && currentToastId) {
-      // Dismiss toast when space is recovered
-      window.toast.closeToast(currentToastId)
+      // Dismiss notification when space is recovered
+      notification.destroy(currentToastId)
       currentToastId = null
 
       // Switch back to normal mode
