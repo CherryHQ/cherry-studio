@@ -1,21 +1,17 @@
 import { loggerService } from '@logger'
 import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
-import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { Button, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('CherryINOAuth')
 
-const OAUTH_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
 
@@ -40,9 +36,7 @@ interface CherryINOAuthProps {
 const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const { updateProvider, provider } = useProvider(providerId)
   const { t } = useTranslation()
-  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
-  const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
@@ -87,17 +81,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   }, [isOAuthLoggedIn, fetchData])
 
   const handleOAuthLogin = useCallback(async () => {
-    setIsAuthenticating(true)
-
-    setTimeoutTimer(
-      'oauth-timeout',
-      () => {
-        logger.warn('Component-level timeout reached')
-        setIsAuthenticating(false)
-      },
-      OAUTH_TIMEOUT_MS
-    )
-
     try {
       await oauthWithCherryIn(
         (apiKeys: string) => {
@@ -112,13 +95,13 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     } catch (error) {
       logger.error('OAuth Error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
-    } finally {
-      clearTimeoutTimer('oauth-timeout')
-      setIsAuthenticating(false)
     }
-  }, [updateProvider, t, setTimeoutTimer, clearTimeoutTimer])
+  }, [updateProvider, t])
 
   const handleLogout = useCallback(async () => {
+    const confirmed = window.confirm(t('settings.provider.oauth.logout_confirm'))
+    if (!confirmed) return
+
     setIsLoggingOut(true)
 
     try {
@@ -142,8 +125,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')
   }, [])
 
-  const providerWebsite = PROVIDER_URLS[provider.id]?.websites.official
-
   // Render logic:
   // 1. No API key → Show login button
   // 2. Has API key + OAuth token → Show logged-in UI
@@ -152,12 +133,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     if (!hasApiKey) {
       // Case 1: No API key - show login button
       return (
-        <Button
-          type="primary"
-          shape="round"
-          icon={<LogIn size={16} />}
-          onClick={handleOAuthLogin}
-          loading={isAuthenticating}>
+        <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
           {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
         </Button>
       )
@@ -172,12 +148,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       // Case 3: Has API key but no OAuth token (legacy manual key)
       // Show button to connect OAuth for better experience
       return (
-        <Button
-          type="primary"
-          shape="round"
-          icon={<LogIn size={16} />}
-          onClick={handleOAuthLogin}
-          loading={isAuthenticating}>
+        <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
           {t('settings.provider.oauth.connect', { provider: 'CherryIN' })}
         </Button>
       )
@@ -185,7 +156,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 
     // Case 2: Has API key + OAuth token - show full logged-in UI
     return (
-      <HStack gap={12} alignItems="center">
+      <ButtonRow>
         <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
           <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
           {isLoadingData && !balanceInfo ? (
@@ -197,10 +168,10 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
             </BalanceValue>
           )}
         </BalanceCapsule>
-        <Button type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
+        <TopupButton type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
           {t('settings.provider.oauth.topup')}
-        </Button>
-      </HStack>
+        </TopupButton>
+      </ButtonRow>
     )
   }
 
@@ -214,15 +185,11 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       <ProviderLogo src={CherryINProviderLogo} />
       {renderContent()}
       <Description>
-        <Trans
-          i18nKey="settings.provider.oauth.description"
-          components={{
-            website: (
-              <OfficialWebsite href={PROVIDER_URLS[provider.id]?.websites.official} target="_blank" rel="noreferrer" />
-            )
-          }}
-          values={{ provider: providerWebsite }}
-        />
+        {t('settings.provider.oauth.provided_by')}{' '}
+        <OfficialWebsite href="https://cherryin.ai" target="_blank" rel="noreferrer">
+          cherryin.ai
+        </OfficialWebsite>
+        {t('settings.provider.oauth.provided_by_suffix')}
       </Description>
     </Container>
   )
@@ -271,15 +238,23 @@ const ProviderLogo = styled.img`
   border-radius: 50%;
 `
 
+const ButtonRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
 const BalanceCapsule = styled.button`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 0 15px;
+  min-width: 110px;
   height: 32px;
   border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: transparent;
+  background: var(--color-background-soft);
   cursor: pointer;
   transition: all 0.2s;
 
@@ -304,6 +279,10 @@ const BalanceCapsule = styled.button`
       transform: rotate(360deg);
     }
   }
+`
+
+const TopupButton = styled(Button)`
+  min-width: 110px;
 `
 
 const BalanceLabel = styled.span`

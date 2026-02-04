@@ -4943,6 +4943,8 @@
         "logout_confirm": "確定要登出嗎？",
         "logout_success": "已成功登出",
         "official_website": "官方網站",
+        "provided_by": "本服務由",
+        "provided_by_suffix": " 提供",
         "requests": "請求數",
         "topup": "儲值",
         "usage_title": "用量"

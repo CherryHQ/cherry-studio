@@ -4943,6 +4943,8 @@
         "logout_confirm": "[to be translated]:Are you sure you want to logout?",
         "logout_success": "[to be translated]:Successfully logged out",
         "official_website": "公式サイト",
+        "provided_by": "[to be translated]:Provided by",
+        "provided_by_suffix": "[to be translated]:",
         "requests": "[to be translated]:Requests",
         "topup": "[to be translated]:Top Up",
         "usage_title": "[to be translated]:Usage"

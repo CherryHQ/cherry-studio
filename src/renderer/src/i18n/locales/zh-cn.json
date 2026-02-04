@@ -4943,6 +4943,8 @@
         "logout_confirm": "确定要退出登录吗？",
         "logout_success": "已成功退出登录",
         "official_website": "官方网站",
+        "provided_by": "本服务由",
+        "provided_by_suffix": " 提供",
         "requests": "请求数",
         "topup": "充值",
         "usage_title": "用量"

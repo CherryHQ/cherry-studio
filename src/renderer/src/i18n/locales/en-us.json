@@ -4943,6 +4943,8 @@
         "logout_confirm": "Are you sure you want to logout?",
         "logout_success": "Successfully logged out",
         "official_website": "Official Website",
+        "provided_by": "Provided by",
+        "provided_by_suffix": "",
         "requests": "Requests",
         "topup": "Top Up",
         "usage_title": "Usage"
