@@ -431,6 +431,7 @@ const OpenClawPage: FC = () => {
             closable
             onClose={() => setNpmMissing(false)}
             className="!rounded-lg mt-4"
+            style={{ width: 580, marginLeft: -30 }}
           />
         )}
         {installError && (
