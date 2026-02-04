@@ -153,7 +153,7 @@
  * ```
  */
 
-import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
@@ -195,6 +195,10 @@ export function isValidNumber(value: unknown): value is number {
  */
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
+}
+
+function isValidProcessorId(value: string | undefined, validIds: Set<string>): value is string {
+  return isNonEmptyString(value) && validIds.has(value)
 }
 
 // ============================================================================
@@ -416,6 +420,7 @@ export function transformFileProcessingConfig(sources: Record<string, unknown>):
   const ocrImageProviderId = sources.ocrImageProviderId as string | undefined
   const preprocessProviders = sources.preprocessProviders as LegacyPreprocessProvider[] | undefined
   const preprocessDefaultProvider = sources.preprocessDefaultProvider as string | undefined
+  const validProcessorIds = new Set(PRESETS_FILE_PROCESSORS.map((template) => template.id))
 
   const overrides: FileProcessorOverrides = {}
 
@@ -443,10 +448,16 @@ export function transformFileProcessingConfig(sources: Record<string, unknown>):
   const hasOverrides = Object.keys(overrides).length > 0
   return {
     'feature.file_processing.overrides': hasOverrides ? overrides : undefined,
-    'feature.file_processing.default_text_extraction_processor': isNonEmptyString(ocrImageProviderId)
+    'feature.file_processing.default_text_extraction_processor': isValidProcessorId(
+      ocrImageProviderId,
+      validProcessorIds
+    )
       ? ocrImageProviderId
       : undefined,
-    'feature.file_processing.default_markdown_conversion_processor': isNonEmptyString(preprocessDefaultProvider)
+    'feature.file_processing.default_markdown_conversion_processor': isValidProcessorId(
+      preprocessDefaultProvider,
+      validProcessorIds
+    )
       ? preprocessDefaultProvider
       : undefined
   }

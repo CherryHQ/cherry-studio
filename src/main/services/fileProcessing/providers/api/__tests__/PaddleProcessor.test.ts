@@ -8,7 +8,8 @@
  * - Error handling
  */
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 import { net } from 'electron'
@@ -21,6 +22,13 @@ import { PaddleProcessor } from '../PaddleProcessor'
 vi.mock('@main/utils/ocr', () => ({
   loadOcrImage: vi.fn().mockResolvedValue(Buffer.from('mock image content'))
 }))
+
+const assertTextResult = (result: ProcessingResult): Extract<ProcessingResult, { text: string }> => {
+  if (!('text' in result) || typeof result.text !== 'string') {
+    throw new Error('Expected text in processing result')
+  }
+  return result
+}
 
 describe('PaddleProcessor', () => {
   let processor: PaddleProcessor
@@ -95,7 +103,7 @@ describe('PaddleProcessor', () => {
 
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(result.text).toBe('Hello\nWorld')
+      expect(assertTextResult(result).text).toBe('Hello\nWorld')
     })
 
     it('should return empty text when no OCR results', async () => {
@@ -110,7 +118,7 @@ describe('PaddleProcessor', () => {
 
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(result.text).toBe('')
+      expect(assertTextResult(result).text).toBe('')
     })
 
     it('should throw error for non-image files', async () => {
@@ -120,9 +128,10 @@ describe('PaddleProcessor', () => {
         type: FileTypes.DOCUMENT
       }
 
-      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toThrow(
-        'PaddleProcessor only supports image files'
-      )
+      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toMatchObject({
+        code: 'unsupported_input',
+        message: 'PaddleProcessor only supports image files'
+      })
     })
 
     it('should throw error when API returns error', async () => {
@@ -179,7 +188,7 @@ describe('PaddleProcessor', () => {
 
       const result = await processor.extractText(mockFile, configWithoutKey, mockContext)
 
-      expect(result.text).toBe('Test text')
+      expect(assertTextResult(result).text).toBe('Test text')
 
       // Verify Authorization header is not set
       const fetchCall = vi.mocked(net.fetch).mock.calls[0]

@@ -4,7 +4,8 @@
  * Tests that the API handlers correctly forward requests to the FileProcessingService.
  */
 
-import type { FileProcessorFeature } from '@shared/data/presets/fileProcessing'
+import { DataApiError, ErrorCode } from '@shared/data/api'
+import type { FileProcessorFeature } from '@shared/data/presets/file-processing'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
@@ -95,16 +96,26 @@ describe('fileProcessingHandlers', () => {
       expect(result).toEqual(mockProcessor)
     })
 
-    it('should return null when processor not found', async () => {
+    it('should throw error when processor not found', async () => {
       vi.mocked(fileProcessingService.getProcessor).mockReturnValue(null)
 
       const handler = fileProcessingHandlers['/file-processing/processors/:id'].GET
-      const result = await handler({
-        params: { id: 'unknown' }
-      })
+      let thrown: unknown
 
+      try {
+        await handler({
+          params: { id: 'unknown' }
+        })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(DataApiError)
+      const dataError = thrown as DataApiError
+      expect(dataError.code).toBe(ErrorCode.NOT_FOUND)
+      expect(dataError.status).toBe(404)
+      expect(dataError.details).toEqual({ resource: 'Processor', id: 'unknown' })
       expect(fileProcessingService.getProcessor).toHaveBeenCalledWith('unknown')
-      expect(result).toBeNull()
     })
   })
 

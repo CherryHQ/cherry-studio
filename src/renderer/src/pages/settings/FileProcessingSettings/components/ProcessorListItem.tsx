@@ -1,6 +1,6 @@
 import { Badge } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { useNavigate } from '@tanstack/react-router'
 import { FileText, Image } from 'lucide-react'
 import type { FC, PropsWithChildren } from 'react'

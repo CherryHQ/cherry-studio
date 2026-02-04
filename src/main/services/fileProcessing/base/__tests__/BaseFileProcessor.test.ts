@@ -1,4 +1,4 @@
-import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/file-processing'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { BaseFileProcessor } from '../BaseFileProcessor'

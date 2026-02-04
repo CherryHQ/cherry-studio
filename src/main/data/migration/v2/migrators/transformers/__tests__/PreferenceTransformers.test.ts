@@ -173,5 +173,38 @@ describe('PreferenceTransformers', () => {
       expect(result['feature.file_processing.default_text_extraction_processor']).toBe('paddleocr')
       expect(result['feature.file_processing.default_markdown_conversion_processor']).toBe('mistral')
     })
+
+    it('should map apiUrl, accessToken, and langs overrides', () => {
+      const result = transformFileProcessingConfig({
+        ocrProviders: [
+          {
+            id: 'paddleocr',
+            name: 'Paddle OCR',
+            config: {
+              api: {
+                apiKey: 'legacy-key'
+              },
+              apiUrl: 'https://api.paddle.example.com/',
+              accessToken: 'paddle-token',
+              langs: {
+                eng: true,
+                jpn: true,
+                chi_sim: false
+              }
+            }
+          }
+        ],
+        ocrImageProviderId: 'paddleocr'
+      })
+
+      expect(result['feature.file_processing.overrides']).toEqual({
+        paddleocr: {
+          apiKeys: ['paddle-token'],
+          capabilities: { text_extraction: { apiHost: 'https://api.paddle.example.com' } },
+          options: { langs: ['eng', 'jpn'] }
+        }
+      })
+      expect(result['feature.file_processing.default_text_extraction_processor']).toBe('paddleocr')
+    })
   })
 })

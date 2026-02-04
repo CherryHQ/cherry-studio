@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
@@ -21,6 +21,7 @@ import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
+import { UnsupportedInputError } from '../../errors'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('TesseractProcessor')
@@ -141,7 +142,7 @@ export class TesseractProcessor extends BaseTextExtractor {
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
-      throw new Error('TesseractProcessor only supports image files')
+      throw new UnsupportedInputError('TesseractProcessor only supports image files')
     }
 
     // Check file size

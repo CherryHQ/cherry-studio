@@ -547,7 +547,8 @@ const TranslatePage: FC = () => {
   const ocrFile = useCallback(
     async (file: FileMetadata) => {
       const ocrResult = await processFileForOcr(file, 'text_extraction')
-      setText(text + (ocrResult.text || ''))
+      const extractedText = 'text' in ocrResult ? ocrResult.text : ''
+      setText(text + extractedText)
     },
     [processFileForOcr, setText, text]
   )

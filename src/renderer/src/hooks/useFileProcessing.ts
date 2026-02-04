@@ -8,7 +8,7 @@
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
-import type { FileProcessorFeature, FileProcessorOverride } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorFeature, FileProcessorId, FileProcessorOverride } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -135,9 +135,10 @@ export function useFileProcess() {
   }, [resultData])
 
   const processFile = useCallback(
-    (file: FileMetadata, feature: FileProcessorFeature, processorId?: string): Promise<ProcessingResult> => {
+    (file: FileMetadata, feature: FileProcessorFeature, processorId?: FileProcessorId): Promise<ProcessingResult> => {
       return new Promise((resolve, reject) => {
-        startProcess({ body: { file, feature, processorId } })
+        const body = processorId ? { file, feature, processorId } : { file, feature }
+        startProcess({ body })
           .then(({ requestId }) => {
             callbacksRef.current = { resolve, reject }
             setRequestId(requestId)

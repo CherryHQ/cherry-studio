@@ -7,7 +7,7 @@
 
 import { loggerService } from '@logger'
 import { loadOcrImage } from '@main/utils/ocr'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
@@ -15,6 +15,7 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
+import { UnsupportedInputError } from '../../errors'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('PaddleProcessor')
@@ -81,7 +82,7 @@ export class PaddleProcessor extends BaseTextExtractor {
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
-      throw new Error('PaddleProcessor only supports image files')
+      throw new UnsupportedInputError('PaddleProcessor only supports image files')
     }
 
     this.checkCancellation(context)

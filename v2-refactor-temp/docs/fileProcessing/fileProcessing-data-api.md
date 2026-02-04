@@ -8,7 +8,7 @@
 Template (Preset) + User Override (Preference) → Merged Config (Runtime)
 ```
 
-- **Template**: 处理器元信息，存储在 `packages/shared/data/presets/fileProcessing.ts`
+- **Template**: 处理器元信息，存储在 `packages/shared/data/presets/file-processing.ts`
 - **Override**: 用户配置（apiKey, apiHost 等），存储在 Preference
 - **Merged**: 运行时合并，由 ConfigurationService 返回
 
@@ -29,7 +29,7 @@ Template (Preset) + User Override (Preference) → Merged Config (Runtime)
 
 ## 类型定义
 
-位置: `packages/shared/data/presets/fileProcessing.ts`
+位置: `packages/shared/data/presets/file-processing.ts`
 
 ```typescript
 // ============================================
@@ -53,6 +53,9 @@ export type FeatureCapability = {
   apiHost?: string
   modelId?: string
 }
+
+// 注意：capabilities 仅表示潜在支持范围，实际支持由具体 processor 校验；
+// 不支持的输入应抛出错误并由前端提示。
 
 export type FileProcessorTemplate = {
   id: string
@@ -112,8 +115,8 @@ import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 
 const { processor, updateProcessor } = useFileProcessor('mineru')
 
-// 更新 API Key
-updateProcessor({ apiKey: 'sk-xxx' })
+// 更新 API Keys
+updateProcessor({ apiKeys: ['sk-xxx'] })
 
 // 覆盖 API Host
 updateProcessor({

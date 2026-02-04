@@ -42,15 +42,27 @@ export type FileProcessorMetadata = Record<string, never>
  *
  * Each capability binds a feature with its input/output and optional API settings.
  */
-export type FeatureCapability = {
-  feature: FileProcessorFeature
-  input: FileProcessorInput
-  output: FileProcessorOutput
+export type TextExtractionCapability = {
+  feature: 'text_extraction'
+  input: 'image' | 'document'
+  output: 'text'
   apiHost?: string // API Host (template default, can be overridden)
   modelId?: string // Model ID (template default, can be overridden)
   // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
   // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
 }
+
+export type MarkdownConversionCapability = {
+  feature: 'markdown_conversion'
+  input: 'document'
+  output: 'markdown'
+  apiHost?: string // API Host (template default, can be overridden)
+  modelId?: string // Model ID (template default, can be overridden)
+  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
+}
+
+export type FeatureCapability = TextExtractionCapability | MarkdownConversionCapability
 
 /**
  * Processor template (read-only metadata)

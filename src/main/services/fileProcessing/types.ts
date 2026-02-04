@@ -2,7 +2,7 @@
 // Processing Context Types (runtime-specific, kept in service)
 // ============================================================================
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { ProcessingError, ProcessingResult, ProcessingStatus } from '@shared/data/types/fileProcessing'
 
 /**

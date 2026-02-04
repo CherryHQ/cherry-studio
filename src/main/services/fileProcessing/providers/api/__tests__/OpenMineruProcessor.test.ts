@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 import { net } from 'electron'
@@ -33,6 +34,13 @@ vi.mock('adm-zip', () => {
     }))
   }
 })
+
+const assertMarkdownResult = (result: ProcessingResult): Extract<ProcessingResult, { markdownPath: string }> => {
+  if (!('markdownPath' in result) || typeof result.markdownPath !== 'string') {
+    throw new Error('Expected markdownPath in processing result')
+  }
+  return result
+}
 
 describe('OpenMineruProcessor', () => {
   let processor: OpenMineruProcessor
@@ -117,8 +125,8 @@ describe('OpenMineruProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
-      expect(result.markdownPath).toContain('result.md')
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toContain('result.md')
     })
 
     it('should throw error when response is not a ZIP', async () => {
@@ -207,7 +215,7 @@ describe('OpenMineruProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockFile, configWithoutKey, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
 
       // Verify Authorization header is not set when no API key
       const fetchCall = vi.mocked(net.fetch).mock.calls[0]
@@ -263,7 +271,7 @@ describe('OpenMineruProcessor', () => {
 
       const result = await promise
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
       expect(vi.mocked(net.fetch)).toHaveBeenCalledTimes(2)
     })
 
@@ -347,7 +355,7 @@ describe('OpenMineruProcessor', () => {
 
       // Should not throw despite cleanup error
       const result = await promise
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
     })
   })
 })

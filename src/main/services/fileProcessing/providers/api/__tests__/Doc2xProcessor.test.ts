@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 import { net } from 'electron'
@@ -33,6 +34,24 @@ vi.mock('adm-zip', () => {
     }))
   }
 })
+
+const assertCompletedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'completed' }> => {
+  if (response.status !== 'completed') {
+    throw new Error(`Expected completed status, got ${response.status}`)
+  }
+  return response
+}
+
+const assertFailedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'failed' }> => {
+  if (response.status !== 'failed') {
+    throw new Error(`Expected failed status, got ${response.status}`)
+  }
+  return response
+}
 
 describe('Doc2xProcessor', () => {
   let processor: Doc2xProcessor
@@ -254,7 +273,8 @@ describe('Doc2xProcessor', () => {
 
       expect(result.status).toBe('completed')
       expect(result.progress).toBe(100)
-      expect(result.result?.markdownPath).toBeDefined()
+      const completed = assertCompletedResponse(result)
+      expect(completed.result.markdownPath).toBeDefined()
     })
 
     it('should return failed when parsing fails', async () => {
@@ -269,8 +289,9 @@ describe('Doc2xProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('processing_failed')
-      expect(result.error?.message).toContain('Invalid PDF format')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('processing_failed')
+      expect(failed.error.message).toContain('Invalid PDF format')
     })
 
     it('should return failed when export fails', async () => {
@@ -300,14 +321,16 @@ describe('Doc2xProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('export_failed')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('export_failed')
     })
 
     it('should return error for invalid providerTaskId', async () => {
       const result = await processor.getStatus('invalid-json', mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('get_status_error')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('get_status_error')
     })
 
     it('should return error for missing fields in providerTaskId', async () => {
@@ -316,7 +339,8 @@ describe('Doc2xProcessor', () => {
       const result = await processor.getStatus(invalidPayload, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('get_status_error')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('get_status_error')
     })
 
     it('should handle network errors gracefully', async () => {
@@ -325,8 +349,9 @@ describe('Doc2xProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('status_query_failed')
-      expect(result.error?.message).toContain('Network error')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('status_query_failed')
+      expect(failed.error.message).toContain('Network error')
     })
 
     it('should not call convertFile twice for same uid', async () => {

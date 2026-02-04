@@ -6,7 +6,11 @@
  * modifying existing code.
  */
 
+import { loggerService } from '@logger'
+
 import type { IFileProcessor } from '../interfaces'
+
+const logger = loggerService.withContext('ProcessorRegistry')
 
 /**
  * Registry for file processors
@@ -67,7 +71,19 @@ export class ProcessorRegistry {
    */
   async getAll(): Promise<IFileProcessor[]> {
     const processors = Array.from(this.processors.values())
-    const availability = await Promise.all(processors.map((processor) => processor.isAvailable()))
+    const availability = await Promise.all(
+      processors.map(async (processor) => {
+        try {
+          return await processor.isAvailable()
+        } catch (error) {
+          logger.warn('Processor availability check failed', {
+            processorId: processor.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return false
+        }
+      })
+    )
     return processors.filter((_, index) => availability[index])
   }
 }

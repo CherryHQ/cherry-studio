@@ -7,7 +7,7 @@
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import AdmZip from 'adm-zip'

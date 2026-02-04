@@ -11,7 +11,7 @@ import type {
   FileProcessorFeature,
   FileProcessorMerged,
   FileProcessorOverride
-} from '@shared/data/presets/fileProcessing'
+} from '@shared/data/presets/file-processing'
 import type { ProcessFileDto, ProcessResultResponse, ProcessStartResponse } from '@shared/data/types/fileProcessing'
 
 // ============================================================================
@@ -39,13 +39,13 @@ export interface FileProcessingSchemas {
   /**
    * Get or update processor configuration
    * @example GET /file-processing/processors/tesseract
-   * @example PATCH /file-processing/processors/tesseract { "apiKey": "xxx" }
+   * @example PATCH /file-processing/processors/tesseract { "apiKeys": ["xxx"] }
    */
   '/file-processing/processors/:id': {
     /** Get processor configuration */
     GET: {
       params: { id: string }
-      response: FileProcessorMerged | null
+      response: FileProcessorMerged
     }
     /** Update processor configuration */
     PATCH: {

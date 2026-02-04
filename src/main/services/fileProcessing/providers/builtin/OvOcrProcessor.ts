@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
@@ -19,6 +19,7 @@ import * as path from 'path'
 import { promisify } from 'util'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
+import { UnsupportedInputError } from '../../errors'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('OvOcrProcessor')
@@ -137,7 +138,7 @@ export class OvOcrProcessor extends BaseTextExtractor {
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
-      throw new Error('OvOcrProcessor only supports image files')
+      throw new UnsupportedInputError('OvOcrProcessor only supports image files')
     }
 
     logger.info('Processing file', { path: input.path })

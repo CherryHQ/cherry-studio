@@ -4,7 +4,7 @@
  * Provides reusable mock implementations of file processors for unit tests.
  */
 
-import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/file-processing'
 import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'

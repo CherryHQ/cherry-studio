@@ -8,7 +8,8 @@
  * - Error handling
  */
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
@@ -24,6 +25,13 @@ vi.mock('@main/constant', () => ({
 vi.mock('@main/utils/ocr', () => ({
   loadOcrImage: vi.fn().mockResolvedValue(Buffer.from('mock image content'))
 }))
+
+const assertTextResult = (result: ProcessingResult): Extract<ProcessingResult, { text: string }> => {
+  if (!('text' in result) || typeof result.text !== 'string') {
+    throw new Error('Expected text in processing result')
+  }
+  return result
+}
 
 // Use vi.hoisted to define mock at hoisted level (vi.mock is hoisted to top)
 const mockRecognize = vi.hoisted(() => vi.fn().mockResolvedValue({ text: 'Recognized system OCR text' }))
@@ -100,7 +108,7 @@ describe('SystemOcrProcessor', () => {
     it('should extract text from image', async () => {
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(result.text).toBe('Recognized system OCR text')
+      expect(assertTextResult(result).text).toBe('Recognized system OCR text')
     })
 
     it('should throw error for non-image files', async () => {
@@ -110,9 +118,10 @@ describe('SystemOcrProcessor', () => {
         type: FileTypes.DOCUMENT
       }
 
-      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toThrow(
-        'SystemOcrProcessor only supports image files'
-      )
+      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toMatchObject({
+        code: 'unsupported_input',
+        message: 'SystemOcrProcessor only supports image files'
+      })
     })
 
     it('should check cancellation before processing', async () => {

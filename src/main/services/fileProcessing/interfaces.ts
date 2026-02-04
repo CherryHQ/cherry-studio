@@ -5,7 +5,7 @@
  * Follows SOLID principles with clear separation of concerns.
  */
 
-import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged, FileProcessorTemplate } from '@shared/data/presets/file-processing'
 import type { ProcessingResult, ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 

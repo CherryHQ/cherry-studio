@@ -1,5 +1,5 @@
 import type { TesseractLangCode, TranslateLanguageCode } from '@renderer/types'
-import type { FileProcessorId } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorId } from '@shared/data/presets/file-processing'
 
 export const TESSERACT_LANG_MAP: Record<TranslateLanguageCode, TesseractLangCode> = {
   'af-za': 'afr',

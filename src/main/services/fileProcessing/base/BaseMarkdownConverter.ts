@@ -5,7 +5,7 @@
  */
 
 import { getTempDir } from '@main/utils/file'
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import * as fs from 'fs'

@@ -185,5 +185,19 @@ describe('ConfigurationService', () => {
 
       expect(result).toBeUndefined()
     })
+
+    it('should clear overrides when update normalizes to empty', () => {
+      const service = ConfigurationService.getInstance()
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
+        mineru: {
+          apiKeys: ['test-key']
+        }
+      })
+
+      const result = service.updateConfiguration('mineru', { apiKeys: [] })
+
+      expect(result?.apiKeys).toBeUndefined()
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')).toEqual({})
+    })
   })
 })

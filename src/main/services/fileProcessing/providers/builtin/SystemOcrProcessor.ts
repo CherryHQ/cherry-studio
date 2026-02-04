@@ -9,12 +9,13 @@ import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
 
 import { BaseTextExtractor } from '../../base/BaseTextExtractor'
+import { UnsupportedInputError } from '../../errors'
 import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('SystemOcrProcessor')
@@ -78,7 +79,7 @@ export class SystemOcrProcessor extends BaseTextExtractor {
     context: ProcessingContext
   ): Promise<ProcessingResult> {
     if (!isImageFileMetadata(input)) {
-      throw new Error('SystemOcrProcessor only supports image files')
+      throw new UnsupportedInputError('SystemOcrProcessor only supports image files')
     }
 
     if (isLinux) {

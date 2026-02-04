@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 import { net } from 'electron'
@@ -33,6 +34,24 @@ vi.mock('adm-zip', () => {
     }))
   }
 })
+
+const assertCompletedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'completed' }> => {
+  if (response.status !== 'completed') {
+    throw new Error(`Expected completed status, got ${response.status}`)
+  }
+  return response
+}
+
+const assertFailedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'failed' }> => {
+  if (response.status !== 'failed') {
+    throw new Error(`Expected failed status, got ${response.status}`)
+  }
+  return response
+}
 
 describe('MineruProcessor', () => {
   let processor: MineruProcessor
@@ -279,7 +298,8 @@ describe('MineruProcessor', () => {
 
       expect(result.status).toBe('completed')
       expect(result.progress).toBe(100)
-      expect(result.result?.markdownPath).toBeDefined()
+      const completed = assertCompletedResponse(result)
+      expect(completed.result.markdownPath).toBeDefined()
     })
 
     it('should return failed when extraction fails', async () => {
@@ -303,8 +323,9 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('processing_failed')
-      expect(result.error?.message).toContain('PDF parsing failed')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('processing_failed')
+      expect(failed.error.message).toContain('PDF parsing failed')
     })
 
     it('should return processing when file not found in results', async () => {
@@ -329,7 +350,8 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus('invalid-json', mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('invalid_provider_task_id')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('invalid_provider_task_id')
     })
 
     it('should return error for missing fields in providerTaskId', async () => {
@@ -338,8 +360,9 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus(invalidPayload, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('invalid_provider_task_id')
-      expect(result.error?.message).toContain('Missing required fields')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('invalid_provider_task_id')
+      expect(failed.error.message).toContain('Missing required fields')
     })
 
     it('should handle network errors gracefully', async () => {
@@ -348,8 +371,9 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('status_query_failed')
-      expect(result.error?.message).toContain('Network error')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('status_query_failed')
+      expect(failed.error.message).toContain('Network error')
     })
 
     it('should cap progress at 99 during processing', async () => {
@@ -419,7 +443,8 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.message).toContain('No markdown file found')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.message).toContain('No markdown file found')
     })
 
     it('should throw error when download fails', async () => {
@@ -457,7 +482,8 @@ describe('MineruProcessor', () => {
       const result = await processor.getStatus(validProviderTaskId, mockConfig)
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('status_query_failed')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('status_query_failed')
     })
   })
 })

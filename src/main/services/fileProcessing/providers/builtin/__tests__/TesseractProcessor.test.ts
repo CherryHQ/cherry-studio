@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
@@ -36,6 +37,13 @@ vi.mock('@main/utils/ocr', () => ({
 vi.mock('@main/utils/ipService', () => ({
   getIpCountry: vi.fn().mockResolvedValue('US')
 }))
+
+const assertTextResult = (result: ProcessingResult): Extract<ProcessingResult, { text: string }> => {
+  if (!('text' in result) || typeof result.text !== 'string') {
+    throw new Error('Expected text in processing result')
+  }
+  return result
+}
 
 describe('TesseractProcessor', () => {
   let processor: TesseractProcessor
@@ -105,7 +113,7 @@ describe('TesseractProcessor', () => {
     it('should extract text from image', async () => {
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(result.text).toBe('Recognized text from image')
+      expect(assertTextResult(result).text).toBe('Recognized text from image')
     })
 
     it('should throw error for non-image files', async () => {
@@ -115,9 +123,10 @@ describe('TesseractProcessor', () => {
         type: FileTypes.DOCUMENT
       }
 
-      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toThrow(
-        'TesseractProcessor only supports image files'
-      )
+      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toMatchObject({
+        code: 'unsupported_input',
+        message: 'TesseractProcessor only supports image files'
+      })
     })
 
     it('should throw error for files exceeding size limit', async () => {
@@ -141,7 +150,7 @@ describe('TesseractProcessor', () => {
 
       const result = await processor.extractText(mockFile, configWithoutLangs, mockContext)
 
-      expect(result.text).toBe('Recognized text from image')
+      expect(assertTextResult(result).text).toBe('Recognized text from image')
 
       const { createWorker } = await import('tesseract.js')
       expect(createWorker).toHaveBeenCalledWith(['chi_sim', 'chi_tra', 'eng'], undefined, expect.any(Object))

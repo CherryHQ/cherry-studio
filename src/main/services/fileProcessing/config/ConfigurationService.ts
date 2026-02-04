@@ -15,7 +15,7 @@ import {
   type FileProcessorOverride,
   type FileProcessorTemplate,
   PRESETS_FILE_PROCESSORS
-} from '@shared/data/presets/fileProcessing'
+} from '@shared/data/presets/file-processing'
 
 /**
  * Service for managing file processor configurations

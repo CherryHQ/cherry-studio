@@ -41,18 +41,18 @@
       "description": "User overrides for file processors (only stores modified fields)"
     },
     {
-      "targetKey": "feature.file_processing.default_document_processor",
+      "targetKey": "feature.file_processing.default_markdown_conversion_processor",
       "type": "string | null",
       "defaultValue": null,
       "status": "classified",
-      "description": "Default processor ID for knowledge base document parsing"
+      "description": "Default processor ID for markdown conversion"
     },
     {
-      "targetKey": "feature.file_processing.default_image_processor",
+      "targetKey": "feature.file_processing.default_text_extraction_processor",
       "type": "string | null",
       "defaultValue": null,
       "status": "classified",
-      "description": "Default processor ID for chat image understanding"
+      "description": "Default processor ID for text extraction"
     }
   ]
 }

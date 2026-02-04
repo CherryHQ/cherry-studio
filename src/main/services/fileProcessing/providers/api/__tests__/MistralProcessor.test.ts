@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
@@ -39,6 +40,13 @@ vi.mock('@main/services/MistralClientManager', () => ({
     })
   }
 }))
+
+const assertMarkdownResult = (result: ProcessingResult): Extract<ProcessingResult, { markdownPath: string }> => {
+  if (!('markdownPath' in result) || typeof result.markdownPath !== 'string') {
+    throw new Error('Expected markdownPath in processing result')
+  }
+  return result
+}
 
 vi.mock('@main/services/remotefile/MistralService', () => ({
   MistralService: vi.fn().mockImplementation(() => ({
@@ -136,8 +144,8 @@ describe('MistralProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
-      expect(result.markdownPath).toContain('.md')
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toContain('.md')
     })
 
     it('should process image file with base64 encoding', async () => {
@@ -150,7 +158,7 @@ describe('MistralProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockImageFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
     })
 
     it('should throw error when OCR response is empty', async () => {
@@ -241,7 +249,7 @@ describe('MistralProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
       expect(fs.writeFileSync).toHaveBeenCalled()
     })
 
@@ -260,7 +268,7 @@ describe('MistralProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
     })
 
     it('should handle image save errors gracefully', async () => {
@@ -287,7 +295,7 @@ describe('MistralProcessor', () => {
 
       // Should not throw, just log error
       const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
     })
   })
 
@@ -306,7 +314,7 @@ describe('MistralProcessor', () => {
 
       const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
 
-      expect(result.markdownPath).toBeDefined()
+      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
       // Verify writeFileSync was called with combined content
       const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find((call) => String(call[0]).endsWith('.md'))
       expect(writeCall).toBeDefined()

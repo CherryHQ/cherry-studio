@@ -8,9 +8,10 @@
  * - Querying processing request status/result
  */
 import { fileProcessingService } from '@main/services/fileProcessing'
+import { DataApiErrorFactory } from '@shared/data/api/apiErrors'
 import { type ApiHandler, type ApiMethods, SuccessStatus } from '@shared/data/api/apiTypes'
 import type { FileProcessingSchemas } from '@shared/data/api/schemas/fileProcessing'
-import type { FileProcessorFeature } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorFeature } from '@shared/data/presets/file-processing'
 
 /**
  * Handler type for a specific file processing endpoint
@@ -37,7 +38,11 @@ export const fileProcessingHandlers: {
 
   '/file-processing/processors/:id': {
     GET: async ({ params }) => {
-      return fileProcessingService.getProcessor(params.id)
+      const processor = fileProcessingService.getProcessor(params.id)
+      if (!processor) {
+        throw DataApiErrorFactory.notFound('Processor', params.id)
+      }
+      return processor
     },
     PATCH: async ({ params, body }) => {
       return fileProcessingService.updateProcessorConfig(params.id, body)

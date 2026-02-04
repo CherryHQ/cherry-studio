@@ -1,7 +1,10 @@
+import type { FileProcessorId } from '@shared/data/presets/file-processing'
+import type { ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import * as fs from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { UnsupportedInputError } from '../errors'
 import { FileProcessingService } from '../FileProcessingService'
 import { processorRegistry } from '../registry/ProcessorRegistry'
 import {
@@ -34,6 +37,26 @@ const testProcessorIds = [
   'before-ttl-ocr',
   'completed-at-ocr'
 ]
+
+const assertFailedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'failed' }> => {
+  expect(response.status).toBe('failed')
+  if (response.status !== 'failed') {
+    throw new Error(`Expected failed status, got ${response.status}`)
+  }
+  return response
+}
+
+const assertCompletedResponse = (
+  response: ProcessResultResponse
+): Extract<ProcessResultResponse, { status: 'completed' }> => {
+  expect(response.status).toBe('completed')
+  if (response.status !== 'completed') {
+    throw new Error(`Expected completed status, got ${response.status}`)
+  }
+  return response
+}
 
 describe('FileProcessingService', () => {
   let service: FileProcessingService
@@ -91,7 +114,11 @@ describe('FileProcessingService', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
 
       const file = createMockFileMetadata()
-      const response = await service.startProcess({ file, feature: 'text_extraction', processorId: 'custom-ocr' })
+      const response = await service.startProcess({
+        file,
+        feature: 'text_extraction',
+        processorId: 'custom-ocr' as FileProcessorId
+      })
 
       expect(response.requestId).toBeDefined()
       expect(response.status).toBe('pending')
@@ -153,7 +180,8 @@ describe('FileProcessingService', () => {
       const result = await service.getResult('nonexistent-id')
 
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('not_found')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('not_found')
     })
 
     it('should clear task after returning completed status', async () => {
@@ -205,6 +233,31 @@ describe('FileProcessingService', () => {
       await vi.waitFor(async () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('failed')
+      })
+    })
+
+    it('should return unsupported_input when processor rejects input', async () => {
+      const template = createMockTemplate({ id: 'unsupported-input-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockRejectedValue(new UnsupportedInputError('Unsupported input type'))
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        'unsupported-input-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess({ file, feature: 'text_extraction' })
+
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('failed')
+        const failed = assertFailedResponse(result)
+        expect(failed.error.code).toBe('unsupported_input')
       })
     })
   })
@@ -415,7 +468,11 @@ describe('FileProcessingService', () => {
       const file = createMockFileMetadata()
 
       await expect(
-        service.startProcess({ file, feature: 'markdown_conversion', processorId: 'feature-mismatch' })
+        service.startProcess({
+          file,
+          feature: 'markdown_conversion',
+          processorId: 'feature-mismatch' as FileProcessorId
+        })
       ).rejects.toThrow("does not support feature 'markdown_conversion'")
     })
   })
@@ -448,7 +505,8 @@ describe('FileProcessingService', () => {
 
       // Should return not_found for completely unknown request
       expect(result.status).toBe('failed')
-      expect(result.error?.code).toBe('not_found')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('not_found')
     })
 
     it('should keep task available before TTL expires', async () => {
@@ -604,7 +662,8 @@ describe('FileProcessingService', () => {
       await vi.waitFor(async () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('completed')
-        expect(result.result?.markdownPath).toBe('/path/to/output.md')
+        const completed = assertCompletedResponse(result)
+        expect(completed.result.markdownPath).toBe('/path/to/output.md')
       })
     })
 
@@ -635,8 +694,9 @@ describe('FileProcessingService', () => {
       await vi.waitFor(async () => {
         const result = await service.getResult(requestId)
         expect(result.status).toBe('failed')
-        expect(result.error?.code).toBe('status_query_failed')
-        expect(result.error?.message).toContain('Provider API error')
+        const failed = assertFailedResponse(result)
+        expect(failed.error.code).toBe('status_query_failed')
+        expect(failed.error.message).toContain('Provider API error')
       })
     })
   })

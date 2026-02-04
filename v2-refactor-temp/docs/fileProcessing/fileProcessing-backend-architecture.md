@@ -45,14 +45,14 @@
 ## 数据流
 
 ```
-A. 启动处理 POST /file-processing/process
+A. 启动处理 POST /file-processing/requests
    1. FileProcessingService.startProcess(dto)
    2. ConfigurationService.getConfiguration(processorId) → FileProcessorMerged
    3. ProcessorRegistry.get(processorId) → IFileProcessor
    4. 创建任务记录 (pending) + 异步调度
    5. 返回 { requestId, status: 'pending' }
 
-B. 查询结果 GET /file-processing/result?requestId=...
+B. 查询结果 GET /file-processing/requests/:requestId
    1. FileProcessingService.getResult(requestId)
    2. 同步处理器: 返回内存状态 / 异步处理器: 调用 getStatus()
    3. 返回 { status, progress, result?, error? }
@@ -64,9 +64,8 @@ B. 查询结果 GET /file-processing/result?requestId=...
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/file-processing/processors` | GET | 获取可用处理器列表 |
-| `/file-processing/process` | POST | 启动处理任务 |
-| `/file-processing/result` | GET | 查询处理状态/结果 |
-| `/file-processing/cancel` | POST | 取消处理 |
+| `/file-processing/requests` | POST | 启动处理任务 |
+| `/file-processing/requests/:requestId` | GET | 查询处理状态/结果 |
 
 ## 类型定义
 
@@ -197,7 +196,7 @@ class NewDocProcessor extends BaseMarkdownConverter {
 
 ### 3. 添加模板配置
 
-在 `packages/shared/data/presets/fileProcessing.ts` 中添加模板。
+在 `packages/shared/data/presets/file-processing.ts` 中添加模板。
 
 ## 使用示例
 
@@ -205,15 +204,11 @@ class NewDocProcessor extends BaseMarkdownConverter {
 
 ```typescript
 // 启动处理
-const { trigger: startProcess } = useMutation('POST', '/file-processing/process')
+const { trigger: startProcess } = useMutation('POST', '/file-processing/requests')
 const { requestId } = await startProcess({ body: { file, feature: 'text_extraction' } })
 
 // 查询结果
-const { data: result } = useQuery('/file-processing/result', { query: { requestId } })
-
-// 取消
-const { trigger: cancel } = useMutation('POST', '/file-processing/cancel')
-await cancel({ body: { requestId } })
+const { data: result } = useQuery('/file-processing/requests/:requestId', { params: { requestId } })
 ```
 
 ### Main 进程

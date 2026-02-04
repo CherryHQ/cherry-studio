@@ -11,7 +11,8 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
 
@@ -29,6 +30,13 @@ vi.mock('util', () => ({
 vi.mock('@main/constant', () => ({
   isWin: true
 }))
+
+const assertTextResult = (result: ProcessingResult): Extract<ProcessingResult, { text: string }> => {
+  if (!('text' in result) || typeof result.text !== 'string') {
+    throw new Error('Expected text in processing result')
+  }
+  return result
+}
 
 describe('OvOcrProcessor', () => {
   let processor: OvOcrProcessor
@@ -131,7 +139,7 @@ describe('OvOcrProcessor', () => {
     it('should extract text from image', async () => {
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(result.text).toBe('Extracted OCR text')
+      expect(assertTextResult(result).text).toBe('Extracted OCR text')
     })
 
     it('should throw error for non-image files', async () => {
@@ -141,9 +149,10 @@ describe('OvOcrProcessor', () => {
         type: FileTypes.DOCUMENT
       }
 
-      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toThrow(
-        'OvOcrProcessor only supports image files'
-      )
+      await expect(processor.extractText(documentFile, mockConfig, mockContext)).rejects.toMatchObject({
+        code: 'unsupported_input',
+        message: 'OvOcrProcessor only supports image files'
+      })
     })
 
     it('should throw error when not available', async () => {

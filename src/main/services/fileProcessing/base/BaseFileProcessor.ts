@@ -10,7 +10,7 @@ import type {
   FileProcessorFeature,
   FileProcessorMerged,
   FileProcessorTemplate
-} from '@shared/data/presets/fileProcessing'
+} from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 
 import type { IFileProcessor } from '../interfaces'

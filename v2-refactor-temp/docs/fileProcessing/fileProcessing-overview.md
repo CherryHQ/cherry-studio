@@ -56,6 +56,8 @@
 | `apiHost`  | `string?`                              | 模板默认 API Host（可被用户覆盖） |
 | `modelId`  | `string?`                              | 模板默认 Model ID（可被用户覆盖） |
 
+**说明**：`capabilities` 表示处理器“可能支持”的输入范围，实际是否支持由处理器自身校验决定；若输入不被支持，处理器应抛出错误并由前端提示。
+
 ### 模板元数据：`FileProcessorMetadata`
 
 用于描述处理器的文件限制条件（主要针对文档类）。

@@ -110,5 +110,21 @@ describe('ProcessorRegistry', () => {
       expect(all).toEqual(expect.arrayContaining([availableProcessor]))
       expect(all).not.toContain(unavailableProcessor)
     })
+
+    it('should skip processors with availability errors', async () => {
+      const registry = ProcessorRegistry.getInstance()
+      const availableProcessor = new MockTextExtractor(createMockTemplate({ id: 'processor-1' }))
+      const failingProcessor = new MockTextExtractor(createMockTemplate({ id: 'processor-2' }))
+      vi.spyOn(availableProcessor, 'isAvailable').mockResolvedValue(true)
+      vi.spyOn(failingProcessor, 'isAvailable').mockRejectedValue(new Error('boom'))
+
+      registry.register(availableProcessor)
+      registry.register(failingProcessor)
+
+      const all = await registry.getAll()
+
+      expect(all).toEqual(expect.arrayContaining([availableProcessor]))
+      expect(all).not.toContain(failingProcessor)
+    })
   })
 })

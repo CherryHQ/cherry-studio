@@ -6,7 +6,7 @@
  *
  * Supports async task model:
  * - startProcess(): Launch task, return immediately with pending status
- * - getResult(): Query task status/progress/result (clears task on completion)
+ * - getResult(): Query task status/progress/result (tasks cleaned up after TTL)
  * - cancel(): Cancel an active task
  */
 
@@ -16,11 +16,12 @@ import type {
   FileProcessorFeature,
   FileProcessorMerged,
   FileProcessorOverride
-} from '@shared/data/presets/fileProcessing'
+} from '@shared/data/presets/file-processing'
 import type {
   CancelResponse,
   ProcessFileDto,
   ProcessingResult,
+  ProcessingResultOutput,
   ProcessResultResponse,
   ProcessStartResponse
 } from '@shared/data/types/fileProcessing'
@@ -28,6 +29,7 @@ import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { configurationService } from './config/ConfigurationService'
+import { UnsupportedInputError } from './errors'
 import type { IFileProcessor } from './interfaces'
 import { isMarkdownConverter, isProcessStatusProvider, isTextExtractor } from './interfaces'
 import { Doc2xProcessor } from './providers/api/Doc2xProcessor'
@@ -74,7 +76,7 @@ export class FileProcessingService {
    *
    * @param dto - Process file DTO containing file, feature, and optional processorId
    * @returns Process start response with requestId and pending status
-   * @throws Error if processor not found or not available
+   * @throws Error if processor not found
    */
   async startProcess(dto: ProcessFileDto): Promise<ProcessStartResponse> {
     this.ensureProcessorsRegistered()
@@ -195,7 +197,11 @@ export class FileProcessingService {
       task.result = result
     } catch (error) {
       const isCancelled = task.abortController.signal.aborted
-      const errorCode = isCancelled ? 'cancelled' : 'processing_error'
+      const errorCode = isCancelled
+        ? 'cancelled'
+        : error instanceof UnsupportedInputError
+          ? error.code
+          : 'processing_error'
       const errorMessage = error instanceof Error ? error.message : String(error)
 
       task.status = 'failed'
@@ -264,8 +270,13 @@ export class FileProcessingService {
             const providerStatus = await processor.getStatus(task.providerTaskId, task.config)
             task.status = providerStatus.status
             task.progress = providerStatus.progress
-            if (providerStatus.result) task.result = providerStatus.result
-            if (providerStatus.error) task.error = providerStatus.error
+            if (this.isCompletedStatus(providerStatus)) {
+              task.result = providerStatus.result
+              task.error = undefined
+            } else if (this.isFailedStatus(providerStatus)) {
+              task.error = providerStatus.error
+              task.result = undefined
+            }
           } catch (error) {
             // Log the error and update task state
             logger.error('Failed to query provider status', {
@@ -284,12 +295,44 @@ export class FileProcessingService {
       }
     }
 
-    const response: ProcessResultResponse = {
-      requestId,
-      status: task.status,
-      progress: task.progress,
-      result: task.result,
-      error: task.error
+    let response: ProcessResultResponse
+    const result = task.result
+    let status = task.status
+    if (status === 'completed') {
+      if (result && this.isProcessingResultOutput(result)) {
+        response = {
+          requestId,
+          status: 'completed',
+          progress: task.progress,
+          result
+        }
+      } else {
+        status = 'failed'
+        task.status = status
+        task.error = {
+          code: 'missing_result',
+          message: 'Processing completed but result is missing'
+        }
+        response = {
+          requestId,
+          status: 'failed',
+          progress: task.progress,
+          error: task.error
+        }
+      }
+    } else if (status === 'failed') {
+      response = {
+        requestId,
+        status: 'failed',
+        progress: task.progress,
+        error: task.error ?? { code: 'processing_error', message: 'Processing failed' }
+      }
+    } else {
+      response = {
+        requestId,
+        status,
+        progress: task.progress
+      }
     }
 
     // Mark completion time for TTL cleanup (don't delete immediately)
@@ -366,6 +409,28 @@ export class FileProcessingService {
     const providerTaskId = metadata['providerTaskId']
 
     return typeof providerTaskId === 'string' && providerTaskId.trim().length > 0 ? providerTaskId : null
+  }
+
+  private isProcessingResultOutput(result: ProcessingResult): result is ProcessingResultOutput {
+    if ('text' in result) {
+      return typeof result.text === 'string'
+    }
+    if ('markdownPath' in result) {
+      return typeof result.markdownPath === 'string'
+    }
+    return false
+  }
+
+  private isCompletedStatus(
+    response: ProcessResultResponse
+  ): response is Extract<ProcessResultResponse, { status: 'completed' }> {
+    return response.status === 'completed'
+  }
+
+  private isFailedStatus(
+    response: ProcessResultResponse
+  ): response is Extract<ProcessResultResponse, { status: 'failed' }> {
+    return response.status === 'failed'
   }
 
   /**
