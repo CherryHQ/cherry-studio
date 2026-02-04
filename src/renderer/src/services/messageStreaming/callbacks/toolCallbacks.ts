@@ -99,6 +99,10 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
     },
 
     onToolCallComplete: (toolResponse: ToolResponse) => {
+      // Read resolvedInput BEFORE removing from store (removeByToolCallId deletes it)
+      const state = store.getState()
+      const resolvedInput = toolResponse?.id ? state.toolPermissions.resolvedInputs[toolResponse.id] : undefined
+
       if (toolResponse?.id) {
         dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))
       }
@@ -118,9 +122,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             ? MessageBlockStatus.SUCCESS
             : MessageBlockStatus.ERROR
 
-        const state = store.getState()
         const existingBlock = state.messageBlocks.entities[existingBlockId] as ToolMessageBlock | undefined
-        const resolvedInput = state.toolPermissions.resolvedInputs[toolResponse.id]
 
         const existingResponse = existingBlock?.metadata?.rawMcpToolResponse
         // Merge order: toolResponse.arguments (base) -> existingResponse?.arguments -> resolvedInput (user answers take precedence)
