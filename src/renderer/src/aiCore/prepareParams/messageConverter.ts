@@ -45,7 +45,7 @@ export async function convertMessageToSdkParam(
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantModelMessage(content, fileBlocks, imageBlocks, reasoningBlocks, model)
   }
 }
 
@@ -155,10 +155,13 @@ async function convertMessageToUserModelMessage(
 
 /**
  * 转换为助手模型消息
+ * 注意：当助手消息只包含图片（如图片生成模型的响应）而没有文本时，
+ * 需要添加占位文本，因为某些 API（如 Gemini）不接受空的 assistant 消息
  */
 async function convertMessageToAssistantModelMessage(
   content: string,
   fileBlocks: FileMessageBlock[],
+  imageBlocks: ImageMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
@@ -186,6 +189,12 @@ async function convertMessageToAssistantModelMessage(
     if (textPart) {
       parts.push(textPart)
     }
+  }
+
+  // 当 parts 为空但有图片时，添加占位文本
+  // 这对于图片生成模型的继续对话很重要，因为助手消息可能只包含生成的图片
+  if (parts.length === 0 && imageBlocks.length > 0) {
+    parts.push({ type: 'text', text: '[Image]' })
   }
 
   return {
