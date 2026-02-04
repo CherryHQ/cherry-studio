@@ -190,7 +190,7 @@ try {
 
 ### 12. `useFileProcess` Hook 缺少验证
 
-**位置:** `src/renderer/src/hooks/useFileProcessors.ts:121`
+**位置:** `src/renderer/src/hooks/useFileProcessing.ts:121`
 
 **问题:** 在处理轮询结果的 `useEffect` 中，当状态为 'completed' 时访问 `resultData.result` 没有检查它是否存在：
 

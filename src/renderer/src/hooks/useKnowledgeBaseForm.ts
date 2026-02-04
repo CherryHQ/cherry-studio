@@ -1,5 +1,5 @@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { useFileProcessors } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessors } from '@renderer/hooks/useFileProcessing'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'

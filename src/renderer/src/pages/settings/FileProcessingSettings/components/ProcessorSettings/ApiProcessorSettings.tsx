@@ -1,6 +1,6 @@
 import { Button, Field, FieldContent, FieldGroup, FieldLabel, Input } from '@cherrystudio/ui'
 import { FILE_PROCESSOR_CONFIG } from '@renderer/config/fileProcessing'
-import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 import { Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'

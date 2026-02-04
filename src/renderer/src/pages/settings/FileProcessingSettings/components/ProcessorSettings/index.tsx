@@ -1,4 +1,4 @@
-import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 

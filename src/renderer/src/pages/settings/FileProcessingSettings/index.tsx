@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessors'
+import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessing'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { FileText } from 'lucide-react'
 import type { FC } from 'react'

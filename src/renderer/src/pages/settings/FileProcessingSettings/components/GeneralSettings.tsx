@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessors'
+import { useDefaultProcessors, useFileProcessors } from '@renderer/hooks/useFileProcessing'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 

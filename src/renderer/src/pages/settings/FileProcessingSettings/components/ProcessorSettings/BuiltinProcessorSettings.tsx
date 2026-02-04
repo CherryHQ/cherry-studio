@@ -10,7 +10,7 @@ import {
 } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { FILE_PROCESSOR_CONFIG, TESSERACT_LANG_MAP } from '@renderer/config/fileProcessing'
-import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { FC } from 'react'
 import { useMemo } from 'react'

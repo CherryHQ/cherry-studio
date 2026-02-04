@@ -99,7 +99,7 @@ export type FileProcessorMerged = {
 ### 获取处理器列表
 
 ```typescript
-import { useFileProcessors } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessors } from '@renderer/hooks/useFileProcessing'
 
 const { processors, isLoading } = useFileProcessors({ feature: 'markdown_conversion' })
 // processors: FileProcessorMerged[]
@@ -108,7 +108,7 @@ const { processors, isLoading } = useFileProcessors({ feature: 'markdown_convers
 ### 更新处理器配置
 
 ```typescript
-import { useFileProcessor } from '@renderer/hooks/useFileProcessors'
+import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 
 const { processor, updateProcessor } = useFileProcessor('mineru')
 
