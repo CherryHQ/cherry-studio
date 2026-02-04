@@ -1,3 +1,5 @@
+import { parse as jsoncParse } from 'jsonc-parser'
+
 export const defaultAppHeaders = () => {
   return {
     'HTTP-Referer': 'https://cherry-ai.com',
@@ -199,8 +201,6 @@ export const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN'
 
 // Keys that don't represent functional configuration content
 export const NON_FUNCTIONAL_KEYS = ['$schema']
-
-import { parse as jsoncParse } from 'jsonc-parser'
 
 /**
  * Parse JSON with comments (JSONC) support
