@@ -1,5 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import Scrollbar, { ScrollbarProps } from '@renderer/components/Scrollbar'
+import type { ScrollbarProps } from '@renderer/components/Scrollbar'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
 import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'

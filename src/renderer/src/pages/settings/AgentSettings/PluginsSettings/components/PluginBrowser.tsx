@@ -204,10 +204,10 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   }
 
   const handleVirtualChange = useCallback(
-    (instance: { scrollOffset: number; getTotalSize: () => number; scrollElement: HTMLElement | null }) => {
+    (instance: { scrollOffset: number | null; getTotalSize: () => number; scrollElement: HTMLElement | null }) => {
       if (!hasMore || isLoading || isLoadingMore) return
       const { scrollOffset, scrollElement } = instance
-      if (!scrollElement) return
+      if (!scrollElement || scrollOffset === null) return
       const clientHeight = scrollElement.clientHeight
       const totalSize = instance.getTotalSize()
       const distanceToBottom = totalSize - scrollOffset - clientHeight
