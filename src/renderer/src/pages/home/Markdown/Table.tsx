@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
@@ -10,6 +11,8 @@ import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import type { Node } from 'unist'
+
+const logger = loggerService.withContext('Table')
 
 interface Props {
   children: React.ReactNode
@@ -42,7 +45,8 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       }
       setCopied(true)
     } catch (error) {
-      window.toast?.error(`${t('message.copy.failed')}: ${error}`)
+      logger.error('Failed to copy table to clipboard', { error })
+      window.toast?.error(t('message.copy.failed'))
     }
   }, [blockId, node?.position, setCopied, t])
 
@@ -56,7 +60,8 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         window.toast?.success(t('message.success.excel.export'))
       }
     } catch (error) {
-      window.toast?.error(`${t('message.error.excel.export')}: ${error}`)
+      logger.error('Failed to export table to Excel', { error })
+      window.toast?.error(t('message.error.excel.export'))
     }
   }, [blockId, node?.position, t])
 
