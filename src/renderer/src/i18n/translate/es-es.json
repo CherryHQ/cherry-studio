@@ -2453,74 +2453,73 @@
     "title": "Ollama"
   },
   "openclaw": {
-    "checking_installation": "[to be translated]:Checking OpenClaw installation...",
-    "description": "[to be translated]:Integrate Cherry Studio providers with OpenClaw Gateway to enable AI coding agents like Claude Code, Qwen-Coder, and more.",
+    "checking_installation": "Comprobando la instalación de OpenClaw...",
+    "description": "Integra los proveedores de Cherry Studio con OpenClaw Gateway para habilitar agentes de codificación con IA como Claude Code, Qwen-Coder y más.",
     "error": {
-      "select_provider_model": "[to be translated]:Please select a provider and model first"
+      "select_provider_model": "Por favor, selecciona primero un proveedor y un modelo."
     },
     "gateway": {
-      "health": "[to be translated]:Health",
-      "port": "[to be translated]:Port",
-      "restart": "[to be translated]:Restart",
-      "start": "[to be translated]:Start Gateway",
-      "status": "[to be translated]:Status",
-      "stop": "[to be translated]:Stop",
-      "title": "[to be translated]:Gateway Control",
-      "version": "[to be translated]:Version"
+      "health": "Salud",
+      "port": "Puerto",
+      "restart": "Reiniciar",
+      "start": "Iniciar Gateway",
+      "status": "Estado",
+      "stop": "Detente",
+      "version": "Versión"
     },
-    "install_progress": "[to be translated]:Install Progress",
-    "installed_at": "[to be translated]:OpenClaw installed at: {{path}}",
+    "install_progress": "Progreso de instalación",
+    "installed_at": "OpenClaw instalado en: {{path}}",
     "model_config": {
-      "auth_token": "[to be translated]:Auth Token",
-      "auth_token_hint": "[to be translated]:Token for gateway authentication. Leave empty to disable authentication.",
-      "auth_token_placeholder": "[to be translated]:Enter or generate a token",
-      "generate_token": "[to be translated]:Generate",
-      "model": "[to be translated]:Model",
-      "provider": "[to be translated]:Provider",
-      "select_model": "[to be translated]:Select a model",
-      "select_provider": "[to be translated]:Select a provider",
-      "sync_hint": "[to be translated]:Selected provider and model will be synced to OpenClaw config file",
-      "title": "[to be translated]:Model Configuration"
+      "auth_token": "Token de autenticación",
+      "auth_token_hint": "Token para autenticación de puerta de enlace. Dejar vacío para desactivar la autenticación.",
+      "auth_token_placeholder": "Introduce o genera un token",
+      "generate_token": "Generar",
+      "model": "Modelo",
+      "provider": "Proveedor",
+      "select_model": "Selecciona un modelo",
+      "select_provider": "Seleccione un proveedor",
+      "sync_hint": "El proveedor y el modelo seleccionados se sincronizarán con el archivo de configuración de OpenClaw.",
+      "title": "Configuración del modelo"
     },
     "not_installed": {
-      "description": "[to be translated]:OpenClaw is not installed on your system. Please install it first to use this feature.",
-      "install_button": "[to be translated]:Install OpenClaw",
-      "install_guide_title": "[to be translated]:Installation Guide",
-      "macos_linux_title": "[to be translated]:macOS / Linux",
-      "refresh": "[to be translated]:Refresh",
-      "step2_hint": "[to be translated]:After installation, click the Refresh button above to detect OpenClaw",
-      "step2_title": "[to be translated]:Step 2: Verify installation",
-      "title": "[to be translated]:OpenClaw Not Installed",
-      "windows_title": "[to be translated]:Windows"
+      "description": "OpenClaw no está instalado en tu sistema. Por favor, instálalo primero para usar esta función.",
+      "install_button": "Instalar OpenClaw",
+      "install_guide_title": "Guía de Instalación",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Actualizar",
+      "step2_hint": "Después de la instalación, haz clic en el botón Actualizar de arriba para detectar OpenClaw",
+      "step2_title": "Paso 2: Verificar la instalación",
+      "title": "OpenClaw No Instalado",
+      "windows_title": "Windows"
     },
     "npm_missing": {
-      "description": "[to be translated]:OpenClaw requires Node.js/npm. Please install Node.js first, then restart Cherry Studio.",
-      "download_button": "[to be translated]:Download Node.js",
-      "hint": "[to be translated]:macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "[to be translated]:Node.js Required"
+      "description": "OpenClaw requiere Node.js/npm. Por favor, instala Node.js primero y luego reinicia Cherry Studio.",
+      "download_button": "Descargar Node.js",
+      "hint": "macOS: brew install node | Windows: Descarga la versión LTS desde nodejs.org",
+      "title": "Node.js Requerido"
     },
     "quick_actions": {
-      "open_dashboard": "[to be translated]:Open Dashboard",
-      "title": "[to be translated]:Quick Actions",
-      "uninstall": "[to be translated]:Uninstall",
-      "view_docs": "[to be translated]:View Documentation"
+      "open_dashboard": "Abrir Panel de Control",
+      "title": "Acciones Rápidas",
+      "uninstall": "Desinstalar",
+      "view_docs": "Ver Documentación"
     },
     "status": {
-      "error": "[to be translated]:Error",
-      "running": "[to be translated]:Running",
-      "starting": "[to be translated]:Starting",
-      "stopped": "[to be translated]:Stopped"
+      "error": "Error",
+      "running": "Corriendo",
+      "starting": "Comenzando",
+      "stopped": "Detenido"
     },
-    "title": "[to be translated]:OpenClaw",
-    "uninstall_confirm": "[to be translated]:Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
-    "uninstall_progress": "[to be translated]:Uninstall Progress",
+    "title": "OpenClaw",
+    "uninstall_confirm": "¿Estás seguro de que quieres desinstalar OpenClaw? Presiona OK para confirmar.",
+    "uninstall_progress": "Desinstalación en progreso",
     "uninstalled": {
-      "description": "[to be translated]:OpenClaw has been successfully uninstalled.",
-      "title": "[to be translated]:Uninstall Complete"
+      "description": "OpenClaw se ha desinstalado correctamente.",
+      "title": "Desinstalación completada"
     },
     "uninstalling": {
-      "description": "[to be translated]:Please wait while OpenClaw is being uninstalled...",
-      "title": "[to be translated]:Uninstalling OpenClaw"
+      "description": "Por favor espera mientras se desinstala OpenClaw...",
+      "title": "Desinstalando OpenClaw"
     }
   },
   "ovms": {
@@ -5221,7 +5220,7 @@
     "mcp-servers": "Servidores MCP",
     "memories": "Memorias",
     "notes": "notas",
-    "openclaw": "[to be translated]:OpenClaw",
+    "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configuración",
     "store": "Biblioteca de asistentes",

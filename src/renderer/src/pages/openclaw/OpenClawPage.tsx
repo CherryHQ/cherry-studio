@@ -13,12 +13,11 @@ import {
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Alert, Avatar, Button, Result, Space, Spin, Tag } from 'antd'
-import { Circle, Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
+import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
+import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('OpenClawPage')
 
@@ -257,9 +256,7 @@ const OpenClawPage: FC = () => {
         return
       }
 
-      dispatch(setGatewayStatus('running'))
-
-      // Auto open dashboard after successful start
+      // Auto open dashboard first
       const dashboardUrl = await window.api.openclaw.getDashboardUrl()
       openSmartMinapp({
         id: 'openclaw-dashboard',
@@ -267,9 +264,14 @@ const OpenClawPage: FC = () => {
         url: dashboardUrl,
         logo: OpenClawLogo
       })
+
+      // Delay 500ms before updating UI state (wait for minapp animation)
+      setTimeout(() => {
+        dispatch(setGatewayStatus('running'))
+        setIsStarting(false)
+      }, 500)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-    } finally {
       setIsStarting(false)
     }
   }
@@ -316,22 +318,42 @@ const OpenClawPage: FC = () => {
     })
   }
 
-  const getStatusTag = () => {
-    switch (gatewayStatus) {
-      case 'running':
-        return <Tag color="success">{t('openclaw.status.running')}</Tag>
-      case 'starting':
-        return <Tag color="processing">{t('openclaw.status.starting')}</Tag>
-      case 'error':
-        return <Tag color="error">{t('openclaw.status.error')}</Tag>
-      default:
-        return <Tag color="default">{t('openclaw.status.stopped')}</Tag>
-    }
-  }
+  const renderLogContainer = (expanded = false) => (
+    <div className="mb-6 overflow-hidden rounded-lg" style={{ background: 'var(--color-background-soft)' }}>
+      <div
+        className="flex items-center justify-between px-3 py-2 font-medium text-[13px]"
+        style={{ background: 'var(--color-background-mute)' }}>
+        <span>{t(expanded ? 'openclaw.uninstall_progress' : 'openclaw.install_progress')}</span>
+        {!expanded && (
+          <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+            {t('common.close')}
+          </Button>
+        )}
+      </div>
+      <div
+        className={`overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed ${expanded ? 'h-[300px]' : 'h-[150px]'}`}>
+        {installLogs.map((log, index) => (
+          <div
+            key={index}
+            className="whitespace-pre-wrap break-all"
+            style={{
+              color:
+                log.type === 'error'
+                  ? 'var(--color-error)'
+                  : log.type === 'warn'
+                    ? 'var(--color-warning)'
+                    : 'var(--color-text-2)'
+            }}>
+            {log.message}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   const renderNotInstalledContent = () => (
-    <ContentContainer id="content-container">
-      <MainContent>
+    <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
+      <div className="m-auto min-h-fit w-[600px]">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}
@@ -369,7 +391,7 @@ const OpenClawPage: FC = () => {
                     {t('openclaw.npm_missing.download_button')}
                   </Button>
                 </Space>
-                <p style={{ marginTop: 12, color: 'var(--color-text-3)', fontSize: 12 }}>
+                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
                   {t('openclaw.npm_missing.hint')}
                 </p>
               </div>
@@ -378,7 +400,7 @@ const OpenClawPage: FC = () => {
             showIcon
             closable
             onClose={() => setNpmMissing(false)}
-            style={{ marginTop: 16, borderRadius: 'var(--list-item-border-radius)' }}
+            className="!rounded-lg mt-4"
           />
         )}
         {installError && (
@@ -391,81 +413,107 @@ const OpenClawPage: FC = () => {
           />
         )}
 
-        {showLogs && installLogs.length > 0 && (
-          <LogContainer>
-            <div className="log-header">
-              <span>{t('openclaw.install_progress')}</span>
-              <Button size="small" type="text" onClick={() => setShowLogs(false)}>
-                {t('common.close')}
-              </Button>
-            </div>
-            <div className="log-content">
-              {installLogs.map((log, index) => (
-                <div key={index} className={`log-line log-${log.type}`}>
-                  {log.message}
-                </div>
-              ))}
-            </div>
-          </LogContainer>
-        )}
-      </MainContent>
-    </ContentContainer>
+        {showLogs && installLogs.length > 0 && renderLogContainer()}
+      </div>
+    </div>
   )
 
   const renderInstalledContent = () => (
-    <ContentContainer id="content-container">
-      <MainContent>
-        <TitleWrapper>
+    <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
+      <div className="m-auto min-h-fit w-[600px]">
+        {/* Title Section */}
+        <div className="mb-8 flex items-start gap-4">
           <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
-          <TitleContent>
-            <Title>{t('openclaw.title')}</Title>
-            <DescriptionRow>
-              <Description>
-                {t('openclaw.description')}
-                <DocsLink onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
-                  {t('openclaw.quick_actions.view_docs')}
-                  <ExternalLink size={12} />
-                </DocsLink>
-              </Description>
-            </DescriptionRow>
-          </TitleContent>
-        </TitleWrapper>
+          <div className="flex-1">
+            <h1 className="mb-1 font-semibold text-2xl" style={{ color: 'var(--color-text-1)' }}>
+              {t('openclaw.title')}
+            </h1>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
+              {t('openclaw.description')}{' '}
+              <span
+                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-[13px] hover:underline"
+                style={{ color: 'var(--color-primary)' }}
+                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
+                {t('openclaw.quick_actions.view_docs')}
+                <ExternalLink size={12} />
+              </span>
+            </p>
+          </div>
+        </div>
 
+        {/* Install Path */}
         {installPath && (
-          <InstallAlert>
-            <Alert
-              message={
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>{t('openclaw.installed_at', { path: installPath })}</span>
-                  <UninstallLink
-                    onClick={gatewayStatus === 'running' ? undefined : handleUninstall}
-                    $disabled={gatewayStatus === 'running'}>
-                    {t('openclaw.quick_actions.uninstall')}
-                  </UninstallLink>
-                </div>
-              }
-              type="success"
-              showIcon
-              style={{ borderRadius: 'var(--list-item-border-radius)' }}
-            />
-          </InstallAlert>
+          <div
+            className="mb-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm"
+            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
+            <span>{t('openclaw.installed_at', { path: installPath })}</span>
+            <span
+              className={`whitespace-nowrap text-xs ${
+                gatewayStatus === 'running' ? 'cursor-not-allowed' : 'cursor-pointer hover:text-[var(--color-error)]'
+              }`}
+              style={{ color: gatewayStatus === 'running' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}
+              onClick={gatewayStatus === 'running' ? undefined : handleUninstall}>
+              {t('openclaw.quick_actions.uninstall')}
+            </span>
+          </div>
         )}
 
+        {/* Gateway Status Card - only show when running */}
+        {gatewayStatus === 'running' && (
+          <div
+            className="mb-6 flex items-center justify-between rounded-lg p-3"
+            style={{ background: 'var(--color-background-soft)' }}>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
+                {t('openclaw.status.running')}
+              </span>
+              {lastHealthCheck?.version && (
+                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+                  v{lastHealthCheck.version}
+                </span>
+              )}
+              <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
+                :{gatewayPort}
+              </span>
+            </div>
+            <div className="flex gap-1">
+              <Button
+                size="small"
+                type="text"
+                icon={<RefreshCw size={14} />}
+                onClick={handleRestartGateway}
+                loading={isRestarting}
+                disabled={isStopping || isRestarting}>
+                {t('openclaw.gateway.restart')}
+              </Button>
+              <Button
+                size="small"
+                type="text"
+                icon={<Square size={14} />}
+                onClick={handleStopGateway}
+                loading={isStopping}
+                disabled={isStopping || isRestarting}
+                danger>
+                {t('openclaw.gateway.stop')}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Error Alert */}
         {error && (
-          <InstallAlert>
-            <Alert
-              message={error}
-              type="error"
-              closable
-              onClose={() => setError(null)}
-              style={{ borderRadius: 'var(--list-item-border-radius)' }}
-            />
-          </InstallAlert>
+          <div className="mb-6">
+            <Alert message={error} type="error" closable onClose={() => setError(null)} className="!rounded-lg" />
+          </div>
         )}
 
-        <SettingsPanel>
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.model_config.model')}</div>
+        {/* Model Selector - only show when not running */}
+        {gatewayStatus !== 'running' && (
+          <div className="mb-6">
+            <div className="mb-2 flex items-center gap-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
+              {t('openclaw.model_config.model')}
+            </div>
             <ModelSelector
               style={{ width: '100%' }}
               placeholder={t('openclaw.model_config.select_model')}
@@ -476,152 +524,76 @@ const OpenClawPage: FC = () => {
               showAvatar
               showSuffix
             />
-            <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
+            <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
               {t('openclaw.model_config.sync_hint')}
             </div>
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.gateway.title')}</div>
-            <GatewayStatusRow>
-              <Space>
-                <span style={{ fontWeight: 500 }}>{t('openclaw.gateway.status')}:</span>
-                {getStatusTag()}
-                <span style={{ color: 'var(--color-text-3)' }}>
-                  ({t('openclaw.gateway.port')}: {gatewayPort})
-                </span>
-              </Space>
-              {gatewayStatus === 'running' && (
-                <Space size="small">
-                  <Button
-                    size="small"
-                    icon={<Square size={14} />}
-                    onClick={handleStopGateway}
-                    loading={isStopping}
-                    disabled={isStopping || isRestarting}
-                    danger>
-                    {t('openclaw.gateway.stop')}
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<RefreshCw size={14} />}
-                    onClick={handleRestartGateway}
-                    loading={isRestarting}
-                    disabled={isStopping || isRestarting}>
-                    {t('openclaw.gateway.restart')}
-                  </Button>
-                </Space>
-              )}
-            </GatewayStatusRow>
-            {lastHealthCheck && gatewayStatus === 'running' && (
-              <div
-                style={{
-                  marginTop: 8,
-                  color: 'var(--color-text-3)',
-                  fontSize: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
-                {t('openclaw.gateway.health')}:
-                <Circle
-                  size={8}
-                  fill={lastHealthCheck.status === 'healthy' ? '#52c41a' : '#ff4d4f'}
-                  color={lastHealthCheck.status === 'healthy' ? '#52c41a' : '#ff4d4f'}
-                />
-                {lastHealthCheck.version && ` | ${t('openclaw.gateway.version')}: ${lastHealthCheck.version}`}
-              </div>
-            )}
-          </SettingsItem>
-        </SettingsPanel>
-
-        {showLogs && installLogs.length > 0 && (
-          <LogContainer>
-            <div className="log-header">
-              <span>{t('openclaw.install_progress')}</span>
-              <Button size="small" type="text" onClick={() => setShowLogs(false)}>
-                {t('common.close')}
-              </Button>
-            </div>
-            <div className="log-content">
-              {installLogs.map((log, index) => (
-                <div key={index} className={`log-line log-${log.type}`}>
-                  {log.message}
-                </div>
-              ))}
-            </div>
-          </LogContainer>
+          </div>
         )}
 
-        {gatewayStatus === 'stopped' && (
+        {showLogs && installLogs.length > 0 && renderLogContainer()}
+
+        {/* Action Button */}
+        {gatewayStatus !== 'running' && (
           <Button
             type="primary"
             icon={<Play size={16} />}
             onClick={handleStartGateway}
-            loading={isStarting}
-            disabled={!selectedProvider || !selectedModel || isStarting}
+            loading={isStarting || gatewayStatus === 'starting'}
+            disabled={!selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting'}
             size="large"
             block>
             {t('openclaw.gateway.start')}
           </Button>
         )}
         {gatewayStatus === 'running' && (
-          <Button type="primary" icon={<ExternalLink size={16} />} onClick={handleOpenDashboard} size="large" block>
+          <Button type="primary" onClick={handleOpenDashboard} size="large" block>
             {t('openclaw.quick_actions.open_dashboard')}
           </Button>
         )}
-      </MainContent>
-    </ContentContainer>
+      </div>
+    </div>
   )
 
   // Render uninstalling page - only show logs
   const renderUninstallingContent = () => (
-    <ContentContainer id="content-container">
-      <MainContent>
-        <TitleWrapper>
+    <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
+      <div className="m-auto min-h-fit w-[600px]">
+        {/* Title Section */}
+        <div className="mb-8 flex items-start gap-4">
           <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
-          <TitleContent>
-            <Title>{t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}</Title>
-            <Description>
+          <div className="flex-1">
+            <h1 className="mb-1 font-semibold text-2xl" style={{ color: 'var(--color-text-1)' }}>
+              {t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}
+            </h1>
+            <span className="text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
               {t(uninstallSuccess ? 'openclaw.uninstalled.description' : 'openclaw.uninstalling.description')}
-            </Description>
-          </TitleContent>
-        </TitleWrapper>
+            </span>
+          </div>
+        </div>
 
         {installError && (
-          <InstallAlert>
+          <div className="mb-6">
             <Alert
               message={installError}
               type="error"
               closable
               onClose={() => setInstallError(null)}
-              style={{ borderRadius: 'var(--list-item-border-radius)' }}
+              className="!rounded-lg"
             />
-          </InstallAlert>
+          </div>
         )}
 
-        <LogContainer $expanded>
-          <div className="log-header">
-            <span>{t('openclaw.uninstall_progress')}</span>
-          </div>
-          <div className="log-content">
-            {installLogs.map((log, index) => (
-              <div key={index} className={`log-line log-${log.type}`}>
-                {log.message}
-              </div>
-            ))}
-          </div>
-        </LogContainer>
+        {renderLogContainer(true)}
 
         <Button disabled={!uninstallSuccess} type="primary" onClick={handleUninstallComplete} block size="large">
           {t('common.close')}
         </Button>
-      </MainContent>
-    </ContentContainer>
+      </div>
+    </div>
   )
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('openclaw.title')}</NavbarCenter>
       </Navbar>
@@ -629,174 +601,19 @@ const OpenClawPage: FC = () => {
       {isUninstalling ? (
         renderUninstallingContent()
       ) : isInstalled === null ? (
-        <LoadingContainer id="content-container">
+        <div id="content-container" className="flex flex-1 flex-col items-center justify-center">
           <Spin size="large" />
-          <div style={{ marginTop: 16, color: 'var(--color-text-3)' }}>{t('openclaw.checking_installation')}</div>
-        </LoadingContainer>
+          <div className="mt-4" style={{ color: 'var(--color-text-3)' }}>
+            {t('openclaw.checking_installation')}
+          </div>
+        </div>
       ) : isInstalled ? (
         renderInstalledContent()
       ) : (
         renderNotInstalledContent()
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 0;
-`
-
-const MainContent = styled.div`
-  width: 600px;
-  margin: auto;
-  min-height: fit-content;
-`
-
-const TitleWrapper = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 32px;
-`
-
-const TitleContent = styled.div`
-  flex: 1;
-`
-
-const Title = styled.h1`
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
-`
-
-const Description = styled.span`
-  font-size: 14px;
-  color: var(--color-text-2);
-  line-height: 1.5;
-`
-
-const DescriptionRow = styled.div`
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-`
-
-const DocsLink = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-primary);
-  cursor: pointer;
-  white-space: nowrap;
-  margin-left: auto;
-  float: right;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`
-
-const UninstallLink = styled.span<{ $disabled?: boolean }>`
-  font-size: 12px;
-  color: ${({ $disabled }) => ($disabled ? 'var(--color-text-4)' : 'var(--color-text-3)')};
-  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
-  white-space: nowrap;
-
-  &:hover {
-    color: ${({ $disabled }) => ($disabled ? 'var(--color-text-4)' : 'var(--color-error)')};
-  }
-`
-
-const GatewayStatusRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-`
-
-const SettingsPanel = styled.div`
-  margin-bottom: 32px;
-`
-
-const SettingsItem = styled.div`
-  margin-bottom: 24px;
-
-  .settings-label {
-    font-size: 14px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-text-1);
-    font-weight: 500;
-  }
-`
-
-const InstallAlert = styled.div`
-  margin-bottom: 24px;
-`
-
-const LogContainer = styled.div<{ $expanded?: boolean }>`
-  margin-bottom: 24px;
-  background: var(--color-background-soft);
-  border-radius: var(--list-item-border-radius);
-  overflow: hidden;
-
-  .log-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: var(--color-background-mute);
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .log-content {
-    height: ${({ $expanded }) => ($expanded ? '300px' : '150px')};
-    overflow-y: auto;
-    padding: 8px 12px;
-    font-family: monospace;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .log-line {
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-
-  .log-info {
-    color: var(--color-text-2);
-  }
-
-  .log-warn {
-    color: var(--color-warning);
-  }
-
-  .log-error {
-    color: var(--color-error);
-  }
-`
-
-const LoadingContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-`
 
 export default OpenClawPage
