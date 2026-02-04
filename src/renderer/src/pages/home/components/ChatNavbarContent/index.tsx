@@ -4,6 +4,8 @@ import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
+import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -14,10 +16,8 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { twMerge } from 'tailwind-merge'
 
-import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
-import { AgentLabel, SessionLabel } from '../../settings/AgentSettings/shared'
-import SelectAgentBaseModelButton from './SelectAgentBaseModelButton'
-import SelectModelButton from './SelectModelButton'
+import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
+import SelectModelButton from '../SelectModelButton'
 
 const cn = (...inputs: any[]) => twMerge(inputs)
 
