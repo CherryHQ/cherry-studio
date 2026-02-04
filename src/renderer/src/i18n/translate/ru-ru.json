@@ -154,24 +154,43 @@
         "error": {
           "install": "Ошибка установки плагина",
           "load": "Ошибка загрузки плагина",
+          "load_more": "Не удалось загрузить больше плагинов",
           "uninstall": "Не удалось удалить плагин"
         },
         "filter": {
           "all": "Все категории"
         },
-        "install": "установка",
+        "install": {
+          "button": "Установить",
+          "title": "Установить плагины"
+        },
         "installed": {
           "empty": "Плагины ещё не установлены. Просмотрите доступные плагины, чтобы начать.",
-          "title": "Установленный плагин"
+          "title": "Установленные плагины"
         },
         "installing": "Установка...",
+        "plugin_upload": {
+          "all_failed": "Все {{failed}} компоненты не удалось установить",
+          "error": "Установка не удалась",
+          "format_hint": "Поддерживает пакеты плагинов (.claude-plugin/plugin.json)",
+          "hint": "Перетащите ZIP-архив плагина сюда или нажмите для выбора",
+          "invalid_format": "Пожалуйста, загрузите ZIP-файл",
+          "partial_success": "Плагин \"{{name}}\" частично установлен: {{installed}} установлено, {{failed}} не удалось",
+          "select_folder": "Выбрать папку",
+          "select_folder_title": "Выбрать папку плагина",
+          "success": "Плагин \"{{name}}\" успешно установлен ({{count}} компонентов)",
+          "success_multi": "Установлено {{count}} компонентов из {{packages}} пакетов",
+          "uploading": "Загрузка и установка..."
+        },
         "results": "Найдено {{count}} плагинов",
         "search": {
           "placeholder": "Поиск плагинов..."
         },
+        "standalone_plugins": "Автономные плагины",
         "success": {
           "install": "Плагин успешно установлен",
-          "uninstall": "Плагин успешно удалён"
+          "uninstall": "Плагин успешно удалён",
+          "uninstall_package": "Пакет \"{{name}}\" успешно удалён"
         },
         "tab": "плагин",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "навык"
         },
         "uninstall": "Удаление",
+        "uninstall_package": "Удалить пакет",
+        "uninstall_package_confirm": "Вы уверены, что хотите удалить весь пакет «{{name}}»? Это приведёт к удалению {{count}} компонента(-ов).",
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
@@ -711,15 +732,6 @@
       "view_full_content": "Показать полное содержимое"
     },
     "input": {
-      "activity_directory": {
-        "description": "Выбрать файл из каталога активности",
-        "loading": "Загрузка файлов...",
-        "no_file_found": {
-          "description": "Нет доступных файлов в доступных каталогах",
-          "label": "Файл не найден"
-        },
-        "title": "Каталог активностей"
-      },
       "auto_resize": "Автоматическая высота",
       "clear": {
         "content": "Хотите очистить все сообщения текущего топика?",
@@ -749,6 +761,24 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "resource_panel": {
+        "categories": {
+          "agents": "Агенты",
+          "files": "Файлы",
+          "skills": "Навыки"
+        },
+        "description": "Выберите из файлов, агентов или навыков",
+        "loading": "Загрузка...",
+        "no_file_found": {
+          "description": "Нет доступных файлов в доступных каталогах",
+          "label": "Файл не найден"
+        },
+        "no_items_found": {
+          "description": "Нет доступных файлов, агентов или навыков",
+          "label": "Элементы не найдены"
+        },
+        "title": "Ресурсы"
+      },
       "send": "Отправить",
       "settings": "Настройки",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "Переименовать",
     "required_field": "Обязательное поле",
     "reset": "Сбросить",
+    "retry": "Повторить",
     "save": "Сохранить",
     "saved": "Сохранено",
     "search": "Поиск",
@@ -2735,6 +2766,7 @@
     "category": "категория",
     "commands": "команда",
     "confirm_uninstall": "Вы уверены, что хотите удалить {{name}}?",
+    "confirm_uninstall_package": "Вы уверены, что хотите удалить пакет {{name}} и все его компоненты?",
     "content_saved": "Содержимое плагина успешно сохранено",
     "detail": {
       "allowed_tools": "Разрешённые инструменты",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "Отображено {{count}} плагинов",
     "showing_results_other": "Отображено {{count}} плагинов",
     "showing_results_plural": "Отображение {{count}} плагинов",
+    "showing_results_skills": "Показано {{count}} навык",
+    "showing_results_skills_one": "Показано {{count}} навык",
+    "showing_results_skills_other": "Показано {{count}} навыков",
+    "showing_results_skills_plural": "Показано {{count}} навыков",
     "skills": "навык",
+    "sort": {
+      "downloads": "Загрузки",
+      "label": "Сортировка",
+      "relevance": "Актуальность",
+      "stars": "Звезды"
+    },
+    "standalone_plugins": "Автономные плагины",
     "try_different_search": "Пожалуйста, попробуйте изменить поиск или фильтры категорий",
     "type": "тип",
     "uninstall": "Удаление",
+    "uninstall_package": "Удалить пакет",
     "uninstalling": "Удаление..."
   },
   "preview": {

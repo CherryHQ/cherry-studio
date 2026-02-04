@@ -1,12 +1,16 @@
 import type { PluginMetadata } from '@renderer/types/plugin'
 import { Button, Card, Spin, Tag } from 'antd'
-import { upperFirst } from 'lodash'
-import { Download, Trash2 } from 'lucide-react'
+import { t } from 'i18next'
+import { Download, Star, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface PluginCardProps {
   plugin: PluginMetadata
+  stats?: {
+    stars: number
+    downloads: number
+  }
   installed: boolean
   onInstall: () => void
   onUninstall: () => void
@@ -14,14 +18,46 @@ export interface PluginCardProps {
   onClick: () => void
 }
 
-export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, onUninstall, loading, onClick }) => {
+const labelMap = {
+  skill: t('plugins.skills'),
+  agent: t('plugins.agents'),
+  command: t('plugins.commands')
+}
+
+export const PluginCard: FC<PluginCardProps> = ({
+  plugin,
+  stats,
+  installed,
+  onInstall,
+  onUninstall,
+  loading,
+  onClick
+}) => {
   const { t } = useTranslation()
+  const maxTags = 3
+  const tags = plugin.tags ?? []
+  const visibleTags = tags.slice(0, maxTags)
+  const remainingTags = tags.length - visibleTags.length
+
+  const isMarketplacePlugin = plugin.sourcePath.startsWith('marketplace:') && plugin.type !== 'skill'
 
   const getTypeTagColor = () => {
+    if (isMarketplacePlugin) return 'default'
     if (plugin.type === 'agent') return 'blue'
     if (plugin.type === 'skill') return 'green'
     return 'default'
   }
+
+  const getTypeLabel = () => {
+    if (isMarketplacePlugin) return t('agent.settings.plugins.tab')
+    return labelMap[plugin.type]
+  }
+
+  const formatCount = (value: number) =>
+    new Intl.NumberFormat(undefined, {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    }).format(value)
 
   return (
     <Card
@@ -34,7 +70,7 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
         <div className="flex w-full items-center justify-between gap-2">
           <h3 className="truncate font-medium text-sm">{plugin.name}</h3>
           <Tag color={getTypeTagColor()} className="m-0 text-xs">
-            {upperFirst(plugin.type)}
+            {getTypeLabel()}
           </Tag>
         </div>
         <Tag className="m-0">{plugin.category}</Tag>
@@ -43,13 +79,33 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
       <div className="flex-1 py-2">
         <p className="line-clamp-3 text-gray-500 text-sm">{plugin.description || t('plugins.no_description')}</p>
 
-        {plugin.tags && plugin.tags.length > 0 && (
+        {visibleTags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {plugin.tags.map((tag) => (
+            {visibleTags.map((tag) => (
               <Tag key={tag} bordered className="text-xs">
                 {tag}
               </Tag>
             ))}
+            {remainingTags > 0 && (
+              <Tag bordered className="text-xs">
+                +{remainingTags}
+              </Tag>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pt-2 text-default-400 text-xs">
+        {stats && (
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Star className="h-3 w-3" />
+              {formatCount(stats.stars)}
+            </span>
+            <span className="flex items-center gap-1">
+              <Download className="h-3 w-3" />
+              {formatCount(stats.downloads)}
+            </span>
           </div>
         )}
       </div>

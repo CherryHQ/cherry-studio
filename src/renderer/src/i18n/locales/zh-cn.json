@@ -154,24 +154,43 @@
         "error": {
           "install": "安装插件失败",
           "load": "加载插件失败",
+          "load_more": "加载更多插件失败",
           "uninstall": "卸载插件失败"
         },
         "filter": {
           "all": "所有类别"
         },
-        "install": "安装",
+        "install": {
+          "button": "安装",
+          "title": "安装插件"
+        },
         "installed": {
           "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
           "title": "已安装插件"
         },
         "installing": "安装中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 个组件安装失败",
+          "error": "安装失败",
+          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "invalid_format": "请上传 ZIP 格式的文件",
+          "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
+          "select_folder": "选择文件夹",
+          "select_folder_title": "选择插件文件夹",
+          "success": "插件 \"{{name}}\" 安装成功（{{count}} 个组件）",
+          "success_multi": "已从 {{packages}} 个插件包安装 {{count}} 个组件",
+          "uploading": "正在上传并安装..."
+        },
         "results": "找到 {{count}} 个插件",
         "search": {
           "placeholder": "搜索插件..."
         },
+        "standalone_plugins": "独立插件",
         "success": {
           "install": "插件安装成功",
-          "uninstall": "插件卸载成功"
+          "uninstall": "插件卸载成功",
+          "uninstall_package": "插件包 \"{{name}}\" 卸载成功"
         },
         "tab": "插件",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "技能"
         },
         "uninstall": "卸载",
+        "uninstall_package": "卸载整个包",
+        "uninstall_package_confirm": "确定要卸载整个 \"{{name}}\" 插件包吗？这将删除 {{count}} 个组件。",
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
@@ -711,15 +732,6 @@
       "view_full_content": "查看完整内容"
     },
     "input": {
-      "activity_directory": {
-        "description": "从活动目录中选择文件",
-        "loading": "正在加载文件...",
-        "no_file_found": {
-          "description": "可访问目录中没有可用文件",
-          "label": "未找到文件"
-        },
-        "title": "活动目录"
-      },
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
@@ -749,6 +761,24 @@
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "文件",
+          "skills": "Skills"
+        },
+        "description": "从文件、Agents 或 Skills 中选择",
+        "loading": "加载中...",
+        "no_file_found": {
+          "description": "可访问目录中没有可用文件",
+          "label": "未找到文件"
+        },
+        "no_items_found": {
+          "description": "没有可用的文件、Agents 或 Skills",
+          "label": "未找到项目"
+        },
+        "title": "资源"
+      },
       "send": "发送",
       "settings": "设置",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "retry": "重试",
     "save": "保存",
     "saved": "已保存",
     "search": "搜索",
@@ -2735,6 +2766,7 @@
     "category": "类别",
     "commands": "命令",
     "confirm_uninstall": "确定要卸载 {{name}} 吗？",
+    "confirm_uninstall_package": "确定要卸载插件包 {{name}} 及其所有组件吗？",
     "content_saved": "插件内容保存成功",
     "detail": {
       "allowed_tools": "允许的工具",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",
     "showing_results_plural": "显示 {{count}} 个插件",
+    "showing_results_skills": "显示 {{count}} 个技能",
+    "showing_results_skills_one": "显示 {{count}} 个技能",
+    "showing_results_skills_other": "显示 {{count}} 个技能",
+    "showing_results_skills_plural": "显示 {{count}} 个技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下载量",
+      "label": "排序",
+      "relevance": "相关性",
+      "stars": "星标"
+    },
+    "standalone_plugins": "独立插件",
     "try_different_search": "请尝试调整搜索或类别筛选",
     "type": "类型",
     "uninstall": "卸载",
+    "uninstall_package": "卸载插件包",
     "uninstalling": "卸载中..."
   },
   "preview": {

@@ -7,7 +7,7 @@ import type React from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useActivityDirectoryPanel } from './useActivityDirectoryPanel'
+import { useResourcePanel } from './useResourcePanel'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -16,26 +16,28 @@ interface Props {
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
-const ActivityDirectoryButton: FC<Props> = ({ quickPanel, quickPanelController, accessiblePaths, setText }) => {
+const ResourceButton: FC<Props> = ({ quickPanel, quickPanelController, accessiblePaths, setText }) => {
   const { t } = useTranslation()
 
-  const { handleOpenQuickPanel } = useActivityDirectoryPanel(
+  const { handleOpenQuickPanel } = useResourcePanel(
     {
       quickPanel,
       quickPanelController,
       accessiblePaths,
+      plugins: [], // Button only shows files, plugins are accessed via @ trigger
+      pluginsLoading: false,
       setText
     },
     'button'
   )
 
   return (
-    <Tooltip placement="top" title={t('chat.input.activity_directory.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} aria-label={t('chat.input.activity_directory.title')}>
+    <Tooltip placement="top" title={t('chat.input.resource_panel.title')} mouseLeaveDelay={0} arrow>
+      <ActionIconButton onClick={handleOpenQuickPanel} aria-label={t('chat.input.resource_panel.title')}>
         <FolderOpen size={18} />
       </ActionIconButton>
     </Tooltip>
   )
 }
 
-export default memo(ActivityDirectoryButton)
+export default memo(ResourceButton)

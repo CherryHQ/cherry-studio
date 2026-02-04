@@ -154,24 +154,43 @@
         "error": {
           "install": "Failed to install plugin",
           "load": "Failed to load plugins",
+          "load_more": "Failed to load more plugins",
           "uninstall": "Failed to uninstall plugin"
         },
         "filter": {
           "all": "All Categories"
         },
-        "install": "Install",
+        "install": {
+          "button": "Install",
+          "title": "Install Plugins"
+        },
         "installed": {
           "empty": "No plugins installed yet. Browse available plugins to get started.",
           "title": "Installed Plugins"
         },
         "installing": "Installing...",
+        "plugin_upload": {
+          "all_failed": "All {{failed}} components failed to install",
+          "error": "Installation failed",
+          "format_hint": "Supports plugin packages (.claude-plugin/plugin.json)",
+          "hint": "Drag and drop plugin ZIP here, or click to select",
+          "invalid_format": "Please upload a ZIP file",
+          "partial_success": "Installed {{installed}} components, {{failed}} failed",
+          "select_folder": "Select Folder",
+          "select_folder_title": "Select Plugin Folder",
+          "success": "Plugin \"{{name}}\" installed successfully ({{count}} components)",
+          "success_multi": "Installed {{count}} components from {{packages}} packages",
+          "uploading": "Uploading and installing..."
+        },
         "results": "{{count}} plugin(s) found",
         "search": {
           "placeholder": "Search plugins..."
         },
+        "standalone_plugins": "Standalone Plugins",
         "success": {
           "install": "Plugin installed successfully",
-          "uninstall": "Plugin uninstalled successfully"
+          "uninstall": "Plugin uninstalled successfully",
+          "uninstall_package": "Package \"{{name}}\" uninstalled successfully"
         },
         "tab": "Plugins",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "Skills"
         },
         "uninstall": "Uninstall",
+        "uninstall_package": "Uninstall Package",
+        "uninstall_package_confirm": "Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
@@ -711,15 +732,6 @@
       "view_full_content": "View Full Content"
     },
     "input": {
-      "activity_directory": {
-        "description": "Select file from activity directory",
-        "loading": "Loading Files...",
-        "no_file_found": {
-          "description": "No files available in accessible directories",
-          "label": "No File Found"
-        },
-        "title": "Activity Directory"
-      },
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -749,6 +761,24 @@
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Files",
+          "skills": "Skills"
+        },
+        "description": "Select from files, agents, or skills",
+        "loading": "Loading...",
+        "no_file_found": {
+          "description": "No files available in accessible directories",
+          "label": "No File Found"
+        },
+        "no_items_found": {
+          "description": "No files, agents, or skills available",
+          "label": "No Items Found"
+        },
+        "title": "Resources"
+      },
       "send": "Send",
       "settings": "Settings",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "Rename",
     "required_field": "Required field",
     "reset": "Reset",
+    "retry": "Retry",
     "save": "Save",
     "saved": "Saved",
     "search": "Search",
@@ -2735,6 +2766,7 @@
     "category": "Category",
     "commands": "Commands",
     "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "confirm_uninstall_package": "Are you sure you want to uninstall the package {{name}} and all its components?",
     "content_saved": "Plugin content saved successfully",
     "detail": {
       "allowed_tools": "Allowed Tools",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",
     "showing_results_plural": "Showing {{count}} plugins",
+    "showing_results_skills": "Showing {{count}} skill",
+    "showing_results_skills_one": "Showing {{count}} skill",
+    "showing_results_skills_other": "Showing {{count}} skills",
+    "showing_results_skills_plural": "Showing {{count}} skills",
     "skills": "Skills",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sort",
+      "relevance": "Relevance",
+      "stars": "Stars"
+    },
+    "standalone_plugins": "Standalone Plugins",
     "try_different_search": "Try adjusting your search or category filters",
     "type": "Type",
     "uninstall": "Uninstall",
+    "uninstall_package": "Uninstall Package",
     "uninstalling": "Uninstalling..."
   },
   "preview": {

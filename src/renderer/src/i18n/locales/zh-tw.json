@@ -154,24 +154,43 @@
         "error": {
           "install": "安裝外掛失敗",
           "load": "載入外掛失敗",
+          "load_more": "無法載入更多外掛程式",
           "uninstall": "解除安裝外掛失敗"
         },
         "filter": {
           "all": "所有類別"
         },
-        "install": "安裝",
+        "install": {
+          "button": "安裝",
+          "title": "安裝外掛程式"
+        },
         "installed": {
           "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
-          "title": "已安裝外掛"
+          "title": "已安裝外掛程式"
         },
         "installing": "安裝中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 個元件安裝失敗",
+          "error": "安裝失敗",
+          "format_hint": "支援外掛包格式（.claude-plugin/plugin.json）",
+          "hint": "拖曳外掛 ZIP 至此處，或點擊選擇檔案",
+          "invalid_format": "請上傳 ZIP 格式的檔案",
+          "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
+          "select_folder": "選擇資料夾",
+          "select_folder_title": "選擇外掛資料夾",
+          "success": "外掛 \"{{name}}\" 安裝成功（{{count}} 個元件）",
+          "success_multi": "已從 {{packages}} 個外掛包安裝 {{count}} 個元件",
+          "uploading": "正在上傳並安裝..."
+        },
         "results": "找到 {{count}} 個外掛",
         "search": {
           "placeholder": "搜尋外掛..."
         },
+        "standalone_plugins": "獨立外掛",
         "success": {
           "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功"
+          "uninstall": "外掛解除安裝成功",
+          "uninstall_package": "外掛包 \"{{name}}\" 解除安裝成功"
         },
         "tab": "外掛",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "技能"
         },
         "uninstall": "解除安裝",
+        "uninstall_package": "解除安裝整個包",
+        "uninstall_package_confirm": "確定要解除安裝整個 \"{{name}}\" 外掛包嗎？這將刪除 {{count}} 個元件。",
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
@@ -671,7 +692,7 @@
     },
     "alerts": {
       "create_session": "建立工作階段",
-      "select_agent": "選擇一個代理人"
+      "select_agent": "選擇一個智能體"
     },
     "artifacts": {
       "button": {
@@ -711,15 +732,6 @@
       "view_full_content": "檢視完整內容"
     },
     "input": {
-      "activity_directory": {
-        "description": "從活動目錄中選擇檔案",
-        "loading": "載入檔案中...",
-        "no_file_found": {
-          "description": "可存取的目錄中沒有檔案",
-          "label": "找不到檔案"
-        },
-        "title": "活動目錄"
-      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -749,6 +761,24 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resource_panel": {
+        "categories": {
+          "agents": "智能體",
+          "files": "檔案",
+          "skills": "技能"
+        },
+        "description": "從檔案、智能體或技能中選擇",
+        "loading": "載入中...",
+        "no_file_found": {
+          "description": "可存取目錄中無可用檔案",
+          "label": "找不到檔案"
+        },
+        "no_items_found": {
+          "description": "沒有可用的檔案、智能體或技能",
+          "label": "未找到項目"
+        },
+        "title": "資源"
+      },
       "send": "傳送",
       "settings": "設定",
       "slash_commands": {
@@ -1194,10 +1224,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent_one": "代理人",
-    "agent_other": "代理人",
+    "agent_one": "智能體",
+    "agent_other": "智能體",
     "and": "與",
-    "assistant": "智慧代理人",
+    "assistant": "智慧智能體",
     "assistant_one": "助手",
     "assistant_other": "助手",
     "avatar": "頭像",
@@ -1284,6 +1314,7 @@
     "rename": "重新命名",
     "required_field": "必填欄位",
     "reset": "重設",
+    "retry": "重試",
     "save": "儲存",
     "saved": "已儲存",
     "search": "搜尋",
@@ -2735,6 +2766,7 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "confirm_uninstall_package": "確定要解除安裝套件 {{name}} 及其所有組件嗎？",
     "content_saved": "外掛內容已成功儲存",
     "detail": {
       "allowed_tools": "允許的工具",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
+    "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "顯示 {{count}} 個技能",
+    "showing_results_skills_other": "顯示 {{count}} 個技能",
+    "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下載量",
+      "label": "排序",
+      "relevance": "相關性",
+      "stars": "星標"
+    },
+    "standalone_plugins": "獨立外掛",
     "try_different_search": "請嘗試調整搜尋或類別篩選",
     "type": "類型",
     "uninstall": "解除安裝",
+    "uninstall_package": "解除安裝外掛包",
     "uninstalling": "解除安裝中..."
   },
   "preview": {

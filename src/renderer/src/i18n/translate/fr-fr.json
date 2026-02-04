@@ -154,24 +154,43 @@
         "error": {
           "install": "Échec de l'installation du plugin",
           "load": "Échec du chargement du plugin",
+          "load_more": "Échec du chargement de plugins supplémentaires",
           "uninstall": "Échec de la désinstallation du plugin"
         },
         "filter": {
           "all": "Toutes les catégories"
         },
-        "install": "Installation",
+        "install": {
+          "button": "Installer",
+          "title": "Installer des plugins"
+        },
         "installed": {
           "empty": "Aucun plugin n'est encore installé. Parcourez les plugins disponibles pour commencer.",
-          "title": "Extension installée"
+          "title": "Extensions installées"
         },
         "installing": "Installation en cours...",
+        "plugin_upload": {
+          "all_failed": "Tous les composants {{failed}} n'ont pas pu être installés",
+          "error": "L'installation a échoué",
+          "format_hint": "Prend en charge les paquets de plugins (.claude-plugin/plugin.json)",
+          "hint": "Glissez-déposez le ZIP du plugin ici, ou cliquez pour sélectionner",
+          "invalid_format": "Veuillez télécharger un fichier ZIP",
+          "partial_success": "Plugin \"{{name}}\" partiellement installé : {{installed}} installés, {{failed}} échoués",
+          "select_folder": "Sélectionner un dossier",
+          "select_folder_title": "Sélectionner le dossier des plugins",
+          "success": "Plugin \"{{name}}\" installé avec succès ({{count}} composants)",
+          "success_multi": "{{count}} composants installés depuis {{packages}} paquets",
+          "uploading": "Téléchargement et installation..."
+        },
         "results": "{{count}} modules complémentaires trouvés",
         "search": {
           "placeholder": "Recherche de plug-ins..."
         },
+        "standalone_plugins": "Plugins Autonomes",
         "success": {
           "install": "Installation du plugin réussie",
-          "uninstall": "Désinstallation du plugin réussie"
+          "uninstall": "Désinstallation du plugin réussie",
+          "uninstall_package": "Le paquet \"{{name}}\" a été désinstallé avec succès"
         },
         "tab": "Module d'extension",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "compétence"
         },
         "uninstall": "Désinstaller",
+        "uninstall_package": "Désinstaller le paquet",
+        "uninstall_package_confirm": "Êtes-vous sûr de vouloir désinstaller l’ensemble du paquet « {{name}} » ? Cela supprimera {{count}} composant(s).",
         "uninstalling": "Désinstallation en cours..."
       },
       "prompt": "Paramètres de l'invite",
@@ -711,15 +732,6 @@
       "view_full_content": "Voir le contenu complet"
     },
     "input": {
-      "activity_directory": {
-        "description": "Sélectionner le fichier dans le répertoire d'activité",
-        "loading": "Chargement des fichiers...",
-        "no_file_found": {
-          "description": "Aucun fichier disponible dans les répertoires accessibles",
-          "label": "Aucun fichier trouvé"
-        },
-        "title": "Répertoire d'activités"
-      },
       "auto_resize": "Ajustement automatique de la hauteur",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
@@ -749,6 +761,24 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Fichiers",
+          "skills": "Compétences"
+        },
+        "description": "Sélectionner parmi les fichiers, les agents ou les compétences",
+        "loading": "Chargement...",
+        "no_file_found": {
+          "description": "Aucun fichier disponible dans les répertoires accessibles",
+          "label": "Aucun fichier trouvé"
+        },
+        "no_items_found": {
+          "description": "Aucun fichier, agent ou compétence disponible",
+          "label": "Aucun élément trouvé"
+        },
+        "title": "Ressources"
+      },
       "send": "Envoyer",
       "settings": "Paramètres",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "Renommer",
     "required_field": "Champ obligatoire",
     "reset": "Réinitialiser",
+    "retry": "Réessayer",
     "save": "Enregistrer",
     "saved": "enregistré",
     "search": "Rechercher",
@@ -2735,6 +2766,7 @@
     "category": "Catégorie",
     "commands": "commande",
     "confirm_uninstall": "Êtes-vous sûr de vouloir désinstaller {{name}} ?",
+    "confirm_uninstall_package": "Êtes-vous sûr de vouloir désinstaller le paquet {{name}} et tous ses composants ?",
     "content_saved": "Contenu du plugin enregistré avec succès",
     "detail": {
       "allowed_tools": "Outils autorisés",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "Afficher {{count}} modules d’extension",
     "showing_results_other": "Afficher {{count}} modules d'extension",
     "showing_results_plural": "Afficher {{count}} modules d'extension",
+    "showing_results_skills": "Affichage de {{count}} compétence",
+    "showing_results_skills_one": "Affichage de {{count}} compétence",
+    "showing_results_skills_other": "Affichage de {{count}} compétences",
+    "showing_results_skills_plural": "Affichage de {{count}} compétences",
     "skills": "compétence",
+    "sort": {
+      "downloads": "Téléchargements",
+      "label": "Trier",
+      "relevance": "Pertinence",
+      "stars": "Étoiles"
+    },
+    "standalone_plugins": "Plugins Autonomes",
     "try_different_search": "Veuillez essayer d’ajuster la recherche ou le filtre de catégorie.",
     "type": "type",
     "uninstall": "Désinstaller",
+    "uninstall_package": "Désinstaller le paquet",
     "uninstalling": "Désinstallation en cours..."
   },
   "preview": {

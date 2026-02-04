@@ -154,24 +154,43 @@
         "error": {
           "install": "Fehler beim Installieren des Plugins",
           "load": "Fehler beim Laden der Plugins",
+          "load_more": "Weitere Plugins konnten nicht geladen werden",
           "uninstall": "Fehler beim Deinstallieren des Plugins"
         },
         "filter": {
           "all": "Alle Kategorien"
         },
-        "install": "Installieren",
+        "install": {
+          "button": "Installieren",
+          "title": "Install Plugins"
+        },
         "installed": {
           "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
           "title": "Installierte Plugins"
         },
         "installing": "Wird installiert...",
+        "plugin_upload": {
+          "all_failed": "Alle {{failed}} Komponenten konnten nicht installiert werden",
+          "error": "Installation fehlgeschlagen",
+          "format_hint": "Unterstützt Plugin-Pakete (.claude-plugin/plugin.json)",
+          "hint": "Ziehen Sie das Plugin-ZIP hierher oder klicken Sie zum Auswählen",
+          "invalid_format": "Bitte laden Sie eine ZIP-Datei hoch",
+          "partial_success": "Plugin „{{name}}“ teilweise installiert: {{installed}} installiert, {{failed}} fehlgeschlagen",
+          "select_folder": "Ordner auswählen",
+          "select_folder_title": "Plugin-Ordner auswählen",
+          "success": "Plugin „{{name}}“ erfolgreich installiert ({{count}} Komponenten)",
+          "success_multi": "{{count}} Komponenten aus {{packages}} Paketen installiert",
+          "uploading": "Hochladen und installieren..."
+        },
         "results": "{{count}} Plugin(s) gefunden",
         "search": {
           "placeholder": "Such-Plugins..."
         },
+        "standalone_plugins": "Eigenständige Plugins",
         "success": {
           "install": "Plugin erfolgreich installiert",
-          "uninstall": "Plugin erfolgreich deinstalliert"
+          "uninstall": "Plugin erfolgreich deinstalliert",
+          "uninstall_package": "Paket \"{{name}}\" erfolgreich deinstalliert"
         },
         "tab": "Plugins",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "Fähigkeiten"
         },
         "uninstall": "Deinstallieren",
+        "uninstall_package": "Paket deinstallieren",
+        "uninstall_package_confirm": "Sind Sie sicher, dass Sie das gesamte Paket „{{name}}“ deinstallieren möchten? Dies entfernt {{count}} Komponente(n).",
         "uninstalling": "Deinstallation läuft..."
       },
       "prompt": "Prompt-Einstellungen",
@@ -711,15 +732,6 @@
       "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
-      "activity_directory": {
-        "description": "Datei aus dem Aktivitätsverzeichnis auswählen",
-        "loading": "Dateien werden geladen...",
-        "no_file_found": {
-          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
-          "label": "Keine Datei gefunden"
-        },
-        "title": "Aktivitätsverzeichnis"
-      },
       "auto_resize": "Höhe automatisch anpassen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
@@ -749,6 +761,24 @@
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agenten",
+          "files": "Dateien",
+          "skills": "Fähigkeiten"
+        },
+        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
+        "loading": "Laden...",
+        "no_file_found": {
+          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
+          "label": "Keine Datei gefunden"
+        },
+        "no_items_found": {
+          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
+          "label": "Keine Artikel gefunden"
+        },
+        "title": "Ressourcen"
+      },
       "send": "Senden",
       "settings": "Einstellungen",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "Umbenennen",
     "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
+    "retry": "Wiederholen",
     "save": "Speichern",
     "saved": "Gespeichert",
     "search": "Suchen",
@@ -2735,6 +2766,7 @@
     "category": "Kategorie",
     "commands": "Befehle",
     "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "confirm_uninstall_package": "Sind Sie sicher, dass Sie das Paket {{name}} und alle seine Komponenten deinstallieren möchten?",
     "content_saved": "Plugin-Inhalt erfolgreich gespeichert",
     "detail": {
       "allowed_tools": "Erlaubte Werkzeuge",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
     "showing_results_plural": "{{count}} Plugins anzeigen",
+    "showing_results_skills": "Zeige {{count}} Fähigkeit",
+    "showing_results_skills_one": "{{count}} Fähigkeit anzeigen",
+    "showing_results_skills_other": "{{count}} Fähigkeiten anzeigen",
+    "showing_results_skills_plural": "{{count}} Fähigkeiten anzeigen",
     "skills": "Fähigkeiten",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sortieren",
+      "relevance": "Relevanz",
+      "stars": "Sterne"
+    },
+    "standalone_plugins": "Eigenständige Plugins",
     "try_different_search": "Versuchen Sie, Ihre Suche oder die Kategoriefilter anzupassen.",
     "type": "Typ",
     "uninstall": "Deinstallieren",
+    "uninstall_package": "Paket deinstallieren",
     "uninstalling": "Deinstallation läuft..."
   },
   "preview": {

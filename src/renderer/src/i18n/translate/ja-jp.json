@@ -154,24 +154,43 @@
         "error": {
           "install": "プラグインのインストールに失敗しました",
           "load": "プラグインの読み込みに失敗しました",
+          "load_more": "さらに多くのプラグインを読み込めませんでした",
           "uninstall": "プラグインのアンインストールに失敗しました"
         },
         "filter": {
           "all": "すべてのカテゴリー"
         },
-        "install": "インストール",
+        "install": {
+          "button": "インストール",
+          "title": "プラグインをインストール"
+        },
         "installed": {
           "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
           "title": "インストール済みプラグイン"
         },
         "installing": "インストール中...",
+        "plugin_upload": {
+          "all_failed": "すべての{{failed}}コンポーネントのインストールに失敗しました",
+          "error": "インストールに失敗しました",
+          "format_hint": "プラグインパッケージ（.claude-plugin/plugin.json）をサポート",
+          "hint": "プラグインのZIPファイルをここにドラッグ＆ドロップするか、クリックして選択してください",
+          "invalid_format": "ZIPファイルをアップロードしてください",
+          "partial_success": "プラグイン「{{name}}」は部分的にインストールされました：{{installed}}個がインストールされ、{{failed}}個が失敗しました",
+          "select_folder": "フォルダを選択",
+          "select_folder_title": "プラグインフォルダを選択",
+          "success": "プラグイン「{{name}}」が正常にインストールされました（{{count}} コンポーネント）",
+          "success_multi": "{{packages}}個のパッケージから{{count}}個のコンポーネントをインストールしました",
+          "uploading": "アップロードとインストール中..."
+        },
         "results": "{{count}} 個のプラグインが見つかりました",
         "search": {
           "placeholder": "検索プラグイン..."
         },
+        "standalone_plugins": "スタンドアロンプラグイン",
         "success": {
           "install": "プラグインのインストールが成功しました",
-          "uninstall": "プラグインのアンインストールが成功しました"
+          "uninstall": "プラグインのアンインストールが成功しました",
+          "uninstall_package": "パッケージ「{{name}}」が正常にアンインストールされました"
         },
         "tab": "プラグイン",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "技能"
         },
         "uninstall": "アンインストール",
+        "uninstall_package": "パッケージをアンインストール",
+        "uninstall_package_confirm": "「{{name}}」パッケージ全体をアンインストールしてもよろしいですか？これにより{{count}}個のコンポーネントが削除されます。",
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
@@ -711,15 +732,6 @@
       "view_full_content": "完全な内容を表示"
     },
     "input": {
-      "activity_directory": {
-        "description": "アクティビティディレクトリからファイルを選択",
-        "loading": "ファイルを読み込んでいます...",
-        "no_file_found": {
-          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
-          "label": "ファイルが見つかりません"
-        },
-        "title": "アクティビティディレクトリ"
-      },
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -749,6 +761,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "resource_panel": {
+        "categories": {
+          "agents": "エージェント",
+          "files": "ファイル",
+          "skills": "スキル"
+        },
+        "description": "ファイル、エージェント、またはスキルから選択",
+        "loading": "読み込み中...",
+        "no_file_found": {
+          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
+          "label": "ファイルが見つかりません"
+        },
+        "no_items_found": {
+          "description": "ファイル、エージェント、スキルは利用できません",
+          "label": "アイテムが見つかりません"
+        },
+        "title": "リソース"
+      },
       "send": "送信",
       "settings": "設定",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "名前を変更",
     "required_field": "必須項目",
     "reset": "リセット",
+    "retry": "リトライ",
     "save": "保存",
     "saved": "保存されました",
     "search": "検索",
@@ -2735,6 +2766,7 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "confirm_uninstall_package": "パッケージ「{{name}}」とそのすべてのコンポーネントをアンインストールしてもよろしいですか？",
     "content_saved": "プラグインコンテンツが正常に保存されました",
     "detail": {
       "allowed_tools": "許可されたツール",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
     "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "showing_results_skills": "{{count}}スキルを表示",
+    "showing_results_skills_one": "{{count}}件のスキルを表示",
+    "showing_results_skills_other": "{{count}}件のスキルを表示",
+    "showing_results_skills_plural": "{{count}}件のスキルを表示中",
     "skills": "スキル",
+    "sort": {
+      "downloads": "ダウンロード",
+      "label": "並び替え",
+      "relevance": "関連性",
+      "stars": "スター"
+    },
+    "standalone_plugins": "スタンドアロンプラグイン",
     "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
     "type": "タイプ",
     "uninstall": "アンインストール",
+    "uninstall_package": "パッケージをアンインストール",
     "uninstalling": "アンインストール中..."
   },
   "preview": {

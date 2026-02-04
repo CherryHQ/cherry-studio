@@ -207,6 +207,70 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   return iconv.decode(data, 'UTF-8')
 }
 
+export async function writeWithLock(
+  filePath: string,
+  data: string | NodeJS.ArrayBufferView,
+  options: (fs.ObjectEncodingOptions & { mode?: number; flag?: string }) & {
+    atomic?: boolean
+    tempPath?: string
+    lockFilePath?: string
+    retries?: number
+    retryDelayMs?: number
+    lockStaleMs?: number
+  } = {}
+): Promise<void> {
+  const {
+    atomic = false,
+    tempPath,
+    lockFilePath = `${filePath}.lock`,
+    retries = 50,
+    retryDelayMs = 50,
+    lockStaleMs = 30_000,
+    ...writeOptions
+  } = options
+
+  const finalTempPath = tempPath ?? `${filePath}.tmp`
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const handle = await fs.promises.open(lockFilePath, 'wx')
+      await handle.close()
+
+      try {
+        if (atomic) {
+          await fs.promises.writeFile(finalTempPath, data, writeOptions)
+          await fs.promises.rename(finalTempPath, filePath)
+        } else {
+          await fs.promises.writeFile(filePath, data, writeOptions)
+        }
+      } finally {
+        await fs.promises.unlink(lockFilePath).catch(() => undefined)
+      }
+
+      return
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'EEXIST' || attempt >= retries) {
+        throw error
+      }
+
+      if (lockStaleMs > 0) {
+        try {
+          const stats = await fs.promises.stat(lockFilePath)
+          if (Date.now() - stats.mtimeMs > lockStaleMs) {
+            await fs.promises.unlink(lockFilePath)
+            continue
+          }
+        } catch {
+          // Ignore stale checks if lock file disappears or stat fails
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+  }
+}
+
 export async function base64Image(file: FileMetadata): Promise<{ mime: string; base64: string; data: string }> {
   const filePath = path.join(getFilesDir(), `${file.id}${file.ext}`)
   const data = await fs.promises.readFile(filePath)
@@ -436,4 +500,40 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
   }
 
   return sanitized
+}
+
+/**
+ * Check if a directory exists at the given path
+ */
+export async function directoryExists(dirPath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(dirPath)
+    return stats.isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if a path exists (file or directory)
+ */
+export async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(targetPath, fs.constants.R_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if a file exists at the given path
+ */
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    const stats = await fs.promises.stat(filePath)
+    return stats.isFile()
+  } catch {
+    return false
+  }
 }

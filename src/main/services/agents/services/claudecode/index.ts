@@ -9,13 +9,15 @@ import type {
   McpHttpServerConfig,
   Options,
   PreToolUseHookInput,
-  SDKMessage
+  SDKMessage,
+  SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -155,6 +157,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
 
+    let plugins: SdkPluginConfig[] | undefined
+    try {
+      const pluginPaths = await pluginService.listInstalledPluginPackagePaths(session.agent_id)
+      if (pluginPaths.length > 0) {
+        plugins = pluginPaths.map((pluginPath) => ({ type: 'local', path: pluginPath }))
+      }
+    } catch (error) {
+      logger.warn('Failed to load plugin packages for Claude Code', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       logger.info('Handling tool permission check', {
         toolName,
@@ -273,6 +288,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
+      plugins,
       canUseTool,
       hooks: {
         PreToolUse: [

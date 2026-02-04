@@ -154,24 +154,43 @@
         "error": {
           "install": "Nu s-a putut instala pluginul",
           "load": "Nu s-au putut încărca pluginurile",
+          "load_more": "Nu s-au putut încărca mai multe pluginuri",
           "uninstall": "Nu s-a putut dezinstala pluginul"
         },
         "filter": {
           "all": "Toate categoriile"
         },
-        "install": "Instalează",
+        "install": {
+          "button": "Instalare",
+          "title": "Instalați pluginuri"
+        },
         "installed": {
           "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe.",
-          "title": "Pluginuri instalate"
+          "title": "Plugin-uri instalate"
         },
         "installing": "Se instalează...",
+        "plugin_upload": {
+          "all_failed": "Toate componentele {{failed}} nu au putut fi instalate",
+          "error": "Instalarea a eșuat",
+          "format_hint": "Acceptă pachete de pluginuri (.claude-plugin/plugin.json)",
+          "hint": "Trageți și plasați aici arhiva ZIP a pluginului sau faceți clic pentru a selecta",
+          "invalid_format": "Vă rugăm să încărcați un fișier ZIP",
+          "partial_success": "Pluginul \"{{name}}\" instalat parțial: {{installed}} instalat, {{failed}} eșuat",
+          "select_folder": "Selectați dosarul",
+          "select_folder_title": "Selectați dosarul pluginului",
+          "success": "Plugin-ul \"{{name}}\" a fost instalat cu succes ({{count}} componente)",
+          "success_multi": "Instalate {{count}} componente din {{packages}} pachete",
+          "uploading": "Se încarcă și se instalează..."
+        },
         "results": "{{count}} plugin(uri) găsit(e)",
         "search": {
           "placeholder": "Caută pluginuri..."
         },
+        "standalone_plugins": "Plugin-uri autonome",
         "success": {
           "install": "Plugin instalat cu succes",
-          "uninstall": "Plugin dezinstalat cu succes"
+          "uninstall": "Plugin dezinstalat cu succes",
+          "uninstall_package": "Pachetul „{{name}}” a fost dezinstalat cu succes"
         },
         "tab": "Pluginuri",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "Abilități"
         },
         "uninstall": "Dezinstalează",
+        "uninstall_package": "Dezinstalează Pachetul",
+        "uninstall_package_confirm": "Sigur dorești să dezinstalezi întregul pachet „{{name}}”? Aceasta va elimina {{count}} component(e).",
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
@@ -711,15 +732,6 @@
       "view_full_content": "Vezi conținutul complet"
     },
     "input": {
-      "activity_directory": {
-        "description": "Selectează fișierul din directorul de activitate",
-        "loading": "Se încarcă fișierele...",
-        "no_file_found": {
-          "description": "Nu există fișiere disponibile în directoarele accesibile",
-          "label": "Nu a fost găsit niciun fișier"
-        },
-        "title": "Director de activitate"
-      },
       "auto_resize": "Redimensionare automată înălțime",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
@@ -749,6 +761,24 @@
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agenți",
+          "files": "Fișiere",
+          "skills": "Abilități"
+        },
+        "description": "Selectați din fișiere, agenți sau competențe",
+        "loading": "Se încarcă...",
+        "no_file_found": {
+          "description": "Nicio fișier disponibil în directoare accesibile",
+          "label": "Niciun fișier găsit"
+        },
+        "no_items_found": {
+          "description": "Niciun fișier, agent sau abilitate disponibilă",
+          "label": "Niciun element găsit"
+        },
+        "title": "Resurse"
+      },
       "send": "Trimite",
       "settings": "Setări",
       "slash_commands": {
@@ -1284,6 +1314,7 @@
     "rename": "Redenumește",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
+    "retry": "Reîncercare",
     "save": "Salvează",
     "saved": "Salvat",
     "search": "Caută",
@@ -2735,6 +2766,7 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "confirm_uninstall_package": "Sigur doriți să dezinstalați pachetul {{name}} și toate componentele sale?",
     "content_saved": "Conținutul plugin-ului a fost salvat cu succes",
     "detail": {
       "allowed_tools": "Unelte Permise",
@@ -2761,10 +2793,22 @@
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
+    "showing_results_skills": "Afișare {{count}} abilitate",
+    "showing_results_skills_one": "Afișare {{count}} abilitate",
+    "showing_results_skills_other": "Afișare {{count}} competențe",
+    "showing_results_skills_plural": "Afișare {{count}} competențe",
     "skills": "Abilități",
+    "sort": {
+      "downloads": "Descărcări",
+      "label": "Sortare",
+      "relevance": "Relevanță",
+      "stars": "Stele"
+    },
+    "standalone_plugins": "Plugin-uri independente",
     "try_different_search": "Încearcă să ajustezi căutarea sau filtrele de categorie",
     "type": "Tip",
     "uninstall": "Dezinstalează",
+    "uninstall_package": "Dezinstalează pachetul",
     "uninstalling": "Se dezinstalează..."
   },
   "preview": {
