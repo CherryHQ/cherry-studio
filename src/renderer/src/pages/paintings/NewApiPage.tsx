@@ -259,7 +259,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${AI.getApiKey()}`
     }
-    // NOTE: newapi只接受v1/images/xxx的请求
+    // NOTE: Cherry Studio当下 newapi只接受v1/images/xxx的请求
+    // TODO: support gemini https://www.newapi.ai/zh/docs/api/ai-model/images/gemini/geminirelayv1beta-383837589
     const url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/generations`
     const editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/v1/images/edits`
 
