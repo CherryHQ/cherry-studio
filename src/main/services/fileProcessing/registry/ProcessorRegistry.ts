@@ -76,7 +76,7 @@ export class ProcessorRegistry {
         try {
           return await processor.isAvailable()
         } catch (error) {
-          logger.warn('Processor availability check failed', {
+          logger.error('Processor availability check failed', {
             processorId: processor.id,
             error: error instanceof Error ? error.message : String(error)
           })

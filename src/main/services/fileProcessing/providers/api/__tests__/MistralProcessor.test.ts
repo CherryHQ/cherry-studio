@@ -271,7 +271,7 @@ describe('MistralProcessor', () => {
       expect(assertMarkdownResult(result).markdownPath).toBeDefined()
     })
 
-    it('should handle image save errors gracefully', async () => {
+    it('should surface image save errors', async () => {
       const { MistralClientManager } = await import('@main/services/MistralClientManager')
       const mockClient = MistralClientManager.getInstance().getClient()
 
@@ -293,9 +293,9 @@ describe('MistralProcessor', () => {
         }
       })
 
-      // Should not throw, just log error
-      const result = await processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)
-      expect(assertMarkdownResult(result).markdownPath).toBeDefined()
+      await expect(processor.convertToMarkdown(mockPdfFile, mockConfig, mockContext)).rejects.toThrow(
+        'Failed to save images during OCR processing'
+      )
     })
   })
 

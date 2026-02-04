@@ -24,6 +24,7 @@ const testProcessorIds = [
   'cleanup-ocr',
   'error-ocr',
   'slow-ocr',
+  'cancelled-ocr',
   'fast-ocr',
   'avail-ocr',
   'ocr-only',
@@ -32,10 +33,13 @@ const testProcessorIds = [
   'get-processor-test',
   'update-processor-test',
   'feature-mismatch',
+  'missing-result-ocr',
   'async-processor',
   'async-error-processor',
+  'async-missing-provider-task-id',
   'before-ttl-ocr',
-  'completed-at-ocr'
+  'completed-at-ocr',
+  'expired-ocr'
 ]
 
 const assertFailedResponse = (
@@ -288,6 +292,31 @@ describe('FileProcessingService', () => {
       expect(cancelResult.message).toBe('Cancelled')
     })
 
+    it('should return cancelled status after cancellation', async () => {
+      const template = createMockTemplate({ id: 'cancelled-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockImplementation(() => new Promise(() => {}))
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        'cancelled-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess({ file, feature: 'text_extraction' })
+
+      service.cancel(requestId)
+
+      const result = await service.getResult(requestId)
+      expect(result.status).toBe('failed')
+      const failed = assertFailedResponse(result)
+      expect(failed.error.code).toBe('cancelled')
+    })
+
     it('should return failure when cancelling non-existent task', () => {
       const result = service.cancel('nonexistent-id')
 
@@ -321,6 +350,34 @@ describe('FileProcessingService', () => {
       // getResult already cleared the task, so cancel returns failure
       const cancelResult = service.cancel(requestId)
       expect(cancelResult.success).toBe(false)
+    })
+  })
+
+  describe('getResult - edge cases', () => {
+    it('should fail when completed result is missing output', async () => {
+      const template = createMockTemplate({ id: 'missing-result-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ metadata: { providerTaskId: 'missing-result' } })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        'missing-result-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess({ file, feature: 'text_extraction' })
+
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('failed')
+        const failed = assertFailedResponse(result)
+        expect(failed.error.code).toBe('processing_failed')
+        expect(failed.error.message).toBe('Processing completed but result is missing')
+      })
     })
   })
 
@@ -539,6 +596,44 @@ describe('FileProcessingService', () => {
       processorRegistry.unregister('before-ttl-ocr')
     })
 
+    it('should return expired status after TTL cleanup', async () => {
+      const template = createMockTemplate({ id: 'expired-ocr' })
+      const processor = new MockTextExtractor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doExtractTextMock.mockResolvedValue({ text: 'done' })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_text_extraction_processor',
+        'expired-ocr'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata()
+      const { requestId } = await service.startProcess({ file, feature: 'text_extraction' })
+
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('completed')
+      })
+
+      const taskStates = service['taskStates'] as Map<string, { completedAt?: number }>
+      const task = taskStates.get(requestId)
+      expect(task).toBeDefined()
+      if (!task) return
+
+      task.completedAt = Date.now() - 5 * 60 * 1000 - 1
+      service['cleanupExpiredTasks']()
+
+      const expiredResult = await service.getResult(requestId)
+      expect(expiredResult.status).toBe('failed')
+      const failed = assertFailedResponse(expiredResult)
+      expect(failed.error.code).toBe('expired')
+
+      processorRegistry.unregister('expired-ocr')
+    })
+
     it('should set completedAt when task completes', async () => {
       const template = createMockTemplate({ id: 'completed-at-ocr' })
       const processor = new MockTextExtractor(template)
@@ -614,6 +709,35 @@ describe('FileProcessingService', () => {
       })
 
       expect(processor.getStatusMock).toHaveBeenCalled()
+    })
+
+    it('should fail when async processor returns no providerTaskId', async () => {
+      const template = createMockTemplate({
+        id: 'async-missing-provider-task-id',
+        capabilities: [{ feature: 'markdown_conversion', input: 'document', output: 'markdown' }]
+      })
+      const processor = new MockAsyncProcessor(template)
+      vi.spyOn(processor, 'isAvailable').mockResolvedValue(true)
+      processor.doConvertMock.mockResolvedValue({ metadata: { providerTaskId: '   ' } })
+
+      processorRegistry.register(processor)
+
+      MockMainPreferenceServiceUtils.setPreferenceValue(
+        'feature.file_processing.default_markdown_conversion_processor',
+        'async-missing-provider-task-id'
+      )
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {})
+
+      const file = createMockFileMetadata({ name: 'doc.pdf', ext: '.pdf' })
+      const { requestId } = await service.startProcess({ file, feature: 'markdown_conversion' })
+
+      await vi.waitFor(async () => {
+        const result = await service.getResult(requestId)
+        expect(result.status).toBe('failed')
+        const failed = assertFailedResponse(result)
+        expect(failed.error.code).toBe('processing_failed')
+        expect(failed.error.message).toBe('Provider task id not found in processing metadata')
+      })
     })
 
     it('should update task state from provider status to completed', async () => {

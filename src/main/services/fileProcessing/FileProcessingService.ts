@@ -22,6 +22,7 @@ import type {
   ProcessFileDto,
   ProcessingResult,
   ProcessingResultOutput,
+  ProcessingResultPending,
   ProcessResultResponse,
   ProcessStartResponse
 } from '@shared/data/types/fileProcessing'
@@ -189,6 +190,7 @@ export class FileProcessingService {
         task.providerTaskId = providerTaskId
         task.status = 'processing'
         task.progress = 0
+        task.result = this.isProcessingResultPending(result) ? result : { metadata: { providerTaskId } }
         return
       }
 
@@ -201,7 +203,7 @@ export class FileProcessingService {
         ? 'cancelled'
         : error instanceof UnsupportedInputError
           ? error.code
-          : 'processing_error'
+          : 'processing_failed'
       const errorMessage = error instanceof Error ? error.message : String(error)
 
       task.status = 'failed'
@@ -310,7 +312,7 @@ export class FileProcessingService {
         status = 'failed'
         task.status = status
         task.error = {
-          code: 'missing_result',
+          code: 'processing_failed',
           message: 'Processing completed but result is missing'
         }
         response = {
@@ -325,13 +327,15 @@ export class FileProcessingService {
         requestId,
         status: 'failed',
         progress: task.progress,
-        error: task.error ?? { code: 'processing_error', message: 'Processing failed' }
+        error: task.error ?? { code: 'processing_failed', message: 'Processing failed' }
       }
     } else {
+      const pendingResult = result && this.isProcessingResultPending(result) ? result : undefined
       response = {
         requestId,
         status,
-        progress: task.progress
+        progress: task.progress,
+        ...(pendingResult ? { result: pendingResult } : {})
       }
     }
 
@@ -421,6 +425,20 @@ export class FileProcessingService {
     return false
   }
 
+  private isProcessingResultPending(result: ProcessingResult): result is ProcessingResultPending {
+    if (this.isProcessingResultOutput(result)) {
+      return false
+    }
+    if (!('metadata' in result)) {
+      return false
+    }
+    if (!result.metadata || typeof result.metadata !== 'object') {
+      return false
+    }
+    const metadata = result.metadata as Record<string, unknown>
+    return typeof metadata.providerTaskId === 'string' && metadata.providerTaskId.trim().length > 0
+  }
+
   private isCompletedStatus(
     response: ProcessResultResponse
   ): response is Extract<ProcessResultResponse, { status: 'completed' }> {
@@ -454,6 +472,10 @@ export class FileProcessingService {
     task.abortController.abort()
     task.status = 'failed'
     task.error = { code: 'cancelled', message: 'Cancelled' }
+    if (!task.completedAt) {
+      task.completedAt = Date.now()
+      this.startCleanupTimer()
+    }
 
     return { success: true, message: 'Cancelled' }
   }
@@ -545,7 +567,9 @@ export class FileProcessingService {
         processorRegistry.register(processor)
         logger.debug(`Registered processor: ${processor.id}`)
       } catch (error) {
-        logger.warn(`Failed to register processor: ${processor.id}`, { error })
+        logger.error(`Failed to register processor: ${processor.id}`, {
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 

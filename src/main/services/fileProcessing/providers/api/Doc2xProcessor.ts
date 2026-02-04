@@ -297,11 +297,15 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     try {
       payload = this.parseProviderTaskId(providerTaskId)
     } catch (error) {
+      logger.error('Doc2X status query failed: invalid provider task id', {
+        providerTaskId,
+        error: error instanceof Error ? error.message : String(error)
+      })
       return {
         requestId: providerTaskId,
         status: 'failed',
         progress: 0,
-        error: { code: 'get_status_error', message: (error as Error).message }
+        error: { code: 'status_query_failed', message: (error as Error).message }
       }
     }
 
@@ -344,7 +348,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
           requestId: providerTaskId,
           status: 'failed',
           progress: 0,
-          error: { code: 'export_failed', message: exportDetail || 'Doc2X export failed' }
+          error: { code: 'processing_failed', message: exportDetail || 'Doc2X export failed' }
         }
       }
 
@@ -369,6 +373,11 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       }
     } catch (error) {
       this.convertRequested.delete(payload.uid)
+      logger.error('Doc2X status query failed', {
+        providerTaskId,
+        uid: payload.uid,
+        error: error instanceof Error ? error.message : String(error)
+      })
       return {
         requestId: providerTaskId,
         status: 'failed',

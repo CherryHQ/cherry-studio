@@ -66,10 +66,11 @@ B. 查询结果 GET /file-processing/requests/:requestId
 | `/file-processing/processors` | GET | 获取可用处理器列表 |
 | `/file-processing/requests` | POST | 启动处理任务 |
 | `/file-processing/requests/:requestId` | GET | 查询处理状态/结果 |
+| `/file-processing/requests/:requestId/cancel` | POST | 取消处理任务 |
 
 ## 类型定义
 
-位置: `src/main/services/fileProcessing/types.ts`
+位置: `packages/shared/data/types/fileProcessing.ts`
 
 ```typescript
 type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -79,25 +80,49 @@ interface ProcessingError {
   message: string
 }
 
-interface ProcessingResult {
-  text?: string
-  markdown?: string
-  outputPath?: string
-  metadata?: Record<string, unknown>  // 异步处理器返回 providerTaskId
+type ProcessingResultOutput =
+  | {
+      text: string
+      markdownPath?: never
+      metadata?: Record<string, unknown>
+    }
+  | {
+      text?: never
+      markdownPath: string
+      metadata?: Record<string, unknown>
+    }
+
+type ProcessingResultPending = {
+  metadata: {
+    providerTaskId: string
+    [key: string]: unknown
+  }
 }
+
+type ProcessingResult = ProcessingResultOutput | ProcessingResultPending
 
 interface ProcessStartResponse {
   requestId: string
-  status: ProcessingStatus
+  status: 'pending'
 }
 
-interface ProcessResultResponse {
+type ProcessResultBase = {
   requestId: string
-  status: ProcessingStatus
   progress: number  // 0-100
-  result?: ProcessingResult
-  error?: ProcessingError
 }
+
+type ProcessResultResponse =
+  | (ProcessResultBase & {
+      status: 'pending' | 'processing'
+    })
+  | (ProcessResultBase & {
+      status: 'completed'
+      result: ProcessingResultOutput
+    })
+  | (ProcessResultBase & {
+      status: 'failed'
+      error: ProcessingError
+    })
 
 interface ProcessingContext {
   requestId: string

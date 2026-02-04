@@ -351,7 +351,7 @@ describe('MineruProcessor', () => {
 
       expect(result.status).toBe('failed')
       const failed = assertFailedResponse(result)
-      expect(failed.error.code).toBe('invalid_provider_task_id')
+      expect(failed.error.code).toBe('status_query_failed')
     })
 
     it('should return error for missing fields in providerTaskId', async () => {
@@ -361,7 +361,7 @@ describe('MineruProcessor', () => {
 
       expect(result.status).toBe('failed')
       const failed = assertFailedResponse(result)
-      expect(failed.error.code).toBe('invalid_provider_task_id')
+      expect(failed.error.code).toBe('status_query_failed')
       expect(failed.error.message).toContain('Missing required fields')
     })
 

@@ -6,6 +6,7 @@
 
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { FileProcessorFeature } from '@shared/data/presets/file-processing'
+import type { ProcessResultResponse } from '@shared/data/types/fileProcessing'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import type { FileMetadata } from '@types'
 import { FileTypes } from '@types'
@@ -104,7 +105,7 @@ describe('fileProcessingHandlers', () => {
 
       try {
         await handler({
-          params: { id: 'unknown' }
+          params: { id: 'tesseract' }
         })
       } catch (error) {
         thrown = error
@@ -114,8 +115,8 @@ describe('fileProcessingHandlers', () => {
       const dataError = thrown as DataApiError
       expect(dataError.code).toBe(ErrorCode.NOT_FOUND)
       expect(dataError.status).toBe(404)
-      expect(dataError.details).toEqual({ resource: 'Processor', id: 'unknown' })
-      expect(fileProcessingService.getProcessor).toHaveBeenCalledWith('unknown')
+      expect(dataError.details).toEqual({ resource: 'Processor', id: 'tesseract' })
+      expect(fileProcessingService.getProcessor).toHaveBeenCalledWith('tesseract')
     })
   })
 
@@ -148,7 +149,7 @@ describe('fileProcessingHandlers', () => {
 
       await expect(
         handler({
-          params: { id: 'unknown' },
+          params: { id: 'tesseract' },
           body: { apiKeys: ['test'] }
         })
       ).rejects.toThrow('Processor not found')
@@ -218,7 +219,7 @@ describe('fileProcessingHandlers', () => {
     })
 
     it('should return failed status for unknown requestId', async () => {
-      const mockResult = {
+      const mockResult: ProcessResultResponse = {
         requestId: 'unknown',
         status: 'failed' as const,
         progress: 0,
@@ -229,6 +230,40 @@ describe('fileProcessingHandlers', () => {
       const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
       const result = await handler({
         params: { requestId: 'unknown' }
+      })
+
+      expect(result).toEqual(mockResult)
+    })
+
+    it('should return expired status when request has expired', async () => {
+      const mockResult: ProcessResultResponse = {
+        requestId: 'expired-id',
+        status: 'failed' as const,
+        progress: 0,
+        error: { code: 'expired', message: 'Request result has expired' }
+      }
+      vi.mocked(fileProcessingService.getResult).mockResolvedValue(mockResult)
+
+      const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
+      const result = await handler({
+        params: { requestId: 'expired-id' }
+      })
+
+      expect(result).toEqual(mockResult)
+    })
+
+    it('should return failed status when status query fails', async () => {
+      const mockResult: ProcessResultResponse = {
+        requestId: 'status-fail-id',
+        status: 'failed' as const,
+        progress: 0,
+        error: { code: 'status_query_failed', message: 'Provider API error' }
+      }
+      vi.mocked(fileProcessingService.getResult).mockResolvedValue(mockResult)
+
+      const handler = fileProcessingHandlers['/file-processing/requests/:requestId'].GET
+      const result = await handler({
+        params: { requestId: 'status-fail-id' }
       })
 
       expect(result).toEqual(mockResult)

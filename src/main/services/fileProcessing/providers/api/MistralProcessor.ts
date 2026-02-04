@@ -113,6 +113,7 @@ export class MistralProcessor extends BaseMarkdownConverter {
 
     const markdownParts: string[] = []
     let imageCounter = 0
+    const imageWriteErrors: Array<{ imageFileName: string; imagePath: string; error: string }> = []
 
     for (const page of result.pages) {
       let pageMarkdown = page.markdown
@@ -158,16 +159,32 @@ export class MistralProcessor extends BaseMarkdownConverter {
 
           imageCounter++
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+
+          imageWriteErrors.push({
+            imageFileName,
+            imagePath,
+            error: errorMessage
+          })
+
           logger.error('Failed to save image during OCR processing', {
             imageFileName,
             fileId: file.id,
             imagePath,
-            error: error instanceof Error ? error.message : String(error)
+            error: errorMessage
           })
         }
       }
 
       markdownParts.push(pageMarkdown)
+    }
+
+    if (imageWriteErrors.length > 0) {
+      logger.error('OCR processing failed to save one or more images', {
+        fileId: file.id,
+        errors: imageWriteErrors
+      })
+      throw new Error('Failed to save images during OCR processing')
     }
 
     const combinedMarkdown = markdownParts.join('\n\n')

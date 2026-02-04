@@ -322,7 +322,7 @@ describe('Doc2xProcessor', () => {
 
       expect(result.status).toBe('failed')
       const failed = assertFailedResponse(result)
-      expect(failed.error.code).toBe('export_failed')
+      expect(failed.error.code).toBe('processing_failed')
     })
 
     it('should return error for invalid providerTaskId', async () => {
@@ -330,7 +330,7 @@ describe('Doc2xProcessor', () => {
 
       expect(result.status).toBe('failed')
       const failed = assertFailedResponse(result)
-      expect(failed.error.code).toBe('get_status_error')
+      expect(failed.error.code).toBe('status_query_failed')
     })
 
     it('should return error for missing fields in providerTaskId', async () => {
@@ -340,7 +340,7 @@ describe('Doc2xProcessor', () => {
 
       expect(result.status).toBe('failed')
       const failed = assertFailedResponse(result)
-      expect(failed.error.code).toBe('get_status_error')
+      expect(failed.error.code).toBe('status_query_failed')
     })
 
     it('should handle network errors gracefully', async () => {
@@ -410,39 +410,78 @@ describe('Doc2xProcessor', () => {
 
   describe('convertRequested cleanup', () => {
     it('should cleanup old entries after TTL', async () => {
-      const validProviderTaskId = JSON.stringify({
-        uid: 'test-uid',
-        fileId: 'test-file-id',
-        fileName: 'test',
-        originalName: 'test.pdf'
-      })
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(0))
 
-      // First call at time 0
-      vi.mocked(net.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            code: 'success',
-            data: { status: 'success', progress: 100 }
-          })
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ code: 'success' })
-        } as Response)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            code: 'success',
-            data: { status: 'processing', url: '' }
-          })
-        } as Response)
+      try {
+        const validProviderTaskId = JSON.stringify({
+          uid: 'test-uid',
+          fileId: 'test-file-id',
+          fileName: 'test',
+          originalName: 'test.pdf'
+        })
 
-      await processor.getStatus(validProviderTaskId, mockConfig)
+        // First call at time 0
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+              code: 'success',
+              data: { status: 'success', progress: 100 }
+            })
+          } as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ code: 'success' })
+          } as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+              code: 'success',
+              data: { status: 'processing', url: '' }
+            })
+          } as Response)
 
-      // Access private property for testing (using type assertion)
-      const processorWithPrivate = processor as unknown as { convertRequested: Map<string, number> }
-      expect(processorWithPrivate.convertRequested.has('test-uid')).toBe(true)
+        await processor.getStatus(validProviderTaskId, mockConfig)
+
+        const later = 35 * 60 * 1000 + 1000
+        vi.setSystemTime(new Date(later))
+
+        vi.mocked(net.fetch)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+              code: 'success',
+              data: { status: 'success', progress: 100 }
+            })
+          } as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ code: 'success' })
+          } as Response)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+              code: 'success',
+              data: { status: 'processing', url: '' }
+            })
+          } as Response)
+
+        await processor.getStatus(validProviderTaskId, mockConfig)
+
+        // Access private property for testing (using type assertion)
+        const processorWithPrivate = processor as unknown as { convertRequested: Map<string, number> }
+        expect(processorWithPrivate.convertRequested.has('test-uid')).toBe(true)
+
+        const fetchCalls = vi.mocked(net.fetch).mock.calls
+        const convertCalls = fetchCalls.filter((call) => {
+          const url = call[0] as string
+          return url.includes('/convert/parse') && !url.includes('/result')
+        })
+        expect(convertCalls.length).toBe(2)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

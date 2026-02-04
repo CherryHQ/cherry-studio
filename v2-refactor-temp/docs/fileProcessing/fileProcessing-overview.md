@@ -23,7 +23,7 @@
 
 - **不按 OCR/Preprocess 分类**：现代 LLM-based 服务（如 DeepSeek-OCR）已模糊边界
 - **按能力维度描述**：用 Feature 描述"能做什么"，用 Input/Output 描述"处理什么"
-- **统一服务入口**：`process(file, options)` → `ProcessingResult`
+- **统一服务入口**：`startProcess(file, options)` → `ProcessStartResponse`，`getResult(requestId)` → `ProcessResultResponse`，支持 `cancel(requestId)`
 
 ---
 
@@ -39,7 +39,7 @@
 | -------------- | --------------------- | ------------------------------ |
 | `id`           | string                | 唯一标识，也用于 i18n key      |
 | `type`         | `'api' \| 'builtin'`  | 服务类型                       |
-| `metadata`     | `FileProcessorMetadata?` | 处理器元数据（大小/页数限制）  |
+| `metadata`     | `FileProcessorMetadata?` | 处理器元数据（预留字段）       |
 | `capabilities` | `FeatureCapability[]` | 能力定义数组                   |
 
 > **i18n**: 处理器显示名称通过 `processor.${id}.name` 获取，Template 不存储 name 字段
@@ -60,12 +60,7 @@
 
 ### 模板元数据：`FileProcessorMetadata`
 
-用于描述处理器的文件限制条件（主要针对文档类）。
-
-| 字段            | 类型       | 说明                     |
-| --------------- | ---------- | ------------------------ |
-| `maxFileSizeMb` | `number?`  | 单文件大小上限（MB）     |
-| `maxPageCount`  | `number?`  | 单文件页数上限（页数）   |
+用于描述处理器的预留元数据（当前为空对象，未来扩展）。
 
 ### 用户配置结构：`FileProcessorOverride`
 
@@ -75,7 +70,7 @@ Preference Key: `feature.file_processing.overrides`，类型为 `FileProcessorOv
 
 | 字段            | 类型                                                           | 说明                              |
 | --------------- | -------------------------------------------------------------- | --------------------------------- |
-| `apiKey`        | `string?`                                                      | API Key（处理器级共享）           |
+| `apiKeys`       | `string[]?`                                                    | API Keys（处理器级共享）          |
 | `capabilities`  | `Partial<Record<FileProcessorFeature, CapabilityOverride>>?`   | Feature 级覆盖配置                |
 | `options`       | `Record<string, unknown>?`                                     | 处理器特定配置                    |
 
@@ -114,16 +109,15 @@ type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 ```typescript
 // overrides 以处理器 id 为 key
 {
-  mineru: { apiKey: '***' }
+  mineru: { apiKeys: ['***'] }
 }
 
 // 用户为 PaddleOCR 配置了不同 Feature 的 API Host
 {
   paddleocr: {
-    apiKey: '***',
+    apiKeys: ['***'],
     capabilities: {
       text_extraction: { apiHost: 'https://my-paddleocr-server.com' },
-      markdown_conversion: { apiHost: 'https://my-markdown-server.com' }
     }
   }
 }
@@ -135,7 +129,7 @@ type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 | ------------- | ------- | ------------------------------------------------------ |
 | Tesseract     | builtin | text_extraction (image → text)                         |
 | System OCR    | builtin | text_extraction (image → text)                         |
-| PaddleOCR     | api     | text_extraction (image → text) / markdown_conversion (document → markdown) |
+| PaddleOCR     | api     | text_extraction (image → text)                         |
 | Intel OV OCR  | builtin | text_extraction (image → text)                         |
 | MinerU        | api     | markdown_conversion (document → markdown)                |
 | Doc2x         | api     | markdown_conversion (document → markdown)                |

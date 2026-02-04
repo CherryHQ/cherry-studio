@@ -21,11 +21,19 @@ export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
  * Processing error information
  */
 export interface ProcessingError {
-  /** Error code (e.g., 'cancelled', 'not_found', 'processing_error') */
-  code: string
+  /** Error code (e.g., 'cancelled', 'not_found', 'processing_failed') */
+  code: ProcessingErrorCode
   /** Human-readable error message */
   message: string
 }
+
+export type ProcessingErrorCode =
+  | 'cancelled'
+  | 'expired'
+  | 'not_found'
+  | 'processing_failed'
+  | 'status_query_failed'
+  | 'unsupported_input'
 
 // ============================================================================
 // Processing Result Types
@@ -117,6 +125,8 @@ export type ProcessResultResponse =
   | (ProcessResultBase & {
       /** Current processing status */
       status: 'pending' | 'processing'
+      /** Pending result metadata (when available) */
+      result?: ProcessingResultPending
     })
   | (ProcessResultBase & {
       /** Current processing status */

@@ -8,10 +8,13 @@
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import type { FileProcessorFeature, FileProcessorId, FileProcessorOverride } from '@shared/data/presets/file-processing'
 import type { ProcessingResult } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+const logger = loggerService.withContext('useFileProcessing')
 
 // ============================================================================
 // Query Hooks
@@ -107,12 +110,31 @@ export function useFileProcess() {
   const { trigger: startProcess } = useMutation('POST', '/file-processing/requests', {})
 
   // TODO: need refactor translate page
-  const { data: resultData } = useQuery(`/file-processing/requests/${requestId ?? '_'}`, {
+  const { data: resultData, error: resultError } = useQuery(`/file-processing/requests/${requestId ?? '_'}`, {
     enabled: !!requestId,
     swrOptions: {
       refreshInterval: 2000
     }
   })
+
+  useEffect(() => {
+    if (!resultError) return
+
+    const pollingError =
+      resultError instanceof Error ? resultError : new Error(`File processing polling error: ${String(resultError)}`)
+
+    logger.error('File processing polling failed', {
+      requestId,
+      error: pollingError.message
+    })
+
+    if (callbacksRef.current) {
+      callbacksRef.current.reject(pollingError)
+      callbacksRef.current = null
+    }
+
+    setRequestId(null)
+  }, [requestId, resultError])
 
   useEffect(() => {
     if (!resultData || !callbacksRef.current) return

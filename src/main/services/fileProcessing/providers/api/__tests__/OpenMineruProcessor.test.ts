@@ -275,6 +275,32 @@ describe('OpenMineruProcessor', () => {
       expect(vi.mocked(net.fetch)).toHaveBeenCalledTimes(2)
     })
 
+    it('should stop retries when cancelled during backoff', async () => {
+      vi.mocked(net.fetch).mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable'
+      } as Response)
+
+      const abortController = new AbortController()
+      const cancelledContext = { ...mockContext, signal: abortController.signal }
+      let capturedError: Error | undefined
+      const promise = processor.convertToMarkdown(mockFile, mockConfig, cancelledContext).catch((error) => {
+        capturedError = error as Error
+      })
+
+      await vi.waitFor(() => {
+        expect(vi.mocked(net.fetch)).toHaveBeenCalledTimes(1)
+      })
+
+      abortController.abort()
+      await vi.runAllTimersAsync()
+      await promise
+
+      expect(capturedError?.message).toBe('Processing cancelled')
+      expect(vi.mocked(net.fetch)).toHaveBeenCalledTimes(1)
+    })
+
     it('should cleanup ZIP file on retry', async () => {
       vi.mocked(fs.existsSync).mockReturnValue(true)
 

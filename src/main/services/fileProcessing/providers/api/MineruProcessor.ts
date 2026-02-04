@@ -234,11 +234,15 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     try {
       payload = this.parseProviderTaskId(providerTaskId)
     } catch (error) {
+      logger.error('MinerU status query failed: invalid provider task id', {
+        providerTaskId,
+        error: error instanceof Error ? error.message : String(error)
+      })
       return {
         requestId: providerTaskId,
         status: 'failed',
         progress: 0,
-        error: { code: 'invalid_provider_task_id', message: (error as Error).message }
+        error: { code: 'status_query_failed', message: (error as Error).message }
       }
     }
 
@@ -289,6 +293,11 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
         progress: Math.max(0, Math.min(progress, 99))
       }
     } catch (error) {
+      logger.error('MinerU status query failed', {
+        providerTaskId,
+        batchId: payload.batchId,
+        error: error instanceof Error ? error.message : String(error)
+      })
       return {
         requestId: providerTaskId,
         status: 'failed',

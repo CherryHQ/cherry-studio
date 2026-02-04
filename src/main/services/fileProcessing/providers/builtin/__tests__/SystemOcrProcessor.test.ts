@@ -17,10 +17,12 @@ import type { ProcessingContext } from '../../../types'
 import { SystemOcrProcessor } from '../SystemOcrProcessor'
 
 // Mock dependencies
-vi.mock('@main/constant', () => ({
+const platformMocks = vi.hoisted(() => ({
   isLinux: false,
   isWin: false
 }))
+
+vi.mock('@main/constant', () => platformMocks)
 
 vi.mock('@main/utils/ocr', () => ({
   loadOcrImage: vi.fn().mockResolvedValue(Buffer.from('mock image content'))
@@ -51,6 +53,8 @@ describe('SystemOcrProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    platformMocks.isLinux = false
+    platformMocks.isWin = false
 
     processor = new SystemOcrProcessor()
 
@@ -102,6 +106,14 @@ describe('SystemOcrProcessor', () => {
       const available = await processor.isAvailable()
       expect(available).toBe(true)
     })
+
+    it('should return false on Linux', async () => {
+      platformMocks.isLinux = true
+      const linuxProcessor = new SystemOcrProcessor()
+
+      const available = await linuxProcessor.isAvailable()
+      expect(available).toBe(false)
+    })
   })
 
   describe('extractText', () => {
@@ -144,6 +156,15 @@ describe('SystemOcrProcessor', () => {
       mockRecognize.mockRejectedValueOnce(new Error('Recognition failed'))
 
       await expect(processor.extractText(mockFile, mockConfig, mockContext)).rejects.toThrow('Recognition failed')
+    })
+
+    it('should throw when system OCR is not available on Linux', async () => {
+      platformMocks.isLinux = true
+      const linuxProcessor = new SystemOcrProcessor()
+
+      await expect(linuxProcessor.extractText(mockFile, mockConfig, mockContext)).rejects.toThrow(
+        'System OCR is not available on Linux'
+      )
     })
   })
 })

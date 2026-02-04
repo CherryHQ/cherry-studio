@@ -9,7 +9,7 @@ Template (Preset) + User Override (Preference) → Merged Config (Runtime)
 ```
 
 - **Template**: 处理器元信息，存储在 `packages/shared/data/presets/file-processing.ts`
-- **Override**: 用户配置（apiKey, apiHost 等），存储在 Preference
+- **Override**: 用户配置（apiKeys, apiHost 等），存储在 Preference
 - **Merged**: 运行时合并，由 ConfigurationService 返回
 
 ### 为什么使用 Preference？
@@ -41,10 +41,7 @@ export type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
 export type FileProcessorInput = 'image' | 'document'
 export type FileProcessorOutput = 'text' | 'markdown'
 
-export type FileProcessorMetadata = {
-  maxFileSizeMb?: number
-  maxPageCount?: number
-}
+export type FileProcessorMetadata = Record<string, never>
 
 export type FeatureCapability = {
   feature: FileProcessorFeature
@@ -76,7 +73,7 @@ export type CapabilityOverride = {
 }
 
 export type FileProcessorOverride = {
-  apiKey?: string
+  apiKeys?: string[]
   capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
   options?: FileProcessorOptions
 }
@@ -92,7 +89,7 @@ export type FileProcessorMerged = {
   type: FileProcessorType
   metadata?: FileProcessorMetadata
   capabilities: FeatureCapability[]
-  apiKey?: string
+  apiKeys?: string[]
   options?: FileProcessorOptions
 }
 ```

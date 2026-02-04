@@ -9,6 +9,7 @@
 
 import type {
   FileProcessorFeature,
+  FileProcessorId,
   FileProcessorMerged,
   FileProcessorOverride
 } from '@shared/data/presets/file-processing'
@@ -44,12 +45,12 @@ export interface FileProcessingSchemas {
   '/file-processing/processors/:id': {
     /** Get processor configuration */
     GET: {
-      params: { id: string }
+      params: { id: FileProcessorId }
       response: FileProcessorMerged
     }
     /** Update processor configuration */
     PATCH: {
-      params: { id: string }
+      params: { id: FileProcessorId }
       body: FileProcessorOverride
       response: FileProcessorMerged
     }
