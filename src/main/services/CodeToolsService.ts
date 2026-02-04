@@ -17,54 +17,12 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
-import { parse as jsoncParse } from 'jsonc-parser'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
-
-// Sensitive environment variable keys to redact in logs
-const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
-
-// Keys that don't represent functional configuration content
-const NON_FUNCTIONAL_KEYS = ['$schema']
-
-/**
- * Parse JSON with comments (JSONC) support
- * Uses jsonc-parser library for safe parsing without code execution
- */
-export function parseJSONC(content: string): Record<string, any> | null {
-  try {
-    const result = jsoncParse(content, undefined, {
-      allowTrailingComma: true,
-      disallowComments: false
-    })
-    return result && typeof result === 'object' ? result : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * Get functional keys from a config object (excluding non-functional keys like $schema)
- */
-export function getFunctionalKeys(obj: Record<string, any>): string[] {
-  return Object.keys(obj).filter((key) => !NON_FUNCTIONAL_KEYS.includes(key))
-}
-
-/**
- * Sanitize environment variables for safe logging
- * Redacts values of sensitive keys to prevent credential leakage
- */
-export function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
-  const sanitized: Record<string, string> = {}
-  for (const [key, value] of Object.entries(env)) {
-    const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
-    sanitized[key] = isSensitive ? '<redacted>' : value
-  }
-  return sanitized
-}
 
 interface VersionInfo {
   installed: string | null

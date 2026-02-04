@@ -1,6 +1,5 @@
+import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { describe, expect, it } from 'vitest'
-
-import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '../CodeToolsService'
 
 describe('parseJSONC - JSON with Comments Parser', () => {
   describe('Standard JSON parsing', () => {

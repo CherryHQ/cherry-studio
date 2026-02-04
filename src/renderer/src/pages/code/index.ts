@@ -75,7 +75,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.githubCopilotCli]: () => [],
   [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.openCode]: (providers) => providers.filter((p) => p.type.includes('openai') || p.type === 'anthropic')
+  [codeTools.openCode]: (providers) =>
+    providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
