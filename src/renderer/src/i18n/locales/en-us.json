@@ -2493,6 +2493,12 @@
       "title": "OpenClaw Not Installed",
       "windows_title": "Windows"
     },
+    "npm_missing": {
+      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
     "quick_actions": {
       "open_dashboard": "Open Dashboard",
       "title": "Quick Actions",

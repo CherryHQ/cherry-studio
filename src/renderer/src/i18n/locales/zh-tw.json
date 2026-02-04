@@ -2493,6 +2493,12 @@
       "title": "OpenClaw 未安裝",
       "windows_title": "Windows"
     },
+    "npm_missing": {
+      "description": "[to be translated]:OpenClaw requires Node.js/npm. Please install Node.js first, then restart Cherry Studio.",
+      "download_button": "[to be translated]:Download Node.js",
+      "hint": "[to be translated]:macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "[to be translated]:Node.js Required"
+    },
     "quick_actions": {
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",

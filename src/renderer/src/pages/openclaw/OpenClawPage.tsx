@@ -13,7 +13,7 @@ import {
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin, Tag } from 'antd'
-import { Download, ExternalLink, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
+import { Circle, Download, ExternalLink, Play, RefreshCw, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +44,33 @@ const OpenClawPage: FC = () => {
   const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
+  const [npmMissing, setNpmMissing] = useState(false)
+  const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
+
+  // Fetch Node.js download URL and poll npm availability when npmMissing is shown
+  useEffect(() => {
+    if (!npmMissing) return
+
+    // Fetch the download URL from main process
+    window.api.openclaw
+      .getNodeDownloadUrl()
+      .then(setNodeDownloadUrl)
+      .catch(() => {})
+
+    // Poll npm availability
+    const pollInterval = setInterval(async () => {
+      try {
+        const npmCheck = await window.api.openclaw.checkNpmAvailable()
+        if (npmCheck.available) {
+          setNpmMissing(false)
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    }, 3000) // Check every 3 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [npmMissing])
 
   // Filter enabled providers with API keys
   const availableProviders = providers.filter((p) => p.enabled && p.apiKey)
@@ -82,6 +109,18 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
+    // Check npm availability first
+    try {
+      const npmCheck = await window.api.openclaw.checkNpmAvailable()
+      if (!npmCheck.available) {
+        setNpmMissing(true)
+        return
+      }
+    } catch (err) {
+      logger.error('Failed to check npm availability', err as Error)
+    }
+
+    setNpmMissing(false)
     setIsInstalling(true)
     setInstallError(null)
     setInstallLogs([])
@@ -293,6 +332,32 @@ const OpenClawPage: FC = () => {
             </Space>
           }
         />
+        {npmMissing && (
+          <Alert
+            message={t('openclaw.npm_missing.title')}
+            description={
+              <div>
+                <p>{t('openclaw.npm_missing.description')}</p>
+                <Space style={{ marginTop: 8 }}>
+                  <Button
+                    type="primary"
+                    icon={<Download size={16} />}
+                    onClick={() => window.open(nodeDownloadUrl, '_blank')}>
+                    {t('openclaw.npm_missing.download_button')}
+                  </Button>
+                </Space>
+                <p style={{ marginTop: 12, color: 'var(--color-text-3)', fontSize: 12 }}>
+                  {t('openclaw.npm_missing.hint')}
+                </p>
+              </div>
+            }
+            type="warning"
+            showIcon
+            closable
+            onClose={() => setNpmMissing(false)}
+            style={{ marginTop: 16, borderRadius: 'var(--list-item-border-radius)' }}
+          />
+        )}
         {installError && (
           <Alert
             message={installError}
@@ -331,14 +396,33 @@ const OpenClawPage: FC = () => {
           <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
           <TitleContent>
             <Title>{t('openclaw.title')}</Title>
-            <Description>{t('openclaw.description')}</Description>
+            <DescriptionRow>
+              <Description>{t('openclaw.description')}</Description>
+              <DocsLink onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
+                {t('openclaw.quick_actions.view_docs')}
+                <ExternalLink size={12} />
+              </DocsLink>
+            </DescriptionRow>
           </TitleContent>
         </TitleWrapper>
 
         {installPath && (
           <InstallAlert>
             <Alert
-              message={t('openclaw.installed_at', { path: installPath })}
+              message={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t('openclaw.installed_at', { path: installPath })}</span>
+                  <Button
+                    size="small"
+                    icon={<Trash2 size={14} />}
+                    onClick={handleUninstall}
+                    loading={isUninstalling}
+                    disabled={isUninstalling || gatewayStatus === 'running'}
+                    danger>
+                    {t('openclaw.quick_actions.uninstall')}
+                  </Button>
+                </div>
+              }
               type="success"
               showIcon
               style={{ borderRadius: 'var(--list-item-border-radius)' }}
@@ -378,44 +462,55 @@ const OpenClawPage: FC = () => {
 
           <SettingsItem>
             <div className="settings-label">{t('openclaw.gateway.title')}</div>
-            <Space>
-              <span style={{ fontWeight: 500 }}>{t('openclaw.gateway.status')}:</span>
-              {getStatusTag()}
-              <span style={{ color: 'var(--color-text-3)' }}>
-                ({t('openclaw.gateway.port')}: {gatewayPort})
-              </span>
-            </Space>
+            <GatewayStatusRow>
+              <Space>
+                <span style={{ fontWeight: 500 }}>{t('openclaw.gateway.status')}:</span>
+                {getStatusTag()}
+                <span style={{ color: 'var(--color-text-3)' }}>
+                  ({t('openclaw.gateway.port')}: {gatewayPort})
+                </span>
+              </Space>
+              {gatewayStatus === 'running' && (
+                <Space size="small">
+                  <Button
+                    size="small"
+                    icon={<Square size={14} />}
+                    onClick={handleStopGateway}
+                    loading={isStopping}
+                    disabled={isStopping || isRestarting}
+                    danger>
+                    {t('openclaw.gateway.stop')}
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<RefreshCw size={14} />}
+                    onClick={handleRestartGateway}
+                    loading={isRestarting}
+                    disabled={isStopping || isRestarting}>
+                    {t('openclaw.gateway.restart')}
+                  </Button>
+                </Space>
+              )}
+            </GatewayStatusRow>
             {lastHealthCheck && gatewayStatus === 'running' && (
-              <div style={{ marginTop: 8, color: 'var(--color-text-3)', fontSize: 12 }}>
-                {t('openclaw.gateway.health')}: {lastHealthCheck.status}
+              <div
+                style={{
+                  marginTop: 8,
+                  color: 'var(--color-text-3)',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                {t('openclaw.gateway.health')}:
+                <Circle
+                  size={8}
+                  fill={lastHealthCheck.status === 'healthy' ? '#52c41a' : '#ff4d4f'}
+                  color={lastHealthCheck.status === 'healthy' ? '#52c41a' : '#ff4d4f'}
+                />
                 {lastHealthCheck.version && ` | ${t('openclaw.gateway.version')}: ${lastHealthCheck.version}`}
               </div>
             )}
-          </SettingsItem>
-
-          <SettingsItem>
-            <div className="settings-label">{t('openclaw.quick_actions.title')}</div>
-            <Space>
-              <Button
-                icon={<ExternalLink size={16} />}
-                onClick={handleOpenDashboard}
-                disabled={gatewayStatus !== 'running'}>
-                {t('openclaw.quick_actions.open_dashboard')}
-              </Button>
-              <Button
-                icon={<ExternalLink size={16} />}
-                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
-                {t('openclaw.quick_actions.view_docs')}
-              </Button>
-              <Button
-                icon={<Trash2 size={16} />}
-                onClick={handleUninstall}
-                loading={isUninstalling}
-                disabled={isUninstalling || gatewayStatus === 'running'}
-                danger>
-                {t('openclaw.quick_actions.uninstall')}
-              </Button>
-            </Space>
           </SettingsItem>
         </SettingsPanel>
 
@@ -437,7 +532,7 @@ const OpenClawPage: FC = () => {
           </LogContainer>
         )}
 
-        {gatewayStatus === 'stopped' ? (
+        {gatewayStatus === 'stopped' && (
           <Button
             type="primary"
             icon={<Play size={16} />}
@@ -448,28 +543,11 @@ const OpenClawPage: FC = () => {
             block>
             {t('openclaw.gateway.start')}
           </Button>
-        ) : (
-          <Space style={{ width: '100%' }}>
-            <Button
-              icon={<Square size={16} />}
-              onClick={handleStopGateway}
-              loading={isStopping}
-              disabled={isStopping || isRestarting}
-              danger
-              size="large"
-              style={{ flex: 1 }}>
-              {t('openclaw.gateway.stop')}
-            </Button>
-            <Button
-              icon={<RefreshCw size={16} />}
-              onClick={handleRestartGateway}
-              loading={isRestarting}
-              disabled={isStopping || isRestarting}
-              size="large"
-              style={{ flex: 1 }}>
-              {t('openclaw.gateway.restart')}
-            </Button>
-          </Space>
+        )}
+        {gatewayStatus === 'running' && (
+          <Button type="primary" icon={<ExternalLink size={16} />} onClick={handleOpenDashboard} size="large" block>
+            {t('openclaw.quick_actions.open_dashboard')}
+          </Button>
         )}
       </MainContent>
     </ContentContainer>
@@ -580,11 +658,40 @@ const Title = styled.h1`
   color: var(--color-text-1);
 `
 
-const Description = styled.p`
+const Description = styled.span`
   font-size: 14px;
   color: var(--color-text-2);
-  margin-bottom: 0;
   line-height: 1.5;
+`
+
+const DescriptionRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+`
+
+const DocsLink = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`
+
+const GatewayStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
 `
 
 const SettingsPanel = styled.div`

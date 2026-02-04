@@ -3,10 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
 import { findCommandInShellEnv } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType } from '@types'
@@ -111,6 +111,8 @@ class OpenClawService {
 
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
+    this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
+    this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
@@ -132,6 +134,40 @@ class OpenClawService {
       installed: binaryPath !== null,
       path: binaryPath
     }
+  }
+
+  /**
+   * Check if npm is available in the user's shell environment
+   * Refreshes shell env cache to detect newly installed Node.js
+   */
+  public async checkNpmAvailable(): Promise<{ available: boolean; path: string | null }> {
+    // Refresh cache to detect newly installed Node.js without app restart
+    refreshShellEnvCache()
+    const shellEnv = await getShellEnv()
+    const npmPath = await findCommandInShellEnv('npm', shellEnv)
+    return {
+      available: npmPath !== null,
+      path: npmPath
+    }
+  }
+
+  /**
+   * Get Node.js download URL based on current OS and architecture
+   */
+  public getNodeDownloadUrl(): string {
+    const version = 'v22.13.1'
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+
+    if (isWin) {
+      return `https://nodejs.org/dist/${version}/node-${version}-${arch}.msi`
+    } else if (isMac) {
+      // macOS: .pkg installer (universal)
+      return `https://nodejs.org/dist/${version}/node-${version}.pkg`
+    } else if (isLinux) {
+      return `https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.xz`
+    }
+    // Fallback to official download page
+    return 'https://nodejs.org/en/download'
   }
 
   /**
@@ -327,11 +363,8 @@ class OpenClawService {
       await this.stopExistingGateway(openclawPath)
 
       // Start the gateway process
-      this.gatewayProcess = spawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
-        detached: false,
-        stdio: 'pipe',
-        env: { ...process.env }
-      })
+      // On Windows, .cmd files need to be executed via cmd.exe
+      this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)])
 
       this.gatewayProcess.stdout?.on('data', (data) => {
         logger.info('Gateway stdout:', data.toString())
@@ -602,6 +635,7 @@ class OpenClawService {
 
   /**
    * Find OpenClaw binary in PATH or common locations
+   * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
    */
   private async findOpenClawBinary(): Promise<string | null> {
     // Try PATH lookup in user's login shell environment (best for npm global installs)
@@ -611,11 +645,25 @@ class OpenClawService {
       return binaryPath
     }
 
+    // On Windows, npm global installs create .cmd files, not .exe files
+    // findCommandInShellEnv only accepts .exe, so we need to search for .cmd manually
+    if (isWin) {
+      const cmdPath = await this.findNpmGlobalCmd('openclaw')
+      if (cmdPath) {
+        return cmdPath
+      }
+    }
+
     // Check common locations as fallback
     const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
     const home = os.homedir()
     const possiblePaths = isWin
-      ? [path.join(home, 'AppData', 'Local', 'openclaw', binaryName), path.join(home, '.openclaw', 'bin', binaryName)]
+      ? [
+          path.join(home, 'AppData', 'Local', 'openclaw', binaryName),
+          path.join(home, '.openclaw', 'bin', binaryName),
+          // Also check for .cmd in npm global locations
+          path.join(home, 'AppData', 'Roaming', 'npm', 'openclaw.cmd')
+        ]
       : [
           path.join(home, '.openclaw', 'bin', binaryName),
           path.join(home, '.local', 'bin', binaryName),
@@ -634,14 +682,72 @@ class OpenClawService {
   }
 
   /**
+   * Find npm global .cmd file on Windows using 'where' command
+   */
+  private async findNpmGlobalCmd(command: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      const child = spawn('where', [command], {
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let output = ''
+      const timeoutId = setTimeout(() => {
+        child.kill('SIGKILL')
+        resolve(null)
+      }, 5000)
+
+      child.stdout.on('data', (data) => {
+        output += data.toString()
+      })
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId)
+        if (code === 0 && output.trim()) {
+          const paths = output.trim().split(/\r?\n/)
+          // Accept .cmd files for npm global packages
+          const cmdPath = paths.find((p) => p.toLowerCase().endsWith('.cmd'))
+          if (cmdPath) {
+            logger.info(`Found npm global command '${command}' at: ${cmdPath}`)
+            resolve(cmdPath)
+            return
+          }
+        }
+        resolve(null)
+      })
+
+      child.on('error', () => {
+        clearTimeout(timeoutId)
+        resolve(null)
+      })
+    })
+  }
+
+  /**
+   * Spawn OpenClaw process with proper Windows handling
+   * On Windows, .cmd files need to be executed via cmd.exe
+   */
+  private spawnOpenClaw(openclawPath: string, args: string[]): ChildProcess {
+    if (isWin && openclawPath.toLowerCase().endsWith('.cmd')) {
+      // Use cmd.exe to execute .cmd files
+      return spawn('cmd.exe', ['/c', openclawPath, ...args], {
+        detached: false,
+        stdio: 'pipe',
+        env: { ...process.env }
+      })
+    }
+    return spawn(openclawPath, args, {
+      detached: false,
+      stdio: 'pipe',
+      env: { ...process.env }
+    })
+  }
+
+  /**
    * Stop any existing gateway from previous sessions using CLI command
    */
   private async stopExistingGateway(openclawPath: string): Promise<void> {
     return new Promise((resolve) => {
-      const stopProcess = spawn(openclawPath, ['gateway', 'stop'], {
-        stdio: 'pipe',
-        env: { ...process.env }
-      })
+      const stopProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'])
 
       stopProcess.on('exit', () => {
         // Give a moment for the port to be released
