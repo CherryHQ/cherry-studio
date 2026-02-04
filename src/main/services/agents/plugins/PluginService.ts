@@ -227,14 +227,43 @@ export class PluginService {
 
     try {
       await this.cloneRepository(repoUrl, tempDir)
-      const result = await this.installFromSourceDir(
-        tempDir,
-        context.workdir,
-        context.agent,
-        context.agent.id,
-        'directory'
-      )
-      const installed = result.packages.flatMap((item) => item.installed)
+
+      // Find all plugin roots in the cloned repo
+      const allPluginRoots = await this.findPluginRoots(tempDir)
+
+      // Filter to only the requested plugin by matching the identifier name
+      const targetPluginName = identifier.name.toLowerCase()
+      const matchingRoot = allPluginRoots.find((root) => {
+        const folderName = path.basename(root).toLowerCase()
+        return folderName === targetPluginName || folderName.includes(targetPluginName)
+      })
+
+      if (!matchingRoot) {
+        // If no exact match, try reading manifests to match by plugin name
+        for (const root of allPluginRoots) {
+          try {
+            const manifest = await this.readPluginManifest(root)
+            if (manifest.name.toLowerCase() === targetPluginName) {
+              const result = await this.installPluginRoots([root], context.workdir, context.agent)
+              const installed = result.flatMap((item) => item.installed)
+              if (installed.length > 0) {
+                return installed[0]
+              }
+            }
+          } catch {
+            // Continue checking other roots
+          }
+        }
+        throw {
+          type: 'PLUGIN_MANIFEST_NOT_FOUND',
+          reason: `Plugin '${identifier.name}' not found in repository`,
+          path: tempDir
+        } as PluginError
+      }
+
+      // Install only the matching plugin
+      const result = await this.installPluginRoots([matchingRoot], context.workdir, context.agent)
+      const installed = result.flatMap((item) => item.installed)
       if (installed.length === 0) {
         throw { type: 'EMPTY_PLUGIN_PACKAGE', path: tempDir } as PluginError
       }

@@ -152,21 +152,25 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
     return { prefix, suffix: rest.join(sentinel) }
   }, [showingResultsTemplate])
 
-  const isPluginInstalled = (plugin: PluginMetadata): boolean => {
+  // Find the installed plugin that matches a marketplace plugin
+  const findInstalledPlugin = (plugin: PluginMetadata) => {
     const pluginName = plugin.name.toLowerCase()
 
     // Check by packageName (for plugin packages like agent-sdk-dev)
-    const foundByPackage = installedPlugins.some(
+    const foundByPackage = installedPlugins.find(
       (installed) => installed.metadata.packageName?.toLowerCase() === pluginName
     )
+    if (foundByPackage) return foundByPackage
 
     // Check by name directly (for skills)
-    const foundByName = installedPlugins.some(
+    const foundByName = installedPlugins.find(
       (installed) => installed.metadata.name.toLowerCase() === pluginName && installed.type === plugin.type
     )
+    return foundByName
+  }
 
-    const found = foundByPackage || foundByName
-    return found
+  const isPluginInstalled = (plugin: PluginMetadata): boolean => {
+    return !!findInstalledPlugin(plugin)
   }
 
   // Handle install with loading state
@@ -183,7 +187,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   const handleUninstall = async (plugin: PluginMetadata) => {
     setActioningPlugin(plugin.sourcePath)
     try {
-      await onUninstall(plugin.filename, plugin.type)
+      // Find the actual installed plugin to get its real filename
+      const installed = findInstalledPlugin(plugin)
+      if (installed) {
+        await onUninstall(installed.metadata.filename, installed.type)
+      }
     } finally {
       setActioningPlugin(null)
     }
