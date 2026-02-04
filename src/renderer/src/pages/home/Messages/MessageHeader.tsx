@@ -23,6 +23,8 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import MessageTokens from './MessageTokens'
+
 interface Props {
   message: Message
   assistant: Assistant
@@ -131,8 +133,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             </Tooltip>
           )}
         </HStack>
-        <InfoWrap className="message-header-info-wrap">
+        <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          {isBubbleStyle && message.usage !== undefined && (
+            <>
+              |
+              <MessageTokens message={message} />
+            </>
+          )}
         </InfoWrap>
       </UserWrap>
       {isMultiSelectMode && (
