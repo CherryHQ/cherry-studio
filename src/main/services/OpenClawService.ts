@@ -9,10 +9,11 @@ import { findCommandInShellEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
-import type { Model, Provider, ProviderType } from '@types'
+import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 import { type ChildProcess, spawn } from 'child_process'
 import { shell } from 'electron'
 
+import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
@@ -71,37 +72,42 @@ export interface OpenClawProviderConfig {
 }
 
 /**
- * Cherry Studio ProviderType -> OpenClaw API type mapping
- *
- * OpenClaw only supports two API types:
+ * OpenClaw API types
  * - 'openai-completions': For OpenAI-compatible chat completions API
  * - 'anthropic-messages': For Anthropic Messages API format
- *
- * Provider compatibility notes:
- * - OpenAI-compatible: openai, azure-openai, gemini, mistral, ollama, new-api, gateway, etc.
- * - Anthropic-compatible: anthropic, vertex-anthropic, aws-bedrock (Claude models)
- * - NOT supported: vertexai (requires project/location in URL)
  */
-const API_TYPE_MAP: Partial<Record<ProviderType, string>> = {
-  // OpenAI-compatible providers
-  openai: 'openai-completions',
-  'openai-response': 'openai-completions',
-  'azure-openai': 'openai-completions',
-  gemini: 'openai-completions', // Uses Google's OpenAI-compatible endpoint
-  mistral: 'openai-completions',
-  ollama: 'openai-completions',
-  'new-api': 'openai-completions',
-  gateway: 'openai-completions',
+const OPENCLAW_API_TYPES = {
+  OPENAI: 'openai-completions',
+  ANTHROPIC: 'anthropic-messages'
+} as const
 
-  // Anthropic-compatible providers
-  anthropic: 'anthropic-messages',
-  'vertex-anthropic': 'anthropic-messages',
-  'aws-bedrock': 'anthropic-messages' // Assumes Claude models; other Bedrock models may not work
+/**
+ * Providers that always use Anthropic API format
+ */
+const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
+
+/**
+ * Endpoint types that use Anthropic API format
+ * These are values from model.endpoint_type field
+ */
+const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
+
+/**
+ * Check if a model should use Anthropic API based on endpoint_type
+ */
+function isAnthropicEndpointType(model: Model): boolean {
+  const endpointType = model.endpoint_type
+  return endpointType ? ANTHROPIC_ENDPOINT_TYPES.includes(endpointType) : false
 }
 
-// Providers that are NOT compatible with OpenClaw
-// vertexai requires project ID and location in URL which we don't have
-const UNSUPPORTED_PROVIDERS: ProviderType[] = ['vertexai']
+/**
+ * Type guard to check if a provider is a VertexProvider
+ */
+function isVertexProvider(provider: Provider): provider is VertexProvider {
+  return (
+    provider.type === 'vertexai'
+  )
+}
 
 class OpenClawService {
   private gatewayProcess: ChildProcess | null = null
@@ -537,14 +543,6 @@ class OpenClawService {
     primaryModel: Model
   ): Promise<{ success: boolean; message: string }> {
     try {
-      // Check if provider is supported by OpenClaw
-      if (UNSUPPORTED_PROVIDERS.includes(provider.type)) {
-        return {
-          success: false,
-          message: `Provider type "${provider.type}" is not supported by OpenClaw. OpenClaw only supports OpenAI-compatible and Anthropic-compatible APIs.`
-        }
-      }
-
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
@@ -564,18 +562,37 @@ class OpenClawService {
       // Build provider key
       const providerKey = `cherry-${provider.id}`
 
-      // Determine the API type and select appropriate baseUrl
-      const apiType = API_TYPE_MAP[provider.type] || 'openai-completions'
-      const baseUrl = this.getBaseUrlForApiType(provider, apiType)
+      // Determine the API type based on model, not provider type
+      // Mixed providers (cherryin, aihubmix, etc.) can have both OpenAI and Anthropic endpoints
+      const apiType = this.determineApiType(provider, primaryModel)
+      const baseUrl = this.getBaseUrlForApiType(provider, apiType, primaryModel)
+
+      // Get API key - for vertexai, get access token from VertexAIService
+      let apiKey = provider.apiKey
+      if (isVertexProvider(provider)) {
+        try {
+          const vertexService = VertexAIService.getInstance()
+          apiKey = await vertexService.getAccessToken({
+            projectId: provider.project,
+            serviceAccount: {
+              privateKey: provider.googleCredentials.privateKey,
+              clientEmail: provider.googleCredentials.clientEmail
+            }
+          })
+        } catch (err) {
+          logger.warn('Failed to get VertexAI access token, using provider apiKey:', err as Error)
+        }
+      }
 
       // Build OpenClaw provider config
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
-        apiKey: provider.apiKey,
+        apiKey,
         api: apiType,
         models: provider.models.map((m) => ({
           id: m.id,
           name: m.name,
+          // FIXME: in v2
           contextWindow: 128000
         }))
       }
@@ -789,29 +806,68 @@ class OpenClawService {
   }
 
   /**
+   * Determine the API type based on model and provider
+   * This supports mixed providers (cherryin, aihubmix, new-api, etc.) that have both OpenAI and Anthropic endpoints
+   *
+   * Priority order:
+   * 1. Provider type (anthropic, vertex-anthropic always use Anthropic API)
+   * 2. Model endpoint_type (explicit endpoint configuration)
+   * 3. Provider has anthropicApiHost configured
+   * 4. Default to OpenAI-compatible
+   */
+  private determineApiType(provider: Provider, model: Model): string {
+    // 1. Check if provider type is always Anthropic
+    if (ANTHROPIC_ONLY_PROVIDERS.includes(provider.type)) {
+      return OPENCLAW_API_TYPES.ANTHROPIC
+    }
+
+    // 2. Check model's endpoint_type (used by new-api and other mixed providers)
+    if (isAnthropicEndpointType(model)) {
+      return OPENCLAW_API_TYPES.ANTHROPIC
+    }
+
+    // 3. Check if provider has anthropicApiHost configured
+    if (provider.anthropicApiHost) {
+      return OPENCLAW_API_TYPES.ANTHROPIC
+    }
+
+    // 4. Default to OpenAI-compatible
+    return OPENCLAW_API_TYPES.OPENAI
+  }
+
+  /**
    * Get the appropriate base URL for the given API type
    * For anthropic-messages, prefer anthropicApiHost if available
    * For openai-completions, use apiHost with proper formatting
    */
-  private getBaseUrlForApiType(provider: Provider, apiType: string): string {
-    if (apiType === 'anthropic-messages') {
+  private getBaseUrlForApiType(provider: Provider, apiType: string, _model?: Model): string {
+    if (apiType === OPENCLAW_API_TYPES.ANTHROPIC) {
       // For Anthropic API type, prefer anthropicApiHost if available
       const host = provider.anthropicApiHost || provider.apiHost
       return this.formatAnthropicUrl(host)
     }
     // For OpenAI-compatible API type
-    return this.formatOpenAIUrl(provider.apiHost, provider.type)
+    return this.formatOpenAIUrl(provider)
   }
 
   /**
    * Format URL for OpenAI-compatible APIs
    * Provider-specific URL patterns:
+   * - VertexAI: {location}-aiplatform.googleapis.com/v1beta1/projects/{project}/locations/{location}/endpoints/openapi
    * - Gemini: {host}/v1beta/openai (OpenAI-compatible endpoint)
    * - Vercel AI Gateway: {host}/v1 (stored as /v1/ai, needs conversion)
    * - Others: {host}/v1
    */
-  private formatOpenAIUrl(apiHost: string, providerType: ProviderType): string {
-    const url = withoutTrailingSlash(apiHost)
+  private formatOpenAIUrl(provider: Provider): string {
+    const url = withoutTrailingSlash(provider.apiHost)
+    const providerType = provider.type
+
+    // VertexAI: build OpenAI-compatible endpoint URL with project and location
+    // https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/call-gemini-using-openai-library
+    if (isVertexProvider(provider)) {
+      const location = provider.location || 'us-central1'
+      return `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${provider.project}/locations/${location}/endpoints/openapi`
+    }
 
     // Gemini: use OpenAI-compatible endpoint
     // https://ai.google.dev/gemini-api/docs/openai
