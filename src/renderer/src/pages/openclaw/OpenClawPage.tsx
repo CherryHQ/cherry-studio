@@ -21,6 +21,36 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OpenClawPage')
 
+const DOCS_URL = 'https://docs.openclaw.ai/'
+
+interface TitleSectionProps {
+  title: string
+  description: string
+  clickable?: boolean
+}
+
+const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = false }) => (
+  <div className="mb-8 flex flex-col items-center text-center">
+    <Avatar
+      src={OpenClawLogo}
+      size={64}
+      shape="square"
+      className={clickable ? 'cursor-pointer' : undefined}
+      style={{ borderRadius: 12 }}
+      onClick={clickable ? () => window.open(DOCS_URL, '_blank') : undefined}
+    />
+    <h1
+      className={`mt-3 font-semibold text-2xl ${clickable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''}`}
+      style={{ color: 'var(--color-text-1)' }}
+      onClick={clickable ? () => window.open(DOCS_URL, '_blank') : undefined}>
+      {title}
+    </h1>
+    <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
+      {description}
+    </p>
+  </div>
+)
+
 const OpenClawPage: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -353,7 +383,7 @@ const OpenClawPage: FC = () => {
 
   const renderNotInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[600px]">
+      <div className="m-auto min-h-fit w-[520px]">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}
@@ -371,7 +401,7 @@ const OpenClawPage: FC = () => {
               <Button
                 icon={<ExternalLink size={16} />}
                 disabled={isInstalling}
-                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
+                onClick={() => window.open(DOCS_URL, '_blank')}>
                 {t('openclaw.quick_actions.view_docs')}
               </Button>
             </Space>
@@ -420,39 +450,19 @@ const OpenClawPage: FC = () => {
 
   const renderInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[600px]">
-        {/* Title Section */}
-        <div className="mb-8 flex items-start gap-4">
-          <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
-          <div className="flex-1">
-            <h1 className="mb-1 font-semibold text-2xl" style={{ color: 'var(--color-text-1)' }}>
-              {t('openclaw.title')}
-            </h1>
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
-              {t('openclaw.description')}{' '}
-              <span
-                className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-[13px] hover:underline"
-                style={{ color: 'var(--color-primary)' }}
-                onClick={() => window.open('https://docs.openclaw.ai/', '_blank')}>
-                {t('openclaw.quick_actions.view_docs')}
-                <ExternalLink size={12} />
-              </span>
-            </p>
-          </div>
-        </div>
+      <div className="m-auto min-h-fit w-[520px]">
+        <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable />
 
-        {/* Install Path */}
-        {installPath && (
+        {/* Install Path - hide when gateway is running */}
+        {installPath && gatewayStatus !== 'running' && (
           <div
             className="mb-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <span>{t('openclaw.installed_at', { path: installPath })}</span>
             <span
-              className={`whitespace-nowrap text-xs ${
-                gatewayStatus === 'running' ? 'cursor-not-allowed' : 'cursor-pointer hover:text-[var(--color-error)]'
-              }`}
-              style={{ color: gatewayStatus === 'running' ? 'var(--color-text-4)' : 'var(--color-text-3)' }}
-              onClick={gatewayStatus === 'running' ? undefined : handleUninstall}>
+              className="cursor-pointer whitespace-nowrap text-xs hover:text-[var(--color-error)]"
+              style={{ color: 'var(--color-text-3)' }}
+              onClick={handleUninstall}>
               {t('openclaw.quick_actions.uninstall')}
             </span>
           </div>
@@ -557,19 +567,11 @@ const OpenClawPage: FC = () => {
   // Render uninstalling page - only show logs
   const renderUninstallingContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[600px]">
-        {/* Title Section */}
-        <div className="mb-8 flex items-start gap-4">
-          <Avatar src={OpenClawLogo} size={48} shape="square" style={{ borderRadius: 10 }} />
-          <div className="flex-1">
-            <h1 className="mb-1 font-semibold text-2xl" style={{ color: 'var(--color-text-1)' }}>
-              {t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}
-            </h1>
-            <span className="text-sm leading-relaxed" style={{ color: 'var(--color-text-2)' }}>
-              {t(uninstallSuccess ? 'openclaw.uninstalled.description' : 'openclaw.uninstalling.description')}
-            </span>
-          </div>
-        </div>
+      <div className="m-auto min-h-fit w-[520px]">
+        <TitleSection
+          title={t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}
+          description={t(uninstallSuccess ? 'openclaw.uninstalled.description' : 'openclaw.uninstalling.description')}
+        />
 
         {installError && (
           <div className="mb-6">
