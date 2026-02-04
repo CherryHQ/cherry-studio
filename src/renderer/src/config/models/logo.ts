@@ -112,8 +112,8 @@ import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
 import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
-import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
-import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
+import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.webp'
+import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot.webp'
 import {
   default as NousResearchModelLogo,
   default as NousResearchModelLogoDark
