@@ -92,7 +92,11 @@
     ${If} $R1 != "admin"
       ${GetParameters} $R2
       ExecShell "runas" "$EXEPATH" "$R2"
-      SetErrorLevel 0
+      ${If} ${Errors}
+        SetErrorLevel 1
+      ${Else}
+        SetErrorLevel 0
+      ${EndIf}
       Quit
     ${EndIf}
   ${EndIf}
