@@ -183,13 +183,16 @@ class OpenClawService {
 
   /**
    * Install OpenClaw using npm with China mirror acceleration
+   * For users in China, install @qingchencloud/openclaw-zh package instead
    */
   public async install(): Promise<{ success: boolean; message: string }> {
     const inChina = await isUserInChina()
 
-    // Build npm install command with registry option for China users
+    // For China users, install the Chinese-specific package with Chinese npm mirror
+    // For other users, install the standard openclaw package
+    const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
-    const npmCommand = `npm install -g openclaw@latest ${registryArg}`.trim()
+    const npmCommand = `npm install -g ${packageName} ${registryArg}`.trim()
 
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
