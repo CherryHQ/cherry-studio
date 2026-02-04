@@ -1731,15 +1731,8 @@ export const removeBlocksThunk =
 
       // 2. Update database - different handling for agent vs Dexie topics
       if (isAgentSessionTopicId(topicId)) {
-        // For agent topics: use IPC to remove blocks from SQLite (atomic operation in backend)
-        const sessionId = extractAgentSessionIdFromTopicId(topicId)
-        if (sessionId) {
-          await window.electron?.ipcRenderer.invoke(IpcChannel.AgentMessage_RemoveBlocks, {
-            sessionId,
-            messageId,
-            blockIds: blockIdsToRemove
-          })
-        }
+        // For agent topics: dbService.updateMessage routes to AgentMessageDataSource
+        await dbService.updateMessage(topicId, messageId, { blocks: updatedBlockIds })
       } else {
         // For Dexie topics: use transaction for atomicity
         const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
