@@ -75,15 +75,14 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
 
               {/* Workspace Meta */}
               <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
-
-              {/* Open External Apps */}
-              {activeSession.accessible_paths?.[0] && (
-                <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} />
-              )}
             </>
           )}
         </div>
       </HorizontalScrollContainer>
+      {/* Open External Apps */}
+      {activeSession && activeSession.accessible_paths?.[0] && (
+        <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} />
+      )}
       <Tools />
     </>
   )
