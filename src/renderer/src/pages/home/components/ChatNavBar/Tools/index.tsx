@@ -1,3 +1,4 @@
+import { HStack } from '@renderer/components/Layout'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -31,7 +32,7 @@ const Tools = ({ assistant }: ToolsProps) => {
   }
 
   return (
-    <>
+    <HStack alignItems="center" gap={8}>
       {isTopNavbar && <UpdateAppButton />}
       <SettingsButton assistant={assistant} />
       {isTopNavbar && (
@@ -62,7 +63,7 @@ const Tools = ({ assistant }: ToolsProps) => {
           </NavbarIcon>
         </Tooltip>
       )}
-    </>
+    </HStack>
   )
 }
 

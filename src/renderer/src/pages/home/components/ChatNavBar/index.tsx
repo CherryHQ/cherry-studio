@@ -1,5 +1,4 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -88,9 +87,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </AnimatePresence>
         <ChatNavbarContent assistant={assistant} />
       </div>
-      <HStack alignItems="center" gap={8}>
-        <Tools assistant={assistant} />
-      </HStack>
+      <Tools assistant={assistant} />
     </NavbarHeader>
   )
 }
