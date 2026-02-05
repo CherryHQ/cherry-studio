@@ -241,7 +241,15 @@ const llmSlice = createSlice({
       state.settings.awsBedrock.region = action.payload
     },
     setCherryInTokens: (state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) => {
+      if (!state.settings.cherryIn) {
+        state.settings.cherryIn = {
+          accessToken: '',
+          refreshToken: ''
+        }
+      }
+
       state.settings.cherryIn.accessToken = action.payload.accessToken
+
       if (action.payload.refreshToken !== undefined) {
         state.settings.cherryIn.refreshToken = action.payload.refreshToken
       }
