@@ -7,7 +7,7 @@ import type { AgentEntity, ApiModel } from '@renderer/types'
 import { ChevronRight } from 'lucide-react'
 import { useCallback } from 'react'
 
-import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
+import SelectAgentBaseModelButton from '../../SelectAgentBaseModelButton'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 

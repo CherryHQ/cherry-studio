@@ -7,7 +7,7 @@ import { ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SelectModelButton from '../SelectModelButton'
+import SelectModelButton from '../../SelectModelButton'
 
 type TopicContentProps = {
   assistant: Assistant

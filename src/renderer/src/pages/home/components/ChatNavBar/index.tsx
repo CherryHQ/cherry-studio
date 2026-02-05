@@ -15,7 +15,7 @@ import type { FC } from 'react'
 
 import NavbarIcon from '../../../../components/NavbarIcon'
 import AssistantsDrawer from '../AssistantsDrawer'
-import ChatNavbarContent from '../ChatNavbarContent'
+import ChatNavbarContent from './ChatNavbarContent'
 import Tools from './Tools'
 
 interface Props {
