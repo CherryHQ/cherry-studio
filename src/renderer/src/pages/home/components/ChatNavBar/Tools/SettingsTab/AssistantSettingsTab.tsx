@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -54,19 +55,20 @@ import {
   isSupportVerbosityProvider
 } from '@renderer/utils/provider'
 import { Col, Row, Slider, Switch } from 'antd'
-import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import GroqSettingsGroup from './components/GroqSettingsGroup'
-import OpenAISettingsGroup from './components/OpenAISettingsGroup'
+import GroqSettingsGroup from './GroqSettingsGroup'
+import OpenAISettingsGroup from './OpenAISettingsGroup'
+
+const logger = loggerService.withContext('AssistantSettingsTab')
 
 interface Props {
   assistant: Assistant
 }
 
-const SettingsTab: FC<Props> = (props) => {
+const AssistantSettingsTab = (props: Props) => {
   const { chat } = useRuntime()
   const { assistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
@@ -150,34 +152,31 @@ const SettingsTab: FC<Props> = (props) => {
 
   const isTopicSettings = chat.activeTopicOrSession === 'topic'
 
+  if (!isTopicSettings) {
+    logger.warn('AssistantSettingsTab is rendered when not topic activated.')
+    return null
+  }
+
   return (
     <Container className="settings-tab">
-      {isTopicSettings && (
-        <>
-          {showOpenAiSettings && (
-            <OpenAISettingsGroup
-              model={model}
-              providerId={provider.id}
-              SettingGroup={SettingGroup}
-              SettingRowTitleSmall={SettingRowTitleSmall}
-            />
-          )}
-          {isGroqSystemProvider(provider) && (
-            <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
-          )}
-        </>
+      {showOpenAiSettings && (
+        <OpenAISettingsGroup
+          model={model}
+          providerId={provider.id}
+          SettingGroup={SettingGroup}
+          SettingRowTitleSmall={SettingRowTitleSmall}
+        />
+      )}
+      {isGroqSystemProvider(provider) && (
+        <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
-          {isTopicSettings && (
-            <>
-              <SettingRow>
-                <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
-                <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
+            <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
             <Switch
@@ -199,19 +198,15 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </SettingRow>
           <SettingDivider />
-          {isTopicSettings && (
-            <>
-              <SettingRow>
-                <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
-                <Switch
-                  size="small"
-                  checked={showMessageOutline}
-                  onChange={(checked) => dispatch(setShowMessageOutline(checked))}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={showMessageOutline}
+              onChange={(checked) => dispatch(setShowMessageOutline(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
@@ -224,24 +219,21 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </SettingRow>
           <SettingDivider />
-          {isTopicSettings && (
-            <>
-              <SettingRow>
-                <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
-                <Selector
-                  value={multiModelMessageStyle}
-                  onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
-                  options={[
-                    { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
-                    { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
-                    { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
-                    { value: 'grid', label: t('message.message.multi_model_style.grid') }
-                  ]}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+
+          <SettingRow>
+            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
+            <Selector
+              value={multiModelMessageStyle}
+              onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
+              options={[
+                { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
+                { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
+                { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
+                { value: 'grid', label: t('message.message.multi_model_style.grid') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
@@ -453,19 +445,15 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={false}>
         <SettingGroup>
-          {isTopicSettings && (
-            <>
-              <SettingRow>
-                <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
-                <Switch
-                  size="small"
-                  checked={showInputEstimatedTokens}
-                  onChange={(checked) => dispatch(setShowInputEstimatedTokens(checked))}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={showInputEstimatedTokens}
+              onChange={(checked) => dispatch(setShowInputEstimatedTokens(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_as_file')}</SettingRowTitleSmall>
             <Switch
@@ -606,4 +594,4 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-bottom: 10px;
 `
 
-export default SettingsTab
+export default AssistantSettingsTab
