@@ -11,8 +11,8 @@ import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { styled } from 'styled-components'
 
-import SettingsButton from '../SettingsButton'
-import UpdateAppButton from '../UpdateAppButton'
+import SettingsButton from '../../SettingsButton'
+import UpdateAppButton from '../../UpdateAppButton'
 
 interface ToolsProps {
   assistant: Assistant
