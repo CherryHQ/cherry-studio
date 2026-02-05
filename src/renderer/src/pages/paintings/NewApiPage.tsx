@@ -48,6 +48,19 @@ import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
+const CUSTOM_IMAGE_SIZE_VALUE = '__custom_image_size__'
+
+// 解析 WxH（例如 1280x720）格式的尺寸字符串
+const parseImageSize = (size?: string) => {
+  if (!size) return null
+  const match = /^(\d+)\s*x\s*(\d+)$/.exec(size)
+  if (!match) return null
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null
+  return { width, height }
+}
+
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
   const { addPainting, removePainting, updatePainting, openai_image_generate, openai_image_edit } = usePaintings()
@@ -66,6 +79,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const [editImageFiles, setEditImageFiles] = useState<File[]>([])
+  const [isCustomImageSize, setIsCustomImageSize] = useState(false)
 
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -164,11 +178,40 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       updates.moderation = modelConfig.moderation[0].value
     }
     updates.n = 1
+    // 切换模型时重置自定义尺寸（避免保留旧的宽高导致 UI 误判为“自定义”）
+    updates.width = undefined
+    updates.height = undefined
+    setIsCustomImageSize(false)
     updatePaintingState(updates)
   }
 
   const handleSizeChange = (value: string) => {
-    updatePaintingState({ size: value })
+    if (value === CUSTOM_IMAGE_SIZE_VALUE) {
+      setIsCustomImageSize(true)
+      const parsed = parseImageSize(painting.size)
+      const nextWidth = typeof painting.width === 'number' ? painting.width : (parsed?.width ?? 1024)
+      const nextHeight = typeof painting.height === 'number' ? painting.height : (parsed?.height ?? 1024)
+      updatePaintingState({ width: nextWidth, height: nextHeight, size: `${nextWidth}x${nextHeight}` })
+      return
+    }
+
+    setIsCustomImageSize(false)
+    updatePaintingState({ size: value, width: undefined, height: undefined })
+  }
+
+  const handleCustomImageSizeChange = (dimension: 'width' | 'height', value: number | null) => {
+    const nextWidth = dimension === 'width' ? (value ?? undefined) : painting.width
+    const nextHeight = dimension === 'height' ? (value ?? undefined) : painting.height
+    const nextSize =
+      typeof nextWidth === 'number' && typeof nextHeight === 'number' && nextWidth > 0 && nextHeight > 0
+        ? `${nextWidth}x${nextHeight}`
+        : undefined
+
+    updatePaintingState({
+      width: nextWidth,
+      height: nextHeight,
+      size: nextSize
+    })
   }
 
   const handleQualityChange = (value: string) => {
@@ -507,6 +550,34 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [modelOptions, painting.model, updatePaintingState])
 
+  // 兼容历史数据：若 size 为非预设 WxH（例如 1280x720），自动切到“自定义尺寸”并回填宽高
+  useEffect(() => {
+    const presetSizes = selectedModelConfig?.imageSizes?.map((s) => s.value) ?? []
+    const currentSize = painting.size
+    const parsed = parseImageSize(currentSize)
+    const isPreset = currentSize ? presetSizes.includes(currentSize) : true
+    const shouldBeCustom =
+      typeof painting.width === 'number' || typeof painting.height === 'number' || (!isPreset && Boolean(parsed))
+
+    setIsCustomImageSize(shouldBeCustom)
+
+    // 若历史数据仅有 size（WxH）但缺少 width/height，则补齐并持久化
+    if (!isPreset && parsed && (typeof painting.width !== 'number' || typeof painting.height !== 'number')) {
+      updatePaintingState({
+        width: typeof painting.width === 'number' ? painting.width : parsed.width,
+        height: typeof painting.height === 'number' ? painting.height : parsed.height
+      })
+    }
+  }, [
+    painting.id,
+    painting.model,
+    selectedModelConfig,
+    painting.size,
+    painting.width,
+    painting.height,
+    updatePaintingState
+  ])
+
   return (
     <Container>
       <Navbar>
@@ -611,13 +682,44 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {selectedModelConfig?.imageSizes && selectedModelConfig.imageSizes.length > 0 && (
                 <>
                   <SettingTitle>{t('paintings.image.size')}</SettingTitle>
-                  <Select value={painting.size} onChange={handleSizeChange} style={{ width: '100%', marginBottom: 15 }}>
+                  <Select
+                    value={isCustomImageSize ? CUSTOM_IMAGE_SIZE_VALUE : painting.size}
+                    onChange={handleSizeChange}
+                    style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.imageSizes.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
                         {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
                       </Select.Option>
                     ))}
+                    <Select.Option value={CUSTOM_IMAGE_SIZE_VALUE} key={CUSTOM_IMAGE_SIZE_VALUE}>
+                      {t('paintings.custom_size')}
+                    </Select.Option>
                   </Select>
+
+                  {isCustomImageSize && (
+                    <div style={{ marginTop: 10, marginBottom: 15 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <InputNumber
+                          placeholder="W"
+                          value={typeof painting.width === 'number' ? painting.width : undefined}
+                          controls={false}
+                          min={1}
+                          onChange={(value) => handleCustomImageSizeChange('width', value)}
+                          style={{ width: 80, flex: 1 }}
+                        />
+                        <span style={{ color: 'var(--color-text-2)', fontSize: 12 }}>x</span>
+                        <InputNumber
+                          placeholder="H"
+                          value={typeof painting.height === 'number' ? painting.height : undefined}
+                          controls={false}
+                          min={1}
+                          onChange={(value) => handleCustomImageSizeChange('height', value)}
+                          style={{ width: 80, flex: 1 }}
+                        />
+                        <span style={{ color: 'var(--color-text-2)', fontSize: 12 }}>px</span>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
