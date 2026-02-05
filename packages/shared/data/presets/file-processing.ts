@@ -220,7 +220,14 @@ export const PRESETS_FILE_PROCESSORS = [
         feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
-        apiHost: 'https://mineru.net'
+        apiHost: 'https://mineru.net',
+        metadata: {
+          optionalPayload: {
+            enable_formula: true,
+            enable_table: true,
+            is_ocr: true
+          }
+        }
       }
     ]
   },

@@ -108,11 +108,56 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     super(template)
   }
 
+  private getOptionalPayload(config: FileProcessorMerged): Record<string, unknown> | undefined {
+    const capability = config.capabilities.find((cap) => cap.feature === 'markdown_conversion')
+    const metadata = capability?.metadata
+    const optionalPayload =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)['optionalPayload']
+        : undefined
+
+    if (optionalPayload && typeof optionalPayload === 'object' && !Array.isArray(optionalPayload)) {
+      return optionalPayload as Record<string, unknown>
+    }
+    return undefined
+  }
+
   private async getBatchUploadUrls(
     apiHost: string,
     apiKey: string,
+    config: FileProcessorMerged,
     file: FileMetadata
   ): Promise<{ batchId: string; fileUrls: string[]; uploadHeaders?: Record<string, string>[] }> {
+    const optionalPayload = this.getOptionalPayload(config)
+    const payload: Record<string, unknown> = optionalPayload ? { ...optionalPayload } : {}
+    let fileOverrides: Record<string, unknown> = {}
+
+    const optionalFiles = optionalPayload?.['files']
+    if (Array.isArray(optionalFiles) && optionalFiles.length > 0) {
+      const firstFile = optionalFiles[0]
+      if (firstFile && typeof firstFile === 'object' && !Array.isArray(firstFile)) {
+        fileOverrides = firstFile as Record<string, unknown>
+      }
+    }
+
+    const fileItem: Record<string, unknown> = {
+      ...fileOverrides,
+      name: file.origin_name,
+      data_id: file.id
+    }
+
+    if (
+      optionalPayload &&
+      Object.prototype.hasOwnProperty.call(optionalPayload, 'is_ocr') &&
+      !Object.prototype.hasOwnProperty.call(fileOverrides, 'is_ocr')
+    ) {
+      fileItem['is_ocr'] = optionalPayload['is_ocr']
+    }
+
+    delete payload['files']
+    delete payload['is_ocr']
+    payload['files'] = [fileItem]
+
     const response = await net.fetch(`${apiHost}/api/v4/file-urls/batch`, {
       method: 'POST',
       headers: {
@@ -120,17 +165,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
         Authorization: `Bearer ${apiKey}`,
         Accept: '*/*'
       },
-      body: JSON.stringify({
-        enable_formula: true,
-        enable_table: true,
-        files: [
-          {
-            name: file.origin_name,
-            is_ocr: true,
-            data_id: file.id
-          }
-        ]
-      })
+      body: JSON.stringify(payload)
     })
 
     if (!response.ok) {
@@ -248,7 +283,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
     const filePath = fileStorage.getFilePathById(input)
     logger.info(`MinerU processing started: ${filePath}`)
 
-    const { batchId, fileUrls, uploadHeaders } = await this.getBatchUploadUrls(apiHost, apiKey, input)
+    const { batchId, fileUrls, uploadHeaders } = await this.getBatchUploadUrls(apiHost, apiKey, config, input)
     logger.info(`Got batch upload URL: batchId=${batchId}`)
 
     await this.putFileToUrl(filePath, fileUrls[0], uploadHeaders?.[0])

@@ -146,6 +146,60 @@ describe('MineruProcessor', () => {
       expect(payload.fileId).toBe('test-file-id')
     })
 
+    it('should include optionalPayload in batch upload body', async () => {
+      const optionalPayload = {
+        enable_formula: false,
+        enable_table: true,
+        language: 'auto',
+        is_ocr: false
+      }
+      mockConfig = {
+        ...mockConfig,
+        capabilities: [
+          {
+            ...mockConfig.capabilities[0],
+            metadata: {
+              optionalPayload
+            }
+          }
+        ]
+      }
+
+      vi.mocked(net.fetch)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            code: 0,
+            data: {
+              batch_id: 'test-batch-id',
+              file_urls: ['https://upload.url']
+            }
+          })
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true
+        } as Response)
+
+      await processor.convertToMarkdown(mockFile, mockConfig, mockContext)
+
+      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
+      const options = fetchCall[1] as RequestInit
+      const body = JSON.parse(options.body as string) as Record<string, unknown>
+
+      expect(body.enable_formula).toBe(false)
+      expect(body.enable_table).toBe(true)
+      expect(body.language).toBe('auto')
+      expect(body).not.toHaveProperty('is_ocr')
+
+      const files = body.files as Array<Record<string, unknown>>
+      expect(files).toHaveLength(1)
+      expect(files[0]).toMatchObject({
+        name: mockFile.origin_name,
+        data_id: mockFile.id,
+        is_ocr: false
+      })
+    })
+
     it('should throw error when batch upload fails', async () => {
       vi.mocked(net.fetch).mockResolvedValueOnce({
         ok: false,
