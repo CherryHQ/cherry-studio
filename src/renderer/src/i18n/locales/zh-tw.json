@@ -2550,6 +2550,11 @@
       "starting": "啟動中",
       "stopped": "已停止"
     },
+    "tips": {
+      "permissions": "OpenClaw 擁有較高的系統權限，建議僅在可信環境中使用",
+      "title": "溫馨提示",
+      "token_usage": "AI 代理模式會消耗較多 Token，請注意用量"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
     "uninstall_progress": "解除安裝進度",

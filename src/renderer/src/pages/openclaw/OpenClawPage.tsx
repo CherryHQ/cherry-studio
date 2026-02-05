@@ -548,6 +548,17 @@ const OpenClawPage: FC = () => {
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
               {t('openclaw.model_config.sync_hint')}
             </div>
+
+            {/* Tips about OpenClaw */}
+            <div
+              className="mt-4 rounded-lg p-3 text-xs leading-relaxed"
+              style={{ background: 'var(--color-background-mute)', color: 'var(--color-text-3)' }}>
+              <div className="mb-1">💡 {t('openclaw.tips.title')}</div>
+              <ul className="list-inside list-disc space-y-1">
+                <li>{t('openclaw.tips.permissions')}</li>
+                <li>{t('openclaw.tips.token_usage')}</li>
+              </ul>
+            </div>
           </div>
         )}
 

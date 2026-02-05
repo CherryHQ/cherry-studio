@@ -2550,6 +2550,11 @@
       "starting": "Starting",
       "stopped": "Stopped"
     },
+    "tips": {
+      "permissions": "OpenClaw has elevated system permissions. Use only in trusted environments",
+      "title": "Tips",
+      "token_usage": "AI agent mode may consume more tokens. Please monitor your usage"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
     "uninstall_progress": "Uninstall Progress",

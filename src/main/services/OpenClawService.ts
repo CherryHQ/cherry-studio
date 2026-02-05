@@ -1,12 +1,13 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -148,7 +149,29 @@ class OpenClawService {
     // Refresh cache to detect newly installed Node.js without app restart
     refreshShellEnvCache()
     const shellEnv = await getShellEnv()
-    const npmPath = await findCommandInShellEnv('npm', shellEnv)
+
+    // Log PATH for debugging npm detection issues
+    const envPath = shellEnv.PATH || shellEnv.Path || ''
+    logger.debug(`Checking npm availability with PATH: ${envPath}`)
+
+    let npmPath: string | null = null
+
+    if (isWin) {
+      // On Windows, npm is a .cmd file, use findExecutable with .cmd extension
+      npmPath = findExecutable('npm', {
+        extensions: ['.cmd', '.exe'],
+        commonPaths: [
+          path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
+          path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
+          path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
+        ]
+      })
+    } else {
+      npmPath = await findCommandInShellEnv('npm', shellEnv)
+    }
+
+    logger.debug(`npm check result: ${npmPath ? `found at ${npmPath}` : 'not found'}`)
+
     return {
       available: npmPath !== null,
       path: npmPath
@@ -404,7 +427,9 @@ class OpenClawService {
       })
 
       // Wait a bit and check if gateway started successfully
-      await this.waitForGateway()
+      // Gateway may take a few seconds to fully initialize, use 20 attempts (10 seconds)
+      // Use CLI status check for more reliable detection
+      await this.waitForGateway(20, openclawPath, shellEnv)
 
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
@@ -511,9 +536,8 @@ class OpenClawService {
    * Check if a port is open and accepting connections
    */
   private async checkPortOpen(port: number): Promise<boolean> {
-    const net = await import('net')
     return new Promise((resolve) => {
-      const socket = new net.Socket()
+      const socket = new Socket()
       socket.setTimeout(2000)
 
       socket.on('connect', () => {
@@ -589,7 +613,8 @@ class OpenClawService {
 
       // Get API key - for vertexai, get access token from VertexAIService
       // If multiple API keys are configured (comma-separated), use the first one
-      let apiKey = provider.apiKey.split(',')[0].trim()
+      // Some providers like Ollama and LM Studio don't require API keys
+      let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
           const vertexService = VertexAIService.getInstance()
@@ -814,15 +839,56 @@ class OpenClawService {
   }
 
   /**
-   * Wait for Gateway to start by checking port connectivity
+   * Check gateway status using `openclaw gateway status` command
+   * Returns true if gateway is running
+   */
+  private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
+    return new Promise((resolve) => {
+      const statusProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'status'], env)
+
+      let stdout = ''
+      const timeoutId = setTimeout(() => {
+        statusProcess.kill('SIGKILL')
+        resolve(false)
+      }, 5000)
+
+      statusProcess.stdout?.on('data', (data) => {
+        stdout += data.toString()
+      })
+
+      statusProcess.on('close', (code) => {
+        clearTimeout(timeoutId)
+        // Check if output contains "running" status
+        const isRunning = code === 0 && stdout.toLowerCase().includes('running')
+        resolve(isRunning)
+      })
+
+      statusProcess.on('error', () => {
+        clearTimeout(timeoutId)
+        resolve(false)
+      })
+    })
+  }
+
+  /**
+   * Wait for Gateway to start by checking gateway status via CLI command
+   * Falls back to port check if CLI check fails
    * @throws Error if gateway fails to start within the timeout
    */
-  private async waitForGateway(maxAttempts = 10): Promise<void> {
+  private async waitForGateway(maxAttempts = 10, openclawPath?: string, env?: Record<string, string>): Promise<void> {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, 500))
-      const isOpen = await this.checkPortOpen(this.gatewayPort)
-      if (isOpen) {
-        return
+      if (openclawPath && env) {
+        const isRunning = await this.checkGatewayStatus(openclawPath, env)
+        if (isRunning) {
+          logger.info(`Gateway is running (verified via CLI status check)`)
+          return
+        }
+      } else {
+        const isOpen = await this.checkPortOpen(this.gatewayPort)
+        if (isOpen) {
+          return
+        }
       }
     }
     throw new Error(`Gateway failed to start on port ${this.gatewayPort} after ${maxAttempts} attempts`)

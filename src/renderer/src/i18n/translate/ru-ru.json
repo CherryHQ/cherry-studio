@@ -2550,6 +2550,11 @@
       "starting": "Начало",
       "stopped": "Остановлено"
     },
+    "tips": {
+      "permissions": "[to be translated]:OpenClaw has elevated system permissions. Use only in trusted environments",
+      "title": "[to be translated]:Tips",
+      "token_usage": "[to be translated]:AI agent mode may consume more tokens. Please monitor your usage"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "Вы уверены, что хотите удалить OpenClaw? Нажмите OK для подтверждения.",
     "uninstall_progress": "Прогресс удаления",

@@ -203,26 +203,37 @@ export async function findCommandInShellEnv(
   })
 }
 
+export interface FindExecutableOptions {
+  /** File extensions to search for (default: ['.exe']) */
+  extensions?: string[]
+  /** Common paths to check as fallback */
+  commonPaths?: string[]
+}
+
 /**
  * Find executable in common paths or PATH environment variable
  * Based on Claude Code's implementation with security checks
- * @param name - Name of the executable to find (without .exe extension)
+ * @param name - Name of the executable to find (without extension)
+ * @param options - Optional configuration for extensions and common paths
  * @returns Full path to the executable or null if not found
  */
-export function findExecutable(name: string): string | null {
+export function findExecutable(name: string, options?: FindExecutableOptions): string | null {
   // This implementation uses where.exe which is Windows-only
   if (!isWin) {
     return null
   }
 
+  const extensions = options?.extensions ?? ['.exe']
+  const commonPaths = options?.commonPaths ?? []
+
   // Special handling for git - check common installation paths first
   if (name === 'git') {
-    const commonGitPaths = [
+    const defaultGitPaths = [
       path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
       path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
     ]
 
-    for (const gitPath of commonGitPaths) {
+    for (const gitPath of defaultGitPaths) {
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
@@ -230,12 +241,19 @@ export function findExecutable(name: string): string | null {
     }
   }
 
+  // Check user-provided common paths first
+  for (const commonPath of commonPaths) {
+    if (fs.existsSync(commonPath)) {
+      logger.debug(`Found ${name} at common path`, { path: commonPath })
+      return commonPath
+    }
+  }
+
   // Use where.exe to find executable in PATH
   // Use execFileSync to prevent command injection
   try {
-    // Add .exe extension for more precise matching on Windows
-    const executableName = `${name}.exe`
-    const result = execFileSync('where.exe', [executableName], {
+    // Search for the command name directly (where.exe will find all matching files)
+    const result = execFileSync('where.exe', [name], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -244,10 +262,18 @@ export function findExecutable(name: string): string | null {
     const paths = result.trim().split(/\r?\n/).filter(Boolean)
     const currentDir = process.cwd().toLowerCase()
 
-    // Security check: skip executables in current directory
+    // Filter by allowed extensions
     for (const exePath of paths) {
       // Trim whitespace from where.exe output
       const cleanPath = exePath.trim()
+      const lowerPath = cleanPath.toLowerCase()
+
+      // Check if the file has an allowed extension
+      const hasAllowedExtension = extensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
+      if (!hasAllowedExtension) {
+        continue
+      }
+
       const resolvedPath = path.resolve(cleanPath).toLowerCase()
       const execDir = path.dirname(resolvedPath).toLowerCase()
 
