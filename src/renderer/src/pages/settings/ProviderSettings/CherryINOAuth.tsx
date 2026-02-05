@@ -139,7 +139,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       // Case 1: No API key - show login button
       return (
         <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
-          {t('settings.provider.oauth.button', { provider: 'CherryIN' })}
+          {t('auth.login')}
         </Button>
       )
     }
@@ -154,7 +154,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
       // Show button to connect OAuth for better experience
       return (
         <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
-          {t('settings.provider.oauth.connect', { provider: 'CherryIN' })}
+          {t('auth.login')}
         </Button>
       )
     }
