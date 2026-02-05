@@ -4931,7 +4931,25 @@
         "official_website": "Официальный сайт"
       },
       "openai": {
-        "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"
+        "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce",
+        "apikey": "Clé API",
+        "auth_failed": "Échec de l’authentification OAuth OpenAI",
+        "auth_method": "Méthode d’authentification",
+        "auth_success": "Authentification OAuth OpenAI réussie",
+        "authenticated": "Authentifié",
+        "authenticating": "Authentification en cours",
+        "cancel": "Annuler",
+        "description": "Authentification OAuth",
+        "description_detail": "Cliquez sur « Démarrer l’autorisation » pour ouvrir la page de connexion OpenAI dans votre navigateur. Après vous être connecté, copiez l’URL complète qui redirige vers l’adresse locale (http://localhost:1455/auth/callback?...) et collez-la ici pour terminer l’authentification.",
+        "enter_redirect_url": "URL de redirection",
+        "logout": "Se déconnecter",
+        "logout_failed": "Échec de la déconnexion",
+        "logout_success": "Déconnecté",
+        "oauth": "OAuth Web",
+        "start_auth": "Démarrer l’autorisation",
+        "submit_url": "Envoyer l’URL",
+        "url_error": "L’analyse de l’URL ou l’authentification a échoué, veuillez réessayer",
+        "url_placeholder": "Collez l’URL complète commençant par http://localhost:1455/auth/callback"
       },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",

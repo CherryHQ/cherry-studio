@@ -4931,7 +4931,25 @@
         "official_website": "Official Website"
       },
       "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+        "alert": "OpenAI provider no longer supports the old calling methods. If you are using a third-party API, please create a new service provider.",
+        "apikey": "API key",
+        "auth_failed": "OpenAI OAuth authentication failed",
+        "auth_method": "Authentication Method",
+        "auth_success": "OpenAI OAuth authentication successful",
+        "authenticated": "Authenticated",
+        "authenticating": "Authenticating",
+        "cancel": "Cancel",
+        "description": "OAuth Authentication",
+        "description_detail": "Click 'Start Authorization' to open the OpenAI login page in your browser. After logging in, copy the entire URL that redirects to the local address (http://localhost:1455/auth/callback?...) and paste it here to complete authentication.",
+        "enter_redirect_url": "Redirect URL",
+        "logout": "Logout",
+        "logout_failed": "Logout failed",
+        "logout_success": "Logged out",
+        "oauth": "Web OAuth",
+        "start_auth": "Start Authorization",
+        "submit_url": "Submit URL",
+        "url_error": "URL parsing or authentication failed, please try again",
+        "url_placeholder": "Paste the full URL starting with http://localhost:1455/auth/callback"
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
