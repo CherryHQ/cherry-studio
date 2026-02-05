@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Button, Modal, Skeleton } from 'antd'
+import { Button, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
@@ -99,11 +99,9 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   }, [updateProvider, t])
 
   const handleLogout = useCallback(() => {
-    Modal.confirm({
+    window.modal.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
-      okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
       centered: true,
       onOk: async () => {
         setIsLoggingOut(true)

@@ -61,32 +61,35 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({
 
   const handleUninstall = useCallback(
     (plugin: InstalledPlugin) => {
-      const confirmed = window.confirm(
-        t('plugins.confirm_uninstall', { name: plugin.metadata.name || plugin.filename })
-      )
-
-      if (confirmed) {
-        setUninstallingPlugin(plugin.filename)
-        onUninstall(plugin.filename, plugin.type)
-        setTimeoutTimer('uninstall', () => setUninstallingPlugin(null), 2000)
-      }
+      window.modal.confirm({
+        title: t('plugins.confirm_uninstall', { name: plugin.metadata.name || plugin.filename }),
+        centered: true,
+        onOk: () => {
+          setUninstallingPlugin(plugin.filename)
+          onUninstall(plugin.filename, plugin.type)
+          setTimeoutTimer('uninstall', () => setUninstallingPlugin(null), 2000)
+        }
+      })
     },
     [onUninstall, t, setTimeoutTimer]
   )
 
   const handleUninstallPackage = useCallback(
     (packageName: string) => {
-      const confirmed = window.confirm(
-        t('plugins.confirm_uninstall_package', { name: packageName }) ||
-          `Are you sure you want to uninstall the entire package "${packageName}"?`
-      )
-
-      if (confirmed && onUninstallPackage) {
-        setUninstallingPackageName(packageName)
-        onUninstallPackage(packageName)
-        // Reset after a delay to allow the operation to complete
-        setTimeoutTimer('uninstall-package', () => setUninstallingPackageName(null), 2000)
-      }
+      window.modal.confirm({
+        title:
+          t('plugins.confirm_uninstall_package', { name: packageName }) ||
+          `Are you sure you want to uninstall the entire package "${packageName}"?`,
+        centered: true,
+        onOk: () => {
+          if (onUninstallPackage) {
+            setUninstallingPackageName(packageName)
+            onUninstallPackage(packageName)
+            // Reset after a delay to allow the operation to complete
+            setTimeoutTimer('uninstall-package', () => setUninstallingPackageName(null), 2000)
+          }
+        }
+      })
     },
     [onUninstallPackage, t, setTimeoutTimer]
   )
