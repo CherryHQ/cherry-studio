@@ -17,10 +17,10 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
-import AssistantsDrawer from './components/AssistantsDrawer'
-import ChatNavbarContent from './components/ChatNavbarContent'
-import SettingsButton from './components/SettingsButton'
-import UpdateAppButton from './components/UpdateAppButton'
+import AssistantsDrawer from '../AssistantsDrawer'
+import ChatNavbarContent from '../ChatNavbarContent'
+import SettingsButton from '../SettingsButton'
+import UpdateAppButton from '../UpdateAppButton'
 
 interface Props {
   activeAssistant: Assistant
