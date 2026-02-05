@@ -364,6 +364,9 @@ class OpenClawService {
     this.gatewayStatus = 'starting'
 
     try {
+      // Use shell environment to ensure OpenClaw can find Node.js and other dependencies
+      const shellEnv = await getShellEnv()
+
       // Check if openclaw binary exists in PATH
       const openclawPath = await this.findOpenClawBinary()
       if (!openclawPath) {
@@ -375,11 +378,11 @@ class OpenClawService {
       }
 
       // Stop any existing gateway first (from previous sessions that didn't clean up)
-      await this.stopExistingGateway(openclawPath)
+      await this.stopExistingGateway(openclawPath, shellEnv)
 
       // Start the gateway process
       // On Windows, .cmd files need to be executed via cmd.exe
-      this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)])
+      this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)], shellEnv)
 
       this.gatewayProcess.stdout?.on('data', (data) => {
         logger.info('Gateway stdout:', data.toString())
@@ -441,7 +444,8 @@ class OpenClawService {
       // Also try CLI command to stop any gateway (in case of orphaned process)
       const openclawPath = await this.findOpenClawBinary()
       if (openclawPath) {
-        await this.stopExistingGateway(openclawPath)
+        const shellEnv = await getShellEnv()
+        await this.stopExistingGateway(openclawPath, shellEnv)
       }
 
       this.gatewayStatus = 'stopped'
@@ -770,29 +774,29 @@ class OpenClawService {
    * Spawn OpenClaw process with proper Windows handling
    * On Windows, .cmd files and npm shims (no extension) need to be executed via cmd.exe
    */
-  private spawnOpenClaw(openclawPath: string, args: string[]): ChildProcess {
+  private spawnOpenClaw(openclawPath: string, args: string[], env: Record<string, string>): ChildProcess {
     const lowerPath = openclawPath.toLowerCase()
     // On Windows, use cmd.exe for .cmd files and files without .exe extension (npm shims)
     if (isWin && !lowerPath.endsWith('.exe')) {
       return spawn('cmd.exe', ['/c', openclawPath, ...args], {
         detached: false,
         stdio: 'pipe',
-        env: { ...process.env }
+        env
       })
     }
     return spawn(openclawPath, args, {
       detached: false,
       stdio: 'pipe',
-      env: { ...process.env }
+      env
     })
   }
 
   /**
    * Stop any existing gateway from previous sessions using CLI command
    */
-  private async stopExistingGateway(openclawPath: string): Promise<void> {
+  private async stopExistingGateway(openclawPath: string, env: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
-      const stopProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'])
+      const stopProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'], env)
 
       stopProcess.on('exit', () => {
         // Give a moment for the port to be released
