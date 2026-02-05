@@ -1,3 +1,4 @@
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -10,7 +11,6 @@ import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { styled } from 'styled-components'
 
-import NavbarIcon from '../../../../components/NavbarIcon'
 import SettingsButton from '../SettingsButton'
 import UpdateAppButton from '../UpdateAppButton'
 
