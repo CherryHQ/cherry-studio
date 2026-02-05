@@ -5001,18 +5001,6 @@
     },
     "title": "設定",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "星河社區訪問令牌",
-          "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址",
-          "paddleocr_url_label": "PaddleOCR 官方網站"
-        },
-        "provider": "文件處理供應商",
-        "provider_placeholder": "選擇一個文件處理供應商",
-        "title": "文件處理",
-        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
-      },
       "title": "其他設定",
       "websearch": {
         "api_key_required": {

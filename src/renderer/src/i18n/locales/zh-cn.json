@@ -5001,18 +5001,6 @@
     },
     "title": "设置",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "api_url": "API URL",
-          "api_url_label": "获取访问令牌及API URL",
-          "paddleocr_url_label": "PaddleOCR 官网"
-        },
-        "provider": "文档处理服务商",
-        "provider_placeholder": "选择一个文档处理服务商",
-        "title": "文档处理",
-        "tooltip": "在设置 -> 工具中设置文档处理服务商，文档处理可以有效提升复杂格式文档与扫描版文档的检索效果"
-      },
       "title": "其他设置",
       "websearch": {
         "api_key_required": {

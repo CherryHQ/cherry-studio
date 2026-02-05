@@ -5001,18 +5001,6 @@
     },
     "title": "Configuración",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Token de acceso de la Comunidad AI Studio",
-          "api_url": "URL de la API",
-          "api_url_label": "Obtener el token de acceso y la URL de la API",
-          "paddleocr_url_label": "Sitio web oficial de PaddleOCR"
-        },
-        "provider": "Proveedor de servicios de preprocesamiento de documentos",
-        "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
-        "title": "Preprocesamiento de documentos",
-        "tooltip": "Configure un proveedor de preprocesamiento de documentos o OCR en Configuración -> Herramientas. El preprocesamiento de documentos puede mejorar significativamente la eficacia de búsqueda en documentos con formatos complejos o versiones escaneadas. El OCR solo puede reconocer texto en imágenes o en archivos PDF escaneados."
-      },
       "title": "Configuración de Herramientas",
       "websearch": {
         "api_key_required": {

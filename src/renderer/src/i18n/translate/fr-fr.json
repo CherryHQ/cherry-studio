@@ -5001,18 +5001,6 @@
     },
     "title": "Paramètres",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Jeton d’accès à la communauté AI Studio",
-          "api_url": "URL de l’API",
-          "api_url_label": "Obtenir le jeton d’accès et l’URL de l’API",
-          "paddleocr_url_label": "Site officiel de PaddleOCR"
-        },
-        "provider": "fournisseur de services de prétraitement de documents",
-        "provider_placeholder": "Choisissez un prestataire de traitement de documents",
-        "title": "Prétraitement des documents",
-        "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
-      },
       "title": "Paramètres des outils",
       "websearch": {
         "api_key_required": {

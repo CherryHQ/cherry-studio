@@ -5001,18 +5001,6 @@
     },
     "title": "設定",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する",
-          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト"
-        },
-        "provider": "プレプロセスプロバイダー",
-        "provider_placeholder": "前処理プロバイダーを選択してください",
-        "title": "前処理",
-        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
-      },
       "title": "その他の設定",
       "websearch": {
         "api_key_required": {

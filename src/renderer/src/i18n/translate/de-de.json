@@ -5001,18 +5001,6 @@
     },
     "title": "Einstellungen",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Zugriffstoken der AI Studio Community",
-          "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "paddleocr_url_label": "Offizielle Website von PaddleOCR"
-        },
-        "provider": "Dokumentverarbeitungsanbieter",
-        "provider_placeholder": "Einen Dokumentverarbeitungsanbieter auswählen",
-        "title": "Dokumentverarbeitung",
-        "tooltip": "Setzen Sie den Dokumentverarbeitungsanbieter in den Einstellungen -> Tools, um die Suche nach komplexen Formatdokumenten und gescannten Dokumenten zu verbessern"
-      },
       "title": "Weitere Einstellungen",
       "websearch": {
         "api_key_required": {

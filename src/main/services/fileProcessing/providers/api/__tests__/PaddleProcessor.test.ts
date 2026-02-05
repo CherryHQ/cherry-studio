@@ -2,9 +2,8 @@
  * PaddleProcessor Tests
  *
  * Tests for the PaddleOCR processor covering:
- * - extractText flow
+ * - async job submission
  * - API calls
- * - Response validation
  * - Error handling
  */
 
@@ -23,11 +22,13 @@ vi.mock('@main/utils/ocr', () => ({
   loadOcrImage: vi.fn().mockResolvedValue(Buffer.from('mock image content'))
 }))
 
-const assertTextResult = (result: ProcessingResult): Extract<ProcessingResult, { text: string }> => {
-  if (!('text' in result) || typeof result.text !== 'string') {
-    throw new Error('Expected text in processing result')
+const assertPendingResult = (
+  result: ProcessingResult
+): Extract<ProcessingResult, { metadata: { providerTaskId: string } }> => {
+  if (!('metadata' in result) || !result.metadata?.providerTaskId) {
+    throw new Error('Expected providerTaskId in processing result')
   }
-  return result
+  return result as Extract<ProcessingResult, { metadata: { providerTaskId: string } }>
 }
 
 describe('PaddleProcessor', () => {
@@ -49,7 +50,8 @@ describe('PaddleProcessor', () => {
           feature: 'text_extraction',
           input: 'image',
           output: 'text',
-          apiHost: 'http://localhost:8080/ocr'
+          apiHost: 'https://paddleocr.aistudio-app.com',
+          modelId: 'PP-OCRv5'
         }
       ],
       apiKeys: ['test-api-key']
@@ -85,40 +87,65 @@ describe('PaddleProcessor', () => {
   })
 
   describe('extractText', () => {
-    it('should extract text from image', async () => {
+    it('should submit async job and return providerTaskId', async () => {
       vi.mocked(net.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          result: {
-            ocrResults: [
-              {
-                prunedResult: {
-                  rec_texts: ['Hello', 'World']
-                }
-              }
-            ]
+          code: 0,
+          msg: 'Success',
+          data: {
+            jobId: 'job-123'
           }
         })
       } as Response)
 
       const result = await processor.extractText(mockFile, mockConfig, mockContext)
+      const payload = JSON.parse(assertPendingResult(result).metadata.providerTaskId) as Record<string, unknown>
 
-      expect(assertTextResult(result).text).toBe('Hello\nWorld')
+      expect(payload.jobId).toBe('job-123')
+      expect(payload.feature).toBe('text_extraction')
+      expect(payload.fileId).toBe(mockFile.id)
+      expect(payload.originalName).toBe(mockFile.origin_name)
+      expect(payload.modelId).toBe('PP-OCRv5')
     })
 
-    it('should return empty text when no OCR results', async () => {
+    it('should include Authorization header when API key is provided', async () => {
       vi.mocked(net.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          result: {
-            ocrResults: []
+          code: 0,
+          data: {
+            jobId: 'job-123'
           }
         })
       } as Response)
 
-      const result = await processor.extractText(mockFile, mockConfig, mockContext)
+      await processor.extractText(mockFile, mockConfig, mockContext)
 
-      expect(assertTextResult(result).text).toBe('')
+      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
+      const options = fetchCall[1] as RequestInit
+      const headers = options.headers as Record<string, string>
+      expect(headers['Authorization']).toBe('Bearer test-api-key')
+    })
+
+    it('should send multipart payload', async () => {
+      vi.mocked(net.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 0,
+          data: {
+            jobId: 'job-123'
+          }
+        })
+      } as Response)
+
+      await processor.extractText(mockFile, mockConfig, mockContext)
+
+      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
+      const options = fetchCall[1] as RequestInit
+      const headers = options.headers as Record<string, string>
+
+      expect(headers['content-type'] ?? headers['Content-Type']).toContain('multipart/form-data')
     })
 
     it('should throw error for non-image files', async () => {
@@ -143,7 +170,7 @@ describe('PaddleProcessor', () => {
       } as Response)
 
       await expect(processor.extractText(mockFile, mockConfig, mockContext)).rejects.toThrow(
-        'OCR service error: 500 Internal Server Error'
+        'PaddleOCR async job error: 500 Internal Server Error'
       )
     })
 
@@ -168,86 +195,12 @@ describe('PaddleProcessor', () => {
       )
     })
 
-    it('should work without API key', async () => {
+    it('should throw when API key is missing', async () => {
       const configWithoutKey = { ...mockConfig, apiKeys: undefined }
 
-      vi.mocked(net.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          result: {
-            ocrResults: [
-              {
-                prunedResult: {
-                  rec_texts: ['Test text']
-                }
-              }
-            ]
-          }
-        })
-      } as Response)
-
-      const result = await processor.extractText(mockFile, configWithoutKey, mockContext)
-
-      expect(assertTextResult(result).text).toBe('Test text')
-
-      // Verify Authorization header is not set
-      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
-      const options = fetchCall[1] as RequestInit
-      const headers = options.headers as Record<string, string>
-      expect(headers['Authorization']).toBeUndefined()
-    })
-
-    it('should include Authorization header when API key is provided', async () => {
-      vi.mocked(net.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          result: {
-            ocrResults: [
-              {
-                prunedResult: {
-                  rec_texts: ['Test']
-                }
-              }
-            ]
-          }
-        })
-      } as Response)
-
-      await processor.extractText(mockFile, mockConfig, mockContext)
-
-      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
-      const options = fetchCall[1] as RequestInit
-      const headers = options.headers as Record<string, string>
-      expect(headers['Authorization']).toBe('token test-api-key')
-    })
-
-    it('should send correct payload structure', async () => {
-      vi.mocked(net.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          result: {
-            ocrResults: [
-              {
-                prunedResult: {
-                  rec_texts: ['Test']
-                }
-              }
-            ]
-          }
-        })
-      } as Response)
-
-      await processor.extractText(mockFile, mockConfig, mockContext)
-
-      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
-      const options = fetchCall[1] as RequestInit
-      const body = JSON.parse(options.body as string)
-
-      expect(body.file).toBeDefined() // base64 encoded image
-      expect(body.fileType).toBe(1) // FILE_TYPE_IMAGE
-      expect(body.useDocOrientationClassify).toBe(false)
-      expect(body.useDocUnwarping).toBe(false)
-      expect(body.visualize).toBe(false)
+      await expect(processor.extractText(mockFile, configWithoutKey, mockContext)).rejects.toThrow(
+        'API key is required for paddleocr processor'
+      )
     })
 
     it('should handle network errors', async () => {

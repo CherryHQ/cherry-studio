@@ -176,7 +176,15 @@ export const PRESETS_FILE_PROCESSORS = [
         feature: 'text_extraction',
         input: 'image',
         output: 'text',
-        apiHost: ''
+        apiHost: 'https://paddleocr.aistudio-app.com/',
+        modelId: 'PP-OCRv5'
+      },
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'https://paddleocr.aistudio-app.com/',
+        modelId: 'PaddleOCR-VL-1.5'
       }
     ]
   },

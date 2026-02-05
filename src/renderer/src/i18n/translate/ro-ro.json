@@ -5001,18 +5001,6 @@
     },
     "title": "Setări",
     "tool": {
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Token de acces al Comunității AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Obțineți token-ul de acces și URL-ul API",
-          "paddleocr_url_label": "Site-ul oficial PaddleOCR"
-        },
-        "provider": "Furnizor procesare documente",
-        "provider_placeholder": "Alege un furnizor de procesare documente",
-        "title": "Procesare documente",
-        "tooltip": "În Setări -> Instrumente, setează un furnizor de servicii de procesare a documentelor. Procesarea documentelor poate îmbunătăți eficient performanța de recuperare a documentelor cu format complex și a documentelor scanate."
-      },
       "title": "Alte setări",
       "websearch": {
         "api_key_required": {
