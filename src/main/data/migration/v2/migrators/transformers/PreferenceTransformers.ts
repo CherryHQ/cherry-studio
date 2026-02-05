@@ -320,6 +320,7 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
   const userConfig: FileProcessorOverride = {}
   let hasUserConfig = false
   const capabilities: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
+  const isPaddleOcr = provider.id === 'paddleocr'
 
   // Extract API config (for API-based providers like paddleocr)
   if (provider.config?.api?.apiKey) {
@@ -327,34 +328,40 @@ function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverrid
     hasUserConfig = true
   }
 
-  // Only store apiHost if different from template default
-  const defaultOcrApiHost = getTemplateDefaults(provider.id, 'text_extraction').apiHost
-  const apiHost = normalizeApiHost(provider.config?.api?.apiHost)
-  if (apiHost && apiHost !== defaultOcrApiHost) {
-    capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost }
-    hasUserConfig = true
+  if (!isPaddleOcr) {
+    // Only store apiHost if different from template default
+    const defaultOcrApiHost = getTemplateDefaults(provider.id, 'text_extraction').apiHost
+    const apiHost = normalizeApiHost(provider.config?.api?.apiHost)
+    if (apiHost && apiHost !== defaultOcrApiHost) {
+      capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost }
+      hasUserConfig = true
+    }
   }
 
-  // Extract PaddleOCR specific config (apiUrl as apiHost)
-  const apiUrlHost = normalizeApiHost(provider.config?.apiUrl)
-  if (apiUrlHost) {
-    capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost: apiUrlHost }
-    hasUserConfig = true
+  if (!isPaddleOcr) {
+    // Extract PaddleOCR specific config (apiUrl as apiHost)
+    const apiUrlHost = normalizeApiHost(provider.config?.apiUrl)
+    if (apiUrlHost) {
+      capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost: apiUrlHost }
+      hasUserConfig = true
+    }
   }
   if (provider.config?.accessToken) {
     userConfig.apiKeys = [provider.config.accessToken]
     hasUserConfig = true
   }
 
-  // Extract Tesseract language config (convert object to array)
-  if (provider.config?.langs && typeof provider.config.langs === 'object') {
-    const enabledLangs = Object.entries(provider.config.langs)
-      .filter(([, enabled]) => enabled === true)
-      .map(([lang]) => lang)
+  if (!isPaddleOcr) {
+    // Extract Tesseract language config (convert object to array)
+    if (provider.config?.langs && typeof provider.config.langs === 'object') {
+      const enabledLangs = Object.entries(provider.config.langs)
+        .filter(([, enabled]) => enabled === true)
+        .map(([lang]) => lang)
 
-    if (enabledLangs.length > 0) {
-      userConfig.options = { langs: enabledLangs }
-      hasUserConfig = true
+      if (enabledLangs.length > 0) {
+        userConfig.options = { langs: enabledLangs }
+        hasUserConfig = true
+      }
     }
   }
 
@@ -375,27 +382,30 @@ function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FilePr
   let hasUserConfig = false
   const capabilityOverride: CapabilityOverride = {}
   let hasCapabilityOverride = false
+  const isPaddleOcr = provider.id === 'paddleocr'
 
   if (provider.apiKey) {
     userConfig.apiKeys = [provider.apiKey]
     hasUserConfig = true
   }
 
-  // Only store apiHost if different from template default
-  const defaults = getTemplateDefaults(provider.id, 'markdown_conversion')
-  const apiHost = normalizeApiHost(provider.apiHost)
-  if (apiHost && apiHost !== defaults.apiHost) {
-    capabilityOverride.apiHost = apiHost
-    hasCapabilityOverride = true
-    hasUserConfig = true
-  }
+  if (!isPaddleOcr) {
+    // Only store apiHost if different from template default
+    const defaults = getTemplateDefaults(provider.id, 'markdown_conversion')
+    const apiHost = normalizeApiHost(provider.apiHost)
+    if (apiHost && apiHost !== defaults.apiHost) {
+      capabilityOverride.apiHost = apiHost
+      hasCapabilityOverride = true
+      hasUserConfig = true
+    }
 
-  // Only store modelId if different from template default
-  const modelId = normalizeModelId(provider.model)
-  if (modelId && modelId !== defaults.modelId) {
-    capabilityOverride.modelId = modelId
-    hasCapabilityOverride = true
-    hasUserConfig = true
+    // Only store modelId if different from template default
+    const modelId = normalizeModelId(provider.model)
+    if (modelId && modelId !== defaults.modelId) {
+      capabilityOverride.modelId = modelId
+      hasCapabilityOverride = true
+      hasUserConfig = true
+    }
   }
 
   // Add capability override if any field was set

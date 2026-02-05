@@ -163,8 +163,7 @@ describe('PreferenceTransformers', () => {
 
       expect(result['feature.file_processing.overrides']).toEqual({
         paddleocr: {
-          apiKeys: ['paddle-key'],
-          capabilities: { text_extraction: { apiHost: 'https://ocr.example.com' } }
+          apiKeys: ['paddle-key']
         },
         mistral: {
           apiKeys: ['mistral-key']
@@ -174,7 +173,7 @@ describe('PreferenceTransformers', () => {
       expect(result['feature.file_processing.default_markdown_conversion_processor']).toBe('mistral')
     })
 
-    it('should map apiUrl, accessToken, and langs overrides', () => {
+    it('should map accessToken for paddleocr and ignore apiUrl/langs', () => {
       const result = transformFileProcessingConfig({
         ocrProviders: [
           {
@@ -199,9 +198,7 @@ describe('PreferenceTransformers', () => {
 
       expect(result['feature.file_processing.overrides']).toEqual({
         paddleocr: {
-          apiKeys: ['paddle-token'],
-          capabilities: { text_extraction: { apiHost: 'https://api.paddle.example.com' } },
-          options: { langs: ['eng', 'jpn'] }
+          apiKeys: ['paddle-token']
         }
       })
       expect(result['feature.file_processing.default_text_extraction_processor']).toBe('paddleocr')
