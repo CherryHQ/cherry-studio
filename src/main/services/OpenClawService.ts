@@ -198,6 +198,9 @@ class OpenClawService {
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
+    // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
+    const shellEnv = await getShellEnv()
+
     return new Promise((resolve) => {
       try {
         let installProcess: ChildProcess
@@ -205,12 +208,12 @@ class OpenClawService {
         if (isWin) {
           installProcess = spawn('cmd.exe', ['/c', npmCommand], {
             stdio: 'pipe',
-            env: { ...process.env }
+            env: shellEnv
           })
         } else {
           installProcess = spawn('/bin/bash', ['-c', npmCommand], {
             stdio: 'pipe',
-            env: { ...process.env }
+            env: shellEnv
           })
         }
 
@@ -279,6 +282,9 @@ class OpenClawService {
     logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
+    // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
+    const shellEnv = await getShellEnv()
+
     return new Promise((resolve) => {
       try {
         let uninstallProcess: ChildProcess
@@ -286,12 +292,12 @@ class OpenClawService {
         if (isWin) {
           uninstallProcess = spawn('cmd.exe', ['/c', npmCommand], {
             stdio: 'pipe',
-            env: { ...process.env }
+            env: shellEnv
           })
         } else {
           uninstallProcess = spawn('/bin/bash', ['-c', npmCommand], {
             stdio: 'pipe',
-            env: { ...process.env }
+            env: shellEnv
           })
         }
 
