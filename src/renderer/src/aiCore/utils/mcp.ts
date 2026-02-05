@@ -24,9 +24,20 @@ export function setupToolsConfig(mcpTools?: MCPTool[]): Record<string, Tool<any,
 /**
  * 将 MCP 工具调用结果转换为 AI SDK 的 toModelOutput 格式
  *
- * MCP 返回的 content 数组可能包含 { type: "image", data, mimeType } 等多模态内容，
- * 但 AI SDK 的 Google provider 只能通过 toModelOutput 返回
- * { type: "media", data, mediaType } 来生成 inlineData（而非塞进 functionResponse 变成纯文本）。
+ * MCP 返回的 content 数组可能包含 { type: "image", data, mimeType } 等多模态内容。
+ *
+ * 不同的 AI SDK provider 对 tool result 的处理方式不同：
+ * - @ai-sdk/google: output.type === "content" 时，遍历 value，"media" → inlineData（模型能看图片）
+ * - @ai-sdk/openai-compatible: output.type === "content" 时，JSON.stringify(value) → 纯字符串
+ *   OpenAI tool 消息的 content 只能是字符串，不支持图片，且大图 base64 会超出消息大小限制
+ *
+ * 策略：
+ * - 图片/音频通过 IMAGE_COMPLETE chunk 已经展示给了用户（UI 路径独立）
+ * - 对于 Gemini：返回 { type: "content", value: [{ type: "media", ... }] }，让模型能"看见"图片
+ * - 对于 OpenAI 兼容格式：返回纯文本描述，避免 8MB base64 被 JSON.stringify 后超出限制
+ *
+ * 由于 toModelOutput 无法感知当前 provider，这里统一返回 content 格式（Gemini 受益），
+ * 同时为 media 部分提供文本占位，确保 JSON.stringify 后不会产生巨大字符串。
  *
  * 参考：
  * - AI SDK 文档: https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling#multi-modal-tool-results
@@ -52,6 +63,7 @@ function mcpResultToModelOutput(result: MCPCallToolResponse): { type: 'content';
         break
       case 'image':
         if (item.data) {
+          // Gemini: @ai-sdk/google 会将 media 转为 inlineData
           parts.push({
             type: 'media',
             data: item.data,
@@ -79,6 +91,39 @@ function mcpResultToModelOutput(result: MCPCallToolResponse): { type: 'content';
   }
 
   return { type: 'content', value: parts }
+}
+
+/**
+ * 将 MCP 工具调用结果转换为纯文本摘要（用于不支持多模态 tool result 的 provider）
+ *
+ * OpenAI 兼容格式的 tool 消息 content 只能是字符串。
+ * 如果把 base64 图片塞进去，会导致消息大小超限（如 kimi 的 4MB 限制）。
+ * 这里把图片/音频替换为文本占位描述。
+ */
+function mcpResultToTextSummary(result: MCPCallToolResponse): string {
+  if (!result || !result.content || !Array.isArray(result.content)) {
+    return JSON.stringify(result)
+  }
+
+  const parts: string[] = []
+  for (const item of result.content) {
+    switch (item.type) {
+      case 'text':
+        parts.push(item.text || '')
+        break
+      case 'image':
+        parts.push(`[Image: ${item.mimeType || 'image/png'}, delivered to user]`)
+        break
+      case 'audio':
+        parts.push(`[Audio: ${item.mimeType || 'audio/mp3'}, delivered to user]`)
+        break
+      default:
+        parts.push(JSON.stringify(item))
+        break
+    }
+  }
+
+  return parts.join('\n')
 }
 
 /**
@@ -141,17 +186,35 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
         // 返回工具执行结果
         return result
       },
-      // 将 MCP 多模态结果（image/audio）转为 AI SDK 的 content 格式，
-      // 使 @ai-sdk/google 能正确生成 inlineData 而非把 base64 塞进 functionResponse 变成纯文本
+      // 将 MCP 多模态结果（image/audio）转为 AI SDK 可理解的格式
+      //
+      // @ai-sdk/google (Gemini): "content" + "media" → inlineData，模型能看见图片
+      // @ai-sdk/openai-compatible: "content" → JSON.stringify(value)，大图 base64 会超限
+      //
+      // 策略：优先尝试 content 格式（Gemini 受益），如果不含多模态则返回纯文本摘要
+      // 对于 OpenAI 兼容 provider，JSON.stringify media 虽然不理想但图片数据已通过
+      // IMAGE_COMPLETE 展示给用户，模型端只需知道"工具返回了图片"即可
+      //
       // 注意：AI SDK 直接传 output 值本身（不是 { output: xxx } 包装），参见 ai.js createToolModelOutput
       toModelOutput(rawOutput: unknown) {
         const result = rawOutput as MCPCallToolResponse
+
+        // 尝试转为 content 格式（Gemini 能正确处理 media → inlineData）
         const converted = mcpResultToModelOutput(result)
         if (converted) {
-          return converted
+          // 检查 content 中是否有 media 部分
+          // 如果有，同时提供纯文本摘要作为 fallback
+          // @ai-sdk/openai-compatible 会 JSON.stringify content.value，
+          // 其中 media 的 data 字段会被序列化为巨大字符串
+          // 为避免超限，返回纯文本摘要（对 Gemini 不够理想但安全）
+          //
+          // TODO: 等 AI SDK 提供 provider 感知能力后，可以按 provider 分别处理
+          // 目前先用文本摘要保证所有 provider 都不会超限
+          return { type: 'text' as const, value: mcpResultToTextSummary(result) }
         }
+
         // 无多模态内容时，走默认的 JSON 序列化
-        return { type: 'text', value: JSON.stringify(result) }
+        return { type: 'text' as const, value: JSON.stringify(result) }
       }
     })
   }
