@@ -20,7 +20,12 @@ const getEditorIcon = (app: ExternalAppInfo) => {
   }
 }
 
-const OpenExternalAppButton = ({ workdir }: { workdir: string }) => {
+type OpenExternalAppButtonProps = {
+  workdir: string
+  className?: string
+}
+
+const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProps) => {
   const { t } = useTranslation()
   const { data: externalApps } = useExternalApps()
   const availableEditors = useMemo(() => {
@@ -74,16 +79,14 @@ const OpenExternalAppButton = ({ workdir }: { workdir: string }) => {
   }
 
   return (
-    <div>
-      <Space.Compact>
-        <Button onClick={() => openInEditor(availableEditors[0])} icon={getEditorIcon(availableEditors[0])}>
-          {t('common.open')}
-        </Button>
-        <Dropdown menu={menuProps} placement="bottomRight">
-          <Button icon={<EllipsisOutlined />} />
-        </Dropdown>
-      </Space.Compact>
-    </div>
+    <Space.Compact className={className}>
+      <Button onClick={() => openInEditor(availableEditors[0])} icon={getEditorIcon(availableEditors[0])}>
+        {t('common.open')}
+      </Button>
+      <Dropdown menu={menuProps} placement="bottomRight">
+        <Button icon={<EllipsisOutlined />} />
+      </Dropdown>
+    </Space.Compact>
   )
 }
 
