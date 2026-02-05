@@ -10,7 +10,7 @@ import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { styled } from 'styled-components'
 
-import NavbarIcon from '../NavbarIcon'
+import NavbarIcon from '../../../../components/NavbarIcon'
 import SettingsButton from '../SettingsButton'
 import UpdateAppButton from '../UpdateAppButton'
 

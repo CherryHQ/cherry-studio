@@ -5,8 +5,8 @@ import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 
+import NavbarIcon from '../../../components/NavbarIcon'
 import HomeSettings from '../Tabs/SettingsTab'
-import NavbarIcon from './NavbarIcon'
 
 interface Props {
   assistant: Assistant

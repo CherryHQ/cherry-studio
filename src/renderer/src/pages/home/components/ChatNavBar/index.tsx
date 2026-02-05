@@ -13,9 +13,9 @@ import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 
+import NavbarIcon from '../../../../components/NavbarIcon'
 import AssistantsDrawer from '../AssistantsDrawer'
 import ChatNavbarContent from '../ChatNavbarContent'
-import NavbarIcon from '../NavbarIcon'
 import Tools from './Tools'
 
 interface Props {

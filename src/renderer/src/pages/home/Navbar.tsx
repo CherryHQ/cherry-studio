@@ -16,8 +16,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
+import NavbarIcon from '../../components/NavbarIcon'
 import AssistantsDrawer from './components/AssistantsDrawer'
-import NavbarIcon from './components/NavbarIcon'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {

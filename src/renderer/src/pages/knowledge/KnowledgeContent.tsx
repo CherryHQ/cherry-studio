@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import NavbarIcon from '../home/components/NavbarIcon'
+import NavbarIcon from '../../components/NavbarIcon'
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
