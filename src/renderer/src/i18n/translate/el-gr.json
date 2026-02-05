@@ -4850,7 +4850,7 @@
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
-      "balance": "[to be translated]:Balance",
+      "balance": "Ισορροπία",
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -4926,29 +4926,29 @@
         "title": "Σχόλιο Μοντέλου"
       },
       "oauth": {
-        "balance": "[to be translated]:Balance",
+        "balance": "Ισορροπία",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "cherryIn": {
-          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
-          "logged_in": "[to be translated]:Logged in via OAuth",
-          "login_button": "[to be translated]:Login with OAuth",
-          "logout_button": "[to be translated]:Logout",
-          "title": "[to be translated]:OAuth Login"
+          "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
+          "logged_in": "Σύνδεση μέσω OAuth",
+          "login_button": "Σύνδεση με OAuth",
+          "logout_button": "Αποσύνδεση",
+          "title": "Σύνδεση μέσω OAuth"
         },
-        "connect": "[to be translated]:Connect {{provider}}",
+        "connect": "Σύνδεση {{provider}}",
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
         "error": "Αποτυχία πιστοποίησης",
-        "logged_in": "[to be translated]:Logged in",
-        "logout": "[to be translated]:Logout",
-        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
-        "logout_success": "[to be translated]:Successfully logged out",
-        "logout_warning": "[to be translated]:Logged out locally, but server token revocation may have failed",
+        "logged_in": "Συνδεδεμένος",
+        "logout": "Αποσύνδεση",
+        "logout_confirm": "Είσαι σίγουρος ότι θέλεις να αποσυνδεθείς;",
+        "logout_success": "Η αποσύνδεση πραγματοποιήθηκε με επιτυχία",
+        "logout_warning": "Αποσυνδέθηκε τοπικά, αλλά η ανάκληση του διακριτικού διακομιστή ενδέχεται να απέτυχε",
         "official_website": "Επίσημη ιστοσελίδα",
-        "provided_by": "[to be translated]:Provided by",
-        "provided_by_suffix": "[to be translated]:",
-        "requests": "[to be translated]:Requests",
-        "topup": "[to be translated]:Top Up",
-        "usage_title": "[to be translated]:Usage"
+        "provided_by": "Παρέχεται από",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Greek.",
+        "requests": "Αιτήματα",
+        "topup": "Αναπλήρωση",
+        "usage_title": "Χρήση"
       },
       "openai": {
         "alert": "Ο πάροχος OpenAI δεν υποστηρίζει πλέον την παλιά μέθοδο κλήσης, παρακαλώ δημιουργήστε έναν νέο πάροχο API αν χρησιμοποιείτε τρίτους"

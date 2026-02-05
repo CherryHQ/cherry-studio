@@ -4850,7 +4850,7 @@
           "tip": "Version de l'API Azure OpenAI, veuillez saisir une version v1 si vous souhaitez utiliser l'API de réponse"
         }
       },
-      "balance": "[to be translated]:Balance",
+      "balance": "Équilibre",
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
@@ -4926,29 +4926,29 @@
         "title": "Примечание к модели"
       },
       "oauth": {
-        "balance": "[to be translated]:Balance",
+        "balance": "Équilibre",
         "button": "Войти через аккаунт {{provider}}",
         "cherryIn": {
-          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
-          "logged_in": "[to be translated]:Logged in via OAuth",
-          "login_button": "[to be translated]:Login with OAuth",
-          "logout_button": "[to be translated]:Logout",
-          "title": "[to be translated]:OAuth Login"
+          "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",
+          "logged_in": "Connecté via OAuth",
+          "login_button": "Se connecter avec OAuth",
+          "logout_button": "Déconnexion",
+          "title": "Connexion OAuth"
         },
-        "connect": "[to be translated]:Connect {{provider}}",
+        "connect": "Connecter {{provider}}",
         "description": "Этот сервис предоставляется <website>{{provider}}</website>",
         "error": "Échec de l'authentification",
-        "logged_in": "[to be translated]:Logged in",
-        "logout": "[to be translated]:Logout",
-        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
-        "logout_success": "[to be translated]:Successfully logged out",
-        "logout_warning": "[to be translated]:Logged out locally, but server token revocation may have failed",
+        "logged_in": "Connecté",
+        "logout": "Déconnexion",
+        "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
+        "logout_success": "Déconnexion réussie",
+        "logout_warning": "Déconnecté localement, mais la révocation du jeton serveur a peut-être échoué",
         "official_website": "Официальный сайт",
-        "provided_by": "[to be translated]:Provided by",
-        "provided_by_suffix": "[to be translated]:",
-        "requests": "[to be translated]:Requests",
-        "topup": "[to be translated]:Top Up",
-        "usage_title": "[to be translated]:Usage"
+        "provided_by": "Fourni par",
+        "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into French.",
+        "requests": "Demandes",
+        "topup": "Recharger",
+        "usage_title": "Utilisation"
       },
       "openai": {
         "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"

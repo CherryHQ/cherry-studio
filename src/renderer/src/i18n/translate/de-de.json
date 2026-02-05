@@ -4850,7 +4850,7 @@
           "tip": "Azure OpenAI-API-Version, um Response API zu verwenden, bitte preview-Version eingeben"
         }
       },
-      "balance": "[to be translated]:Balance",
+      "balance": "Gleichgewicht",
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -4926,29 +4926,29 @@
         "title": "Modellnotizen"
       },
       "oauth": {
-        "balance": "[to be translated]:Balance",
+        "balance": "Gleichgewicht",
         "button": "Mit {{provider}}-Konto anmelden",
         "cherryIn": {
-          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
-          "logged_in": "[to be translated]:Logged in via OAuth",
-          "login_button": "[to be translated]:Login with OAuth",
-          "logout_button": "[to be translated]:Logout",
-          "title": "[to be translated]:OAuth Login"
+          "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
+          "logged_in": "Über OAuth angemeldet",
+          "login_button": "Mit OAuth anmelden",
+          "logout_button": "Abmelden",
+          "title": "OAuth-Anmeldung"
         },
-        "connect": "[to be translated]:Connect {{provider}}",
+        "connect": "Verbinde {{provider}}",
         "description": "Dienst wird von <website>{{provider}}</website> bereitgestellt",
         "error": "Authentifizierung fehlgeschlagen",
-        "logged_in": "[to be translated]:Logged in",
-        "logout": "[to be translated]:Logout",
-        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
-        "logout_success": "[to be translated]:Successfully logged out",
-        "logout_warning": "[to be translated]:Logged out locally, but server token revocation may have failed",
+        "logged_in": "Angemeldet",
+        "logout": "Abmelden",
+        "logout_confirm": "Bist du sicher, dass du dich abmelden willst?",
+        "logout_success": "Erfolgreich abgemeldet",
+        "logout_warning": "Lokal abgemeldet, aber die Server-Token-Widerrufung ist möglicherweise fehlgeschlagen",
         "official_website": "Offizielle Website",
-        "provided_by": "[to be translated]:Provided by",
-        "provided_by_suffix": "[to be translated]:",
-        "requests": "[to be translated]:Requests",
-        "topup": "[to be translated]:Top Up",
-        "usage_title": "[to be translated]:Usage"
+        "provided_by": "Bereitgestellt von",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into German.",
+        "requests": "Anfragen",
+        "topup": "Aufladen",
+        "usage_title": "Verwendung"
       },
       "openai": {
         "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"

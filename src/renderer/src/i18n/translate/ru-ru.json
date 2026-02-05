@@ -4850,7 +4850,7 @@
           "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию v1"
         }
       },
-      "balance": "[to be translated]:Balance",
+      "balance": "Баланс",
       "basic_auth": {
         "label": "HTTP аутентификация",
         "password": {
@@ -4926,29 +4926,29 @@
         "title": "Заметки модели"
       },
       "oauth": {
-        "balance": "[to be translated]:Balance",
+        "balance": "Баланс",
         "button": "Войти с {{provider}}",
         "cherryIn": {
-          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
-          "logged_in": "[to be translated]:Logged in via OAuth",
-          "login_button": "[to be translated]:Login with OAuth",
-          "logout_button": "[to be translated]:Logout",
-          "title": "[to be translated]:OAuth Login"
+          "description": "Войдите на ваш собственный сервер New-API с помощью OAuth 2.0 (PKCE)",
+          "logged_in": "Вошёл через OAuth",
+          "login_button": "Войти через OAuth",
+          "logout_button": "Выход",
+          "title": "Вход через OAuth"
         },
-        "connect": "[to be translated]:Connect {{provider}}",
+        "connect": "Подключить {{provider}}",
         "description": "Сервис предоставляется <website>{{provider}}</website>",
         "error": "Ошибка аутентификации",
-        "logged_in": "[to be translated]:Logged in",
-        "logout": "[to be translated]:Logout",
-        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
-        "logout_success": "[to be translated]:Successfully logged out",
-        "logout_warning": "[to be translated]:Logged out locally, but server token revocation may have failed",
+        "logged_in": "Вошёл в систему",
+        "logout": "Выход",
+        "logout_confirm": "Вы уверены, что хотите выйти?",
+        "logout_success": "Выход из системы выполнен успешно",
+        "logout_warning": "Вышел из системы локально, но отзыв токена на сервере, возможно, не удался",
         "official_website": "Официальный сайт",
-        "provided_by": "[to be translated]:Provided by",
-        "provided_by_suffix": "[to be translated]:",
-        "requests": "[to be translated]:Requests",
-        "topup": "[to be translated]:Top Up",
-        "usage_title": "[to be translated]:Usage"
+        "provided_by": "Предоставлено",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Russian.",
+        "requests": "Запросы",
+        "topup": "Пополнить",
+        "usage_title": "Использование"
       },
       "openai": {
         "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."

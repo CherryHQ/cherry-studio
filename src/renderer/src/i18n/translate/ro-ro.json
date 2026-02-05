@@ -4850,7 +4850,7 @@
           "tip": "Versiunea API a Azure OpenAI, dacă dorești să folosești API-ul de Răspuns, te rugăm să introduci versiunea v1"
         }
       },
-      "balance": "[to be translated]:Balance",
+      "balance": "Echilibru",
       "basic_auth": {
         "label": "Autentificare HTTP",
         "password": {
@@ -4926,29 +4926,29 @@
         "title": "Note model"
       },
       "oauth": {
-        "balance": "[to be translated]:Balance",
+        "balance": "Echilibru",
         "button": "Conectare cu {{provider}}",
         "cherryIn": {
-          "description": "[to be translated]:Login with your self-hosted New-API server using OAuth 2.0 (PKCE)",
-          "logged_in": "[to be translated]:Logged in via OAuth",
-          "login_button": "[to be translated]:Login with OAuth",
-          "logout_button": "[to be translated]:Logout",
-          "title": "[to be translated]:OAuth Login"
+          "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
+          "logged_in": "Conectat prin OAuth",
+          "login_button": "Conectare cu OAuth",
+          "logout_button": "Deconectare",
+          "title": "Autentificare OAuth"
         },
-        "connect": "[to be translated]:Connect {{provider}}",
+        "connect": "Conectează {{provider}}",
         "description": "Acest serviciu este furnizat de <website>{{provider}}</website>",
         "error": "Autentificare eșuată",
-        "logged_in": "[to be translated]:Logged in",
-        "logout": "[to be translated]:Logout",
-        "logout_confirm": "[to be translated]:Are you sure you want to logout?",
-        "logout_success": "[to be translated]:Successfully logged out",
-        "logout_warning": "[to be translated]:Logged out locally, but server token revocation may have failed",
+        "logged_in": "Conectat",
+        "logout": "Deconectare",
+        "logout_confirm": "Ești sigur că vrei să te deconectezi?",
+        "logout_success": "Delogare reușită",
+        "logout_warning": "Deconectat local, dar revocarea token-ului de pe server ar fi putut eșua",
         "official_website": "Site oficial",
-        "provided_by": "[to be translated]:Provided by",
-        "provided_by_suffix": "[to be translated]:",
-        "requests": "[to be translated]:Requests",
-        "topup": "[to be translated]:Top Up",
-        "usage_title": "[to be translated]:Usage"
+        "provided_by": "Furnizat de",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Romanian.",
+        "requests": "Cereri",
+        "topup": "Reîncărcare",
+        "usage_title": "Utilizare"
       },
       "openai": {
         "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."
