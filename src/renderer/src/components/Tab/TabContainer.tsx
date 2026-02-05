@@ -20,7 +20,6 @@ import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
-  Bot,
   FileSearch,
   Folder,
   Home,
@@ -42,6 +41,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MinAppIcon from '../Icons/MinAppIcon'
+import { OpenClawIcon } from '../Icons/SVGIcon'
 import MinAppTabsPool from '../MinApp/MinAppTabsPool'
 import WindowControls from '../WindowControls'
 
@@ -107,7 +107,7 @@ const getTabIcon = (
     case 'code':
       return <Terminal size={14} />
     case 'openclaw':
-      return <Bot size={14} />
+      return <OpenClawIcon style={{ width: 14, height: 14 }} />
     default:
       return null
   }
