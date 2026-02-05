@@ -7,7 +7,9 @@
         "invalid_agent": "無効なエージェント"
       },
       "model": {
-        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+        "supported_providers": "サポートされているプロバイダー",
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。",
+        "view_providers": "サポートされているプロバイダーを表示"
       },
       "title": "エージェントを追加",
       "type": {
@@ -4916,6 +4918,11 @@
       },
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
+      "filter": {
+        "agent": "エージェントサポート",
+        "all": "すべてのプロバイダー"
+      },
+      "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
       "misc": "その他",
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",

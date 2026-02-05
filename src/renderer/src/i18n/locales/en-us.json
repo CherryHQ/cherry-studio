@@ -7,7 +7,9 @@
         "invalid_agent": "Invalid Agent"
       },
       "model": {
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+        "supported_providers": "Supported Providers",
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "view_providers": "View supported providers"
       },
       "title": "Add Agent",
       "type": {
@@ -4916,6 +4918,11 @@
       },
       "docs_check": "Check",
       "docs_more_details": "for more details",
+      "filter": {
+        "agent": "Agent Supported",
+        "all": "All Providers"
+      },
+      "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
