@@ -4926,7 +4926,7 @@
         "title": "モデルノート"
       },
       "oauth": {
-        "balance": "バランス",
+        "balance": "残高",
         "button": "{{provider}} アカウントでログイン",
         "cherryIn": {
           "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",

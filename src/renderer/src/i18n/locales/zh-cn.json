@@ -4850,7 +4850,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
-      "balance": "平衡",
+      "balance": "余额",
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {

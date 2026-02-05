@@ -4926,7 +4926,7 @@
         "title": "Note model"
       },
       "oauth": {
-        "balance": "Echilibru",
+        "balance": "Sold",
         "button": "Conectare cu {{provider}}",
         "cherryIn": {
           "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",

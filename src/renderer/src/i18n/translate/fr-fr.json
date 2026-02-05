@@ -4926,7 +4926,7 @@
         "title": "Примечание к модели"
       },
       "oauth": {
-        "balance": "Équilibre",
+        "balance": "Solde",
         "button": "Войти через аккаунт {{provider}}",
         "cherryIn": {
           "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",

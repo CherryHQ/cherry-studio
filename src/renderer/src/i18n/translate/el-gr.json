@@ -4850,7 +4850,7 @@
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
-      "balance": "Ισορροπία",
+      "balance": "Υπόλοιπο",
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -4926,7 +4926,7 @@
         "title": "Σχόλιο Μοντέλου"
       },
       "oauth": {
-        "balance": "Ισορροπία",
+        "balance": "Υπόλοιπο",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "cherryIn": {
           "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",

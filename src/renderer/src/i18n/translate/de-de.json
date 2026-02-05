@@ -4850,7 +4850,7 @@
           "tip": "Azure OpenAI-API-Version, um Response API zu verwenden, bitte preview-Version eingeben"
         }
       },
-      "balance": "Gleichgewicht",
+      "balance": "Guthaben",
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -4926,7 +4926,7 @@
         "title": "Modellnotizen"
       },
       "oauth": {
-        "balance": "Gleichgewicht",
+        "balance": "Guthaben",
         "button": "Mit {{provider}}-Konto anmelden",
         "cherryIn": {
           "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
