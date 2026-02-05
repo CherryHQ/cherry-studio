@@ -118,9 +118,9 @@ export enum IpcChannel {
   CherryIN_SaveToken = 'cherryin:save-token',
   CherryIN_HasToken = 'cherryin:has-token',
   CherryIN_GetBalance = 'cherryin:get-balance',
-  CherryIN_GetUsage = 'cherryin:get-usage',
-  CherryIN_GetUserInfo = 'cherryin:get-userinfo',
   CherryIN_Logout = 'cherryin:logout',
+  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
+  CherryIN_ExchangeToken = 'cherryin:exchange-token',
 
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',

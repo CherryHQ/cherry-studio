@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import CherryINProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Button, Skeleton } from 'antd'
+import { Button, Modal, Skeleton } from 'antd'
 import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
@@ -98,27 +98,34 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     }
   }, [updateProvider, t])
 
-  const handleLogout = useCallback(async () => {
-    const confirmed = window.confirm(t('settings.provider.oauth.logout_confirm'))
-    if (!confirmed) return
+  const handleLogout = useCallback(() => {
+    Modal.confirm({
+      title: t('settings.provider.oauth.logout'),
+      content: t('settings.provider.oauth.logout_confirm'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: async () => {
+        setIsLoggingOut(true)
 
-    setIsLoggingOut(true)
-
-    try {
-      await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
-      updateProvider({ apiKey: '' })
-      setHasOAuthToken(false)
-      setBalanceInfo(null)
-      window.toast.success(t('settings.provider.oauth.logout_success'))
-    } catch (error) {
-      logger.error('Logout error:', error as Error)
-      updateProvider({ apiKey: '' })
-      setHasOAuthToken(false)
-      setBalanceInfo(null)
-      window.toast.warning(t('settings.provider.oauth.logout_success'))
-    } finally {
-      setIsLoggingOut(false)
-    }
+        try {
+          await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
+          updateProvider({ apiKey: '' })
+          setHasOAuthToken(false)
+          setBalanceInfo(null)
+          window.toast.success(t('settings.provider.oauth.logout_success'))
+        } catch (error) {
+          logger.error('Logout error:', error as Error)
+          // Still clear local state even if server revocation failed
+          updateProvider({ apiKey: '' })
+          setHasOAuthToken(false)
+          setBalanceInfo(null)
+          window.toast.warning(t('settings.provider.oauth.logout_warning'))
+        } finally {
+          setIsLoggingOut(false)
+        }
+      }
+    })
   }, [updateProvider, t])
 
   const handleTopup = useCallback(() => {

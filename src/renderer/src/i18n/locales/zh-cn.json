@@ -4942,6 +4942,7 @@
         "logout": "退出登录",
         "logout_confirm": "确定要退出登录吗？",
         "logout_success": "已成功退出登录",
+        "logout_warning": "已在本地退出登录，但服务器端令牌撤销可能失败",
         "official_website": "官方网站",
         "provided_by": "本服务由",
         "provided_by_suffix": " 提供",

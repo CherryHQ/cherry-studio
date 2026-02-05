@@ -4942,6 +4942,7 @@
         "logout": "Logout",
         "logout_confirm": "Are you sure you want to logout?",
         "logout_success": "Successfully logged out",
+        "logout_warning": "Logged out locally, but server token revocation may have failed",
         "official_website": "Official Website",
         "provided_by": "Provided by",
         "provided_by_suffix": "",

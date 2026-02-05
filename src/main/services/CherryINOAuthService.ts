@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { CHERRYIN_CONFIG } from '@shared/config/constant'
+import { createHash, randomBytes } from 'crypto'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -6,24 +8,7 @@ import { reduxService } from './ReduxService'
 
 const logger = loggerService.withContext('CherryINOAuthService')
 
-const CONFIG = {
-  CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d'
-}
-
 // Zod schemas for API response validation
-const UserInfoDataSchema = z.object({
-  id: z.number(),
-  username: z.string(),
-  display_name: z.string().optional(),
-  email: z.string(),
-  group: z.string().optional()
-})
-
-const UserInfoResponseSchema = z.object({
-  success: z.boolean(),
-  data: UserInfoDataSchema
-})
-
 const BalanceDataSchema = z.object({
   quota: z.number(),
   used_quota: z.number()
@@ -34,15 +19,26 @@ const BalanceResponseSchema = z.object({
   data: BalanceDataSchema
 })
 
-const UsageDataSchema = z.object({
-  request_count: z.number(),
-  used_quota: z.number(),
-  quota: z.number()
-})
+// API key can be either a string or an object with key/token property, transform to string
+const ApiKeyItemSchema = z
+  .union([z.string(), z.object({ key: z.string() }), z.object({ token: z.string() })])
+  .transform((item): string => {
+    if (typeof item === 'string') return item
+    if ('key' in item) return item.key
+    return item.token
+  })
 
-const UsageResponseSchema = z.object({
-  success: z.boolean(),
-  data: UsageDataSchema
+// Response can be array or object with data array, transform to string array
+const ApiKeysResponseSchema = z
+  .union([z.array(ApiKeyItemSchema), z.object({ data: z.array(ApiKeyItemSchema) })])
+  .transform((data): string[] => (Array.isArray(data) ? data : data.data))
+
+// Token response schema
+const TokenResponseSchema = z.object({
+  access_token: z.string(),
+  refresh_token: z.string().optional(),
+  token_type: z.string().optional(),
+  expires_in: z.number().optional()
 })
 
 // Export types for use in other modules
@@ -50,17 +46,13 @@ export interface BalanceResponse {
   balance: number
 }
 
-export interface UsageResponse {
-  requestCount: number
-  usedPercent: number
+export interface OAuthFlowParams {
+  authUrl: string
+  state: string
 }
 
-export interface UserInfoResponse {
-  id: number
-  username: string
-  displayName?: string
-  email: string
-  group?: string
+export interface TokenExchangeResult {
+  apiKeys: string
 }
 
 class CherryINOAuthServiceError extends Error {
@@ -73,9 +65,218 @@ class CherryINOAuthServiceError extends Error {
   }
 }
 
+// Store pending OAuth flows with PKCE verifiers (keyed by state parameter)
+interface PendingOAuthFlow {
+  codeVerifier: string
+  oauthServer: string
+  apiHost: string
+  timestamp: number
+}
+
+const pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
+
+// Clean up expired flows (older than 10 minutes)
+function cleanupExpiredFlows(): void {
+  const now = Date.now()
+  for (const [state, flow] of pendingOAuthFlows.entries()) {
+    if (now - flow.timestamp > 10 * 60 * 1000) {
+      pendingOAuthFlows.delete(state)
+    }
+  }
+}
+
 class CherryINOAuthService {
   /**
-   * Save OAuth tokens to Redux store
+   * Validate API host against allowlist to prevent SSRF attacks
+   */
+  private validateApiHost(apiHost: string): void {
+    if (!CHERRYIN_CONFIG.ALLOWED_HOSTS.includes(apiHost)) {
+      throw new CherryINOAuthServiceError(`Unauthorized API host: ${apiHost}`)
+    }
+  }
+
+  /**
+   * Generate a cryptographically random string for PKCE code_verifier
+   */
+  private generateRandomString(length: number): string {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+    const bytes = randomBytes(length)
+    return Array.from(bytes, (byte) => charset[byte % charset.length]).join('')
+  }
+
+  /**
+   * Base64URL encode a buffer (no padding, URL-safe characters)
+   */
+  private base64UrlEncode(buffer: Buffer): string {
+    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }
+
+  /**
+   * Generate PKCE code_challenge from code_verifier using S256 method
+   */
+  private generateCodeChallenge(codeVerifier: string): string {
+    const hash = createHash('sha256').update(codeVerifier).digest()
+    return this.base64UrlEncode(hash)
+  }
+
+  /**
+   * Start OAuth flow - generates PKCE params and returns auth URL
+   * @param oauthServer - OAuth server URL (e.g., https://open.cherryin.ai)
+   * @param apiHost - API host URL (defaults to oauthServer)
+   * @returns authUrl to open in browser and state for later verification
+   */
+  public startOAuthFlow = async (
+    _: Electron.IpcMainInvokeEvent,
+    oauthServer: string,
+    apiHost?: string
+  ): Promise<OAuthFlowParams> => {
+    cleanupExpiredFlows()
+    this.validateApiHost(oauthServer)
+
+    const resolvedApiHost = apiHost ?? oauthServer
+    if (apiHost) {
+      this.validateApiHost(apiHost)
+    }
+
+    // Generate PKCE parameters
+    const codeVerifier = this.generateRandomString(64) // 43-128 chars per RFC 7636
+    const codeChallenge = this.generateCodeChallenge(codeVerifier)
+    const state = this.generateRandomString(32)
+
+    // Store verifier and config for later use (keyed by state for CSRF protection)
+    pendingOAuthFlows.set(state, {
+      codeVerifier,
+      oauthServer,
+      apiHost: resolvedApiHost,
+      timestamp: Date.now()
+    })
+
+    // Build authorization URL
+    const authUrl = new URL(`${oauthServer}/oauth2/auth`)
+    authUrl.searchParams.set('client_id', CHERRYIN_CONFIG.CLIENT_ID)
+    authUrl.searchParams.set('redirect_uri', CHERRYIN_CONFIG.REDIRECT_URI)
+    authUrl.searchParams.set('response_type', 'code')
+    authUrl.searchParams.set('scope', CHERRYIN_CONFIG.SCOPES)
+    authUrl.searchParams.set('state', state)
+    authUrl.searchParams.set('code_challenge', codeChallenge)
+    authUrl.searchParams.set('code_challenge_method', 'S256')
+
+    logger.debug('Started OAuth flow')
+
+    return {
+      authUrl: authUrl.toString(),
+      state
+    }
+  }
+
+  /**
+   * Exchange authorization code for tokens and fetch API keys
+   * @param code - Authorization code from OAuth callback
+   * @param state - State parameter for CSRF protection and flow lookup
+   * @returns API keys string
+   */
+  public exchangeToken = async (
+    _: Electron.IpcMainInvokeEvent,
+    code: string,
+    state: string
+  ): Promise<TokenExchangeResult> => {
+    // Retrieve stored code_verifier and config
+    const flowData = pendingOAuthFlows.get(state)
+    if (!flowData) {
+      throw new CherryINOAuthServiceError('OAuth flow expired or not found')
+    }
+    pendingOAuthFlows.delete(state)
+
+    const { codeVerifier, oauthServer, apiHost } = flowData
+
+    logger.debug('Exchanging code for token')
+
+    try {
+      // Exchange authorization code for access token
+      const tokenResponse = await net.fetch(`${oauthServer}/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: CHERRYIN_CONFIG.CLIENT_ID,
+          code,
+          redirect_uri: CHERRYIN_CONFIG.REDIRECT_URI,
+          code_verifier: codeVerifier
+        }).toString()
+      })
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text()
+        logger.error(`Token exchange failed: ${tokenResponse.status} ${errorText}`)
+        throw new CherryINOAuthServiceError(`Failed to exchange code for token: ${tokenResponse.status}`)
+      }
+
+      const tokenJson = await tokenResponse.json()
+      logger.debug('Token exchange raw response:', tokenJson)
+      const tokenData = TokenResponseSchema.parse(tokenJson)
+
+      const { access_token: accessToken, refresh_token: refreshToken } = tokenData
+
+      // Save tokens using internal method
+      await this.saveTokenInternal(accessToken, refreshToken)
+      logger.debug('Successfully obtained access token, fetching API keys')
+
+      // Fetch API keys using the access token
+      const apiKeysResponse = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+
+      if (!apiKeysResponse.ok) {
+        const errorText = await apiKeysResponse.text()
+        logger.error(`Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
+        throw new CherryINOAuthServiceError(`Failed to fetch API keys: ${apiKeysResponse.status}`)
+      }
+
+      const apiKeysJson = await apiKeysResponse.json()
+      logger.debug('API keys raw response:', apiKeysJson)
+      // Schema transforms and extracts keys to string array
+      const keysArray = ApiKeysResponseSchema.parse(apiKeysJson)
+      const apiKeys = keysArray.filter(Boolean).join(',')
+
+      if (!apiKeys) {
+        throw new CherryINOAuthServiceError('No API keys received')
+      }
+
+      logger.debug('Successfully obtained API keys')
+      return { apiKeys }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        logger.error('Invalid response format:', error.issues)
+        throw new CherryINOAuthServiceError('Invalid response format from server', error)
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Internal method to save OAuth tokens to Redux store
+   */
+  private saveTokenInternal = async (accessToken: string, refreshToken?: string): Promise<void> => {
+    // Only include refreshToken in payload if it's provided and non-empty
+    // This prevents clearing the existing refresh token when server doesn't return a new one
+    const payload: { accessToken: string; refreshToken?: string } = { accessToken }
+    if (refreshToken) {
+      payload.refreshToken = refreshToken
+    }
+    await reduxService.dispatch({
+      type: 'llm/setCherryInTokens',
+      payload
+    })
+    logger.debug('Successfully saved CherryIN OAuth tokens to Redux')
+  }
+
+  /**
+   * Save OAuth tokens to Redux store (IPC handler)
    * @param accessToken - The access token to save
    * @param refreshToken - The refresh token to save (only updates if provided and non-empty)
    */
@@ -85,17 +286,7 @@ class CherryINOAuthService {
     refreshToken?: string
   ): Promise<void> => {
     try {
-      // Only include refreshToken in payload if it's provided and non-empty
-      // This prevents clearing the existing refresh token when server doesn't return a new one
-      const payload: { accessToken: string; refreshToken?: string } = { accessToken }
-      if (refreshToken) {
-        payload.refreshToken = refreshToken
-      }
-      await reduxService.dispatch({
-        type: 'llm/setCherryInTokens',
-        payload
-      })
-      logger.debug('Successfully saved CherryIN OAuth tokens to Redux')
+      await this.saveTokenInternal(accessToken, refreshToken)
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CherryINOAuthServiceError('Failed to save OAuth token', error)
@@ -157,7 +348,7 @@ class CherryINOAuthService {
         body: new URLSearchParams({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
-          client_id: CONFIG.CLIENT_ID
+          client_id: CHERRYIN_CONFIG.CLIENT_ID
         }).toString()
       })
 
@@ -172,8 +363,8 @@ class CherryINOAuthService {
       const newRefreshToken = tokenData.refresh_token
 
       if (newAccessToken) {
-        // Save new tokens
-        await this.saveToken({} as Electron.IpcMainInvokeEvent, newAccessToken, newRefreshToken)
+        // Save new tokens using internal method
+        await this.saveTokenInternal(newAccessToken, newRefreshToken)
         logger.info('Successfully refreshed access token')
         return newAccessToken
       }
@@ -227,6 +418,8 @@ class CherryINOAuthService {
    * Get user balance from CherryIN API
    */
   public getBalance = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<BalanceResponse> => {
+    this.validateApiHost(apiHost)
+
     try {
       const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/balance')
 
@@ -235,18 +428,18 @@ class CherryINOAuthService {
       }
 
       const json = await response.json()
-      logger.info('Balance API raw response:', json)
+      logger.debug('Balance API raw response:', json)
       const parsed = BalanceResponseSchema.parse(json)
 
       if (!parsed.success) {
         throw new CherryINOAuthServiceError('API returned success: false')
       }
 
-      const { quota, used_quota } = parsed.data
-      // quota = remaining balance, used_quota = amount used
+      const { quota } = parsed.data
+      // quota = remaining balance
       // Convert to USD: 500000 units = 1 USD
       const balanceYuan = quota / 500000
-      logger.info('Balance API parsed data:', { quota, used_quota, balanceYuan })
+      logger.info('Balance fetched successfully', { balanceYuan })
       return {
         balance: balanceYuan
       }
@@ -261,83 +454,11 @@ class CherryINOAuthService {
   }
 
   /**
-   * Get user usage from CherryIN API
-   */
-  public getUsage = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<UsageResponse> => {
-    try {
-      const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/usage')
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const json = await response.json()
-      logger.info('Usage API raw response:', json)
-      const parsed = UsageResponseSchema.parse(json)
-
-      if (!parsed.success) {
-        throw new CherryINOAuthServiceError('API returned success: false')
-      }
-
-      const { quota, used_quota, request_count } = parsed.data
-      // quota = remaining, used_quota = used, total = quota + used_quota
-      const total = quota + used_quota
-      const usedPercent = total > 0 ? Math.round((used_quota / total) * 10000) / 100 : 0
-      logger.info('Usage API parsed data:', { quota, used_quota, total, request_count, usedPercent })
-
-      return {
-        requestCount: request_count,
-        usedPercent: usedPercent
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        logger.error('Invalid usage response format:', error.issues)
-        throw new CherryINOAuthServiceError('Invalid response format from server', error)
-      }
-      logger.error('Failed to get usage:', error as Error)
-      throw new CherryINOAuthServiceError('Failed to get usage', error)
-    }
-  }
-
-  /**
-   * Get user info from CherryIN API
-   */
-  public getUserInfo = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<UserInfoResponse> => {
-    try {
-      const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/userinfo')
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const json = await response.json()
-      const parsed = UserInfoResponseSchema.parse(json)
-
-      if (!parsed.success) {
-        throw new CherryINOAuthServiceError('API returned success: false')
-      }
-
-      return {
-        id: parsed.data.id,
-        username: parsed.data.username,
-        displayName: parsed.data.display_name,
-        email: parsed.data.email,
-        group: parsed.data.group
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        logger.error('Invalid user info response format:', error.issues)
-        throw new CherryINOAuthServiceError('Invalid response format from server', error)
-      }
-      logger.error('Failed to get user info:', error as Error)
-      throw new CherryINOAuthServiceError('Failed to get user info', error)
-    }
-  }
-
-  /**
    * Revoke OAuth token and clear from Redux store
    */
   public logout = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<void> => {
+    this.validateApiHost(apiHost)
+
     try {
       const token = await this.getToken()
 

@@ -4942,6 +4942,7 @@
         "logout": "登出",
         "logout_confirm": "確定要登出嗎？",
         "logout_success": "已成功登出",
+        "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
         "official_website": "官方網站",
         "provided_by": "本服務由",
         "provided_by_suffix": " 提供",
