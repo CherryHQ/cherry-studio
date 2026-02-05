@@ -140,60 +140,62 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.14 - New Features & Improvements
+    Cherry Studio 1.7.16 - New Features & Improvements
 
     ✨ New Features
-    - [Notes] Add export to Word document functionality
-    - [Code Tools] Add Kimi CLI support with auto-configuration
-    - [Code Tools] Support custom providers
-    - [Settings] Support viewing detailed error messages when model detection fails
-    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
-    - [Linux] Add system title bar setting option
-    - [Models] Add Baichuan m3/m3-plus models
-    - [Models] Add Qwen text-embedding models
+    - [CherryIN] Add OAuth login support with automatic API key configuration
+    - [Agent] Task list now stays pinned above input area for better visibility
+    - [Plugins] Support installing plugins from ZIP files and folders via drag-and-drop
+    - [Integration] Add OpenClaw integration - power your personal AI assistant across WhatsApp, Telegram, Slack, and more
+    - [Chat] Show token usage in message headers (bubble mode)
+    - [OCR] Add PaddleOCR as a new image recognition option
+    - [Models] Add Kimi K2.5 model support
+    - [Models] Add free Qwen3-Next-80B model
 
     🎨 Improvements
-    - [Translate] Simplify translation with single target language selector
-    - [Topics] Unpinned topics now move to top with auto-scroll
-    - [Minapps] Add locale-based filtering support
-    - [i18n] Update Romanian localization
+    - [Agent] Improved tool execution display with status indicators
+    - [Chat] Unified click behavior for multi-level reasoning models
 
     🐛 Bug Fixes
-    - [Linux] Fix icon display and deb/rpm installation issues
-    - [Linux] Fix window not coming to front when clicking tray
-    - [Linux] Add Alpine Linux (musl) support
-    - [Code Tools] Fix Windows Terminal issues
-    - [Azure] Fix API preview link for completion mode
-    - [Images] Fix trailing slashes in API URLs for image generation
-    - [OpenRouter] Fix MCP tools support
-    - [Chat] Fix image enhancement model conversation history
+    - [Notifications] Disk space warning can now be dismissed
+    - [Chat] Fix display issues with Claude extended thinking on Bedrock
+    - [Providers] Update Kimi/Moonshot logos
+    - [Chat] Fix image-only message display
+    - [Topics] Show notification when topic rename fails
+    - [MCP] Fix system prompt duplication in recursive tool calls
+    - [MCP] Fix refresh token expiration handling
+    - [Chat] Fix extra newline when copying from code blocks
+    - [Models] Fix Ollama model name handling
+    - [Models] Fix Aliyun GLM model parameters
+    - [Windows] Fix silent update permissions for system-wide installations
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.14 - 新功能与改进
+    Cherry Studio 1.7.16 - 新功能与改进
 
     ✨ 新功能
-    - [笔记] 支持导出为 Word 文档
-    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
-    - [代码工具] 支持自定义服务商
-    - [设置] 模型检测失败时可查看详细错误信息
-    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
-    - [Linux] 新增系统标题栏设置选项
-    - [模型] 新增百川 m3/m3-plus 模型
-    - [模型] 新增通义 Embedding 模型
+    - [CherryIN] 新增 OAuth 登录，自动配置 API 密钥
+    - [智能体] 任务列表固定在输入框上方显示，方便查看进度
+    - [插件] 支持从压缩包和文件夹拖放安装插件
+    - [集成] 新增 OpenClaw 集成，可在 WhatsApp、Telegram、Slack 等平台使用 AI 助手
+    - [对话] 消息头部显示 Token 用量（气泡模式）
+    - [OCR] 新增 PaddleOCR 图像识别选项
+    - [模型] 新增 Kimi K2.5 模型
+    - [模型] 新增免费 Qwen3-Next-80B 模型
 
     🎨 改进
-    - [翻译] 简化翻译操作，使用单一目标语言选择
-    - [话题] 取消置顶的话题移动到顶部并自动滚动
-    - [小程序] 支持按语言筛选小程序
-    - [国际化] 更新罗马尼亚语翻译
+    - [智能体] 优化工具执行显示，新增状态指示器
+    - [对话] 统一多层推理模型的点击交互
 
     🐛 问题修复
-    - [Linux] 修复图标显示和 deb/rpm 安装问题
-    - [Linux] 修复点击托盘后窗口无法置顶的问题
-    - [Linux] 新增 Alpine Linux (musl) 支持
-    - [代码工具] 修复 Windows 终端问题
-    - [Azure] 修复完成模式下 API 预览链接
-    - [图片生成] 修复 API 地址结尾斜杠问题
-    - [OpenRouter] 修复 MCP 工具支持
-    - [对话] 修复图片增强模型对话历史丢失问题
+    - [通知] 磁盘空间警告现可关闭
+    - [对话] 修复 Bedrock Claude 扩展思考的显示问题
+    - [服务商] 更新 Kimi/Moonshot 图标
+    - [对话] 修复纯图片消息的显示问题
+    - [话题] 话题重命名失败时显示提示
+    - [MCP] 修复递归工具调用时系统提示词重复
+    - [MCP] 修复刷新令牌过期处理
+    - [对话] 修复代码块复制时的多余换行
+    - [模型] 修复 Ollama 模型名称处理
+    - [模型] 修复阿里云 GLM 模型参数
+    - [Windows] 修复系统级安装的静默更新权限
     <!--LANG:END-->
