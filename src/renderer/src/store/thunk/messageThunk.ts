@@ -1709,7 +1709,7 @@ export const removeBlocksThunk =
   (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
     if (!blockIdsToRemove.length) {
-      logger.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      logger.warn('[removeBlocksThunk] No block IDs provided to remove.')
       return
     }
 
@@ -1718,7 +1718,7 @@ export const removeBlocksThunk =
       const message = state.messages.entities[messageId]
 
       if (!message) {
-        logger.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        logger.error(`[removeBlocksThunk] Message ${messageId} not found in state.`)
         return
       }
       const blockIdsToRemoveSet = new Set(blockIdsToRemove)
@@ -1727,26 +1727,26 @@ export const removeBlocksThunk =
 
       // 1. Update Redux state
       dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
-
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-
-      // 2. Update database (in a transaction)
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Update the message in the topic
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        // Delete the blocks from the database
-        if (blockIdsToRemove.length > 0) {
-          await db.message_blocks.bulkDelete(blockIdsToRemove)
-        }
-      })
+      // 2. Update database - different handling for agent vs Dexie topics
+      if (isAgentSessionTopicId(topicId)) {
+        // For agent topics: dbService.updateMessage routes to AgentMessageDataSource
+        await dbService.updateMessage(topicId, messageId, { blocks: updatedBlockIds })
+      } else {
+        // For Dexie topics: use transaction for atomicity
+        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          if (blockIdsToRemove.length > 0) {
+            await db.message_blocks.bulkDelete(blockIdsToRemove)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
-
-      return
     } catch (error) {
-      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
+      logger.error(`[removeBlocksThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }

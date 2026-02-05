@@ -154,24 +154,43 @@
         "error": {
           "install": "Nu s-a putut instala pluginul",
           "load": "Nu s-au putut încărca pluginurile",
+          "load_more": "Nu s-au putut încărca mai multe pluginuri",
           "uninstall": "Nu s-a putut dezinstala pluginul"
         },
         "filter": {
           "all": "Toate categoriile"
         },
-        "install": "Instalează",
+        "install": {
+          "button": "Instalare",
+          "title": "Instalați pluginuri"
+        },
         "installed": {
           "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe.",
-          "title": "Pluginuri instalate"
+          "title": "Plugin-uri instalate"
         },
         "installing": "Se instalează...",
+        "plugin_upload": {
+          "all_failed": "Toate componentele {{failed}} nu au putut fi instalate",
+          "error": "Instalarea a eșuat",
+          "format_hint": "Acceptă pachete de pluginuri (.claude-plugin/plugin.json)",
+          "hint": "Trageți și plasați aici arhiva ZIP a pluginului sau faceți clic pentru a selecta",
+          "invalid_format": "Vă rugăm să încărcați un fișier ZIP",
+          "partial_success": "Pluginul \"{{name}}\" instalat parțial: {{installed}} instalat, {{failed}} eșuat",
+          "select_folder": "Selectați dosarul",
+          "select_folder_title": "Selectați dosarul pluginului",
+          "success": "Plugin-ul \"{{name}}\" a fost instalat cu succes ({{count}} componente)",
+          "success_multi": "Instalate {{count}} componente din {{packages}} pachete",
+          "uploading": "Se încarcă și se instalează..."
+        },
         "results": "{{count}} plugin(uri) găsit(e)",
         "search": {
           "placeholder": "Caută pluginuri..."
         },
+        "standalone_plugins": "Plugin-uri autonome",
         "success": {
           "install": "Plugin instalat cu succes",
-          "uninstall": "Plugin dezinstalat cu succes"
+          "uninstall": "Plugin dezinstalat cu succes",
+          "uninstall_package": "Pachetul „{{name}}” a fost dezinstalat cu succes"
         },
         "tab": "Pluginuri",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "Abilități"
         },
         "uninstall": "Dezinstalează",
+        "uninstall_package": "Dezinstalează Pachetul",
+        "uninstall_package_confirm": "Sigur dorești să dezinstalezi întregul pachet „{{name}}”? Aceasta va elimina {{count}} component(e).",
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
@@ -267,6 +288,16 @@
         "tab": "Instrumente pre-aprobate",
         "title": "Instrumente pre-aprobate",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} sarcini finalizate"
+      },
+      "status": {
+        "completed": "Finalizat",
+        "in_progress": "În desfășurare",
+        "pending": "În așteptare"
       }
     },
     "toolPermission": {
@@ -711,15 +742,6 @@
       "view_full_content": "Vezi conținutul complet"
     },
     "input": {
-      "activity_directory": {
-        "description": "Selectează fișierul din directorul de activitate",
-        "loading": "Se încarcă fișierele...",
-        "no_file_found": {
-          "description": "Nu există fișiere disponibile în directoarele accesibile",
-          "label": "Nu a fost găsit niciun fișier"
-        },
-        "title": "Director de activitate"
-      },
       "auto_resize": "Redimensionare automată înălțime",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
@@ -749,6 +771,24 @@
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agenți",
+          "files": "Fișiere",
+          "skills": "Abilități"
+        },
+        "description": "Selectați din fișiere, agenți sau competențe",
+        "loading": "Se încarcă...",
+        "no_file_found": {
+          "description": "Nicio fișier disponibil în directoare accesibile",
+          "label": "Niciun fișier găsit"
+        },
+        "no_items_found": {
+          "description": "Niciun fișier, agent sau abilitate disponibilă",
+          "label": "Niciun element găsit"
+        },
+        "title": "Resurse"
+      },
       "send": "Trimite",
       "settings": "Setări",
       "slash_commands": {
@@ -1284,6 +1324,7 @@
     "rename": "Redenumește",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
+    "retry": "Reîncercare",
     "save": "Salvează",
     "saved": "Salvat",
     "search": "Caută",
@@ -1633,9 +1674,6 @@
     "notes": "Note",
     "notes_placeholder": "Introdu informații suplimentare sau context pentru această bază de cunoștințe...",
     "provider_not_found": "Furnizorul nu a fost găsit",
-    "quota": "Cotă rămasă {{name}}: {{quota}}",
-    "quota_empty": "Cota de astăzi pentru {{name}} este epuizată, te rugăm să aplici pe site-ul oficial",
-    "quota_infinity": "Cotă {{name}}: Nelimitat",
     "rename": "Redenumește",
     "search": "Caută în baza de cunoștințe",
     "search_placeholder": "Introdu text pentru căutare",
@@ -2076,7 +2114,9 @@
       "raw": "Brut",
       "runningCount": "{{count}} instrumente în execuție",
       "sections": {
+        "args": "Argumente",
         "command": "Comandă",
+        "content": "Conținut",
         "exitCode": "Cod de ieșire",
         "input": "Intrare",
         "output": "Ieșire",
@@ -2093,6 +2133,7 @@
         "running": "Alergare",
         "success": "Succes"
       },
+      "streaming": "Streaming",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
         "done_one": "{{count}} Finalizat",
@@ -2452,6 +2493,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Verificare instalare OpenClaw...",
+    "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
+    "error": {
+      "select_provider_model": "Vă rugăm să selectați mai întâi un furnizor și un model"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Repornire",
+      "start": "Pornește Gateway",
+      "status": "Stare",
+      "stop": "Oprește",
+      "version": "Versiune"
+    },
+    "install_progress": "Progresul instalării",
+    "installed_at": "OpenClaw instalat la: {{path}}",
+    "model_config": {
+      "auth_token": "Token de autentificare",
+      "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
+      "auth_token_placeholder": "Introduceți sau generați un token",
+      "generate_token": "Generează",
+      "model": "Model",
+      "provider": "Furnizor",
+      "select_model": "Selectați un model",
+      "select_provider": "Selectați un furnizor",
+      "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
+      "title": "Configurare model"
+    },
+    "not_installed": {
+      "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
+      "install_button": "Instalează OpenClaw",
+      "install_guide_title": "Ghid de instalare",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Reîmprospătare",
+      "step2_hint": "După instalare, faceți clic pe butonul „Reîmprospătare” de mai sus pentru a detecta OpenClaw",
+      "step2_title": "Pasul 2: Verifică instalarea",
+      "title": "OpenClaw Nu Este Instalat",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
+      "download_button": "Descarcă Node.js",
+      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
+      "title": "Node.js necesar"
+    },
+    "quick_actions": {
+      "open_dashboard": "Deschide Tabloul de Bord",
+      "title": "Acțiuni rapide",
+      "uninstall": "Dezinstalare",
+      "view_docs": "Vizualizați documentația"
+    },
+    "status": {
+      "error": "Eroare",
+      "running": "Alergare",
+      "starting": "Pornind",
+      "stopped": "Oprit"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
+    "uninstall_progress": "Progresul dezinstalării",
+    "uninstalled": {
+      "description": "OpenClaw a fost dezinstalat cu succes.",
+      "title": "Dezinstalare completă"
+    },
+    "uninstalling": {
+      "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
+      "title": "Dezinstalarea OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Instalează",
@@ -2745,6 +2855,7 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "confirm_uninstall_package": "Sigur doriți să dezinstalați pachetul {{name}} și toate componentele sale?",
     "content_saved": "Conținutul plugin-ului a fost salvat cu succes",
     "detail": {
       "allowed_tools": "Unelte Permise",
@@ -2771,10 +2882,22 @@
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
+    "showing_results_skills": "Afișare {{count}} abilitate",
+    "showing_results_skills_one": "Afișare {{count}} abilitate",
+    "showing_results_skills_other": "Afișare {{count}} competențe",
+    "showing_results_skills_plural": "Afișare {{count}} competențe",
     "skills": "Abilități",
+    "sort": {
+      "downloads": "Descărcări",
+      "label": "Sortare",
+      "relevance": "Relevanță",
+      "stars": "Stele"
+    },
+    "standalone_plugins": "Plugin-uri independente",
     "try_different_search": "Încearcă să ajustezi căutarea sau filtrele de categorie",
     "type": "Tip",
     "uninstall": "Dezinstalează",
+    "uninstall_package": "Dezinstalează pachetul",
     "uninstalling": "Se dezinstalează..."
   },
   "preview": {
@@ -5157,6 +5280,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
+    "openclaw": "OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",

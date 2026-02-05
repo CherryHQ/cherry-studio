@@ -5,7 +5,7 @@ import { getConfigDir } from '@main/utils/file'
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
 import type {
   OAuthClientInformation,
-  OAuthClientInformationFull,
+  OAuthClientInformationMixed,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth'
 import open from 'open'
@@ -52,7 +52,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     return this.storage.getClientInformation()
   }
 
-  async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
+  async saveClientInformation(info: OAuthClientInformationMixed | undefined): Promise<void> {
     await this.storage.saveClientInformation(info)
   }
 
@@ -60,7 +60,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
     return this.storage.getTokens()
   }
 
-  async saveTokens(tokens: OAuthTokens): Promise<void> {
+  async saveTokens(tokens: OAuthTokens | undefined): Promise<void> {
     await this.storage.saveTokens(tokens)
   }
 
@@ -81,5 +81,50 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
 
   async codeVerifier(): Promise<string> {
     return this.storage.getCodeVerifier()
+  }
+
+  /**
+   * Invalidates stored credentials when the SDK detects they are no longer valid.
+   * This method is called by the MCP SDK when it encounters authentication errors
+   * like InvalidGrantError (expired refresh token) or InvalidClientError.
+   *
+   * @param scope - The scope of credentials to invalidate:
+   *   - 'all': Clear all authentication data (client info, tokens, verifier)
+   *   - 'tokens': Clear only access and refresh tokens
+   *   - 'client': Clear only client registration information
+   *   - 'verifier': Clear only the PKCE code verifier
+   */
+  async invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier'): Promise<void> {
+    logger.debug(`Invalidating credentials with scope: ${scope}`)
+
+    switch (scope) {
+      case 'all':
+        // Clear all authentication information
+        await this.storage.clear()
+        logger.info('Cleared all OAuth credentials')
+        break
+
+      case 'tokens':
+        // Clear only tokens, preserve client information for re-authentication
+        await this.storage.saveTokens(undefined)
+        logger.info('Cleared OAuth tokens (access and refresh tokens)')
+        break
+
+      case 'client':
+        // Clear client registration information
+        // Note: This requires re-registration with the authorization server
+        await this.storage.saveClientInformation(undefined)
+        logger.info('Cleared OAuth client information')
+        break
+
+      case 'verifier':
+        // Clear PKCE code verifier
+        await this.storage.saveCodeVerifier('')
+        logger.info('Cleared OAuth code verifier')
+        break
+
+      default:
+        logger.warn(`Unknown invalidation scope: ${scope}`)
+    }
   }
 }

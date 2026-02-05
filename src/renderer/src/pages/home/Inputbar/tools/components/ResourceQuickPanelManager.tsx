@@ -1,13 +1,14 @@
+import { useInstalledPlugins } from '@renderer/hooks/usePlugins'
 import type { ToolActionKey, ToolRenderContext, ToolStateKey } from '@renderer/pages/home/Inputbar/types'
 import type React from 'react'
 
-import { useActivityDirectoryPanel } from './useActivityDirectoryPanel'
+import { useResourcePanel } from './useResourcePanel'
 
 interface ManagerProps {
   context: ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
 }
 
-const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
+const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
     quickPanelController,
@@ -15,15 +16,21 @@ const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
     session
   } = context
 
-  // Get accessible paths from session data
+  // Get accessible paths and agentId from session data
   const accessiblePaths = session?.accessiblePaths ?? []
+  const agentId = session?.agentId
+
+  // Fetch installed plugins (agents and skills) from .claude directory
+  const { plugins, loading: pluginsLoading } = useInstalledPlugins(agentId)
 
   // Always call hooks unconditionally (React rules)
-  useActivityDirectoryPanel(
+  useResourcePanel(
     {
       quickPanel,
       quickPanelController,
       accessiblePaths,
+      plugins,
+      pluginsLoading,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'
@@ -32,4 +39,4 @@ const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
   return null
 }
 
-export default ActivityDirectoryQuickPanelManager
+export default ResourceQuickPanelManager

@@ -9,6 +9,7 @@
 
 !include LogicLib.nsh
 !include x64.nsh
+!include FileFunc.nsh
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
@@ -80,6 +81,26 @@
 !endif
 
 !macro customInit
+  ; If a per-machine (all users) installation exists, ensure we have admin privileges.
+  ; Without elevation, the installer cannot close the running app or manage the
+  ; per-machine installation, causing "cannot close app" errors during both
+  ; silent updates and manual reinstalls.
+  ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "QuietUninstallString"
+  ${If} $R0 != ""
+    UserInfo::GetAccountType
+    Pop $R1
+    ${If} $R1 != "admin"
+      ${GetParameters} $R2
+      ExecShell "runas" "$EXEPATH" "$R2"
+      ${If} ${Errors}
+        SetErrorLevel 1
+      ${Else}
+        SetErrorLevel 0
+      ${EndIf}
+      Quit
+    ${EndIf}
+  ${EndIf}
+
   Push $0
   Push $1
   Push $2

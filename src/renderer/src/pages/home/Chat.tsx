@@ -16,6 +16,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
@@ -27,6 +28,7 @@ import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
 import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
+import { PinnedTodoPanel } from './Inputbar/components/PinnedTodoPanel'
 import Inputbar from './Inputbar/Inputbar'
 import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
@@ -231,7 +233,12 @@ const Chat: FC<Props> = (props) => {
                     {!apiServer.enabled ? (
                       <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
                     ) : (
-                      <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                      <>
+                        <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                        <PinnedTodoPanelWrapper>
+                          <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                        </PinnedTodoPanelWrapper>
+                      </>
                     )}
                     {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                     <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
@@ -305,6 +312,11 @@ const Main = styled(Flex)`
   }
   transform: translateZ(0);
   position: relative;
+`
+
+const PinnedTodoPanelWrapper = styled.div`
+  margin-top: auto;
+  padding: 0 18px 8px 18px;
 `
 
 export default Chat

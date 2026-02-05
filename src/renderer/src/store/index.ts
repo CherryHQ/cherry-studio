@@ -38,6 +38,7 @@ import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
+import openclaw from './openclaw'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
@@ -67,6 +68,7 @@ const rootReducer = combineReducers({
   mcp,
   memory,
   copilot,
+  openclaw,
   selectionStore,
   tabs,
   preprocess,
@@ -83,7 +85,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 195,
+    version: 196,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },

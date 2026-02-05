@@ -154,24 +154,43 @@
         "error": {
           "install": "Falha na instalação do plugin",
           "load": "Falha ao carregar o plugin",
+          "load_more": "Falha ao carregar mais plugins",
           "uninstall": "Falha ao desinstalar o plug-in"
         },
         "filter": {
           "all": "Todas as categorias"
         },
-        "install": "Instalação",
+        "install": {
+          "button": "Instalar",
+          "title": "Instalar Plugins"
+        },
         "installed": {
           "empty": "Nenhum plugin foi instalado ainda. Explore os plugins disponíveis para começar.",
-          "title": "Plugin instalado"
+          "title": "Plugins Instalados"
         },
         "installing": "Instalando...",
+        "plugin_upload": {
+          "all_failed": "Todos os componentes {{failed}} falharam na instalação",
+          "error": "Falha na instalação",
+          "format_hint": "Suporta pacotes de plugin (.claude-plugin/plugin.json)",
+          "hint": "Arraste e solte o ZIP do plugin aqui ou clique para selecionar",
+          "invalid_format": "Por favor, carregue um arquivo ZIP",
+          "partial_success": "Plugin \"{{name}}\" parcialmente instalado: {{installed}} instalado, {{failed}} falhou",
+          "select_folder": "Selecionar Pasta",
+          "select_folder_title": "Selecionar Pasta do Plugin",
+          "success": "Plugin \"{{name}}\" instalado com sucesso ({{count}} componentes)",
+          "success_multi": "Instalados {{count}} componentes de {{packages}} pacotes",
+          "uploading": "Fazendo upload e instalando..."
+        },
         "results": "Encontrados {{count}} plugins",
         "search": {
           "placeholder": "Pesquisar extensão..."
         },
+        "standalone_plugins": "Plugins Autônomos",
         "success": {
           "install": "Plugin instalado com sucesso",
-          "uninstall": "Plugin desinstalado com sucesso"
+          "uninstall": "Plugin desinstalado com sucesso",
+          "uninstall_package": "Pacote \"{{name}}\" desinstalado com sucesso"
         },
         "tab": "plug-in",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "habilidade"
         },
         "uninstall": "desinstalar",
+        "uninstall_package": "Desinstalar Pacote",
+        "uninstall_package_confirm": "Tem certeza de que deseja desinstalar o pacote completo \"{{name}}\"? Isso removerá {{count}} componente(s).",
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configurações de Prompt",
@@ -267,6 +288,16 @@
         "tab": "Ferramentas pré-aprovadas",
         "title": "Ferramentas pré-aprovadas",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tarefas concluídas"
+      },
+      "status": {
+        "completed": "Concluído",
+        "in_progress": "Em Andamento",
+        "pending": "Pendente"
       }
     },
     "toolPermission": {
@@ -711,15 +742,6 @@
       "view_full_content": "Ver conteúdo completo"
     },
     "input": {
-      "activity_directory": {
-        "description": "Selecionar arquivo do diretório de atividades",
-        "loading": "Carregando Arquivos...",
-        "no_file_found": {
-          "description": "Nenhum arquivo disponível em diretórios acessíveis",
-          "label": "Nenhum Arquivo Encontrado"
-        },
-        "title": "Diretório de Atividades"
-      },
       "auto_resize": "Ajuste automático de altura",
       "clear": {
         "content": "Tem certeza de que deseja limpar todas as mensagens da sessão atual?",
@@ -749,6 +771,24 @@
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agentes",
+          "files": "Arquivos",
+          "skills": "Habilidades"
+        },
+        "description": "Selecione entre arquivos, agentes ou habilidades",
+        "loading": "Carregando...",
+        "no_file_found": {
+          "description": "Nenhum arquivo disponível em diretórios acessíveis",
+          "label": "Nenhum Arquivo Encontrado"
+        },
+        "no_items_found": {
+          "description": "Nenhum arquivo, agente ou habilidade disponível",
+          "label": "Nenhum item encontrado"
+        },
+        "title": "Recursos"
+      },
       "send": "Enviar",
       "settings": "Configurações",
       "slash_commands": {
@@ -1284,6 +1324,7 @@
     "rename": "Renomear",
     "required_field": "Campo obrigatório",
     "reset": "Redefinir",
+    "retry": "Tentar novamente",
     "save": "Salvar",
     "saved": "Guardado",
     "search": "Pesquisar",
@@ -1633,9 +1674,6 @@
     "notes": "Notas",
     "notes_placeholder": "Digite informações adicionais ou contexto para este repositório de conhecimento...",
     "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
-    "quota": "Cota restante de {{name}}: {{quota}}",
-    "quota_empty": "A cota de {{name}} de hoje está esgotada, por favor solicite no site oficial",
-    "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
     "search": "Pesquisar repositório de conhecimento",
     "search_placeholder": "Digite o conteúdo da consulta",
@@ -2076,7 +2114,9 @@
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
       "sections": {
+        "args": "Argumentos",
         "command": "Comando",
+        "content": "Conteúdo",
         "exitCode": "Código de Saída",
         "input": "Entrada",
         "output": "Saída",
@@ -2093,6 +2133,7 @@
         "running": "Correndo",
         "success": "Sucesso"
       },
+      "streaming": "Transmissão",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Concluído",
@@ -2452,6 +2493,75 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Verificando a instalação do OpenClaw...",
+    "description": "Integre provedores do Cherry Studio com o Gateway OpenClaw para habilitar agentes de codificação de IA como Claude Code, Qwen-Coder e muitos outros.",
+    "error": {
+      "select_provider_model": "Por favor, selecione primeiro um provedor e um modelo."
+    },
+    "gateway": {
+      "port": "Porto",
+      "restart": "Reiniciar",
+      "start": "Iniciar Gateway",
+      "status": "Estado",
+      "stop": "Parar",
+      "version": "Versão"
+    },
+    "install_progress": "Progresso da Instalação",
+    "installed_at": "OpenClaw instalado em: {{path}}",
+    "model_config": {
+      "auth_token": "Token de Autenticação",
+      "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",
+      "auth_token_placeholder": "Insira ou gere um token",
+      "generate_token": "Gerar",
+      "model": "Modelo",
+      "provider": "Fornecedor",
+      "select_model": "Selecione um modelo",
+      "select_provider": "Selecione um provedor",
+      "sync_hint": "O provedor e o modelo selecionados serão sincronizados com o arquivo de configuração do OpenClaw",
+      "title": "Configuração do Modelo"
+    },
+    "not_installed": {
+      "description": "OpenClaw não está instalado no seu sistema. Por favor, instale-o primeiro para usar este recurso.",
+      "install_button": "Instalar o OpenClaw",
+      "install_guide_title": "Guia de Instalação",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Atualizar",
+      "step2_hint": "Após a instalação, clique no botão Atualizar acima para detectar o OpenClaw",
+      "step2_title": "Passo 2: Verificar a instalação",
+      "title": "OpenClaw Não Instalado",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
+      "download_button": "Baixar Node.js",
+      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
+      "title": "Node.js Necessário"
+    },
+    "quick_actions": {
+      "open_dashboard": "Abrir Painel",
+      "title": "Ações Rápidas",
+      "uninstall": "Desinstalar",
+      "view_docs": "Ver Documentação"
+    },
+    "status": {
+      "error": "Erro",
+      "running": "Correndo",
+      "starting": "Começando",
+      "stopped": "Parado"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Tem certeza de que deseja desinstalar o OpenClaw? Pressione OK para confirmar.",
+    "uninstall_progress": "Progresso de Desinstalação",
+    "uninstalled": {
+      "description": "OpenClaw foi desinstalado com sucesso.",
+      "title": "Desinstalação concluída"
+    },
+    "uninstalling": {
+      "description": "Aguarde enquanto o OpenClaw está sendo desinstalado...",
+      "title": "Desinstalando OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Instalar",
@@ -2745,6 +2855,7 @@
     "category": "categoria",
     "commands": "comando",
     "confirm_uninstall": "Tem certeza de que deseja desinstalar {{name}}?",
+    "confirm_uninstall_package": "Tem certeza de que deseja desinstalar o pacote {{name}} e todos os seus componentes?",
     "content_saved": "Conteúdo do plugin salvo com sucesso",
     "detail": {
       "allowed_tools": "Ferramentas Permitidas",
@@ -2771,10 +2882,22 @@
     "showing_results_one": "Mostrar {{count}} extensões",
     "showing_results_other": "Exibir {{count}} extensões",
     "showing_results_plural": "Exibir {{count}} extensões",
+    "showing_results_skills": "Mostrando {{count}} habilidade",
+    "showing_results_skills_one": "Mostrando {{count}} habilidade",
+    "showing_results_skills_other": "Mostrando {{count}} habilidades",
+    "showing_results_skills_plural": "Mostrando {{count}} habilidades",
     "skills": "habilidade",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Ordenar",
+      "relevance": "Relevância",
+      "stars": "Estrelas"
+    },
+    "standalone_plugins": "Plugins Autônomos",
     "try_different_search": "Por favor, tente ajustar a pesquisa ou os filtros de categoria.",
     "type": "tipo",
     "uninstall": "Desinstalar",
+    "uninstall_package": "Desinstalar Pacote",
     "uninstalling": "Desinstalando..."
   },
   "preview": {
@@ -5157,6 +5280,7 @@
     "mcp-servers": "Servidores MCP",
     "memories": "Memórias",
     "notes": "Notas",
+    "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",

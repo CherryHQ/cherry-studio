@@ -131,6 +131,11 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   const isThinkingEnabled =
     currentReasoningEffort !== undefined && currentReasoningEffort !== 'none' && currentReasoningEffort !== 'default'
 
+  // Check if model supports multiple thinking levels (more than one of: low, medium, high, xhigh, minimal)
+  const hasMultipleLevels = useMemo(() => {
+    return supportedOptions.filter((opt) => ['low', 'medium', 'high', 'xhigh', 'minimal'].includes(opt)).length > 1
+  }, [supportedOptions])
+
   const disableThinking = useCallback(() => {
     onThinkingChange('none')
   }, [onThinkingChange])
@@ -151,12 +156,21 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       return
     }
 
-    if (isThinkingEnabled && supportedOptions.includes('none')) {
+    // If model has only single level (doesn't support multiple levels), directly disable thinking
+    if (isThinkingEnabled && supportedOptions.includes('none') && !hasMultipleLevels) {
       disableThinking()
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking, isFixedReasoning])
+  }, [
+    openQuickPanel,
+    quickPanelHook,
+    isThinkingEnabled,
+    supportedOptions,
+    hasMultipleLevels,
+    disableThinking,
+    isFixedReasoning
+  ])
 
   useEffect(() => {
     if (isFixedReasoning) return
@@ -179,11 +193,15 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     }
   }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
 
+  // Determine tooltip label, consistent with handleOpenQuickPanel behavior:
+  // - Fixed reasoning models: always show "Thinking"
+  // - Multi-level models: always show "Reasoning Effort" (opens panel)
+  // - Single-level models: show "Close" when thinking enabled, otherwise "Reasoning Effort"
   const ariaLabel = isFixedReasoning
     ? t('chat.input.thinking.label')
-    : isThinkingEnabled && supportedOptions.includes('none')
-      ? t('common.close')
-      : t('assistants.settings.reasoning_effort.label')
+    : hasMultipleLevels || !isThinkingEnabled
+      ? t('assistants.settings.reasoning_effort.label')
+      : t('common.close')
 
   return (
     <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
