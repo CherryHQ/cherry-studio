@@ -588,7 +588,8 @@ class OpenClawService {
       const baseUrl = this.getBaseUrlForApiType(provider, apiType)
 
       // Get API key - for vertexai, get access token from VertexAIService
-      let apiKey = provider.apiKey
+      // If multiple API keys are configured (comma-separated), use the first one
+      let apiKey = provider.apiKey.split(',')[0].trim()
       if (isVertexProvider(provider)) {
         try {
           const vertexService = VertexAIService.getInstance()
