@@ -42,12 +42,15 @@ export type FileProcessorMetadata = Record<string, never>
  *
  * Each capability binds a feature with its input/output and optional API settings.
  */
+export type CapabilityMetadata = Record<string, unknown>
+
 export type TextExtractionCapability = {
   feature: 'text_extraction'
   input: 'image' | 'document'
   output: 'text'
   apiHost?: string // API Host (template default, can be overridden)
   modelId?: string // Model ID (template default, can be overridden)
+  metadata?: CapabilityMetadata
   // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
   // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
 }
@@ -58,6 +61,7 @@ export type MarkdownConversionCapability = {
   output: 'markdown'
   apiHost?: string // API Host (template default, can be overridden)
   modelId?: string // Model ID (template default, can be overridden)
+  metadata?: CapabilityMetadata
   // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
   // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
 }
@@ -103,6 +107,7 @@ export type FileProcessorOptions = Record<string, unknown>
 export type CapabilityOverride = {
   apiHost?: string
   modelId?: string
+  metadata?: CapabilityMetadata
 }
 
 /**
@@ -177,14 +182,26 @@ export const PRESETS_FILE_PROCESSORS = [
         input: 'image',
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PP-OCRv5'
+        modelId: 'PP-OCRv5',
+        metadata: {
+          optionalPayload: {
+            useDocOrientationClassify: false,
+            useDocUnwarping: false
+          }
+        }
       },
       {
         feature: 'markdown_conversion',
         input: 'document',
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PaddleOCR-VL-1.5'
+        modelId: 'PaddleOCR-VL-1.5',
+        metadata: {
+          optionalPayload: {
+            useDocOrientationClassify: false,
+            useDocUnwarping: false
+          }
+        }
       }
     ]
   },

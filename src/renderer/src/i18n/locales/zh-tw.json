@@ -4030,14 +4030,22 @@
       "builtin": "內建",
       "capability": "能力",
       "configured_count": "已配置 {{count}} / {{total}} 個服務",
+      "custom": "自訂",
       "default_document_processor": "預設文件處理器",
       "default_image_processor": "預設圖片處理器",
       "default_service": "預設服務",
       "default_setting": "預設設定",
       "document_processors": "文件處理",
-      "feature": "功能",
-      "feature_markdown_conversion": "轉換為 Markdown",
-      "feature_text_extraction": "文字擷取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "在新增 PDF 至知識庫時使用",
+          "title": "文件解析"
+        },
+        "text_extraction": {
+          "description": "從圖片中擷取文字內容",
+          "title": "圖片 OCR"
+        }
+      },
       "get_api_key": "點擊這裡獲取密鑰",
       "image_processors": "圖片處理",
       "input_document": "文件",
@@ -4046,6 +4054,7 @@
       "langs": "支援的語言",
       "langs_placeholder": "選擇語言",
       "langs_tooltip": "選擇 Tesseract OCR 支援的語言",
+      "metadata": "中繼資料",
       "no_config_needed": "無需配置",
       "no_default": "不使用預處理",
       "output_markdown": "Markdown",
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "在對話中上傳圖片時使用",
-          "title": "聊天圖片理解"
-        },
-        "knowledge_base": {
-          "description": "當新增 PDF 到知識庫時使用",
-          "title": "知識庫文件解析"
         }
       },
       "service_config": "服務配置",

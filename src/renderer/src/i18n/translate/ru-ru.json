@@ -4030,26 +4030,35 @@
       "builtin": "Встроенный",
       "capability": "Возможность",
       "configured_count": "{{count}} / {{total}} сервисов настроено",
+      "custom": "Пользовательский",
       "default_document_processor": "Обработчик документов по умолчанию",
       "default_image_processor": "Обработчик изображений по умолчанию",
       "default_service": "Сервис по умолчанию",
       "default_setting": "Настройки по умолчанию",
       "document_processors": "Обработка документов",
-      "feature": "Функция",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Используется при добавлении PDF в базу знаний.",
+          "title": "Анализ документов"
+        },
+        "text_extraction": {
+          "description": "Извлекает текстовое содержимое из изображений.",
+          "title": "OCR изображений"
+        }
+      },
       "get_api_key": "Получить ключ API",
       "image_processors": "Обработка изображений",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Документ",
+      "input_image": "Изображение",
       "is_default": "Установлено по умолчанию",
       "langs": "Поддерживаемые языки",
       "langs_placeholder": "Выберите язык",
       "langs_tooltip": "Выберите языки, поддерживаемые Tesseract OCR",
+      "metadata": "Метаданные",
       "no_config_needed": "Настройка не требуется",
       "no_default": "Не использовать предобработку",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Текст",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Используется при загрузке изображений в чате",
-          "title": "Понимание изображений в чате"
-        },
-        "knowledge_base": {
-          "description": "Используется при добавлении PDF в базу знаний",
-          "title": "Анализ документов базы знаний"
         }
       },
       "service_config": "Конфигурация сервиса",

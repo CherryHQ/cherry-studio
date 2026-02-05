@@ -176,20 +176,21 @@ export class PaddleProcessor
     return `${apiHost.replace(/\/+$/, '')}${JOB_PATH}`
   }
 
-  private getOptionalPayload(feature: FileProcessorFeature): Record<string, boolean> {
-    if (feature === 'text_extraction') {
-      return {
-        useDocOrientationClassify: false,
-        useDocUnwarping: false,
-        useTextlineOrientation: false
-      }
-    }
+  private getOptionalPayload(
+    feature: FileProcessorFeature,
+    config: FileProcessorMerged
+  ): Record<string, unknown> | undefined {
+    const capability = config.capabilities.find((cap) => cap.feature === feature)
+    const metadata = capability?.metadata
+    const optionalPayload =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)['optionalPayload']
+        : undefined
 
-    return {
-      useDocOrientationClassify: false,
-      useDocUnwarping: false,
-      useChartRecognition: false
+    if (optionalPayload && typeof optionalPayload === 'object' && !Array.isArray(optionalPayload)) {
+      return optionalPayload as Record<string, unknown>
     }
+    return undefined
   }
 
   private buildProviderTaskId(payload: PaddleTaskPayload): string {
@@ -315,7 +316,10 @@ export class PaddleProcessor
 
     const formData = new FormData()
     formData.append('model', modelId)
-    formData.append('optionalPayload', JSON.stringify(this.getOptionalPayload(feature)))
+    const optionalPayload = this.getOptionalPayload(feature, config)
+    if (optionalPayload) {
+      formData.append('optionalPayload', JSON.stringify(optionalPayload))
+    }
 
     if (feature === 'text_extraction') {
       if (!isImageFileMetadata(input)) {

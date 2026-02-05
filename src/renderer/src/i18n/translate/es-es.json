@@ -4030,26 +4030,35 @@
       "builtin": "Integrado",
       "capability": "Capacidad",
       "configured_count": "{{count}} / {{total}} servicios configurados",
+      "custom": "Personalizado",
       "default_document_processor": "Procesador de documentos predeterminado",
       "default_image_processor": "Procesador de imágenes predeterminado",
       "default_service": "Servicio predeterminado",
       "default_setting": "Configuración predeterminada",
       "document_processors": "Procesamiento de documentos",
-      "feature": "Función",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Se utiliza al añadir PDF a la base de conocimientos.",
+          "title": "Análisis de documentos"
+        },
+        "text_extraction": {
+          "description": "Extrae el contenido de texto de las imágenes.",
+          "title": "OCR de imágenes"
+        }
+      },
       "get_api_key": "Obtener clave API",
       "image_processors": "Procesamiento de imágenes",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Documento",
+      "input_image": "Imagen",
       "is_default": "Establecido como predeterminado",
       "langs": "Idiomas compatibles",
       "langs_placeholder": "Seleccionar idioma",
       "langs_tooltip": "Seleccionar idiomas compatibles con Tesseract OCR",
+      "metadata": "Metadatos",
       "no_config_needed": "No se requiere configuración",
       "no_default": "No usar preprocesamiento",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Texto",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Se usa al subir imágenes en el chat",
-          "title": "Comprensión de imágenes de chat"
-        },
-        "knowledge_base": {
-          "description": "Se usa al agregar PDF a la base de conocimientos",
-          "title": "Análisis de documentos de la base de conocimientos"
         }
       },
       "service_config": "Configuración del servicio",

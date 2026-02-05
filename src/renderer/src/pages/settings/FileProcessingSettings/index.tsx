@@ -6,15 +6,17 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProcessorListItem from './components/ProcessorListItem'
-import SidebarSection from './components/SidebarSection'
 
 const FileProcessingSettings: FC = () => {
   const { t } = useTranslation()
-  const { processors: documentProcessors } = useFileProcessors({ feature: 'markdown_conversion' })
-  const { processors: imageProcessors } = useFileProcessors({ feature: 'text_extraction' })
+  const { processors } = useFileProcessors()
   const { defaultMarkdownConversionProcessor, defaultTextExtractionProcessor } = useDefaultProcessors()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const defaultProcessorIds = [defaultMarkdownConversionProcessor, defaultTextExtractionProcessor].filter(
+    (processorId): processorId is string => Boolean(processorId)
+  )
 
   // Get the currently active view
   const getActiveView = () => {
@@ -25,8 +27,7 @@ const FileProcessingSettings: FC = () => {
     }
 
     // Check if it's a processor page
-    const allProcessors = [...documentProcessors, ...imageProcessors]
-    for (const processor of allProcessors) {
+    for (const processor of processors) {
       if (path === `/settings/file-processing/processor/${processor.id}`) {
         return processor.id
       }
@@ -50,44 +51,21 @@ const FileProcessingSettings: FC = () => {
           <FileText size={16} />
           {t('settings.file_processing.title')}
         </div>
+        <div className="border-border border-b" />
 
-        {/* Document processors */}
-        <SidebarSection.Root title={t('settings.file_processing.document_processors')}>
-          <SidebarSection.Title />
-          <SidebarSection.List>
-            {documentProcessors.map((processor) => (
-              <ProcessorListItem.Root
-                key={processor.id}
-                processor={processor}
-                activeId={activeView}
-                defaultId={defaultMarkdownConversionProcessor}
-                kind="document">
-                <ProcessorListItem.Icon />
-                <ProcessorListItem.Label />
-                <ProcessorListItem.Badge />
-              </ProcessorListItem.Root>
-            ))}
-          </SidebarSection.List>
-        </SidebarSection.Root>
-
-        {/* Image processors */}
-        <SidebarSection.Root title={t('settings.file_processing.image_processors')}>
-          <SidebarSection.Title />
-          <SidebarSection.List>
-            {imageProcessors.map((processor) => (
-              <ProcessorListItem.Root
-                key={processor.id}
-                processor={processor}
-                activeId={activeView}
-                defaultId={defaultTextExtractionProcessor}
-                kind="image">
-                <ProcessorListItem.Icon />
-                <ProcessorListItem.Label />
-                <ProcessorListItem.Badge />
-              </ProcessorListItem.Root>
-            ))}
-          </SidebarSection.List>
-        </SidebarSection.Root>
+        <div className="flex flex-col gap-1">
+          {processors.map((processor) => (
+            <ProcessorListItem.Root
+              key={processor.id}
+              processor={processor}
+              activeId={activeView}
+              defaultIds={defaultProcessorIds}>
+              <ProcessorListItem.Icon />
+              <ProcessorListItem.Label />
+              <ProcessorListItem.Badge />
+            </ProcessorListItem.Root>
+          ))}
+        </div>
       </div>
 
       {/* Right column: Content area */}

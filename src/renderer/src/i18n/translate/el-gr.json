@@ -4030,26 +4030,35 @@
       "builtin": "Ενσωματωμένο",
       "capability": "Δυνατότητα",
       "configured_count": "{{count}} / {{total}} υπηρεσίες ρυθμισμένες",
+      "custom": "Προσαρμοσμένο",
       "default_document_processor": "Προεπιλεγμένος επεξεργαστής εγγράφων",
       "default_image_processor": "Προεπιλεγμένος επεξεργαστής εικόνων",
       "default_service": "Προεπιλεγμένη υπηρεσία",
       "default_setting": "Προεπιλεγμένες ρυθμίσεις",
       "document_processors": "Επεξεργασία εγγράφων",
-      "feature": "Λειτουργία",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Χρησιμοποιείται κατά την προσθήκη PDF στη βάση γνώσεων.",
+          "title": "Ανάλυση εγγράφου"
+        },
+        "text_extraction": {
+          "description": "Εξάγει περιεχόμενο κειμένου από εικόνες.",
+          "title": "OCR εικόνας"
+        }
+      },
       "get_api_key": "Λήψη κλειδιού API",
       "image_processors": "Επεξεργασία εικόνων",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Έγγραφο",
+      "input_image": "Εικόνα",
       "is_default": "Ορίστηκε ως προεπιλογή",
       "langs": "Υποστηριζόμενες γλώσσες",
       "langs_placeholder": "Επιλέξτε γλώσσα",
       "langs_tooltip": "Επιλέξτε γλώσσες που υποστηρίζονται από το Tesseract OCR",
+      "metadata": "Μεταδεδομένα",
       "no_config_needed": "Δεν απαιτείται ρύθμιση",
       "no_default": "Χωρίς προεπεξεργασία",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Κείμενο",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Χρησιμοποιείται κατά τη μεταφόρτωση εικόνων στη συνομιλία",
-          "title": "Κατανόηση εικόνων συνομιλίας"
-        },
-        "knowledge_base": {
-          "description": "Χρησιμοποιείται κατά την προσθήκη PDF στη βάση γνώσεων",
-          "title": "Ανάλυση εγγράφων βάσης γνώσεων"
         }
       },
       "service_config": "Ρυθμίσεις υπηρεσίας",

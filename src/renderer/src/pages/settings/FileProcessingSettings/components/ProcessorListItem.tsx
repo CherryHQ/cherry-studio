@@ -1,20 +1,18 @@
 import { Badge } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { FILE_PROCESSOR_LOGOS } from '@renderer/config/fileProcessing'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { useNavigate } from '@tanstack/react-router'
-import { FileText, Image } from 'lucide-react'
+import { FileText, Image, Monitor } from 'lucide-react'
 import type { FC, PropsWithChildren } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-
-type ProcessorKind = 'document' | 'image'
 
 interface ProcessorListItemContextValue {
   processor: FileProcessorMerged
   isActive: boolean
   isDefault: boolean
   isBuiltin: boolean
-  kind: ProcessorKind
 }
 
 const ProcessorListItemContext = React.createContext<ProcessorListItemContextValue | null>(null)
@@ -30,18 +28,17 @@ const useProcessorListItemContext = () => {
 interface ProcessorListItemRootProps extends PropsWithChildren {
   processor: FileProcessorMerged
   activeId?: string
-  defaultId?: string | null
-  kind: ProcessorKind
+  defaultIds?: string[]
 }
 
-const ProcessorListItemRoot: FC<ProcessorListItemRootProps> = ({ processor, activeId, defaultId, kind, children }) => {
+const ProcessorListItemRoot: FC<ProcessorListItemRootProps> = ({ processor, activeId, defaultIds, children }) => {
   const navigate = useNavigate()
   const isActive = activeId === processor.id
-  const isDefault = defaultId === processor.id
+  const isDefault = defaultIds?.includes(processor.id) ?? false
   const isBuiltin = processor.type === 'builtin'
 
   return (
-    <ProcessorListItemContext value={{ processor, isActive, isDefault, isBuiltin, kind }}>
+    <ProcessorListItemContext value={{ processor, isActive, isDefault, isBuiltin }}>
       <div
         className={cn(
           'flex cursor-pointer flex-row items-center gap-2 rounded-3xs p-2 hover:bg-ghost-hover',
@@ -60,8 +57,28 @@ const ProcessorListItemRoot: FC<ProcessorListItemRootProps> = ({ processor, acti
 }
 
 const ProcessorListItemIcon: FC = () => {
-  const { kind } = useProcessorListItemContext()
-  return kind === 'document' ? <FileText size={18} /> : <Image size={18} />
+  const { processor } = useProcessorListItemContext()
+  if (processor.id === 'system') {
+    return <Monitor size={16} />
+  }
+  const logo = FILE_PROCESSOR_LOGOS[processor.id]
+
+  if (logo) {
+    return <img src={logo} alt={`${processor.id} logo`} className="h-5 w-5 rounded-full bg-white object-contain" />
+  }
+  const hasMarkdown = processor.capabilities.some((capability) => capability.feature === 'markdown_conversion')
+  const hasTextExtraction = processor.capabilities.some((capability) => capability.feature === 'text_extraction')
+
+  if (hasMarkdown && hasTextExtraction) {
+    return (
+      <div className="flex items-center gap-1">
+        <FileText size={16} />
+        <Image size={16} />
+      </div>
+    )
+  }
+
+  return hasMarkdown ? <FileText size={18} /> : <Image size={18} />
 }
 
 const ProcessorListItemLabel: FC = () => {

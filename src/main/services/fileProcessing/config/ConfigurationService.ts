@@ -201,11 +201,13 @@ export class ConfigurationService {
 
       const apiHost = this.normalizeString(cap.apiHost)
       const modelId = this.normalizeString(cap.modelId)
+      const metadata = this.normalizeMetadata(cap.metadata)
 
-      if (apiHost || modelId) {
+      if (apiHost || modelId || metadata) {
         const capOverride: CapabilityOverride = {}
         if (apiHost) capOverride.apiHost = apiHost
         if (modelId) capOverride.modelId = modelId
+        if (metadata) capOverride.metadata = metadata
         normalized[feature as FileProcessorFeature] = capOverride
       }
     }
@@ -219,6 +221,11 @@ export class ConfigurationService {
   private normalizeOptions(options?: FileProcessorOptions): FileProcessorOptions | undefined {
     if (!options || Object.keys(options).length === 0) return undefined
     return options
+  }
+
+  private normalizeMetadata(metadata?: CapabilityOverride['metadata']): CapabilityOverride['metadata'] | undefined {
+    if (!metadata || Object.keys(metadata).length === 0) return undefined
+    return metadata
   }
 
   private normalizeString(value?: string): string | undefined {

@@ -3105,7 +3105,7 @@
       "prompt": {
         "explain": "Veuillez expliquer le contenu suivant. Exigences : répondre en {{language}} ; n’incluez aucune explication de cette consigne, fournissez simplement la réponse directement :",
         "refine": "Veuillez optimiser ou peaufiner le contenu saisi par l’utilisateur inclus dans la balise XML <INPUT>, tout en conservant le sens et l’intégrité du contenu original. Exigences : votre réponse doit être dans la même langue que la saisie utilisateur ; n’incluez aucune explication de cette consigne, fournissez directement la réponse ; ne produisez pas de balises XML, affichez le contenu optimisé directement.",
-        "summary": "Je ne peux pas résumer le contenu, car aucun texte à résumer n’a été fourni après « [to be translated] »."
+        "summary": "Veuillez résumer le contenu suivant. Exigences : répondre en {{language}} ; ne fournissez aucune explication de cette consigne, donnez simplement la réponse directement : \n\n"
       },
       "translate": {
         "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"
@@ -4030,26 +4030,35 @@
       "builtin": "Intégré",
       "capability": "Capacité",
       "configured_count": "{{count}} / {{total}} services configurés",
+      "custom": "Personnalisé",
       "default_document_processor": "Processeur de documents par défaut",
       "default_image_processor": "Processeur d'images par défaut",
       "default_service": "Service par défaut",
       "default_setting": "Paramètres par défaut",
       "document_processors": "Traitement de documents",
-      "feature": "Fonctionnalité",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Utilisé lors de l’ajout de PDF à la base de connaissances.",
+          "title": "Analyse de document"
+        },
+        "text_extraction": {
+          "description": "Extrait le contenu textuel des images.",
+          "title": "OCR d’image"
+        }
+      },
       "get_api_key": "Obtenir une clé API",
       "image_processors": "Traitement d'images",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Document",
+      "input_image": "Image",
       "is_default": "Défini par défaut",
       "langs": "Langues prises en charge",
       "langs_placeholder": "Sélectionner la langue",
       "langs_tooltip": "Sélectionner les langues prises en charge par Tesseract OCR",
+      "metadata": "Métadonnées",
       "no_config_needed": "Aucune configuration requise",
       "no_default": "Ne pas utiliser le prétraitement",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Texte",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Utilisé lors du téléchargement d'images dans le chat",
-          "title": "Compréhension d'images de chat"
-        },
-        "knowledge_base": {
-          "description": "Utilisé lors de l'ajout de PDF à la base de connaissances",
-          "title": "Analyse de documents de la base de connaissances"
         }
       },
       "service_config": "Configuration du service",

@@ -4030,26 +4030,35 @@
       "builtin": "内蔵",
       "capability": "機能",
       "configured_count": "{{count}} / {{total}} サービス設定済み",
+      "custom": "カスタム",
       "default_document_processor": "デフォルトドキュメントプロセッサ",
       "default_image_processor": "デフォルト画像プロセッサ",
       "default_service": "デフォルトサービス",
       "default_setting": "デフォルト設定",
       "document_processors": "ドキュメント処理",
-      "feature": "機能",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "PDF を知識ベースに追加する際に使用します。",
+          "title": "文書解析"
+        },
+        "text_extraction": {
+          "description": "画像からテキスト内容を抽出します。",
+          "title": "画像 OCR"
+        }
+      },
       "get_api_key": "APIキーを取得",
       "image_processors": "画像処理",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "文書",
+      "input_image": "画像",
       "is_default": "デフォルトに設定済み",
       "langs": "対応言語",
       "langs_placeholder": "言語を選択",
       "langs_tooltip": "Tesseract OCRがサポートする言語を選択",
+      "metadata": "メタデータ",
       "no_config_needed": "設定不要",
       "no_default": "前処理を使用しない",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "テキスト",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "チャットで画像をアップロードする際に使用",
-          "title": "チャット画像理解"
-        },
-        "knowledge_base": {
-          "description": "ナレッジベースにPDFを追加する際に使用",
-          "title": "ナレッジベースドキュメント解析"
         }
       },
       "service_config": "サービス設定",

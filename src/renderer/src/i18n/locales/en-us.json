@@ -4030,14 +4030,22 @@
       "builtin": "Built-in",
       "capability": "Ability",
       "configured_count": "{{count}} / {{total}} services configured",
+      "custom": "Custom",
       "default_document_processor": "Default document processor",
       "default_image_processor": "Default image processor",
       "default_service": "Default service",
       "default_setting": "Default settings",
       "document_processors": "Document processing",
-      "feature": "Feature",
-      "feature_markdown_conversion": "Convert to Markdown",
-      "feature_text_extraction": "Text extraction",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Used when adding PDFs to the knowledge base.",
+          "title": "Document Parsing"
+        },
+        "text_extraction": {
+          "description": "Extracts text content from images.",
+          "title": "Image OCR"
+        }
+      },
       "get_api_key": "Get API Key",
       "image_processors": "Image processing",
       "input_document": "Document",
@@ -4046,6 +4054,7 @@
       "langs": "Supported languages",
       "langs_placeholder": "Select language",
       "langs_tooltip": "Select languages supported by Tesseract OCR",
+      "metadata": "Metadata",
       "no_config_needed": "No configuration required",
       "no_default": "Do not use preprocessing",
       "output_markdown": "Markdown",
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Used when uploading images in chat",
-          "title": "Chat image understanding"
-        },
-        "knowledge_base": {
-          "description": "Used when adding PDF to knowledge base",
-          "title": "Knowledge base document parsing"
         }
       },
       "service_config": "Service Configuration",

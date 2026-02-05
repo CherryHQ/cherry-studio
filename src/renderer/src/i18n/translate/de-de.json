@@ -4030,26 +4030,35 @@
       "builtin": "Integriert",
       "capability": "Fähigkeit",
       "configured_count": "{{count}} / {{total}} Dienste konfiguriert",
+      "custom": "Benutzerdefiniert",
       "default_document_processor": "Standard-Dokumentenprozessor",
       "default_image_processor": "Standard-Bildprozessor",
       "default_service": "Standarddienst",
       "default_setting": "Standardeinstellungen",
       "document_processors": "Dokumentenverarbeitung",
-      "feature": "Funktion",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Wird beim Hinzufügen von PDFs zur Wissensdatenbank verwendet.",
+          "title": "Dokument-Parsing"
+        },
+        "text_extraction": {
+          "description": "Extrahiert Textinhalte aus Bildern.",
+          "title": "Bild-OCR"
+        }
+      },
       "get_api_key": "API-Schlüssel abrufen",
       "image_processors": "Bildverarbeitung",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Dokument",
+      "input_image": "Bild",
       "is_default": "Als Standard festgelegt",
       "langs": "Unterstützte Sprachen",
       "langs_placeholder": "Sprache auswählen",
       "langs_tooltip": "Von Tesseract OCR unterstützte Sprachen auswählen",
+      "metadata": "Metadaten",
       "no_config_needed": "Keine Konfiguration erforderlich",
       "no_default": "Keine Vorverarbeitung verwenden",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Text",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Wird beim Hochladen von Bildern im Chat verwendet",
-          "title": "Chat-Bildverständnis"
-        },
-        "knowledge_base": {
-          "description": "Wird beim Hinzufügen von PDF zur Wissensdatenbank verwendet",
-          "title": "Wissensdatenbank-Dokumentenanalyse"
         }
       },
       "service_config": "Dienstkonfiguration",

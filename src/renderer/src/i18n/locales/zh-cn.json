@@ -4030,14 +4030,22 @@
       "builtin": "内置",
       "capability": "能力",
       "configured_count": "已配置 {{count}} / {{total}} 个服务",
+      "custom": "自定义",
       "default_document_processor": "默认文档处理器",
       "default_image_processor": "默认图片处理器",
       "default_service": "默认服务",
       "default_setting": "默认设置",
       "document_processors": "文档处理",
-      "feature": "功能",
-      "feature_markdown_conversion": "转换为 Markdown",
-      "feature_text_extraction": "文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "当添加 PDF 到知识库时使用",
+          "title": "文档解析"
+        },
+        "text_extraction": {
+          "description": "从图片中提取文本内容",
+          "title": "图片OCR"
+        }
+      },
       "get_api_key": "点击这里获取密钥",
       "image_processors": "图片处理",
       "input_document": "文档",
@@ -4046,6 +4054,7 @@
       "langs": "支持的语言",
       "langs_placeholder": "选择语言",
       "langs_tooltip": "选择 Tesseract OCR 支持的语言",
+      "metadata": "元数据",
       "no_config_needed": "无需配置",
       "no_default": "不使用预处理",
       "output_markdown": "Markdown",
@@ -4058,7 +4067,7 @@
           "name": "MinerU"
         },
         "mistral": {
-          "name": "Mistral OCR"
+          "name": "Mistral"
         },
         "open-mineru": {
           "name": "Open MinerU"
@@ -4067,23 +4076,13 @@
           "name": "Intel OV OCR"
         },
         "paddleocr": {
-          "name": "PaddleOCR"
+          "name": "Paddle OCR"
         },
         "system": {
           "name": "系统 OCR"
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "在对话中上传图片时使用",
-          "title": "聊天图片理解"
-        },
-        "knowledge_base": {
-          "description": "当添加 PDF 到知识库时使用",
-          "title": "知识库文档解析"
         }
       },
       "service_config": "服务配置",

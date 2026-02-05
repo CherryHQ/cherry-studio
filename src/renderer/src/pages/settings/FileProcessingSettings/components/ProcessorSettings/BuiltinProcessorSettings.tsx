@@ -9,7 +9,7 @@ import {
   InfoTooltip
 } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
-import { FILE_PROCESSOR_CONFIG, TESSERACT_LANG_MAP } from '@renderer/config/fileProcessing'
+import { FILE_PROCESSOR_WEBSITE, TESSERACT_LANG_MAP } from '@renderer/config/fileProcessing'
 import { useFileProcessor } from '@renderer/hooks/useFileProcessing'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { FC } from 'react'
@@ -147,7 +147,7 @@ const BuiltinProcessorSettings: FC<BuiltinProcessorSettingsProps> = ({ processor
   return (
     <ProcessorSettingsLayout.Root
       title={t(`settings.file_processing.processor.${processor.id}.name`)}
-      officialUrl={FILE_PROCESSOR_CONFIG[processor.id]?.websites.official}>
+      officialUrl={FILE_PROCESSOR_WEBSITE[processor.id]?.websites.official}>
       <ProcessorSettingsLayout.Header />
       <ProcessorSettingsLayout.Content>{renderProcessorSettings()}</ProcessorSettingsLayout.Content>
     </ProcessorSettingsLayout.Root>

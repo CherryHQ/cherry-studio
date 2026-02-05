@@ -14,6 +14,7 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as z from 'zod'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import type { IProcessStatusProvider } from '../../interfaces'
@@ -21,35 +22,76 @@ import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('Doc2xProcessor')
 
-type ApiResponse<T> = {
-  code: string
-  data?: T
-  message?: string
-  msg?: string
-}
+const createApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.looseObject({
+    code: z.string(),
+    data: dataSchema.optional(),
+    message: z.string().optional(),
+    msg: z.string().optional()
+  })
 
-type PreuploadResponse = {
-  uid: string
-  url: string
-}
+const PreuploadResponseSchema = z.looseObject({
+  uid: z.string(),
+  url: z.string()
+})
 
-type StatusResponse = {
-  status: string
-  progress: number
-  detail?: string
-}
+const StatusResponseSchema = z.looseObject({
+  status: z.string(),
+  progress: z.coerce.number(),
+  detail: z.string().optional()
+})
 
-type ParsedFileResponse = {
-  status: string
-  url: string
-  detail?: string
-}
+const ParsedFileResponseSchema = z.looseObject({
+  status: z.string(),
+  url: z.string(),
+  detail: z.string().optional()
+})
+
+const PreuploadApiResponseSchema = createApiResponseSchema(PreuploadResponseSchema)
+const StatusApiResponseSchema = createApiResponseSchema(StatusResponseSchema)
+const ParsedFileApiResponseSchema = createApiResponseSchema(ParsedFileResponseSchema)
+const BaseApiResponseSchema = createApiResponseSchema(z.unknown())
+
+type PreuploadResponse = z.infer<typeof PreuploadResponseSchema>
+type StatusResponse = z.infer<typeof StatusResponseSchema>
+type ParsedFileResponse = z.infer<typeof ParsedFileResponseSchema>
 
 type Doc2xTaskPayload = {
   uid: string
   fileId: string
   fileName: string
   originalName: string
+}
+
+const formatZodError = (error: z.ZodError): string =>
+  error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : '<root>'
+      return `[${issue.code}] ${path}: ${issue.message}`
+    })
+    .join('; ')
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof z.ZodError) {
+    return formatZodError(error)
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  return 'Unknown error'
+}
+
+const parseResponse = <T>(schema: z.ZodType<T>, payload: unknown, context: string): T => {
+  try {
+    return schema.parse(payload)
+  } catch (error) {
+    const message = getErrorMessage(error)
+    logger.error('Doc2X response validation failed', { context, error: message })
+    throw new Error(`Doc2X response validation failed: ${message}`)
+  }
 }
 
 export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
@@ -66,7 +108,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
     super(template)
   }
 
-  private getApiErrorMessage(data: ApiResponse<unknown>): string {
+  private getApiErrorMessage(data: { message?: string; msg?: string }): string {
     return data.message ?? data.msg ?? JSON.stringify(data)
   }
 
@@ -82,7 +124,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<PreuploadResponse> = await response.json()
+    const data = parseResponse(PreuploadApiResponseSchema, await response.json(), 'preupload')
 
     if (data.code === 'success' && data.data) {
       return data.data
@@ -117,7 +159,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<StatusResponse> = await response.json()
+    const data = parseResponse(StatusApiResponseSchema, await response.json(), 'getParseStatus')
 
     if (data.code === 'success' && data.data) {
       return data.data
@@ -149,7 +191,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<unknown> = await response.json()
+    const data = parseResponse(BaseApiResponseSchema, await response.json(), 'convertFile')
 
     if (data.code !== 'success') {
       throw new Error(`API returned error: ${this.getApiErrorMessage(data)}`)
@@ -168,7 +210,7 @@ export class Doc2xProcessor extends BaseMarkdownConverter implements IProcessSta
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<ParsedFileResponse> = await response.json()
+    const data = parseResponse(ParsedFileApiResponseSchema, await response.json(), 'getParsedFile')
 
     if (data.code === 'success' && data.data) {
       return data.data

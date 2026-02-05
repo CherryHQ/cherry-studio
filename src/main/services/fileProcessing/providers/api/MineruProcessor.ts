@@ -14,6 +14,7 @@ import AdmZip from 'adm-zip'
 import { net } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as z from 'zod'
 
 import { BaseMarkdownConverter } from '../../base/BaseMarkdownConverter'
 import type { IProcessStatusProvider } from '../../interfaces'
@@ -21,44 +22,81 @@ import type { ProcessingContext } from '../../types'
 
 const logger = loggerService.withContext('MineruProcessor')
 
-type ApiResponse<T> = {
-  code: number
-  data: T
-  msg?: string
-  trace_id?: string
-}
+const createApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.looseObject({
+    code: z.number(),
+    data: dataSchema.optional(),
+    msg: z.string().optional(),
+    trace_id: z.string().optional()
+  })
 
-type BatchUploadResponse = {
-  batch_id: string
-  file_urls: string[]
-  headers?: Record<string, string>[]
-}
+const BatchUploadResponseSchema = z.looseObject({
+  batch_id: z.string(),
+  file_urls: z.array(z.string()),
+  headers: z.array(z.record(z.string(), z.string())).optional()
+})
 
-type ExtractProgress = {
-  extracted_pages: number
-  total_pages: number
-  start_time: string
-}
+const ExtractProgressSchema = z.looseObject({
+  extracted_pages: z.coerce.number(),
+  total_pages: z.coerce.number(),
+  start_time: z.string()
+})
 
-type ExtractFileResult = {
-  file_name: string
-  state: 'done' | 'waiting-file' | 'pending' | 'running' | 'converting' | 'failed'
-  err_msg: string
-  full_zip_url?: string
-  data_id?: string
-  extract_progress?: ExtractProgress
-}
+const ExtractFileResultSchema = z.looseObject({
+  file_name: z.string(),
+  state: z.string(),
+  err_msg: z.string().optional(),
+  full_zip_url: z.string().optional(),
+  data_id: z.string().optional(),
+  extract_progress: ExtractProgressSchema.optional()
+})
 
-type ExtractResultResponse = {
-  batch_id: string
-  extract_result: ExtractFileResult[]
-}
+const ExtractResultResponseSchema = z.looseObject({
+  batch_id: z.string(),
+  extract_result: z.array(ExtractFileResultSchema)
+})
+
+const BatchUploadApiResponseSchema = createApiResponseSchema(BatchUploadResponseSchema)
+const ExtractResultApiResponseSchema = createApiResponseSchema(ExtractResultResponseSchema)
+
+type ExtractResultResponse = z.infer<typeof ExtractResultResponseSchema>
 
 type MineruTaskPayload = {
   batchId: string
   fileId: string
   fileName: string
   originalName: string
+}
+
+const formatZodError = (error: z.ZodError): string =>
+  error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : '<root>'
+      return `[${issue.code}] ${path}: ${issue.message}`
+    })
+    .join('; ')
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof z.ZodError) {
+    return formatZodError(error)
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  return 'Unknown error'
+}
+
+const parseResponse = <T>(schema: z.ZodType<T>, payload: unknown, context: string): T => {
+  try {
+    return schema.parse(payload)
+  } catch (error) {
+    const message = getErrorMessage(error)
+    logger.error('MinerU response validation failed', { context, error: message })
+    throw new Error(`MinerU response validation failed: ${message}`)
+  }
 }
 
 export class MineruProcessor extends BaseMarkdownConverter implements IProcessStatusProvider {
@@ -99,7 +137,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<BatchUploadResponse> = await response.json()
+    const data = parseResponse(BatchUploadApiResponseSchema, await response.json(), 'getBatchUploadUrls')
     if (data.code === 0 && data.data) {
       const { batch_id, file_urls, headers: uploadHeaders } = data.data
       return { batchId: batch_id, fileUrls: file_urls, uploadHeaders }
@@ -136,7 +174,7 @@ export class MineruProcessor extends BaseMarkdownConverter implements IProcessSt
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
-    const data: ApiResponse<ExtractResultResponse> = await response.json()
+    const data = parseResponse(ExtractResultApiResponseSchema, await response.json(), 'getExtractResults')
     if (data.code === 0 && data.data) {
       return data.data
     }

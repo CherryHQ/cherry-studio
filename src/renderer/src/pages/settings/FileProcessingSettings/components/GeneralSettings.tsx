@@ -30,13 +30,11 @@ const GeneralSettings: FC = () => {
     <div className="flex w-full flex-col gap-1">
       {/* Knowledge Base Document Processing */}
       <ScenarioSection.Root
-        title={t('settings.file_processing.scenario.knowledge_base.title')}
-        description={t('settings.file_processing.scenario.knowledge_base.description')}>
+        title={t('settings.file_processing.feature.markdown_conversion.title')}
+        description={t('settings.file_processing.feature.markdown_conversion.description')}>
         <ScenarioSection.Title />
-        <ScenarioSection.Description />
-        <ScenarioSection.Divider />
         <ScenarioSection.Row>
-          <div className="text-sm">{t('settings.file_processing.default_service')}</div>
+          <ScenarioSection.Description />
           <Select
             value={defaultMarkdownConversionProcessor || '__none__'}
             onValueChange={(value) => setDefaultMarkdownConversionProcessor(value === '__none__' ? null : value)}>
@@ -60,13 +58,11 @@ const GeneralSettings: FC = () => {
 
       {/* Chat Image Understanding */}
       <ScenarioSection.Root
-        title={t('settings.file_processing.scenario.chat_image.title')}
-        description={t('settings.file_processing.scenario.chat_image.description')}>
+        title={t('settings.file_processing.feature.text_extraction.title')}
+        description={t('settings.file_processing.feature.text_extraction.description')}>
         <ScenarioSection.Title />
-        <ScenarioSection.Description />
-        <ScenarioSection.Divider />
         <ScenarioSection.Row>
-          <div className="text-sm">{t('settings.file_processing.default_service')}</div>
+          <ScenarioSection.Description />
           <Select
             value={defaultTextExtractionProcessor || '__none__'}
             onValueChange={(value) => setDefaultTextExtractionProcessor(value === '__none__' ? null : value)}>

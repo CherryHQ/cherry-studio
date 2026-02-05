@@ -4030,26 +4030,35 @@
       "builtin": "Încorporat",
       "capability": "Capacitate",
       "configured_count": "{{count}} / {{total}} servicii configurate",
+      "custom": "Personalizat",
       "default_document_processor": "Procesor de documente implicit",
       "default_image_processor": "Procesor de imagini implicit",
       "default_service": "Serviciu implicit",
       "default_setting": "Setări implicite",
       "document_processors": "Procesare documente",
-      "feature": "Funcționalitate",
-      "feature_markdown_conversion": "[to be translated]:转换为 Markdown",
-      "feature_text_extraction": "[to be translated]:文字提取",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Utilizat la adăugarea fișierelor PDF în baza de cunoștințe.",
+          "title": "Analiza documentelor"
+        },
+        "text_extraction": {
+          "description": "Extrage conținutul text din imagini.",
+          "title": "OCR pentru imagini"
+        }
+      },
       "get_api_key": "Obține cheie API",
       "image_processors": "Procesare imagini",
-      "input_document": "[to be translated]:文档",
-      "input_image": "[to be translated]:图片",
+      "input_document": "Document",
+      "input_image": "Imagine",
       "is_default": "Setat ca implicit",
       "langs": "Limbi suportate",
       "langs_placeholder": "Selectați limba",
       "langs_tooltip": "Selectați limbile suportate de Tesseract OCR",
+      "metadata": "Metadate",
       "no_config_needed": "Nu este necesară configurarea",
       "no_default": "Nu folosiți preprocesarea",
-      "output_markdown": "[to be translated]:Markdown",
-      "output_text": "[to be translated]:文本",
+      "output_markdown": "Markdown",
+      "output_text": "Text",
       "processor": {
         "doc2x": {
           "name": "Doc2X"
@@ -4074,16 +4083,6 @@
         },
         "tesseract": {
           "name": "Tesseract"
-        }
-      },
-      "scenario": {
-        "chat_image": {
-          "description": "Utilizat la încărcarea imaginilor în chat",
-          "title": "Înțelegerea imaginilor din chat"
-        },
-        "knowledge_base": {
-          "description": "Utilizat la adăugarea PDF în baza de cunoștințe",
-          "title": "Analiză documente bază de cunoștințe"
         }
       },
       "service_config": "Configurare serviciu",

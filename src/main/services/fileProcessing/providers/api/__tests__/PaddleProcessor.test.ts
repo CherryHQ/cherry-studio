@@ -148,6 +148,58 @@ describe('PaddleProcessor', () => {
       expect(headers['content-type'] ?? headers['Content-Type']).toContain('multipart/form-data')
     })
 
+    it('should include optionalPayload when metadata provides it', async () => {
+      const optionalPayload = { useDocUnwarping: true, useDocOrientationClassify: false }
+      mockConfig = {
+        ...mockConfig,
+        capabilities: [
+          {
+            ...mockConfig.capabilities[0],
+            metadata: {
+              optionalPayload
+            }
+          }
+        ]
+      }
+
+      vi.mocked(net.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 0,
+          data: {
+            jobId: 'job-123'
+          }
+        })
+      } as Response)
+
+      await processor.extractText(mockFile, mockConfig, mockContext)
+
+      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
+      const options = fetchCall[1] as RequestInit
+      const bodyText = Buffer.from(options.body as Uint8Array).toString('utf8')
+      expect(bodyText).toContain('name="optionalPayload"')
+      expect(bodyText).toContain(JSON.stringify(optionalPayload))
+    })
+
+    it('should omit optionalPayload when metadata does not provide it', async () => {
+      vi.mocked(net.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 0,
+          data: {
+            jobId: 'job-123'
+          }
+        })
+      } as Response)
+
+      await processor.extractText(mockFile, mockConfig, mockContext)
+
+      const fetchCall = vi.mocked(net.fetch).mock.calls[0]
+      const options = fetchCall[1] as RequestInit
+      const bodyText = Buffer.from(options.body as Uint8Array).toString('utf8')
+      expect(bodyText).not.toContain('name="optionalPayload"')
+    })
+
     it('should throw error for non-image files', async () => {
       const documentFile: FileMetadata = {
         ...mockFile,
