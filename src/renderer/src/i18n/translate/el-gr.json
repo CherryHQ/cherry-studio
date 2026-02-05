@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} εργασίες ολοκληρώθηκαν"
+      },
+      "status": {
+        "completed": "Ολοκληρώθηκε",
+        "in_progress": "Σε εξέλιξη",
+        "pending": "Εκκρεμεί"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Να επιτρέπεται πάντα αυτό το εργαλείο",

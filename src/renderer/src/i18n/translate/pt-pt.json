@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tarefas concluídas"
+      },
+      "status": {
+        "completed": "Concluído",
+        "in_progress": "Em Andamento",
+        "pending": "Pendente"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Sempre permitir esta ferramenta",

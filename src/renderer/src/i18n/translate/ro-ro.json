@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} sarcini finalizate"
+      },
+      "status": {
+        "completed": "Finalizat",
+        "in_progress": "În desfășurare",
+        "pending": "În așteptare"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Permiteți întotdeauna acest instrument",

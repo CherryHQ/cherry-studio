@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tâches terminées"
+      },
+      "status": {
+        "completed": "Terminé",
+        "in_progress": "En cours",
+        "pending": "En attente"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Toujours autoriser cet outil",

@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 个任务"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "进行中",
+        "pending": "待处理"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "总是允许此工具",

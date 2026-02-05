@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} задач выполнено"
+      },
+      "status": {
+        "completed": "Завершено",
+        "in_progress": "В процессе",
+        "pending": "В ожидании"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Всегда разрешать этот инструмент",
