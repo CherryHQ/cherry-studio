@@ -4850,6 +4850,7 @@
           "tip": "Versão da API do Azure OpenAI. Se desejar usar a API de Resposta, insira a versão de v1"
         }
       },
+      "balance": "Saldo",
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Observação do Modelo"
       },
       "oauth": {
+        "balance": "Saldo",
         "button": "Entrar com a conta {{provider}}",
+        "cherryIn": {
+          "description": "Faça login com seu servidor New-API auto-hospedado usando OAuth 2.0 (PKCE)",
+          "logged_in": "Conectado via OAuth",
+          "login_button": "Entrar com OAuth",
+          "logout_button": "Sair",
+          "title": "Login OAuth"
+        },
+        "connect": "Conectar {{provider}}",
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
-        "official_website": "Site Oficial"
+        "logged_in": "Conectado",
+        "logout": "Sair",
+        "logout_confirm": "Tem certeza de que deseja sair?",
+        "logout_success": "Desconectado com sucesso",
+        "logout_warning": "Desconectado localmente, mas a revogação do token do servidor pode ter falhado",
+        "official_website": "Site Oficial",
+        "provided_by": "Fornecido por",
+        "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into Portuguese.",
+        "requests": "Solicitações",
+        "topup": "Recarregar",
+        "usage_title": "Uso"
       },
       "openai": {
         "alert": "O provedor OpenAI não suporta mais o método antigo de chamada. Se estiver usando uma API de terceiros, crie um novo provedor"

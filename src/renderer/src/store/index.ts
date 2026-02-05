@@ -16,6 +16,7 @@
  */
 import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -138,6 +139,21 @@ export const persistor = persistStore(store, undefined, () => {
       }
     }, 0)
   }
+
+  // Notify main process that Redux store is ready
+  window.electron.ipcRenderer.invoke(IpcChannel.ReduxStoreReady)
+  logger.info('Redux store ready, notified main process')
+})
+
+// Subscribe to store changes and notify main process (throttled to avoid performance issues)
+let throttleTimer: ReturnType<typeof setTimeout> | null = null
+store.subscribe(() => {
+  if (throttleTimer) return
+  throttleTimer = setTimeout(() => {
+    throttleTimer = null
+    const state = store.getState()
+    window.electron.ipcRenderer.send(IpcChannel.ReduxStateChange, state)
+  }, 100) // 100ms throttle
 })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()

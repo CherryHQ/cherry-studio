@@ -114,6 +114,14 @@ export enum IpcChannel {
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
 
+  // CherryIN OAuth
+  CherryIN_SaveToken = 'cherryin:save-token',
+  CherryIN_HasToken = 'cherryin:has-token',
+  CherryIN_GetBalance = 'cherryin:get-balance',
+  CherryIN_Logout = 'cherryin:logout',
+  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
+  CherryIN_ExchangeToken = 'cherryin:exchange-token',
+
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',

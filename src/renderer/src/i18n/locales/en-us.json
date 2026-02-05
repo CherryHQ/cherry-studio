@@ -4850,6 +4850,7 @@
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the v1 version"
         }
       },
+      "balance": "Balance",
       "basic_auth": {
         "label": "HTTP authentication",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Model Notes"
       },
       "oauth": {
+        "balance": "Balance",
         "button": "Login with {{provider}}",
+        "cherryIn": {
+          "description": "Login to CherryIN using OAuth 2.0",
+          "logged_in": "Logged in via OAuth",
+          "login_button": "Login with OAuth",
+          "logout_button": "Logout",
+          "title": "OAuth Login"
+        },
+        "connect": "Connect {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
-        "official_website": "Official Website"
+        "logged_in": "Logged in",
+        "logout": "Logout",
+        "logout_confirm": "Are you sure you want to logout?",
+        "logout_success": "Successfully logged out",
+        "logout_warning": "Logged out locally, but server token revocation may have failed",
+        "official_website": "Official Website",
+        "provided_by": "Provided by",
+        "provided_by_suffix": "",
+        "requests": "Requests",
+        "topup": "Top Up",
+        "usage_title": "Usage"
       },
       "openai": {
         "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."

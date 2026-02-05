@@ -4850,6 +4850,7 @@
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、v1バージョンを入力してください"
         }
       },
+      "balance": "バランス",
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "モデルノート"
       },
       "oauth": {
+        "balance": "残高",
         "button": "{{provider}} アカウントでログイン",
+        "cherryIn": {
+          "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
+          "logged_in": "OAuth経由でログインしました",
+          "login_button": "OAuthでログイン",
+          "logout_button": "ログアウト",
+          "title": "OAuthログイン"
+        },
+        "connect": "{{provider}}に接続",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
         "error": "認証失敗",
-        "official_website": "公式サイト"
+        "logged_in": "ログインしました",
+        "logout": "ログアウト",
+        "logout_confirm": "本当にログアウトしますか？",
+        "logout_success": "正常にログアウトしました",
+        "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
+        "official_website": "公式サイト",
+        "provided_by": "提供",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
+        "requests": "リクエスト",
+        "topup": "チャージ",
+        "usage_title": "使用"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"

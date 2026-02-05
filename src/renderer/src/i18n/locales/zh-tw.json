@@ -4850,6 +4850,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
+      "balance": "餘額",
       "basic_auth": {
         "label": "HTTP 認證",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "模型備註"
       },
       "oauth": {
+        "balance": "餘額",
         "button": "使用 {{provider}} 帳號登入",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登入 CherryIN",
+          "logged_in": "已透過 OAuth 登入",
+          "login_button": "OAuth 登入",
+          "logout_button": "登出",
+          "title": "OAuth 登入"
+        },
+        "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
-        "official_website": "官方網站"
+        "logged_in": "已登入",
+        "logout": "登出",
+        "logout_confirm": "確定要登出嗎？",
+        "logout_success": "已成功登出",
+        "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
+        "official_website": "官方網站",
+        "provided_by": "本服務由",
+        "provided_by_suffix": " 提供",
+        "requests": "請求數",
+        "topup": "儲值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"

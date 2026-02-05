@@ -4850,6 +4850,7 @@
           "tip": "Azure OpenAI-API-Version, um Response API zu verwenden, bitte preview-Version eingeben"
         }
       },
+      "balance": "Guthaben",
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Modellnotizen"
       },
       "oauth": {
+        "balance": "Guthaben",
         "button": "Mit {{provider}}-Konto anmelden",
+        "cherryIn": {
+          "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
+          "logged_in": "Über OAuth angemeldet",
+          "login_button": "Mit OAuth anmelden",
+          "logout_button": "Abmelden",
+          "title": "OAuth-Anmeldung"
+        },
+        "connect": "Verbinde {{provider}}",
         "description": "Dienst wird von <website>{{provider}}</website> bereitgestellt",
         "error": "Authentifizierung fehlgeschlagen",
-        "official_website": "Offizielle Website"
+        "logged_in": "Angemeldet",
+        "logout": "Abmelden",
+        "logout_confirm": "Bist du sicher, dass du dich abmelden willst?",
+        "logout_success": "Erfolgreich abgemeldet",
+        "logout_warning": "Lokal abgemeldet, aber die Server-Token-Widerrufung ist möglicherweise fehlgeschlagen",
+        "official_website": "Offizielle Website",
+        "provided_by": "Bereitgestellt von",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into German.",
+        "requests": "Anfragen",
+        "topup": "Aufladen",
+        "usage_title": "Verwendung"
       },
       "openai": {
         "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"

@@ -4850,6 +4850,7 @@
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
+      "balance": "Υπόλοιπο",
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Σχόλιο Μοντέλου"
       },
       "oauth": {
+        "balance": "Υπόλοιπο",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
+        "cherryIn": {
+          "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
+          "logged_in": "Σύνδεση μέσω OAuth",
+          "login_button": "Σύνδεση με OAuth",
+          "logout_button": "Αποσύνδεση",
+          "title": "Σύνδεση μέσω OAuth"
+        },
+        "connect": "Σύνδεση {{provider}}",
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
         "error": "Αποτυχία πιστοποίησης",
-        "official_website": "Επίσημη ιστοσελίδα"
+        "logged_in": "Συνδεδεμένος",
+        "logout": "Αποσύνδεση",
+        "logout_confirm": "Είσαι σίγουρος ότι θέλεις να αποσυνδεθείς;",
+        "logout_success": "Η αποσύνδεση πραγματοποιήθηκε με επιτυχία",
+        "logout_warning": "Αποσυνδέθηκε τοπικά, αλλά η ανάκληση του διακριτικού διακομιστή ενδέχεται να απέτυχε",
+        "official_website": "Επίσημη ιστοσελίδα",
+        "provided_by": "Παρέχεται από",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Greek.",
+        "requests": "Αιτήματα",
+        "topup": "Αναπλήρωση",
+        "usage_title": "Χρήση"
       },
       "openai": {
         "alert": "Ο πάροχος OpenAI δεν υποστηρίζει πλέον την παλιά μέθοδο κλήσης, παρακαλώ δημιουργήστε έναν νέο πάροχο API αν χρησιμοποιείτε τρίτους"

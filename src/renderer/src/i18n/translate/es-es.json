@@ -4850,6 +4850,7 @@
           "tip": "Versión de la API de Azure OpenAI; si desea usar la API de respuesta, ingrese una versión de vista previa"
         }
       },
+      "balance": "Saldo disponible",
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Nota del modelo"
       },
       "oauth": {
+        "balance": "Saldo",
         "button": "Iniciar sesión con la cuenta de {{provider}}",
+        "cherryIn": {
+          "description": "Inicia sesión con tu servidor New-API autoalojado mediante OAuth 2.0 (PKCE)",
+          "logged_in": "Conectado a través de OAuth",
+          "login_button": "Iniciar sesión con OAuth",
+          "logout_button": "Cerrar sesión",
+          "title": "Inicio de sesión con OAuth"
+        },
+        "connect": "Conectar {{provider}}",
         "description": "Este servicio es proporcionado por <website>{{provider}}</website>",
         "error": "Fallo en la autenticación",
-        "official_website": "Sitio web oficial"
+        "logged_in": "Conectado",
+        "logout": "Cerrar sesión",
+        "logout_confirm": "¿Estás seguro de que quieres cerrar sesión?",
+        "logout_success": "Cierre de sesión exitoso",
+        "logout_warning": "Desconectado localmente, pero la revocación del token del servidor puede haber fallado",
+        "official_website": "Sitio web oficial",
+        "provided_by": "Proporcionado por",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Spanish.",
+        "requests": "Solicitudes",
+        "topup": "Recargar",
+        "usage_title": "Uso"
       },
       "openai": {
         "alert": "El proveedor de OpenAI ya no admite el método de llamada antiguo; si utiliza una API de terceros, cree un nuevo proveedor"

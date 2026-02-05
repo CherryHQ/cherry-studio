@@ -4850,6 +4850,7 @@
           "tip": "Version de l'API Azure OpenAI, veuillez saisir une version v1 si vous souhaitez utiliser l'API de réponse"
         }
       },
+      "balance": "Équilibre",
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Примечание к модели"
       },
       "oauth": {
+        "balance": "Solde",
         "button": "Войти через аккаунт {{provider}}",
+        "cherryIn": {
+          "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",
+          "logged_in": "Connecté via OAuth",
+          "login_button": "Se connecter avec OAuth",
+          "logout_button": "Déconnexion",
+          "title": "Connexion OAuth"
+        },
+        "connect": "Connecter {{provider}}",
         "description": "Этот сервис предоставляется <website>{{provider}}</website>",
         "error": "Échec de l'authentification",
-        "official_website": "Официальный сайт"
+        "logged_in": "Connecté",
+        "logout": "Déconnexion",
+        "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
+        "logout_success": "Déconnexion réussie",
+        "logout_warning": "Déconnecté localement, mais la révocation du jeton serveur a peut-être échoué",
+        "official_website": "Официальный сайт",
+        "provided_by": "Fourni par",
+        "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into French.",
+        "requests": "Demandes",
+        "topup": "Recharger",
+        "usage_title": "Utilisation"
       },
       "openai": {
         "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"

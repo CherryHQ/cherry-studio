@@ -4850,6 +4850,7 @@
           "tip": "Versiunea API a Azure OpenAI, dacă dorești să folosești API-ul de Răspuns, te rugăm să introduci versiunea v1"
         }
       },
+      "balance": "Echilibru",
       "basic_auth": {
         "label": "Autentificare HTTP",
         "password": {
@@ -4925,10 +4926,29 @@
         "title": "Note model"
       },
       "oauth": {
+        "balance": "Sold",
         "button": "Conectare cu {{provider}}",
+        "cherryIn": {
+          "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
+          "logged_in": "Conectat prin OAuth",
+          "login_button": "Conectare cu OAuth",
+          "logout_button": "Deconectare",
+          "title": "Autentificare OAuth"
+        },
+        "connect": "Conectează {{provider}}",
         "description": "Acest serviciu este furnizat de <website>{{provider}}</website>",
         "error": "Autentificare eșuată",
-        "official_website": "Site oficial"
+        "logged_in": "Conectat",
+        "logout": "Deconectare",
+        "logout_confirm": "Ești sigur că vrei să te deconectezi?",
+        "logout_success": "Delogare reușită",
+        "logout_warning": "Deconectat local, dar revocarea token-ului de pe server ar fi putut eșua",
+        "official_website": "Site oficial",
+        "provided_by": "Furnizat de",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Romanian.",
+        "requests": "Cereri",
+        "topup": "Reîncărcare",
+        "usage_title": "Utilizare"
       },
       "openai": {
         "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."
