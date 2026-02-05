@@ -15,7 +15,6 @@ import type { FC } from 'react'
 import NavbarIcon from '../../../../components/NavbarIcon'
 import AssistantsDrawer from '../AssistantsDrawer'
 import ChatNavbarContent from './ChatNavbarContent'
-import Tools from './Tools'
 
 interface Props {
   activeAssistant: Assistant
@@ -87,7 +86,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </AnimatePresence>
         <ChatNavbarContent assistant={assistant} />
       </div>
-      <Tools assistant={assistant} />
     </NavbarHeader>
   )
 }
