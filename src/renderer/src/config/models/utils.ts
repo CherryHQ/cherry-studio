@@ -104,6 +104,11 @@ export function isSupportTopPModel(model: Model | undefined | null, assistant?: 
     return false
   }
 
+  // Kimi K2.5 only accepts top_p=0.95
+  if (isKimi25Model(model)) {
+    return false
+  }
+
   return true
 }
 
@@ -135,6 +140,14 @@ export function isZhipuModel(model: Model): boolean {
 export function isMoonshotModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
+}
+
+export function isKimi25Model(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('kimi-k2.5')
 }
 
 /**
