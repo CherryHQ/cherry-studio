@@ -2551,9 +2551,9 @@
       "stopped": "Σταμάτησε"
     },
     "tips": {
-      "permissions": "[to be translated]:OpenClaw has elevated system permissions. Use only in trusted environments",
-      "title": "[to be translated]:Tips",
-      "token_usage": "[to be translated]:AI agent mode may consume more tokens. Please monitor your usage"
+      "permissions": "Το OpenClaw έχει αυξημένα δικαιώματα συστήματος. Χρησιμοποιήστε το μόνο σε αξιόπιστα περιβάλλοντα",
+      "title": "Συμβουλές",
+      "token_usage": "Η λειτουργία πράκτορα AI μπορεί να καταναλώσει περισσότερα tokens. Παρακαλώ παρακολουθήστε τη χρήση σας"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε το OpenClaw; Πατήστε OK για επιβεβαίωση.",

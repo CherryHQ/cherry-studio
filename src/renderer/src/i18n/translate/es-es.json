@@ -2551,9 +2551,9 @@
       "stopped": "Detenido"
     },
     "tips": {
-      "permissions": "[to be translated]:OpenClaw has elevated system permissions. Use only in trusted environments",
-      "title": "[to be translated]:Tips",
-      "token_usage": "[to be translated]:AI agent mode may consume more tokens. Please monitor your usage"
+      "permissions": "OpenClaw tiene permisos elevados del sistema. Usar solo en entornos de confianza",
+      "title": "Consejos",
+      "token_usage": "El modo de agente IA puede consumir más tokens. Por favor, monitoree su uso"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "¿Estás seguro de que quieres desinstalar OpenClaw? Presiona OK para confirmar.",

@@ -252,7 +252,8 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   // Use where.exe to find executable in PATH
   // Use execFileSync to prevent command injection
   try {
-    // Search for the command name directly (where.exe will find all matching files)
+    // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
+    // We then filter by allowed extensions below for security and precision
     const result = execFileSync('where.exe', [name], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe']

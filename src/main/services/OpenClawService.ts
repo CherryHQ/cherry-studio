@@ -158,6 +158,8 @@ class OpenClawService {
 
     if (isWin) {
       // On Windows, npm is a .cmd file, use findExecutable with .cmd extension
+      // Note: findExecutable is synchronous (uses execFileSync) which is acceptable here
+      // since we're already in an async context and Windows file ops are fast
       npmPath = findExecutable('npm', {
         extensions: ['.cmd', '.exe'],
         commonPaths: [
@@ -872,23 +874,18 @@ class OpenClawService {
 
   /**
    * Wait for Gateway to start by checking gateway status via CLI command
-   * Falls back to port check if CLI check fails
+   * @param maxAttempts - Maximum number of attempts to check gateway status
+   * @param openclawPath - Path to the openclaw binary
+   * @param env - Shell environment for spawning processes
    * @throws Error if gateway fails to start within the timeout
    */
-  private async waitForGateway(maxAttempts = 10, openclawPath?: string, env?: Record<string, string>): Promise<void> {
+  private async waitForGateway(maxAttempts: number, openclawPath: string, env: Record<string, string>): Promise<void> {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, 500))
-      if (openclawPath && env) {
-        const isRunning = await this.checkGatewayStatus(openclawPath, env)
-        if (isRunning) {
-          logger.info(`Gateway is running (verified via CLI status check)`)
-          return
-        }
-      } else {
-        const isOpen = await this.checkPortOpen(this.gatewayPort)
-        if (isOpen) {
-          return
-        }
+      const isRunning = await this.checkGatewayStatus(openclawPath, env)
+      if (isRunning) {
+        logger.info(`Gateway is running (verified via CLI status check)`)
+        return
       }
     }
     throw new Error(`Gateway failed to start on port ${this.gatewayPort} after ${maxAttempts} attempts`)

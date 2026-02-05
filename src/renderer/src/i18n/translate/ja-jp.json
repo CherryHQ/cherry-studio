@@ -2551,9 +2551,9 @@
       "stopped": "停止しました"
     },
     "tips": {
-      "permissions": "[to be translated]:OpenClaw has elevated system permissions. Use only in trusted environments",
-      "title": "[to be translated]:Tips",
-      "token_usage": "[to be translated]:AI agent mode may consume more tokens. Please monitor your usage"
+      "permissions": "OpenClawは高いシステム権限を持っています。信頼できる環境でのみ使用してください",
+      "title": "ヒント",
+      "token_usage": "AIエージェントモードはより多くのトークンを消費する可能性があります。使用量にご注意ください"
     },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
