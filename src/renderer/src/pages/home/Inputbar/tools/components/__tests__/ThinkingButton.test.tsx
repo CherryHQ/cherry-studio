@@ -114,6 +114,7 @@ vi.mock('@renderer/components/Buttons', () => ({
     children
   }: any) => (
     <button
+      type="button"
       data-testid="action-icon-button"
       onClick={onClick}
       data-active={active}
