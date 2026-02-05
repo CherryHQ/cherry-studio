@@ -5,11 +5,11 @@ import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 
-import NavbarIcon from '../../../components/NavbarIcon'
-import HomeSettings from '../Tabs/SettingsTab'
+import NavbarIcon from '../../../../../components/NavbarIcon'
+import HomeSettings from './SettingsTab'
 
 interface Props {
-  assistant: Assistant
+  assistant?: Assistant
 }
 
 const SettingsButton: FC<Props> = ({ assistant }) => {
