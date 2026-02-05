@@ -28,6 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorOverrides } from '@shared/data/presets/file-processing'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
@@ -312,6 +313,12 @@ export interface PreferenceSchemas {
     'feature.csaas.host': string
     // redux/settings/apiServer.port
     'feature.csaas.port': number
+    // migration: redux/preprocess/defaultProvider
+    'feature.file_processing.default_markdown_conversion_processor': string | null
+    // migration: redux/ocr/imageProviderId
+    'feature.file_processing.default_text_extraction_processor': string | null
+    // migration: redux/ocr/providers + redux/preprocess/providers
+    'feature.file_processing.overrides': FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
     // redux/memory/currentUserId
@@ -588,6 +595,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
+    'feature.file_processing.default_markdown_conversion_processor': null,
+    'feature.file_processing.default_text_extraction_processor': null,
+    'feature.file_processing.overrides': {},
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,
@@ -718,7 +728,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 204
+ * - 总配置项: 206
  * - electronStore项: 1
  * - redux项: 203
  * - localStorage项: 0

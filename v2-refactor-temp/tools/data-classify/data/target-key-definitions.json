@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2025-01-18"
+    "lastUpdated": "2025-01-22"
   },
   "definitions": [
     {
@@ -32,6 +32,27 @@
       "defaultValue": 600,
       "status": "pending",
       "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "feature.file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "User overrides for file processors (only stores modified fields)"
+    },
+    {
+      "targetKey": "feature.file_processing.default_markdown_conversion_processor",
+      "type": "string | null",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default processor ID for markdown conversion"
+    },
+    {
+      "targetKey": "feature.file_processing.default_text_extraction_processor",
+      "type": "string | null",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default processor ID for text extraction"
     }
   ]
 }

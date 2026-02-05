@@ -14,7 +14,6 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { PreprocessProvider } from '@renderer/types'
 
@@ -66,29 +65,29 @@ const preprocessSlice = createSlice({
   name: 'preprocess',
   initialState,
   reducers: {
-    setDefaultPreprocessProvider(state, action: PayloadAction<string>) {
-      state.defaultProvider = action.payload
-    },
-    setPreprocessProviders(state, action: PayloadAction<PreprocessProvider[]>) {
-      state.providers = action.payload
-    },
-    updatePreprocessProviders(state, action: PayloadAction<PreprocessProvider[]>) {
-      state.providers = action.payload
-    },
-    updatePreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
-      const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
-      if (index !== -1) {
-        Object.assign(state.providers[index], action.payload)
-      }
-    }
+    // setDefaultPreprocessProvider(state, action: PayloadAction<string>) {
+    //   state.defaultProvider = action.payload
+    // },
+    // setPreprocessProviders(state, action: PayloadAction<PreprocessProvider[]>) {
+    //   state.providers = action.payload
+    // },
+    // updatePreprocessProviders(state, action: PayloadAction<PreprocessProvider[]>) {
+    //   state.providers = action.payload
+    // },
+    // updatePreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
+    //   const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
+    //   if (index !== -1) {
+    //     Object.assign(state.providers[index], action.payload)
+    //   }
+    // }
   }
 })
 
 export const {
-  updatePreprocessProviders,
-  updatePreprocessProvider,
-  setDefaultPreprocessProvider,
-  setPreprocessProviders
+  // updatePreprocessProviders,
+  // updatePreprocessProvider,
+  // setDefaultPreprocessProvider,
+  // setPreprocessProviders
 } = preprocessSlice.actions
 
 export default preprocessSlice.reducer
