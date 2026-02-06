@@ -135,6 +135,15 @@ const OpenClawPage: FC = () => {
   const selectedProvider = selectedModelInfo?.provider ?? null
   const selectedModel = selectedModelInfo?.model ?? null
 
+  type PageState = 'checking' | 'not_installed' | 'installed' | 'installing' | 'uninstalling'
+  const pageState: PageState = useMemo(() => {
+    if (isUninstalling) return 'uninstalling'
+    if (isInstalling) return 'installing'
+    if (isInstalled === null) return 'checking'
+    if (isInstalled) return 'installed'
+    return 'not_installed'
+  }, [isInstalled, isInstalling, isUninstalling])
+
   const checkInstallation = useCallback(async () => {
     try {
       const result = await window.api.openclaw.checkInstalled()
@@ -259,14 +268,13 @@ const OpenClawPage: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!isInstalled) return
+    if (pageState !== 'installed') return
 
     fetchStatus()
     if (gatewayStatus === 'running') {
       fetchHealth()
     }
     const interval = setInterval(() => {
-      // Also check if openclaw is still installed (handles external uninstall)
       checkInstallation()
       fetchStatus()
       if (gatewayStatus === 'running') {
@@ -274,7 +282,7 @@ const OpenClawPage: FC = () => {
       }
     }, 5000)
     return () => clearInterval(interval)
-  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, isInstalled])
+  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, pageState])
 
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
@@ -635,10 +643,17 @@ const OpenClawPage: FC = () => {
   )
 
   const renderContent = () => {
-    if (isUninstalling) return renderUninstallingContent()
-    if (isInstalled === null) return renderCheckingContent()
-    if (isInstalled) return renderInstalledContent()
-    return renderNotInstalledContent()
+    switch (pageState) {
+      case 'uninstalling':
+        return renderUninstallingContent()
+      case 'checking':
+        return renderCheckingContent()
+      case 'installed':
+        return renderInstalledContent()
+      case 'not_installed':
+      case 'installing':
+        return renderNotInstalledContent()
+    }
   }
 
   return (
