@@ -192,11 +192,12 @@ export function WebdavBackupManager({
       onOk: async () => {
         setRestoring(true)
         try {
-          await (restoreMethod || restoreFromWebdav)(fileName)
-          window.toast.success(t('settings.data.webdav.backup.manager.restore.success'))
-          onClose() // 关闭模态框
+          const success = await (restoreMethod || restoreFromWebdav)(fileName)
+          if (success) {
+            onClose() // 关闭模态框
+          }
         } catch (error: any) {
-          window.toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
+          // Error is already handled and displayed by restoreFromWebdav
         } finally {
           setRestoring(false)
         }

@@ -185,23 +185,16 @@ export async function restoreFromNutstore(fileName?: string) {
     return
   }
 
-  let data = ''
-
   try {
-    data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
-  } catch (error: any) {
-    logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    window.modal.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
-  }
-
-  try {
+    const data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
     await handleData(JSON.parse(data))
   } catch (error) {
-    logger.error('[backup] Error downloading file from WebDAV:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+    logger.error('[backup] restoreFromNutstore: Error restoring backup:', error)
+    // Use modal.error for restore failures as it's a user-initiated action
+    window.modal.error({
+      title: i18n.t('message.restore.failed'),
+      content: error.message || i18n.t('error.backup.unknown_error')
+    })
   }
 }
 

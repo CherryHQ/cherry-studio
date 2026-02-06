@@ -146,11 +146,12 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       onOk: async () => {
         setRestoring(true)
         try {
-          await (restoreMethod || restoreFromLocal)(fileName)
-          message.success(t('settings.data.local.backup.manager.restore.success'))
-          onClose() // Close the modal
+          const success = await (restoreMethod || restoreFromLocal)(fileName)
+          if (success) {
+            onClose() // Close modal
+          }
         } catch (error: any) {
-          window.toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
+          // Error is already handled and displayed by restoreFromLocal
         } finally {
           setRestoring(false)
         }
