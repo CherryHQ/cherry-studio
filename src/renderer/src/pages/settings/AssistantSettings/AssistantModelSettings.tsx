@@ -131,10 +131,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             ]}
           />
         )
-      case 'json':
+      case 'json': {
+        const jsonValue = typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)
+        let hasJsonError = false
+        if (jsonValue.trim()) {
+          try {
+            JSON.parse(jsonValue)
+          } catch {
+            hasJsonError = true
+          }
+        }
         return (
           <CodeEditor
-            value={typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)}
+            value={jsonValue}
             language="json"
             onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
             expanded={false}
@@ -142,9 +151,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             maxHeight="200px"
             minHeight="60px"
             options={{ lint: true, lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
-            style={{ borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}
+            style={{
+              borderRadius: 6,
+              overflow: 'hidden',
+              border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
+            }}
           />
         )
+      }
       default:
         return (
           <Input
