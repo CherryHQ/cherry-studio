@@ -203,6 +203,26 @@ const MinappPopupContainer: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minappShow, currentMinappId])
 
+  /** only the keepalive minapp can be minimized */
+  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
+
+  /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
+  const combinedApps = useMemo(() => {
+    return [...openedKeepAliveMinapps, ...(openedOneOffMinapp ? [openedOneOffMinapp] : [])]
+  }, [openedKeepAliveMinapps, openedOneOffMinapp])
+
+  /** visible apps for split view (>=5 fallback to only current) */
+  const visibleApps = useMemo(() => {
+    if (combinedApps.length === 0) return []
+    if (combinedApps.length >= 5) {
+      const current = combinedApps.find((item) => item.id === currentMinappId)
+      return current ? [current] : [combinedApps[0]]
+    }
+    return combinedApps
+  }, [combinedApps, currentMinappId])
+
+  const visibleAppIds = useMemo(() => new Set(visibleApps.map((app) => app.id)), [visibleApps])
+
   useEffect(() => {
     if (!webviewRefs.current) return
 
@@ -212,7 +232,7 @@ const MinappPopupContainer: React.FC = () => {
      */
     webviewRefs.current.forEach((webviewRef, appid) => {
       if (!webviewRef) return
-      webviewRef.style.display = appid === currentMinappId ? 'inline-flex' : 'none'
+      webviewRef.style.display = visibleAppIds.has(appid) ? 'inline-flex' : 'none'
     })
 
     // Set external link behavior for current minapp
@@ -230,15 +250,7 @@ const MinappPopupContainer: React.FC = () => {
         }
       }
     }
-  }, [currentMinappId, minappsOpenLinkExternal])
-
-  /** only the keepalive minapp can be minimized */
-  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
-
-  /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
-  const combinedApps = useMemo(() => {
-    return [...openedKeepAliveMinapps, ...(openedOneOffMinapp ? [openedOneOffMinapp] : [])]
-  }, [openedKeepAliveMinapps, openedOneOffMinapp])
+  }, [currentMinappId, minappsOpenLinkExternal, visibleAppIds])
 
   /** get the extra info of the apps */
   const appsExtraInfo = useMemo(() => {
@@ -507,19 +519,20 @@ const MinappPopupContainer: React.FC = () => {
   /** group the webview containers with Memo, one of the key to make them keepalive */
   const WebviewContainerGroup = useMemo(() => {
     return combinedApps.map((app) => (
-      <WebviewContainer
-        key={app.id}
-        appid={app.id}
-        url={app.url}
-        onSetRefCallback={handleWebviewSetRef}
-        onLoadedCallback={handleWebviewLoaded}
-        onNavigateCallback={handleWebviewNavigate}
-      />
+      <WebviewCell key={app.id} $visible={visibleAppIds.has(app.id)}>
+        <WebviewContainer
+          appid={app.id}
+          url={app.url}
+          onSetRefCallback={handleWebviewSetRef}
+          onLoadedCallback={handleWebviewLoaded}
+          onNavigateCallback={handleWebviewNavigate}
+        />
+      </WebviewCell>
     ))
 
     // because the combinedApps is enough
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [combinedApps])
+  }, [combinedApps, visibleAppIds])
 
   return (
     <Drawer
@@ -558,7 +571,7 @@ const MinappPopupContainer: React.FC = () => {
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}
-      {WebviewContainerGroup}
+      <SplitViewContainer $count={visibleApps.length}>{WebviewContainerGroup}</SplitViewContainer>
     </Drawer>
   )
 }
@@ -654,6 +667,32 @@ const EmptyView = styled.div`
 
 const Spacer = styled.div`
   flex: 1;
+`
+
+const SplitViewContainer = styled.div<{ $count: number }>`
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: ${(props) => {
+    if (props.$count === 2) return '1fr 1fr'
+    if (props.$count === 3) return '1fr 1fr 1fr'
+    if (props.$count >= 4) return '1fr 1fr'
+    return '1fr'
+  }};
+  grid-template-rows: ${(props) => {
+    if (props.$count >= 4) return '1fr 1fr'
+    return '1fr'
+  }};
+  gap: 0;
+`
+
+const WebviewCell = styled.div<{ $visible: boolean }>`
+  display: ${(props) => (props.$visible ? 'block' : 'none')};
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 `
 
 export default MinappPopupContainer
