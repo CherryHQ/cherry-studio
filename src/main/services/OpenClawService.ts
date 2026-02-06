@@ -331,8 +331,13 @@ class OpenClawService {
       await this.stopGateway()
     }
 
+    // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
+    const npmCheck = await this.checkNpmAvailable()
+    const npmPath = npmCheck.path || 'npm'
+
     // Uninstall both packages to handle both standard and Chinese editions
     const npmCommand = 'npm uninstall -g openclaw @qingchencloud/openclaw-zh'
+    const npmCommandWithPath = `${npmPath} uninstall -g openclaw @qingchencloud/openclaw-zh`
     logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
@@ -387,11 +392,34 @@ class OpenClawService {
             resolve({ success: true, message: 'OpenClaw uninstalled successfully' })
           } else {
             logger.error(`OpenClaw uninstall failed with code ${code}`)
-            this.sendInstallProgress(`Uninstallation failed with exit code ${code}`, 'error')
-            resolve({
-              success: false,
-              message: stderr || `Uninstallation failed with exit code ${code}`
-            })
+
+            // Detect EACCES permission error and retry with sudo
+            if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
+              logger.info('Permission denied, retrying uninstall with sudo-prompt...')
+              this.sendInstallProgress('Permission denied. Requesting administrator access...')
+
+              // Use full npm path since sudo runs in clean environment without user PATH
+              exec(npmCommandWithPath, { name: 'Cherry Studio' }, (error, stdout) => {
+                if (error) {
+                  logger.error('Sudo uninstall failed:', error)
+                  this.sendInstallProgress(`Uninstallation failed: ${error.message}`, 'error')
+                  resolve({ success: false, message: error.message })
+                } else {
+                  logger.info('OpenClaw uninstalled successfully with sudo')
+                  if (stdout) {
+                    this.sendInstallProgress(stdout.toString())
+                  }
+                  this.sendInstallProgress('OpenClaw uninstalled successfully!')
+                  resolve({ success: true, message: 'OpenClaw uninstalled successfully' })
+                }
+              })
+            } else {
+              this.sendInstallProgress(`Uninstallation failed with exit code ${code}`, 'error')
+              resolve({
+                success: false,
+                message: stderr || `Uninstallation failed with exit code ${code}`
+              })
+            }
           }
         })
       } catch (error) {
