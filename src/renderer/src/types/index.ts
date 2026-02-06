@@ -506,6 +506,7 @@ export type LanguageVarious =
   | 'es-ES'
   | 'fr-FR'
   | 'ja-JP'
+  | 'ko-KR'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
