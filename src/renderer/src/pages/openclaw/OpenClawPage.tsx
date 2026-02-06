@@ -486,7 +486,7 @@ const OpenClawPage: FC = () => {
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <span>{t('openclaw.installed_at', { path: installPath })}</span>
             <span
-              className="cursor-pointer whitespace-nowrap text-xs hover:text-(--color-error)"
+              className="cursor-pointer whitespace-nowrap text-xs transition-colors hover:text-(--color-error)!"
               style={{ color: 'var(--color-text-3)' }}
               onClick={handleUninstall}>
               {t('openclaw.quick_actions.uninstall')}
