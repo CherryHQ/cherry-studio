@@ -484,7 +484,12 @@ const OpenClawPage: FC = () => {
           <div
             className="mb-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
-            <span>{t('openclaw.installed_at', { path: installPath })}</span>
+            <div className="min-w-0 shrink overflow-hidden">
+              <h3>{t('openclaw.installed_at')}</h3>
+              <div className="truncate" title={installPath}>
+                {installPath}
+              </div>
+            </div>
             <span
               className="cursor-pointer whitespace-nowrap text-xs transition-colors hover:text-(--color-error)!"
               style={{ color: 'var(--color-text-3)' }}
