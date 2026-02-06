@@ -14,7 +14,17 @@ const mocks = vi.hoisted(() => {
     },
     windowMessage: {
       error: vi.fn()
-    }
+    },
+    windowToast: {
+      success: vi.fn(),
+      error: vi.fn()
+    },
+    logger: {
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn()
+    },
+    exportTableToExcel: vi.fn()
   }
 })
 
@@ -33,7 +43,20 @@ vi.mock('@renderer/components/Icons', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />
+  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />,
+  FileSpreadsheet: ({ size }: { size: number }) => (
+    <div data-testid="excel-icon" style={{ width: size, height: size }} />
+  )
+}))
+
+vi.mock('@renderer/utils/exportExcel', () => ({
+  exportTableToExcel: mocks.exportTableToExcel
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => mocks.logger
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -51,7 +74,8 @@ vi.mock('antd', () => ({
 }))
 
 Object.assign(window, {
-  message: mocks.windowMessage
+  message: mocks.windowMessage,
+  toast: mocks.windowToast
 })
 
 describe('Table', () => {
@@ -111,7 +135,9 @@ describe('Table', () => {
   }
 
   const getCopyButton = () => screen.getByRole('button', { name: /common\.copy/i })
+  const getExcelButton = () => screen.getByRole('button', { name: /common\.export\.excel/i })
   const getCopyIcon = () => screen.getByTestId('copy-icon')
+  const getExcelIcon = () => screen.getByTestId('excel-icon')
   const getCheckIcon = () => screen.getByTestId('check-icon')
   const queryCheckIcon = () => screen.queryByTestId('check-icon')
   const queryCopyIcon = () => screen.queryByTestId('copy-icon')
@@ -123,7 +149,7 @@ describe('Table', () => {
       expect(screen.getByRole('table')).toBeInTheDocument()
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
-      expect(screen.getByTestId('tooltip')).toBeInTheDocument()
+      expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
     })
 
     it('should render with table-wrapper and table-toolbar classes', () => {
@@ -136,8 +162,16 @@ describe('Table', () => {
     it('should render copy button with correct tooltip', () => {
       render(<Table {...defaultProps} />)
 
-      const tooltip = screen.getByTestId('tooltip')
-      expect(tooltip).toHaveAttribute('title', 'common.copy')
+      const tooltips = screen.getAllByTestId('tooltip')
+      expect(tooltips[0]).toHaveAttribute('title', 'common.copy')
+    })
+
+    it('should render excel export button with correct tooltip', () => {
+      render(<Table {...defaultProps} />)
+
+      const tooltips = screen.getAllByTestId('tooltip')
+      expect(tooltips[1]).toHaveAttribute('title', 'common.export.excel')
+      expect(getExcelIcon()).toBeInTheDocument()
     })
 
     it('should match snapshot', () => {
@@ -298,6 +332,80 @@ Line 4`
       await waitFor(() => {
         expect(getCopyIcon()).toBeInTheDocument()
         expect(queryCheckIcon()).not.toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('excel export functionality', () => {
+    beforeEach(() => {
+      mocks.messageBlocksSelectors.selectById.mockReturnValue(createMockBlock())
+      mocks.exportTableToExcel.mockResolvedValue(true)
+      vi.clearAllMocks()
+    })
+
+    it('should export table to Excel on button click', async () => {
+      render(<Table {...defaultProps} />)
+
+      const excelButton = getExcelButton()
+      await user.click(excelButton)
+
+      await waitFor(() => {
+        expect(mocks.exportTableToExcel).toHaveBeenCalledWith(defaultTableContent)
+      })
+    })
+
+    it('should show success toast after successful export', async () => {
+      render(<Table {...defaultProps} />)
+
+      const excelButton = getExcelButton()
+      await user.click(excelButton)
+
+      await waitFor(() => {
+        expect(mocks.windowToast.success).toHaveBeenCalledWith('message.success.excel.export')
+      })
+    })
+
+    it('should show error toast and log error on export failure', async () => {
+      const exportError = new Error('Export failed')
+      mocks.exportTableToExcel.mockRejectedValueOnce(exportError)
+
+      render(<Table {...defaultProps} />)
+
+      const excelButton = getExcelButton()
+      await user.click(excelButton)
+
+      await waitFor(() => {
+        expect(mocks.logger.error).toHaveBeenCalledWith('Failed to export table to Excel', { error: exportError })
+        expect(mocks.windowToast.error).toHaveBeenCalledWith('message.error.excel.export')
+      })
+    })
+
+    it('should not export when extractTableMarkdown returns empty string', async () => {
+      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
+
+      render(<Table {...defaultProps} />)
+
+      const excelButton = getExcelButton()
+      await user.click(excelButton)
+
+      await waitFor(() => {
+        expect(mocks.exportTableToExcel).not.toHaveBeenCalled()
+        expect(mocks.windowToast.success).not.toHaveBeenCalled()
+      })
+    })
+
+    it('should not show error toast when export returns false', async () => {
+      mocks.exportTableToExcel.mockResolvedValueOnce(false)
+
+      render(<Table {...defaultProps} />)
+
+      const excelButton = getExcelButton()
+      await user.click(excelButton)
+
+      await waitFor(() => {
+        expect(mocks.exportTableToExcel).toHaveBeenCalled()
+        expect(mocks.windowToast.success).not.toHaveBeenCalled()
+        expect(mocks.windowToast.error).not.toHaveBeenCalled()
       })
     })
   })
