@@ -21,6 +21,14 @@ import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './visio
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
+export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+  const modelWithNameAsId = { ...model, id: model.name }
+  return {
+    idResult: fn(model),
+    nameResult: fn(modelWithNameAsId)
+  }
+}
+
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
     return false
