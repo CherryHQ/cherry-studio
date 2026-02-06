@@ -20,7 +20,6 @@ import styled from 'styled-components'
 import AssistantsDrawer from './components/AssistantsDrawer'
 import ChatNavbarContent from './components/ChatNavbarContent'
 import SettingsButton from './components/SettingsButton'
-import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
   activeAssistant: Assistant
@@ -99,7 +98,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         <ChatNavbarContent assistant={assistant} />
       </div>
       <HStack alignItems="center" gap={8}>
-        {isTopNavbar && <UpdateAppButton />}
         <SettingsButton assistant={assistant} />
         {isTopNavbar && (
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
