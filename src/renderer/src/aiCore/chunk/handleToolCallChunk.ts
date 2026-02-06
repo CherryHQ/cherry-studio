@@ -451,14 +451,20 @@ function extractImagesFromToolOutput(output: unknown): string[] {
  * for UI display while the actual image data lives only in the ImageBlock.
  */
 function stripImageDataFromToolResponse(output: unknown): void {
-  if (!output) return
-  const result = CallToolResultSchema.safeParse(output)
-  if (!result.success) return
-  for (const content of result.data.content) {
-    if (content.type === 'image' && content.data) {
+  // NOTE: We must mutate the original output object. The Zod schema used by
+  // CallToolResultSchema.safeParse() returns cloned objects, so mutating the
+  // parsed result would not affect the ToolBlock payload.
+  if (!output || typeof output !== 'object') return
+
+  const raw = output as any
+  const contents = raw.content
+  if (!Array.isArray(contents)) return
+
+  for (const content of contents) {
+    if (content?.type === 'image' && typeof content.data === 'string' && content.data) {
       // Replace heavy base64 payload with a lightweight marker.
       // UI (extractPreviewContent) only reads content.mimeType, not content.data.
-      ;(content as any).data = '[image data moved to ImageBlock]'
+      content.data = '[image data moved to ImageBlock]'
     }
   }
 }
