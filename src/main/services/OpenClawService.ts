@@ -4,6 +4,7 @@ import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
@@ -276,11 +277,33 @@ class OpenClawService {
             resolve({ success: true, message: 'OpenClaw installed successfully' })
           } else {
             logger.error(`OpenClaw install failed with code ${code}`)
-            this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
-            resolve({
-              success: false,
-              message: stderr || `Installation failed with exit code ${code}`
-            })
+
+            // Detect EACCES permission error and retry with sudo
+            if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
+              logger.info('Permission denied, retrying with sudo-prompt...')
+              this.sendInstallProgress('Permission denied. Requesting administrator access...')
+
+              exec(npmCommand, { name: 'Cherry Studio' }, (error, stdout) => {
+                if (error) {
+                  logger.error('Sudo install failed:', error)
+                  this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
+                  resolve({ success: false, message: error.message })
+                } else {
+                  logger.info('OpenClaw installed successfully with sudo')
+                  if (stdout) {
+                    this.sendInstallProgress(stdout.toString())
+                  }
+                  this.sendInstallProgress('OpenClaw installed successfully!')
+                  resolve({ success: true, message: 'OpenClaw installed successfully' })
+                }
+              })
+            } else {
+              this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
+              resolve({
+                success: false,
+                message: stderr || `Installation failed with exit code ${code}`
+              })
+            }
           }
         })
       } catch (error) {
