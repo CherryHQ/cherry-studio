@@ -86,7 +86,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (isSupportEnableThinkingProvider(provider) &&
         (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
       (provider.id === SystemProviderIds.dashscope &&
-        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
+        (isDeepSeekHybridInferenceModel(model) ||
+          isSupportedThinkingTokenZhipuModel(model) ||
+          isSupportedThinkingTokenKimiModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -318,7 +320,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (provider.id === SystemProviderIds.dashscope) {
     // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
     // No effort, only on/off
-    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+    if (
+      isQwenReasoningModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenKimiModel(model)
+    ) {
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens
