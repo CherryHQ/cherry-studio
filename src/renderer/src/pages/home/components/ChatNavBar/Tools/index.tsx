@@ -12,7 +12,6 @@ import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { styled } from 'styled-components'
 
-import UpdateAppButton from '../../UpdateAppButton'
 import SettingsButton from './SettingsButton'
 
 interface ToolsProps {
@@ -33,7 +32,6 @@ const Tools = ({ assistant }: ToolsProps) => {
 
   return (
     <HStack alignItems="center" gap={8}>
-      {isTopNavbar && <UpdateAppButton />}
       <SettingsButton assistant={assistant} />
       {isTopNavbar && (
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
