@@ -112,10 +112,9 @@ const OpenClawPage: FC = () => {
     return () => clearInterval(pollInterval)
   }, [npmMissing])
 
-  // Filter enabled providers with API keys
-  const availableProviders = providers.filter((p) => p.enabled && p.apiKey)
+  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
+  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
 
-  // Find selected model and provider from the uniqId
   const selectedModelInfo = useMemo(() => {
     if (!selectedModelUniqId) return null
     try {
