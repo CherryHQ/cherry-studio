@@ -141,7 +141,7 @@ export const persistor = persistStore(store, undefined, () => {
   }
 
   // Notify main process that Redux store is ready
-  window.electron.ipcRenderer.invoke(IpcChannel.ReduxStoreReady)
+  window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
   logger.info('Redux store ready, notified main process')
 })
 
@@ -152,7 +152,8 @@ store.subscribe(() => {
   throttleTimer = setTimeout(() => {
     throttleTimer = null
     const state = store.getState()
-    window.electron.ipcRenderer.send(IpcChannel.ReduxStateChange, state)
+    // Guard for test environment where window.electron may not exist
+    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
   }, 100) // 100ms throttle
 })
 

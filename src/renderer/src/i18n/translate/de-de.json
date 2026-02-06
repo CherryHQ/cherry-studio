@@ -2550,6 +2550,11 @@
       "starting": "Start",
       "stopped": "Angehalten"
     },
+    "tips": {
+      "permissions": "OpenClaw hat erweiterte Systemberechtigungen. Nur in vertrauenswürdigen Umgebungen verwenden",
+      "title": "Hinweise",
+      "token_usage": "Der KI-Agentenmodus kann mehr Token verbrauchen. Bitte überwachen Sie Ihre Nutzung"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "Sind Sie sicher, dass Sie OpenClaw deinstallieren möchten? Drücken Sie OK, um zu bestätigen.",
     "uninstall_progress": "Deinstallationsfortschritt",

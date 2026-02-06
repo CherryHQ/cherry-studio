@@ -2550,6 +2550,11 @@
       "starting": "Pornind",
       "stopped": "Oprit"
     },
+    "tips": {
+      "permissions": "OpenClaw are permisiuni de sistem ridicate. Utilizați doar în medii de încredere",
+      "title": "Sfaturi",
+      "token_usage": "Modul agent AI poate consuma mai multe tokenuri. Vă rugăm să monitorizați utilizarea"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
     "uninstall_progress": "Progresul dezinstalării",

@@ -2550,6 +2550,11 @@
       "starting": "開始",
       "stopped": "停止しました"
     },
+    "tips": {
+      "permissions": "OpenClawは高いシステム権限を持っています。信頼できる環境でのみ使用してください",
+      "title": "ヒント",
+      "token_usage": "AIエージェントモードはより多くのトークンを消費する可能性があります。使用量にご注意ください"
+    },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
     "uninstall_progress": "アンインストールの進行状況",

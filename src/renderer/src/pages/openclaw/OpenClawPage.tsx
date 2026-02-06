@@ -112,10 +112,9 @@ const OpenClawPage: FC = () => {
     return () => clearInterval(pollInterval)
   }, [npmMissing])
 
-  // Filter enabled providers with API keys
-  const availableProviders = providers.filter((p) => p.enabled && p.apiKey)
+  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
+  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
 
-  // Find selected model and provider from the uniqId
   const selectedModelInfo = useMemo(() => {
     if (!selectedModelUniqId) return null
     try {
@@ -135,16 +134,34 @@ const OpenClawPage: FC = () => {
   const selectedProvider = selectedModelInfo?.provider ?? null
   const selectedModel = selectedModelInfo?.model ?? null
 
+  type PageState = 'checking' | 'not_installed' | 'installed' | 'installing' | 'uninstalling'
+  const pageState: PageState = useMemo(() => {
+    if (isUninstalling) return 'uninstalling'
+    if (isInstalling) return 'installing'
+    if (isInstalled === null) return 'checking'
+    if (isInstalled) return 'installed'
+    return 'not_installed'
+  }, [isInstalled, isInstalling, isUninstalling])
+
   const checkInstallation = useCallback(async () => {
     try {
       const result = await window.api.openclaw.checkInstalled()
       setIsInstalled(result.installed)
       setShowLogs(false)
       setInstallPath(result.path)
+
+      // If not installed, check npm availability immediately
+      if (!result.installed) {
+        try {
+          const npmCheck = await window.api.openclaw.checkNpmAvailable()
+          setNpmMissing(!npmCheck.available)
+        } catch {
+          // Ignore errors, will check again on install click
+        }
+      }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
       setIsInstalled(false)
-    } finally {
     }
   }, [])
 
@@ -250,14 +267,13 @@ const OpenClawPage: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!isInstalled) return
+    if (pageState !== 'installed') return
 
     fetchStatus()
     if (gatewayStatus === 'running') {
       fetchHealth()
     }
     const interval = setInterval(() => {
-      // Also check if openclaw is still installed (handles external uninstall)
       checkInstallation()
       fetchStatus()
       if (gatewayStatus === 'running') {
@@ -265,7 +281,7 @@ const OpenClawPage: FC = () => {
       }
     }, 5000)
     return () => clearInterval(interval)
-  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, isInstalled])
+  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, pageState])
 
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
@@ -548,6 +564,17 @@ const OpenClawPage: FC = () => {
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
               {t('openclaw.model_config.sync_hint')}
             </div>
+
+            {/* Tips about OpenClaw */}
+            <div
+              className="mt-4 rounded-lg p-3 text-xs leading-relaxed"
+              style={{ background: 'var(--color-background-mute)', color: 'var(--color-text-3)' }}>
+              <div className="mb-1">💡 {t('openclaw.tips.title')}</div>
+              <ul className="list-inside list-disc space-y-1">
+                <li>{t('openclaw.tips.permissions')}</li>
+                <li>{t('openclaw.tips.token_usage')}</li>
+              </ul>
+            </div>
           </div>
         )}
 
@@ -615,10 +642,17 @@ const OpenClawPage: FC = () => {
   )
 
   const renderContent = () => {
-    if (isUninstalling) return renderUninstallingContent()
-    if (isInstalled === null) return renderCheckingContent()
-    if (isInstalled) return renderInstalledContent()
-    return renderNotInstalledContent()
+    switch (pageState) {
+      case 'uninstalling':
+        return renderUninstallingContent()
+      case 'checking':
+        return renderCheckingContent()
+      case 'installed':
+        return renderInstalledContent()
+      case 'not_installed':
+      case 'installing':
+        return renderNotInstalledContent()
+    }
   }
 
   return (

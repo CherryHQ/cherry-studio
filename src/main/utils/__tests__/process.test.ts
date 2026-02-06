@@ -122,20 +122,22 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const result = findExecutable('git')
 
         expect(result).toBe(gitPath)
-        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['git.exe'], {
+        // Now searches without extension and filters by allowed extensions
+        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['git'], {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe']
         })
       })
 
-      it('should add .exe extension when calling where.exe', () => {
+      it('should search without extension and filter results', () => {
         vi.mocked(execFileSync).mockImplementation(() => {
           throw new Error('Not found')
         })
 
         findExecutable('node')
 
-        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['node.exe'], expect.any(Object))
+        // Now searches without extension (filters by allowed extensions afterward)
+        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['node'], expect.any(Object))
       })
 
       it('should handle Windows line endings (CRLF)', () => {
@@ -304,6 +306,86 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(result).toBe(nodePath)
         // Should not check common Git paths
         expect(fs.existsSync).not.toHaveBeenCalledWith(expect.stringContaining('Git\\cmd\\node.exe'))
+      })
+    })
+
+    describe('options parameter', () => {
+      beforeEach(() => {
+        Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
+        vi.mocked(fs.existsSync).mockReturnValue(false)
+      })
+
+      it('should filter results by custom extensions', () => {
+        // where.exe returns multiple files with different extensions
+        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.cmd\nC:\\nodejs\\npm.ps1\n')
+
+        const result = findExecutable('npm', { extensions: ['.cmd'] })
+
+        expect(result).toBe('C:\\nodejs\\npm.cmd')
+      })
+
+      it('should accept multiple extensions', () => {
+        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.cmd\nC:\\nodejs\\npm.exe\n')
+
+        const result = findExecutable('npm', { extensions: ['.cmd', '.exe'] })
+
+        // Should return first matching extension
+        expect(result).toBe('C:\\nodejs\\npm.cmd')
+      })
+
+      it('should return null when no results match allowed extensions', () => {
+        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.ps1\n')
+
+        const result = findExecutable('npm', { extensions: ['.cmd', '.exe'] })
+
+        expect(result).toBeNull()
+      })
+
+      it('should check commonPaths before using where.exe', () => {
+        const npmCmdPath = 'C:\\Program Files\\nodejs\\npm.cmd'
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === npmCmdPath)
+
+        const result = findExecutable('npm', {
+          extensions: ['.cmd'],
+          commonPaths: [npmCmdPath]
+        })
+
+        expect(result).toBe(npmCmdPath)
+        // Should not call where.exe since commonPaths matched
+        expect(execFileSync).not.toHaveBeenCalled()
+      })
+
+      it('should fall back to where.exe when commonPaths do not exist', () => {
+        const npmCmdPath = 'C:\\fallback\\npm.cmd'
+
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === npmCmdPath)
+        vi.mocked(execFileSync).mockReturnValue(npmCmdPath)
+
+        const result = findExecutable('npm', {
+          extensions: ['.cmd'],
+          commonPaths: ['C:\\nonexistent\\npm.cmd']
+        })
+
+        expect(result).toBe(npmCmdPath)
+        expect(execFileSync).toHaveBeenCalled()
+      })
+
+      it('should use default .exe extension when options not provided', () => {
+        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\node.cmd\nC:\\nodejs\\node.exe\n')
+
+        const result = findExecutable('node')
+
+        // Default extension is .exe, so should skip .cmd
+        expect(result).toBe('C:\\nodejs\\node.exe')
+      })
+
+      it('should handle case-insensitive extension matching', () => {
+        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm.CMD\n')
+
+        const result = findExecutable('npm', { extensions: ['.cmd'] })
+
+        expect(result).toBe('C:\\nodejs\\npm.CMD')
       })
     })
   })

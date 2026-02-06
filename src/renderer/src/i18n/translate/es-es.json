@@ -2550,6 +2550,11 @@
       "starting": "Comenzando",
       "stopped": "Detenido"
     },
+    "tips": {
+      "permissions": "OpenClaw tiene permisos elevados del sistema. Usar solo en entornos de confianza",
+      "title": "Consejos",
+      "token_usage": "El modo de agente IA puede consumir más tokens. Por favor, monitoree su uso"
+    },
     "title": "OpenClaw",
     "uninstall_confirm": "¿Estás seguro de que quieres desinstalar OpenClaw? Presiona OK para confirmar.",
     "uninstall_progress": "Desinstalación en progreso",
