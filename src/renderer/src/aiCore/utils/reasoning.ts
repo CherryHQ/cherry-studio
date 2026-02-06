@@ -93,6 +93,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { enable_thinking: false }
     }
 
+    // together
+    if (provider.id === SystemProviderIds.together) {
+      return { reasoning: { enabled: false } }
+    }
+
     // gemini
     if (isSupportedThinkingTokenGeminiModel(model)) {
       if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -285,6 +290,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         case SystemProviderIds.openrouter:
+        case SystemProviderIds.together:
           return {
             reasoning: {
               enabled: true
@@ -329,6 +335,28 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         enable_thinking: true,
         thinking_budget: budgetTokens
       }
+    }
+  }
+
+  // https://docs.together.ai/reference/chat-completions-1
+  if (provider.id === SystemProviderIds.together) {
+    let adjustedReasoningEffort: 'low' | 'medium' | 'high' = 'medium'
+    switch (reasoningEffort) {
+      case 'minimal':
+        adjustedReasoningEffort = 'low'
+        break
+      case 'xhigh':
+        adjustedReasoningEffort = 'high'
+        break
+      case 'auto':
+      default:
+        adjustedReasoningEffort = 'medium'
+        break
+    }
+    return {
+      // Only low, medium, high
+      reasoningEffort: adjustedReasoningEffort,
+      reasoning: { enabled: true }
     }
   }
 
