@@ -338,7 +338,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
-  // https://docs.together.ai/reference/chat-completions-1
+  // https://docs.together.ai/reference/chat-completions-1#body-reasoning-effort
   if (provider.id === SystemProviderIds.together) {
     let adjustedReasoningEffort: 'low' | 'medium' | 'high' = 'medium'
     switch (reasoningEffort) {
