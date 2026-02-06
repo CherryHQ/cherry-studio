@@ -494,6 +494,7 @@ const OpenClawPage: FC = () => {
                 <Button
                   type="link"
                   className="h-auto! w-3! p-0!"
+                  aria-label={t('common.copy')}
                   icon={<CopyIcon className="size-3!" />}
                   onClick={async () => {
                     try {
