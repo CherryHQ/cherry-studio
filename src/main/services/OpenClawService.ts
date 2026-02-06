@@ -223,8 +223,9 @@ class OpenClawService {
     // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
+    const npmDir = path.dirname(npmPath)
     const npmCommand = `npm install -g ${packageName} ${registryArg}`.trim()
-    const npmCommandWithPath = `${npmPath} install -g ${packageName} ${registryArg}`.trim()
+    const npmCommandWithPath = `PATH=${npmDir}:$PATH ${npmPath} install -g ${packageName} ${registryArg}`.trim()
 
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
@@ -334,10 +335,12 @@ class OpenClawService {
     // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
+    const npmDir = path.dirname(npmPath)
 
     // Uninstall both packages to handle both standard and Chinese editions
     const npmCommand = 'npm uninstall -g openclaw @qingchencloud/openclaw-zh'
-    const npmCommandWithPath = `${npmPath} uninstall -g openclaw @qingchencloud/openclaw-zh`
+    // Include PATH so that npm can find node (npm is a shell script that calls node)
+    const npmCommandWithPath = `PATH=${npmDir}:$PATH ${npmPath} uninstall -g openclaw @qingchencloud/openclaw-zh`
     logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
