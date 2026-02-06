@@ -1,10 +1,13 @@
-name: Pull Request CI
+name: CI
 
 permissions:
   contents: read
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -16,8 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PRCI: true
-    if: github.event.pull_request.draft == false
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
 
     steps:
       - name: Check out Git repository
@@ -64,3 +67,18 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Send failure notification to Feishu
+        if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          DESCRIPTION=$(printf "**分支:** main\n\n**提交:** %.7s\n\n**信息:** %s\n\n**工作流:** [查看详情](%s)" "$COMMIT_SHA" "$COMMIT_MSG" "$RUN_URL")
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "Main 分支 CI 失败" \
+            -d "$DESCRIPTION" \
+            -c "red"
