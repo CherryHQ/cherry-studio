@@ -180,6 +180,7 @@ class KnowledgeServiceV2 {
       logger.info(`[KnowledgeV2] Remove completed: external_id=${externalId}`)
     } catch (error) {
       logger.error(`[KnowledgeV2] Remove failed for external_id ${externalId}:`, error as Error)
+      throw error
     }
   }
 

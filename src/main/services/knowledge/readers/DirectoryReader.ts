@@ -6,7 +6,6 @@
  */
 
 import * as fs from 'node:fs'
-import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
@@ -24,6 +23,7 @@ import {
   type ReaderContext,
   type ReaderResult
 } from '../types'
+import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('DirectoryReader')
 
@@ -95,17 +95,10 @@ export class DirectoryReader implements ContentReader {
     const chunkOverlap = base.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP
     const nodes = TextChunkSplitter(filteredDocs, { chunkSize, chunkOverlap })
 
-    // Add external_id and ensure source is on all nodes
-    nodes.forEach((node) => {
-      // Preserve source from document metadata if available
+    for (const node of nodes) {
       const source = node.metadata?.source || node.metadata?.file_path || 'unknown'
-      node.metadata = {
-        ...node.metadata,
-        external_id: item.id,
-        source,
-        type: 'directory'
-      }
-    })
+      applyNodeMetadata([node], { externalId: item.id, source, type: 'directory' })
+    }
 
     logger.debug(`Directory ${directoryPath} read with ${nodes.length} total chunks from ${filteredDocs.length} files`)
 
@@ -116,31 +109,12 @@ export class DirectoryReader implements ContentReader {
    * Count total files in directory recursively (for progress tracking)
    */
   private countFiles(dirPath: string): number {
-    if (!fs.existsSync(dirPath)) {
+    try {
+      const entries = fs.readdirSync(dirPath, { recursive: true, withFileTypes: true })
+      return entries.filter((e) => e.isFile() && !e.name.startsWith('.')).length
+    } catch {
       return 0
     }
-
-    let count = 0
-    const entries = fs.readdirSync(dirPath)
-
-    for (const entry of entries) {
-      if (entry.startsWith('.')) continue
-
-      const fullPath = path.join(dirPath, entry)
-      try {
-        const stats = fs.statSync(fullPath)
-
-        if (stats.isDirectory()) {
-          count += this.countFiles(fullPath)
-        } else {
-          count++
-        }
-      } catch {
-        continue
-      }
-    }
-
-    return count
   }
 
   /**

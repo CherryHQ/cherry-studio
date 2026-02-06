@@ -29,6 +29,7 @@ import {
   type ReaderResult
 } from '../types'
 import { EpubReader } from './EpubReader'
+import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('FileReader')
 
@@ -102,15 +103,7 @@ export class FileReader implements ContentReader {
       const splitDuration = Date.now() - splitStartTime
       logger.debug(`[FileReader] [SPLIT] Completed in ${splitDuration}ms, nodes: ${nodes.length}`)
 
-      // Add external_id and source to all nodes
-      nodes.forEach((node) => {
-        node.metadata = {
-          ...node.metadata,
-          external_id: item.id,
-          source: file.path,
-          type: 'file'
-        }
-      })
+      applyNodeMetadata(nodes, { externalId: item.id, source: file.path, type: 'file' })
 
       const totalDuration = Date.now() - totalStartTime
       logger.debug(

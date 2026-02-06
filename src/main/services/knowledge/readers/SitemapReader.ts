@@ -19,6 +19,7 @@ import {
   type ReaderContext,
   type ReaderResult
 } from '../types'
+import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('SitemapReader')
 
@@ -59,32 +60,40 @@ export class SitemapReader implements ContentReader {
         return { nodes: [] }
       }
 
-      // 2. Fetch and parse each URL
+      // 2. Fetch and parse URLs concurrently in batches
       const documents: Document[] = []
       const reader = new HTMLReader()
+      const CONCURRENCY = 5
 
-      for (const siteUrl of sites) {
-        try {
-          logger.debug(`Fetching URL from sitemap: ${siteUrl}`)
-          const response = await fetch(siteUrl)
-          if (!response.ok) {
-            logger.warn(`Failed to fetch ${siteUrl}: HTTP ${response.status}`)
-            continue
-          }
-          const html = await response.text()
-
-          const docs = await reader.loadDataAsContent(new TextEncoder().encode(html))
-          docs.forEach((doc) => {
-            doc.metadata = {
-              ...doc.metadata,
-              source: siteUrl,
-              sitemapUrl: url,
-              type: 'sitemap'
+      for (let i = 0; i < sites.length; i += CONCURRENCY) {
+        const batch = sites.slice(i, i + CONCURRENCY)
+        const results = await Promise.allSettled(
+          batch.map(async (siteUrl) => {
+            logger.debug(`Fetching URL from sitemap: ${siteUrl}`)
+            const response = await fetch(siteUrl)
+            if (!response.ok) {
+              logger.warn(`Failed to fetch ${siteUrl}: HTTP ${response.status}`)
+              return []
             }
+            const html = await response.text()
+            const docs = await reader.loadDataAsContent(new TextEncoder().encode(html))
+            docs.forEach((doc) => {
+              doc.metadata = {
+                ...doc.metadata,
+                source: siteUrl,
+                sitemapUrl: url,
+                type: 'sitemap'
+              }
+            })
+            return docs.filter((d) => d.getText().trim().length > 0) as Document[]
           })
-          documents.push(...(docs.filter((d) => d.getText().trim().length > 0) as Document[]))
-        } catch (err) {
-          logger.warn(`Error processing ${siteUrl}:`, err as Error)
+        )
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            documents.push(...result.value)
+          } else {
+            logger.warn('Error processing sitemap URL:', result.reason)
+          }
         }
       }
 
@@ -98,13 +107,7 @@ export class SitemapReader implements ContentReader {
       // Split documents into chunks
       const nodes = TextChunkSplitter(documents, { chunkSize, chunkOverlap })
 
-      // Add external_id to all nodes
-      nodes.forEach((node) => {
-        node.metadata = {
-          ...node.metadata,
-          external_id: item.id
-        }
-      })
+      applyNodeMetadata(nodes, { externalId: item.id })
 
       logger.debug(`Sitemap ${url} read with ${nodes.length} chunks`)
 

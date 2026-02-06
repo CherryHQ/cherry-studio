@@ -16,6 +16,7 @@ import {
   type ReaderContext,
   type ReaderResult
 } from '../types'
+import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('NoteReader')
 
@@ -56,13 +57,7 @@ export class NoteReader implements ContentReader {
 
     const nodes = TextChunkSplitter([document], { chunkSize, chunkOverlap })
 
-    // Add external_id to all nodes
-    nodes.forEach((node) => {
-      node.metadata = {
-        ...node.metadata,
-        external_id: item.id
-      }
-    })
+    applyNodeMetadata(nodes, { externalId: item.id })
 
     logger.debug(`Note split into ${nodes.length} chunks for item ${item.id}`)
 

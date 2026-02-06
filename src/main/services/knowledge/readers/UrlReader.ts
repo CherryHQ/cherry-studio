@@ -18,6 +18,7 @@ import {
   type ReaderContext,
   type ReaderResult
 } from '../types'
+import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('UrlReader')
 
@@ -81,13 +82,7 @@ export class UrlReader implements ContentReader {
       // Split documents into chunks
       const nodes = TextChunkSplitter(documents, { chunkSize, chunkOverlap })
 
-      // Add external_id to all nodes
-      nodes.forEach((node) => {
-        node.metadata = {
-          ...node.metadata,
-          external_id: item.id
-        }
-      })
+      applyNodeMetadata(nodes, { externalId: item.id })
 
       logger.debug(`URL ${url} read with ${nodes.length} chunks`)
 

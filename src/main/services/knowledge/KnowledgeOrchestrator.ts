@@ -60,13 +60,11 @@ class KnowledgeOrchestrator {
         .enqueue(job, async ({ signal, runStage, updateProgress }) => {
           const isCurrentJob = () => this.jobTokens.get(item.id) === createdAt
           const updateStatus = async (status: ItemStatus, errorMessage: string | null) => {
-            logger.info('[DEBUG] updateStatus called', { status, itemId: item.id, isCurrentJob: isCurrentJob() })
             if (!isCurrentJob()) {
-              logger.warn('[DEBUG] Skipping status update - not current job', { itemId: item.id })
+              logger.debug('Skipping status update - not current job', { itemId: item.id })
               return
             }
             await onStatusChange?.(status, errorMessage)
-            logger.info('[DEBUG] Status updated successfully', { status, itemId: item.id })
           }
           const updateItemProgress = (progress: number, opts?: { immediate?: boolean }) => {
             if (!isCurrentJob()) {
@@ -76,10 +74,7 @@ class KnowledgeOrchestrator {
           }
 
           const handleStageChange = async (stage: KnowledgeStage) => {
-            logger.info('[DEBUG] handleStageChange called', { stage, itemId: item.id })
-            // Only 'ocr' and 'embed' are valid status values
             if (stage === 'ocr' || stage === 'embed') {
-              logger.info('[DEBUG] Calling updateStatus', { stage, itemId: item.id, isCurrentJob: isCurrentJob() })
               await updateStatus(stage, null)
             }
           }
