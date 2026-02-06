@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-11-29T03:44:51.977Z",
+    "generatedAt": "2026-01-23T10:27:37.659Z",
     "version": "2.0.0",
     "description": "Cherry Studio data inventory"
   },
@@ -340,10 +340,10 @@
         "file": "src/renderer/src/store/runtime.ts",
         "interface": "RuntimeState"
       },
-      "chat": {
+      "placeHolder": {
         "file": "src/renderer/src/store/runtime.ts",
-        "type": "unknown",
-        "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }"
+        "type": "string",
+        "defaultValue": null
       }
     },
     "selectionStore": {
@@ -997,6 +997,11 @@
         "type": "boolean",
         "defaultValue": false
       },
+      "useSystemTitleBar": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "boolean",
+        "defaultValue": false
+      },
       "exportMenuOptions": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
@@ -1060,7 +1065,7 @@
       "openAI": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined }"
+        "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined, streamOptions: { includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } }"
       },
       "summaryText": {
         "file": "src/renderer/src/store/settings.ts",
@@ -1073,6 +1078,16 @@
         "defaultValue": null
       },
       "verbosity": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "streamOptions": {
+        "file": "src/renderer/src/store/settings.ts",
+        "type": "unknown",
+        "defaultValue": null
+      },
+      "includeUsage": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
         "defaultValue": null
@@ -1145,7 +1160,7 @@
       "apiServer": {
         "file": "src/renderer/src/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ enabled: false, host: 'localhost', port: 23333, apiKey: `cs-sk-${uuid()}` }"
+        "defaultValue": "{ enabled: false, host: API_SERVER_DEFAULTS.HOST, port: API_SERVER_DEFAULTS.PORT, apiKey: `cs-sk-${uuid()}` }"
       },
       "showMessageOutline": {
         "file": "src/renderer/src/store/settings.ts",
@@ -1490,6 +1505,12 @@
       "type": "unknown",
       "defaultValue": null
     },
+    "UseSystemTitleBar": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.UseSystemTitleBar",
+      "type": "unknown",
+      "defaultValue": null
+    },
     "Proxy": {
       "file": "src/main/services/ConfigManager.ts",
       "enum": "ConfigKeys.Proxy",
@@ -1507,16 +1528,28 @@
       "enum": "ConfigKeys.ClientId",
       "type": "unknown",
       "defaultValue": null
+    },
+    "GitBashPath": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.GitBashPath",
+      "type": "unknown",
+      "defaultValue": null
+    },
+    "GitBashPathSource": {
+      "file": "src/main/services/ConfigManager.ts",
+      "enum": "ConfigKeys.GitBashPathSource",
+      "type": "unknown",
+      "defaultValue": null
     }
   },
   "localStorage": {
     "persist:cherry-studio": {
-      "file": "src\\main\\utils\\index.ts",
+      "file": "src/main/utils/index.ts",
       "type": "string",
       "defaultValue": null
     },
     "memory_currentUserId": {
-      "file": "src\\renderer\\src\\store\\memory.ts",
+      "file": "src/renderer/src/store/memory.ts",
       "type": "string",
       "defaultValue": null
     }

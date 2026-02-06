@@ -427,10 +427,24 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
+      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
+      focusTextarea()
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
     }
-  }, [sendDisabled, agentId, dispatch, assistant, sessionId, sessionTopicId, setText, setTimeoutTimer, text, files])
+  }, [
+    sendDisabled,
+    agentId,
+    dispatch,
+    assistant,
+    sessionId,
+    sessionTopicId,
+    setText,
+    setTimeoutTimer,
+    text,
+    files,
+    focusTextarea
+  ])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {

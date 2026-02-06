@@ -6,7 +6,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import i18n from '@renderer/i18n'
+import i18n, { setDayjsLocale } from '@renderer/i18n'
 import MemoryService from '@renderer/services/MemoryService'
 import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
@@ -121,7 +121,9 @@ export function useAppInit() {
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    const currentLanguage = language || navigator.language || defaultLanguage
+    i18n.changeLanguage(currentLanguage)
+    setDayjsLocale(currentLanguage)
   }, [language])
 
   useEffect(() => {
@@ -178,16 +180,12 @@ export function useAppInit() {
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })
-      dispatch(toolPermissionsActions.requestReceived(payload))
 
-      // Auto-approve if requested
       if (payload.autoApprove) {
         logger.debug('Auto-approving tool permission request', {
           requestId: payload.requestId,
           toolName: payload.toolName
         })
-
-        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
 
         try {
           const response = await window.api.agentTools.respondToPermission({
@@ -207,9 +205,13 @@ export function useAppInit() {
           })
         } catch (error) {
           logger.error('Failed to send auto-approval response', error as Error)
-          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+          // Fall through to add to store for manual approval
+          dispatch(toolPermissionsActions.requestReceived(payload))
         }
+        return
       }
+
+      dispatch(toolPermissionsActions.requestReceived(payload))
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {

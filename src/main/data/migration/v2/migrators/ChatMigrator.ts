@@ -341,7 +341,11 @@ export class ChatMigrator extends BaseMigrator {
         const progress = Math.round((processedTopics / this.topicCount) * 100)
         this.reportProgress(
           progress,
-          `已迁移 ${processedTopics}/${this.topicCount} 个对话，${processedMessages} 条消息`
+          `Migrated ${processedTopics}/${this.topicCount} conversations, ${processedMessages} messages`,
+          {
+            key: 'migration.progress.migrated_chats',
+            params: { processed: processedTopics, total: this.topicCount, messages: processedMessages }
+          }
         )
       })
 

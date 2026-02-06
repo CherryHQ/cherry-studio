@@ -212,34 +212,14 @@ async function resetToDefaults() {
 
 ## Adding New Preference Keys
 
-### 1. Add to Preference Schema
+For a complete guide on adding new preferences, including naming conventions and design principles, see [Preference Schema Guide](./preference-schema-guide.md).
 
-```typescript
-// packages/shared/data/preference/preferenceSchemas.ts
-export interface PreferenceSchema {
-  // Existing keys...
-  'myFeature.enabled': boolean
-  'myFeature.options': MyFeatureOptions
-}
-```
+Quick summary:
 
-### 2. Set Default Value
-
-```typescript
-// Same file or separate defaults file
-export const preferenceDefaults: Partial<PreferenceSchema> = {
-  // Existing defaults...
-  'myFeature.enabled': true,
-  'myFeature.options': { mode: 'auto', limit: 100 }
-}
-```
-
-### 3. Use in Code
-
-```typescript
-// Now type-safe with auto-completion
-const [enabled, setEnabled] = usePreference('myFeature.enabled')
-```
+1. Add custom types to `preferenceTypes.ts` (if needed)
+2. Add key to `PreferenceSchemas` interface in `preferenceSchemas.ts`
+3. Add default value to `DefaultPreferences`
+4. Use in code with full type safety
 
 ## Best Practices
 

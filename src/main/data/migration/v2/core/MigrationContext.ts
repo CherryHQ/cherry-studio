@@ -5,8 +5,7 @@
 import { dbService } from '@data/db/DbService'
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
-import type { ConfigManager } from '@main/services/ConfigManager'
-import { configManager } from '@main/services/ConfigManager'
+import Store from 'electron-store'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
@@ -14,11 +13,16 @@ import { ReduxStateReader } from '../utils/ReduxStateReader'
 // Logger type for migration context (using actual LoggerService type)
 export type MigrationLogger = LoggerService
 
+// Read-only interface for electron-store access during migration
+export interface ElectronStoreReader {
+  get<T>(key: string, defaultValue?: T): T | undefined
+}
+
 // Migration context interface
 export interface MigrationContext {
   // Data source accessors
   sources: {
-    electronStore: ConfigManager
+    electronStore: ElectronStoreReader
     reduxState: ReduxStateReader
     dexieExport: DexieFileReader
   }
@@ -41,10 +45,11 @@ export interface MigrationContext {
 export function createMigrationContext(reduxData: Record<string, unknown>, dexieExportPath: string): MigrationContext {
   const db = dbService.getDb()
   const logger = loggerService.withContext('Migration')
+  const electronStore = new Store()
 
   return {
     sources: {
-      electronStore: configManager,
+      electronStore,
       reduxState: new ReduxStateReader(reduxData),
       dexieExport: new DexieFileReader(dexieExportPath)
     },

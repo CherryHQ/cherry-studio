@@ -68,7 +68,8 @@ export default defineConfig([
       'src/main/integration/nutstore/sso/lib/**',
       'src/renderer/src/ui/**',
       'src/renderer/src/routeTree.gen.ts',
-      'packages/**/dist'
+      'packages/**/dist',
+      'v2-refactor-temp/**'
     ]
   },
   // turn off oxlint supported rules.
