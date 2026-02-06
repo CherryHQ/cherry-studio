@@ -1430,7 +1430,8 @@
     "backup": {
       "file_format": "备份文件格式错误",
       "file_locked": "无法恢复：某些文件正在使用中。请关闭所有知识库或重启应用后重试。",
-      "file_not_found": "备份文件未找到。它可能被移动或删除了。"
+      "file_not_found": "备份文件未找到。它可能被移动或删除了。",
+      "unknown_error": "恢复备份时发生未知错误。请重试或联系支持。"
     },
     "base64DataTruncated": "Base64 图片数据已截断，大小",
     "boundary": {
@@ -2108,7 +2109,8 @@
     },
     "restore": {
       "failed": "恢复失败",
-      "success": "恢复成功"
+      "success": "恢复成功",
+      "restore_success": "从 {source} 恢复备份成功"
     },
     "save": {
       "success": {

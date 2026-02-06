@@ -185,11 +185,12 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       onOk: async () => {
         setRestoring(true)
         try {
-          await (restoreMethod || restoreFromS3)(fileName)
-          window.toast.success(t('settings.data.s3.restore.success'))
-          onClose() // 关闭模态框
+          const success = await (restoreMethod || restoreFromS3)(fileName)
+          if (success) {
+            onClose() // 关闭模态框
+          }
         } catch (error: any) {
-          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+          // Error is already handled and displayed by restoreFromS3
         } finally {
           setRestoring(false)
         }
