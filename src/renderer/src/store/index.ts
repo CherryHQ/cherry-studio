@@ -146,14 +146,19 @@ export const persistor = persistStore(store, undefined, () => {
 })
 
 // Subscribe to store changes and notify main process (throttled to avoid performance issues)
+// Exclude `messages` and `messageBlocks` from IPC sync — they are already blacklisted
+// from Redux Persist and are never read by the main process (ReduxService.selectSync
+// only accesses lightweight slices like settings/assistants/llm). Including them would
+// serialize hundreds of MB of data (e.g. base64 images in tool responses) every 100ms,
+// blocking the main thread for 200-500ms per cycle and causing persistent UI freezes.
 let throttleTimer: ReturnType<typeof setTimeout> | null = null
 store.subscribe(() => {
   if (throttleTimer) return
   throttleTimer = setTimeout(() => {
     throttleTimer = null
-    const state = store.getState()
+    const { messages, messageBlocks, ...lightState } = store.getState()
     // Guard for test environment where window.electron may not exist
-    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
+    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, lightState)
   }, 100) // 100ms throttle
 })
 
