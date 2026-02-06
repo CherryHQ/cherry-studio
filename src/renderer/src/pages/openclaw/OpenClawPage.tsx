@@ -495,9 +495,9 @@ const OpenClawPage: FC = () => {
                   type="link"
                   className="h-auto! w-3! p-0!"
                   icon={<CopyIcon className="size-3!" />}
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      navigator.clipboard.writeText(installPath)
+                      await navigator.clipboard.writeText(installPath)
                       window.toast.success(t('common.copy_success'))
                     } catch (error) {
                       window.toast.error(t('common.copy_failed'))
