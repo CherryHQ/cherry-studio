@@ -80,7 +80,8 @@ export interface OpenClawProviderConfig {
  */
 const OPENCLAW_API_TYPES = {
   OPENAI: 'openai-completions',
-  ANTHROPIC: 'anthropic-messages'
+  ANTHROPIC: 'anthropic-messages',
+  OPENAI_RESPOSNE: 'openai-responses'
 } as const
 
 /**
@@ -1037,6 +1038,10 @@ class OpenClawService {
     // 3. Check if provider has anthropicApiHost configured
     if (provider.anthropicApiHost) {
       return OPENCLAW_API_TYPES.ANTHROPIC
+    }
+
+    if (provider.type === 'openai-response') {
+      return OPENCLAW_API_TYPES.OPENAI_RESPOSNE
     }
 
     // 4. Default to OpenAI-compatible
