@@ -361,6 +361,9 @@ export enum IpcChannel {
   Anthropic_HasCredentials = 'anthropic:has-credentials',
   Anthropic_ClearCredentials = 'anthropic:clear-credentials',
 
+  // ExternalApps
+  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
+
   // CodeTools
   CodeTools_Run = 'code-tools:run',
   CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',

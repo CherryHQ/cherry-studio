@@ -26,7 +26,7 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import ChatNavbar from './ChatNavbar'
+import ChatNavbar from './components/ChatNavBar'
 import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
 import { PinnedTodoPanel } from './Inputbar/components/PinnedTodoPanel'
 import Inputbar from './Inputbar/Inputbar'
