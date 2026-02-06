@@ -127,6 +127,7 @@ const HeaderNavbar: FC<Props> = ({
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
+          <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
@@ -137,7 +138,6 @@ const HeaderNavbar: FC<Props> = ({
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          <UpdateAppButton />
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
               <NavbarIcon onClick={toggleShowTopics}>
