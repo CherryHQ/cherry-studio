@@ -8,12 +8,10 @@ import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Progress, Tooltip, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
@@ -49,7 +47,6 @@ const DataSettings: FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
-  const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
   const { setTimeoutTimer } = useTimer()
@@ -160,22 +157,6 @@ const DataSettings: FC = () => {
         } catch (error) {
           window.toast.error(t('settings.data.clear_cache.error'))
         }
-      }
-    })
-  }
-
-  const handleRemoveAllFiles = () => {
-    window.modal.confirm({
-      centered: true,
-      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(size)}) `,
-      content: t('settings.data.app_knowledge.remove_all_confirm'),
-      onOk: async () => {
-        await removeAllFiles()
-        window.toast.success(t('settings.data.app_knowledge.remove_all_success'))
-      },
-      okText: t('common.delete'),
-      okButtonProps: {
-        danger: true
       }
     })
   }
@@ -660,15 +641,6 @@ const DataSettings: FC = () => {
                     </Button>
                   </RowFlex>
                 </PathRow>
-              </SettingRow>
-              <SettingDivider />
-              <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-                <RowFlex className="items-center gap-[5px]">
-                  <Button variant="ghost" size="sm" onClick={handleRemoveAllFiles}>
-                    {t('settings.data.app_knowledge.button.delete')}
-                  </Button>
-                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>

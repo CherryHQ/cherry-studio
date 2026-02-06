@@ -13,7 +13,7 @@ import {
   useKnowledgeNotes,
   useKnowledgeSitemaps,
   useKnowledgeUrls
-} from '@renderer/hooks/useKnowledge.v2'
+} from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import type { KnowledgeBase, SitemapItemData, UrlItemData } from '@shared/data/types/knowledge'

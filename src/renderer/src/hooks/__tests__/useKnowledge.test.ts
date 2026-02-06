@@ -4,12 +4,7 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  useKnowledgeDirectories,
-  useKnowledgeFiles,
-  useKnowledgeItemDelete,
-  useKnowledgeSearch
-} from '../useKnowledge.v2'
+import { useKnowledgeDirectories, useKnowledgeFiles, useKnowledgeItemDelete, useKnowledgeSearch } from '../useKnowledge'
 
 // Access the mocked versions
 const mockDataApiService = vi.mocked(dataApiService)

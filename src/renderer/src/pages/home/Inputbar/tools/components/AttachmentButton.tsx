@@ -1,15 +1,21 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileType } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
+import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import type { FileItemData, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AttachmentButton')
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -66,39 +72,56 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   }, [extensions, files, selecting, setFiles, t])
 
   const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      quickPanelHook.open({
-        title: base.name,
-        list: base.items
-          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
-          .map((file) => {
-            const fileContent = file.content as FileType
-            return {
-              label: fileContent.origin_name || fileContent.name,
-              description:
-                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-              icon: <FileText />,
-              isSelected: files.some((f) => f.path === fileContent.path),
-              action: async ({ item }) => {
-                item.isSelected = !item.isSelected
-                if (fileContent.path) {
-                  setFiles((prevFiles) => {
-                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                    if (fileExists) {
-                      return prevFiles.filter((f) => f.path !== fileContent.path)
-                    } else {
-                      return fileContent ? [...prevFiles, fileContent] : prevFiles
-                    }
-                  })
-                }
+    async (base: KnowledgeBase) => {
+      try {
+        const fetchedItems: KnowledgeItem[] = []
+        let page = 1
+        let total = 0
+
+        do {
+          const response = (await dataApiService.get(`/knowledge-bases/${base.id}/items` as any, {
+            query: { page, limit: 100 }
+          })) as OffsetPaginationResponse<KnowledgeItem>
+
+          fetchedItems.push(...response.items)
+          total = response.total ?? fetchedItems.length
+          page += 1
+        } while (fetchedItems.length < total)
+
+        const fileItems = fetchedItems
+          .filter((item) => item.type === 'file')
+          .map((item) => (item.data as FileItemData).file as FileType)
+
+        quickPanelHook.open({
+          title: base.name,
+          list: fileItems.map((fileContent) => ({
+            label: fileContent.origin_name || fileContent.name,
+            description:
+              formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
+            icon: <FileText />,
+            isSelected: files.some((f) => f.path === fileContent.path),
+            action: async ({ item }) => {
+              item.isSelected = !item.isSelected
+              if (fileContent.path) {
+                setFiles((prevFiles) => {
+                  const fileExists = prevFiles.some((f) => f.path === fileContent.path)
+                  if (fileExists) {
+                    return prevFiles.filter((f) => f.path !== fileContent.path)
+                  }
+                  return [...prevFiles, fileContent]
+                })
               }
             }
-          }),
-        symbol: QuickPanelReservedSymbol.File,
-        multiple: true
-      })
+          })),
+          symbol: QuickPanelReservedSymbol.File,
+          multiple: true
+        })
+      } catch (error) {
+        logger.error('Failed to load knowledge files for quick panel', error as Error, { baseId: base.id })
+        window.toast.error(t('message.error.file.read'))
+      }
     },
-    [files, quickPanelHook, setFiles]
+    [files, quickPanelHook, setFiles, t]
   )
 
   const items = useMemo(() => {
@@ -110,9 +133,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
         action: () => openFileSelectDialog()
       },
       ...knowledgeBases.map((base) => {
-        const length = base.items?.filter(
-          (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
-        ).length
+        const length = base.documentCount ?? 0
         return {
           label: base.name,
           description: `${length} ${t('files.count')}`,
