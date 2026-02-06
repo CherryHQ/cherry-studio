@@ -1,5 +1,6 @@
 import OpenClawLogo from '@renderer/assets/images/providers/openclaw.svg'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { CopyIcon } from '@renderer/components/Icons'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -482,12 +483,28 @@ const OpenClawPage: FC = () => {
         {/* Install Path - hide when gateway is running or restarting */}
         {installPath && gatewayStatus !== 'running' && !isRestarting && (
           <div
-            className="mb-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm"
+            className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <div className="min-w-0 shrink overflow-hidden">
-              <h3>{t('openclaw.installed_at')}</h3>
-              <div className="truncate" title={installPath}>
-                {installPath}
+              <h3 className="mb-1">{t('openclaw.installed_at')}</h3>
+              <div className="flex gap-2">
+                <div className="truncate text-xs" title={installPath}>
+                  {installPath}
+                </div>
+                <Button
+                  type="link"
+                  className="h-auto! w-3! p-0!"
+                  icon={<CopyIcon className="size-3!" />}
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(installPath)
+                      window.toast.success(t('common.copy_success'))
+                    } catch (error) {
+                      window.toast.error(t('common.copy_failed'))
+                      logger.error('Failed to copy install path:', error as Error)
+                    }
+                  }}
+                />
               </div>
             </div>
             <span
