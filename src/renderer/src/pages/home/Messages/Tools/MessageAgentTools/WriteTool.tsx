@@ -15,7 +15,7 @@ export function WriteTool({
   const language = useMemo(() => getLanguageByFilePath(input?.file_path ?? ''), [input?.file_path])
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Write,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Write}
@@ -24,9 +24,9 @@ export function WriteTool({
         showStatus={false}
       />
     ),
-    children: input?.content ? (
+    children: input ? (
       <CodeViewer
-        value={input.content}
+        value={input.content ?? ''}
         language={language}
         maxHeight={240}
         expanded={false}

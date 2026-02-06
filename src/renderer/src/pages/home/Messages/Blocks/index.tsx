@@ -242,9 +242,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
         }
 
         return (
-          <AnimatedBlockWrapper
-            key={block.type === MessageBlockType.UNKNOWN ? 'placeholder' : block.id}
-            enableAnimation={message.status.includes('ing')}>
+          <AnimatedBlockWrapper key={block.id} enableAnimation={message.status.includes('ing')}>
             {blockComponent}
           </AnimatedBlockWrapper>
         )

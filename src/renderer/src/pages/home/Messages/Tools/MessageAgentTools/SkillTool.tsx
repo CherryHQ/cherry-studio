@@ -16,7 +16,7 @@ export function SkillTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Skill,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Skill}

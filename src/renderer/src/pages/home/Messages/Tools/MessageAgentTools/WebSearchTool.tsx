@@ -18,7 +18,7 @@ export function WebSearchTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.WebSearch,
     label: (
       <ToolHeader
         toolName={AgentToolsType.WebSearch}
