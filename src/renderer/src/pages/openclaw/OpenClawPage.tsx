@@ -41,7 +41,7 @@ const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = f
       onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}
     />
     <h1
-      className={`mt-3 font-semibold text-2xl ${clickable ? 'cursor-pointer hover:text-[var(--color-primary)]' : ''}`}
+      className={`mt-3 font-semibold text-2xl ${clickable ? 'cursor-pointer hover:text-(--color-primary)' : ''}`}
       style={{ color: 'var(--color-text-1)' }}
       onClick={clickable ? () => window.open(docsUrl ?? DEFAULT_DOCS_URL, '_blank') : undefined}>
       {title}
@@ -386,8 +386,7 @@ const OpenClawPage: FC = () => {
           </Button>
         )}
       </div>
-      <div
-        className={`overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed ${expanded ? 'h-[300px]' : 'h-[150px]'}`}>
+      <div className={`overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed ${expanded ? 'h-75' : 'h-37.5'}`}>
         {installLogs.map((log, index) => (
           <div
             key={index}
@@ -409,7 +408,7 @@ const OpenClawPage: FC = () => {
 
   const renderNotInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[520px]">
+      <div className="m-auto min-h-fit w-130">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}
@@ -456,7 +455,7 @@ const OpenClawPage: FC = () => {
             showIcon
             closable
             onClose={() => setNpmMissing(false)}
-            className="!rounded-lg mt-4"
+            className="mt-4 rounded-lg!"
             style={{ width: 580, marginLeft: -30 }}
           />
         )}
@@ -477,7 +476,7 @@ const OpenClawPage: FC = () => {
 
   const renderInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[520px]">
+      <div className="m-auto min-h-fit w-130">
         <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable docsUrl={docsUrl} />
 
         {/* Install Path - hide when gateway is running or restarting */}
@@ -487,7 +486,7 @@ const OpenClawPage: FC = () => {
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <span>{t('openclaw.installed_at', { path: installPath })}</span>
             <span
-              className="cursor-pointer whitespace-nowrap text-xs hover:text-[var(--color-error)]"
+              className="cursor-pointer whitespace-nowrap text-xs hover:text-(--color-error)"
               style={{ color: 'var(--color-text-3)' }}
               onClick={handleUninstall}>
               {t('openclaw.quick_actions.uninstall')}
@@ -541,7 +540,7 @@ const OpenClawPage: FC = () => {
         {/* Error Alert */}
         {error && (
           <div className="mb-6">
-            <Alert message={error} type="error" closable onClose={() => setError(null)} className="!rounded-lg" />
+            <Alert message={error} type="error" closable onClose={() => setError(null)} className="rounded-lg!" />
           </div>
         )}
 
@@ -614,7 +613,7 @@ const OpenClawPage: FC = () => {
   // Render uninstalling page - only show logs
   const renderUninstallingContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-[520px]">
+      <div className="m-auto min-h-fit w-130">
         <TitleSection
           title={t(uninstallSuccess ? 'openclaw.uninstalled.title' : 'openclaw.uninstalling.title')}
           description={t(uninstallSuccess ? 'openclaw.uninstalled.description' : 'openclaw.uninstalling.description')}
@@ -627,7 +626,7 @@ const OpenClawPage: FC = () => {
               type="error"
               closable
               onClose={() => setInstallError(null)}
-              className="!rounded-lg"
+              className="rounded-lg!"
             />
           </div>
         )}
