@@ -21,7 +21,13 @@ import {
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import { GEMINI_FLASH_MODEL_REGEX, isGemini3FlashModel, isGemini3ProModel } from './utils'
+import {
+  GEMINI_FLASH_MODEL_REGEX,
+  isGemini3FlashModel,
+  isGemini3ProModel,
+  isKimi25Model,
+  withModelIdAndNameAsId
+} from './utils'
 import { isTextToImageModel } from './vision'
 
 // Reasoning models
@@ -94,14 +100,6 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const
 } as const
-
-const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
-  const modelWithNameAsId = { ...model, id: model.name }
-  return {
-    idResult: fn(model),
-    nameResult: fn(modelWithNameAsId)
-  }
-}
 
 // TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
@@ -604,8 +602,7 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
  * @returns true if the model supports thinking control, false otherwise
  */
 const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return ['kimi-k2.5'].some((id) => modelId.includes(id))
+  return isKimi25Model(model)
 }
 
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
