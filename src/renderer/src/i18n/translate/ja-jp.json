@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} タスク完了"
+      },
+      "status": {
+        "completed": "完了",
+        "in_progress": "進行中",
+        "pending": "保留中"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "常にこのツールを許可する",
@@ -2482,6 +2492,80 @@
       "title": "保持時間"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "OpenClawのインストールを確認しています...",
+    "description": "Cherry Studio プロバイダーを OpenClaw Gateway と統合し、Claude Code、Qwen-Coder などの AI コーディングエージェントを有効にします。",
+    "error": {
+      "select_provider_model": "プロバイダーとモデルをまず選択してください"
+    },
+    "gateway": {
+      "port": "ポート",
+      "restart": "再起動",
+      "start": "スタートゲートウェイ",
+      "status": "ステータス",
+      "stop": "止まれ",
+      "version": "バージョン"
+    },
+    "install_progress": "インストール進行状況",
+    "installed_at": "OpenClawのインストール先: {{path}}",
+    "model_config": {
+      "auth_token": "認証トークン",
+      "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
+      "auth_token_placeholder": "トークンを入力または生成してください",
+      "generate_token": "生成",
+      "model": "モデル",
+      "provider": "プロバイダー",
+      "select_model": "モデルを選択",
+      "select_provider": "プロバイダーを選択",
+      "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
+      "title": "モデル設定"
+    },
+    "not_installed": {
+      "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
+      "install_button": "OpenClawをインストール",
+      "install_guide_title": "インストールガイド",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "更新",
+      "step2_hint": "インストール後、上の「更新」ボタンをクリックしてOpenClawを検出してください。",
+      "step2_title": "ステップ2: インストールを確認する",
+      "title": "OpenClaw がインストールされていません",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
+    },
+    "quick_actions": {
+      "open_dashboard": "ダッシュボードを開く",
+      "title": "クイックアクション",
+      "uninstall": "アンインストール",
+      "view_docs": "ドキュメントを表示"
+    },
+    "status": {
+      "error": "エラー",
+      "running": "走っている",
+      "starting": "開始",
+      "stopped": "停止しました"
+    },
+    "tips": {
+      "permissions": "OpenClawは高いシステム権限を持っています。信頼できる環境でのみ使用してください",
+      "title": "ヒント",
+      "token_usage": "AIエージェントモードはより多くのトークンを消費する可能性があります。使用量にご注意ください"
+    },
+    "title": "オープンクロー",
+    "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
+    "uninstall_progress": "アンインストールの進行状況",
+    "uninstalled": {
+      "description": "OpenClawは正常にアンインストールされました。",
+      "title": "アンインストール完了"
+    },
+    "uninstalling": {
+      "description": "OpenClawがアンインストールされるまでお待ちください...",
+      "title": "OpenClawのアンインストール"
+    }
   },
   "ovms": {
     "action": {
@@ -4771,6 +4855,7 @@
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、v1バージョンを入力してください"
         }
       },
+      "balance": "バランス",
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -4846,10 +4931,29 @@
         "title": "モデルノート"
       },
       "oauth": {
+        "balance": "残高",
         "button": "{{provider}} アカウントでログイン",
+        "cherryIn": {
+          "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
+          "logged_in": "OAuth経由でログインしました",
+          "login_button": "OAuthでログイン",
+          "logout_button": "ログアウト",
+          "title": "OAuthログイン"
+        },
+        "connect": "{{provider}}に接続",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
         "error": "認証失敗",
-        "official_website": "公式サイト"
+        "logged_in": "ログインしました",
+        "logout": "ログアウト",
+        "logout_confirm": "本当にログアウトしますか？",
+        "logout_success": "正常にログアウトしました",
+        "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
+        "official_website": "公式サイト",
+        "provided_by": "提供",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
+        "requests": "リクエスト",
+        "topup": "チャージ",
+        "usage_title": "使用"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
@@ -5194,6 +5298,7 @@
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
     "notes": "ノート",
+    "openclaw": "オープンクロー",
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",

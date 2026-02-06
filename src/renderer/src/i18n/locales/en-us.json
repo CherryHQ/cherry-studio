@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tasks completed"
+      },
+      "status": {
+        "completed": "Completed",
+        "in_progress": "In Progress",
+        "pending": "Pending"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Always allow this tool",
@@ -2482,6 +2492,80 @@
       "title": "Keep Alive Time"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "Checking OpenClaw installation...",
+    "description": "Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
+    "error": {
+      "select_provider_model": "Please select a provider and model first"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Restart",
+      "start": "Start",
+      "status": "Status",
+      "stop": "Stop",
+      "version": "Version"
+    },
+    "install_progress": "Install Progress",
+    "installed_at": "OpenClaw installed at: {{path}}",
+    "model_config": {
+      "auth_token": "Auth Token",
+      "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
+      "auth_token_placeholder": "Enter or generate a token",
+      "generate_token": "Generate",
+      "model": "Model",
+      "provider": "Provider",
+      "select_model": "Select a model",
+      "select_provider": "Select a provider",
+      "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
+      "title": "Model Configuration"
+    },
+    "not_installed": {
+      "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
+      "install_button": "Install OpenClaw",
+      "install_guide_title": "Installation Guide",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Refresh",
+      "step2_hint": "After installation, click the Refresh button above to detect OpenClaw",
+      "step2_title": "Step 2: Verify installation",
+      "title": "OpenClaw Not Installed",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "quick_actions": {
+      "open_dashboard": "Open Dashboard",
+      "title": "Quick Actions",
+      "uninstall": "Uninstall",
+      "view_docs": "View Documentation"
+    },
+    "status": {
+      "error": "Error",
+      "running": "Running",
+      "starting": "Starting",
+      "stopped": "Stopped"
+    },
+    "tips": {
+      "permissions": "OpenClaw has elevated system permissions. Use only in trusted environments",
+      "title": "Tips",
+      "token_usage": "AI agent mode may consume more tokens. Please monitor your usage"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
+    "uninstall_progress": "Uninstall Progress",
+    "uninstalled": {
+      "description": "OpenClaw has been successfully uninstalled.",
+      "title": "Uninstall Complete"
+    },
+    "uninstalling": {
+      "description": "Please wait while OpenClaw is being uninstalled...",
+      "title": "Uninstalling OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -4771,6 +4855,7 @@
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the v1 version"
         }
       },
+      "balance": "Balance",
       "basic_auth": {
         "label": "HTTP authentication",
         "password": {
@@ -4846,10 +4931,29 @@
         "title": "Model Notes"
       },
       "oauth": {
+        "balance": "Balance",
         "button": "Login with {{provider}}",
+        "cherryIn": {
+          "description": "Login to CherryIN using OAuth 2.0",
+          "logged_in": "Logged in via OAuth",
+          "login_button": "Login with OAuth",
+          "logout_button": "Logout",
+          "title": "OAuth Login"
+        },
+        "connect": "Connect {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
-        "official_website": "Official Website"
+        "logged_in": "Logged in",
+        "logout": "Logout",
+        "logout_confirm": "Are you sure you want to logout?",
+        "logout_success": "Successfully logged out",
+        "logout_warning": "Logged out locally, but server token revocation may have failed",
+        "official_website": "Official Website",
+        "provided_by": "Provided by",
+        "provided_by_suffix": "",
+        "requests": "Requests",
+        "topup": "Top Up",
+        "usage_title": "Usage"
       },
       "openai": {
         "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
@@ -5194,6 +5298,7 @@
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
     "notes": "Notes",
+    "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",

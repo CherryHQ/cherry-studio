@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 个任务"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "进行中",
+        "pending": "待处理"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "总是允许此工具",
@@ -2482,6 +2492,80 @@
       "title": "保持活跃时间"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "正在检查 OpenClaw 安装状态...",
+    "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "请先选择服务商和模型"
+    },
+    "gateway": {
+      "port": "端口",
+      "restart": "重启",
+      "start": "启动",
+      "status": "状态",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "install_progress": "安装进度",
+    "installed_at": "OpenClaw 安装路径：{{path}}",
+    "model_config": {
+      "auth_token": "认证令牌",
+      "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",
+      "auth_token_placeholder": "输入或生成令牌",
+      "generate_token": "生成",
+      "model": "模型",
+      "provider": "服务商",
+      "select_model": "选择模型",
+      "select_provider": "选择服务商",
+      "sync_hint": "选择的服务商和模型将同步到 OpenClaw 配置文件",
+      "title": "模型配置"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安装在您的系统上。请先安装它以使用此功能。",
+      "install_button": "安装 OpenClaw",
+      "install_guide_title": "安装指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "刷新",
+      "step2_hint": "安装完成后，点击上方的刷新按钮来检测 OpenClaw",
+      "step2_title": "第二步：验证安装",
+      "title": "OpenClaw 未安装",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",
+      "download_button": "下载 Node.js",
+      "hint": "macOS: brew install node | Windows: 从 nodejs.org 下载 LTS 版本",
+      "title": "需要安装 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "打开控制面板",
+      "title": "快捷操作",
+      "uninstall": "卸载",
+      "view_docs": "查看文档"
+    },
+    "status": {
+      "error": "错误",
+      "running": "运行中",
+      "starting": "启动中",
+      "stopped": "已停止"
+    },
+    "tips": {
+      "permissions": "OpenClaw 拥有较高的系统权限，建议仅在可信环境中使用",
+      "title": "温馨提示",
+      "token_usage": "AI 代理模式会消耗较多 Token，请注意用量"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
+    "uninstall_progress": "卸载进度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功卸载。",
+      "title": "卸载完成"
+    },
+    "uninstalling": {
+      "description": "正在卸载 OpenClaw，请稍候...",
+      "title": "正在卸载 OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -4771,6 +4855,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
+      "balance": "余额",
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {
@@ -4846,10 +4931,29 @@
         "title": "模型备注"
       },
       "oauth": {
+        "balance": "余额",
         "button": "使用 {{provider}} 账号登录",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登录 CherryIN",
+          "logged_in": "已通过 OAuth 登录",
+          "login_button": "OAuth 登录",
+          "logout_button": "退出登录",
+          "title": "OAuth 登录"
+        },
+        "connect": "关联 {{provider}} 账号",
         "description": "本服务由 <website>{{provider}}</website> 提供",
         "error": "认证失败",
-        "official_website": "官方网站"
+        "logged_in": "已登录",
+        "logout": "退出登录",
+        "logout_confirm": "确定要退出登录吗？",
+        "logout_success": "已成功退出登录",
+        "logout_warning": "已在本地退出登录，但服务器端令牌撤销可能失败",
+        "official_website": "官方网站",
+        "provided_by": "本服务由",
+        "provided_by_suffix": " 提供",
+        "requests": "请求数",
+        "topup": "充值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
@@ -5194,6 +5298,7 @@
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
     "notes": "笔记",
+    "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
     "store": "助手库",

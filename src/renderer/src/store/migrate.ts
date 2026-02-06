@@ -3189,6 +3189,21 @@ const migrateConfig = {
       logger.error('migrate 194 error', error as Error)
       return state
     }
+  },
+  '195': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        // Add 'openclaw' to visible icons if not already present
+        if (!state.settings.sidebarIcons.visible.includes('openclaw')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw']
+        }
+      }
+      logger.info('migrate 195 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 195 error', error as Error)
+      return state
+    }
   }
 }
 

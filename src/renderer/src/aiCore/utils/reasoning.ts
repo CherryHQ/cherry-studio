@@ -86,9 +86,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (isSupportEnableThinkingProvider(provider) &&
         (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
       (provider.id === SystemProviderIds.dashscope &&
-        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
+        (isDeepSeekHybridInferenceModel(model) ||
+          isSupportedThinkingTokenZhipuModel(model) ||
+          isSupportedThinkingTokenKimiModel(model)))
     ) {
       return { enable_thinking: false }
+    }
+
+    // together
+    if (provider.id === SystemProviderIds.together) {
+      return { reasoning: { enabled: false } }
     }
 
     // gemini
@@ -283,6 +290,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         case SystemProviderIds.openrouter:
+        case SystemProviderIds.together:
           return {
             reasoning: {
               enabled: true
@@ -318,11 +326,39 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (provider.id === SystemProviderIds.dashscope) {
     // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
     // No effort, only on/off
-    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+    if (
+      isQwenReasoningModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenKimiModel(model)
+    ) {
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens
       }
+    }
+  }
+
+  // https://docs.together.ai/reference/chat-completions-1#body-reasoning-effort
+  if (provider.id === SystemProviderIds.together) {
+    let adjustedReasoningEffort: 'low' | 'medium' | 'high' = 'medium'
+    switch (reasoningEffort) {
+      case 'minimal':
+        adjustedReasoningEffort = 'low'
+        break
+      case 'xhigh':
+        adjustedReasoningEffort = 'high'
+        break
+      case 'auto':
+        adjustedReasoningEffort = 'medium'
+        break
+      default:
+        adjustedReasoningEffort = reasoningEffort
+        break
+    }
+    return {
+      // Only low, medium, high
+      reasoningEffort: adjustedReasoningEffort,
+      reasoning: { enabled: true }
     }
   }
 

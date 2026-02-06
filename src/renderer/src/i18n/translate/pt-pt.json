@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tarefas concluídas"
+      },
+      "status": {
+        "completed": "Concluído",
+        "in_progress": "Em Andamento",
+        "pending": "Pendente"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Sempre permitir esta ferramenta",
@@ -2482,6 +2492,80 @@
       "title": "Manter tempo ativo"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "Verificando a instalação do OpenClaw...",
+    "description": "Integre provedores do Cherry Studio com o Gateway OpenClaw para habilitar agentes de codificação de IA como Claude Code, Qwen-Coder e muitos outros.",
+    "error": {
+      "select_provider_model": "Por favor, selecione primeiro um provedor e um modelo."
+    },
+    "gateway": {
+      "port": "Porto",
+      "restart": "Reiniciar",
+      "start": "Iniciar Gateway",
+      "status": "Estado",
+      "stop": "Parar",
+      "version": "Versão"
+    },
+    "install_progress": "Progresso da Instalação",
+    "installed_at": "OpenClaw instalado em: {{path}}",
+    "model_config": {
+      "auth_token": "Token de Autenticação",
+      "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",
+      "auth_token_placeholder": "Insira ou gere um token",
+      "generate_token": "Gerar",
+      "model": "Modelo",
+      "provider": "Fornecedor",
+      "select_model": "Selecione um modelo",
+      "select_provider": "Selecione um provedor",
+      "sync_hint": "O provedor e o modelo selecionados serão sincronizados com o arquivo de configuração do OpenClaw",
+      "title": "Configuração do Modelo"
+    },
+    "not_installed": {
+      "description": "OpenClaw não está instalado no seu sistema. Por favor, instale-o primeiro para usar este recurso.",
+      "install_button": "Instalar o OpenClaw",
+      "install_guide_title": "Guia de Instalação",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Atualizar",
+      "step2_hint": "Após a instalação, clique no botão Atualizar acima para detectar o OpenClaw",
+      "step2_title": "Passo 2: Verificar a instalação",
+      "title": "OpenClaw Não Instalado",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
+      "download_button": "Baixar Node.js",
+      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
+      "title": "Node.js Necessário"
+    },
+    "quick_actions": {
+      "open_dashboard": "Abrir Painel",
+      "title": "Ações Rápidas",
+      "uninstall": "Desinstalar",
+      "view_docs": "Ver Documentação"
+    },
+    "status": {
+      "error": "Erro",
+      "running": "Correndo",
+      "starting": "Começando",
+      "stopped": "Parado"
+    },
+    "tips": {
+      "permissions": "O OpenClaw tem permissões elevadas do sistema. Use apenas em ambientes confiáveis",
+      "title": "Dicas",
+      "token_usage": "O modo de agente IA pode consumir mais tokens. Por favor, monitore seu uso"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Tem certeza de que deseja desinstalar o OpenClaw? Pressione OK para confirmar.",
+    "uninstall_progress": "Progresso de Desinstalação",
+    "uninstalled": {
+      "description": "OpenClaw foi desinstalado com sucesso.",
+      "title": "Desinstalação concluída"
+    },
+    "uninstalling": {
+      "description": "Aguarde enquanto o OpenClaw está sendo desinstalado...",
+      "title": "Desinstalando OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -4771,6 +4855,7 @@
           "tip": "Versão da API do Azure OpenAI. Se desejar usar a API de Resposta, insira a versão de v1"
         }
       },
+      "balance": "Saldo",
       "basic_auth": {
         "label": "Autenticação HTTP",
         "password": {
@@ -4846,10 +4931,29 @@
         "title": "Observação do Modelo"
       },
       "oauth": {
+        "balance": "Saldo",
         "button": "Entrar com a conta {{provider}}",
+        "cherryIn": {
+          "description": "Faça login com seu servidor New-API auto-hospedado usando OAuth 2.0 (PKCE)",
+          "logged_in": "Conectado via OAuth",
+          "login_button": "Entrar com OAuth",
+          "logout_button": "Sair",
+          "title": "Login OAuth"
+        },
+        "connect": "Conectar {{provider}}",
         "description": "Este serviço é fornecido por <website>{{provider}}</website>",
         "error": "Falha na autenticação",
-        "official_website": "Site Oficial"
+        "logged_in": "Conectado",
+        "logout": "Sair",
+        "logout_confirm": "Tem certeza de que deseja sair?",
+        "logout_success": "Desconectado com sucesso",
+        "logout_warning": "Desconectado localmente, mas a revogação do token do servidor pode ter falhado",
+        "official_website": "Site Oficial",
+        "provided_by": "Fornecido por",
+        "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into Portuguese.",
+        "requests": "Solicitações",
+        "topup": "Recarregar",
+        "usage_title": "Uso"
       },
       "openai": {
         "alert": "O provedor OpenAI não suporta mais o método antigo de chamada. Se estiver usando uma API de terceiros, crie um novo provedor"
@@ -5194,6 +5298,7 @@
     "mcp-servers": "Servidores MCP",
     "memories": "Memórias",
     "notes": "Notas",
+    "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",

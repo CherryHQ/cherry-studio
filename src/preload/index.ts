@@ -31,6 +31,7 @@ import type {
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
+  Model,
   OcrProvider,
   OcrResult,
   Provider,
@@ -61,6 +62,23 @@ import type {
   WritePluginContentOptions
 } from '../renderer/src/types/plugin'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+
+// OpenClaw types
+type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+interface OpenClawHealthInfo {
+  status: 'healthy' | 'unhealthy'
+  gatewayPort: number
+  uptime?: number
+  version?: string
+}
+
+interface OpenClawChannelInfo {
+  id: string
+  name: string
+  type: string
+  status: 'connected' | 'disconnected' | 'error'
+}
 
 type DirectoryListOptions = {
   recursive?: boolean
@@ -423,6 +441,16 @@ const api = {
     logout: () => ipcRenderer.invoke(IpcChannel.Copilot_Logout),
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
+  cherryin: {
+    saveToken: (accessToken: string, refreshToken?: string) =>
+      ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, accessToken, refreshToken),
+    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CherryIN_HasToken),
+    getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
+    logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
+    startOAuthFlow: (oauthServer: string, apiHost?: string) =>
+      ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
+    exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)
+  },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
@@ -638,6 +666,28 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LocalTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
+  },
+  openclaw: {
+    checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
+    checkNpmAvailable: (): Promise<{ available: boolean; path: string | null }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNpmAvailable),
+    getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
+    install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
+    uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
+    startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
+    stopGateway: (): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
+    restartGateway: (): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_RestartGateway),
+    getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
+    checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
+    getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
+    syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
+    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)
   }
 }
 

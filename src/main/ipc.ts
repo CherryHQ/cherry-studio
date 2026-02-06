@@ -42,6 +42,7 @@ import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import CherryINOAuthService from './services/CherryINOAuthService'
 import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
@@ -60,6 +61,7 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
+import { openClawService } from './services/OpenClawService'
 import { isOvmsSupported } from './services/OvmsManager'
 import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
@@ -842,6 +844,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout.bind(CopilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser.bind(CopilotService))
 
+  // CherryIN OAuth
+  ipcMain.handle(IpcChannel.CherryIN_SaveToken, CherryINOAuthService.saveToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_HasToken, CherryINOAuthService.hasToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetBalance, CherryINOAuthService.getBalance.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_Logout, CherryINOAuthService.logout.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, CherryINOAuthService.startOAuthFlow.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, CherryINOAuthService.exchangeToken.bind(CherryINOAuthService))
+
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
     return obsidianVaultService.getVaults()
@@ -1122,4 +1132,19 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
     mainWindow.webContents.forcefullyCrashRenderer()
   })
+
+  // OpenClaw
+  ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckNpmAvailable, openClawService.checkNpmAvailable)
+  ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
+  ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
+  ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
+  ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_RestartGateway, openClawService.restartGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_GetStatus, openClawService.getStatus)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckHealth, openClawService.checkHealth)
+  ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
+  ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
+  ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
 }
