@@ -73,6 +73,11 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
     return false
   }
 
+  // Kimi K2.5 doesn't support custom temperature
+  if (isKimi25Model(model)) {
+    return false
+  }
+
   return true
 }
 
