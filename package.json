@@ -235,7 +235,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
-    "@typescript/native-preview": "7.0.0-dev.20250915.1",
+    "@typescript/native-preview": "7.0.0-dev.20260204.1",
     "@uiw/codemirror-extensions-langs": "^4.25.1",
     "@uiw/codemirror-themes-all": "^4.25.1",
     "@uiw/react-codemirror": "^4.25.1",
