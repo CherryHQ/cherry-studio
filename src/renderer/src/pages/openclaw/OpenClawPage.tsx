@@ -141,10 +141,19 @@ const OpenClawPage: FC = () => {
       setIsInstalled(result.installed)
       setShowLogs(false)
       setInstallPath(result.path)
+
+      // If not installed, check npm availability immediately
+      if (!result.installed) {
+        try {
+          const npmCheck = await window.api.openclaw.checkNpmAvailable()
+          setNpmMissing(!npmCheck.available)
+        } catch {
+          // Ignore errors, will check again on install click
+        }
+      }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
       setIsInstalled(false)
-    } finally {
     }
   }, [])
 
