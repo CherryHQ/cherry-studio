@@ -249,7 +249,6 @@ const Chat: FC<Props> = (props) => {
           {topicPosition === 'right' && showTopics && (
             <motion.div
               key="right-tabs"
-              layout
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'var(--assistants-width)', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
