@@ -182,8 +182,14 @@ const Chat: FC<Props> = (props) => {
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0 }}>
-          <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ height: mainHeight }}>
+          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
+          <Main
+            ref={mainRef}
+            id="chat-main"
+            vertical
+            flex={1}
+            justify="space-between"
+            style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
