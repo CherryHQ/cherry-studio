@@ -349,8 +349,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         adjustedReasoningEffort = 'high'
         break
       case 'auto':
-      default:
         adjustedReasoningEffort = 'medium'
+        break
+      default:
+        adjustedReasoningEffort = reasoningEffort
         break
     }
     return {
