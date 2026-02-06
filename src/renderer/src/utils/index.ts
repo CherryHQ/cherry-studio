@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import type { Model, ModelType } from '@renderer/types'
 import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils')
 
@@ -54,8 +53,6 @@ export const waitAsyncFunction = (
     }
   })()
 }
-
-export const uuid = () => uuidv4()
 
 /**
  * 从错误对象中提取错误信息。
@@ -222,3 +219,4 @@ export * from './match'
 export * from './naming'
 export * from './sort'
 export * from './style'
+export { uuid } from './uuid'
