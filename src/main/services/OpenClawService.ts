@@ -381,58 +381,36 @@ class OpenClawService {
     _: Electron.IpcMainInvokeEvent,
     port?: number
   ): Promise<{ success: boolean; message: string }> {
-    if (this.gatewayStatus === 'running') {
+    this.gatewayPort = port ?? DEFAULT_GATEWAY_PORT
+
+    // Prevent concurrent startup calls
+    if (this.gatewayStatus === 'starting') {
+      return { success: false, message: 'Gateway is already starting' }
+    }
+
+    const shellEnv = await getShellEnv()
+    const openclawPath = await this.findOpenClawBinary()
+    if (!openclawPath) {
+      return {
+        success: false,
+        message: 'OpenClaw binary not found. Please install OpenClaw first.'
+      }
+    }
+
+    // Check if gateway is already running in the system (including external processes)
+    const alreadyRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
+    if (alreadyRunning) {
+      // Reuse existing gateway instead of trying to restart
+      this.gatewayStatus = 'running'
+      logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
       return { success: true, message: 'Gateway is already running' }
     }
 
-    this.gatewayPort = port ?? DEFAULT_GATEWAY_PORT
+    // No gateway running, start a new one
     this.gatewayStatus = 'starting'
 
     try {
-      // Use shell environment to ensure OpenClaw can find Node.js and other dependencies
-      const shellEnv = await getShellEnv()
-
-      // Check if openclaw binary exists in PATH
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        this.gatewayStatus = 'error'
-        return {
-          success: false,
-          message: 'OpenClaw binary not found. Please install OpenClaw first.'
-        }
-      }
-
-      // Stop any existing gateway first (from previous sessions that didn't clean up)
-      await this.stopExistingGateway(openclawPath, shellEnv)
-
-      // Start the gateway process
-      // On Windows, .cmd files need to be executed via cmd.exe
-      this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)], shellEnv)
-
-      this.gatewayProcess.stdout?.on('data', (data) => {
-        logger.info('Gateway stdout:', data.toString())
-      })
-
-      this.gatewayProcess.stderr?.on('data', (data) => {
-        logger.warn('Gateway stderr:', data.toString())
-      })
-
-      this.gatewayProcess.on('error', (error) => {
-        logger.error('Gateway process error:', error)
-        this.gatewayStatus = 'error'
-      })
-
-      this.gatewayProcess.on('exit', (code) => {
-        logger.info(`Gateway process exited with code ${code}`)
-        this.gatewayStatus = 'stopped'
-        this.gatewayProcess = null
-      })
-
-      // Wait a bit and check if gateway started successfully
-      // Gateway may take a few seconds to fully initialize, use 20 attempts (10 seconds)
-      // Use CLI status check for more reliable detection
-      await this.waitForGateway(20, openclawPath, shellEnv)
-
+      await this.spawnAndWaitForGateway(openclawPath, shellEnv)
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true, message: `Gateway started on port ${this.gatewayPort}` }
@@ -445,34 +423,112 @@ class OpenClawService {
   }
 
   /**
+   * Spawn gateway process and wait for it to become ready
+   * Monitors process exit and stderr for early failure detection
+   */
+  private async spawnAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
+    // Track startup errors from stderr and process exit
+    let startupError: string | null = null
+    let processExited = false
+
+    logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
+    this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)], shellEnv)
+    logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
+
+    // Monitor stderr for error messages
+    this.gatewayProcess.stderr?.on('data', (data) => {
+      const msg = data.toString()
+      logger.warn('Gateway stderr:', msg)
+
+      // Extract specific error messages for better user feedback
+      if (msg.includes('already running')) {
+        startupError = 'Gateway already running (port conflict)'
+      } else if (msg.includes('already in use')) {
+        startupError = `Port ${this.gatewayPort} is already in use`
+      }
+    })
+
+    this.gatewayProcess.stdout?.on('data', (data) => {
+      logger.info('Gateway stdout:', data.toString())
+    })
+
+    // Monitor process exit during startup
+    this.gatewayProcess.on('exit', (code) => {
+      logger.info(`Gateway process exited with code ${code}`)
+      processExited = true
+      if (code !== 0 && !startupError) {
+        startupError = `Process exited with code ${code}`
+      }
+      this.gatewayProcess = null
+    })
+
+    this.gatewayProcess.on('error', (err) => {
+      logger.error('Gateway process error:', err)
+      processExited = true
+      startupError = err.message
+    })
+
+    // Wait for gateway to become ready (max 30 seconds)
+    const maxWaitMs = 30000
+    const pollIntervalMs = 1000
+    const startTime = Date.now()
+    let pollCount = 0
+
+    while (Date.now() - startTime < maxWaitMs) {
+      // Fast fail if process has already exited
+      if (processExited) {
+        throw new Error(startupError || 'Gateway process exited unexpectedly')
+      }
+
+      await new Promise((r) => setTimeout(r, pollIntervalMs))
+      pollCount++
+
+      logger.debug(`Polling gateway status (attempt ${pollCount})...`)
+      const isRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
+      if (isRunning) {
+        logger.info(`Gateway is running (verified via CLI after ${pollCount} polls)`)
+        return
+      }
+
+      // Fallback: also check if port is open (in case CLI status check is unreliable)
+      const portOpen = await this.checkPortOpen(this.gatewayPort)
+      if (portOpen) {
+        logger.info(`Gateway port ${this.gatewayPort} is open (verified via port check after ${pollCount} polls)`)
+        return
+      }
+    }
+
+    // Timeout - process may still be starting but taking too long
+    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)`)
+  }
+
+  /**
    * Stop the OpenClaw Gateway
+   * Handles both our process and external gateway processes
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      // If we have a process reference, kill it and wait for exit
+      // If we have a process reference, kill it first
       if (this.gatewayProcess) {
-        const process = this.gatewayProcess
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(() => {
-            process.kill('SIGKILL')
-            resolve()
-          }, 5000)
-
-          process.once('exit', () => {
-            clearTimeout(timeout)
-            resolve()
-          })
-
-          process.kill('SIGTERM')
-        })
+        await this.killProcess(this.gatewayProcess)
         this.gatewayProcess = null
       }
 
-      // Also try CLI command to stop any gateway (in case of orphaned process)
+      // Use CLI to stop any gateway (handles external processes too)
       const openclawPath = await this.findOpenClawBinary()
       if (openclawPath) {
         const shellEnv = await getShellEnv()
-        await this.stopExistingGateway(openclawPath, shellEnv)
+        await this.runGatewayStop(openclawPath, shellEnv)
+
+        // Verify stop was successful
+        const stillRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
+        if (stillRunning) {
+          logger.warn('Gateway still running after stop attempt')
+          return {
+            success: false,
+            message: 'Failed to stop gateway. Try running: openclaw gateway stop'
+          }
+        }
       }
 
       this.gatewayStatus = 'stopped'
@@ -483,6 +539,50 @@ class OpenClawService {
       logger.error('Failed to stop gateway:', error as Error)
       return { success: false, message: errorMessage }
     }
+  }
+
+  /**
+   * Kill a child process with SIGTERM, then SIGKILL after timeout
+   */
+  private async killProcess(proc: ChildProcess): Promise<void> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL')
+        resolve()
+      }, 5000)
+
+      proc.once('exit', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+
+      proc.kill('SIGTERM')
+    })
+  }
+
+  /**
+   * Run `openclaw gateway stop` command
+   */
+  private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
+    return new Promise((resolve) => {
+      const proc = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'], env)
+
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL')
+        resolve()
+      }, 5000)
+
+      proc.on('exit', () => {
+        clearTimeout(timeout)
+        // Wait for port to be released
+        setTimeout(resolve, 500)
+      })
+
+      proc.on('error', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
   }
 
   /**
@@ -820,27 +920,6 @@ class OpenClawService {
   }
 
   /**
-   * Stop any existing gateway from previous sessions using CLI command
-   */
-  private async stopExistingGateway(openclawPath: string, env: Record<string, string>): Promise<void> {
-    return new Promise((resolve) => {
-      const stopProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'], env)
-
-      stopProcess.on('exit', () => {
-        // Give a moment for the port to be released
-        setTimeout(resolve, 500)
-      })
-
-      stopProcess.on('error', () => {
-        resolve()
-      })
-
-      // Timeout after 3 seconds
-      setTimeout(resolve, 3000)
-    })
-  }
-
-  /**
    * Check gateway status using `openclaw gateway status` command
    * Returns true if gateway is running
    */
@@ -850,9 +929,10 @@ class OpenClawService {
 
       let stdout = ''
       const timeoutId = setTimeout(() => {
+        logger.debug('Gateway status check timed out after 2s')
         statusProcess.kill('SIGKILL')
         resolve(false)
-      }, 5000)
+      }, 2000)
 
       statusProcess.stdout?.on('data', (data) => {
         stdout += data.toString()
@@ -860,8 +940,9 @@ class OpenClawService {
 
       statusProcess.on('close', (code) => {
         clearTimeout(timeoutId)
-        // Check if output contains "running" status
-        const isRunning = code === 0 && stdout.toLowerCase().includes('running')
+        const lowerStdout = stdout.toLowerCase()
+        const isRunning = code === 0 && (lowerStdout.includes('listening') || lowerStdout.includes('running'))
+        logger.debug('Gateway status check result:', { code, stdout: stdout.trim(), isRunning })
         resolve(isRunning)
       })
 
@@ -870,25 +951,6 @@ class OpenClawService {
         resolve(false)
       })
     })
-  }
-
-  /**
-   * Wait for Gateway to start by checking gateway status via CLI command
-   * @param maxAttempts - Maximum number of attempts to check gateway status
-   * @param openclawPath - Path to the openclaw binary
-   * @param env - Shell environment for spawning processes
-   * @throws Error if gateway fails to start within the timeout
-   */
-  private async waitForGateway(maxAttempts: number, openclawPath: string, env: Record<string, string>): Promise<void> {
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      const isRunning = await this.checkGatewayStatus(openclawPath, env)
-      if (isRunning) {
-        logger.info(`Gateway is running (verified via CLI status check)`)
-        return
-      }
-    }
-    throw new Error(`Gateway failed to start on port ${this.gatewayPort} after ${maxAttempts} attempts`)
   }
 
   /**

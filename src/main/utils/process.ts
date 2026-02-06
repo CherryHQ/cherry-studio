@@ -129,7 +129,6 @@ export async function findCommandInShellEnv(
           // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
           if (exePath) {
-            logger.debug(`Found command '${command}' at: ${exePath}`)
             safeResolve(exePath)
           } else {
             logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
@@ -181,7 +180,6 @@ export async function findCommandInShellEnv(
           // Validate the output is an absolute path (not an alias, function, or builtin)
           // command -v can return just the command name for aliases/builtins
           if (path.isAbsolute(commandPath)) {
-            logger.debug(`Found command '${command}' at: ${commandPath}`)
             safeResolve(commandPath)
           } else {
             logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)

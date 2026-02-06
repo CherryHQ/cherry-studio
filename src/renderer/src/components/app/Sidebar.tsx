@@ -228,6 +228,9 @@ const Icon = styled.div<{ theme: string }>`
   box-sizing: border-box;
   -webkit-app-region: none;
   border: 0.5px solid transparent;
+  .icon {
+    color: var(--color-icon);
+  }
   &:hover {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
