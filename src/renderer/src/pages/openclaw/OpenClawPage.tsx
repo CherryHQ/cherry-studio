@@ -486,7 +486,7 @@ const OpenClawPage: FC = () => {
             className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
             <div className="min-w-0 shrink overflow-hidden">
-              <h3 className="mb-1">{t('openclaw.installed_at')}</h3>
+              <div className="mb-1">{t('openclaw.installed_at')}</div>
               <div className="flex gap-2">
                 <div className="truncate text-xs" title={installPath}>
                   {installPath}
