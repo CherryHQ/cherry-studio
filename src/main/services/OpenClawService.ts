@@ -219,7 +219,12 @@ class OpenClawService {
     // For other users, install the standard openclaw package
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
+
+    // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
+    const npmCheck = await this.checkNpmAvailable()
+    const npmPath = npmCheck.path || 'npm'
     const npmCommand = `npm install -g ${packageName} ${registryArg}`.trim()
+    const npmCommandWithPath = `${npmPath} install -g ${packageName} ${registryArg}`.trim()
 
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
@@ -283,7 +288,8 @@ class OpenClawService {
               logger.info('Permission denied, retrying with sudo-prompt...')
               this.sendInstallProgress('Permission denied. Requesting administrator access...')
 
-              exec(npmCommand, { name: 'Cherry Studio' }, (error, stdout) => {
+              // Use full npm path since sudo runs in clean environment without user PATH
+              exec(npmCommandWithPath, { name: 'Cherry Studio' }, (error, stdout) => {
                 if (error) {
                   logger.error('Sudo install failed:', error)
                   this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
