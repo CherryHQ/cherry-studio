@@ -47,13 +47,7 @@ export class KnowledgeQueueManager {
     this.embeddingPool = new ConcurrencyPool(this.config.embeddingConcurrency)
   }
 
-  enqueue<T>(job: KnowledgeJob, task: KnowledgeJobTask<T>): Promise<T>
-  enqueue<T>(id: string, task: (signal: AbortSignal) => Promise<T>): Promise<T>
-  enqueue<T>(
-    jobOrId: KnowledgeJob | string,
-    task: KnowledgeJobTask<T> | ((signal: AbortSignal) => Promise<T>)
-  ): Promise<T> {
-    const { job, task: normalizedTask } = this.normalizeJob(jobOrId, task)
+  enqueue<T>(job: KnowledgeJob, task: KnowledgeJobTask<T>): Promise<T> {
     const itemId = job.itemId
 
     if (this.jobs.has(itemId)) {
@@ -71,7 +65,7 @@ export class KnowledgeQueueManager {
     return new Promise<T>((resolve, reject) => {
       const entry: JobEntry<T> = {
         job,
-        task: normalizedTask,
+        task,
         controller,
         resolve,
         reject
@@ -333,35 +327,6 @@ export class KnowledgeQueueManager {
       if (this.baseCursor >= this.baseOrder.length) {
         this.baseCursor = 0
       }
-    }
-  }
-
-  private normalizeJob<T>(
-    jobOrId: KnowledgeJob | string,
-    task: KnowledgeJobTask<T> | ((signal: AbortSignal) => Promise<T>)
-  ): { job: KnowledgeJob; task: KnowledgeJobTask<T> } {
-    if (typeof jobOrId === 'string') {
-      const job: KnowledgeJob = {
-        baseId: 'default',
-        itemId: jobOrId,
-        createdAt: Date.now()
-      }
-      const legacyTask = task as (signal: AbortSignal) => Promise<T>
-      return {
-        job,
-        task: async ({ signal }) => await legacyTask(signal)
-      }
-    }
-
-    const normalizedJob: KnowledgeJob = {
-      ...jobOrId,
-      baseId: jobOrId.baseId || 'default',
-      createdAt: jobOrId.createdAt ?? Date.now()
-    }
-
-    return {
-      job: normalizedJob,
-      task: task as KnowledgeJobTask<T>
     }
   }
 

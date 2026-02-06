@@ -144,7 +144,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
         />
       </Field>
 
-      <div className="h-8 flex flex-row items-center gap-2 border border-amber-400/40 text-amber-400 bg-amber-400/10 rounded-2xs px-2">
+      <div className="flex h-8 flex-row items-center gap-2 rounded-2xs border border-amber-400/40 bg-amber-400/10 px-2 text-amber-400">
         <TriangleAlert size={16} className="text-amber-400" />
         {t('knowledge.chunk_size_change_warning')}
       </div>
