@@ -1,10 +1,13 @@
-name: Pull Request CI
+name: CI
 
 permissions:
   contents: read
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -16,8 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      PRCI: true
-    if: github.event.pull_request.draft == false
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
 
     steps:
       - name: Check out Git repository
