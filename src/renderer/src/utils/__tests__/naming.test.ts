@@ -12,7 +12,8 @@ import {
   getLowerBaseModelName,
   isEmoji,
   removeLeadingEmoji,
-  removeSpecialCharactersForTopicName
+  removeSpecialCharactersForTopicName,
+  sanitizeProviderName
 } from '../naming'
 
 describe('naming', () => {
@@ -299,6 +300,24 @@ describe('naming', () => {
         models: []
       }
       expect(getFancyProviderName(mockProvider)).toBe('好名字')
+    })
+  })
+
+  describe('sanitizeProviderName', () => {
+    it('should replace spaces with dashes', () => {
+      expect(sanitizeProviderName('My Provider')).toBe('My-Provider')
+    })
+
+    it('should replace dangerous characters with underscores', () => {
+      expect(sanitizeProviderName('Provider/Name')).toBe('Provider_Name')
+    })
+
+    it('should handle mixed special characters', () => {
+      expect(sanitizeProviderName('My Provider <test>:name')).toBe('My-Provider-_test__name')
+    })
+
+    it('should return empty string for empty input', () => {
+      expect(sanitizeProviderName('')).toBe('')
     })
   })
 })

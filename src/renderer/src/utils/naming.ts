@@ -198,3 +198,16 @@ export function getBriefInfo(text: string, maxLength: number = 50): string {
   // 截取前面的内容，并在末尾添加 "..."
   return truncatedText + '...'
 }
+
+/**
+ * 清理 provider 名称，用于环境变量值：
+ * - 替换空格为短横线
+ * - 替换其他危险字符为下划线
+ * @param {string} name 输入字符串
+ * @returns {string} 清理后的字符串
+ */
+export function sanitizeProviderName(name: string): string {
+  return name
+    .replace(/\s+/g, '-') // spaces -> dashes
+    .replace(/[<>:"|?*\\/_]/g, '_') // dangerous chars -> underscores
+}
