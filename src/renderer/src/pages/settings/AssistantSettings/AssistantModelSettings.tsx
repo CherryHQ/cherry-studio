@@ -142,21 +142,28 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           }
         }
         return (
-          <CodeEditor
-            value={jsonValue}
-            language="json"
-            onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
-            expanded={false}
-            height="auto"
-            maxHeight="200px"
-            minHeight="60px"
-            options={{ lint: true, lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
-            style={{
-              borderRadius: 6,
-              overflow: 'hidden',
-              border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
-            }}
-          />
+          <>
+            <CodeEditor
+              value={jsonValue}
+              language="json"
+              onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
+              expanded={false}
+              height="auto"
+              maxHeight="200px"
+              minHeight="60px"
+              options={{ lint: true, lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
+              style={{
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
+              }}
+            />
+            {hasJsonError && (
+              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>
+                {t('models.json_parse_error')}
+              </div>
+            )}
+          </>
         )
       }
       default:
