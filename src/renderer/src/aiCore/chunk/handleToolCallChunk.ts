@@ -363,12 +363,19 @@ export class ToolCallChunkHandler {
 
     // 调用 onChunk
     if (this.onChunk) {
+      // Extract images BEFORE emitting MCP_TOOL_COMPLETE, then strip the heavy
+      // base64 data from the tool response. This prevents duplicate storage:
+      // ImageBlock keeps the actual image data; ToolBlock only stores a lightweight
+      // placeholder, avoiding hundreds of MB of redundant base64 in Redux state.
+      const images = extractImagesFromToolOutput(toolResponse.response)
+      if (images.length) {
+        stripImageDataFromToolResponse(toolResponse.response)
+      }
+
       this.onChunk({
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [toolResponse]
       })
-
-      const images = extractImagesFromToolOutput(toolResponse.response)
 
       if (images.length) {
         this.onChunk({
@@ -432,4 +439,32 @@ function extractImagesFromToolOutput(output: unknown): string[] {
   }
 
   return []
+}
+
+/**
+ * Strip base64 image data from tool response to prevent memory bloat.
+ *
+ * When MCP tools return images, the same base64 data would be stored in both
+ * the ToolBlock (via rawMcpToolResponse) and the ImageBlock (via generateImageResponse).
+ * Over multiple tool calls this causes JS heap to grow by ~2MB per image per copy,
+ * easily reaching 1GB+. The stripped ToolBlock retains image metadata (type, mimeType)
+ * for UI display while the actual image data lives only in the ImageBlock.
+ */
+function stripImageDataFromToolResponse(output: unknown): void {
+  // NOTE: We must mutate the original output object. The Zod schema used by
+  // CallToolResultSchema.safeParse() returns cloned objects, so mutating the
+  // parsed result would not affect the ToolBlock payload.
+  if (!output || typeof output !== 'object') return
+
+  const raw = output as any
+  const contents = raw.content
+  if (!Array.isArray(contents)) return
+
+  for (const content of contents) {
+    if (content?.type === 'image' && typeof content.data === 'string' && content.data) {
+      // Replace heavy base64 payload with a lightweight marker.
+      // UI (extractPreviewContent) only reads content.mimeType, not content.data.
+      content.data = '[image data moved to ImageBlock]'
+    }
+  }
 }
