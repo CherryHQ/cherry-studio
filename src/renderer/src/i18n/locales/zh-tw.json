@@ -2509,7 +2509,7 @@
       "version": "版本"
     },
     "install_progress": "安裝進度",
-    "installed_at": "OpenClaw 安裝路徑：{{path}}",
+    "installed_at": "OpenClaw 安裝路徑",
     "model_config": {
       "auth_token": "認證令牌",
       "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",

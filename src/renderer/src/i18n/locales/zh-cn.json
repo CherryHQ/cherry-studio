@@ -2509,7 +2509,7 @@
       "version": "版本"
     },
     "install_progress": "安装进度",
-    "installed_at": "OpenClaw 安装路径：{{path}}",
+    "installed_at": "OpenClaw 安装路径",
     "model_config": {
       "auth_token": "认证令牌",
       "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",

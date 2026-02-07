@@ -2509,7 +2509,7 @@
       "version": "Versão"
     },
     "install_progress": "Progresso da Instalação",
-    "installed_at": "OpenClaw instalado em: {{path}}",
+    "installed_at": "OpenClaw instalado em",
     "model_config": {
       "auth_token": "Token de Autenticação",
       "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",

@@ -11,7 +11,7 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
@@ -51,7 +51,6 @@ const Chat: FC<Props> = (props) => {
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const { isTopNavbar } = useNavbarPosition()
-  const chatMaxWidth = useChatMaxWidth()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
@@ -181,19 +180,16 @@ const Chat: FC<Props> = (props) => {
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <HStack>
         <motion.div
-          animate={{
-            marginRight:
-              topicPosition === 'right' && showTopics ? 'calc(var(--assistants-width) + var(--border-width))' : 0
-          }}
+          layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
           <Main
             ref={mainRef}
             id="chat-main"
             vertical
             flex={1}
             justify="space-between"
-            style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
+            style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -253,17 +249,12 @@ const Chat: FC<Props> = (props) => {
           {topicPosition === 'right' && showTopics && (
             <motion.div
               key="right-tabs"
-              initial={{ x: 'var(--assistants-width)' }}
-              animate={{ x: 0 }}
-              exit={{ x: 'var(--assistants-width)' }}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{
-                position: 'absolute',
-                right: 0,
-                top: isTopNavbar ? 0 : 'calc(var(--navbar-height) + 1px)',
-                width: 'var(--assistants-width)',
-                height: '100%',
-                zIndex: 10
+                overflow: 'hidden'
               }}>
               <Tabs
                 activeAssistant={assistant}
@@ -278,18 +269,6 @@ const Chat: FC<Props> = (props) => {
       </HStack>
     </Container>
   )
-}
-
-export const useChatMaxWidth = () => {
-  const { showTopics, topicPosition } = useSettings()
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
-  const { showAssistants } = useShowAssistants()
-  const showRightTopics = showTopics && topicPosition === 'right'
-  const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-  const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-  const minusBorderWidth = isTopNavbar ? (showTopics ? '- 12px' : '- 6px') : ''
-  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
-  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth} ${minusBorderWidth})`
 }
 
 const Container = styled.div`

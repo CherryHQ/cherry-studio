@@ -283,7 +283,7 @@ class ClaudeCodeService implements AgentServiceInterface {
             preset: 'claude_code',
             append: getLanguageInstruction()
           },
-      settingSources: ['project'],
+      settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
