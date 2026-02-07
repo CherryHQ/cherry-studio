@@ -1241,8 +1241,8 @@ importers:
   packages/aiCore:
     dependencies:
       '@ai-sdk/anthropic':
-        specifier: ^2.0.49
-        version: 2.0.57(zod@4.3.4)
+        specifier: ^2.0.59
+        version: 2.0.59(zod@4.3.4)
       '@ai-sdk/azure':
         specifier: ^2.0.87
         version: 2.0.91(zod@4.3.4)
@@ -1269,7 +1269,7 @@ importers:
         version: 2.0.43(zod@4.3.4)
       '@cherrystudio/ai-sdk-provider':
         specifier: ^0.1.3
-        version: 0.1.3(@ai-sdk/anthropic@2.0.57(zod@4.3.4))(@ai-sdk/google@2.0.49(patch_hash=279e9d43f675e4b979b32b78954dd37acc3026aa36ae2dd7701b5bad2f061522)(zod@4.3.4))(@ai-sdk/openai@2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4))(ai@5.0.117(zod@4.3.4))(zod@4.3.4)
+        version: 0.1.3(@ai-sdk/anthropic@2.0.59(zod@4.3.4))(@ai-sdk/google@2.0.49(patch_hash=279e9d43f675e4b979b32b78954dd37acc3026aa36ae2dd7701b5bad2f061522)(zod@4.3.4))(@ai-sdk/openai@2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4))(ai@5.0.117(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^5.0.26
         version: 5.0.117(zod@4.3.4)
@@ -13413,9 +13413,9 @@ snapshots:
 
   '@cfworker/json-schema@4.1.1': {}
 
-  '@cherrystudio/ai-sdk-provider@0.1.3(@ai-sdk/anthropic@2.0.57(zod@4.3.4))(@ai-sdk/google@2.0.49(patch_hash=279e9d43f675e4b979b32b78954dd37acc3026aa36ae2dd7701b5bad2f061522)(zod@4.3.4))(@ai-sdk/openai@2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4))(ai@5.0.117(zod@4.3.4))(zod@4.3.4)':
+  '@cherrystudio/ai-sdk-provider@0.1.3(@ai-sdk/anthropic@2.0.59(zod@4.3.4))(@ai-sdk/google@2.0.49(patch_hash=279e9d43f675e4b979b32b78954dd37acc3026aa36ae2dd7701b5bad2f061522)(zod@4.3.4))(@ai-sdk/openai@2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4))(ai@5.0.117(zod@4.3.4))(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/anthropic': 2.0.57(zod@4.3.4)
+      '@ai-sdk/anthropic': 2.0.59(zod@4.3.4)
       '@ai-sdk/google': 2.0.49(patch_hash=279e9d43f675e4b979b32b78954dd37acc3026aa36ae2dd7701b5bad2f061522)(zod@4.3.4)
       '@ai-sdk/openai': 2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4)
       '@ai-sdk/provider': 2.0.1
