@@ -16,6 +16,7 @@ export interface AiSdkSpanData {
   span: Span
   topicId?: string
   modelName?: string
+  assistantMsgId?: string
 }
 
 // 扩展接口用于访问span的内部数据
@@ -155,6 +156,7 @@ export class AiSdkSpanAdapter {
         usage: tokenUsage,
         spanId: spanContext.spanId
       })
+      window.api.trace.tokenUsage(spanContext.spanId, tokenUsage)
     }
 
     if (inputs || outputs) {
@@ -200,8 +202,9 @@ export class AiSdkSpanAdapter {
       endTime: endTime ? this.convertTimestamp(endTime) : null,
       links: links,
       topicId: topicId,
-      usage: tokenUsage,
-      modelName: modelName || this.extractModelFromAttributes(attributes)
+      // usage: tokenUsage,
+      modelName: modelName || this.extractModelFromAttributes(attributes),
+      referenceId: spanData.assistantMsgId
     }
 
     logger.debug('AI SDK span successfully converted to SpanEntity', {

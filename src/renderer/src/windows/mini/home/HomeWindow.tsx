@@ -295,7 +295,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           messages: modelMessages,
           assistant: newAssistant,
           requestOptions: {},
-          topicId,
           uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {

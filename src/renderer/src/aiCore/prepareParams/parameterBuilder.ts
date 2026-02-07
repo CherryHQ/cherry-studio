@@ -33,6 +33,7 @@ import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
@@ -130,7 +131,7 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  let tools = setupToolsConfig(mcpTools)
+  let tools = setupToolsConfig(mcpTools, assistant.traceContext)
 
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
@@ -277,6 +278,7 @@ export async function buildGenerateTextParams(
   options: {
     mcpTools?: MCPTool[]
     enableTools?: boolean
+    traceContext?: WebTraceContext
   } = {}
 ): Promise<any> {
   // 复用流式参数的构建逻辑

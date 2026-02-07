@@ -1,6 +1,7 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebTraceContext } from '@renderer/types/trace'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
@@ -15,7 +16,8 @@ export const webSearchToolWithPreExtractedKeywords = (
     question: string[]
     links?: string[]
   },
-  requestId: string
+  requestId: string,
+  traceContext?: WebTraceContext
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
 
@@ -67,7 +69,12 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      searchResults = await WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        requestId,
+        traceContext
+      )
 
       return searchResults
     },
