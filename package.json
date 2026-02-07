@@ -211,6 +211,7 @@
     "@tiptap/y-tiptap": "^3.0.0",
     "@truto/turndown-plugin-gfm": "^1.0.2",
     "@tryfabric/martian": "^1.2.4",
+    "@types/archiver": "^7.0.0",
     "@types/cli-progress": "^3",
     "@types/content-type": "^1.1.9",
     "@types/cors": "^2.8.19",
