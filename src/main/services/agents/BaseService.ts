@@ -291,15 +291,25 @@ export abstract class BaseService {
         throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
       }
 
+      // Local providers that don't require a real API key (use placeholder).
+      // Note: lmstudio doesn't support Anthropic API format, only ollama does.
+      const localProvidersWithoutApiKey = ['ollama', 'lmstudio']
+      const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
+
       if (!validation.provider.apiKey) {
-        throw new AgentModelValidationError(
-          { agentType, field, model: modelValue },
-          {
-            type: 'invalid_format',
-            message: `Provider '${validation.provider.id}' is missing an API key`,
-            code: 'provider_api_key_missing'
-          }
-        )
+        if (requiresApiKey) {
+          throw new AgentModelValidationError(
+            { agentType, field, model: modelValue },
+            {
+              type: 'invalid_format',
+              message: `Provider '${validation.provider.id}' is missing an API key`,
+              code: 'provider_api_key_missing'
+            }
+          )
+        } else {
+          // Use provider id as placeholder API key for providers that don't require one
+          validation.provider.apiKey = validation.provider.id
+        }
       }
     }
   }
