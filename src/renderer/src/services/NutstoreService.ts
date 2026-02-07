@@ -174,20 +174,22 @@ export async function backupToNutstore({
   }
 }
 
-export async function restoreFromNutstore(fileName?: string) {
+export async function restoreFromNutstore(fileName?: string): Promise<boolean> {
   const nutstoreToken = getNutstoreToken()
   if (!nutstoreToken) {
-    return
+    return false
   }
 
   const config = await createNutstoreConfig(nutstoreToken)
   if (!config) {
-    return
+    return false
   }
 
   try {
     const data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
     await handleData(JSON.parse(data))
+    window.toast.success(i18n.t('message.restore.restore_success', { source: 'Nutstore' }))
+    return true
   } catch (error) {
     logger.error('[backup] restoreFromNutstore: Error restoring backup:', error as Error)
     // Use modal.error for restore failures as it's a user-initiated action
@@ -195,6 +197,7 @@ export async function restoreFromNutstore(fileName?: string) {
       title: i18n.t('message.restore.failed'),
       content: (error as Error).message || i18n.t('error.backup.unknown_error')
     })
+    return false
   }
 }
 

@@ -29,7 +29,7 @@ interface WebdavBackupManagerProps {
     webdavPath?: string
     webdavDisableStream?: boolean
   }
-  restoreMethod?: (fileName: string) => Promise<void>
+  restoreMethod?: (fileName: string) => Promise<boolean>
   customLabels?: {
     restoreConfirmTitle?: string
     restoreConfirmContent?: string
