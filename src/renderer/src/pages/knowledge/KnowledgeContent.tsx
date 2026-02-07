@@ -55,9 +55,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
               {base.rerankModelMeta.name}
             </div>
           )}
-          {base.preprocessProviderId && (
+          {base.fileProcessorId && (
             <div className="rounded-3xs border border-teal-500/20 bg-teal-500/10 px-2 text-teal-500 text-xs">
-              {base.preprocessProviderId}
+              {base.fileProcessorId}
             </div>
           )}
         </div>

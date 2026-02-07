@@ -36,8 +36,8 @@ export interface CreateKnowledgeBaseDto {
   rerankModelId?: string
   /** Preserved rerank model info */
   rerankModelMeta?: ModelMeta
-  /** Preprocessing provider ID */
-  preprocessProviderId?: string
+  /** File processing processor ID */
+  fileProcessorId?: string
   /** Chunk size for text splitting */
   chunkSize?: number
   /** Chunk overlap for text splitting */

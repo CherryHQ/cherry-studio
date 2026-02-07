@@ -21,8 +21,8 @@ export const knowledgeBaseTable = sqliteTable('knowledge_base', {
   rerankModelId: text(),
   rerankModelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
 
-  // Preprocessing provider ID
-  preprocessProviderId: text(),
+  // File processing processor ID
+  fileProcessorId: text(),
 
   // Configuration
   chunkSize: integer(),

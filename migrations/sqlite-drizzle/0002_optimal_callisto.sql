@@ -6,7 +6,7 @@ CREATE TABLE `knowledge_base` (
 	`embedding_model_meta` text,
 	`rerank_model_id` text,
 	`rerank_model_meta` text,
-	`preprocess_provider_id` text,
+	`file_processor_id` text,
 	`chunk_size` integer,
 	`chunk_overlap` integer,
 	`threshold` real,

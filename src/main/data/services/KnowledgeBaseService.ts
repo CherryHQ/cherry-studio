@@ -38,7 +38,7 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
     embeddingModelMeta: parseJson(row.embeddingModelMeta),
     rerankModelId: row.rerankModelId ?? undefined,
     rerankModelMeta: parseJson(row.rerankModelMeta),
-    preprocessProviderId: row.preprocessProviderId ?? undefined,
+    fileProcessorId: row.fileProcessorId ?? undefined,
     chunkSize: row.chunkSize ?? undefined,
     chunkOverlap: row.chunkOverlap ?? undefined,
     threshold: row.threshold ?? undefined,
@@ -106,7 +106,7 @@ export class KnowledgeBaseService {
           embeddingModelMeta: dto.embeddingModelMeta,
           rerankModelId: dto.rerankModelId,
           rerankModelMeta: dto.rerankModelMeta,
-          preprocessProviderId: dto.preprocessProviderId,
+          fileProcessorId: dto.fileProcessorId,
           chunkSize: dto.chunkSize,
           chunkOverlap: dto.chunkOverlap,
           threshold: dto.threshold,
@@ -147,7 +147,7 @@ export class KnowledgeBaseService {
     if (dto.embeddingModelMeta !== undefined) updates.embeddingModelMeta = dto.embeddingModelMeta
     if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
     if (dto.rerankModelMeta !== undefined) updates.rerankModelMeta = dto.rerankModelMeta
-    if (dto.preprocessProviderId !== undefined) updates.preprocessProviderId = dto.preprocessProviderId
+    if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
     if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
     if (dto.threshold !== undefined) updates.threshold = dto.threshold

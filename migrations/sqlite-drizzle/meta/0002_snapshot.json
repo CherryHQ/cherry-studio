@@ -160,8 +160,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "preprocess_provider_id": {
-          "name": "preprocess_provider_id",
+        "file_processor_id": {
+          "name": "file_processor_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
