@@ -293,6 +293,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'ollama',
     apiKey: '',
     apiHost: 'http://localhost:11434',
+    anthropicApiHost: 'http://localhost:11434',
     models: SYSTEM_MODELS.ollama,
     isSystem: true,
     enabled: false
