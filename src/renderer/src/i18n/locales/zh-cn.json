@@ -2281,6 +2281,7 @@
     },
     "function_calling": "函数调用",
     "invalid_model": "无效模型",
+    "json_parse_error": "JSON 格式无效",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
     "parameter_type": {

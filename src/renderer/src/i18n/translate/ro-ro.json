@@ -2281,6 +2281,7 @@
     },
     "function_calling": "Apelare funcții",
     "invalid_model": "Model invalid",
+    "json_parse_error": "Format JSON invalid",
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",
     "parameter_type": {

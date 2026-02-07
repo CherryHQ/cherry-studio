@@ -2281,6 +2281,7 @@
     },
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
     "invalid_model": "Μη έγκυρο μοντέλο",
+    "json_parse_error": "Μη έγκυρη μορφή JSON",
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {

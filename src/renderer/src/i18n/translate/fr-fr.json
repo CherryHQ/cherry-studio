@@ -2281,6 +2281,7 @@
     },
     "function_calling": "Appel de fonction",
     "invalid_model": "Modèle invalide",
+    "json_parse_error": "Format JSON invalide",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
     "parameter_type": {

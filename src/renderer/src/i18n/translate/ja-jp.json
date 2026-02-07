@@ -2281,6 +2281,7 @@
     },
     "function_calling": "関数呼び出し",
     "invalid_model": "無効なモデル",
+    "json_parse_error": "無効なJSON形式",
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
     "parameter_type": {

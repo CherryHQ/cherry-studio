@@ -2281,6 +2281,7 @@
     },
     "function_calling": "Вызов функции",
     "invalid_model": "Недействительная модель",
+    "json_parse_error": "Неверный формат JSON",
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
     "parameter_type": {
