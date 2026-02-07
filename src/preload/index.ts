@@ -672,6 +672,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
     checkNpmAvailable: (): Promise<{ available: boolean; path: string | null }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNpmAvailable),
+    checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
     getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
     install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
     uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),

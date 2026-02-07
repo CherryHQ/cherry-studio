@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGitBash } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -119,6 +119,7 @@ class OpenClawService {
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
     this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
+    this.checkGitAvailable = this.checkGitAvailable.bind(this)
     this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
@@ -183,6 +184,31 @@ class OpenClawService {
   }
 
   /**
+   * Check if git is available in the user's environment
+   * Refreshes shell env cache to detect newly installed Git
+   */
+  public async checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+    refreshShellEnvCache()
+    const shellEnv = await getShellEnv()
+
+    let gitPath: string | null = null
+
+    if (isWin) {
+      // findGitBash with 'git' target checks PATH, common install paths, and LOCALAPPDATA
+      gitPath = findGitBash(null, 'git')
+    } else {
+      gitPath = await findCommandInShellEnv('git', shellEnv)
+    }
+
+    logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
+
+    return {
+      available: gitPath !== null,
+      path: gitPath
+    }
+  }
+
+  /**
    * Get Node.js download URL based on current OS and architecture
    */
   public getNodeDownloadUrl(): string {
@@ -233,6 +259,26 @@ class OpenClawService {
 
     // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
     const shellEnv = await getShellEnv()
+
+    // Check if git is available (required by some npm packages during install)
+    // On Windows, findGitBash with 'git' target checks PATH, common install paths, and LOCALAPPDATA
+    const gitPath = isWin ? findGitBash(null, 'git') : await findCommandInShellEnv('git', shellEnv)
+    if (!gitPath) {
+      const message = 'Git is not installed. Please install Git first: https://git-scm.com/downloads'
+      logger.error(message)
+      this.sendInstallProgress(message, 'error')
+      return { success: false, message }
+    }
+
+    // Ensure git's directory is in PATH so npm can find it during install
+    // (e.g. when git is installed but not in the shell environment's PATH)
+    const gitDir = path.dirname(gitPath)
+    const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
+    const currentPath = shellEnv[pathKey] || ''
+    if (!currentPath.split(path.delimiter).includes(gitDir)) {
+      shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
+      logger.info(`Added git directory to PATH: ${gitDir}`)
+    }
 
     return new Promise((resolve) => {
       try {
