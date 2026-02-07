@@ -10,7 +10,8 @@ import { builtinTools } from './tools'
 
 const logger = loggerService.withContext('ClaudeCodeService')
 
-const TOOL_APPROVAL_TIMEOUT_MS = 30_000
+// https://platform.claude.com/docs/en/agent-sdk/user-input#limitations
+const TOOL_APPROVAL_TIMEOUT_MS = 60_000
 const MAX_PREVIEW_LENGTH = 2_000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
@@ -55,6 +56,7 @@ type RendererPermissionResultPayload = {
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
   toolCallId?: string
+  updatedInput?: Record<string, unknown>
 }
 
 const pendingRequests = new Map<string, PendingPermissionRequest>()
@@ -149,7 +151,8 @@ const finalizeRequest = (
     behavior: update.behavior,
     message: update.behavior === 'deny' ? update.message : undefined,
     reason,
-    toolCallId: pending.toolCallId
+    toolCallId: pending.toolCallId,
+    updatedInput: update.behavior === 'allow' ? update.updatedInput : undefined
   }
 
   const dispatched = broadcastToRenderer(IpcChannel.AgentToolPermission_Result, resultPayload)

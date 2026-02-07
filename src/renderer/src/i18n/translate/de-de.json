@@ -14,6 +14,18 @@
         "placeholder": "Agent-Typ auswählen"
       }
     },
+    "askUserQuestion": {
+      "answered": "[to be translated]:answered",
+      "customPlaceholder": "[to be translated]:Enter your answer...",
+      "loading": "[to be translated]:Loading questions...",
+      "multiSelect": "[to be translated]:Multi-select",
+      "next": "[to be translated]:Next",
+      "noQuestions": "[to be translated]:No questions available",
+      "other": "[to be translated]:Other",
+      "previous": "[to be translated]:Previous",
+      "submit": "[to be translated]:Submit",
+      "title": "[to be translated]:Questions from Agent"
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
