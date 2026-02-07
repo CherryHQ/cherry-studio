@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useKnowledgeQueueStatus } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeQueueStatus } from '@renderer/data/hooks/useKnowledgeData'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,17 +1,51 @@
 import { Button, CustomTag, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
-import { History, PlusIcon, Search, Settings } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { useKnowledgeBase, useKnowledgeItems } from '@renderer/data/hooks/useKnowledgeData'
+import { Book, Folder, Globe, History, Link, Notebook, PlusIcon, Search, Settings } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
 import KnowledgeSearchDialog from './components/KnowledgeSearchDialog'
+import { KNOWLEDGE_TAB_DEFINITIONS, type TabKey } from './constants/tabs'
 import { useKnowledgeAddActions } from './hooks/useKnowledgeAddActions'
 import { useKnowledgeQueueActions } from './hooks/useKnowledgeQueueActions'
-import { type TabKey, useKnowledgeTabs } from './hooks/useKnowledgeTabs'
+import KnowledgeDirectories from './items/KnowledgeDirectories'
+import KnowledgeFiles from './items/KnowledgeFiles'
+import KnowledgeNotes from './items/KnowledgeNotes'
+import KnowledgeSitemaps from './items/KnowledgeSitemaps'
+import KnowledgeUrls from './items/KnowledgeUrls'
+import { groupKnowledgeItemsByType } from './utils/knowledgeItems'
+
 interface KnowledgeContentProps {
   selectedBaseId: string
+}
+
+interface TabViewModel {
+  key: TabKey
+  title: string
+  addButtonLabel: string
+  icon: ReactNode
+  itemCount: number
+  content: ReactNode
+}
+
+const renderTabIcon = (key: TabKey, className?: string) => {
+  switch (key) {
+    case 'files':
+      return <Book size={16} className={className} />
+    case 'notes':
+      return <Notebook size={16} className={className} />
+    case 'directories':
+      return <Folder size={16} className={className} />
+    case 'urls':
+      return <Link size={16} className={className} />
+    case 'sitemaps':
+      return <Globe size={16} className={className} />
+    default:
+      return null
+  }
 }
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
@@ -21,19 +55,49 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
 
   const { hasOrphans, orphanCount, handleRecover, handleIgnore, isRecovering, isIgnoring } =
     useKnowledgeQueueActions(selectedBaseId)
-  const { activeKey, setActiveKey, tabItems } = useKnowledgeTabs({
-    base: base ?? null,
-    items
-  })
+  const [activeKey, setActiveKey] = useState<TabKey>('files')
 
-  // Add actions for the current tab
-  const addActions = useKnowledgeAddActions({ base: base ?? null })
-  const currentAction = addActions[activeKey as TabKey]
-  const currentTab = tabItems.find((t) => t.key === activeKey)
+  const itemsByType = useMemo(() => groupKnowledgeItemsByType(items), [items])
 
-  // Edit dialog state (independent from sidebar's edit dialog)
+  const tabItems = useMemo<TabViewModel[]>(() => {
+    const itemCounts: Record<TabKey, number> = {
+      files: itemsByType.files.length,
+      notes: itemsByType.notes.length,
+      directories: itemsByType.directories.length,
+      urls: itemsByType.urls.length,
+      sitemaps: itemsByType.sitemaps.length
+    }
+
+    const tabContent: Record<TabKey, ReactNode> = base
+      ? {
+          files: <KnowledgeFiles selectedBase={base} />,
+          notes: <KnowledgeNotes selectedBase={base} />,
+          directories: <KnowledgeDirectories selectedBase={base} />,
+          urls: <KnowledgeUrls selectedBase={base} />,
+          sitemaps: <KnowledgeSitemaps selectedBase={base} />
+        }
+      : {
+          files: null,
+          notes: null,
+          directories: null,
+          urls: null,
+          sitemaps: null
+        }
+
+    return KNOWLEDGE_TAB_DEFINITIONS.map((tab) => ({
+      key: tab.key,
+      title: t(tab.titleKey),
+      addButtonLabel: t(tab.addButtonLabelKey),
+      icon: renderTabIcon(tab.key, cn(activeKey === tab.key ? 'text-primary' : undefined)),
+      itemCount: itemCounts[tab.key],
+      content: tabContent[tab.key]
+    }))
+  }, [activeKey, base, itemsByType, t])
+
+  const currentAction = useKnowledgeAddActions({ base: base ?? null, activeKey })
+  const currentTab = tabItems.find((tab) => tab.key === activeKey)
+
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  // Search dialog state
   const [searchDialogOpen, setSearchDialogOpen] = useState(false)
 
   if (!base) {
@@ -90,7 +154,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
         </div>
       </div>
 
-      <Tabs value={activeKey} onValueChange={(v) => setActiveKey(v as TabKey)} variant="line" className="flex-1">
+      <Tabs
+        value={activeKey}
+        onValueChange={(value) => setActiveKey(value as TabKey)}
+        variant="line"
+        className="flex-1">
         <div className="mx-4 flex h-12 items-center justify-between border-b-0 bg-transparent p-0">
           <TabsList className="h-full justify-start gap-1 bg-transparent p-0">
             {tabItems.map((item) => (
@@ -98,8 +166,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
                 {item.icon}
                 <span>{item.title}</span>
                 <div></div>
-                <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-                  {item.items.length}
+                <CustomTag size={10} color={item.itemCount > 0 ? '#00b96b' : '#cccccc'}>
+                  {item.itemCount}
                 </CustomTag>
               </TabsTrigger>
             ))}
@@ -108,8 +176,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
             className="h-8 rounded-2xs"
             size="sm"
             variant="outline"
-            onClick={currentAction?.handler}
-            disabled={currentAction?.disabled || currentAction?.loading}>
+            onClick={currentAction.handler}
+            disabled={currentAction.disabled || currentAction.loading}>
             <PlusIcon className="text-primary" />
             {currentTab?.addButtonLabel}
           </Button>
@@ -121,9 +189,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
         ))}
       </Tabs>
 
-      {/* Edit Dialog */}
       <EditKnowledgeBaseDialog base={base} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
-      {/* Search Dialog */}
       <KnowledgeSearchDialog base={base} open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
     </div>
   )

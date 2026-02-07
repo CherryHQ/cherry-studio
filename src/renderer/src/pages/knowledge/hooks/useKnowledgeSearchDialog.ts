@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useKnowledgeSearch } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeSearch } from '@renderer/hooks/useKnowledges'
 import { isValidUrl } from '@renderer/utils/fetch'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'

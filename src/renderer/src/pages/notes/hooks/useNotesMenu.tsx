@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledgeData'
 import type { RootState } from '@renderer/store'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'

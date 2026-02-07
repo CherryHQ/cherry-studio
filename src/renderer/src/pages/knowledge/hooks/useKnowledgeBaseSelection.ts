@@ -1,14 +1,11 @@
-import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledgeData'
 import { useCallback, useEffect, useState } from 'react'
 
 export const useKnowledgeBaseSelection = () => {
-  const { bases, renameKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
+  const { bases, deleteKnowledgeBase } = useKnowledgeBases()
   const [selectedBaseId, setSelectedBaseId] = useState<string | undefined>(bases[0]?.id)
 
-  // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editingBaseId, setEditingBaseId] = useState<string | null>(null)
 
   const selectBase = useCallback((baseId?: string) => {
     setSelectedBaseId(baseId)
@@ -18,11 +15,6 @@ export const useKnowledgeBaseSelection = () => {
     setAddDialogOpen(true)
   }, [])
 
-  const handleEditKnowledgeBase = useCallback((baseId: string) => {
-    setEditingBaseId(baseId)
-    setEditDialogOpen(true)
-  }, [])
-
   const handleAddSuccess = useCallback(
     (baseId: string) => {
       selectBase(baseId)
@@ -30,22 +22,6 @@ export const useKnowledgeBaseSelection = () => {
     },
     [selectBase]
   )
-
-  const handleEditSuccess = useCallback(
-    (baseId: string) => {
-      selectBase(baseId)
-      setEditDialogOpen(false)
-      setEditingBaseId(null)
-    },
-    [selectBase]
-  )
-
-  const handleEditDialogClose = useCallback((open: boolean) => {
-    setEditDialogOpen(open)
-    if (!open) {
-      setEditingBaseId(null)
-    }
-  }, [])
 
   useEffect(() => {
     if (bases.length === 0) {
@@ -64,16 +40,9 @@ export const useKnowledgeBaseSelection = () => {
     selectedBaseId,
     selectBase,
     handleAddKnowledgeBase,
-    handleEditKnowledgeBase,
-    renameKnowledgeBase,
     deleteKnowledgeBase,
-    // Dialog states and handlers
     addDialogOpen,
     setAddDialogOpen,
-    editDialogOpen,
-    editingBaseId,
-    handleAddSuccess,
-    handleEditSuccess,
-    handleEditDialogClose
+    handleAddSuccess
   }
 }

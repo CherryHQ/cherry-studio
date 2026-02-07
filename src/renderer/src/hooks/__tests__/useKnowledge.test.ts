@@ -4,7 +4,12 @@ import type { KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/kn
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeDirectories, useKnowledgeFiles, useKnowledgeItemDelete, useKnowledgeSearch } from '../useKnowledge'
+import {
+  useKnowledgeDirectories,
+  useKnowledgeFiles,
+  useKnowledgeItemDelete,
+  useKnowledgeSearch
+} from '../useKnowledges'
 
 const mockDataApiService = vi.mocked(dataApiService)
 const mockUseMutation = vi.mocked(useMutation)
@@ -33,7 +38,7 @@ const BASE_ID = 'base-1'
 let mockItems: KnowledgeItem[] = []
 let mockTreeItems: KnowledgeItemTreeNode[] = []
 
-vi.mock('@renderer/data/hooks/useKnowledges', () => ({
+vi.mock('@renderer/data/hooks/useKnowledgeData', () => ({
   useKnowledgeItems: () => ({
     items: mockItems,
     treeItems: mockTreeItems,

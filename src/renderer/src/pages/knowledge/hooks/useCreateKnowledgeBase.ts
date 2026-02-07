@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import AiProviderNew from '@renderer/aiCore/index_new'
-import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledgeData'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { KnowledgeBase } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'

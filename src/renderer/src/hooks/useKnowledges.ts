@@ -7,7 +7,7 @@
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
-import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
+import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledgeData'
 import type { FileMetadata } from '@renderer/types'
 import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -23,7 +23,7 @@ import type {
 } from '@shared/data/types/knowledge'
 import { useMemo, useState } from 'react'
 
-const logger = loggerService.withContext('useKnowledge')
+const logger = loggerService.withContext('useKnowledges')
 
 /** Status values that indicate an item is still being processed */
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'ocr', 'read', 'embed']

@@ -1,4 +1,4 @@
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeFiles } from '@renderer/hooks/useKnowledges'
 import { formatFileSize } from '@renderer/utils'
 import type { FileItemData, KnowledgeBase } from '@shared/data/types/knowledge'
 import { Book } from 'lucide-react'

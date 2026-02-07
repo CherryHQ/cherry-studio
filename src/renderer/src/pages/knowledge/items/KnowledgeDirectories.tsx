@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledges'
 import { formatFileSize } from '@renderer/utils'
 import type {
   DirectoryContainerData,

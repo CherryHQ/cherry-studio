@@ -3,7 +3,7 @@ import type { KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/kn
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useKnowledgeItems } from '../useKnowledges'
+import { useKnowledgeItems } from '../useKnowledgeData'
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: vi.fn()
