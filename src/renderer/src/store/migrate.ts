@@ -3204,6 +3204,20 @@ const migrateConfig = {
       logger.error('migrate 195 error', error as Error)
       return state
     }
+  },
+  '196': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.ppio_draw) {
+        state.paintings.ppio_draw = []
+      }
+      if (state.paintings && !state.paintings.ppio_edit) {
+        state.paintings.ppio_edit = []
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 196 error', error as Error)
+      return state
+    }
   }
 }
 
