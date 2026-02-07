@@ -364,7 +364,7 @@ export async function restoreFromWebdav(fileName?: string): Promise<boolean> {
     window.toast.success(i18n.t('message.restore.restore_success', { source: 'WebDAV' }))
     return true
   } catch (error) {
-    logger.error('[Backup] restoreFromWebdav: Error restoring from WebDAV:', error)
+    logger.error('[Backup] restoreFromWebdav: Error restoring from WebDAV:', error as Error)
     showBackupError(error)
     return false
   }
@@ -525,7 +525,7 @@ export async function restoreFromS3(fileName?: string): Promise<boolean> {
       window.toast.success(i18n.t('message.restore.restore_success', { source: 'S3' }))
       return true
     } catch (error) {
-      logger.error('[Backup] restoreFromS3: Error restoring backup:', error)
+      logger.error('[Backup] restoreFromS3: Error restoring backup:', error as Error)
       showBackupError(error)
       return false
     }

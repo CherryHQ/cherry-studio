@@ -2049,8 +2049,8 @@
     },
     "restore": {
       "failed": "Restore failed",
-      "success": "Restored successfully",
-      "restore_success": "Backup restored successfully from {source}"
+      "restore_success": "Backup restored successfully from {source}",
+      "success": "Restored successfully"
     },
     "save": {
       "success": {
