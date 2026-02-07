@@ -1,0 +1,97 @@
+diff --git a/dist/dnd.cjs.js b/dist/dnd.cjs.js
+index 0f169907715258b9733439e9aec05abb378326cd..36675537c83bae3af89b79b906f88b38ad50c994 100644
+--- a/dist/dnd.cjs.js
++++ b/dist/dnd.cjs.js
+@@ -4069,7 +4069,9 @@ var scroll = ({
+   const center = state.current.page.borderBoxCenter;
+   const draggable = state.dimensions.draggables[state.critical.draggable.id];
+   const subject = draggable.page.marginBox;
+-  if (state.isWindowScrollAllowed) {
++  const autoScrollerOptions = getAutoScrollerOptions();
++  const isWindowScrollAllowed = autoScrollerOptions.isWindowScrollAllowed !== undefined ? autoScrollerOptions.isWindowScrollAllowed : state.isWindowScrollAllowed;
++  if (isWindowScrollAllowed) {
+     const viewport = state.viewport;
+     const change = getWindowScrollChange({
+       dragStartTime,
+diff --git a/dist/dnd.d.ts b/dist/dnd.d.ts
+index 7bac28498d285f5dc276cf3999b05b9100a59844..026b9bebcf344f52806c49f16894d9eadcef7c7e 100644
+--- a/dist/dnd.d.ts
++++ b/dist/dnd.d.ts
+@@ -141,6 +141,11 @@ interface AutoScrollerOptions {
+      * Whether or not autoscroll should be turned off entirely
+      */
+     disabled: boolean;
++    /**
++     * Whether or not window scrolling is allowed during drag
++     * Set to false to prevent window from scrolling while dragging
++     */
++    isWindowScrollAllowed?: boolean;
+ }
+ type PartialAutoScrollerOptions = RecursivePartial<AutoScrollerOptions>;
+ 
+diff --git a/dist/dnd.esm.js b/dist/dnd.esm.js
+index 87a2110409cbc0fb96e102b42bcef5dc63cbb3c9..28a84f9eada4cec1ef591d101cc1c81cace98eba 100644
+--- a/dist/dnd.esm.js
++++ b/dist/dnd.esm.js
+@@ -4067,7 +4067,9 @@ var scroll = ({
+   const center = state.current.page.borderBoxCenter;
+   const draggable = state.dimensions.draggables[state.critical.draggable.id];
+   const subject = draggable.page.marginBox;
+-  if (state.isWindowScrollAllowed) {
++  const autoScrollerOptions = getAutoScrollerOptions();
++  const isWindowScrollAllowed = autoScrollerOptions.isWindowScrollAllowed !== undefined ? autoScrollerOptions.isWindowScrollAllowed : state.isWindowScrollAllowed;
++  if (isWindowScrollAllowed) {
+     const viewport = state.viewport;
+     const change = getWindowScrollChange({
+       dragStartTime,
+diff --git a/dist/dnd.js b/dist/dnd.js
+index b27398a1b705966b7e0f958380d948714067bb93..d2174dadf8694c15f386967a6eeaaef62dd41a4f 100644
+--- a/dist/dnd.js
++++ b/dist/dnd.js
+@@ -5527,7 +5527,9 @@ ${latestSubscriptionCallbackError.current.stack}
+     const center = state.current.page.borderBoxCenter;
+     const draggable = state.dimensions.draggables[state.critical.draggable.id];
+     const subject = draggable.page.marginBox;
+-    if (state.isWindowScrollAllowed) {
++    const autoScrollerOptions = getAutoScrollerOptions();
++    const isWindowScrollAllowed = autoScrollerOptions.isWindowScrollAllowed !== undefined ? autoScrollerOptions.isWindowScrollAllowed : state.isWindowScrollAllowed;
++    if (isWindowScrollAllowed) {
+       const viewport = state.viewport;
+       const change = getWindowScrollChange({
+         dragStartTime,
+diff --git a/src/state/auto-scroller/fluid-scroller/auto-scroller-options-types.ts b/src/state/auto-scroller/fluid-scroller/auto-scroller-options-types.ts
+index 3bcc8065ccecdc176445ec5d162f1ca64c1bfaa2..78319d19ebaa9108b04f131855815cd9970abc96 100644
+--- a/src/state/auto-scroller/fluid-scroller/auto-scroller-options-types.ts
++++ b/src/state/auto-scroller/fluid-scroller/auto-scroller-options-types.ts
+@@ -45,6 +45,12 @@ export interface AutoScrollerOptions {
+    * Whether or not autoscroll should be turned off entirely
+    */
+   disabled: boolean;
++
++  /**
++   * Whether or not window scrolling is allowed during drag
++   * Set to false to prevent window from scrolling while dragging
++   */
++  isWindowScrollAllowed?: boolean;
+ }
+ 
+ export type PartialAutoScrollerOptions = RecursivePartial<AutoScrollerOptions>;
+diff --git a/src/state/auto-scroller/fluid-scroller/scroll.ts b/src/state/auto-scroller/fluid-scroller/scroll.ts
+index 9509e1f4a6c2264ffdb4486e619011116923c0ae..545ffd74dfcafa7bca9f92c17c215c0c91361bca 100644
+--- a/src/state/auto-scroller/fluid-scroller/scroll.ts
++++ b/src/state/auto-scroller/fluid-scroller/scroll.ts
+@@ -34,7 +34,13 @@ export default ({
+     state.dimensions.draggables[state.critical.draggable.id];
+   const subject: Rect = draggable.page.marginBox;
+   // 1. Can we scroll the viewport?
+-  if (state.isWindowScrollAllowed) {
++  // Allow autoScrollerOptions.isWindowScrollAllowed to override state.isWindowScrollAllowed
++  const autoScrollerOptions = getAutoScrollerOptions();
++  const isWindowScrollAllowed =
++    autoScrollerOptions.isWindowScrollAllowed !== undefined
++      ? autoScrollerOptions.isWindowScrollAllowed
++      : state.isWindowScrollAllowed;
++  if (isWindowScrollAllowed) {
+     const viewport: Viewport = state.viewport;
+     const change: Position | null = getWindowScrollChange({
+       dragStartTime,

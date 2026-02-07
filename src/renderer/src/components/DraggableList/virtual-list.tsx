@@ -128,7 +128,10 @@ function DraggableVirtualList<T>({
     <div
       className={`${className} draggable-virtual-list`}
       style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
-      <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
+      <DragDropContext
+        onDragStart={onDragStart}
+        onDragEnd={_onDragEnd}
+        autoScrollerOptions={{ isWindowScrollAllowed: false }}>
         {header}
         <Droppable
           droppableId="droppable"
