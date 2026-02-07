@@ -59,7 +59,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..8a89b1522d79451f940b9314db7ae8a8
 -  textVerbosity: import_v4.z.string().optional()
 +  textVerbosity: import_v4.z.string().optional(),
 +  sendReasoning: import_v4.z.boolean().optional(),
-+  strictJsonSchema: z.boolean().optional()
++  strictJsonSchema: import_v4.z.boolean().optional()
  });
  
  // src/openai-compatible-error.ts

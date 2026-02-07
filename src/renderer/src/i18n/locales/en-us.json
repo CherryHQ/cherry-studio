@@ -2281,6 +2281,7 @@
     },
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
+    "json_parse_error": "Invalid JSON format",
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
