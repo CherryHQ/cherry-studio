@@ -183,7 +183,3 @@ ul {
 ::highlight(current-match) {
   background-color: var(--color-background-highlight-accent);
 }
-
-textarea::-webkit-resizer {
-  display: none;
-}
