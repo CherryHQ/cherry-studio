@@ -279,7 +279,6 @@ export enum IpcChannel {
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
 
-  ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
 
   // Search Window
