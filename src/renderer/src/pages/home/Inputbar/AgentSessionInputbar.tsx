@@ -75,7 +75,8 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
           id: actualModel.id,
           name: actualModel.name,
           provider: actualModel.provider,
-          group: actualModel.group
+          group: actualModel.group,
+          capabilities: actualModel.capabilities
         }
       : undefined
 
