@@ -349,9 +349,9 @@ export function isOpus46Model(model: Model | undefined | null): boolean {
   }
   const modelId = getLowerBaseModelName(model.id, '/')
   // Supports various formats:
-  // - Direct API: claude-opus-4-6
+  // - Direct API: claude-opus-4-6, claude-opus-4.6
   // - AWS Bedrock: anthropic.claude-opus-4-6-v1
   // - GCP Vertex AI: claude-opus-4-6
-  const regex = /(?:anthropic\.)?claude-opus-4-6(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-opus-4[.-]6(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
