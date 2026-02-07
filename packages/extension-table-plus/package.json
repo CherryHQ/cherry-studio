@@ -87,7 +87,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "lint": "biome format ./src/ --write && eslint --fix ./src/"
+    "lint": "biome format ./src/ --write && eslint --fix ./src/",
+    "prepublishOnly": "pnpm build"
   },
   "packageManager": "pnpm@10.27.0"
 }

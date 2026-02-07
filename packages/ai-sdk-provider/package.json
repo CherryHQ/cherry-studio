@@ -32,7 +32,8 @@
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "^2.0.29",
