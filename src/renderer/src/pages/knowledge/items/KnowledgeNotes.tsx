@@ -4,7 +4,7 @@ import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeNotes } from '@renderer/hooks/useKnowledge'
 import { markdownToPreviewText } from '@renderer/utils/markdownConverter'
-import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2, NoteItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem, NoteItemData } from '@shared/data/types/knowledge'
 import { Notebook } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -50,7 +50,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const disabled = !selectedBase?.embeddingModelId
 
-  const handleEditNote = async (note: KnowledgeItemV2) => {
+  const handleEditNote = async (note: KnowledgeItem) => {
     if (disabled) return
 
     const data = note.data as NoteItemData

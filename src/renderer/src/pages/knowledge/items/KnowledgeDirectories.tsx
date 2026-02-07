@@ -6,7 +6,7 @@ import type {
   FileItemData,
   ItemStatus,
   KnowledgeBase,
-  KnowledgeItem as KnowledgeItemV2,
+  KnowledgeItem,
   KnowledgeItemTreeNode
 } from '@shared/data/types/knowledge'
 import { Book, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderOpen, RotateCw, Trash2 } from 'lucide-react'
@@ -26,14 +26,14 @@ interface KnowledgeContentProps {
 interface DirectoryGroup {
   directoryId: string
   directoryPath: string
-  directoryItem: KnowledgeItemV2
-  items: KnowledgeItemV2[]
+  directoryItem: KnowledgeItem
+  items: KnowledgeItem[]
   aggregateStatus: ItemStatus
   fileCount: number
   latestUpdate: string
 }
 
-const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
+const getLatestUpdateTime = (items: KnowledgeItem[]): string => {
   let latest = 0
   for (const item of items) {
     const createdAt = Date.parse(item.createdAt)
@@ -46,8 +46,8 @@ const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
   return formatKnowledgeTimestamp(latest)
 }
 
-const collectFileItems = (node: KnowledgeItemTreeNode): KnowledgeItemV2[] => {
-  const fileItems: KnowledgeItemV2[] = []
+const collectFileItems = (node: KnowledgeItemTreeNode): KnowledgeItem[] => {
+  const fileItems: KnowledgeItem[] = []
 
   const traverse = (current: KnowledgeItemTreeNode) => {
     for (const child of current.children) {
@@ -62,7 +62,7 @@ const collectFileItems = (node: KnowledgeItemTreeNode): KnowledgeItemV2[] => {
   return fileItems
 }
 
-const computeAggregateStatus = (items: KnowledgeItemV2[]): ItemStatus => {
+const computeAggregateStatus = (items: KnowledgeItem[]): ItemStatus => {
   const activeItem = items.find((item) => item.status !== 'completed' && item.status !== 'idle')
   return activeItem?.status ?? 'completed'
 }

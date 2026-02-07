@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { Book, Folder, Globe, Link, Notebook } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
@@ -14,7 +14,7 @@ import { groupKnowledgeItemsByType } from '../utils/knowledgeItems'
 
 interface UseKnowledgeTabsArgs {
   base: KnowledgeBase | null
-  items: KnowledgeItemV2[]
+  items: KnowledgeItem[]
 }
 
 export type TabKey = 'files' | 'notes' | 'directories' | 'urls' | 'sitemaps'
@@ -23,7 +23,7 @@ interface KnowledgeTabItem {
   key: TabKey
   title: string
   icon: ReactNode
-  items: KnowledgeItemV2[]
+  items: KnowledgeItem[]
   content: ReactNode
   show: boolean
   addButtonLabel: string

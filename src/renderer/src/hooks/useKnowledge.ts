@@ -14,7 +14,7 @@ import type {
   DirectoryContainerData,
   FileItemData,
   ItemStatus,
-  KnowledgeItem as KnowledgeItemV2,
+  KnowledgeItem,
   KnowledgeItemTreeNode,
   KnowledgeSearchResult,
   NoteItemData,
@@ -33,8 +33,8 @@ interface DirectoryBuildResult {
   childItems: CreateKnowledgeItemDto[]
 }
 
-const flattenTreeNodes = (nodes: KnowledgeItemTreeNode[]): KnowledgeItemV2[] => {
-  const flattened: KnowledgeItemV2[] = []
+const flattenTreeNodes = (nodes: KnowledgeItemTreeNode[]): KnowledgeItem[] => {
+  const flattened: KnowledgeItem[] = []
 
   const traverse = (node: KnowledgeItemTreeNode) => {
     flattened.push(node.item)
@@ -121,8 +121,8 @@ const getDirectoryContainerNode = (
   return undefined
 }
 
-const getFileChildren = (directoryNode: KnowledgeItemTreeNode): KnowledgeItemV2[] => {
-  const fileItems: KnowledgeItemV2[] = []
+const getFileChildren = (directoryNode: KnowledgeItemTreeNode): KnowledgeItem[] => {
+  const fileItems: KnowledgeItem[] = []
 
   const collect = (node: KnowledgeItemTreeNode) => {
     for (const child of node.children) {
@@ -162,7 +162,7 @@ export const useKnowledgeFiles = (baseId: string) => {
   /**
    * Add files to knowledge base via v2 API
    */
-  const addFiles = async (files: FileMetadata[]): Promise<KnowledgeItemV2[] | undefined> => {
+  const addFiles = async (files: FileMetadata[]): Promise<KnowledgeItem[] | undefined> => {
     if (files.length === 0) return
 
     try {
@@ -252,7 +252,7 @@ export const useKnowledgeDirectories = (baseId: string) => {
   /**
    * Add a directory to knowledge base via v2 API
    */
-  const addDirectory = async (path: string): Promise<KnowledgeItemV2 | undefined> => {
+  const addDirectory = async (path: string): Promise<KnowledgeItem | undefined> => {
     if (!path) return
 
     try {
@@ -417,7 +417,7 @@ export const useKnowledgeUrls = (baseId: string) => {
   /**
    * Add a URL to knowledge base via v2 API
    */
-  const addUrl = async (url: string): Promise<KnowledgeItemV2 | undefined> => {
+  const addUrl = async (url: string): Promise<KnowledgeItem | undefined> => {
     if (!url) return
 
     try {
@@ -503,7 +503,7 @@ export const useKnowledgeSitemaps = (baseId: string) => {
   /**
    * Add a sitemap to knowledge base via v2 API
    */
-  const addSitemap = async (url: string): Promise<KnowledgeItemV2 | undefined> => {
+  const addSitemap = async (url: string): Promise<KnowledgeItem | undefined> => {
     if (!url) return
 
     try {
@@ -585,7 +585,7 @@ export const useKnowledgeNotes = (baseId: string) => {
   /**
    * Add a note to knowledge base via v2 API
    */
-  const addNote = async (content: string): Promise<KnowledgeItemV2 | undefined> => {
+  const addNote = async (content: string): Promise<KnowledgeItem | undefined> => {
     if (!content) return
 
     try {

@@ -7,7 +7,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem as KnowledgeItemV2, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,8 +16,8 @@ import { buildKnowledgeBasePayload } from '../utils/knowledgeBasePayload'
 
 const logger = loggerService.withContext('useUpdateKnowledgeBase')
 
-function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItemV2[] {
-  const flattened: KnowledgeItemV2[] = []
+function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
+  const flattened: KnowledgeItem[] = []
 
   const traverse = (node: KnowledgeItemTreeNode) => {
     flattened.push(node.item)

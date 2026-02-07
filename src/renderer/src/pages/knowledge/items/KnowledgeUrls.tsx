@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeUrls } from '@renderer/hooks/useKnowledge'
-import type { KnowledgeBase, KnowledgeItem as KnowledgeItemV2, UrlItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem, UrlItemData } from '@shared/data/types/knowledge'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -29,7 +29,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const itemsRefreshKey = selectedBase.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
 
   const updateItem = useCallback(
-    async (item: KnowledgeItemV2, name: string) => {
+    async (item: KnowledgeItem, name: string) => {
       const data = item.data as UrlItemData
       try {
         await dataApiService.patch(`/knowledge-items/${item.id}`, {
@@ -54,7 +54,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const disabled = !selectedBase?.embeddingModelId
 
-  const handleEditRemark = async (item: KnowledgeItemV2) => {
+  const handleEditRemark = async (item: KnowledgeItem) => {
     if (disabled) return
 
     const data = item.data as UrlItemData
