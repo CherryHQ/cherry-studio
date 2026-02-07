@@ -2109,8 +2109,8 @@
     },
     "restore": {
       "failed": "恢复失败",
-      "success": "恢复成功",
-      "restore_success": "从 {source} 恢复备份成功"
+      "restore_success": "从 {source} 恢复备份成功",
+      "success": "恢复成功"
     },
     "save": {
       "success": {

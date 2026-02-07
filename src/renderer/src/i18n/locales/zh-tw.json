@@ -1430,7 +1430,8 @@
     "backup": {
       "file_format": "備份檔案格式錯誤",
       "file_locked": "無法還原：部分檔案正在使用中。請關閉所有知識庫或重新啟動應用程式後重試。",
-      "file_not_found": "備份檔案未找到。它可能被移動或刪除了。"
+      "file_not_found": "備份檔案未找到。它可能被移動或刪除了。",
+      "unknown_error": "恢復備份時發生未知錯誤。請重試或聯繫支援。"
     },
     "base64DataTruncated": "Base64 圖片資料已截斷，大小",
     "boundary": {
@@ -2108,6 +2109,7 @@
     },
     "restore": {
       "failed": "還原失敗",
+      "restore_success": "從 {source} 恢復備份成功",
       "success": "還原成功"
     },
     "save": {
