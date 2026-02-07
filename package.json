@@ -66,7 +66,13 @@
     "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
     "release:aicore:beta": "pnpm --filter @cherrystudio/ai-core version prerelease --preid beta && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag beta --access public",
     "release:aicore": "pnpm --filter @cherrystudio/ai-core version patch && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --access public",
-    "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public"
+    "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public",
+    "changeset": "changeset",
+    "changeset:status": "changeset status",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish",
+    "build:packages": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
+    "release:packages": "pnpm build:packages && changeset publish"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.1.76",
@@ -117,6 +123,8 @@
     "@aws-sdk/client-bedrock-runtime": "^3.910.0",
     "@aws-sdk/client-s3": "^3.910.0",
     "@biomejs/biome": "2.2.4",
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@cherrystudio/ai-core": "workspace:^1.0.9",
     "@cherrystudio/embedjs": "0.1.31",
     "@cherrystudio/embedjs-interfaces": "0.1.31",
