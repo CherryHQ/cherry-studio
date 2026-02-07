@@ -11,7 +11,7 @@ index 48e2f6263c6ee4c75d7e5c28733e64f6ebe92200..00d0729c4a3cbf9a48e8e1e962c7e2b2
  type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>;
  
 diff --git a/dist/index.js b/dist/index.js
-index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..88349c614a69a268a2e4f3b157cb5e328ca1d347 100644
+index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..8a89b1522d79451f940b9314db7ae8a8385601c2 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -41,7 +41,7 @@ function getOpenAIMetadata(message) {
@@ -143,7 +143,15 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..88349c614a69a268a2e4f3b157cb5e32
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -795,6 +837,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
+@@ -788,13 +830,21 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => import_v43.z.union(
+           reasoning: import_v43.z.string().nullish(),
+           tool_calls: import_v43.z.array(
+             import_v43.z.object({
+-              index: import_v43.z.number(),
++              index: import_v43.z.number().default(0),
+               id: import_v43.z.string().nullish(),
+               function: import_v43.z.object({
+                 name: import_v43.z.string().nullish(),
                  arguments: import_v43.z.string().nullish()
                })
              })
@@ -159,7 +167,7 @@ index da237bb35b7fa8e24b37cd861ee73dfc51cdfc72..88349c614a69a268a2e4f3b157cb5e32
          }).nullish(),
          finish_reason: import_v43.z.string().nullish()
 diff --git a/dist/index.mjs b/dist/index.mjs
-index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..fca65c04000ce4c01fb90e93326ac179c2378055 100644
+index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..9704a206c6746c81640aab513a111c7e0a3f64b8 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -23,7 +23,7 @@ function getOpenAIMetadata(message) {
@@ -291,7 +299,15 @@ index a809a7aa0e148bfd43e01dd7b018568b151c8ad5..fca65c04000ce4c01fb90e93326ac179
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -779,6 +821,14 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
+@@ -772,13 +814,21 @@ var createOpenAICompatibleChatChunkSchema = (errorSchema) => z3.union([
+           reasoning: z3.string().nullish(),
+           tool_calls: z3.array(
+             z3.object({
+-              index: z3.number(),
++              index: z3.number().default(0),
+               id: z3.string().nullish(),
+               function: z3.object({
+                 name: z3.string().nullish(),
                  arguments: z3.string().nullish()
                })
              })
