@@ -18,6 +18,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
+  isOpus46Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -548,13 +549,19 @@ export function getAnthropicThinkingBudget(
 }
 
 /**
- * 获取 Anthropic 推理参数
- * 从 AnthropicAPIClient 中提取的逻辑
+ * Get Anthropic reasoning parameters.
+ * Extracted from AnthropicAPIClient logic.
+ *
+ * Returns different parameter shapes depending on the model:
+ * - **Opus 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
+ *   Uses the new adaptive thinking API with effort-based control.
+ * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
+ *   Uses the classic thinking API with explicit token budget.
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): Pick<AnthropicProviderOptions, 'thinking'> {
+): Pick<AnthropicProviderOptions, 'thinking' | 'effort'> {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -573,8 +580,31 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // Claude 推理参数
+  // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
+    // Opus 4.6 uses adaptive thinking + effort parameters
+    // Map reasoningEffort to Opus 4.6 supported effort values
+    if (isOpus46Model(model)) {
+      // Opus 4.6 supports: low, medium, high, max
+      // Mapping rules: default/none -> no effort (uses default high)
+      //                minimal/low -> low
+      //                medium -> medium
+      //                high -> high
+      //                xhigh -> max
+      const effortMap = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'max'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effortMap[reasoningEffort]
+      return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
+    }
+
+    // Other Claude models continue using enabled + budgetTokens
     const { maxTokens } = getAssistantSettings(assistant)
     const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
 
@@ -736,6 +766,26 @@ export function getBedrockReasoningParams(
     return {}
   }
 
+  // Opus 4.6 uses adaptive thinking + maxReasoningEffort
+  if (isOpus46Model(model)) {
+    const effortMap = {
+      auto: undefined,
+      minimal: 'low',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'max'
+    } as const satisfies Record<
+      Exclude<ReasoningEffortOption, 'none' | 'default'>,
+      NonNullable<BedrockProviderOptions['reasoningConfig']>['maxReasoningEffort']
+    >
+    const maxReasoningEffort = effortMap[reasoningEffort]
+    return maxReasoningEffort
+      ? { reasoningConfig: { type: 'adaptive', maxReasoningEffort } }
+      : { reasoningConfig: { type: 'adaptive' } }
+  }
+
+  // Other Claude models use enabled + budgetTokens
   const { maxTokens } = getAssistantSettings(assistant)
   const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
