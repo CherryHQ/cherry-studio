@@ -3440,6 +3440,9 @@
         "title": "Feedback"
       },
       "label": "Despre și feedback",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Lansări",
         "title": "Note de lansare"

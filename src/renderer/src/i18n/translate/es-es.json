@@ -3440,6 +3440,9 @@
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Ver",
         "title": "Registro de cambios"

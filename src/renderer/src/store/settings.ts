@@ -39,6 +39,7 @@ import type {
 } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
 import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel } from '@shared/config/logger'
 
 import type { RemoteSyncState } from './backup'
 
@@ -240,6 +241,8 @@ export interface SettingsState {
   s3: S3Config
   // Developer mode
   enableDeveloperMode: boolean
+  // Log level
+  logLevel: LogLevel
   // UI
   navbarPosition: 'left' | 'top'
   // API Server
@@ -436,6 +439,8 @@ export const initialState: SettingsState = {
 
   // Developer mode
   enableDeveloperMode: false,
+  // Log level
+  logLevel: 'info' as LogLevel,
   // UI
   navbarPosition: 'top',
   // API Server
@@ -868,6 +873,9 @@ const settingsSlice = createSlice({
     setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
       state.enableDeveloperMode = action.payload
     },
+    setLogLevel: (state, action: PayloadAction<LogLevel>) => {
+      state.logLevel = action.payload
+    },
     setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
       state.navbarPosition = action.payload
     },
@@ -1020,6 +1028,7 @@ export const {
   setS3,
   setS3Partial,
   setEnableDeveloperMode,
+  setLogLevel,
   setNavbarPosition,
   setShowMessageOutline,
   // API Server actions
