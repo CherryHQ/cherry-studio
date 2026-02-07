@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import type { LanguageModelMiddleware } from 'ai'
+
+const logger = loggerService.withContext('skipGeminiThoughtSignatureMiddleware')
 
 /**
  * skip Gemini Thought Signature Middleware
@@ -25,15 +28,11 @@ export function skipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageM
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
+      logger.debug('transformedParams', transformedParams)
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
           if (typeof message.content !== 'string') {
-            // First pass: determine if this message has any thinking signature indicators
-            const hasThinkingIndicator = message.content.some(
-              (part) => part?.providerOptions?.[aiSdkId]?.thoughtSignature || part.type === 'reasoning'
-            )
-
             for (const part of message.content) {
               const hasExistingSignature = part?.providerOptions?.[aiSdkId]?.thoughtSignature
               const isReasoningPart = part.type === 'reasoning'
@@ -51,8 +50,8 @@ export function skipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageM
               }
 
               // Case 3: OpenAI-compatible path - add extra_content for tool-call parts
-              // When a message has thinking indicators, all its tool-calls need the signature
-              if (isToolCallPart && hasThinkingIndicator) {
+              // All tool-calls need the signature for Gemini OpenAI-compatible API
+              if (isToolCallPart) {
                 if (!part.providerOptions) {
                   part.providerOptions = {}
                 }
