@@ -151,9 +151,11 @@ store.subscribe(() => {
   if (throttleTimer) return
   throttleTimer = setTimeout(() => {
     throttleTimer = null
+    // Guard for test environment where window may not exist (test tear-down)
+    if (typeof window === 'undefined') return
     const state = store.getState()
     // Guard for test environment where window.electron may not exist
-    window?.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
+    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
   }, 100) // 100ms throttle
 })
 
