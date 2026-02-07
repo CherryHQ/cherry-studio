@@ -102,7 +102,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
-  opus46: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.opus46] as const
+  opus46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.opus46] as const
 } as const
 
 // TODO: add ut
