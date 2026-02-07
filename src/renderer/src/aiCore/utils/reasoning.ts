@@ -762,6 +762,26 @@ export function getBedrockReasoningParams(
     return {}
   }
 
+  // Opus 4.6 uses adaptive thinking + maxReasoningEffort
+  if (isOpus46Model(model)) {
+    const effortMap = {
+      auto: undefined,
+      minimal: 'low',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'max'
+    } as const satisfies Record<
+      Exclude<ReasoningEffortOption, 'none' | 'default'>,
+      NonNullable<BedrockProviderOptions['reasoningConfig']>['maxReasoningEffort']
+    >
+    const maxReasoningEffort = effortMap[reasoningEffort]
+    return maxReasoningEffort
+      ? { reasoningConfig: { type: 'adaptive', maxReasoningEffort } }
+      : { reasoningConfig: { type: 'adaptive' } }
+  }
+
+  // Other Claude models use enabled + budgetTokens
   const { maxTokens } = getAssistantSettings(assistant)
   const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
