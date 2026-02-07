@@ -2304,7 +2304,7 @@ describe('Claude Models', () => {
 
   describe('MODEL_SUPPORTED_OPTIONS for Opus 4.6', () => {
     it('should have correct options for opus46', () => {
-      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'low', 'medium', 'high', 'xhigh'])
+      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 
@@ -2318,6 +2318,7 @@ describe('Claude Models', () => {
     it('should return correct options for Opus 4.6 models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
         'default',
+        'none',
         'low',
         'medium',
         'high',
