@@ -238,6 +238,26 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'llama'
     }
   ],
+  n1n: [
+    {
+      id: 'claude-3-5-sonnet-20240620',
+      name: 'Claude 3.5 Sonnet',
+      provider: 'n1n',
+      group: 'Anthropic'
+    },
+    {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'n1n',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-1.5-pro-latest',
+      name: 'Gemini 1.5 Pro',
+      provider: 'n1n',
+      group: 'Gemini'
+    }
+  ],
 
   burncloud: [
     { id: 'claude-opus-4-5-20251101', provider: 'burncloud', name: 'Claude 4.5 Opus', group: 'Claude 4.5' },
