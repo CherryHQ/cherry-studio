@@ -59,7 +59,10 @@ function DraggableList<T>({
   )
 
   return (
-    <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
+    <DragDropContext
+      onDragStart={onDragStart}
+      onDragEnd={_onDragEnd}
+      autoScrollerOptions={{ isWindowScrollAllowed: false }}>
       <Droppable droppableId="droppable" {...droppableProps}>
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
