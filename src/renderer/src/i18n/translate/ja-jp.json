@@ -2509,7 +2509,7 @@
       "version": "バージョン"
     },
     "install_progress": "インストール進行状況",
-    "installed_at": "OpenClawのインストール先: {{path}}",
+    "installed_at": "OpenClawのインストール先",
     "model_config": {
       "auth_token": "認証トークン",
       "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",

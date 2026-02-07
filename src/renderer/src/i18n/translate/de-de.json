@@ -2509,7 +2509,7 @@
       "version": "Version"
     },
     "install_progress": "Installationsfortschritt",
-    "installed_at": "OpenClaw installiert unter: {{path}}",
+    "installed_at": "OpenClaw installiert unter",
     "model_config": {
       "auth_token": "Auth-Token",
       "auth_token_hint": "Token für Gateway-Authentifizierung. Leer lassen, um die Authentifizierung zu deaktivieren.",

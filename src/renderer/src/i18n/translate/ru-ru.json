@@ -2509,7 +2509,7 @@
       "version": "Версия"
     },
     "install_progress": "Прогресс установки",
-    "installed_at": "OpenClaw установлен в: {{path}}",
+    "installed_at": "OpenClaw установлен в",
     "model_config": {
       "auth_token": "Токен аутентификации",
       "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",

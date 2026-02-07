@@ -2509,7 +2509,7 @@
       "version": "Version"
     },
     "install_progress": "Progression de l'installation",
-    "installed_at": "OpenClaw installé à : {{path}}",
+    "installed_at": "OpenClaw installé à",
     "model_config": {
       "auth_token": "Jeton d'authentification",
       "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",

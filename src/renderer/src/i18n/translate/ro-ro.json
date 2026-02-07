@@ -2509,7 +2509,7 @@
       "version": "Versiune"
     },
     "install_progress": "Progresul instalării",
-    "installed_at": "OpenClaw instalat la: {{path}}",
+    "installed_at": "OpenClaw instalat la",
     "model_config": {
       "auth_token": "Token de autentificare",
       "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
