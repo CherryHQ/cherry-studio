@@ -3204,6 +3204,20 @@ const migrateConfig = {
       logger.error('migrate 195 error', error as Error)
       return state
     }
+  },
+  '196': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.type === 'ollama' && provider.apiHost) {
+          provider.anthropicApiHost = provider.apiHost
+        }
+      })
+      logger.info('migrate 196 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 196 error', error as Error)
+      return state
+    }
   }
 }
 
