@@ -36,6 +36,7 @@ import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -84,7 +85,7 @@ export async function buildStreamTextParams(
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
-      headers?: Record<string, string>
+      headers?: Record<string, string | undefined>
     }
   }
 ): Promise<{
@@ -98,7 +99,15 @@ export async function buildStreamTextParams(
   }
   webSearchPluginConfig?: WebSearchPluginConfig
 }> {
-  const { mcpTools } = options
+  const { mcpTools, requestOptions = {} } = options
+  // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
+  const { signal: externalSignal, timeout = DEFAULT_TIMEOUT, headers: inputHeaders = {} } = requestOptions
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  const signals = [timeoutSignal]
+  if (externalSignal) {
+    signals.push(externalSignal)
+  }
+  const finalSignal = AbortSignal.any(signals)
 
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
@@ -211,7 +220,7 @@ export async function buildStreamTextParams(
     }
   }
 
-  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+  let headers = inputHeaders
 
   if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
     const betaHeaders = addAnthropicHeaders(assistant, model)
@@ -233,7 +242,7 @@ export async function buildStreamTextParams(
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
-    abortSignal: options.requestOptions?.signal,
+    abortSignal: finalSignal,
     headers,
     providerOptions,
     stopWhen: stepCountIs(20),

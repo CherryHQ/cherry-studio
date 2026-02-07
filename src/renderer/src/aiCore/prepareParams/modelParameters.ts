@@ -18,7 +18,7 @@ import {
   getProviderByModel
 } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 
@@ -97,7 +97,7 @@ export function getTimeout(model: Model): number {
   if (isSupportedFlexServiceTier(model)) {
     return 15 * 1000 * 60
   }
-  return defaultTimeout
+  return DEFAULT_TIMEOUT
 }
 
 export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {

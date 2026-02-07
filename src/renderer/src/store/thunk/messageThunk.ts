@@ -836,7 +836,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         callbacks,
         options: {
           signal: abortController.signal,
-          timeout: 30000,
           headers: defaultAppHeaders()
         }
       },
