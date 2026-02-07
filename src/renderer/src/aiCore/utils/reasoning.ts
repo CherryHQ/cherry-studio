@@ -18,6 +18,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
+  isOpus46Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -548,13 +549,15 @@ export function getAnthropicThinkingBudget(
 }
 
 /**
- * 获取 Anthropic 推理参数
- * 从 AnthropicAPIClient 中提取的逻辑
+ * Get Anthropic reasoning parameters
+ * Extracted from AnthropicAPIClient logic
+ * Opus 4.6 uses adaptive thinking + effort parameters
+ * Other Claude models use enabled + budgetTokens
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): Pick<AnthropicProviderOptions, 'thinking'> {
+): Pick<AnthropicProviderOptions, 'thinking' | 'effort'> {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -573,8 +576,30 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // Claude 推理参数
+  // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
+    // Opus 4.6 uses adaptive thinking + effort parameters
+    // Map reasoningEffort to Opus 4.6 supported effort values
+    if (isOpus46Model(model)) {
+      // Opus 4.6 supports: low, medium, high, max
+      // Mapping rules: default/none -> no effort (uses default high)
+      //                minimal/low -> low
+      //                medium -> medium
+      //                high/xhigh -> max
+      const effortMap = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'max',
+        xhigh: 'max'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effortMap[reasoningEffort]
+      return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
+    }
+
+    // Other Claude models continue using enabled + budgetTokens
     const { maxTokens } = getAssistantSettings(assistant)
     const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
 
