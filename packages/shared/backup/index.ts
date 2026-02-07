@@ -3,9 +3,11 @@
  * Re-exports all backup-related types and interfaces
  */
 
+// Constants
+export { BACKUP_MANIFEST_VERSION } from './types.js'
+
 // Core types
 export type {
-  BACKUP_MANIFEST_VERSION,
   BackupDomain,
   BackupFileEntry,
   BackupManifest,

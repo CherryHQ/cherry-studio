@@ -441,6 +441,14 @@ export enum IpcChannel {
   LocalTransfer_SendFile = 'local-transfer:send-file',
   LocalTransfer_CancelTransfer = 'local-transfer:cancel-transfer',
 
+  // V2 Backup System
+  BackupV2_StartBackup = 'backup-v2:start-backup',
+  BackupV2_CancelBackup = 'backup-v2:cancel-backup',
+  BackupV2_GetBackupProgress = 'backup-v2:get-backup-progress',
+  BackupV2_StartRestore = 'backup-v2:start-restore',
+  BackupV2_CancelRestore = 'backup-v2:cancel-restore',
+  BackupV2_GetRestoreProgress = 'backup-v2:get-restore-progress',
+
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
   OpenClaw_Install = 'openclaw:install',
