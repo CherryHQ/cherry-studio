@@ -585,14 +585,15 @@ export function getAnthropicReasoningParams(
       // Mapping rules: default/none -> no effort (uses default high)
       //                minimal/low -> low
       //                medium -> medium
-      //                high/xhigh -> max
+      //                high -> high
+      //                xhigh -> max
       const effortMap = {
         default: undefined,
         auto: undefined,
         minimal: 'low',
         low: 'low',
         medium: 'medium',
-        high: 'max',
+        high: 'high',
         xhigh: 'max'
       } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
       const effort = effortMap[reasoningEffort]
