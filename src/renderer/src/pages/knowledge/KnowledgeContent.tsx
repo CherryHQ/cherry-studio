@@ -41,7 +41,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBaseId }) => {
   }
 
   return (
-    <div className="flex w-full flex-col">
+    <div className="flex w-full min-w-0 flex-col">
       <div className="flex flex-row items-center justify-between border-border border-b px-4 py-2">
         <div className="flex flex-row items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={() => setEditDialogOpen(true)}>

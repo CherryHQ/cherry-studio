@@ -9,6 +9,7 @@ import type {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeItemData,
+  KnowledgeItemTreeNode,
   KnowledgeItemType,
   KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
@@ -60,6 +61,8 @@ export interface CreateKnowledgeItemDto {
   type: KnowledgeItemType
   /** Type-specific data (discriminated union) */
   data: KnowledgeItemData
+  /** Optional parent item ID for hierarchical relations */
+  parentId?: string
 }
 
 /**
@@ -188,7 +191,7 @@ export interface KnowledgeSchemas {
     /** List all items in a knowledge base */
     GET: {
       params: { id: string }
-      response: KnowledgeItem[]
+      response: KnowledgeItemTreeNode[]
     }
     /** Create items in a knowledge base (supports batch) */
     POST: {

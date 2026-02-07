@@ -10,7 +10,7 @@ export interface KnowledgeItemsByType {
 
 export const groupKnowledgeItemsByType = (items: KnowledgeItemV2[]): KnowledgeItemsByType => {
   return {
-    files: items.filter((item) => item.type === 'file'),
+    files: items.filter((item) => item.type === 'file' && !item.parentId),
     notes: items.filter((item) => item.type === 'note'),
     directories: items.filter((item) => item.type === 'directory'),
     urls: items.filter((item) => item.type === 'url'),

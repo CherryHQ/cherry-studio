@@ -37,7 +37,7 @@ const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
   )
 
   return (
-    <Scrollbar className="flex w-[calc(var(--settings-width))] flex-col gap-2 border-border border-r px-2.5 py-3">
+    <Scrollbar className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 flex-col gap-2 border-border border-r px-2.5 py-3">
       {bases.map((base) => (
         <div
           className={`group cursor-pointer rounded-3xs pl-3 hover:opacity-70 ${

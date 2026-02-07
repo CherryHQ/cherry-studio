@@ -18,6 +18,7 @@ CREATE TABLE `knowledge_base` (
 CREATE TABLE `knowledge_item` (
 	`id` text PRIMARY KEY NOT NULL,
 	`base_id` text NOT NULL,
+	`parent_id` text,
 	`type` text NOT NULL,
 	`data` text NOT NULL,
 	`status` text DEFAULT 'idle',
@@ -25,6 +26,7 @@ CREATE TABLE `knowledge_item` (
 	`created_at` integer,
 	`updated_at` integer,
 	FOREIGN KEY (`base_id`) REFERENCES `knowledge_base`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`parent_id`) REFERENCES `knowledge_item`(`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "knowledge_item_status_check" CHECK("knowledge_item"."status" IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
 	CONSTRAINT "knowledge_item_type_check" CHECK("knowledge_item"."type" IN ('file', 'url', 'note', 'sitemap', 'directory'))
 );

@@ -2,10 +2,12 @@ import { Button } from '@cherrystudio/ui'
 import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledge'
 import { formatFileSize } from '@renderer/utils'
 import type {
-  DirectoryItemData,
+  DirectoryContainerData,
+  FileItemData,
   ItemStatus,
   KnowledgeBase,
-  KnowledgeItem as KnowledgeItemV2
+  KnowledgeItem as KnowledgeItemV2,
+  KnowledgeItemTreeNode
 } from '@shared/data/types/knowledge'
 import { Book, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderOpen, RotateCw, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -22,8 +24,9 @@ interface KnowledgeContentProps {
 }
 
 interface DirectoryGroup {
-  groupId: string
-  groupName: string
+  directoryId: string
+  directoryPath: string
+  directoryItem: KnowledgeItemV2
   items: KnowledgeItemV2[]
   aggregateStatus: ItemStatus
   fileCount: number
@@ -43,6 +46,22 @@ const getLatestUpdateTime = (items: KnowledgeItemV2[]): string => {
   return formatKnowledgeTimestamp(latest)
 }
 
+const collectFileItems = (node: KnowledgeItemTreeNode): KnowledgeItemV2[] => {
+  const fileItems: KnowledgeItemV2[] = []
+
+  const traverse = (current: KnowledgeItemTreeNode) => {
+    for (const child of current.children) {
+      if (child.item.type === 'file') {
+        fileItems.push(child.item)
+      }
+      traverse(child)
+    }
+  }
+
+  traverse(node)
+  return fileItems
+}
+
 const computeAggregateStatus = (items: KnowledgeItemV2[]): ItemStatus => {
   const activeItem = items.find((item) => item.status !== 'completed' && item.status !== 'idle')
   return activeItem?.status ?? 'completed'
@@ -52,8 +71,8 @@ interface DirectoryGroupCardProps {
   group: DirectoryGroup
   isExpanded: boolean
   onToggle: () => void
-  onRefreshGroup: (groupId: string) => void
-  onDeleteGroup: (groupId: string) => void
+  onRefreshGroup: (directoryId: string) => void
+  onDeleteGroup: (directoryId: string) => void
   onRefreshItem: (itemId: string) => void
   onDeleteItem: (itemId: string) => void
   t: (key: string) => string
@@ -75,7 +94,7 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
       <div
         className="flex cursor-pointer items-center justify-between border-border border-b px-4 py-2"
         onClick={onToggle}>
-        <div className="flex flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {isExpanded ? (
             <ChevronDown size={16} className="shrink-0 text-foreground" />
           ) : (
@@ -87,12 +106,12 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
             <Folder size={18} className="shrink-0 text-foreground" />
           )}
           <span
-            className="cursor-pointer truncate"
+            className="min-w-0 flex-1 cursor-pointer truncate"
             onClick={(e) => {
               e.stopPropagation()
-              window.api.file.openPath(group.groupName)
+              window.api.file.openPath(group.directoryPath)
             }}>
-            {group.groupName}
+            {group.directoryPath}
           </span>
           <span className="text-foreground-muted">|</span>
           <span className="shrink-0 text-foreground-muted">
@@ -106,11 +125,11 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
             </Button>
           )}
           {(group.aggregateStatus === 'completed' || group.aggregateStatus === 'failed') && (
-            <Button size="icon-sm" variant="ghost" onClick={() => onRefreshGroup(group.groupId)}>
+            <Button size="icon-sm" variant="ghost" onClick={() => onRefreshGroup(group.directoryId)}>
               <RotateCw size={16} className="text-foreground" />
             </Button>
           )}
-          <Button size="icon-sm" variant="ghost" onClick={() => onDeleteGroup(group.groupId)}>
+          <Button size="icon-sm" variant="ghost" onClick={() => onDeleteGroup(group.directoryId)}>
             <Trash2 size={16} className="text-red-600" />
           </Button>
         </div>
@@ -127,13 +146,15 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
             style={{ overflow: 'hidden' }}>
             <div className="flex flex-col gap-2 px-4 pb-2 pl-10">
               {group.items.map((item) => {
-                const file = (item.data as DirectoryItemData).file
+                const file = (item.data as FileItemData).file
                 return (
                   <KnowledgeItemRow
                     key={item.id}
                     icon={<Book size={18} className="text-foreground" />}
                     content={
-                      <span onClick={() => window.api.file.openFileWithRelativePath(file)}>{file.origin_name}</span>
+                      <span className="block truncate" onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                        {file.origin_name}
+                      </span>
                     }
                     metadata={formatFileSize(file.size)}
                     actions={<KnowledgeItemActions item={item} onRefresh={onRefreshItem} onDelete={onDeleteItem} />}
@@ -152,39 +173,36 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-  const { directoryItems, deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(
+  const { treeItems, deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(
     selectedBase.id || ''
   )
 
   const groupedDirectories = useMemo((): DirectoryGroup[] => {
-    const groupMap = new Map<string, KnowledgeItemV2[]>()
+    return treeItems
+      .filter((node) => node.item.type === 'directory')
+      .map((node) => {
+        const data = node.item.data as DirectoryContainerData
+        const fileItems = collectFileItems(node)
 
-    for (const item of directoryItems) {
-      const data = item.data as DirectoryItemData
-      const existing = groupMap.get(data.groupId) || []
-      groupMap.set(data.groupId, [...existing, item])
-    }
+        return {
+          directoryId: node.item.id,
+          directoryPath: data.path,
+          directoryItem: node.item,
+          items: fileItems,
+          aggregateStatus: computeAggregateStatus(fileItems),
+          fileCount: fileItems.length,
+          latestUpdate: getLatestUpdateTime([node.item, ...fileItems])
+        }
+      })
+  }, [treeItems])
 
-    return Array.from(groupMap.entries()).map(([groupId, items]) => {
-      const data = items[0].data as DirectoryItemData
-      return {
-        groupId,
-        groupName: data.groupName,
-        items,
-        aggregateStatus: computeAggregateStatus(items),
-        fileCount: items.length,
-        latestUpdate: getLatestUpdateTime(items)
-      }
-    })
-  }, [directoryItems])
-
-  const toggleGroup = (groupId: string) => {
+  const toggleGroup = (directoryId: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
-      if (next.has(groupId)) {
-        next.delete(groupId)
+      if (next.has(directoryId)) {
+        next.delete(directoryId)
       } else {
-        next.add(groupId)
+        next.add(directoryId)
       }
       return next
     })
@@ -202,10 +220,10 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         )}
         {groupedDirectories.map((group) => (
           <DirectoryGroupCard
-            key={group.groupId}
+            key={group.directoryId}
             group={group}
-            isExpanded={expandedGroups.has(group.groupId)}
-            onToggle={() => toggleGroup(group.groupId)}
+            isExpanded={expandedGroups.has(group.directoryId)}
+            onToggle={() => toggleGroup(group.directoryId)}
             onRefreshGroup={refreshGroup}
             onDeleteGroup={deleteGroup}
             onRefreshItem={refreshItem}

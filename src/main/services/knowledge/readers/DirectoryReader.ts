@@ -9,7 +9,7 @@ import * as fs from 'node:fs'
 
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
-import type { DirectoryItemData } from '@shared/data/types/knowledge'
+import type { DirectoryContainerData, DirectoryItemData } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Document } from '@vectorstores/core'
 import { FILE_EXT_TO_READER, SimpleDirectoryReader } from '@vectorstores/readers/directory'
@@ -27,6 +27,18 @@ import { applyNodeMetadata } from './utils'
 
 const logger = loggerService.withContext('DirectoryReader')
 
+function isDirectoryItemData(data: DirectoryContainerData | DirectoryItemData): data is DirectoryItemData {
+  return 'groupName' in data && typeof data.groupName === 'string'
+}
+
+function resolveDirectoryPath(data: DirectoryContainerData | DirectoryItemData): string {
+  if (isDirectoryItemData(data)) {
+    return data.groupName
+  }
+
+  return data.path
+}
+
 /**
  * Reader for directories using SimpleDirectoryReader
  */
@@ -38,8 +50,8 @@ export class DirectoryReader implements ContentReader {
    */
   async read(context: ReaderContext): Promise<ReaderResult> {
     const { base, item } = context
-    const directoryData = item.data as DirectoryItemData
-    const directoryPath = directoryData.groupName
+    const directoryData = item.data as DirectoryContainerData | DirectoryItemData
+    const directoryPath = resolveDirectoryPath(directoryData)
 
     logger.debug(`Reading directory ${directoryPath} for item ${item.id}`)
 

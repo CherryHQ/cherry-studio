@@ -7,8 +7,7 @@ import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledges'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileType } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { FileItemData, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import type { FileItemData, KnowledgeBase, KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
@@ -16,6 +15,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AttachmentButton')
+
+function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
+  const flattened: KnowledgeItem[] = []
+
+  const traverse = (node: KnowledgeItemTreeNode) => {
+    flattened.push(node.item)
+    node.children.forEach(traverse)
+  }
+
+  treeNodes.forEach(traverse)
+  return flattened
+}
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -74,22 +85,13 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const openKnowledgeFileList = useCallback(
     async (base: KnowledgeBase) => {
       try {
-        const fetchedItems: KnowledgeItem[] = []
-        let page = 1
-        let total = 0
-
-        do {
-          const response = (await dataApiService.get(`/knowledge-bases/${base.id}/items` as any, {
-            query: { page, limit: 100 }
-          })) as OffsetPaginationResponse<KnowledgeItem>
-
-          fetchedItems.push(...response.items)
-          total = response.total ?? fetchedItems.length
-          page += 1
-        } while (fetchedItems.length < total)
+        const treeItems = (await dataApiService.get(
+          `/knowledge-bases/${base.id}/items` as any
+        )) as KnowledgeItemTreeNode[]
+        const fetchedItems = flattenKnowledgeItems(treeItems)
 
         const fileItems = fetchedItems
-          .filter((item) => item.type === 'file')
+          .filter((item) => item.type === 'file' && !item.parentId)
           .map((item) => (item.data as FileItemData).file as FileType)
 
         quickPanelHook.open({

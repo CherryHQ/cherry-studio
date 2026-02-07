@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "93eb435d-365c-4813-80f9-793a251a5698",
+  "id": "5bf6a21a-90ea-4345-94dd-10354ada2f78",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -188,6 +188,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "document_count": {
+          "name": "document_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -224,6 +231,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "type": {
@@ -277,6 +291,15 @@
           "tableFrom": "knowledge_item",
           "tableTo": "knowledge_base",
           "columnsFrom": ["base_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "knowledge_item_parent_id_knowledge_item_id_fk": {
+          "name": "knowledge_item_parent_id_knowledge_item_id_fk",
+          "tableFrom": "knowledge_item",
+          "tableTo": "knowledge_item",
+          "columnsFrom": ["parent_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

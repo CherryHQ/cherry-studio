@@ -9,18 +9,18 @@ interface KnowledgeItemRowProps {
 
 export const KnowledgeItemRow: FC<KnowledgeItemRowProps> = ({ icon, content, metadata, actions }) => {
   return (
-    <div className="flex flex-row items-center justify-between border-border border-b px-2 py-1">
-      <div className="flex cursor-pointer flex-row items-center gap-2">
+    <div className="flex min-w-0 flex-row items-center justify-between border-border border-b px-2 py-1">
+      <div className="flex min-w-0 flex-1 cursor-pointer flex-row items-center gap-2 overflow-hidden">
         {icon}
         {content}
         {metadata && (
           <>
             <div className="text-foreground-muted">|</div>
-            <div className="text-foreground-muted">{metadata}</div>
+            <div className="truncate text-foreground-muted">{metadata}</div>
           </>
         )}
       </div>
-      {actions}
+      <div className="shrink-0">{actions}</div>
     </div>
   )
 }

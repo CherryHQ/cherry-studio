@@ -9,13 +9,13 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeItems } from '@renderer/data/hooks/useKnowledges'
 import type { FileMetadata } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import type { CreateKnowledgeItemDto, KnowledgeSearchRequest } from '@shared/data/api/schemas/knowledges'
 import type {
-  DirectoryItemData,
+  DirectoryContainerData,
   FileItemData,
   ItemStatus,
   KnowledgeItem as KnowledgeItemV2,
+  KnowledgeItemTreeNode,
   KnowledgeSearchResult,
   NoteItemData,
   SitemapItemData,
@@ -28,17 +28,33 @@ const logger = loggerService.withContext('useKnowledge')
 /** Status values that indicate an item is still being processed */
 const PROCESSING_STATUSES: ItemStatus[] = ['pending', 'ocr', 'read', 'embed']
 
-const buildDirectoryItems = async (
+interface DirectoryBuildResult {
+  directoryItem: CreateKnowledgeItemDto
+  childItems: CreateKnowledgeItemDto[]
+}
+
+const flattenTreeNodes = (nodes: KnowledgeItemTreeNode[]): KnowledgeItemV2[] => {
+  const flattened: KnowledgeItemV2[] = []
+
+  const traverse = (node: KnowledgeItemTreeNode) => {
+    flattened.push(node.item)
+    node.children.forEach(traverse)
+  }
+
+  nodes.forEach(traverse)
+  return flattened
+}
+
+const buildDirectoryPayload = async (
   directoryPath: string,
-  options?: { maxEntries?: number }
-): Promise<CreateKnowledgeItemDto[]> => {
-  const groupId = uuid()
-  const groupName = directoryPath
+  options?: { maxEntries?: number; recursive?: boolean }
+): Promise<DirectoryBuildResult | null> => {
   const maxEntries = options?.maxEntries ?? 100000
+  const recursive = options?.recursive ?? true
 
   try {
     const filePaths = await window.api.file.listDirectory(directoryPath, {
-      recursive: true,
+      recursive,
       includeFiles: true,
       includeDirectories: false,
       includeHidden: false,
@@ -47,7 +63,7 @@ const buildDirectoryItems = async (
     })
 
     if (filePaths.length === 0) {
-      return []
+      return null
     }
 
     const files = await Promise.all(
@@ -61,18 +77,64 @@ const buildDirectoryItems = async (
       })
     )
 
-    return files
-      .filter((file): file is FileMetadata => file !== null)
-      .map((file) => ({
-        type: 'directory' as const,
-        data: { groupId, groupName, file } satisfies DirectoryItemData
+    const validFiles = files.filter((file): file is FileMetadata => file !== null)
+    if (validFiles.length === 0) {
+      return null
+    }
+
+    return {
+      directoryItem: {
+        type: 'directory',
+        data: {
+          path: directoryPath,
+          recursive
+        } satisfies DirectoryContainerData
+      },
+      childItems: validFiles.map((file) => ({
+        type: 'file',
+        data: { file } satisfies FileItemData
       }))
+    }
   } catch (error) {
-    logger.error('Failed to build directory items', error as Error, {
+    logger.error('Failed to build directory payload', error as Error, {
       directoryPath
     })
     throw error
   }
+}
+
+const getDirectoryContainerNode = (
+  nodes: KnowledgeItemTreeNode[],
+  directoryId: string
+): KnowledgeItemTreeNode | undefined => {
+  for (const node of nodes) {
+    if (node.item.id === directoryId && node.item.type === 'directory') {
+      return node
+    }
+
+    const found = getDirectoryContainerNode(node.children, directoryId)
+    if (found) {
+      return found
+    }
+  }
+
+  return undefined
+}
+
+const getFileChildren = (directoryNode: KnowledgeItemTreeNode): KnowledgeItemV2[] => {
+  const fileItems: KnowledgeItemV2[] = []
+
+  const collect = (node: KnowledgeItemTreeNode) => {
+    for (const child of node.children) {
+      if (child.item.type === 'file') {
+        fileItems.push(child.item)
+      }
+      collect(child)
+    }
+  }
+
+  collect(directoryNode)
+  return fileItems
 }
 
 /**
@@ -80,7 +142,7 @@ const buildDirectoryItems = async (
  */
 export const useKnowledgeFiles = (baseId: string) => {
   const { items } = useKnowledgeItems(baseId)
-  const fileItems = useMemo(() => items.filter((item) => item.type === 'file'), [items])
+  const fileItems = useMemo(() => items.filter((item) => item.type === 'file' && !item.parentId), [items])
   const hasProcessingItems = useMemo(
     () => fileItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
     [fileItems]
@@ -104,13 +166,11 @@ export const useKnowledgeFiles = (baseId: string) => {
     if (files.length === 0) return
 
     try {
-      // Convert to v2 format
       const v2Items: CreateKnowledgeItemDto[] = files.map((file) => ({
         type: 'file' as const,
         data: { file } satisfies FileItemData
       }))
 
-      // Call v2 API (items created with status: 'pending', processing starts automatically)
       const result = await createItemsApi({
         body: { items: v2Items }
       })
@@ -175,7 +235,7 @@ export const useKnowledgeFiles = (baseId: string) => {
  * Hook for adding directories to a knowledge base via v2 Data API
  */
 export const useKnowledgeDirectories = (baseId: string) => {
-  const { items } = useKnowledgeItems(baseId)
+  const { items, treeItems } = useKnowledgeItems(baseId)
   const directoryItems = useMemo(() => items.filter((item) => item.type === 'directory'), [items])
   const hasProcessingItems = useMemo(
     () => directoryItems.some((item) => PROCESSING_STATUSES.includes(item.status)),
@@ -196,22 +256,42 @@ export const useKnowledgeDirectories = (baseId: string) => {
     if (!path) return
 
     try {
-      const v2Items = await buildDirectoryItems(path)
+      const payload = await buildDirectoryPayload(path)
 
-      if (v2Items.length === 0) {
+      if (!payload) {
         window.toast.info('No files found in the selected directory.')
         return
       }
 
-      // Call v2 API (item created with status: 'pending', processing starts automatically)
-      const result = await createItemsApi({
-        body: { items: v2Items }
+      const directoryResult = await createItemsApi({
+        body: { items: [payload.directoryItem] }
       })
 
-      const createdItems = result.items
+      const directory = directoryResult.items[0]
+      if (!directory) {
+        return undefined
+      }
 
-      logger.info('Directory added via v2 API', { baseId, path })
-      return createdItems[0]
+      if (payload.childItems.length > 0) {
+        try {
+          await createItemsApi({
+            body: {
+              items: payload.childItems.map((item) => ({
+                ...item,
+                parentId: directory.id
+              }))
+            }
+          })
+        } catch (childError) {
+          // Clean up the empty directory container on partial failure
+          logger.error('Failed to create child items, cleaning up directory container', childError as Error)
+          await dataApiService.delete(`/knowledge-items/${directory.id}`)
+          throw childError
+        }
+      }
+
+      logger.info('Directory added via v2 API', { baseId, path, childCount: payload.childItems.length })
+      return directory
     } catch (error) {
       logger.error('Failed to add directory via v2 API', error as Error)
       throw error
@@ -247,25 +327,25 @@ export const useKnowledgeDirectories = (baseId: string) => {
   }
 
   /**
-   * Delete all items in a directory group
+   * Delete a directory node (cascades server-side).
    */
-  const deleteGroup = async (groupId: string): Promise<void> => {
-    if (!baseId || !groupId) {
+  const deleteGroup = async (directoryId: string): Promise<void> => {
+    if (!baseId || !directoryId) {
       return
     }
 
-    const itemsToDelete = directoryItems.filter((item) => (item.data as DirectoryItemData).groupId === groupId)
+    const directoryNode = getDirectoryContainerNode(treeItems, directoryId)
 
     try {
-      await Promise.all(itemsToDelete.map((item) => deleteKnowledgeItem(baseId, item.id)))
+      await deleteKnowledgeItem(baseId, directoryId)
       logger.info('Directory group deleted', {
-        groupId,
+        directoryId,
         baseId,
-        count: itemsToDelete.length
+        childCount: directoryNode ? getFileChildren(directoryNode).length : 0
       })
     } catch (error) {
       logger.error('Failed to delete directory group', error as Error, {
-        groupId,
+        directoryId,
         baseId
       })
       throw error
@@ -273,28 +353,31 @@ export const useKnowledgeDirectories = (baseId: string) => {
   }
 
   /**
-   * Refresh all completed items in a directory group
+   * Refresh all file descendants in a directory group.
    */
-  const refreshGroup = async (groupId: string): Promise<void> => {
-    if (!baseId || !groupId) {
+  const refreshGroup = async (directoryId: string): Promise<void> => {
+    if (!baseId || !directoryId) {
       return
     }
 
-    const itemsToRefresh = directoryItems.filter(
-      (item) => (item.data as DirectoryItemData).groupId === groupId && item.status === 'completed'
-    )
+    const directoryNode = getDirectoryContainerNode(treeItems, directoryId)
+    if (!directoryNode) {
+      return
+    }
+
+    const itemsToRefresh = getFileChildren(directoryNode).filter((item) => item.status === 'completed')
 
     try {
       await Promise.all(itemsToRefresh.map((item) => dataApiService.post(`/knowledge-items/${item.id}/reprocess`, {})))
       await invalidate(`/knowledge-bases/${baseId}/items`)
       logger.info('Directory group refresh triggered', {
-        groupId,
+        directoryId,
         baseId,
         count: itemsToRefresh.length
       })
     } catch (error) {
       logger.error('Failed to refresh directory group', error as Error, {
-        groupId,
+        directoryId,
         baseId
       })
       throw error
@@ -303,6 +386,7 @@ export const useKnowledgeDirectories = (baseId: string) => {
 
   return {
     items,
+    treeItems,
     directoryItems,
     hasProcessingItems,
     addDirectory,
@@ -311,7 +395,8 @@ export const useKnowledgeDirectories = (baseId: string) => {
     isDeleting,
     refreshItem,
     deleteGroup,
-    refreshGroup
+    refreshGroup,
+    getFileChildren
   }
 }
 
@@ -336,7 +421,6 @@ export const useKnowledgeUrls = (baseId: string) => {
     if (!url) return
 
     try {
-      // Convert to v2 format
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'url' as const,
@@ -344,7 +428,6 @@ export const useKnowledgeUrls = (baseId: string) => {
         }
       ]
 
-      // Call v2 API (item created with status: 'pending', processing starts automatically)
       const result = await createItemsApi({
         body: { items: v2Items }
       })
@@ -424,7 +507,6 @@ export const useKnowledgeSitemaps = (baseId: string) => {
     if (!url) return
 
     try {
-      // Convert to v2 format
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'sitemap' as const,
@@ -432,7 +514,6 @@ export const useKnowledgeSitemaps = (baseId: string) => {
         }
       ]
 
-      // Call v2 API (item created with status: 'pending', processing starts automatically)
       const result = await createItemsApi({
         body: { items: v2Items }
       })
@@ -508,7 +589,6 @@ export const useKnowledgeNotes = (baseId: string) => {
     if (!content) return
 
     try {
-      // Convert to v2 format
       const v2Items: CreateKnowledgeItemDto[] = [
         {
           type: 'note' as const,
@@ -516,7 +596,6 @@ export const useKnowledgeNotes = (baseId: string) => {
         }
       ]
 
-      // Call v2 API (item created with status: 'pending', processing starts automatically)
       const result = await createItemsApi({
         body: { items: v2Items }
       })
@@ -584,10 +663,8 @@ export const useKnowledgeItemDelete = () => {
   const deleteItem = async (baseId: string, itemId: string): Promise<void> => {
     setIsDeleting(true)
     try {
-      // Call v2 API to delete item (also removes vectors)
       await dataApiService.delete(`/knowledge-items/${itemId}`)
 
-      // Refresh the items list cache
       await invalidate(`/knowledge-bases/${baseId}/items`)
 
       logger.info('Item deleted via v2 API', { itemId, baseId })
@@ -642,3 +719,5 @@ export const useKnowledgeSearch = (baseId: string) => {
     isSearching
   }
 }
+
+export { flattenTreeNodes }

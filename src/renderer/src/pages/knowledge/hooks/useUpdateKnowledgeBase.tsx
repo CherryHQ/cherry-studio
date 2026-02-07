@@ -6,9 +6,8 @@ import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem as KnowledgeItemV2 } from '@shared/data/types/knowledge'
+import type { KnowledgeItem as KnowledgeItemV2, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +15,18 @@ import { useTranslation } from 'react-i18next'
 import { buildKnowledgeBasePayload } from '../utils/knowledgeBasePayload'
 
 const logger = loggerService.withContext('useUpdateKnowledgeBase')
+
+function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItemV2[] {
+  const flattened: KnowledgeItemV2[] = []
+
+  const traverse = (node: KnowledgeItemTreeNode) => {
+    flattened.push(node.item)
+    node.children.forEach(traverse)
+  }
+
+  treeNodes.forEach(traverse)
+  return flattened
+}
 
 interface UseUpdateKnowledgeBaseOptions {
   originalBase?: KnowledgeBase
@@ -48,20 +59,10 @@ export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
   )
 
   const fetchAllItems = useCallback(async (sourceBaseId: string) => {
-    const fetchedItems: KnowledgeItemV2[] = []
-    let page = 1
-    let total = 0
-
-    do {
-      const response = (await dataApiService.get(`/knowledge-bases/${sourceBaseId}/items` as any, {
-        query: { page, limit: 100 }
-      })) as OffsetPaginationResponse<KnowledgeItemV2>
-      fetchedItems.push(...response.items)
-      total = response.total ?? fetchedItems.length
-      page += 1
-    } while (fetchedItems.length < total)
-
-    return fetchedItems
+    const response = (await dataApiService.get(
+      `/knowledge-bases/${sourceBaseId}/items` as any
+    )) as KnowledgeItemTreeNode[]
+    return flattenKnowledgeItems(response)
   }, [])
 
   const migrateBase = useCallback(
@@ -75,10 +76,12 @@ export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
 
       const sourceItems = await fetchAllItems(sourceBase.id)
       if (sourceItems.length > 0) {
-        const itemsPayload: CreateKnowledgeItemDto[] = sourceItems.map((item) => ({
-          type: item.type,
-          data: item.data
-        }))
+        const itemsPayload: CreateKnowledgeItemDto[] = sourceItems
+          .filter((item) => item.parentId === null || item.parentId === undefined)
+          .map((item) => ({
+            type: item.type,
+            data: item.data
+          }))
 
         await dataApiService.post(`/knowledge-bases/${createdBase.id}/items` as any, {
           body: { items: itemsPayload }

@@ -80,6 +80,7 @@ export interface KnowledgeBase {
 export interface KnowledgeItem {
   id: string
   baseId: string
+  parentId?: string | null
   type: KnowledgeItemType
   data: KnowledgeItemData
   status: ItemStatus
@@ -87,6 +88,27 @@ export interface KnowledgeItem {
   progress?: number
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Tree node for hierarchical knowledge items.
+ *
+ * Root nodes have `item.parentId = null`.
+ * Children are recursively represented in `children`.
+ */
+export interface KnowledgeItemTreeNode {
+  item: KnowledgeItem
+  children: KnowledgeItemTreeNode[]
+}
+
+/**
+ * Directory container item data
+ */
+export interface DirectoryContainerData {
+  /** Absolute directory path */
+  path: string
+  /** Whether directory scan is recursive */
+  recursive: boolean
 }
 
 /**
@@ -158,4 +180,10 @@ export interface DirectoryItemData {
  * Union type of all knowledge item data types
  * Uses discriminated union pattern for type-safe access
  */
-export type KnowledgeItemData = FileItemData | UrlItemData | NoteItemData | SitemapItemData | DirectoryItemData
+export type KnowledgeItemData =
+  | FileItemData
+  | UrlItemData
+  | NoteItemData
+  | SitemapItemData
+  | DirectoryContainerData
+  | DirectoryItemData

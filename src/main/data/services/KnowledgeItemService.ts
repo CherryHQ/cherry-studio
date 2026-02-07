@@ -1,5 +1,4 @@
 /**
-/**
  * Knowledge Item Service (DataApi v2)
  *
  * Handles CRUD operations for knowledge items stored in SQLite,
@@ -18,8 +17,15 @@ import type {
   RecoverResponse,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
-import type { ItemStatus, KnowledgeItem, KnowledgeItemData } from '@shared/data/types/knowledge'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import type {
+  DirectoryContainerData,
+  ItemStatus,
+  KnowledgeItem,
+  KnowledgeItemData,
+  KnowledgeItemTreeNode,
+  KnowledgeItemType
+} from '@shared/data/types/knowledge'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
@@ -35,6 +41,7 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
   return {
     id: row.id,
     baseId: row.baseId,
+    parentId: row.parentId ?? null,
     type: row.type,
     data: parseJson(row.data) as KnowledgeItemData,
     status: row.status ?? 'idle',
@@ -43,6 +50,48 @@ function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): Knowle
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString(),
     progress: knowledgeOrchestrator.getProgress(row.id)
   }
+}
+
+function isDirectoryContainerData(data: KnowledgeItemData): data is DirectoryContainerData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'path' in data &&
+    typeof data.path === 'string' &&
+    'recursive' in data &&
+    typeof data.recursive === 'boolean'
+  )
+}
+
+function shouldProcessItem(item: { type: KnowledgeItemType; data: KnowledgeItemData }): boolean {
+  return !(item.type === 'directory' && isDirectoryContainerData(item.data))
+}
+
+export function buildKnowledgeItemTree(items: KnowledgeItem[]): KnowledgeItemTreeNode[] {
+  const childrenMap = new Map<string | null, KnowledgeItem[]>()
+
+  for (const item of items) {
+    const parentId = item.parentId ?? null
+    if (!childrenMap.has(parentId)) {
+      childrenMap.set(parentId, [])
+    }
+    childrenMap.get(parentId)!.push(item)
+  }
+
+  const roots = childrenMap.get(null) ?? []
+
+  const buildNode = (item: KnowledgeItem, path: Set<string>): KnowledgeItemTreeNode => {
+    const children = childrenMap.get(item.id) ?? []
+    const nextPath = new Set(path)
+    nextPath.add(item.id)
+
+    return {
+      item,
+      children: children.filter((child) => !nextPath.has(child.id)).map((child) => buildNode(child, nextPath))
+    }
+  }
+
+  return roots.map((root) => buildNode(root, new Set()))
 }
 
 export class KnowledgeItemService {
@@ -58,9 +107,17 @@ export class KnowledgeItemService {
   }
 
   /**
-   * List all knowledge items for a base
+   * List knowledge items for a base as tree structure.
    */
-  async list(baseId: string): Promise<KnowledgeItem[]> {
+  async list(baseId: string): Promise<KnowledgeItemTreeNode[]> {
+    const items = await this.listFlat(baseId)
+    return buildKnowledgeItemTree(items)
+  }
+
+  /**
+   * List all knowledge items for a base as a flat array.
+   */
+  private async listFlat(baseId: string): Promise<KnowledgeItem[]> {
     const db = dbService.getDb()
     await knowledgeBaseService.getById(baseId)
 
@@ -85,29 +142,59 @@ export class KnowledgeItemService {
 
     const base = await knowledgeBaseService.getById(baseId)
 
-    const values = dto.items.map((item) => ({
-      baseId,
-      type: item.type,
-      data: item.data,
-      status: 'pending' as ItemStatus,
-      error: null
-    }))
+    const items = await db.transaction(async (tx) => {
+      const parentIds = Array.from(new Set(dto.items.map((item) => item.parentId).filter((id): id is string => !!id)))
 
-    const rows = await db.insert(knowledgeItemTable).values(values).returning()
-    const items = rows.map((row) => rowToKnowledgeItem(row))
+      if (parentIds.length > 0) {
+        const parentRows = await tx
+          .select({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId })
+          .from(knowledgeItemTable)
+          .where(inArray(knowledgeItemTable.id, parentIds))
 
-    items.forEach((item) => {
-      logger.info('[DEBUG] Starting orchestrator.process for item', { itemId: item.id, baseId })
+        const parentMap = new Map(parentRows.map((row) => [row.id, row]))
+
+        for (const parentId of parentIds) {
+          const parent = parentMap.get(parentId)
+          if (!parent) {
+            throw DataApiErrorFactory.notFound('KnowledgeItem', parentId)
+          }
+          if (parent.baseId !== baseId) {
+            throw DataApiErrorFactory.invalidOperation(
+              'create knowledge item',
+              'Parent knowledge item does not belong to this knowledge base'
+            )
+          }
+        }
+      }
+
+      const values = dto.items.map((item) => ({
+        baseId,
+        parentId: item.parentId ?? null,
+        type: item.type,
+        data: item.data,
+        status: shouldProcessItem(item) ? ('pending' as ItemStatus) : ('completed' as ItemStatus),
+        error: null
+      }))
+
+      const rows = await tx.insert(knowledgeItemTable).values(values).returning()
+      return rows.map((row) => rowToKnowledgeItem(row))
+    })
+
+    // Dispatch orchestrator processing after transaction commits
+    // to ensure items exist in DB before processing starts
+    for (const item of items) {
+      if (!shouldProcessItem(item)) {
+        continue
+      }
+
       void knowledgeOrchestrator.process({
         base,
         item,
         onStatusChange: async (status, error) => {
-          logger.info('[DEBUG] onStatusChange callback called', { itemId: item.id, status, error })
           await this.update(item.id, { status, error })
-          logger.info('[DEBUG] onStatusChange callback completed', { itemId: item.id, status })
         }
       })
-    })
+    }
 
     return { items }
   }
@@ -148,23 +235,42 @@ export class KnowledgeItemService {
   }
 
   /**
-   * Reprocess a knowledge item
+   * Reprocess a knowledge item.
+   *
+   * For directory container nodes, reprocesses all descendant file nodes.
    */
   async reprocess(id: string): Promise<KnowledgeItem> {
+    const item = await this.getById(id)
+    const base = await knowledgeBaseService.getById(item.baseId)
+
+    if (item.type === 'directory' && isDirectoryContainerData(item.data)) {
+      const descendants = await this.getDescendantItems(item.baseId, item.id)
+      const fileItems = descendants.filter((descendant) => descendant.type === 'file')
+
+      for (const fileItem of fileItems) {
+        await this.reprocessSingle(base, fileItem)
+      }
+
+      logger.info('Triggered directory reprocessing for knowledge item', { id, fileCount: fileItems.length })
+      return item
+    }
+
+    return await this.reprocessSingle(base, item)
+  }
+
+  private async reprocessSingle(base: Awaited<ReturnType<typeof knowledgeBaseService.getById>>, item: KnowledgeItem) {
     const db = dbService.getDb()
 
-    const item = await this.getById(id)
-    knowledgeOrchestrator.cancel(id)
-    knowledgeOrchestrator.clearProgress(id)
+    knowledgeOrchestrator.cancel(item.id)
+    knowledgeOrchestrator.clearProgress(item.id)
 
     const [row] = await db
       .update(knowledgeItemTable)
       .set({ status: 'pending', error: null })
-      .where(eq(knowledgeItemTable.id, id))
+      .where(eq(knowledgeItemTable.id, item.id))
       .returning()
 
     const updatedItem = rowToKnowledgeItem(row)
-    const base = await knowledgeBaseService.getById(item.baseId)
     const onStatusChange = async (status: ItemStatus, error: string | null) => {
       await this.update(item.id, { status, error })
     }
@@ -176,27 +282,67 @@ export class KnowledgeItemService {
       onStatusChange
     })
 
-    logger.info('Triggered reprocessing for knowledge item', { id })
+    logger.info('Triggered reprocessing for knowledge item', { id: item.id })
 
     return updatedItem
   }
 
   /**
-   * Delete knowledge item
+   * Delete knowledge item and all descendants.
    */
   async delete(id: string): Promise<void> {
     const db = dbService.getDb()
 
     const item = await this.getById(id)
     const base = await knowledgeBaseService.getById(item.baseId)
-    knowledgeOrchestrator.cancel(id)
-    knowledgeOrchestrator.clearProgress(id)
 
-    await knowledgeOrchestrator.removeVectors(base, item)
+    const descendantIds = await this.getDescendantIds(id)
+    const allIds = [id, ...descendantIds]
 
-    await db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
+    const rows = await db.select().from(knowledgeItemTable).where(inArray(knowledgeItemTable.id, allIds))
+    const itemsToDelete = rows.map((row) => rowToKnowledgeItem(row))
 
-    logger.info('Deleted knowledge item', { id })
+    for (const target of itemsToDelete) {
+      knowledgeOrchestrator.cancel(target.id)
+      knowledgeOrchestrator.clearProgress(target.id)
+      await knowledgeOrchestrator.removeVectors(base, target)
+    }
+
+    await db.delete(knowledgeItemTable).where(inArray(knowledgeItemTable.id, allIds))
+
+    logger.info('Deleted knowledge item tree', { id, count: allIds.length })
+  }
+
+  private async getDescendantIds(id: string): Promise<string[]> {
+    const db = dbService.getDb()
+
+    const result = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE descendants AS (
+        SELECT id FROM knowledge_item WHERE parent_id = ${id}
+        UNION ALL
+        SELECT ki.id FROM knowledge_item ki
+        INNER JOIN descendants d ON ki.parent_id = d.id
+      )
+      SELECT id FROM descendants
+    `)
+
+    return result.map((row) => row.id)
+  }
+
+  private async getDescendantItems(baseId: string, id: string): Promise<KnowledgeItem[]> {
+    const db = dbService.getDb()
+    const descendantIds = await this.getDescendantIds(id)
+
+    if (descendantIds.length === 0) {
+      return []
+    }
+
+    const rows = await db
+      .select()
+      .from(knowledgeItemTable)
+      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, descendantIds)))
+
+    return rows.map((row) => rowToKnowledgeItem(row))
   }
 
   /**
@@ -212,7 +358,6 @@ export class KnowledgeItemService {
       .from(knowledgeItemTable)
       .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.status, incompleteStatuses)))
 
-    // Filter out items that are actually in the queue
     return rows
       .filter((row) => !knowledgeOrchestrator.isQueued(row.id) && !knowledgeOrchestrator.isProcessing(row.id))
       .map(rowToKnowledgeItem)
@@ -222,11 +367,10 @@ export class KnowledgeItemService {
    * Get queue status for a knowledge base.
    */
   async getQueueStatus(baseId: string): Promise<BaseQueueStatus> {
-    // Validate base exists
     await knowledgeBaseService.getById(baseId)
 
     const orphanItems = await this.getOrphanItems(baseId)
-    const allItems = await this.list(baseId)
+    const allItems = await this.listFlat(baseId)
 
     const activeItemIds = allItems
       .filter((item) => knowledgeOrchestrator.isQueued(item.id) || knowledgeOrchestrator.isProcessing(item.id))
@@ -249,8 +393,16 @@ export class KnowledgeItemService {
     const orphanItems = await this.getOrphanItems(baseId)
     const base = await knowledgeBaseService.getById(baseId)
 
+    const processableOrphans = orphanItems.filter((item) => shouldProcessItem(item))
+
+    // Mark non-processable orphans (e.g. directory containers) as completed
     for (const item of orphanItems) {
-      // Reset status and re-enqueue
+      if (!shouldProcessItem(item)) {
+        await this.update(item.id, { status: 'completed', error: null })
+      }
+    }
+
+    for (const item of processableOrphans) {
       await this.update(item.id, { status: 'pending', error: null })
       knowledgeOrchestrator.clearProgress(item.id)
       await knowledgeOrchestrator.removeVectors(base, item)
@@ -263,15 +415,14 @@ export class KnowledgeItemService {
       })
     }
 
-    logger.info('Recovered orphan items', { baseId, count: orphanItems.length })
-    return { recoveredCount: orphanItems.length }
+    logger.info('Recovered orphan items', { baseId, count: processableOrphans.length })
+    return { recoveredCount: processableOrphans.length }
   }
 
   /**
    * Ignore orphan items by marking them as failed.
    */
   async ignoreOrphans(baseId: string): Promise<IgnoreResponse> {
-    // Validate base exists
     await knowledgeBaseService.getById(baseId)
 
     const orphanItems = await this.getOrphanItems(baseId)

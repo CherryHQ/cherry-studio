@@ -10,7 +10,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import type { BaseQueueStatus, CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import type { ItemStatus, KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import type { ItemStatus, KnowledgeBase, KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import { useEffect, useMemo, useState } from 'react'
 
 /** Status values that indicate an item is still being processed */
@@ -30,6 +30,18 @@ type KnowledgeItemPath = `/knowledge-items/${string}`
 
 /** API path type for queue status */
 type KnowledgeQueuePath = `/knowledge-bases/${string}/queue`
+
+function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
+  const flattened: KnowledgeItem[] = []
+
+  const traverse = (node: KnowledgeItemTreeNode) => {
+    flattened.push(node.item)
+    node.children.forEach(traverse)
+  }
+
+  treeNodes.forEach(traverse)
+  return flattened
+}
 
 /**
  * Hook for fetching knowledge items with smart polling.
@@ -58,6 +70,7 @@ export function useKnowledgeItems(baseId: string) {
 
   // Single query with conditional polling
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery(path, {
+    enabled: Boolean(baseId),
     swrOptions: {
       // Only poll when we have processing items
       refreshInterval: hasProcessingItems ? PROCESSING_POLL_INTERVAL : 0,
@@ -65,8 +78,8 @@ export function useKnowledgeItems(baseId: string) {
     }
   })
 
-  // Memoize items extraction to avoid creating new array on every render
-  const items = useMemo<KnowledgeItem[]>(() => (data as KnowledgeItem[] | undefined) ?? [], [data])
+  const treeItems = useMemo<KnowledgeItemTreeNode[]>(() => (data as KnowledgeItemTreeNode[] | undefined) ?? [], [data])
+  const items = useMemo<KnowledgeItem[]>(() => flattenKnowledgeItems(treeItems), [treeItems])
 
   // Update processing state when items change
   useEffect(() => {
@@ -77,6 +90,8 @@ export function useKnowledgeItems(baseId: string) {
   return {
     /** Knowledge items with latest status */
     items,
+    /** Tree-structured knowledge items */
+    treeItems,
     /** Total number of items */
     total: items.length,
     /** True during initial load */

@@ -1,7 +1,7 @@
 import type { EmbeddingModelMeta, ItemStatus, KnowledgeItemData, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
-import { check, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -46,6 +46,9 @@ export const knowledgeItemTable = sqliteTable(
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
 
+    // Self-reference parent relation for hierarchical items (e.g. directory container -> child files)
+    parentId: text(),
+
     // Type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
     type: text().$type<KnowledgeItemType>().notNull(),
 
@@ -59,6 +62,7 @@ export const knowledgeItemTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     check(
       'knowledge_item_status_check',
       sql`${t.status} IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')`
