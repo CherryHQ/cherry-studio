@@ -4,8 +4,10 @@ import { type ResolvedSkill } from '@types'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Test helper functions extracted from PluginService for testing
- * These are the same implementations as in PluginService, extracted for isolated testing
+ * Test helper functions extracted from PluginService for testing.
+ * These mirror the private method implementations in PluginService for isolated unit testing,
+ * following the same pattern used for extractBaseRepoUrl and extractResolvedSkill above.
+ * When modifying PluginService private methods, update the corresponding mirrors here.
  */
 
 // extractBaseRepoUrl implementation
@@ -136,6 +138,7 @@ describe('PluginService', () => {
     // Mirrors PluginService.truncateWithHash
     function truncateWithHash(name: string, maxLength: number): string {
       if (name.length <= maxLength) return name
+      if (maxLength <= 9) return name.slice(0, maxLength)
       const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
       const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
       return `${truncated}-${hash}`
@@ -179,14 +182,22 @@ describe('PluginService', () => {
       const result = truncateWithHash(name, MAX_NAME_LENGTH)
       expect(result).not.toMatch(/[-_]{2,}-[0-9a-f]{8}$/)
     })
+
+    it('should fall back to simple slice when maxLength <= 9', () => {
+      const name = 'a'.repeat(20)
+      const result = truncateWithHash(name, 5)
+      expect(result).toBe('aaaaa')
+      expect(result.length).toBe(5)
+    })
   })
 
   describe('sanitizeFolderName with truncation', () => {
     const MAX_NAME_LENGTH = 80
 
-    // Mirrors PluginService.sanitizeFolderName + truncateWithHash
+    // Mirrors PluginService.truncateWithHash
     function truncateWithHash(name: string, maxLength: number): string {
       if (name.length <= maxLength) return name
+      if (maxLength <= 9) return name.slice(0, maxLength)
       const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
       const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
       return `${truncated}-${hash}`
@@ -224,6 +235,7 @@ describe('PluginService', () => {
 
     function truncateWithHash(name: string, maxLength: number): string {
       if (name.length <= maxLength) return name
+      if (maxLength <= 9) return name.slice(0, maxLength)
       const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
       const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
       return `${truncated}-${hash}`
@@ -270,6 +282,11 @@ describe('PluginService', () => {
       const result = sanitizeFilename(longName)
       expect(result.length).toBeLessThanOrEqual(MAX_NAME_LENGTH)
       expect(result).toMatch(/\.md$/)
+    })
+
+    it('should handle empty base name (input is just .md)', () => {
+      const result = sanitizeFilename('.md')
+      expect(result).toBe('.md')
     })
   })
 })

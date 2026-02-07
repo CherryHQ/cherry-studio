@@ -1753,6 +1753,7 @@ export class PluginService {
    */
   private truncateWithHash(name: string, maxLength: number): string {
     if (name.length <= maxLength) return name
+    if (maxLength <= 9) return name.slice(0, maxLength)
     const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
     const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
     return `${truncated}-${hash}`
