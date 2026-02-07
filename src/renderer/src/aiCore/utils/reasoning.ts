@@ -549,10 +549,14 @@ export function getAnthropicThinkingBudget(
 }
 
 /**
- * Get Anthropic reasoning parameters
- * Extracted from AnthropicAPIClient logic
- * Opus 4.6 uses adaptive thinking + effort parameters
- * Other Claude models use enabled + budgetTokens
+ * Get Anthropic reasoning parameters.
+ * Extracted from AnthropicAPIClient logic.
+ *
+ * Returns different parameter shapes depending on the model:
+ * - **Opus 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
+ *   Uses the new adaptive thinking API with effort-based control.
+ * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
+ *   Uses the classic thinking API with explicit token budget.
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
