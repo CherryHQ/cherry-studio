@@ -4,6 +4,7 @@ import styled from 'styled-components'
 
 interface ListItemProps {
   active?: boolean
+  highlighted?: boolean
   icon?: ReactNode
   title: ReactNode
   subtitle?: string
@@ -13,9 +14,22 @@ interface ListItemProps {
   style?: React.CSSProperties
 }
 
-const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightContent, style }: ListItemProps) => {
+const ListItem = ({
+  active,
+  highlighted,
+  icon,
+  title,
+  subtitle,
+  titleStyle,
+  onClick,
+  rightContent,
+  style
+}: ListItemProps) => {
   return (
-    <ListItemContainer className={active ? 'active' : ''} onClick={onClick} style={style}>
+    <ListItemContainer
+      className={`${active ? 'active' : ''} ${highlighted ? 'highlighted' : ''}`}
+      onClick={onClick}
+      style={style}>
       <ListItemContent>
         {icon && <IconWrapper>{icon}</IconWrapper>}
         <TextContainer>
@@ -48,6 +62,11 @@ const ListItemContainer = styled.div`
   &.active {
     background-color: var(--color-background-soft);
     border: 1px solid var(--color-border-soft);
+  }
+
+  &.highlighted:not(.active) {
+    background-color: rgba(255, 200, 0, 0.2);
+    transition: background-color 0.3s;
   }
 `
 

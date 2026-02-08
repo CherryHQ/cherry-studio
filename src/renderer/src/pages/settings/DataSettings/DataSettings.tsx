@@ -32,6 +32,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
+import { useSettingsSearch } from '../SettingsSearchContext'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -52,6 +53,21 @@ const DataSettings: FC = () => {
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
   const { setTimeoutTimer } = useTimer()
+
+  const { matchingSubMenus, isSearchActive } = useSettingsSearch()
+
+  useEffect(() => {
+    if (isSearchActive) {
+      const subMenus = matchingSubMenus.get('/settings/data')
+      if (subMenus && subMenus.size > 0) {
+        // If current menu is not in the matched submenus, switch to the first one
+        if (!subMenus.has(menu)) {
+          const firstMatch = Array.from(subMenus)[0]
+          setMenu(firstMatch)
+        }
+      }
+    }
+  }, [isSearchActive, matchingSubMenus])
 
   const _skipBackupFile = store.getState().settings.skipBackupFile
   const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
@@ -585,6 +601,7 @@ const DataSettings: FC = () => {
               key={item.key}
               title={item.title}
               active={menu === item.key}
+              highlighted={matchingSubMenus.get('/settings/data')?.has(item.key)}
               onClick={() => setMenu(item.key)}
               titleStyle={{ fontWeight: 500 }}
               icon={item.icon}
