@@ -7,7 +7,7 @@ import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { FileMetadata, Message, Model } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { findFileBlocks } from '@renderer/utils/messageUtils/find'
 import type { FilePart, TextPart } from 'ai'
@@ -24,7 +24,7 @@ export async function extractFileContent(message: Message): Promise<string> {
   const fileBlocks = findFileBlocks(message)
   if (fileBlocks.length > 0) {
     const textFileBlocks = fileBlocks.filter(
-      (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+      (fb) => fb.file && [FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => fb.file.type === type)
     )
 
     if (textFileBlocks.length > 0) {
@@ -52,7 +52,7 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
   const file = fileBlock.file
 
   // 处理文本文件
-  if (file.type === FileTypes.TEXT) {
+  if (file.type === FILE_TYPE.TEXT) {
     try {
       const fileContent = await window.api.file.read(file.id + file.ext)
       return {
@@ -65,7 +65,7 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
   }
 
   // 处理文档文件（PDF、Word、Excel等）- 提取为文本内容
-  if (file.type === FileTypes.DOCUMENT) {
+  if (file.type === FILE_TYPE.DOCUMENT) {
     try {
       const fileContent = await window.api.file.read(file.id + file.ext, true) // true表示强制文本提取
       return {
@@ -202,7 +202,7 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
 
   try {
     // 处理PDF文档
-    if (file.type === FileTypes.DOCUMENT && file.ext === '.pdf' && supportsPdfInput(model)) {
+    if (file.type === FILE_TYPE.DOCUMENT && file.ext === '.pdf' && supportsPdfInput(model)) {
       // 检查文件大小限制
       if (file.size > fileSizeLimit) {
         // 如果支持大文件上传（如Gemini File API），尝试上传
@@ -231,7 +231,7 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
     }
 
     // 处理图片文件
-    if (file.type === FileTypes.IMAGE && supportsImageInput(model)) {
+    if (file.type === FILE_TYPE.IMAGE && supportsImageInput(model)) {
       // 检查文件大小
       if (file.size > fileSizeLimit) {
         logger.warn(`Image file ${file.origin_name} exceeds size limit (${file.size} > ${fileSizeLimit})`)
@@ -258,7 +258,7 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
     }
 
     // 处理其他文档类型（Word、Excel等）
-    if (file.type === FileTypes.DOCUMENT && file.ext !== '.pdf') {
+    if (file.type === FILE_TYPE.DOCUMENT && file.ext !== '.pdf') {
       // 目前大多数提供商不支持Word等格式的原生处理
       // 返回null会触发上层调用convertFileBlockToTextPart进行文本提取
       // 这与Legacy架构中的处理方式一致

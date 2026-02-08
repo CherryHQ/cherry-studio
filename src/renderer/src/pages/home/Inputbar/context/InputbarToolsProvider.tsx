@@ -1,6 +1,6 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type QuickPanelTriggerHandler = (payload?: unknown) => void
@@ -173,7 +173,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
   const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
   const [extensions, setExtensions] = useState<string[]>(initialState?.extensions || [])
 
-  const couldMentionNotVisionModel = !files.some((file) => file.type === FileTypes.IMAGE)
+  const couldMentionNotVisionModel = !files.some((file) => file.type === FILE_TYPE.IMAGE)
 
   // Quick Panel Registry (stored in refs to avoid re-renders)
   const rootMenuRegistryRef = useRef(new Map<string, QuickPanelListItem[]>())
