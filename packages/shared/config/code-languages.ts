@@ -15,7 +15,7 @@ type LanguageData = {
   extensions?: string[]
 }
 
-export const languages: Record<string, LanguageData> = {
+export const codeLanguages: Record<string, LanguageData> = {
   '1C Enterprise': {
     type: 'programming',
     extensions: ['.bsl', '.os']

@@ -1,4 +1,4 @@
-import { languages } from '@shared/config/languages'
+import { codeLanguages } from '@shared/config/code-languages'
 
 // Cache for extension to language mapping (built lazily)
 let extensionToLanguageCache: Map<string, string> | null = null
@@ -12,7 +12,7 @@ function buildExtensionCache(): Map<string, string> {
   }
 
   extensionToLanguageCache = new Map()
-  for (const [langName, data] of Object.entries(languages)) {
+  for (const [langName, data] of Object.entries(codeLanguages)) {
     if (data.extensions) {
       for (const ext of data.extensions) {
         // Store without the leading dot, lowercase
@@ -67,20 +67,20 @@ export function getExtensionByLanguage(language: string): string {
   const lowerLanguage = language.toLowerCase()
 
   // 精确匹配语言名称
-  const directMatch = languages[language]
+  const directMatch = codeLanguages[language]
   if (directMatch?.extensions?.[0]) {
     return directMatch.extensions[0]
   }
 
   // 大小写不敏感的语言名称匹配
-  for (const [langName, data] of Object.entries(languages)) {
+  for (const [langName, data] of Object.entries(codeLanguages)) {
     if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
       return data.extensions[0]
     }
   }
 
   // 通过别名匹配
-  for (const [, data] of Object.entries(languages)) {
+  for (const [, data] of Object.entries(codeLanguages)) {
     if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
       return data.extensions?.[0] || `.${language}`
     }
