@@ -23,24 +23,38 @@ import { windowService } from './WindowService'
 type StoreValue = any
 
 const logger = loggerService.withContext('ReduxService')
+const STORE_READY_TIMEOUT = 10000
 
 export class ReduxService {
-  private readyPromise: Promise<void>
+  private isReady = false
+  private resolveReady!: () => void
+  private readyPromise = new Promise<void>((r) => (this.resolveReady = r))
 
   constructor() {
-    let resolve: () => void
-    this.readyPromise = new Promise((r) => (resolve = r))
-    ipcMain.handle(IpcChannel.ReduxStoreReady, () => resolve())
+    ipcMain.handle(IpcChannel.ReduxStoreReady, () => {
+      this.isReady = true
+      this.resolveReady()
+    })
+  }
+
+  private async waitForStoreReady(): Promise<void> {
+    if (this.isReady) return
+
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout waiting for Redux store to be ready')), STORE_READY_TIMEOUT)
+    })
+
+    await Promise.race([this.readyPromise, timeout])
   }
 
   private async getWebContents(): Promise<Electron.WebContents> {
+    await this.waitForStoreReady()
+
     const mainWindow = windowService.getMainWindow()
 
     if (!mainWindow) {
       throw new Error('Main window is not available')
     }
-
-    await this.readyPromise
 
     return mainWindow.webContents
   }
