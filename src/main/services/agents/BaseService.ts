@@ -262,7 +262,12 @@ export abstract class BaseService {
   }
 
   /**
-   * Validate agent model configuration
+   * Validate agent model configuration.
+   *
+   * **Side effect**: For local providers that don't require a real API key
+   * (e.g. ollama, lmstudio), this method sets `provider.apiKey` to the
+   * provider ID as a placeholder so downstream SDK calls don't reject the
+   * request. Callers should be aware that the provider object may be mutated.
    */
   protected async validateAgentModels(
     agentType: AgentType,
@@ -272,6 +277,10 @@ export abstract class BaseService {
     if (entries.length === 0) {
       return
     }
+
+    // Local providers that don't require a real API key (use placeholder).
+    // Note: lmstudio doesn't support Anthropic API format, only ollama does.
+    const localProvidersWithoutApiKey: readonly string[] = ['ollama', 'lmstudio'] satisfies SystemProviderId[]
 
     for (const [field, rawValue] of entries) {
       if (rawValue === undefined || rawValue === null) {
@@ -291,10 +300,7 @@ export abstract class BaseService {
         throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
       }
 
-      // Local providers that don't require a real API key (use placeholder).
-      // Note: lmstudio doesn't support Anthropic API format, only ollama does.
-      const localProvidersWithoutApiKey = ['ollama', 'lmstudio'] satisfies SystemProviderId[]
-      const requiresApiKey = !localProvidersWithoutApiKey.some((id) => id === validation.provider?.id)
+      const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
 
       if (!validation.provider.apiKey) {
         if (requiresApiKey) {
