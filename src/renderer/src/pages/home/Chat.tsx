@@ -200,9 +200,7 @@ const Chat: FC<Props> = (props) => {
                 position="left"
               />
               <TopicTabBar />
-              <div
-                className="flex flex-1 flex-col justify-between"
-                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+              <div className="flex flex-1 flex-col justify-between" style={{ minHeight: 0, overflow: 'hidden' }}>
                 {activeTopicOrSession === 'topic' && (
                   <>
                     <Messages

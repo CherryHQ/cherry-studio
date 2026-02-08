@@ -70,7 +70,7 @@ const TopicTabBar: FC = () => {
   }
 
   return (
-    <TabBarContainer>
+    <TabBarContainer className={openTabs.length > 0 ? 'expanded' : 'collapsed'}>
       <TabList>
         {openTabs.map((tab) => {
           const topic = topicsMap.get(tab.topicId)
@@ -106,13 +106,29 @@ const TopicTabBar: FC = () => {
 const TabBarContainer = styled.div`
   display: flex;
   align-items: center;
-  height: 36px;
-  min-height: 36px;
   padding: 0 8px;
-  border-bottom: 0.5px solid var(--color-border);
-  overflow-x: auto;
-  overflow-y: hidden;
   white-space: nowrap;
+  transition:
+    max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease-in-out;
+
+  &.collapsed {
+    max-height: 0;
+    min-height: 0;
+    opacity: 0;
+    border-bottom: none;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  &.expanded {
+    max-height: 36px;
+    min-height: 36px;
+    opacity: 1;
+    border-bottom: 0.5px solid var(--color-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 
   &::-webkit-scrollbar {
     height: 3px;
