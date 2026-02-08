@@ -3,7 +3,7 @@ import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
+import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -293,8 +293,8 @@ export abstract class BaseService {
 
       // Local providers that don't require a real API key (use placeholder).
       // Note: lmstudio doesn't support Anthropic API format, only ollama does.
-      const localProvidersWithoutApiKey = ['ollama', 'lmstudio']
-      const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
+      const localProvidersWithoutApiKey = ['ollama', 'lmstudio'] satisfies SystemProviderId[]
+      const requiresApiKey = !localProvidersWithoutApiKey.some((id) => id === validation.provider?.id)
 
       if (!validation.provider.apiKey) {
         if (requiresApiKey) {
