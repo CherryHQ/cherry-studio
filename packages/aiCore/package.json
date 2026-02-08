@@ -49,7 +49,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
-    "tsdown": "^0.12.9",
+    "tsdown": "^0.20.3",
     "typescript": "^5.0.0",
     "vitest": "^3.2.4"
   },
