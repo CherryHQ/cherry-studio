@@ -22,7 +22,9 @@ const logger = loggerService.withContext('OpenClawService')
 const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
+// Original user config (read-only, used as template for first-time setup)
 const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+// Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw_cherry.json')
 const DEFAULT_GATEWAY_PORT = 18789
 
@@ -769,7 +771,7 @@ class OpenClawService {
         try {
           const content = fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8')
           config = JSON.parse(content)
-          logger.info('Copied original openclaw.json as base for openclaw_cherry.json')
+          logger.info('Using original openclaw.json as base template for openclaw_cherry.json')
         } catch {
           logger.warn('Failed to parse original openclaw.json, creating new config')
         }
@@ -974,8 +976,9 @@ class OpenClawService {
    */
   private spawnOpenClaw(openclawPath: string, args: string[], env: Record<string, string>): ChildProcess {
     const lowerPath = openclawPath.toLowerCase()
-    // Use Cherry Studio's own config file to avoid modifying the user's original openclaw.json
-    const spawnEnv = { ...env, OPENCLAW_CONFIG_PATH }
+    // OpenClaw reads OPENCLAW_CONFIG_PATH env var to locate its config file.
+    // Set it to Cherry Studio's isolated config to avoid modifying the user's original openclaw.json.
+    const spawnEnv = { ...env, OPENCLAW_CONFIG_PATH: OPENCLAW_CONFIG_PATH }
     // On Windows, use cmd.exe for .cmd files and files without .exe extension (npm shims)
     if (isWin && !lowerPath.endsWith('.exe')) {
       return spawn('cmd.exe', ['/c', openclawPath, ...args], {
