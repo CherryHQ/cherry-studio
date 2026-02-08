@@ -1965,6 +1965,9 @@
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
+      },
       "unknown": "未知のエラー",
       "yuque": {
         "export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",

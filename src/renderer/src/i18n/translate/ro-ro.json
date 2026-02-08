@@ -1965,6 +1965,9 @@
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
+      },
       "unknown": "Eroare necunoscută",
       "yuque": {
         "export": "Nu s-a putut exporta în Yuque. Te rugăm să verifici starea conexiunii și configurarea conform documentației",

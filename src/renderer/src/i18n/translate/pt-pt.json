@@ -1965,6 +1965,9 @@
         "export": "Falha ao exportar nota do Siyuan, verifique o estado da conexão e confira a configuração no documento",
         "no_config": "Endereço da API ou token do Siyuan não configurado"
       },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
+      },
       "unknown": "Erro desconhecido",
       "yuque": {
         "export": "Erro ao exportar Yuque, verifique o status da conexão e a configuração de acordo com a documentação",

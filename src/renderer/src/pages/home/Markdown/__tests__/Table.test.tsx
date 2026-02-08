@@ -321,7 +321,7 @@ Line 4`
       })
     })
 
-    it('should not copy when extractTableMarkdown returns empty string', async () => {
+    it('should show error toast when extractTableMarkdown returns empty string', async () => {
       mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
 
       render(<Table {...defaultProps} />)
@@ -330,6 +330,7 @@ Line 4`
       await user.click(copyButton)
 
       await waitFor(() => {
+        expect(mocks.windowToast.error).toHaveBeenCalledWith('message.error.table.invalid')
         expect(getCopyIcon()).toBeInTheDocument()
         expect(queryCheckIcon()).not.toBeInTheDocument()
       })
@@ -380,7 +381,7 @@ Line 4`
       })
     })
 
-    it('should not export when extractTableMarkdown returns empty string', async () => {
+    it('should show error toast when extractTableMarkdown returns empty string', async () => {
       mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
 
       render(<Table {...defaultProps} />)
@@ -389,8 +390,8 @@ Line 4`
       await user.click(excelButton)
 
       await waitFor(() => {
+        expect(mocks.windowToast.error).toHaveBeenCalledWith('message.error.table.invalid')
         expect(mocks.exportTableToExcel).not.toHaveBeenCalled()
-        expect(mocks.windowToast.success).not.toHaveBeenCalled()
       })
     })
 

@@ -1965,6 +1965,9 @@
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
       },
+      "table": {
+        "invalid": "Unable to retrieve valid table data"
+      },
       "unknown": "Unknown error",
       "yuque": {
         "export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",

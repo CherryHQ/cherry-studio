@@ -1965,6 +1965,9 @@
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
+      },
       "unknown": "Unbekannter Fehler",
       "yuque": {
         "export": "Export nach Yuque fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",

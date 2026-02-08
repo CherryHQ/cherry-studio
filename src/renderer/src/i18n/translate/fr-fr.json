@@ -1965,6 +1965,9 @@
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
       },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
+      },
       "unknown": "Erreur inconnue",
       "yuque": {
         "export": "Erreur lors de l'exportation vers Yuque, veuillez vérifier l'état de la connexion et la configuration dans la documentation",

@@ -29,7 +29,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
 
   const handleCopyTable = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
-    if (!tableMarkdown) return
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
 
     try {
       const tableHtml = convertMarkdownTableToHtml(tableMarkdown)
@@ -52,7 +55,10 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
 
   const handleExportExcel = useCallback(async () => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
-    if (!tableMarkdown) return
+    if (!tableMarkdown) {
+      window.toast?.error(t('message.error.table.invalid'))
+      return
+    }
 
     try {
       const result = await exportTableToExcel(tableMarkdown)

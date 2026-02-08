@@ -87,7 +87,12 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
 
   // 写入文件到用户选择的目录
   const filePath = `${savePath}/${fileName}`
-  await window.api.file.write(filePath, uint8Array)
+
+  try {
+    await window.api.file.write(filePath, uint8Array)
+  } catch (error) {
+    throw new Error(`Failed to write Excel file to ${filePath}: ${error}`)
+  }
 
   return true
 }
