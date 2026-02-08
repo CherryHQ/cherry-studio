@@ -14,6 +14,7 @@ const External = Annotation.define<boolean>()
 export interface CodeEditorHandles {
   save?: () => void
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
+  getContent?: () => string
 }
 
 export interface CodeEditorProps {
@@ -185,10 +186,17 @@ const CodeEditor = ({
 
   const scrollToLine = useScrollToLine(editorViewRef)
 
-  useImperativeHandle(ref, () => ({
-    save: handleSave,
-    scrollToLine
-  }))
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: handleSave,
+      scrollToLine,
+      getContent: () => {
+        return editorViewRef.current?.state.doc.toString() ?? ''
+      }
+    }),
+    [handleSave, scrollToLine]
+  )
 
   return (
     <CodeMirror

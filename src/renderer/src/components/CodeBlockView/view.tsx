@@ -128,7 +128,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [])
 
   const handleCopySource = useCallback(() => {
-    navigator.clipboard.writeText(children.trimEnd())
+    // Prioritize getting content from editor, fallback to children
+    const content = sourceViewRef.current?.getContent?.() ?? children
+    navigator.clipboard.writeText(content.trimEnd())
     window.toast.success(t('code_block.copy.success'))
   }, [children, t])
 
