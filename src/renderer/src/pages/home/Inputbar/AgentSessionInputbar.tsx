@@ -15,7 +15,7 @@ import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message, Model, Topic } from '@renderer/types'
+import type { Assistant, Message } from '@renderer/types'
 import type { FileType } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
@@ -70,26 +70,17 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
     const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
 
-    const model: Model | undefined = actualModel
-      ? {
-          id: actualModel.id,
-          name: actualModel.name,
-          provider: actualModel.provider,
-          group: actualModel.group
-        }
-      : undefined
-
     return {
       id: session.agent_id ?? agentId,
       name: session.name ?? 'Agent Session',
       prompt: session.instructions ?? '',
-      topics: [] as Topic[],
+      topics: [],
       type: 'agent-session',
-      model,
-      defaultModel: model,
+      model: actualModel,
+      defaultModel: actualModel,
       tags: [],
       enableWebSearch: false
-    } as Assistant
+    } satisfies Assistant
   }, [session, agentId])
 
   // Prepare session data for tools
