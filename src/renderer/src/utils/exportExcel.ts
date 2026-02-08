@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
  * @param markdown Markdown 格式的表格字符串
  * @returns 二维数组，每行为一个数组
  */
-function parseMarkdownTable(markdown: string): string[][] {
+export function parseMarkdownTable(markdown: string): string[][] {
   const lines = markdown.trim().split('\n')
   const data: string[][] = []
 

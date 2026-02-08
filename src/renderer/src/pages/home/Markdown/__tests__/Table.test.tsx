@@ -283,6 +283,11 @@ Line 4`
         expect(getCheckIcon()).toBeInTheDocument()
         expect(queryCopyIcon()).not.toBeInTheDocument()
       })
+
+      // Flush useTemporaryValue timer to avoid act() warning
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
     })
 
     it('should show check icon after successful copy', async () => {
@@ -297,6 +302,11 @@ Line 4`
       await waitFor(() => {
         expect(getCheckIcon()).toBeInTheDocument()
         expect(queryCopyIcon()).not.toBeInTheDocument()
+      })
+
+      // Flush useTemporaryValue timer to avoid act() warning
+      act(() => {
+        vi.advanceTimersByTime(2000)
       })
     })
 
