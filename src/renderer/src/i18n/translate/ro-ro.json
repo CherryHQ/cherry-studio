@@ -1276,6 +1276,9 @@
       "validation": "Validarea a eșuat"
     },
     "expand": "Extinde",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "Te rugăm să selectezi mai întâi un model",
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "Se caută...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
       },

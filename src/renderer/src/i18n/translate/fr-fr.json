@@ -1276,6 +1276,9 @@
       "validation": "Échec de la vérification"
     },
     "expand": "Développer",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "Veuillez sélectionner un modèle",
         "name": "Veuillez entrer le nom de la base de connaissances"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Échec de la nomination du sujet",
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Erreur inconnue",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "Recherche en ligne en cours...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportation réussie vers Joplin"
       },

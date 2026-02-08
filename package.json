@@ -409,6 +409,7 @@
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
+    "xlsx": "0.18.5",
     "y-protocols": "^1.0.6",
     "yaml": "^2.8.1",
     "yjs": "^13.6.27",

@@ -1276,6 +1276,9 @@
       "validation": "验证失败"
     },
     "expand": "展开",
+    "export": {
+      "excel": "导出为 Excel"
+    },
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "请选择一个模型",
         "name": "请输入知识库名称"
       },
+      "excel": {
+        "export": "导出 Excel 失败"
+      },
       "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
+      },
+      "table": {
+        "invalid": "无法获取有效的表格数据"
       },
       "unknown": "未知错误",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "正在搜索...",
     "success": {
+      "excel": {
+        "export": "Excel 导出成功"
+      },
       "joplin": {
         "export": "成功导出到 Joplin"
       },

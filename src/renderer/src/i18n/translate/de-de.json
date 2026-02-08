@@ -1276,6 +1276,9 @@
       "validation": "Validierung fehlgeschlagen"
     },
     "expand": "Ausklappen",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "Bitte wählen Sie ein Modell aus",
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "Wird gesucht...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
       },

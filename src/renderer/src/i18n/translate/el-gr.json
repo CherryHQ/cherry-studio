@@ -1276,6 +1276,9 @@
       "validation": "Η επαλήθευση απέτυχε"
     },
     "expand": "Επεκτάση",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "Παρακαλώ επιλέξτε ένα μοντέλο",
         "name": "Παρακαλώ εισάγετε ένα όνομα για τη βάση γνώσεων"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Αποτυχία ονομασίας θέματος",
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "Η έκθεση σημειώσεων Siyuan απέτυχε, ελέγξτε την κατάσταση σύνδεσης και τις ρυθμίσεις σύμφωνα με τα έγγραφα",
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Άγνωστο σφάλμα",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "Ενεργοποιείται αναζήτηση στο διαδίκτυο...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Η εξαγωγή στο Joplin ήταν επιτυχής"
       },

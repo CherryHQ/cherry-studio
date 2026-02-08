@@ -1276,6 +1276,9 @@
       "validation": "驗證失敗"
     },
     "expand": "展開",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "不支援的檔案類型 {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "請先選擇一個模型",
         "name": "請先輸入知識庫名稱"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "話題命名失敗",
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
+      },
+      "table": {
+        "invalid": "無法取得有效的表格資料"
       },
       "unknown": "未知錯誤",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "正在搜尋...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "成功匯出到 Joplin"
       },
