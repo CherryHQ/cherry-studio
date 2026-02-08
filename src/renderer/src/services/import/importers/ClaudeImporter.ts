@@ -63,12 +63,26 @@ export class ClaudeImporter implements ConversationImporter {
   readonly name = 'Claude'
   readonly emoji = '🤖'
 
+  // Single-entry parse cache to avoid triple JSON.parse per file (validate → getModelBucket → parse)
+  private _cachedContent?: string
+  private _cachedParsed?: unknown
+
+  private safeParse(fileContent: string): unknown {
+    if (fileContent === this._cachedContent && this._cachedParsed !== undefined) {
+      return this._cachedParsed
+    }
+    const result = JSON.parse(fileContent)
+    this._cachedContent = fileContent
+    this._cachedParsed = result
+    return result
+  }
+
   /**
    * Validate if the file content is a valid Claude export
    */
   validate(fileContent: string): boolean {
     try {
-      const parsed = JSON.parse(fileContent)
+      const parsed = this.safeParse(fileContent)
       const conversations = Array.isArray(parsed) ? parsed : [parsed]
 
       // Check if it has the Claude conversation structure
@@ -94,7 +108,7 @@ export class ClaudeImporter implements ConversationImporter {
    */
   getModelBucket(fileContent: string): { key: string; label: string } | null {
     try {
-      const parsed = JSON.parse(fileContent)
+      const parsed = this.safeParse(fileContent)
       const conversations = Array.isArray(parsed) ? parsed : [parsed]
       const models = new Set<string>()
 
@@ -126,43 +140,49 @@ export class ClaudeImporter implements ConversationImporter {
     const importAllBranches = options?.importAllBranches ?? false
     logger.info(`Starting Claude import... (importAllBranches: ${importAllBranches})`)
 
-    // Parse JSON
-    const parsed = JSON.parse(fileContent)
-    const conversations: ClaudeConversation[] = Array.isArray(parsed) ? parsed : [parsed]
+    try {
+      // Parse JSON
+      const parsed = this.safeParse(fileContent)
+      const conversations: ClaudeConversation[] = Array.isArray(parsed) ? parsed : [parsed]
 
-    if (!conversations || conversations.length === 0) {
-      throw new Error(i18n.t('import.claude.error.no_conversations'))
-    }
-
-    logger.info(`Found ${conversations.length} conversations`)
-
-    const topics: Topic[] = []
-    const allMessages: Message[] = []
-    const allBlocks: MessageBlock[] = []
-
-    // Convert each conversation (may produce multiple topics if importAllBranches is true)
-    for (const conversation of conversations) {
-      try {
-        const results = this.convertConversationToTopics(conversation, assistantId, importAllBranches)
-        for (const result of results) {
-          topics.push(result.topic)
-          allMessages.push(...result.messages)
-          allBlocks.push(...result.blocks)
-        }
-      } catch (convError) {
-        logger.warn(`Failed to convert conversation "${conversation.name}":`, convError as Error)
-        // Continue with other conversations
+      if (!conversations || conversations.length === 0) {
+        throw new Error(i18n.t('import.claude.error.no_conversations'))
       }
-    }
 
-    if (topics.length === 0) {
-      throw new Error(i18n.t('import.claude.error.no_valid_conversations'))
-    }
+      logger.info(`Found ${conversations.length} conversations`)
 
-    return {
-      topics,
-      messages: allMessages,
-      blocks: allBlocks
+      const topics: Topic[] = []
+      const allMessages: Message[] = []
+      const allBlocks: MessageBlock[] = []
+
+      // Convert each conversation (may produce multiple topics if importAllBranches is true)
+      for (const conversation of conversations) {
+        try {
+          const results = this.convertConversationToTopics(conversation, assistantId, importAllBranches)
+          for (const result of results) {
+            topics.push(result.topic)
+            allMessages.push(...result.messages)
+            allBlocks.push(...result.blocks)
+          }
+        } catch (convError) {
+          logger.warn(`Failed to convert conversation "${conversation.name}":`, convError as Error)
+          // Continue with other conversations
+        }
+      }
+
+      if (topics.length === 0) {
+        throw new Error(i18n.t('import.claude.error.no_valid_conversations'))
+      }
+
+      return {
+        topics,
+        messages: allMessages,
+        blocks: allBlocks
+      }
+    } finally {
+      // Clear parse cache to avoid holding large JSON in memory (runs on success and error)
+      this._cachedContent = undefined
+      this._cachedParsed = undefined
     }
   }
 
@@ -179,11 +199,17 @@ export class ClaudeImporter implements ConversationImporter {
    */
   private traceToRoot(messageMap: Map<string, ClaudeMessage>, leafUuid: string): ClaudeMessage[] {
     const branch: ClaudeMessage[] = []
+    const visited = new Set<string>()
     let currentUuid: string | null = leafUuid
 
     while (currentUuid) {
+      if (visited.has(currentUuid)) {
+        logger.warn('Cycle detected in message tree', { uuid: currentUuid })
+        break
+      }
       const msg = messageMap.get(currentUuid)
       if (!msg) break
+      visited.add(currentUuid)
       branch.unshift(msg)
       currentUuid = msg.parent_message_uuid
     }
@@ -350,7 +376,12 @@ export class ClaudeImporter implements ConversationImporter {
           // Flush any pending text BEFORE the code block
           flushText()
           // Render as MAIN_TEXT with markdown code fence (workaround for CODE block rendering bug in Blocks/index.tsx)
-          const markdownContent = `\`\`\`${artifactLanguage || 'text'}\n${artifactFilename ? `// ${artifactFilename}\n` : ''}${artifactCode}\n\`\`\``
+          // Use a dynamic fence length to avoid breaking if the code contains triple backticks
+          let fence = '```'
+          while (artifactCode.includes(fence)) {
+            fence += '`'
+          }
+          const markdownContent = `${fence}${artifactLanguage || 'text'}\n${artifactFilename ? `// ${artifactFilename}\n` : ''}${artifactCode}\n${fence}`
           const mainTextBlock: MainTextMessageBlock = {
             id: uuid(),
             messageId,
@@ -393,14 +424,7 @@ export class ClaudeImporter implements ConversationImporter {
    */
   private mapModelToModelObject(modelString: string | null): Model | undefined {
     if (!modelString) {
-      // Default fallback when no model is specified
-      const fallbackModelId = 'claude-3-opus-20240229'
-      return {
-        id: fallbackModelId,
-        provider: 'anthropic',
-        name: this.getModelDisplayName(fallbackModelId),
-        group: this.getModelGroup(fallbackModelId)
-      }
+      return undefined
     }
 
     return {
