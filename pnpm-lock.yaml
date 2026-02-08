@@ -148,9 +148,6 @@ importers:
       turndown:
         specifier: 7.2.0
         version: 7.2.0
-      xlsx:
-        specifier: ^0.18.5
-        version: 0.18.5
     devDependencies:
       '@agentic/exa':
         specifier: ^7.3.3
@@ -1109,6 +1106,9 @@ importers:
       word-extractor:
         specifier: ^1.0.4
         version: 1.0.4
+      xlsx:
+        specifier: 0.18.5
+        version: 0.18.5
       y-protocols:
         specifier: ^1.0.6
         version: 1.0.7(yjs@13.6.29)
