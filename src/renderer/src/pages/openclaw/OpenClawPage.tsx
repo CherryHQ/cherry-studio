@@ -170,20 +170,14 @@ const OpenClawPage: FC = () => {
       setShowLogs(false)
       setInstallPath(result.path)
 
-      // If not installed, check npm and git availability immediately
+      // If not installed, check npm and git availability in parallel
       if (!result.installed) {
-        try {
-          const npmCheck = await window.api.openclaw.checkNpmAvailable()
-          setNpmMissing(!npmCheck.available)
-        } catch {
-          // Ignore errors, will check again on install click
-        }
-        try {
-          const gitCheck = await window.api.openclaw.checkGitAvailable()
-          setGitMissing(!gitCheck.available)
-        } catch {
-          // Ignore errors, will check again on install click
-        }
+        const [npmResult, gitResult] = await Promise.allSettled([
+          window.api.openclaw.checkNpmAvailable(),
+          window.api.openclaw.checkGitAvailable()
+        ])
+        if (npmResult.status === 'fulfilled') setNpmMissing(!npmResult.value.available)
+        if (gitResult.status === 'fulfilled') setGitMissing(!gitResult.value.available)
       }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
@@ -192,7 +186,7 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
-    // Check npm availability first
+    // Check npm and git availability before installing
     try {
       const npmCheck = await window.api.openclaw.checkNpmAvailable()
       if (!npmCheck.available) {
@@ -201,9 +195,9 @@ const OpenClawPage: FC = () => {
       }
     } catch (err) {
       logger.error('Failed to check npm availability', err as Error)
+      return
     }
 
-    // Check git availability
     try {
       const gitCheck = await window.api.openclaw.checkGitAvailable()
       if (!gitCheck.available) {
@@ -212,6 +206,7 @@ const OpenClawPage: FC = () => {
       }
     } catch (err) {
       logger.error('Failed to check git availability', err as Error)
+      return
     }
 
     setNpmMissing(false)
