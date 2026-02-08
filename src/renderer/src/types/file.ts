@@ -112,8 +112,6 @@ export interface FileMetadata {
   purpose?: OpenAI.FilePurpose
 }
 
-export interface FileType extends FileMetadata {}
-
 export enum FileTypes {
   IMAGE = 'image',
   VIDEO = 'video',
