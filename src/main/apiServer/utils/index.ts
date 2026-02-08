@@ -2,7 +2,7 @@ import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import type { ApiModel, Model, Provider } from '@types'
+import type { ApiModel, Model, Provider, ProviderType } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
@@ -29,7 +29,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Support OpenAI-compatible and Anthropic-compatible providers for API server
-    const supportedTypes = ['openai', 'anthropic', 'ollama', 'new-api']
+    const supportedTypes: ProviderType[] = ['openai', 'anthropic', 'ollama', 'new-api']
     const supportedProviders = providers.filter((p: Provider) => p.enabled && supportedTypes.includes(p.type))
 
     // Cache the filtered results
