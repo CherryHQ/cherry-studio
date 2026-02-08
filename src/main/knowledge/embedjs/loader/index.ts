@@ -3,12 +3,15 @@ import { JsonLoader, LocalPathLoader, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
+import { reduxService } from '@main/services/ReduxService'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import type { LoaderReturn } from '@shared/config/types'
-import type { FileMetadata, KnowledgeBaseParams } from '@types'
+import type { OcrProvider, OcrTesseractProvider } from '@types'
+import { type FileMetadata, isImageFileMetadata, isImageOcrProvider, type KnowledgeBaseParams } from '@types'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
+import { ImageLoader } from './imageLoader'
 import { OdLoader, OdType } from './odLoader'
 
 const logger = loggerService.withContext('KnowledgeLoader')
@@ -34,6 +37,13 @@ const FILE_LOADER_MAP: Record<string, string> = {
   // HTML类型
   '.html': 'html',
   '.htm': 'html',
+  // 图片类型
+  '.jpg': 'image',
+  '.jpeg': 'image',
+  '.png': 'image',
+  '.gif': 'image',
+  '.bmp': 'image',
+  '.webp': 'image',
   // JSON类型
   '.json': 'json'
   // 其他类型默认为文本类型
@@ -114,7 +124,20 @@ export async function addFileLoader(
       // Drafts类型处理
       loaderReturn = await ragApplication.addLoader(new DraftsExportLoader(filePath), forceReload)
       break
-
+    case 'image':
+      if (!isImageFileMetadata(file)) {
+        throw new Error('File is not an image file metadata')
+      }
+      loaderReturn = await ragApplication.addLoader(
+        new ImageLoader({
+          file: file,
+          ocrProvider: await getImageOcrProvider(),
+          chunkSize: base.chunkSize,
+          chunkOverlap: base.chunkOverlap
+        }) as any,
+        forceReload
+      )
+      break
     case 'html':
       // HTML类型处理
       loaderReturn = await ragApplication.addLoader(
@@ -164,3 +187,43 @@ export async function addFileLoader(
     loaderType: loaderReturn.loaderType
   } as LoaderReturn
 }
+
+async function getImageOcrProvider(): Promise<OcrProvider> {
+  try {
+    const ocrState = await reduxService.select<{ providers?: OcrProvider[]; imageProviderId?: string }>('state.ocr')
+    if (!ocrState) {
+      return tesseractOcrProvider
+    }
+    const { providers = [], imageProviderId } = ocrState
+    if (imageProviderId && providers.length > 0) {
+      const provider = providers.find((p: OcrProvider) => p.id === imageProviderId)
+      if (provider && isImageOcrProvider(provider)) {
+        return provider
+      }
+    }
+    if (providers.length > 0) {
+      const imageProvider = providers.find(isImageOcrProvider)
+      if (imageProvider) {
+        return imageProvider
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to get OCR provider from Redux store, using fallback', error as Error)
+  }
+  return tesseractOcrProvider
+}
+
+const tesseractOcrProvider: OcrTesseractProvider = {
+  id: 'tesseract',
+  name: 'Tesseract',
+  capabilities: {
+    image: true
+  },
+  config: {
+    langs: {
+      chi_sim: true,
+      chi_tra: true,
+      eng: true
+    }
+  }
+} as const
