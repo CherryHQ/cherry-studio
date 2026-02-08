@@ -21,7 +21,7 @@ export function BashTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Bash,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Bash}

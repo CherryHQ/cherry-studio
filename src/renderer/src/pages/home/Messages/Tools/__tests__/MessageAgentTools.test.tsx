@@ -197,7 +197,6 @@ describe('MessageAgentTools', () => {
     it('should return true for valid tool types', () => {
       expect(isValidAgentToolsType('Read')).toBe(true)
       expect(isValidAgentToolsType('Bash')).toBe(true)
-      expect(isValidAgentToolsType('TodoWrite')).toBe(true)
     })
 
     it('should return false for invalid tool types', () => {
@@ -343,25 +342,6 @@ describe('MessageAgentTools', () => {
 
       // Should show the ToolStatusIndicator with loading icon
       expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
-    })
-  })
-
-  describe('TodoWrite streaming', () => {
-    it('should render TodoWrite dedicated renderer with partial todos during streaming', () => {
-      const toolResponse = createToolResponse({
-        tool: { id: 'TodoWrite', name: 'TodoWrite', description: 'Write todos', type: 'provider' },
-        status: 'streaming',
-        partialArguments:
-          '{"todos": [{"content": "First task", "status": "pending", "activeForm": "Working on first task"}'
-      })
-
-      render(<MessageAgentTools toolResponse={toolResponse} />)
-
-      // Should render the DEDICATED TodoWriteTool component, not StreamingToolContent
-      // TodoWriteTool uses 'Todo Write' (with space) as label
-      expect(screen.getByText('Todo Write')).toBeInTheDocument()
-      // The partial todo content should be visible in the dedicated renderer
-      expect(screen.getByText(/First task/)).toBeInTheDocument()
     })
   })
 

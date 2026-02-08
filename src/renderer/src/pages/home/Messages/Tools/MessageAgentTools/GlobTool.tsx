@@ -22,7 +22,7 @@ export function GlobTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Glob,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Glob}

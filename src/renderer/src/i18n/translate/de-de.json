@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} Aufgaben abgeschlossen"
+      },
+      "status": {
+        "completed": "Abgeschlossen",
+        "in_progress": "In Bearbeitung",
+        "pending": "Ausstehend"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Dieses Tool immer erlauben",
@@ -2283,6 +2293,7 @@
     },
     "function_calling": "Funktionsaufruf",
     "invalid_model": "Ungültiges Modell",
+    "json_parse_error": "Ungültiges JSON-Format",
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
     "parameter_type": {
@@ -2510,7 +2521,7 @@
       "version": "Version"
     },
     "install_progress": "Installationsfortschritt",
-    "installed_at": "OpenClaw installiert unter: {{path}}",
+    "installed_at": "OpenClaw installiert unter",
     "model_config": {
       "auth_token": "Auth-Token",
       "auth_token_hint": "Token für Gateway-Authentifizierung. Leer lassen, um die Authentifizierung zu deaktivieren.",
@@ -2551,6 +2562,11 @@
       "running": "Laufen",
       "starting": "Start",
       "stopped": "Angehalten"
+    },
+    "tips": {
+      "permissions": "OpenClaw hat erweiterte Systemberechtigungen. Nur in vertrauenswürdigen Umgebungen verwenden",
+      "title": "Hinweise",
+      "token_usage": "Der KI-Agentenmodus kann mehr Token verbrauchen. Bitte überwachen Sie Ihre Nutzung"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Sind Sie sicher, dass Sie OpenClaw deinstallieren möchten? Drücken Sie OK, um zu bestätigen.",
@@ -4852,6 +4868,7 @@
           "tip": "Azure OpenAI-API-Version, um Response API zu verwenden, bitte preview-Version eingeben"
         }
       },
+      "balance": "Guthaben",
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -4927,10 +4944,29 @@
         "title": "Modellnotizen"
       },
       "oauth": {
+        "balance": "Guthaben",
         "button": "Mit {{provider}}-Konto anmelden",
+        "cherryIn": {
+          "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
+          "logged_in": "Über OAuth angemeldet",
+          "login_button": "Mit OAuth anmelden",
+          "logout_button": "Abmelden",
+          "title": "OAuth-Anmeldung"
+        },
+        "connect": "Verbinde {{provider}}",
         "description": "Dienst wird von <website>{{provider}}</website> bereitgestellt",
         "error": "Authentifizierung fehlgeschlagen",
-        "official_website": "Offizielle Website"
+        "logged_in": "Angemeldet",
+        "logout": "Abmelden",
+        "logout_confirm": "Bist du sicher, dass du dich abmelden willst?",
+        "logout_success": "Erfolgreich abgemeldet",
+        "logout_warning": "Lokal abgemeldet, aber die Server-Token-Widerrufung ist möglicherweise fehlgeschlagen",
+        "official_website": "Offizielle Website",
+        "provided_by": "Bereitgestellt von",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into German.",
+        "requests": "Anfragen",
+        "topup": "Aufladen",
+        "usage_title": "Verwendung"
       },
       "openai": {
         "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"

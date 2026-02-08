@@ -22,6 +22,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { dbPath } from '../drizzle.config'
+import { DataMigrationService } from './DataMigrationService'
 import { MigrationService } from './MigrationService'
 import * as schema from './schema'
 
@@ -106,9 +107,13 @@ export class DatabaseManager {
       // Create drizzle instance
       this.db = drizzle(this.client, { schema })
 
-      // Run migrations
+      // Run schema migrations
       const migrationService = new MigrationService(this.db, this.client)
       await migrationService.runMigrations()
+
+      // Run data migrations (must run after schema migrations)
+      const dataMigrationService = new DataMigrationService(this.db, this.client)
+      await dataMigrationService.runDataMigrations()
 
       this.state = InitState.INITIALIZED
       logger.info('Database initialized successfully')

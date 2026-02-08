@@ -22,7 +22,7 @@ export function SearchTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Search,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Search}

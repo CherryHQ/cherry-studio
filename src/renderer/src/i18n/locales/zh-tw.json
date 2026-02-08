@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 個任務"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "進行中",
+        "pending": "待處理"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "總是允許此工具",
@@ -2283,6 +2293,7 @@
     },
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
+    "json_parse_error": "無效的 JSON 格式",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -2510,7 +2521,7 @@
       "version": "版本"
     },
     "install_progress": "安裝進度",
-    "installed_at": "OpenClaw 安裝路徑：{{path}}",
+    "installed_at": "OpenClaw 安裝路徑",
     "model_config": {
       "auth_token": "認證令牌",
       "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
@@ -2551,6 +2562,11 @@
       "running": "執行中",
       "starting": "啟動中",
       "stopped": "已停止"
+    },
+    "tips": {
+      "permissions": "OpenClaw 擁有較高的系統權限，建議僅在可信環境中使用",
+      "title": "溫馨提示",
+      "token_usage": "AI 代理模式會消耗較多 Token，請注意用量"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
@@ -4852,6 +4868,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
+      "balance": "餘額",
       "basic_auth": {
         "label": "HTTP 認證",
         "password": {
@@ -4927,10 +4944,29 @@
         "title": "模型備註"
       },
       "oauth": {
+        "balance": "餘額",
         "button": "使用 {{provider}} 帳號登入",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登入 CherryIN",
+          "logged_in": "已透過 OAuth 登入",
+          "login_button": "OAuth 登入",
+          "logout_button": "登出",
+          "title": "OAuth 登入"
+        },
+        "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
-        "official_website": "官方網站"
+        "logged_in": "已登入",
+        "logout": "登出",
+        "logout_confirm": "確定要登出嗎？",
+        "logout_success": "已成功登出",
+        "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
+        "official_website": "官方網站",
+        "provided_by": "本服務由",
+        "provided_by_suffix": " 提供",
+        "requests": "請求數",
+        "topup": "儲值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"

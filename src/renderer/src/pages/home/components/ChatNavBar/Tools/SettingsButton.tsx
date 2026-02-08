@@ -1,3 +1,4 @@
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { Assistant } from '@renderer/types'
 import { Drawer, Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -5,15 +6,19 @@ import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 
-import { NavbarIcon } from '../ChatNavbar'
-import HomeSettings from '../Tabs/SettingsTab'
+import NavbarIcon from '../../../../../components/NavbarIcon'
+import { AgentSettingsTab, AssistantSettingsTab } from './SettingsTab'
 
 interface Props {
-  assistant: Assistant
+  assistant?: Assistant
 }
 
 const SettingsButton: FC<Props> = ({ assistant }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const { chat } = useRuntime()
+
+  const isTopicSettings = chat.activeTopicOrSession === 'topic'
+  const isAgentSettings = chat.activeTopicOrSession === 'session'
 
   return (
     <>
@@ -29,7 +34,8 @@ const SettingsButton: FC<Props> = ({ assistant }) => {
         width="var(--assistants-width)"
         closable={false}
         styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        <HomeSettings assistant={assistant} />
+        {isTopicSettings && assistant && <AssistantSettingsTab assistant={assistant} />}
+        {isAgentSettings && <AgentSettingsTab />}
       </Drawer>
     </>
   )

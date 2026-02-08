@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} εργασίες ολοκληρώθηκαν"
+      },
+      "status": {
+        "completed": "Ολοκληρώθηκε",
+        "in_progress": "Σε εξέλιξη",
+        "pending": "Εκκρεμεί"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Να επιτρέπεται πάντα αυτό το εργαλείο",
@@ -2283,6 +2293,7 @@
     },
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
     "invalid_model": "Μη έγκυρο μοντέλο",
+    "json_parse_error": "Μη έγκυρη μορφή JSON",
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {
@@ -2510,7 +2521,7 @@
       "version": "Έκδοση"
     },
     "install_progress": "Πρόοδος Εγκατάστασης",
-    "installed_at": "Το OpenClaw εγκαταστάθηκε στο: {{path}}",
+    "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
     "model_config": {
       "auth_token": "Διακριτικό Πιστοποίησης",
       "auth_token_hint": "Διακριτικό για έλεγχο ταυτότητας πύλης. Αφήστε το κενό για να απενεργοποιήσετε τον έλεγχο ταυτότητας.",
@@ -2551,6 +2562,11 @@
       "running": "Τρέξιμο",
       "starting": "Έναρξη",
       "stopped": "Σταμάτησε"
+    },
+    "tips": {
+      "permissions": "Το OpenClaw έχει αυξημένα δικαιώματα συστήματος. Χρησιμοποιήστε το μόνο σε αξιόπιστα περιβάλλοντα",
+      "title": "Συμβουλές",
+      "token_usage": "Η λειτουργία πράκτορα AI μπορεί να καταναλώσει περισσότερα tokens. Παρακαλώ παρακολουθήστε τη χρήση σας"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε το OpenClaw; Πατήστε OK για επιβεβαίωση.",
@@ -4852,6 +4868,7 @@
           "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
+      "balance": "Υπόλοιπο",
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -4927,10 +4944,29 @@
         "title": "Σχόλιο Μοντέλου"
       },
       "oauth": {
+        "balance": "Υπόλοιπο",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
+        "cherryIn": {
+          "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
+          "logged_in": "Σύνδεση μέσω OAuth",
+          "login_button": "Σύνδεση με OAuth",
+          "logout_button": "Αποσύνδεση",
+          "title": "Σύνδεση μέσω OAuth"
+        },
+        "connect": "Σύνδεση {{provider}}",
         "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
         "error": "Αποτυχία πιστοποίησης",
-        "official_website": "Επίσημη ιστοσελίδα"
+        "logged_in": "Συνδεδεμένος",
+        "logout": "Αποσύνδεση",
+        "logout_confirm": "Είσαι σίγουρος ότι θέλεις να αποσυνδεθείς;",
+        "logout_success": "Η αποσύνδεση πραγματοποιήθηκε με επιτυχία",
+        "logout_warning": "Αποσυνδέθηκε τοπικά, αλλά η ανάκληση του διακριτικού διακομιστή ενδέχεται να απέτυχε",
+        "official_website": "Επίσημη ιστοσελίδα",
+        "provided_by": "Παρέχεται από",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Greek.",
+        "requests": "Αιτήματα",
+        "topup": "Αναπλήρωση",
+        "usage_title": "Χρήση"
       },
       "openai": {
         "alert": "Ο πάροχος OpenAI δεν υποστηρίζει πλέον την παλιά μέθοδο κλήσης, παρακαλώ δημιουργήστε έναν νέο πάροχο API αν χρησιμοποιείτε τρίτους"

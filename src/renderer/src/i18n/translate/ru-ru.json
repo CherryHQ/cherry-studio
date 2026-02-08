@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} задач выполнено"
+      },
+      "status": {
+        "completed": "Завершено",
+        "in_progress": "В процессе",
+        "pending": "В ожидании"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "Всегда разрешать этот инструмент",
@@ -2283,6 +2293,7 @@
     },
     "function_calling": "Вызов функции",
     "invalid_model": "Недействительная модель",
+    "json_parse_error": "Неверный формат JSON",
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
     "parameter_type": {
@@ -2510,7 +2521,7 @@
       "version": "Версия"
     },
     "install_progress": "Прогресс установки",
-    "installed_at": "OpenClaw установлен в: {{path}}",
+    "installed_at": "OpenClaw установлен в",
     "model_config": {
       "auth_token": "Токен аутентификации",
       "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",
@@ -2551,6 +2562,11 @@
       "running": "Бег",
       "starting": "Начало",
       "stopped": "Остановлено"
+    },
+    "tips": {
+      "permissions": "OpenClaw имеет повышенные системные разрешения. Используйте только в доверенных средах",
+      "title": "Советы",
+      "token_usage": "Режим ИИ-агента может потреблять больше токенов. Пожалуйста, следите за использованием"
     },
     "title": "OpenClaw",
     "uninstall_confirm": "Вы уверены, что хотите удалить OpenClaw? Нажмите OK для подтверждения.",
@@ -4852,6 +4868,7 @@
           "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию v1"
         }
       },
+      "balance": "Баланс",
       "basic_auth": {
         "label": "HTTP аутентификация",
         "password": {
@@ -4927,10 +4944,29 @@
         "title": "Заметки модели"
       },
       "oauth": {
+        "balance": "Баланс",
         "button": "Войти с {{provider}}",
+        "cherryIn": {
+          "description": "Войдите на ваш собственный сервер New-API с помощью OAuth 2.0 (PKCE)",
+          "logged_in": "Вошёл через OAuth",
+          "login_button": "Войти через OAuth",
+          "logout_button": "Выход",
+          "title": "Вход через OAuth"
+        },
+        "connect": "Подключить {{provider}}",
         "description": "Сервис предоставляется <website>{{provider}}</website>",
         "error": "Ошибка аутентификации",
-        "official_website": "Официальный сайт"
+        "logged_in": "Вошёл в систему",
+        "logout": "Выход",
+        "logout_confirm": "Вы уверены, что хотите выйти?",
+        "logout_success": "Выход из системы выполнен успешно",
+        "logout_warning": "Вышел из системы локально, но отзыв токена на сервере, возможно, не удался",
+        "official_website": "Официальный сайт",
+        "provided_by": "Предоставлено",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Russian.",
+        "requests": "Запросы",
+        "topup": "Пополнить",
+        "usage_title": "Использование"
       },
       "openai": {
         "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."

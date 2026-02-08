@@ -1,6 +1,6 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { motion } from 'motion/react'
-import type { SVGProps } from 'react'
+import { type SVGProps, useId } from 'react'
 
 export const StreamlineGoodHealthAndWellBeing = (
   props: SVGProps<SVGSVGElement> & {
@@ -280,6 +280,26 @@ export function McpLogo(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function OpenClawIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      viewBox="0 0 512 512"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="38"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}>
+      <path d="M355 122C366.074 142.794 385.172 157.438 397.55 178C403.065 187.161 406.651 197.118 410.6 207C412.27 211.178 413.364 217.372 416.51 220.682C420.958 225.363 435.646 224.035 442 225.262C456.479 228.057 460.777 240.032 462.571 253C464.556 267.347 457.452 291.851 443 297.867C435.98 300.789 421.474 298.71 416.854 305.148C413.605 309.676 413.632 316.802 411.782 322C406.793 336.022 401.527 350.115 393.988 363C382.895 381.96 368.875 399.865 351 412.842C343.372 418.379 333.453 421.005 326.189 426.699C319.19 432.186 322.004 446.119 322 454C321.998 457.948 322.746 463.363 317.941 464.682C308.587 467.251 295.701 465.001 286 465C282.963 465 277.254 466.036 275.603 462.682C272.178 455.721 279.75 438.06 273.397 433.028C266.35 427.447 247.822 433.608 239 431C236.387 439.841 242.023 455.112 236.972 462.682C234.934 465.737 230.15 464.999 227 465L201 465C197.85 464.999 193.066 465.737 191.028 462.682C184.684 453.175 195.348 437.48 186.656 428.213C181.646 422.872 173.149 420.75 167 416.934C156.277 410.281 146.571 401.633 138.439 392C124.601 375.607 113.059 355.992 105.204 336C101.488 326.539 100.674 314.92 95.6968 306.059C91.4765 298.545 75.3652 300.932 68 297.867C55.7761 292.779 51.1553 275.801 49.4275 264C47.1971 248.767 50.852 229.665 68 225.504C75.3774 223.714 90.2228 225.737 95.7724 220.682C99.4834 217.302 99.821 211.487 101.435 207C104.668 198.014 108.765 189.4 113.309 181C119.454 169.639 126.999 159.754 135.425 150C139.642 145.118 145.405 140.908 148.211 135C153.493 123.878 147.581 111.447 136 107.259C121.594 102.05 96.7067 111.791 87.3665 95.9846C72.6686 71.1106 94.2836 51.9996 118 50.0857C148.398 47.6325 171.045 60.9442 191.999 82C201.272 91.3175 206.494 101.59 221 100.961C234.714 100.365 248.224 99 262 99C270.251 99 280.227 100.543 288 97.3657C298.058 93.2549 305.63 82.0684 314 75.2608C334.579 58.5234 357.175 48.145 384 49.9753C395.368 50.7509 408.742 53.5269 416.061 63.0895C418.934 66.843 420.116 71.3759 420.711 76C421.147 79.3907 420.84 82.6591 420.195 86C414.76 114.169 385.345 100.682 366.001 107.058C357.913 109.723 358.685 118.413 352 122" />
+      <circle cx="200" cy="190" r="30" fill="currentColor" stroke="none" />
+      <circle cx="310" cy="190" r="30" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function PoeLogo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -308,7 +328,7 @@ export function PoeLogo(props: SVGProps<SVGSVGElement>) {
           y1="7.303"
           y2="27.715">
           <stop stopColor="#46A6F7"></stop>
-          <stop offset="1" stop-color="#8364FF"></stop>
+          <stop offset="1" stopColor="#8364FF"></stop>
         </linearGradient>
         <linearGradient
           gradientUnits="userSpaceOnUse"
@@ -318,9 +338,133 @@ export function PoeLogo(props: SVGProps<SVGSVGElement>) {
           y1="23.511"
           y2="9.464">
           <stop stopColor="#FF44D3"></stop>
-          <stop offset="1" stop-color="#CF4BFF"></stop>
+          <stop offset="1" stopColor="#CF4BFF"></stop>
         </linearGradient>
       </defs>
+    </svg>
+  )
+}
+
+// https://code.visualstudio.com/brand
+export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
+  const uid = useId()
+  const maskId = `mask0${uid}`
+  const filter0Id = `filter0_d${uid}`
+  const filter1Id = `filter1_d${uid}`
+  const gradientId = `paint0_linear${uid}`
+
+  return (
+    <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <mask id={maskId} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M70.9119 99.3171C72.4869 99.9307 74.2828 99.8914 75.8725 99.1264L96.4608 89.2197C98.6242 88.1787 100 85.9892 100 83.5872V16.4133C100 14.0113 98.6243 11.8218 96.4609 10.7808L75.8725 0.873756C73.7862 -0.130129 71.3446 0.11576 69.5135 1.44695C69.252 1.63711 69.0028 1.84943 68.769 2.08341L29.3551 38.0415L12.1872 25.0096C10.589 23.7965 8.35363 23.8959 6.86933 25.2461L1.36303 30.2549C-0.452552 31.9064 -0.454633 34.7627 1.35853 36.417L16.2471 50.0001L1.35853 63.5832C-0.454633 65.2374 -0.452552 68.0938 1.36303 69.7453L6.86933 74.7541C8.35363 76.1043 10.589 76.2037 12.1872 74.9905L29.3551 61.9587L68.769 97.9167C69.3925 98.5406 70.1246 99.0104 70.9119 99.3171ZM75.0152 27.2989L45.1091 50.0001L75.0152 72.7012V27.2989Z"
+          fill="white"
+        />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <path
+          d="M96.4614 10.7962L75.8569 0.875542C73.4719 -0.272773 70.6217 0.211611 68.75 2.08333L1.29858 63.5832C-0.515693 65.2373 -0.513607 68.0937 1.30308 69.7452L6.81272 74.754C8.29793 76.1042 10.5347 76.2036 12.1338 74.9905L93.3609 13.3699C96.086 11.3026 100 13.2462 100 16.6667V16.4275C100 14.0265 98.6246 11.8378 96.4614 10.7962Z"
+          fill="#0065A9"
+        />
+        <g filter={`url(#${filter0Id})`}>
+          <path
+            d="M96.4614 89.2038L75.8569 99.1245C73.4719 100.273 70.6217 99.7884 68.75 97.9167L1.29858 36.4169C-0.515693 34.7627 -0.513607 31.9063 1.30308 30.2548L6.81272 25.246C8.29793 23.8958 10.5347 23.7964 12.1338 25.0095L93.3609 86.6301C96.086 88.6974 100 86.7538 100 83.3334V83.5726C100 85.9735 98.6246 88.1622 96.4614 89.2038Z"
+            fill="#007ACC"
+          />
+        </g>
+        <g filter={`url(#${filter1Id})`}>
+          <path
+            d="M75.8578 99.1263C73.4721 100.274 70.6219 99.7885 68.75 97.9166C71.0564 100.223 75 98.5895 75 95.3278V4.67213C75 1.41039 71.0564 -0.223106 68.75 2.08329C70.6219 0.211402 73.4721 -0.273666 75.8578 0.873633L96.4587 10.7807C98.6234 11.8217 100 14.0112 100 16.4132V83.5871C100 85.9891 98.6234 88.1786 96.4586 89.2196L75.8578 99.1263Z"
+            fill="#1F9CF0"
+          />
+        </g>
+        <g style={{ mixBlendMode: 'overlay' }} opacity="0.25">
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M70.8511 99.3171C72.4261 99.9306 74.2221 99.8913 75.8117 99.1264L96.4 89.2197C98.5634 88.1787 99.9392 85.9892 99.9392 83.5871V16.4133C99.9392 14.0112 98.5635 11.8217 96.4001 10.7807L75.8117 0.873695C73.7255 -0.13019 71.2838 0.115699 69.4527 1.44688C69.1912 1.63705 68.942 1.84937 68.7082 2.08335L29.2943 38.0414L12.1264 25.0096C10.5283 23.7964 8.29285 23.8959 6.80855 25.246L1.30225 30.2548C-0.513334 31.9064 -0.515415 34.7627 1.29775 36.4169L16.1863 50L1.29775 63.5832C-0.515415 65.2374 -0.513334 68.0937 1.30225 69.7452L6.80855 74.754C8.29285 76.1042 10.5283 76.2036 12.1264 74.9905L29.2943 61.9586L68.7082 97.9167C69.3317 98.5405 70.0638 99.0104 70.8511 99.3171ZM74.9544 27.2989L45.0483 50L74.9544 72.7012V27.2989Z"
+            fill={`url(#${gradientId})`}
+          />
+        </g>
+      </g>
+      <defs>
+        <filter
+          id={filter0Id}
+          x="-8.39411"
+          y="15.8291"
+          width="116.727"
+          height="92.2456"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB">
+          <feFlood floodOpacity="0" result="BackgroundImageFix" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset />
+          <feGaussianBlur stdDeviation="4.16667" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+          <feBlend mode="overlay" in2="BackgroundImageFix" result="effect1_dropShadow" />
+          <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape" />
+        </filter>
+        <filter
+          id={filter1Id}
+          x="60.4167"
+          y="-8.07558"
+          width="47.9167"
+          height="116.151"
+          filterUnits="userSpaceOnUse"
+          colorInterpolationFilters="sRGB">
+          <feFlood floodOpacity="0" result="BackgroundImageFix" />
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" />
+          <feOffset />
+          <feGaussianBlur stdDeviation="4.16667" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+          <feBlend mode="overlay" in2="BackgroundImageFix" result="effect1_dropShadow" />
+          <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape" />
+        </filter>
+        <linearGradient
+          id={gradientId}
+          x1="49.9392"
+          y1="0.257812"
+          x2="49.9392"
+          y2="99.7423"
+          gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+// https://cursor.com/cn/brand
+export const CursorIcon = (props: SVGProps<SVGSVGElement>) => {
+  return (
+    <svg
+      fill="currentColor"
+      fillRule="evenodd"
+      height="56"
+      viewBox="0 0 24 24"
+      width="56"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ flex: '0 0 auto', lineHeight: 1 }}
+      {...props}>
+      <title>Cursor</title>
+      <path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z"></path>
+    </svg>
+  )
+}
+
+// https://zed.dev/brand
+export const ZedIcon = (props: SVGProps<SVGSVGElement>) => {
+  return (
+    <svg width="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8.4375 5.625C6.8842 5.625 5.625 6.8842 5.625 8.4375V70.3125H0V8.4375C0 3.7776 3.7776 0 8.4375 0H83.7925C87.551 0 89.4333 4.5442 86.7756 7.20186L40.3642 53.6133H53.4375V47.8125H59.0625V55.0195C59.0625 57.3495 57.1737 59.2383 54.8438 59.2383H34.7392L25.0712 68.9062H68.9062V33.75H74.5312V68.9062C74.5312 72.0128 72.0128 74.5312 68.9062 74.5312H19.4462L9.60248 84.375H81.5625C83.1158 84.375 84.375 83.1158 84.375 81.5625V19.6875H90V81.5625C90 86.2224 86.2224 90 81.5625 90H6.20749C2.44898 90 0.566723 85.4558 3.22438 82.7981L49.46 36.5625H36.5625V42.1875H30.9375V35.1562C30.9375 32.8263 32.8263 30.9375 35.1562 30.9375H55.085L64.9288 21.0938H21.0938V56.25H15.4688V21.0938C15.4688 17.9871 17.9871 15.4688 21.0938 15.4688H70.5538L80.3975 5.625H8.4375Z"
+        fill="currentColor"
+      />
     </svg>
   )
 }

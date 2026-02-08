@@ -290,6 +290,16 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} タスク完了"
+      },
+      "status": {
+        "completed": "完了",
+        "in_progress": "進行中",
+        "pending": "保留中"
+      }
+    },
     "toolPermission": {
       "aria": {
         "allowAllRequest": "常にこのツールを許可する",
@@ -2283,6 +2293,7 @@
     },
     "function_calling": "関数呼び出し",
     "invalid_model": "無効なモデル",
+    "json_parse_error": "無効なJSON形式",
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
     "parameter_type": {
@@ -2510,7 +2521,7 @@
       "version": "バージョン"
     },
     "install_progress": "インストール進行状況",
-    "installed_at": "OpenClawのインストール先: {{path}}",
+    "installed_at": "OpenClawのインストール先",
     "model_config": {
       "auth_token": "認証トークン",
       "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
@@ -2551,6 +2562,11 @@
       "running": "走っている",
       "starting": "開始",
       "stopped": "停止しました"
+    },
+    "tips": {
+      "permissions": "OpenClawは高いシステム権限を持っています。信頼できる環境でのみ使用してください",
+      "title": "ヒント",
+      "token_usage": "AIエージェントモードはより多くのトークンを消費する可能性があります。使用量にご注意ください"
     },
     "title": "オープンクロー",
     "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
@@ -4852,6 +4868,7 @@
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、v1バージョンを入力してください"
         }
       },
+      "balance": "バランス",
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -4927,10 +4944,29 @@
         "title": "モデルノート"
       },
       "oauth": {
+        "balance": "残高",
         "button": "{{provider}} アカウントでログイン",
+        "cherryIn": {
+          "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
+          "logged_in": "OAuth経由でログインしました",
+          "login_button": "OAuthでログイン",
+          "logout_button": "ログアウト",
+          "title": "OAuthログイン"
+        },
+        "connect": "{{provider}}に接続",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
         "error": "認証失敗",
-        "official_website": "公式サイト"
+        "logged_in": "ログインしました",
+        "logout": "ログアウト",
+        "logout_confirm": "本当にログアウトしますか？",
+        "logout_success": "正常にログアウトしました",
+        "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
+        "official_website": "公式サイト",
+        "provided_by": "提供",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
+        "requests": "リクエスト",
+        "topup": "チャージ",
+        "usage_title": "使用"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
