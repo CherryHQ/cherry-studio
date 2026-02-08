@@ -48,6 +48,7 @@ import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
 import toolPermissions from './toolPermissions'
+import topicTabs from './topicTabs'
 import translate from './translate'
 import websearch from './websearch'
 
@@ -72,6 +73,7 @@ const rootReducer = combineReducers({
   openclaw,
   selectionStore,
   tabs,
+  topicTabs,
   preprocess,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
@@ -87,7 +89,7 @@ const persistedReducer = persistReducer(
     key: 'cherry-studio',
     storage,
     version: 195,
-    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
+    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'topicTabs', 'toolPermissions'],
     migrate
   },
   rootReducer

@@ -5,6 +5,7 @@ import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import TopicTabBar from '@renderer/components/TopicTabBar'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -198,6 +199,7 @@ const Chat: FC<Props> = (props) => {
                 setActiveAssistant={props.setActiveAssistant}
                 position="left"
               />
+              <TopicTabBar />
               <div
                 className="flex flex-1 flex-col justify-between"
                 style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>

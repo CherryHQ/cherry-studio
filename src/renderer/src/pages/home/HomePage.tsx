@@ -7,6 +7,7 @@ import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { addTopicTab } from '@renderer/store/topicTabs'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
@@ -67,6 +68,7 @@ const HomePage: FC = () => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
         dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
         dispatch(setActiveTopicOrSessionAction('topic'))
+        dispatch(addTopicTab({ topicId: newTopic.id, assistantId: newTopic.assistantId }))
       })
     },
     [_setActiveTopic, dispatch]
