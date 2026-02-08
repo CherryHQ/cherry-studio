@@ -21,6 +21,7 @@ import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
@@ -38,7 +39,7 @@ const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
 const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${configManager.getLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+  `IMPORTANT: You MUST use ${languageEnglishNameMap[configManager.getLanguage()]} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
 
 type UserInputMessage = {
   type: 'user'
