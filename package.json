@@ -107,7 +107,7 @@
     "@ai-sdk/provider": "2.0.0",
     "@ai-sdk/provider-utils": "3.0.17",
     "@ai-sdk/test-server": "^0.0.1",
-    "@ai-sdk/xai": "2.0.36",
+    "@ai-sdk/xai": "2.0.56",
     "@ant-design/cssinjs": "1.23.0",
     "@ant-design/icons": "5.6.1",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",

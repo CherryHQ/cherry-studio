@@ -1,15 +1,14 @@
 import type {
   AnthropicSearchConfig,
   OpenAISearchConfig,
-  WebSearchPluginConfig
+  WebSearchPluginConfig,
+  XAISearchConfig
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
-
-const X_AI_MAX_SEARCH_RESULT = 30
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
@@ -82,20 +81,12 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'xai': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const xaiConfig: XAISearchConfig = {}
+      if (excludeDomains.length > 0) {
+        xaiConfig.excludedDomains = excludeDomains.slice(0, 5)
+      }
       return {
-        xai: {
-          maxSearchResults: Math.min(webSearchConfig.maxResults, X_AI_MAX_SEARCH_RESULT),
-          returnCitations: true,
-          sources: [
-            {
-              type: 'web',
-              excludedWebsites: excludeDomains.slice(0, Math.min(excludeDomains.length, 5))
-            },
-            { type: 'news' },
-            { type: 'x' }
-          ],
-          mode: 'on'
-        }
+        xai: xaiConfig
       }
     }
     case 'openrouter': {
