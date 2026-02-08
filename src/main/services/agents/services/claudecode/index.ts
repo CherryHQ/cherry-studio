@@ -38,8 +38,14 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${languageEnglishNameMap[configManager.getLanguage()]} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+const getLanguageInstruction = () => {
+  const lang = configManager.getLanguage()
+  return `
+  IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
+  (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
+  ${lang === 'en-US' ? '' : 'Never use English unless the content is code, file paths, or technical identifiers.'}
+  `
+}
 
 type UserInputMessage = {
   type: 'user'
