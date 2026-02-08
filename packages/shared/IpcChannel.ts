@@ -422,5 +422,8 @@ export enum IpcChannel {
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
-  OpenClaw_GetChannels = 'openclaw:get-channels'
+  OpenClaw_GetChannels = 'openclaw:get-channels',
+
+  // Analytics
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
 }
