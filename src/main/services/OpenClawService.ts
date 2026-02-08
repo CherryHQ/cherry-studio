@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable, findGitBash } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -188,15 +188,13 @@ class OpenClawService {
    * Refreshes shell env cache to detect newly installed Git
    */
   public async checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-    refreshShellEnvCache()
-    const shellEnv = await getShellEnv()
-
     let gitPath: string | null = null
 
     if (isWin) {
-      // findGitBash with 'git' target checks PATH, common install paths, and LOCALAPPDATA
-      gitPath = findGitBash(null, 'git')
+      gitPath = findGit()
     } else {
+      refreshShellEnvCache()
+      const shellEnv = await getShellEnv()
       gitPath = await findCommandInShellEnv('git', shellEnv)
     }
 
@@ -260,24 +258,19 @@ class OpenClawService {
     // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
     const shellEnv = await getShellEnv()
 
-    // Check if git is available (required by some npm packages during install)
-    // On Windows, findGitBash with 'git' target checks PATH, common install paths, and LOCALAPPDATA
-    const gitPath = isWin ? findGitBash(null, 'git') : await findCommandInShellEnv('git', shellEnv)
-    if (!gitPath) {
-      const message = 'Git is not installed. Please install Git first: https://git-scm.com/downloads'
-      logger.error(message)
-      this.sendInstallProgress(message, 'error')
-      return { success: false, message }
-    }
-
-    // Ensure git's directory is in PATH so npm can find it during install
-    // (e.g. when git is installed but not in the shell environment's PATH)
-    const gitDir = path.dirname(gitPath)
-    const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
-    const currentPath = shellEnv[pathKey] || ''
-    if (!currentPath.split(path.delimiter).includes(gitDir)) {
-      shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
-      logger.info(`Added git directory to PATH: ${gitDir}`)
+    // Try to find git and ensure it's in PATH for npm (some packages require git during install)
+    // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
+    const gitPath = isWin ? findGit() : await findCommandInShellEnv('git', shellEnv)
+    if (gitPath) {
+      const gitDir = path.dirname(gitPath)
+      const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
+      const currentPath = shellEnv[pathKey] || ''
+      if (!currentPath.split(path.delimiter).includes(gitDir)) {
+        shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
+        logger.info(`Added git directory to PATH: ${gitDir}`)
+      }
+    } else {
+      logger.warn('Git not found in environment, npm install may fail if packages require git')
     }
 
     return new Promise((resolve) => {

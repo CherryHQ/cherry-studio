@@ -295,24 +295,54 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   }
 }
 
-export type GitBinaryTarget = 'bash' | 'git'
+/**
+ * Find git.exe on Windows
+ * Checks PATH, common install paths, and LOCALAPPDATA
+ * @returns Full path to git.exe or null if not found
+ */
+export function findGit(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Find git.exe via findExecutable (checks PATH + common Git install paths)
+  const gitPath = findExecutable('git')
+  if (gitPath) {
+    return gitPath
+  }
+
+  // 2. Fallback: check common Git installation paths directly
+  const commonGitRoots = [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
+  ]
+
+  for (const root of commonGitRoots) {
+    const fullPath = path.join(root, 'cmd', 'git.exe')
+    if (fs.existsSync(fullPath)) {
+      logger.debug('Found git.exe at common path', { path: fullPath })
+      return fullPath
+    }
+  }
+
+  logger.debug('git.exe not found - checked PATH and common paths')
+  return null
+}
 
 /**
- * Find a Git-related executable on Windows
- * @param target - Which binary to find: 'bash' for bash.exe (default), 'git' for git.exe
- * @param customPath - Optional custom path from config (only used for 'bash' target)
- * @returns Full path to the executable or null if not found
+ * Find Git Bash (bash.exe) on Windows
+ * @param customPath - Optional custom path from config
+ * @returns Full path to bash.exe or null if not found
  */
-export function findGitBash(customPath?: string | null, target: GitBinaryTarget = 'bash'): string | null {
+export function findGitBash(customPath?: string | null): string | null {
   // Git Bash is Windows-only
   if (!isWin) {
     return null
   }
 
-  const targetExe = target === 'git' ? 'git.exe' : 'bash.exe'
-
-  // 1. Check custom path from config first (bash target only)
-  if (target === 'bash' && customPath) {
+  // 1. Check custom path from config first
+  if (customPath) {
     const validated = validateGitBashPath(customPath)
     if (validated) {
       logger.debug('Using custom Git Bash path from config', { path: validated })
@@ -321,27 +351,20 @@ export function findGitBash(customPath?: string | null, target: GitBinaryTarget 
     logger.warn('Custom Git Bash path provided but invalid', { path: customPath })
   }
 
-  // 2. Check environment variable override (bash target only)
-  if (target === 'bash') {
-    const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
-    if (envOverride) {
-      const validated = validateGitBashPath(envOverride)
-      if (validated) {
-        logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
-        return validated
-      }
-      logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
+  // 2. Check environment variable override
+  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (envOverride) {
+    const validated = validateGitBashPath(envOverride)
+    if (validated) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
+      return validated
     }
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
   // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
   const gitPath = findExecutable('git')
   if (gitPath) {
-    // If looking for git itself, return immediately
-    if (target === 'git') {
-      return gitPath
-    }
-
     // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
     const possibleBashPaths = [
@@ -371,18 +394,15 @@ export function findGitBash(customPath?: string | null, target: GitBinaryTarget 
     ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
   ]
 
-  // For git.exe, check cmd/; for bash.exe, check bin/
-  const subPath = target === 'git' ? path.join('cmd', 'git.exe') : path.join('bin', 'bash.exe')
-
   for (const root of commonGitRoots) {
-    const fullPath = path.join(root, subPath)
+    const fullPath = path.join(root, 'bin', 'bash.exe')
     if (fs.existsSync(fullPath)) {
-      logger.debug(`Found ${targetExe} at common path`, { path: fullPath })
+      logger.debug('Found bash.exe at common path', { path: fullPath })
       return fullPath
     }
   }
 
-  logger.debug(`${targetExe} not found - checked git derivation and common paths`)
+  logger.debug('bash.exe not found - checked git derivation and common paths')
   return null
 }
 
