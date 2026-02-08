@@ -10,6 +10,7 @@ import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { FileMetadata } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
@@ -43,7 +44,15 @@ interface Props {
 const logger = loggerService.withContext('MessageBlockEditor')
 
 const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onCancel }) => {
-  const allBlocks = findAllBlocks(message)
+  const blockEntities = useAppSelector(messageBlocksSelectors.selectEntities)
+  const allBlocks = useMemo(() => {
+    if (!message?.blocks || message.blocks.length === 0) {
+      return []
+    }
+    return message.blocks
+      .map((blockId) => blockEntities[blockId])
+      .filter((block): block is MessageBlock => Boolean(block))
+  }, [blockEntities, message?.blocks])
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -119,6 +128,12 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
     return () => clearTimeout(timer)
   }, [])
+
+  useEffect(() => {
+    if (editedBlocks.length === 0 && allBlocks.length > 0) {
+      setEditedBlocks(allBlocks)
+    }
+  }, [allBlocks, editedBlocks.length])
 
   // 仅在打开时执行一次
   useEffect(() => {
@@ -202,7 +217,16 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
   // 处理编辑区块并上传文件
   const processEditedBlocks = async () => {
-    const updatedBlocks = [...editedBlocks]
+    let updatedBlocks = [...editedBlocks]
+
+    if (!updatedBlocks.some((block) => block.type === MessageBlockType.MAIN_TEXT)) {
+      const originalMainTextBlocks = findAllBlocks(message).filter(
+        (block): block is MessageBlock => block.type === MessageBlockType.MAIN_TEXT
+      )
+      if (originalMainTextBlocks.length > 0) {
+        updatedBlocks = [...originalMainTextBlocks, ...updatedBlocks]
+      }
+    }
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
