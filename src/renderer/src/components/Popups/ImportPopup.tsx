@@ -40,12 +40,16 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
       return null
     }
 
+    // Switch from selecting to importing after user picks a file
+    setSelecting(false)
+    setImporting(true)
+
     const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
     const importerName = source === 'auto' ? undefined : source
     return ImportService.importConversations(fileContent, importerName)
   }
 
-  // Import Claude folder with multiple JSON files (batch import into single assistant)
+  // Import Claude folder with multiple JSON files
   const importClaudeFolder = async () => {
     const folderPath = await window.api.file.selectFolder({
       title: t('import.claude.selectFolder', { defaultValue: 'Select Claude Export Folder' })
@@ -54,6 +58,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
     if (!folderPath) {
       return null
     }
+
+    // Switch from selecting to importing after user picks a folder
+    setSelecting(false)
+    setImporting(true)
 
     // List all files in the folder recursively
     // listDirectory returns an array of file path strings
@@ -79,12 +87,15 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
 
     // Filter to only JSON files (exclude summary files and artifacts folders)
     const jsonFilePaths = (filePaths || []).filter((filePath: string) => {
-      // Must be an absolute path (Unix: /... or Windows: C:/...)
+      // Must be an absolute path (Unix: /... or Windows: C:\...)
       if (!isAbsolutePath(filePath)) return false
-      const fileName = filePath.split('/').pop() || ''
-      const isJson = fileName.endsWith('.json')
-      const isNotSummary = fileName !== '.json' // Exclude summary file at root
-      const isNotInArtifacts = !filePath.includes('/artifacts/') // Exclude artifact JSON files
+      // Normalize separators and case for cross-platform path matching
+      const normalized = filePath.replace(/\\/g, '/')
+      const fileName = normalized.split('/').pop() || ''
+      const lowerName = fileName.toLowerCase()
+      const isJson = lowerName.endsWith('.json')
+      const isNotSummary = lowerName !== '.json' // Exclude summary file at root
+      const isNotInArtifacts = !normalized.toLowerCase().includes('/artifacts/') // Exclude artifact JSON files
       return isJson && isNotSummary && isNotInArtifacts
     })
 
@@ -129,15 +140,12 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
   const onOk = async () => {
     setSelecting(true)
     try {
-      setSelecting(false)
-      setImporting(true)
-
       // For Claude, use folder selection; for others, use file selection
+      // The helpers switch from selecting → importing after the dialog returns
       const result = source === 'claude' ? await importClaudeFolder() : await importSingleFile()
 
       if (!result) {
-        // User cancelled
-        setImporting(false)
+        // User cancelled the file/folder picker
         return
       }
 
@@ -154,6 +162,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
         window.toast.error(result.error || t('import.error.unknown', { defaultValue: 'Unknown error occurred' }))
       }
     } catch (error) {
+      logger.error('Import failed', { error })
       window.toast.error(t('import.error.unknown', { defaultValue: 'Unknown error occurred' }))
       setOpen(false)
     } finally {
@@ -268,7 +277,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, initialSource }) => {
       okText={
         source === 'claude'
           ? t('import.button.folder', { defaultValue: 'Select Folder' })
-          : t('import.button', { defaultValue: 'Select File' })
+          : t('import.chatgpt.button', { defaultValue: 'Select File' })
       }
       okButtonProps={{ disabled: selecting || importing, loading: selecting }}
       cancelButtonProps={{ disabled: selecting || importing }}
