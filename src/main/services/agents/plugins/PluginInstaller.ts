@@ -8,20 +8,11 @@ const logger = loggerService.withContext('PluginInstaller')
 
 export class PluginInstaller {
   async installFilePlugin(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
-    const tempPath = `${destPath}.tmp`
-    let fileCopied = false
-
     try {
-      await fs.promises.copyFile(sourceAbsolutePath, tempPath)
-      fileCopied = true
-      logger.debug('File copied to temp location', { agentId, tempPath })
-
-      await fs.promises.rename(tempPath, destPath)
-      logger.debug('File moved to final location', { agentId, destPath })
+      await fs.promises.copyFile(sourceAbsolutePath, destPath)
+      logger.debug('File copied to destination', { agentId, destPath })
     } catch (error) {
-      if (fileCopied) {
-        await this.safeUnlink(tempPath, 'temp file')
-      }
+      await this.safeUnlink(destPath, 'partial file')
       throw this.toPluginError('install', error)
     }
   }
@@ -74,8 +65,6 @@ export class PluginInstaller {
 
   async installSkill(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
     const logContext = logger.withContext('installSkill')
-    let folderCopied = false
-    const tempPath = `${destPath}.tmp`
 
     try {
       try {
@@ -86,16 +75,10 @@ export class PluginInstaller {
         // No existing folder
       }
 
-      await copyDirectoryRecursive(sourceAbsolutePath, tempPath)
-      folderCopied = true
-      logContext.info('Skill folder copied to temp location', { agentId, tempPath })
-
-      await fs.promises.rename(tempPath, destPath)
-      logContext.info('Skill folder moved to final location', { agentId, destPath })
+      await copyDirectoryRecursive(sourceAbsolutePath, destPath)
+      logContext.info('Skill folder copied to destination', { agentId, destPath })
     } catch (error) {
-      if (folderCopied) {
-        await this.safeRemoveDirectory(tempPath, 'temp folder')
-      }
+      await this.safeRemoveDirectory(destPath, 'partial skill folder')
       throw this.toPluginError('install-skill', error)
     }
   }
