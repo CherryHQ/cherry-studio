@@ -33,7 +33,7 @@ Tool use is formatted using XML-style tags. The tool name is enclosed in opening
   <arguments>{json_arguments}</arguments>
 </tool_use>
 
-The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. For example:
+The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. IMPORTANT: When writing JSON inside the <arguments> tag, any double quotes inside string values must be escaped with a backslash ("). For example:
 <tool_use>
   <name>search</name>
   <arguments>{ "query": "browser,fetch" }</arguments>
@@ -41,7 +41,7 @@ The tool name should be the exact name of the tool you are using, and the argume
 
 <tool_use>
   <name>exec</name>
-  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: "https://example.com" })\nreturn page" }</arguments>
+  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: \\"https://example.com\\" })\nreturn page" }</arguments>
 </tool_use>
 
 
@@ -312,6 +312,16 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
       // 只有当有非 provider-defined 工具时才保存到 context
       if (Object.keys(promptTools).length > 0) {
         context.mcpTools = promptTools
+      }
+
+      // 递归调用时，不重新构建 system prompt，避免重复追加工具定义
+      if (context.isRecursiveCall) {
+        const transformedParams = {
+          ...params,
+          tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
+        }
+        context.originalParams = transformedParams
+        return transformedParams
       }
 
       // 构建系统提示符（只包含非 provider-defined 工具）

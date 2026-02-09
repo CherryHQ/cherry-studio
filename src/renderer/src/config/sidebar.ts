@@ -15,7 +15,8 @@ import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 //   'knowledge',
 //   'files',
 //   'code_tools',
-//   'notes'
+//   'notes',
+// 'openclaw'
 // ]
 
 /**

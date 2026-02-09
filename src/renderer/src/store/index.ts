@@ -16,6 +16,7 @@
  */
 import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -38,6 +39,7 @@ import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
+import openclaw from './openclaw'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
@@ -67,6 +69,7 @@ const rootReducer = combineReducers({
   mcp,
   memory,
   copilot,
+  openclaw,
   selectionStore,
   tabs,
   preprocess,
@@ -83,7 +86,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 194,
+    version: 195,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
@@ -136,6 +139,24 @@ export const persistor = persistStore(store, undefined, () => {
       }
     }, 0)
   }
+
+  // Notify main process that Redux store is ready
+  window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+  logger.info('Redux store ready, notified main process')
+})
+
+// Subscribe to store changes and notify main process (throttled to avoid performance issues)
+let throttleTimer: ReturnType<typeof setTimeout> | null = null
+store.subscribe(() => {
+  if (throttleTimer) return
+  throttleTimer = setTimeout(() => {
+    throttleTimer = null
+    // Guard for test environment where window may not exist (test tear-down)
+    if (typeof window === 'undefined') return
+    const state = store.getState()
+    // Guard for test environment where window.electron may not exist
+    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
+  }, 100) // 100ms throttle
 })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()

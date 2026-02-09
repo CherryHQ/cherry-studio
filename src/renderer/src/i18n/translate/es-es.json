@@ -154,24 +154,43 @@
         "error": {
           "install": "Error al instalar el complemento",
           "load": "Error al cargar el complemento",
+          "load_more": "Error al cargar más complementos",
           "uninstall": "Error al desinstalar el complemento"
         },
         "filter": {
           "all": "Todas las categorías"
         },
-        "install": "instalación",
+        "install": {
+          "button": "Instalar",
+          "title": "Instalar complementos"
+        },
         "installed": {
           "empty": "Aún no se ha instalado ningún complemento. Explora los complementos disponibles para comenzar.",
-          "title": "Complemento instalado"
+          "title": "Plugins Instalados"
         },
         "installing": "Instalando...",
+        "plugin_upload": {
+          "all_failed": "Todos los componentes {{failed}} fallaron al instalarse",
+          "error": "La instalación falló",
+          "format_hint": "Admite paquetes de complementos (.claude-plugin/plugin.json)",
+          "hint": "Arrastra y suelta aquí el ZIP del plugin o haz clic para seleccionar",
+          "invalid_format": "Por favor, sube un archivo ZIP",
+          "partial_success": "Plugin \"{{name}}\" parcialmente instalado: {{installed}} instalado, {{failed}} falló",
+          "select_folder": "Seleccionar carpeta",
+          "select_folder_title": "Seleccionar Carpeta de Complementos",
+          "success": "Plugin \"{{name}}\" instalado con éxito ({{count}} componentes)",
+          "success_multi": "Instalados {{count}} componentes de {{packages}} paquetes",
+          "uploading": "Cargando e instalando..."
+        },
         "results": "Encontrados {{count}} complementos",
         "search": {
           "placeholder": "Buscar complemento..."
         },
+        "standalone_plugins": "Plugins independientes",
         "success": {
           "install": "Complemento instalado con éxito",
-          "uninstall": "Complemento desinstalado correctamente"
+          "uninstall": "Complemento desinstalado correctamente",
+          "uninstall_package": "Paquete \"{{name}}\" desinstalado correctamente"
         },
         "tab": "complemento",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "habilidad"
         },
         "uninstall": "Desinstalar",
+        "uninstall_package": "Desinstalar paquete",
+        "uninstall_package_confirm": "¿Estás seguro de que quieres desinstalar el paquete completo \"{{name}}\"? Esto eliminará {{count}} componente(s).",
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configuración de indicaciones",
@@ -267,6 +288,16 @@
         "tab": "Herramientas preaprobadas",
         "title": "Herramientas preaprobadas",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tareas completadas"
+      },
+      "status": {
+        "completed": "Completado",
+        "in_progress": "En progreso",
+        "pending": "Pendiente"
       }
     },
     "toolPermission": {
@@ -711,15 +742,6 @@
       "view_full_content": "Ver contenido completo"
     },
     "input": {
-      "activity_directory": {
-        "description": "Seleccionar archivo del directorio de actividad",
-        "loading": "Cargando archivos...",
-        "no_file_found": {
-          "description": "No hay archivos disponibles en los directorios accesibles",
-          "label": "No se encontró ningún archivo"
-        },
-        "title": "Directorio de Actividades"
-      },
       "auto_resize": "Ajuste automático de altura",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
@@ -749,6 +771,24 @@
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agentes",
+          "files": "Archivos",
+          "skills": "Habilidades"
+        },
+        "description": "Selecciona entre archivos, agentes o habilidades",
+        "loading": "Cargando...",
+        "no_file_found": {
+          "description": "No hay archivos disponibles en los directorios accesibles",
+          "label": "No se encontró ningún archivo"
+        },
+        "no_items_found": {
+          "description": "Sin archivos, agentes o habilidades disponibles",
+          "label": "No se encontraron elementos"
+        },
+        "title": "Recursos"
+      },
       "send": "Enviar",
       "settings": "Configuración",
       "slash_commands": {
@@ -1236,6 +1276,9 @@
       "validation": "Fallo en la verificación"
     },
     "expand": "Expandir",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tipo de archivo no compatible {{type}}"
     },
@@ -1284,6 +1327,7 @@
     "rename": "Renombrar",
     "required_field": "Campo obligatorio",
     "reset": "Restablecer",
+    "retry": "Reintentar",
     "save": "Guardar",
     "saved": "Guardado",
     "search": "Buscar",
@@ -1633,9 +1677,6 @@
     "notes": "Notas",
     "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
     "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
-    "quota": "Cupo restante de {{name}}: {{quota}}",
-    "quota_empty": "La cuota de {{name}} de hoy está agotada, por favor solicítela en el sitio web oficial",
-    "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
@@ -1892,6 +1933,9 @@
         "model": "Seleccione un modelo",
         "name": "Ingrese el nombre de la base de conocimiento"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Error al asignar nombre al tema",
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "invalid": {
@@ -1930,6 +1974,9 @@
       "siyuan": {
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Error desconocido",
       "yuque": {
@@ -2017,6 +2064,9 @@
     },
     "searching": "Buscando en línea...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportado con éxito a Joplin"
       },
@@ -2076,7 +2126,9 @@
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "sections": {
+        "args": "Argumentos",
         "command": "Comando",
+        "content": "Contenido",
         "exitCode": "Código de Salida",
         "input": "Entrada",
         "output": "Salida",
@@ -2093,6 +2145,7 @@
         "running": "Corriendo",
         "success": "Éxito"
       },
+      "streaming": "Transmisión",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Hecho",
@@ -2240,6 +2293,7 @@
     },
     "function_calling": "Llamada a función",
     "invalid_model": "Modelo inválido",
+    "json_parse_error": "Formato JSON no válido",
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
     "parameter_type": {
@@ -2451,6 +2505,80 @@
       "title": "Tiempo de Actividad"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "Comprobando la instalación de OpenClaw...",
+    "description": "Integra los proveedores de Cherry Studio con OpenClaw Gateway para habilitar agentes de codificación con IA como Claude Code, Qwen-Coder y más.",
+    "error": {
+      "select_provider_model": "Por favor, selecciona primero un proveedor y un modelo."
+    },
+    "gateway": {
+      "port": "Puerto",
+      "restart": "Reiniciar",
+      "start": "Iniciar Gateway",
+      "status": "Estado",
+      "stop": "Detente",
+      "version": "Versión"
+    },
+    "install_progress": "Progreso de instalación",
+    "installed_at": "OpenClaw instalado en",
+    "model_config": {
+      "auth_token": "Token de autenticación",
+      "auth_token_hint": "Token para autenticación de puerta de enlace. Dejar vacío para desactivar la autenticación.",
+      "auth_token_placeholder": "Introduce o genera un token",
+      "generate_token": "Generar",
+      "model": "Modelo",
+      "provider": "Proveedor",
+      "select_model": "Selecciona un modelo",
+      "select_provider": "Seleccione un proveedor",
+      "sync_hint": "El proveedor y el modelo seleccionados se sincronizarán con el archivo de configuración de OpenClaw.",
+      "title": "Configuración del modelo"
+    },
+    "not_installed": {
+      "description": "OpenClaw no está instalado en tu sistema. Por favor, instálalo primero para usar esta función.",
+      "install_button": "Instalar OpenClaw",
+      "install_guide_title": "Guía de Instalación",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Actualizar",
+      "step2_hint": "Después de la instalación, haz clic en el botón Actualizar de arriba para detectar OpenClaw",
+      "step2_title": "Paso 2: Verificar la instalación",
+      "title": "OpenClaw No Instalado",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw requiere Node.js/npm. Por favor, instala Node.js primero y luego reinicia Cherry Studio.",
+      "download_button": "Descargar Node.js",
+      "hint": "macOS: brew install node | Windows: Descarga la versión LTS desde nodejs.org",
+      "title": "Node.js Requerido"
+    },
+    "quick_actions": {
+      "open_dashboard": "Abrir Panel de Control",
+      "title": "Acciones Rápidas",
+      "uninstall": "Desinstalar",
+      "view_docs": "Ver Documentación"
+    },
+    "status": {
+      "error": "Error",
+      "running": "Corriendo",
+      "starting": "Comenzando",
+      "stopped": "Detenido"
+    },
+    "tips": {
+      "permissions": "OpenClaw tiene permisos elevados del sistema. Usar solo en entornos de confianza",
+      "title": "Consejos",
+      "token_usage": "El modo de agente IA puede consumir más tokens. Por favor, monitoree su uso"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "¿Estás seguro de que quieres desinstalar OpenClaw? Presiona OK para confirmar.",
+    "uninstall_progress": "Desinstalación en progreso",
+    "uninstalled": {
+      "description": "OpenClaw se ha desinstalado correctamente.",
+      "title": "Desinstalación completada"
+    },
+    "uninstalling": {
+      "description": "Por favor espera mientras se desinstala OpenClaw...",
+      "title": "Desinstalando OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -2738,6 +2866,7 @@
     "category": "Categoría",
     "commands": "comando",
     "confirm_uninstall": "¿Estás seguro de que quieres desinstalar {{name}}?",
+    "confirm_uninstall_package": "¿Estás seguro de que deseas desinstalar el paquete {{name}} y todos sus componentes?",
     "content_saved": "Contenido del plugin guardado exitosamente",
     "detail": {
       "allowed_tools": "Herramientas Permitidas",
@@ -2764,10 +2893,22 @@
     "showing_results_one": "Mostrar {{count}} complementos",
     "showing_results_other": "Mostrar {{count}} complementos",
     "showing_results_plural": "Mostrar {{count}} complementos",
+    "showing_results_skills": "Mostrando {{count}} habilidad",
+    "showing_results_skills_one": "Mostrando {{count}} habilidad",
+    "showing_results_skills_other": "Mostrando {{count}} habilidades",
+    "showing_results_skills_plural": "Mostrando {{count}} habilidades",
     "skills": "habilidad",
+    "sort": {
+      "downloads": "Descargas",
+      "label": "Ordenar",
+      "relevance": "Relevancia",
+      "stars": "Estrellas"
+    },
+    "standalone_plugins": "Complementos Independientes",
     "try_different_search": "Por favor, intenta ajustar la búsqueda o los filtros de categoría.",
     "type": "tipo",
     "uninstall": "Desinstalar",
+    "uninstall_package": "Desinstalar Paquete",
     "uninstalling": "Desinstalando..."
   },
   "preview": {
@@ -4727,6 +4868,7 @@
           "tip": "Versión de la API de Azure OpenAI; si desea usar la API de respuesta, ingrese una versión de vista previa"
         }
       },
+      "balance": "Saldo disponible",
       "basic_auth": {
         "label": "Autenticación HTTP",
         "password": {
@@ -4802,10 +4944,29 @@
         "title": "Nota del modelo"
       },
       "oauth": {
+        "balance": "Saldo",
         "button": "Iniciar sesión con la cuenta de {{provider}}",
+        "cherryIn": {
+          "description": "Inicia sesión con tu servidor New-API autoalojado mediante OAuth 2.0 (PKCE)",
+          "logged_in": "Conectado a través de OAuth",
+          "login_button": "Iniciar sesión con OAuth",
+          "logout_button": "Cerrar sesión",
+          "title": "Inicio de sesión con OAuth"
+        },
+        "connect": "Conectar {{provider}}",
         "description": "Este servicio es proporcionado por <website>{{provider}}</website>",
         "error": "Fallo en la autenticación",
-        "official_website": "Sitio web oficial"
+        "logged_in": "Conectado",
+        "logout": "Cerrar sesión",
+        "logout_confirm": "¿Estás seguro de que quieres cerrar sesión?",
+        "logout_success": "Cierre de sesión exitoso",
+        "logout_warning": "Desconectado localmente, pero la revocación del token del servidor puede haber fallado",
+        "official_website": "Sitio web oficial",
+        "provided_by": "Proporcionado por",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Spanish.",
+        "requests": "Solicitudes",
+        "topup": "Recargar",
+        "usage_title": "Uso"
       },
       "openai": {
         "alert": "El proveedor de OpenAI ya no admite el método de llamada antiguo; si utiliza una API de terceros, cree un nuevo proveedor"
@@ -5153,6 +5314,7 @@
     "mcp-servers": "Servidores MCP",
     "memories": "Memorias",
     "notes": "notas",
+    "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configuración",
     "store": "Biblioteca de asistentes",

@@ -3,12 +3,149 @@ import type { PluginError, PluginMetadata } from '@types'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
 import matter from 'gray-matter'
-import * as yaml from 'js-yaml'
 import * as path from 'path'
+import { parse } from 'yaml'
 
 import { getDirectorySize } from './fileOperations'
 
 const logger = loggerService.withContext('Utils:MarkdownParser')
+
+const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
+
+// Skill markdown filename variants (case-insensitive support)
+const SKILL_MD_VARIANTS = ['SKILL.md', 'skill.md']
+
+/**
+ * Find the skill markdown file in a directory (supports SKILL.md or skill.md)
+ * @returns The full path to the skill file if found, null otherwise
+ */
+export async function findSkillMdPath(dirPath: string): Promise<string | null> {
+  for (const variant of SKILL_MD_VARIANTS) {
+    const skillMdPath = path.join(dirPath, variant)
+    try {
+      await fs.promises.stat(skillMdPath)
+      return skillMdPath
+    } catch {
+      // Try next variant
+    }
+  }
+  return null
+}
+
+/**
+ * Check if a directory entry is a directory or a symlink pointing to a directory
+ * Follows symlinks to determine if they point to valid directories
+ */
+async function isDirectoryOrSymlinkToDirectory(entry: fs.Dirent, parentDir: string): Promise<boolean> {
+  if (entry.isDirectory()) {
+    return true
+  }
+  if (entry.isSymbolicLink()) {
+    try {
+      const fullPath = path.join(parentDir, entry.name)
+      const stats = await fs.promises.stat(fullPath) // stat follows symlinks
+      return stats.isDirectory()
+    } catch {
+      // Broken symlink or permission error
+      return false
+    }
+  }
+  return false
+}
+
+type FrontmatterContext = {
+  filePath?: string
+  skillMdPath?: string
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string'
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.filter(isString)
+  }
+  if (isString(value)) {
+    return value
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+  }
+  return undefined
+}
+
+function toString(value: unknown): string | undefined {
+  return isString(value) ? value : undefined
+}
+
+function parseLooseValue(raw: string): unknown {
+  if (!raw) return ''
+  try {
+    const parsed = parse(raw, YAML_PARSE_OPTIONS)
+    return parsed === undefined ? raw : parsed
+  } catch {
+    return raw
+  }
+}
+
+function parseFrontmatterLoose(content: string): Record<string, unknown> {
+  const lines = content.split(/\r?\n/)
+  if (lines.length === 0 || lines[0].trim() !== '---') {
+    return {}
+  }
+
+  let endIndex = -1
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i].trim() === '---') {
+      endIndex = i
+      break
+    }
+  }
+  if (endIndex === -1) {
+    return {}
+  }
+
+  const frontmatterLines = lines.slice(1, endIndex)
+  const data: Record<string, unknown> = {}
+  let currentKey: string | null = null
+  let buffer: string[] = []
+
+  const flush = () => {
+    if (!currentKey) return
+    const rawValue = buffer.join('\n').trim()
+    data[currentKey] = parseLooseValue(rawValue)
+    buffer = []
+    currentKey = null
+  }
+
+  for (const line of frontmatterLines) {
+    const keyMatch = line.match(/^([A-Za-z0-9_-]+)\s*:(.*)$/)
+    if (keyMatch) {
+      flush()
+      currentKey = keyMatch[1]
+      const rest = keyMatch[2].trimStart()
+      if (rest.length > 0) {
+        data[currentKey] = parseLooseValue(rest)
+        currentKey = null
+      }
+      continue
+    }
+    if (currentKey) {
+      buffer.push(line)
+    }
+  }
+
+  flush()
+  return data
+}
+
+function recoverFrontmatter(content: string, context: FrontmatterContext): Record<string, unknown> {
+  const data = parseFrontmatterLoose(content)
+  logger.warn('Recovered frontmatter using loose parser', {
+    ...context,
+    keys: Object.keys(data)
+  })
+  return data
+}
 
 /**
  * Parse plugin metadata from a markdown file with frontmatter
@@ -28,11 +165,21 @@ export async function parsePluginMetadata(
   const stats = await fs.promises.stat(filePath)
 
   // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks
-  const { data } = matter(content, {
-    engines: {
-      yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA }) as object
-    }
-  })
+  let data: Record<string, unknown> = {}
+  try {
+    const parsed = matter(content, {
+      engines: {
+        yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
+      }
+    })
+    data = (parsed.data ?? {}) as Record<string, unknown>
+  } catch (error: any) {
+    logger.warn('Failed to parse plugin frontmatter, attempting recovery', {
+      filePath,
+      error: error?.message || String(error)
+    })
+    data = recoverFrontmatter(content, { filePath })
+  }
 
   // Calculate content hash for integrity checking
   const contentHash = crypto.createHash('sha256').update(content).digest('hex')
@@ -41,76 +188,53 @@ export async function parsePluginMetadata(
   const filename = path.basename(filePath)
 
   // Parse allowed_tools - handle both array and comma-separated string
-  let allowedTools: string[] | undefined
-  if (data['allowed-tools'] || data.allowed_tools) {
-    const toolsData = data['allowed-tools'] || data.allowed_tools
-    if (Array.isArray(toolsData)) {
-      allowedTools = toolsData
-    } else if (typeof toolsData === 'string') {
-      allowedTools = toolsData
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    }
-  }
+  const allowedTools = toStringArray(data['allowed-tools'] ?? data.allowed_tools)
 
   // Parse tools - similar handling
-  let tools: string[] | undefined
-  if (data.tools) {
-    if (Array.isArray(data.tools)) {
-      tools = data.tools
-    } else if (typeof data.tools === 'string') {
-      tools = data.tools
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    }
-  }
+  const tools = toStringArray(data.tools)
 
   // Parse tags
-  let tags: string[] | undefined
-  if (data.tags) {
-    if (Array.isArray(data.tags)) {
-      tags = data.tags
-    } else if (typeof data.tags === 'string') {
-      tags = data.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    }
-  }
+  const tags = toStringArray(data.tags)
+
+  const name = toString(data.name) ?? filename.replace(/\.md$/, '')
+  const description = toString(data.description)
+  const version = toString(data.version)
+  const author = toString(data.author)
 
   return {
     sourcePath,
     filename,
-    name: data.name || filename.replace(/\.md$/, ''),
-    description: data.description,
+    name,
+    description,
     allowed_tools: allowedTools,
     tools,
     category,
     type,
     tags,
-    version: data.version,
-    author: data.author,
+    version,
+    author,
     size: stats.size,
     contentHash
   }
 }
 
 /**
- * Recursively find all directories containing SKILL.md
+ * Recursively find all directories containing SKILL.md or skill.md
+ * Supports symlinks and deduplicates by skill name
  *
  * @param dirPath - Directory to search in
  * @param basePath - Base path for calculating relative source paths
  * @param maxDepth - Maximum depth to search (default: 10 to prevent infinite loops)
  * @param currentDepth - Current search depth (used internally)
+ * @param seen - Set of already seen skill names (for deduplication)
  * @returns Array of objects with absolute folder path and relative source path
  */
 export async function findAllSkillDirectories(
   dirPath: string,
   basePath: string,
   maxDepth = 10,
-  currentDepth = 0
+  currentDepth = 0,
+  seen: Set<string> = new Set()
 ): Promise<Array<{ folderPath: string; sourcePath: string }>> {
   const results: Array<{ folderPath: string; sourcePath: string }> = []
 
@@ -119,20 +243,23 @@ export async function findAllSkillDirectories(
     return results
   }
 
-  // Check if current directory contains SKILL.md
-  const skillMdPath = path.join(dirPath, 'SKILL.md')
+  // Check if current directory contains SKILL.md or skill.md
+  const skillMdPath = await findSkillMdPath(dirPath)
 
-  try {
-    await fs.promises.stat(skillMdPath)
-    // Found SKILL.md in this directory
-    const relativePath = path.relative(basePath, dirPath)
-    results.push({
-      folderPath: dirPath,
-      sourcePath: relativePath
-    })
+  if (skillMdPath) {
+    // Found skill markdown in this directory
+    const skillName = path.basename(dirPath)
+
+    // Deduplicate: only add if we haven't seen this skill name yet
+    if (!seen.has(skillName)) {
+      seen.add(skillName)
+      const relativePath = path.relative(basePath, dirPath)
+      results.push({
+        folderPath: dirPath,
+        sourcePath: relativePath
+      })
+    }
     return results
-  } catch {
-    // SKILL.md not in current directory
   }
 
   // Only search subdirectories if current directory doesn't have SKILL.md
@@ -140,9 +267,10 @@ export async function findAllSkillDirectories(
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
     for (const entry of entries) {
-      if (entry.isDirectory()) {
+      // Support both directories and symlinks pointing to directories
+      if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)
-        const subResults = await findAllSkillDirectories(subDirPath, basePath, maxDepth, currentDepth + 1)
+        const subResults = await findAllSkillDirectories(subDirPath, basePath, maxDepth, currentDepth + 1, seen)
         results.push(...subResults)
       }
     }
@@ -180,22 +308,17 @@ export async function parseSkillMetadata(
     } as PluginError
   }
 
-  // Look for SKILL.md directly in this folder (no recursion)
-  const skillMdPath = path.join(skillFolderPath, 'SKILL.md')
+  // Look for SKILL.md or skill.md directly in this folder (no recursion)
+  const skillMdPath = await findSkillMdPath(skillFolderPath)
 
-  // Check if SKILL.md exists
-  try {
-    await fs.promises.stat(skillMdPath)
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      logger.error('SKILL.md not found in skill folder', { skillMdPath })
-      throw {
-        type: 'FILE_NOT_FOUND',
-        path: skillMdPath,
-        message: 'SKILL.md not found in skill folder'
-      } as PluginError
-    }
-    throw error
+  // Check if skill markdown exists
+  if (!skillMdPath) {
+    logger.error('SKILL.md or skill.md not found in skill folder', { skillFolderPath })
+    throw {
+      type: 'FILE_NOT_FOUND',
+      path: path.join(skillFolderPath, 'SKILL.md'),
+      message: 'SKILL.md or skill.md not found in skill folder'
+    } as PluginError
   }
 
   // Read SKILL.md content
@@ -212,21 +335,20 @@ export async function parseSkillMetadata(
   }
 
   // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks
-  let data: any
+  let data: Record<string, unknown> = {}
   try {
     const parsed = matter(content, {
       engines: {
-        yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA }) as object
+        yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
       }
     })
-    data = parsed.data
+    data = (parsed.data ?? {}) as Record<string, unknown>
   } catch (error: any) {
-    logger.error('Failed to parse SKILL.md frontmatter', { skillMdPath, error })
-    throw {
-      type: 'INVALID_METADATA',
-      reason: `Failed to parse frontmatter: ${error.message}`,
-      path: skillMdPath
-    } as PluginError
+    logger.warn('Failed to parse SKILL.md frontmatter, attempting recovery', {
+      skillMdPath,
+      error: error?.message || String(error)
+    })
+    data = recoverFrontmatter(content, { skillMdPath })
   }
 
   // Calculate hash of SKILL.md only (not entire folder)
@@ -248,43 +370,22 @@ export async function parseSkillMetadata(
   }
 
   // Parse tools (skills use 'tools', not 'allowed_tools')
-  let tools: string[] | undefined
-  if (data.tools) {
-    if (Array.isArray(data.tools)) {
-      // Validate all elements are strings
-      tools = data.tools.filter((t) => typeof t === 'string')
-    } else if (typeof data.tools === 'string') {
-      tools = data.tools
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    }
-  }
+  const tools = toStringArray(data.tools)
 
   // Parse tags
-  let tags: string[] | undefined
-  if (data.tags) {
-    if (Array.isArray(data.tags)) {
-      // Validate all elements are strings
-      tags = data.tags.filter((t) => typeof t === 'string')
-    } else if (typeof data.tags === 'string') {
-      tags = data.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    }
-  }
+  const tags = toStringArray(data.tags)
 
   // Validate and sanitize name
-  const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : folderName
+  const rawName = toString(data.name)
+  const name = rawName && rawName.trim() ? rawName.trim() : folderName
 
   // Validate and sanitize description
-  const description =
-    typeof data.description === 'string' && data.description.trim() ? data.description.trim() : undefined
+  const rawDescription = toString(data.description)
+  const description = rawDescription && rawDescription.trim() ? rawDescription.trim() : undefined
 
   // Validate version and author
-  const version = typeof data.version === 'string' ? data.version : undefined
-  const author = typeof data.author === 'string' ? data.author : undefined
+  const version = toString(data.version)
+  const author = toString(data.author)
 
   logger.debug('Successfully parsed skill metadata', {
     skillFolderPath,

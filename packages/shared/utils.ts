@@ -1,7 +1,34 @@
+import { parse as jsoncParse } from 'jsonc-parser'
+
 export const defaultAppHeaders = () => {
   return {
     'HTTP-Referer': 'https://cherry-ai.com',
     'X-Title': 'Cherry Studio'
+  }
+}
+
+/**
+ * Removes the trailing slash from a URL string if it exists.
+ */
+export function withoutTrailingSlash(url: string): string {
+  return url.replace(/\/$/, '')
+}
+
+/**
+ * Matches a version segment anywhere in a URL path (e.g., /v1, /v2beta, /v3alpha).
+ */
+const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
+
+/**
+ * Checks if a URL's path contains a version segment (e.g., /v1, /v2beta, /v3alpha).
+ * Unlike getTrailingApiVersion, this checks for versions anywhere in the path.
+ */
+export function hasAPIVersion(host: string): boolean {
+  try {
+    const url = new URL(host)
+    return VERSION_REGEX.test(url.pathname)
+  } catch {
+    return VERSION_REGEX.test(host)
   }
 }
 
@@ -165,4 +192,48 @@ export function isBase64ImageDataUrl(url: string): boolean {
   }
   const header = url.slice(5, commaIndex)
   return header.includes(';base64')
+}
+
+// === JSONC Parsing Utilities ===
+
+// Sensitive environment variable keys to redact in logs
+export const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
+
+// Keys that don't represent functional configuration content
+export const NON_FUNCTIONAL_KEYS = ['$schema']
+
+/**
+ * Parse JSON with comments (JSONC) support
+ * Uses jsonc-parser library for safe parsing without code execution
+ */
+export function parseJSONC(content: string): Record<string, any> | null {
+  try {
+    const result = jsoncParse(content, undefined, {
+      allowTrailingComma: true,
+      disallowComments: false
+    })
+    return result && typeof result === 'object' ? result : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get functional keys from a config object (excluding non-functional keys like $schema)
+ */
+export function getFunctionalKeys(obj: Record<string, any>): string[] {
+  return Object.keys(obj).filter((key) => !NON_FUNCTIONAL_KEYS.includes(key))
+}
+
+/**
+ * Sanitize environment variables for safe logging
+ * Redacts values of sensitive keys to prevent credential leakage
+ */
+export function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
+  const sanitized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
+    sanitized[key] = isSensitive ? '<redacted>' : value
+  }
+  return sanitized
 }

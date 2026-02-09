@@ -30,7 +30,7 @@ export function TaskTool({
   }, [output, hasOutput])
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Task,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Task}
