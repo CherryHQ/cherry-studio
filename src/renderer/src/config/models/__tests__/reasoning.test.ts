@@ -2473,3 +2473,29 @@ describe('Kimi Models', () => {
     })
   })
 })
+
+describe('Fireworks provider model name normalization', () => {
+  it('should detect DeepSeek hybrid inference models from Fireworks', () => {
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p1' }))).toBe(true)
+  })
+
+  it('should detect Kimi reasoning models from Fireworks', () => {
+    expect(isKimiReasoningModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
+  })
+
+  it('should detect Zhipu thinking models from Fireworks', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p5' }))).toBe(true)
+  })
+
+  it('should detect MiniMax reasoning models from Fireworks', () => {
+    expect(isMiniMaxReasoningModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+  })
+
+  it('should detect interleaved thinking models from Fireworks', () => {
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
+  })
+})
