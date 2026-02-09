@@ -1,7 +1,6 @@
 import { Switch } from '@cherrystudio/ui'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import type {
   AgentConfiguration,
   GetAgentResponse,
@@ -70,7 +69,6 @@ const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
 const unique = (values: string[]) => Array.from(new Set(values))
 
 export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, update }) => {
-  const { containerRef, handleScroll } = useScrollPosition('AgentToolingSettings', 100)
   const { t } = useTranslation()
   const { mcpServers: allServers } = useMCPServers()
   const [modal, contextHolder] = Modal.useModal()
@@ -260,7 +258,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   }
 
   return (
-    <SettingsContainer ref={containerRef} onScroll={handleScroll}>
+    <SettingsContainer>
       {contextHolder}
       <SettingsItem>
         <SettingsTitle>

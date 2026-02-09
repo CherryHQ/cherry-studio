@@ -11,6 +11,7 @@
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
 export * from './file'
@@ -133,7 +134,8 @@ const ThinkModelTypes = [
   'zhipu',
   'perplexity',
   'deepseek_hybrid',
-  'kimi_k2_5'
+  'kimi_k2_5',
+  'opus46'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
@@ -632,6 +634,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 //   | 'files'
 //   | 'code_tools'
 //   | 'notes'
+// | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

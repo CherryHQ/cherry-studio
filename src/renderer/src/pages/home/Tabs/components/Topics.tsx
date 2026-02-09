@@ -22,6 +22,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
+import { getErrorMessage } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -31,6 +32,7 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
+import { getBriefInfo } from '@renderer/utils/naming'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
@@ -287,6 +289,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
               } else {
                 window.toast?.error(t('message.error.fetchTopicName'))
               }
+            } catch (error) {
+              const errorMsg = getErrorMessage(error)
+              window.toast?.error(`${t('message.error.fetchTopicName')}: ${getBriefInfo(errorMsg, 100)}`)
             } finally {
               finishTopicRenaming(topic.id)
             }

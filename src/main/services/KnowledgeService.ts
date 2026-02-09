@@ -706,12 +706,11 @@ class KnowledgeService {
 
         // Execute preprocessing
         logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
-        const { processedFile, quota } = await provider.parseFile(item.id, file)
+        const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
         const mainWindow = windowService.getMainWindow()
         mainWindow?.webContents.send('file-preprocess-finished', {
-          itemId: item.id,
-          quota: quota
+          itemId: item.id
         })
       } catch (err) {
         logger.error(`Preprocess processing failed: ${err}`)
@@ -722,23 +721,6 @@ class KnowledgeService {
     }
 
     return fileToProcess
-  }
-
-  public checkQuota = async (
-    _: Electron.IpcMainInvokeEvent,
-    base: KnowledgeBaseParams,
-    userId: string
-  ): Promise<number> => {
-    try {
-      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        return await provider.checkQuota()
-      }
-      throw new Error('No preprocess provider configured')
-    } catch (err) {
-      logger.error(`Failed to check quota: ${err}`)
-      throw new Error(`Failed to check quota: ${err}`)
-    }
   }
 }
 

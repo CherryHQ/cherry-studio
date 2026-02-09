@@ -21,7 +21,14 @@ import {
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import { GEMINI_FLASH_MODEL_REGEX, isGemini3FlashModel, isGemini3ProModel } from './utils'
+import {
+  GEMINI_FLASH_MODEL_REGEX,
+  isGemini3FlashModel,
+  isGemini3ProModel,
+  isKimi25Model,
+  isOpus46Model,
+  withModelIdAndNameAsId
+} from './utils'
 import { isTextToImageModel } from './vision'
 
 // Reasoning models
@@ -59,10 +66,12 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
-  kimi_k2_5: ['none', 'auto'] as const
+  kimi_k2_5: ['none', 'auto'] as const,
+  // Opus 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
+  opus46: ['low', 'medium', 'high', 'xhigh'] as const
 } as const satisfies ReasoningEffortConfig
 
-// 模型类型到支持选项的映射表
+// Model type to supported options mapping
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
   o: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.o] as const,
@@ -92,16 +101,9 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
-  kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const
+  kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
+  opus46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.opus46] as const
 } as const
-
-const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
-  const modelWithNameAsId = { ...model, id: model.name }
-  return {
-    idResult: fn(model),
-    nameResult: fn(modelWithNameAsId)
-  }
-}
 
 // TODO: add ut
 const _getThinkModelType = (model: Model): ThinkingModelType => {
@@ -175,6 +177,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
+  } else if (isOpus46Model(model)) {
+    thinkingModelType = 'opus46'
   }
   return thinkingModelType
 }
@@ -604,8 +608,7 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
  * @returns true if the model supports thinking control, false otherwise
  */
 const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return ['kimi-k2.5'].some((id) => modelId.includes(id))
+  return isKimi25Model(model)
 }
 
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
@@ -775,6 +778,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  // Opus 4.6 supports 128K output tokens
+  '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
   '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
   '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },

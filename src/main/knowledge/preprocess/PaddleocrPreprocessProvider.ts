@@ -84,13 +84,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
    * 解析文件并通过 PaddleOCR 进行预处理（当前仅支持 PDF 文件）
    * @param sourceId - 源任务ID，用于进度更新/日志追踪
    * @param file - 待处理的文件元数据（仅支持 ext 为 .pdf 的文件）
-   * @returns {Promise<{processedFile: FileMetadata; quota: number}>} 处理后的文件元数据 + 配额消耗（当前 PaddleOCR 配额为 0）
+   * @returns {Promise<{processedFile: FileMetadata}>} 处理后的文件元数据
    * @throws {Error} 若传入非 PDF 文件、文件大小超限、页数超限等会抛出异常
    */
-  public async parseFile(
-    sourceId: string,
-    file: FileMetadata
-  ): Promise<{ processedFile: FileMetadata; quota: number }> {
+  public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`PaddleOCR preprocess processing started: ${filePath}`)
@@ -128,18 +125,12 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
       // 5. 创建处理后数据
       return {
-        processedFile,
-        quota: 0
+        processedFile
       }
     } catch (error: unknown) {
       logger.error(`PaddleOCR preprocess processing failed for:`, error as Error)
       throw new Error(getErrorMessage(error))
     }
-  }
-
-  public async checkQuota(): Promise<number> {
-    // PaddleOCR doesn't have quota checking, return 0
-    return 0
   }
 
   private getMarkdownFileName(file: FileMetadata): string {

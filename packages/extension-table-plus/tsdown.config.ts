@@ -14,7 +14,7 @@ export default defineConfig(
     outDir: `dist${entry.replace('src', '').split('/').slice(0, -1).join('/')}`,
     dts: true,
     sourcemap: true,
-    format: ['esm', 'cjs'],
+    format: ['esm' as const, 'cjs' as const],
     external: [/^[^./]/]
   }))
 )

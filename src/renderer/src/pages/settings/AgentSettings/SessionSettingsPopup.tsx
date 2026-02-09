@@ -128,7 +128,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
           flex: 1
         }
       }}
-      width="min(800px, 70vw)"
+      width="min(900px, 70vw)"
       centered>
       {renderModalContent()}
     </StyledModal>
