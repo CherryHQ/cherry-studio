@@ -1,5 +1,5 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { CacheService } from '@renderer/services/CacheService'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('MarketplaceService')
@@ -180,7 +180,7 @@ const fetchMarketplaceItems = async (
     offset: params.offset ?? 0,
     query: params.query ?? ''
   })
-  const cached = CacheService.get<MarketplacePage<MarketplacePlugin | MarketplaceSkill>>(cacheKey)
+  const cached = cacheService.getCasual<MarketplacePage<MarketplacePlugin | MarketplaceSkill>>(cacheKey)
   if (cached) {
     return cached
   }
@@ -204,7 +204,7 @@ const fetchMarketplaceItems = async (
         hasMore: offset + parsed.items.length < parsed.total
       }
       const ttl = params.query ? SEARCH_CACHE_TTL : LIST_CACHE_TTL
-      CacheService.set(cacheKey, page, ttl)
+      cacheService.setCasual(cacheKey, page, ttl)
       return page
     } catch (error) {
       logger.error(`Marketplace ${endpoint} fetch failed`, error as Error, { query: params.query })

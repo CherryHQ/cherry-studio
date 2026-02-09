@@ -13,6 +13,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
 export * from './file'

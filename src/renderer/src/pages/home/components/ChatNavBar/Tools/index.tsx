@@ -1,13 +1,11 @@
-import { HStack } from '@renderer/components/Layout'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
-import { useAppDispatch } from '@renderer/store'
-import { setNarrowMode } from '@renderer/store/settings'
 import type { Assistant } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { styled } from 'styled-components'
@@ -22,46 +20,46 @@ const Tools = ({ assistant }: ToolsProps) => {
   const { t } = useTranslation()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { isTopNavbar } = useNavbarPosition()
-  const { topicPosition, narrowMode } = useSettings()
-  const dispatch = useAppDispatch()
+  const [topicPosition] = usePreference('topic.position')
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    dispatch(setNarrowMode(!narrowMode))
+    setNarrowMode(!narrowMode)
   }
 
   return (
-    <HStack alignItems="center" gap={8}>
+    <div className="flex items-center gap-2">
       <SettingsButton assistant={assistant} />
       {isTopNavbar && (
-        <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('navbar.expand')} delay={800}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
         </Tooltip>
       )}
       {isTopNavbar && (
-        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('chat.assistant.search.placeholder')} delay={800}>
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <Search size={18} />
           </NavbarIcon>
         </Tooltip>
       )}
       {isTopNavbar && topicPosition === 'right' && !showTopics && (
-        <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+        <Tooltip content={t('navbar.show_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelLeftClose size={18} />
           </NavbarIcon>
         </Tooltip>
       )}
       {isTopNavbar && topicPosition === 'right' && showTopics && (
-        <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+        <Tooltip content={t('navbar.hide_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowTopics}>
             <PanelRightClose size={18} />
           </NavbarIcon>
         </Tooltip>
       )}
-    </HStack>
+    </div>
   )
 }
 

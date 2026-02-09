@@ -508,12 +508,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             </Col>
             {param.type !== 'json' && <Col span={10}>{renderParameterValueInput(param, index)}</Col>}
             <Col span={param.type === 'json' ? 12 : 2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                color="danger"
-                variant="filled"
-                icon={<DeleteIcon size={14} className="lucide-custom" />}
-                onClick={() => onDeleteCustomParameter(index)}
-              />
+              <Button variant="destructive" size="icon-sm" onClick={() => onDeleteCustomParameter(index)}>
+                <DeleteIcon size={14} className="lucide-custom" />
+              </Button>
             </Col>
           </Row>
           {param.type === 'json' && <div style={{ marginTop: 6 }}>{renderParameterValueInput(param, index)}</div>}

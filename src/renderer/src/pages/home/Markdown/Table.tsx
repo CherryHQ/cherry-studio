@@ -80,7 +80,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
           </ToolButton>
         </Tooltip>
-        <Tooltip title={t('common.export.excel')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('common.export.excel')} delay={800}>
           <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
             <FileSpreadsheet size={14} />
           </ToolButton>
