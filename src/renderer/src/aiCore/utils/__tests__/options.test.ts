@@ -1118,6 +1118,45 @@ describe('options utils', () => {
         })
       })
 
+      it('should pass converted reasoningEffort to openai-compatible provider (issue #11987)', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        // Simulate Volcano Engine (Doubao) or similar OpenAI-compatible provider
+        const volcengineProvider = {
+          id: 'openai-compatible',
+          name: 'Volcano Engine',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+          models: [] as Model[]
+        } as Provider
+
+        const doubaoModel: Model = {
+          id: 'doubao-seed-1.8-thinking',
+          name: 'Doubao Seed 1.8 Thinking',
+          provider: 'openai-compatible'
+        } as Model
+
+        // After the fix in getCustomParameters(), reasoning_effort is auto-converted to reasoningEffort.
+        // This simulates the real output of getCustomParameters when the user configures
+        // { name: 'reasoning_effort', value: 'high', type: 'string' }
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoningEffort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, doubaoModel, volcengineProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // The converted reasoningEffort should appear in provider options
+        expect(result.providerOptions['openai-compatible']).toHaveProperty('reasoningEffort')
+        expect(result.providerOptions['openai-compatible'].reasoningEffort).toBe('high')
+        // The snake_case version should NOT be present (it was converted by getCustomParameters)
+        expect(result.providerOptions['openai-compatible']).not.toHaveProperty('reasoning_effort')
+      })
+
       it('should handle cross-provider configurations', async () => {
         const { getCustomParameters } = await import('../reasoning')
 

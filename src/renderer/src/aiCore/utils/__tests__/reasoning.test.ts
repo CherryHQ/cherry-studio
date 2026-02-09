@@ -995,6 +995,41 @@ describe('reasoning utils', () => {
         valid: 'value3'
       })
     })
+
+    it('should auto-convert reasoning_effort to reasoningEffort', async () => {
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          customParameters: [{ name: 'reasoning_effort', value: 'high', type: 'string' }]
+        }
+      } as Assistant
+
+      const result = getCustomParameters(assistant)
+      expect(result).toEqual({
+        reasoningEffort: 'high'
+      })
+      expect(result).not.toHaveProperty('reasoning_effort')
+    })
+
+    it('should not overwrite existing reasoningEffort with reasoning_effort', async () => {
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          customParameters: [
+            { name: 'reasoningEffort', value: 'low', type: 'string' },
+            { name: 'reasoning_effort', value: 'high', type: 'string' }
+          ]
+        }
+      } as Assistant
+
+      const result = getCustomParameters(assistant)
+      expect(result).toEqual({
+        reasoningEffort: 'low',
+        reasoning_effort: 'high'
+      })
+    })
   })
 
   describe('getAnthropicThinkingBudget', () => {

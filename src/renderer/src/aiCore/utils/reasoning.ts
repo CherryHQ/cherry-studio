@@ -807,30 +807,42 @@ export function getBedrockReasoningParams(
  * 从 assistant 设置中提取自定义参数
  */
 export function getCustomParameters(assistant: Assistant): Record<string, any> {
-  return (
-    assistant?.settings?.customParameters?.reduce((acc, param) => {
-      if (!param.name?.trim()) {
-        return acc
-      }
-      // Parse JSON type parameters
-      // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
-      // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
-      // This function parses them into objects before sending to the API
-      if (param.type === 'json') {
-        const value = param.value as string
-        if (value === 'undefined') {
-          return { ...acc, [param.name]: undefined }
+  const params =
+    assistant?.settings?.customParameters?.reduce(
+      (acc, param) => {
+        if (!param.name?.trim()) {
+          return acc
         }
-        try {
-          return { ...acc, [param.name]: JSON.parse(value) }
-        } catch {
-          return { ...acc, [param.name]: value }
+        // Parse JSON type parameters
+        // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
+        // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
+        // This function parses them into objects before sending to the API
+        if (param.type === 'json') {
+          const value = param.value as string
+          if (value === 'undefined') {
+            return { ...acc, [param.name]: undefined }
+          }
+          try {
+            return { ...acc, [param.name]: JSON.parse(value) }
+          } catch {
+            return { ...acc, [param.name]: value }
+          }
         }
-      }
-      return {
-        ...acc,
-        [param.name]: param.value
-      }
-    }, {}) || {}
-  )
+        return {
+          ...acc,
+          [param.name]: param.value
+        }
+      },
+      {} as Record<string, any>
+    ) || {}
+
+  // Auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
+  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
+  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
+  if ('reasoning_effort' in params && !('reasoningEffort' in params)) {
+    params.reasoningEffort = params.reasoning_effort
+    delete params.reasoning_effort
+  }
+
+  return params
 }
