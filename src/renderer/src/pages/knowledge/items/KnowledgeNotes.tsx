@@ -4,29 +4,33 @@ import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeNotes } from '@renderer/hooks/useKnowledges'
 import { markdownToPreviewText } from '@renderer/utils/markdownConverter'
-import type { KnowledgeBase, KnowledgeItem, NoteItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, NoteItemData } from '@shared/data/types/knowledge'
 import { Notebook } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { KnowledgeItemActions } from '../components/KnowledgeItemActions'
+import {
+  ItemDeleteAction,
+  ItemEditAction,
+  ItemRefreshAction,
+  ItemStatusAction,
+  KnowledgeItemActions
+} from '../components/KnowledgeItemActions'
 import { KnowledgeItemList } from '../components/KnowledgeItemList'
 import { KnowledgeItemRow } from '../components/KnowledgeItemRow'
+import { useKnowledgeBaseCtx } from '../context'
 import { formatKnowledgeItemTime } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeNotes')
 
-interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-}
-
-const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeNotes: FC = () => {
   const { t } = useTranslation()
-  const { noteItems, deleteItem, refreshItem } = useKnowledgeNotes(selectedBase.id || '')
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const { noteItems, deleteItem, refreshItem } = useKnowledgeNotes(selectedBase?.id ?? '')
 
   const invalidateCache = useInvalidateCache()
-  const itemsRefreshKey = selectedBase.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
+  const itemsRefreshKey = selectedBase?.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
 
   const updateNoteContent = useCallback(
     async (noteId: string, content: string) => {
@@ -68,9 +72,8 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-2.5 px-4 py-5">
-        <KnowledgeItemList
-          items={noteItems}
-          renderItem={(note) => {
+        <KnowledgeItemList items={noteItems}>
+          {(note) => {
             const data = note.data as NoteItemData
             return (
               <KnowledgeItemRow
@@ -78,17 +81,17 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 content={<div onClick={() => handleEditNote(note)}>{markdownToPreviewText(data.content, 50)}</div>}
                 metadata={formatKnowledgeItemTime(note)}
                 actions={
-                  <KnowledgeItemActions
-                    item={note}
-                    onRefresh={refreshItem}
-                    onDelete={deleteItem}
-                    onEdit={() => handleEditNote(note)}
-                  />
+                  <KnowledgeItemActions>
+                    <ItemStatusAction item={note} />
+                    <ItemEditAction onClick={() => handleEditNote(note)} />
+                    <ItemRefreshAction item={note} onRefresh={refreshItem} />
+                    <ItemDeleteAction itemId={note.id} onDelete={deleteItem} />
+                  </KnowledgeItemActions>
                 }
               />
             )
           }}
-        />
+        </KnowledgeItemList>
       </div>
     </div>
   )

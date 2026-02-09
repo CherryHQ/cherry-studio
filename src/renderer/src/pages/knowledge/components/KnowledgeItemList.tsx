@@ -6,12 +6,12 @@ import { useTranslation } from 'react-i18next'
 interface KnowledgeItemListProps<T> {
   items: T[]
   emptyText?: string
-  renderItem: (item: T) => ReactNode
+  children: (item: T) => ReactNode
   estimateSize?: number
   heightOffset?: number
 }
 
-export function KnowledgeItemList<T>({ items, emptyText, renderItem, estimateSize = 75 }: KnowledgeItemListProps<T>) {
+export function KnowledgeItemList<T>({ items, emptyText, children, estimateSize = 75 }: KnowledgeItemListProps<T>) {
   const { t } = useTranslation()
 
   const reversedItems = useMemo(() => [...items].reverse(), [items])
@@ -23,7 +23,7 @@ export function KnowledgeItemList<T>({ items, emptyText, renderItem, estimateSiz
 
   return (
     <DynamicVirtualList list={reversedItems} estimateSize={getEstimateSize} overscan={2} autoHideScrollbar>
-      {(item) => renderItem(item)}
+      {(item) => children(item)}
     </DynamicVirtualList>
   )
 }

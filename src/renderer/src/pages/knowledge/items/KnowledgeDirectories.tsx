@@ -5,7 +5,6 @@ import type {
   DirectoryContainerData,
   FileItemData,
   ItemStatus,
-  KnowledgeBase,
   KnowledgeItem,
   KnowledgeItemTreeNode
 } from '@shared/data/types/knowledge'
@@ -15,13 +14,15 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { KnowledgeItemActions } from '../components/KnowledgeItemActions'
+import {
+  ItemDeleteAction,
+  ItemRefreshAction,
+  ItemStatusAction,
+  KnowledgeItemActions
+} from '../components/KnowledgeItemActions'
 import { KnowledgeItemRow } from '../components/KnowledgeItemRow'
+import { useKnowledgeBaseCtx } from '../context'
 import { formatKnowledgeTimestamp } from '../utils/time'
-
-interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-}
 
 interface DirectoryGroup {
   directoryId: string
@@ -71,23 +72,13 @@ interface DirectoryGroupCardProps {
   group: DirectoryGroup
   isExpanded: boolean
   onToggle: () => void
-  onRefreshGroup: (directoryId: string) => void
-  onDeleteGroup: (directoryId: string) => void
-  onRefreshItem: (itemId: string) => void
-  onDeleteItem: (itemId: string) => void
-  t: (key: string) => string
 }
 
-const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
-  group,
-  isExpanded,
-  onToggle,
-  onRefreshGroup,
-  onDeleteGroup,
-  onRefreshItem,
-  onDeleteItem,
-  t
-}) => {
+const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({ group, isExpanded, onToggle }) => {
+  const { t } = useTranslation()
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const { deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(selectedBase?.id ?? '')
+
   return (
     <div>
       {/* Header */}
@@ -125,11 +116,11 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
             </Button>
           )}
           {(group.aggregateStatus === 'completed' || group.aggregateStatus === 'failed') && (
-            <Button size="icon-sm" variant="ghost" onClick={() => onRefreshGroup(group.directoryId)}>
+            <Button size="icon-sm" variant="ghost" onClick={() => refreshGroup(group.directoryId)}>
               <RotateCw size={16} className="text-foreground" />
             </Button>
           )}
-          <Button size="icon-sm" variant="ghost" onClick={() => onDeleteGroup(group.directoryId)}>
+          <Button size="icon-sm" variant="ghost" onClick={() => deleteGroup(group.directoryId)}>
             <Trash2 size={16} className="text-red-600" />
           </Button>
         </div>
@@ -157,7 +148,13 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
                       </span>
                     }
                     metadata={formatFileSize(file.size)}
-                    actions={<KnowledgeItemActions item={item} onRefresh={onRefreshItem} onDelete={onDeleteItem} />}
+                    actions={
+                      <KnowledgeItemActions>
+                        <ItemStatusAction item={item} />
+                        <ItemRefreshAction item={item} onRefresh={refreshItem} />
+                        <ItemDeleteAction itemId={item.id} onDelete={deleteItem} />
+                      </KnowledgeItemActions>
+                    }
                   />
                 )
               })}
@@ -169,13 +166,12 @@ const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({
   )
 }
 
-const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeDirectories: FC = () => {
   const { t } = useTranslation()
+  const { selectedBase } = useKnowledgeBaseCtx()
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-  const { treeItems, deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(
-    selectedBase.id || ''
-  )
+  const { treeItems } = useKnowledgeDirectories(selectedBase?.id ?? '')
 
   const groupedDirectories = useMemo((): DirectoryGroup[] => {
     return treeItems
@@ -224,11 +220,6 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             group={group}
             isExpanded={expandedGroups.has(group.directoryId)}
             onToggle={() => toggleGroup(group.directoryId)}
-            onRefreshGroup={refreshGroup}
-            onDeleteGroup={deleteGroup}
-            onRefreshItem={refreshItem}
-            onDeleteItem={deleteItem}
-            t={t}
           />
         ))}
       </div>

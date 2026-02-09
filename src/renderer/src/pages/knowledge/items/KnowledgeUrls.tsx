@@ -4,29 +4,33 @@ import { loggerService } from '@logger'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useKnowledgeUrls } from '@renderer/hooks/useKnowledges'
-import type { KnowledgeBase, KnowledgeItem, UrlItemData } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, UrlItemData } from '@shared/data/types/knowledge'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { KnowledgeItemActions } from '../components/KnowledgeItemActions'
+import {
+  ItemDeleteAction,
+  ItemEditAction,
+  ItemRefreshAction,
+  ItemStatusAction,
+  KnowledgeItemActions
+} from '../components/KnowledgeItemActions'
 import { KnowledgeItemList } from '../components/KnowledgeItemList'
 import { KnowledgeItemRow } from '../components/KnowledgeItemRow'
+import { useKnowledgeBaseCtx } from '../context'
 import { formatKnowledgeItemTime } from '../utils/time'
 
 const logger = loggerService.withContext('KnowledgeUrls')
 
-interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-}
-
-const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeUrls: FC = () => {
   const { t } = useTranslation()
-  const { urlItems, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase.id || '')
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const { urlItems, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase?.id ?? '')
 
   const invalidateCache = useInvalidateCache()
-  const itemsRefreshKey = selectedBase.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
+  const itemsRefreshKey = selectedBase?.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
 
   const updateItem = useCallback(
     async (item: KnowledgeItem, name: string) => {
@@ -80,9 +84,8 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-2.5 px-4 py-5">
-        <KnowledgeItemList
-          items={urlItems}
-          renderItem={(item) => {
+        <KnowledgeItemList items={urlItems}>
+          {(item) => {
             const data = item.data as UrlItemData
             const displayName = data.name && data.name !== data.url ? data.name : data.url
             return (
@@ -97,17 +100,17 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 }
                 metadata={formatKnowledgeItemTime(item)}
                 actions={
-                  <KnowledgeItemActions
-                    item={item}
-                    onRefresh={refreshItem}
-                    onDelete={deleteItem}
-                    onEdit={() => handleEditRemark(item)}
-                  />
+                  <KnowledgeItemActions>
+                    <ItemStatusAction item={item} />
+                    <ItemEditAction onClick={() => handleEditRemark(item)} />
+                    <ItemRefreshAction item={item} onRefresh={refreshItem} />
+                    <ItemDeleteAction itemId={item.id} onDelete={deleteItem} />
+                  </KnowledgeItemActions>
                 }
               />
             )
           }}
-        />
+        </KnowledgeItemList>
       </div>
     </div>
   )

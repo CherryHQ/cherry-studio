@@ -5,22 +5,12 @@ import { Book, Plus, Trash2 } from 'lucide-react'
 import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface KnowledgeSideNavProps {
-  bases: KnowledgeBase[]
-  selectedBaseId?: string
-  onSelect: (baseId?: string) => void
-  onAdd: () => void
-  deleteKnowledgeBase: (id: string) => Promise<void>
-}
+import { useKnowledgeBaseCtx, useKnowledgeUICtx } from '../context'
 
-const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
-  bases,
-  selectedBaseId,
-  onSelect,
-  onAdd,
-  deleteKnowledgeBase
-}) => {
+const KnowledgeSideNav: FC = () => {
   const { t } = useTranslation()
+  const { bases, selectedBaseId, selectBase, deleteBase } = useKnowledgeBaseCtx()
+  const { openAddDialog } = useKnowledgeUICtx()
 
   const handleDelete = useCallback(
     (base: KnowledgeBase) => {
@@ -28,12 +18,12 @@ const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
         title: t('knowledge.delete_confirm'),
         centered: true,
         onOk: async () => {
-          onSelect(undefined)
-          await deleteKnowledgeBase(base.id)
+          selectBase(undefined)
+          await deleteBase(base.id)
         }
       })
     },
-    [deleteKnowledgeBase, t, onSelect]
+    [deleteBase, t, selectBase]
   )
 
   return (
@@ -44,7 +34,7 @@ const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
             selectedBaseId === base.id ? 'bg-foreground/5' : ''
           }`}
           key={base.id}
-          onClick={() => onSelect(base.id)}>
+          onClick={() => selectBase(base.id)}>
           <div className="flex flex-row items-center justify-between">
             <div className="flex flex-row items-center gap-2 text-[13px]">
               <Book size={16} />
@@ -64,7 +54,7 @@ const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
           </div>
         </div>
       ))}
-      <Button variant="outline" className="h-7 rounded-3xs" onClick={onAdd}>
+      <Button variant="outline" className="h-7 rounded-3xs" onClick={openAddDialog}>
         <Plus size={14} className="text-primary" />
         {t('button.add')}
       </Button>
