@@ -34,6 +34,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { useTabs } from '../../hooks/useTabs'
+import { OpenClawIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
@@ -145,7 +146,8 @@ const MainMenus: FC = () => {
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
     notes: <NotepadText size={18} className="icon" />,
-    code_tools: <Code size={18} className="icon" />
+    code_tools: <Code size={18} className="icon" />,
+    openclaw: <OpenClawIcon style={{ width: 18, height: 18 }} className="icon" />
   }
 
   const pathMap = {
@@ -157,7 +159,8 @@ const MainMenus: FC = () => {
     knowledge: '/app/knowledge',
     files: '/app/files',
     code_tools: '/app/code',
-    notes: '/app/notes'
+    notes: '/app/notes',
+    openclaw: '/openclaw'
   }
 
   // 在当前 Tab 内跳转
@@ -241,6 +244,9 @@ const Icon = styled.div<{ theme: string }>`
   box-sizing: border-box;
   -webkit-app-region: none;
   border: 0.5px solid transparent;
+  .icon {
+    color: var(--color-icon);
+  }
   &:hover {
     background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;

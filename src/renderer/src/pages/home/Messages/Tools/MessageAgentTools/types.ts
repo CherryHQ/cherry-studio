@@ -29,7 +29,8 @@ export interface SkillToolInput {
   /**
    * The skill to use
    */
-  command: string
+  skill: string
+  args?: string
 }
 
 export type SkillToolOutput = string

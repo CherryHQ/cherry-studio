@@ -2294,6 +2294,58 @@ describe('isInterleavedThinkingModel', () => {
   })
 })
 
+describe('Claude Models', () => {
+  describe('getThinkModelType for Opus 4.6', () => {
+    it('should return opus46 for Opus 4.6 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('opus46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('opus46')
+    })
+  })
+
+  describe('MODEL_SUPPORTED_OPTIONS for Opus 4.6', () => {
+    it('should have correct options for opus46', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
+    })
+  })
+
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Opus 4.6', () => {
+    it('should have correct effort levels for opus46', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.opus46).toEqual(['low', 'medium', 'high', 'xhigh'])
+    })
+  })
+
+  describe('getModelSupportedReasoningEffortOptions for Opus 4.6', () => {
+    it('should return correct options for Opus 4.6 models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high',
+        'xhigh'
+      ])
+    })
+  })
+
+  describe('findTokenLimit for Opus 4.6', () => {
+    it('should return 128K max tokens for Opus 4.6 models', () => {
+      expect(findTokenLimit('claude-opus-4-6')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4.6')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('anthropic.claude-opus-4-6-v1')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-6@20251201')).toEqual({ min: 1024, max: 128_000 })
+    })
+
+    it('should distinguish Opus 4.6 from other Claude models', () => {
+      // Opus 4.5 should have 64K
+      expect(findTokenLimit('claude-opus-4-5')).toEqual({ min: 1024, max: 64_000 })
+      // Opus 4.0 should have 32K
+      expect(findTokenLimit('claude-opus-4')).toEqual({ min: 1024, max: 32_000 })
+      // Opus 4.1 should have 32K
+      expect(findTokenLimit('claude-opus-4-1')).toEqual({ min: 1024, max: 32_000 })
+    })
+  })
+})
+
 describe('Kimi Models', () => {
   describe('isKimiReasoningModel', () => {
     describe('should return true for Kimi reasoning models', () => {

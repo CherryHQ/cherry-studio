@@ -154,24 +154,43 @@
         "error": {
           "install": "安装插件失败",
           "load": "加载插件失败",
+          "load_more": "加载更多插件失败",
           "uninstall": "卸载插件失败"
         },
         "filter": {
           "all": "所有类别"
         },
-        "install": "安装",
+        "install": {
+          "button": "安装",
+          "title": "安装插件"
+        },
         "installed": {
           "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
           "title": "已安装插件"
         },
         "installing": "安装中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 个组件安装失败",
+          "error": "安装失败",
+          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "invalid_format": "请上传 ZIP 格式的文件",
+          "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
+          "select_folder": "选择文件夹",
+          "select_folder_title": "选择插件文件夹",
+          "success": "插件 \"{{name}}\" 安装成功（{{count}} 个组件）",
+          "success_multi": "已从 {{packages}} 个插件包安装 {{count}} 个组件",
+          "uploading": "正在上传并安装..."
+        },
         "results": "找到 {{count}} 个插件",
         "search": {
           "placeholder": "搜索插件..."
         },
+        "standalone_plugins": "独立插件",
         "success": {
           "install": "插件安装成功",
-          "uninstall": "插件卸载成功"
+          "uninstall": "插件卸载成功",
+          "uninstall_package": "插件包 \"{{name}}\" 卸载成功"
         },
         "tab": "插件",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "技能"
         },
         "uninstall": "卸载",
+        "uninstall_package": "卸载整个包",
+        "uninstall_package_confirm": "确定要卸载整个 \"{{name}}\" 插件包吗？这将删除 {{count}} 个组件。",
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
@@ -267,6 +288,16 @@
         "tab": "预先授权工具",
         "title": "预先授权工具",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 个任务"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "进行中",
+        "pending": "待处理"
       }
     },
     "toolPermission": {
@@ -711,15 +742,6 @@
       "view_full_content": "查看完整内容"
     },
     "input": {
-      "activity_directory": {
-        "description": "从活动目录中选择文件",
-        "loading": "正在加载文件...",
-        "no_file_found": {
-          "description": "可访问目录中没有可用文件",
-          "label": "未找到文件"
-        },
-        "title": "活动目录"
-      },
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
@@ -749,6 +771,24 @@
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "文件",
+          "skills": "Skills"
+        },
+        "description": "从文件、Agents 或 Skills 中选择",
+        "loading": "加载中...",
+        "no_file_found": {
+          "description": "可访问目录中没有可用文件",
+          "label": "未找到文件"
+        },
+        "no_items_found": {
+          "description": "没有可用的文件、Agents 或 Skills",
+          "label": "未找到项目"
+        },
+        "title": "资源"
+      },
       "send": "发送",
       "settings": "设置",
       "slash_commands": {
@@ -1236,6 +1276,9 @@
       "validation": "验证失败"
     },
     "expand": "展开",
+    "export": {
+      "excel": "导出为 Excel"
+    },
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
     },
@@ -1284,6 +1327,7 @@
     "rename": "重命名",
     "required_field": "必填字段",
     "reset": "重置",
+    "retry": "重试",
     "save": "保存",
     "saved": "已保存",
     "search": "搜索",
@@ -1642,11 +1686,6 @@
     "orphan_recover_failed": "恢复任务失败",
     "orphan_recovered": "已恢复 {{count}} 个任务",
     "provider_not_found": "未找到服务商",
-    "quota": "{{name}} 剩余额度：{{quota}}",
-    "quota_empty": "今日{{name}}额度不足，请前往官网申请",
-    "quota_infinity": "{{name}} 剩余额度：无限制",
-    "recover_orphans": "恢复 {{count}} 个任务",
-    "relevance": "匹配度",
     "rename": "重命名",
     "search": "搜索知识库",
     "search_placeholder": "输入查询内容",
@@ -1907,6 +1946,9 @@
         "model": "请选择一个模型",
         "name": "请输入知识库名称"
       },
+      "excel": {
+        "export": "导出 Excel 失败"
+      },
       "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
@@ -1945,6 +1987,9 @@
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
+      },
+      "table": {
+        "invalid": "无法获取有效的表格数据"
       },
       "unknown": "未知错误",
       "yuque": {
@@ -2032,6 +2077,9 @@
     },
     "searching": "正在搜索...",
     "success": {
+      "excel": {
+        "export": "Excel 导出成功"
+      },
       "joplin": {
         "export": "成功导出到 Joplin"
       },
@@ -2091,7 +2139,9 @@
       "raw": "原始",
       "runningCount": "{{count}} 个工具运行中",
       "sections": {
+        "args": "参数",
         "command": "命令",
+        "content": "内容",
         "exitCode": "退出码",
         "input": "输入",
         "output": "输出",
@@ -2108,6 +2158,7 @@
         "running": "运行中",
         "success": "成功"
       },
+      "streaming": "流式传输中",
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 项完成",
@@ -2255,6 +2306,7 @@
     },
     "function_calling": "函数调用",
     "invalid_model": "无效模型",
+    "json_parse_error": "JSON 格式无效",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
     "parameter_type": {
@@ -2466,6 +2518,80 @@
       "title": "保持活跃时间"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "正在检查 OpenClaw 安装状态...",
+    "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "请先选择服务商和模型"
+    },
+    "gateway": {
+      "port": "端口",
+      "restart": "重启",
+      "start": "启动",
+      "status": "状态",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "install_progress": "安装进度",
+    "installed_at": "OpenClaw 安装路径",
+    "model_config": {
+      "auth_token": "认证令牌",
+      "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",
+      "auth_token_placeholder": "输入或生成令牌",
+      "generate_token": "生成",
+      "model": "模型",
+      "provider": "服务商",
+      "select_model": "选择模型",
+      "select_provider": "选择服务商",
+      "sync_hint": "选择的服务商和模型将同步到 OpenClaw 配置文件",
+      "title": "模型配置"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安装在您的系统上。请先安装它以使用此功能。",
+      "install_button": "安装 OpenClaw",
+      "install_guide_title": "安装指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "刷新",
+      "step2_hint": "安装完成后，点击上方的刷新按钮来检测 OpenClaw",
+      "step2_title": "第二步：验证安装",
+      "title": "OpenClaw 未安装",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",
+      "download_button": "下载 Node.js",
+      "hint": "macOS: brew install node | Windows: 从 nodejs.org 下载 LTS 版本",
+      "title": "需要安装 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "打开控制面板",
+      "title": "快捷操作",
+      "uninstall": "卸载",
+      "view_docs": "查看文档"
+    },
+    "status": {
+      "error": "错误",
+      "running": "运行中",
+      "starting": "启动中",
+      "stopped": "已停止"
+    },
+    "tips": {
+      "permissions": "OpenClaw 拥有较高的系统权限，建议仅在可信环境中使用",
+      "title": "温馨提示",
+      "token_usage": "AI 代理模式会消耗较多 Token，请注意用量"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "确定要卸载 OpenClaw 吗？点击确定继续。",
+    "uninstall_progress": "卸载进度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功卸载。",
+      "title": "卸载完成"
+    },
+    "uninstalling": {
+      "description": "正在卸载 OpenClaw，请稍候...",
+      "title": "正在卸载 OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -2753,6 +2879,7 @@
     "category": "类别",
     "commands": "命令",
     "confirm_uninstall": "确定要卸载 {{name}} 吗？",
+    "confirm_uninstall_package": "确定要卸载插件包 {{name}} 及其所有组件吗？",
     "content_saved": "插件内容保存成功",
     "detail": {
       "allowed_tools": "允许的工具",
@@ -2779,10 +2906,22 @@
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",
     "showing_results_plural": "显示 {{count}} 个插件",
+    "showing_results_skills": "显示 {{count}} 个技能",
+    "showing_results_skills_one": "显示 {{count}} 个技能",
+    "showing_results_skills_other": "显示 {{count}} 个技能",
+    "showing_results_skills_plural": "显示 {{count}} 个技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下载量",
+      "label": "排序",
+      "relevance": "相关性",
+      "stars": "星标"
+    },
+    "standalone_plugins": "独立插件",
     "try_different_search": "请尝试调整搜索或类别筛选",
     "type": "类型",
     "uninstall": "卸载",
+    "uninstall_package": "卸载插件包",
     "uninstalling": "卸载中..."
   },
   "preview": {
@@ -4742,6 +4881,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
+      "balance": "余额",
       "basic_auth": {
         "label": "HTTP 认证",
         "password": {
@@ -4817,10 +4957,29 @@
         "title": "模型备注"
       },
       "oauth": {
+        "balance": "余额",
         "button": "使用 {{provider}} 账号登录",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登录 CherryIN",
+          "logged_in": "已通过 OAuth 登录",
+          "login_button": "OAuth 登录",
+          "logout_button": "退出登录",
+          "title": "OAuth 登录"
+        },
+        "connect": "关联 {{provider}} 账号",
         "description": "本服务由 <website>{{provider}}</website> 提供",
         "error": "认证失败",
-        "official_website": "官方网站"
+        "logged_in": "已登录",
+        "logout": "退出登录",
+        "logout_confirm": "确定要退出登录吗？",
+        "logout_success": "已成功退出登录",
+        "logout_warning": "已在本地退出登录，但服务器端令牌撤销可能失败",
+        "official_website": "官方网站",
+        "provided_by": "本服务由",
+        "provided_by_suffix": " 提供",
+        "requests": "请求数",
+        "topup": "充值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
@@ -5168,6 +5327,7 @@
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
     "notes": "笔记",
+    "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
     "store": "助手库",

@@ -91,17 +91,15 @@ describe('HubServer Integration', () => {
     vi.clearAllMocks()
   })
 
-  describe('full search → exec flow', () => {
-    it('searches for tools and executes them', async () => {
-      const searchResult = await (hubServer as any).handleSearch({ query: 'github,repos' })
+  describe('full list → exec flow', () => {
+    it('lists tools and executes them', async () => {
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
-      expect(searchResult.content).toBeDefined()
-      const searchText = JSON.parse(searchResult.content[0].text)
-      expect(searchText.total).toBeGreaterThan(0)
-      expect(searchText.tools).toContain('github_searchRepos')
+      expect(listResult.content).toBeDefined()
+      expect(listResult.content[0].text).toContain('githubSearchRepos')
 
       const execResult = await (hubServer as any).handleExec({
-        code: 'return await github_searchRepos({ query: "test" })'
+        code: 'return await mcp.callTool("githubSearchRepos", { query: "test" })'
       })
 
       expect(execResult.content).toBeDefined()
@@ -110,13 +108,13 @@ describe('HubServer Integration', () => {
     })
 
     it('handles multiple tool calls in parallel', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
 
       const execResult = await (hubServer as any).handleExec({
         code: `
           const results = await parallel(
-            github_searchRepos({ query: "react" }),
-            github_getUser({ username: "octocat" })
+            mcp.callTool("githubSearchRepos", { query: "react" }),
+            mcp.callTool("githubGetUser", { username: "octocat" })
           );
           return results
         `
@@ -128,32 +126,30 @@ describe('HubServer Integration', () => {
       expect(execOutput.result[1]).toEqual({ username: 'octocat', id: 123 })
     })
 
-    it('searches across multiple servers', async () => {
-      const searchResult = await (hubServer as any).handleSearch({ query: 'query' })
-
-      const searchText = JSON.parse(searchResult.content[0].text)
-      expect(searchText.tools).toContain('database_query')
+    it('lists tools across multiple servers', async () => {
+      const listResult = await (hubServer as any).handleList({ limit: 100, offset: 0 })
+      expect(listResult.content[0].text).toContain('databaseQuery')
     })
   })
 
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       hubServer.invalidateCache()
 
-      await (hubServer as any).handleSearch({ query: 'github' })
+      await (hubServer as any).handleList({ limit: 100, offset: 0 })
       const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)
@@ -161,8 +157,12 @@ describe('HubServer Integration', () => {
   })
 
   describe('error handling', () => {
-    it('throws error for invalid search query', async () => {
-      await expect((hubServer as any).handleSearch({})).rejects.toThrow('query parameter is required')
+    it('throws error for invalid inspect name', async () => {
+      await expect((hubServer as any).handleInspect({})).rejects.toThrow('name parameter is required')
+    })
+
+    it('throws error for invalid invoke name', async () => {
+      await expect((hubServer as any).handleInvoke({})).rejects.toThrow('name parameter is required')
     })
 
     it('throws error for invalid exec code', async () => {
@@ -201,7 +201,7 @@ describe('HubServer Integration', () => {
       const execPromise = (hubServer as any).handleExec({
         code: `
           console.log("starting");
-          return await github_searchRepos({ query: "hang" });
+          return await mcp.callTool("githubSearchRepos", { query: "hang" });
         `
       })
 

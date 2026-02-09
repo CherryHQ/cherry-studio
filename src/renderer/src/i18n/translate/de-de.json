@@ -154,24 +154,43 @@
         "error": {
           "install": "Fehler beim Installieren des Plugins",
           "load": "Fehler beim Laden der Plugins",
+          "load_more": "Weitere Plugins konnten nicht geladen werden",
           "uninstall": "Fehler beim Deinstallieren des Plugins"
         },
         "filter": {
           "all": "Alle Kategorien"
         },
-        "install": "Installieren",
+        "install": {
+          "button": "Installieren",
+          "title": "Install Plugins"
+        },
         "installed": {
           "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
           "title": "Installierte Plugins"
         },
         "installing": "Wird installiert...",
+        "plugin_upload": {
+          "all_failed": "Alle {{failed}} Komponenten konnten nicht installiert werden",
+          "error": "Installation fehlgeschlagen",
+          "format_hint": "Unterstützt Plugin-Pakete (.claude-plugin/plugin.json)",
+          "hint": "Ziehen Sie das Plugin-ZIP hierher oder klicken Sie zum Auswählen",
+          "invalid_format": "Bitte laden Sie eine ZIP-Datei hoch",
+          "partial_success": "Plugin „{{name}}“ teilweise installiert: {{installed}} installiert, {{failed}} fehlgeschlagen",
+          "select_folder": "Ordner auswählen",
+          "select_folder_title": "Plugin-Ordner auswählen",
+          "success": "Plugin „{{name}}“ erfolgreich installiert ({{count}} Komponenten)",
+          "success_multi": "{{count}} Komponenten aus {{packages}} Paketen installiert",
+          "uploading": "Hochladen und installieren..."
+        },
         "results": "{{count}} Plugin(s) gefunden",
         "search": {
           "placeholder": "Such-Plugins..."
         },
+        "standalone_plugins": "Eigenständige Plugins",
         "success": {
           "install": "Plugin erfolgreich installiert",
-          "uninstall": "Plugin erfolgreich deinstalliert"
+          "uninstall": "Plugin erfolgreich deinstalliert",
+          "uninstall_package": "Paket \"{{name}}\" erfolgreich deinstalliert"
         },
         "tab": "Plugins",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "Fähigkeiten"
         },
         "uninstall": "Deinstallieren",
+        "uninstall_package": "Paket deinstallieren",
+        "uninstall_package_confirm": "Sind Sie sicher, dass Sie das gesamte Paket „{{name}}“ deinstallieren möchten? Dies entfernt {{count}} Komponente(n).",
         "uninstalling": "Deinstallation läuft..."
       },
       "prompt": "Prompt-Einstellungen",
@@ -267,6 +288,16 @@
         "tab": "Vorab autorisierte Tools",
         "title": "Vorab autorisierte Tools",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} Aufgaben abgeschlossen"
+      },
+      "status": {
+        "completed": "Abgeschlossen",
+        "in_progress": "In Bearbeitung",
+        "pending": "Ausstehend"
       }
     },
     "toolPermission": {
@@ -711,15 +742,6 @@
       "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
-      "activity_directory": {
-        "description": "Datei aus dem Aktivitätsverzeichnis auswählen",
-        "loading": "Dateien werden geladen...",
-        "no_file_found": {
-          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
-          "label": "Keine Datei gefunden"
-        },
-        "title": "Aktivitätsverzeichnis"
-      },
       "auto_resize": "Höhe automatisch anpassen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
@@ -749,6 +771,24 @@
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agenten",
+          "files": "Dateien",
+          "skills": "Fähigkeiten"
+        },
+        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
+        "loading": "Laden...",
+        "no_file_found": {
+          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
+          "label": "Keine Datei gefunden"
+        },
+        "no_items_found": {
+          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
+          "label": "Keine Artikel gefunden"
+        },
+        "title": "Ressourcen"
+      },
       "send": "Senden",
       "settings": "Einstellungen",
       "slash_commands": {
@@ -1236,6 +1276,9 @@
       "validation": "Validierung fehlgeschlagen"
     },
     "expand": "Ausklappen",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
     },
@@ -1284,6 +1327,7 @@
     "rename": "Umbenennen",
     "required_field": "Pflichtfeld",
     "reset": "Zurücksetzen",
+    "retry": "Wiederholen",
     "save": "Speichern",
     "saved": "Gespeichert",
     "search": "Suchen",
@@ -1633,9 +1677,6 @@
     "notes": "Notizen",
     "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
     "provider_not_found": "Anbieter nicht gefunden",
-    "quota": "{{name}} verbleibendes Kontingent: {{quota}}",
-    "quota_empty": "Das heutige {{name}}-Kontingent ist erschöpft. Bitte beantragen Sie es auf der offiziellen Website",
-    "quota_infinity": "{{name}} verbleibendes Kontingent: unbegrenzt",
     "rename": "Umbenennen",
     "search": "Wissensdatenbank durchsuchen",
     "search_placeholder": "Suchanfrage eingeben",
@@ -1892,6 +1933,9 @@
         "model": "Bitte wählen Sie ein Modell aus",
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
@@ -1930,6 +1974,9 @@
       "siyuan": {
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2017,6 +2064,9 @@
     },
     "searching": "Wird gesucht...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
       },
@@ -2076,7 +2126,9 @@
       "raw": "Roh",
       "runningCount": "{{count}} Werkzeuge laufen",
       "sections": {
+        "args": "Argumente",
         "command": "Befehl",
+        "content": "Inhalt",
         "exitCode": "Exit-Code",
         "input": "Eingabe",
         "output": "Ausgabe",
@@ -2093,6 +2145,7 @@
         "running": "Laufen",
         "success": "Erfolg"
       },
+      "streaming": "Streaming",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
         "done_one": "{{count}} Erledigt",
@@ -2240,6 +2293,7 @@
     },
     "function_calling": "Funktionsaufruf",
     "invalid_model": "Ungültiges Modell",
+    "json_parse_error": "Ungültiges JSON-Format",
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
     "parameter_type": {
@@ -2451,6 +2505,80 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "Überprüfe OpenClaw-Installation...",
+    "description": "Integriere Cherry Studio-Anbieter mit OpenClaw Gateway, um KI-Coding-Agenten wie Claude Code, Qwen-Coder und weitere zu ermöglichen.",
+    "error": {
+      "select_provider_model": "Bitte wählen Sie zuerst einen Anbieter und ein Modell aus."
+    },
+    "gateway": {
+      "port": "Hafen",
+      "restart": "Neustart",
+      "start": "Start-Gateway",
+      "status": "Status",
+      "stop": "Halt",
+      "version": "Version"
+    },
+    "install_progress": "Installationsfortschritt",
+    "installed_at": "OpenClaw installiert unter",
+    "model_config": {
+      "auth_token": "Auth-Token",
+      "auth_token_hint": "Token für Gateway-Authentifizierung. Leer lassen, um die Authentifizierung zu deaktivieren.",
+      "auth_token_placeholder": "Token eingeben oder generieren",
+      "generate_token": "Generieren",
+      "model": "Modell",
+      "provider": "Anbieter",
+      "select_model": "Wählen Sie ein Modell",
+      "select_provider": "Wählen Sie einen Anbieter",
+      "sync_hint": "Ausgewählter Anbieter und Modell werden in die OpenClaw-Konfigurationsdatei synchronisiert",
+      "title": "Modellkonfiguration"
+    },
+    "not_installed": {
+      "description": "OpenClaw ist nicht auf Ihrem System installiert. Bitte installieren Sie es zuerst, um diese Funktion nutzen zu können.",
+      "install_button": "Installiere OpenClaw",
+      "install_guide_title": "Installationsanleitung",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Aktualisieren",
+      "step2_hint": "Nach der Installation klicken Sie auf die Schaltfläche „Aktualisieren“ oben, um OpenClaw zu erkennen.",
+      "step2_title": "Schritt 2: Installation überprüfen",
+      "title": "OpenClaw nicht installiert",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw benötigt Node.js/npm. Bitte installieren Sie zunächst Node.js und starten Sie Cherry Studio anschließend neu.",
+      "download_button": "Node.js herunterladen",
+      "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
+      "title": "Node.js erforderlich"
+    },
+    "quick_actions": {
+      "open_dashboard": "Dashboard öffnen",
+      "title": "Schnellaktionen",
+      "uninstall": "Deinstallieren",
+      "view_docs": "Dokumentation anzeigen"
+    },
+    "status": {
+      "error": "Fehler",
+      "running": "Laufen",
+      "starting": "Start",
+      "stopped": "Angehalten"
+    },
+    "tips": {
+      "permissions": "OpenClaw hat erweiterte Systemberechtigungen. Nur in vertrauenswürdigen Umgebungen verwenden",
+      "title": "Hinweise",
+      "token_usage": "Der KI-Agentenmodus kann mehr Token verbrauchen. Bitte überwachen Sie Ihre Nutzung"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Sind Sie sicher, dass Sie OpenClaw deinstallieren möchten? Drücken Sie OK, um zu bestätigen.",
+    "uninstall_progress": "Deinstallationsfortschritt",
+    "uninstalled": {
+      "description": "OpenClaw wurde erfolgreich deinstalliert.",
+      "title": "Deinstallation abgeschlossen"
+    },
+    "uninstalling": {
+      "description": "Bitte warten Sie, während OpenClaw deinstalliert wird...",
+      "title": "Deinstallation von OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -2738,6 +2866,7 @@
     "category": "Kategorie",
     "commands": "Befehle",
     "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "confirm_uninstall_package": "Sind Sie sicher, dass Sie das Paket {{name}} und alle seine Komponenten deinstallieren möchten?",
     "content_saved": "Plugin-Inhalt erfolgreich gespeichert",
     "detail": {
       "allowed_tools": "Erlaubte Werkzeuge",
@@ -2764,10 +2893,22 @@
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
     "showing_results_plural": "{{count}} Plugins anzeigen",
+    "showing_results_skills": "Zeige {{count}} Fähigkeit",
+    "showing_results_skills_one": "{{count}} Fähigkeit anzeigen",
+    "showing_results_skills_other": "{{count}} Fähigkeiten anzeigen",
+    "showing_results_skills_plural": "{{count}} Fähigkeiten anzeigen",
     "skills": "Fähigkeiten",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sortieren",
+      "relevance": "Relevanz",
+      "stars": "Sterne"
+    },
+    "standalone_plugins": "Eigenständige Plugins",
     "try_different_search": "Versuchen Sie, Ihre Suche oder die Kategoriefilter anzupassen.",
     "type": "Typ",
     "uninstall": "Deinstallieren",
+    "uninstall_package": "Paket deinstallieren",
     "uninstalling": "Deinstallation läuft..."
   },
   "preview": {
@@ -4727,6 +4868,7 @@
           "tip": "Azure OpenAI-API-Version, um Response API zu verwenden, bitte preview-Version eingeben"
         }
       },
+      "balance": "Guthaben",
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
         "password": {
@@ -4802,10 +4944,29 @@
         "title": "Modellnotizen"
       },
       "oauth": {
+        "balance": "Guthaben",
         "button": "Mit {{provider}}-Konto anmelden",
+        "cherryIn": {
+          "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
+          "logged_in": "Über OAuth angemeldet",
+          "login_button": "Mit OAuth anmelden",
+          "logout_button": "Abmelden",
+          "title": "OAuth-Anmeldung"
+        },
+        "connect": "Verbinde {{provider}}",
         "description": "Dienst wird von <website>{{provider}}</website> bereitgestellt",
         "error": "Authentifizierung fehlgeschlagen",
-        "official_website": "Offizielle Website"
+        "logged_in": "Angemeldet",
+        "logout": "Abmelden",
+        "logout_confirm": "Bist du sicher, dass du dich abmelden willst?",
+        "logout_success": "Erfolgreich abgemeldet",
+        "logout_warning": "Lokal abgemeldet, aber die Server-Token-Widerrufung ist möglicherweise fehlgeschlagen",
+        "official_website": "Offizielle Website",
+        "provided_by": "Bereitgestellt von",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into German.",
+        "requests": "Anfragen",
+        "topup": "Aufladen",
+        "usage_title": "Verwendung"
       },
       "openai": {
         "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"
@@ -5153,6 +5314,7 @@
     "mcp-servers": "MCP-Server",
     "memories": "Erinnerungen",
     "notes": "Notizen",
+    "openclaw": "OpenClaw",
     "paintings": "Zeichnen",
     "settings": "Einstellungen",
     "store": "Assistenten-Bibliothek",
