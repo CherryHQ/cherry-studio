@@ -1378,6 +1378,10 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
+    // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+    { modelId: 'qwen3-max', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-2026-01-23', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-preview', expected: { min: 0, max: 81_920 } },
     { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
     { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } },
     { modelId: 'Baichuan-M3', expected: { min: 0, max: 30_000 } },

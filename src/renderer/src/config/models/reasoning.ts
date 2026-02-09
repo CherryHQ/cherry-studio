@@ -776,6 +776,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-plus.*$': { min: 0, max: 81_920 },
   'qwen-turbo.*$': { min: 0, max: 38_912 },
   'qwen-flash.*$': { min: 0, max: 81_920 },
+  // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+  'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
