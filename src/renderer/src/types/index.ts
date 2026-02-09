@@ -497,8 +497,8 @@ export interface PaintingsState {
   // OVMS
   ovms_paintings: OvmsPainting[]
   // PPIO
-  ppio_draw?: PpioPainting[]
-  ppio_edit?: PpioPainting[]
+  ppio_draw: PpioPainting[]
+  ppio_edit: PpioPainting[]
 }
 
 export type MinAppType = {

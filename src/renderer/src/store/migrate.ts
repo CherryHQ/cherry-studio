@@ -2336,6 +2336,7 @@ const migrateConfig = {
   },
   '140': (state: RootState) => {
     try {
+      // @ts-ignore
       state.paintings = {
         // @ts-ignore paintings
         siliconflow_paintings: state?.paintings?.paintings || [],
