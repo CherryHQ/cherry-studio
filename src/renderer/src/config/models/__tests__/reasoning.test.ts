@@ -429,13 +429,10 @@ describe('Qwen & Gemini thinking coverage', () => {
     expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
   })
 
-  it('supports thinking tokens for qwen3-max-preview and qwen3-max-2026-01-23', () => {
+  it('supports thinking tokens for qwen3-max, qwen3-max-preview and qwen3-max-2026-01-23', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-preview' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe(true)
-  })
-
-  it('blocks thinking tokens for qwen3-max and other unsupported versions', () => {
-    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(false)
   })
 
   it.each(['qwen3-thinking', 'qwen3-vl-235b-thinking'])('always thinks for %s', (id) => {
@@ -733,6 +730,9 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'qwen-turbo' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen-flash' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen3-8b' }))).toBe('qwen')
+      // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
+      expect(getThinkModelType(createModel({ id: 'qwen3-max' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe('qwen')
     })
 
     it('should return default for always-thinking Qwen models (not controllable)', () => {
@@ -1378,6 +1378,10 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
+    // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+    { modelId: 'qwen3-max', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-2026-01-23', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-preview', expected: { min: 0, max: 81_920 } },
     { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
     { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } },
     { modelId: 'Baichuan-M3', expected: { min: 0, max: 30_000 } },
@@ -1995,6 +1999,21 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-8b' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      // qwen3-max is now a reasoning model with same options as qwen3-max-2026-01-23
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max-2026-01-23' }))).toEqual([
         'default',
         'none',
         'low',
