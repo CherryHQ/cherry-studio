@@ -129,7 +129,6 @@ export async function findCommandInShellEnv(
           // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
           if (exePath) {
-            logger.debug(`Found command '${command}' at: ${exePath}`)
             safeResolve(exePath)
           } else {
             logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
@@ -181,7 +180,6 @@ export async function findCommandInShellEnv(
           // Validate the output is an absolute path (not an alias, function, or builtin)
           // command -v can return just the command name for aliases/builtins
           if (path.isAbsolute(commandPath)) {
-            logger.debug(`Found command '${command}' at: ${commandPath}`)
             safeResolve(commandPath)
           } else {
             logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
@@ -203,26 +201,37 @@ export async function findCommandInShellEnv(
   })
 }
 
+export interface FindExecutableOptions {
+  /** File extensions to search for (default: ['.exe']) */
+  extensions?: string[]
+  /** Common paths to check as fallback */
+  commonPaths?: string[]
+}
+
 /**
  * Find executable in common paths or PATH environment variable
  * Based on Claude Code's implementation with security checks
- * @param name - Name of the executable to find (without .exe extension)
+ * @param name - Name of the executable to find (without extension)
+ * @param options - Optional configuration for extensions and common paths
  * @returns Full path to the executable or null if not found
  */
-export function findExecutable(name: string): string | null {
+export function findExecutable(name: string, options?: FindExecutableOptions): string | null {
   // This implementation uses where.exe which is Windows-only
   if (!isWin) {
     return null
   }
 
+  const extensions = options?.extensions ?? ['.exe']
+  const commonPaths = options?.commonPaths ?? []
+
   // Special handling for git - check common installation paths first
   if (name === 'git') {
-    const commonGitPaths = [
+    const defaultGitPaths = [
       path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
       path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
     ]
 
-    for (const gitPath of commonGitPaths) {
+    for (const gitPath of defaultGitPaths) {
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
@@ -230,12 +239,20 @@ export function findExecutable(name: string): string | null {
     }
   }
 
+  // Check user-provided common paths first
+  for (const commonPath of commonPaths) {
+    if (fs.existsSync(commonPath)) {
+      logger.debug(`Found ${name} at common path`, { path: commonPath })
+      return commonPath
+    }
+  }
+
   // Use where.exe to find executable in PATH
   // Use execFileSync to prevent command injection
   try {
-    // Add .exe extension for more precise matching on Windows
-    const executableName = `${name}.exe`
-    const result = execFileSync('where.exe', [executableName], {
+    // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
+    // We then filter by allowed extensions below for security and precision
+    const result = execFileSync('where.exe', [name], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -244,10 +261,18 @@ export function findExecutable(name: string): string | null {
     const paths = result.trim().split(/\r?\n/).filter(Boolean)
     const currentDir = process.cwd().toLowerCase()
 
-    // Security check: skip executables in current directory
+    // Filter by allowed extensions
     for (const exePath of paths) {
       // Trim whitespace from where.exe output
       const cleanPath = exePath.trim()
+      const lowerPath = cleanPath.toLowerCase()
+
+      // Check if the file has an allowed extension
+      const hasAllowedExtension = extensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
+      if (!hasAllowedExtension) {
+        continue
+      }
+
       const resolvedPath = path.resolve(cleanPath).toLowerCase()
       const execDir = path.dirname(resolvedPath).toLowerCase()
 

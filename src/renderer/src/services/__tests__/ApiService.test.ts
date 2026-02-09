@@ -246,6 +246,10 @@ vi.mock('@renderer/store/llm.ts', () => {
         secretAccessKey: '',
         apiKey: '',
         region: ''
+      },
+      cherryIn: {
+        accessToken: '',
+        refreshToken: ''
       }
     }
   } satisfies LlmState

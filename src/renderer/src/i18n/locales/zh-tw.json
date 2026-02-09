@@ -154,24 +154,43 @@
         "error": {
           "install": "安裝外掛失敗",
           "load": "載入外掛失敗",
+          "load_more": "無法載入更多外掛程式",
           "uninstall": "解除安裝外掛失敗"
         },
         "filter": {
           "all": "所有類別"
         },
-        "install": "安裝",
+        "install": {
+          "button": "安裝",
+          "title": "安裝外掛程式"
+        },
         "installed": {
           "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
-          "title": "已安裝外掛"
+          "title": "已安裝外掛程式"
         },
         "installing": "安裝中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 個元件安裝失敗",
+          "error": "安裝失敗",
+          "format_hint": "支援外掛包格式（.claude-plugin/plugin.json）",
+          "hint": "拖曳外掛 ZIP 至此處，或點擊選擇檔案",
+          "invalid_format": "請上傳 ZIP 格式的檔案",
+          "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
+          "select_folder": "選擇資料夾",
+          "select_folder_title": "選擇外掛資料夾",
+          "success": "外掛 \"{{name}}\" 安裝成功（{{count}} 個元件）",
+          "success_multi": "已從 {{packages}} 個外掛包安裝 {{count}} 個元件",
+          "uploading": "正在上傳並安裝..."
+        },
         "results": "找到 {{count}} 個外掛",
         "search": {
           "placeholder": "搜尋外掛..."
         },
+        "standalone_plugins": "獨立外掛",
         "success": {
           "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功"
+          "uninstall": "外掛解除安裝成功",
+          "uninstall_package": "外掛包 \"{{name}}\" 解除安裝成功"
         },
         "tab": "外掛",
         "type": {
@@ -183,6 +202,8 @@
           "skills": "技能"
         },
         "uninstall": "解除安裝",
+        "uninstall_package": "解除安裝整個包",
+        "uninstall_package_confirm": "確定要解除安裝整個 \"{{name}}\" 外掛包嗎？這將刪除 {{count}} 個元件。",
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
@@ -267,6 +288,16 @@
         "tab": "預先授權工具",
         "title": "預先授權工具",
         "toggle": "{{defaultValue}}"
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 個任務"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "進行中",
+        "pending": "待處理"
       }
     },
     "toolPermission": {
@@ -671,7 +702,7 @@
     },
     "alerts": {
       "create_session": "建立工作階段",
-      "select_agent": "選擇一個代理人"
+      "select_agent": "選擇一個智能體"
     },
     "artifacts": {
       "button": {
@@ -711,15 +742,6 @@
       "view_full_content": "檢視完整內容"
     },
     "input": {
-      "activity_directory": {
-        "description": "從活動目錄中選擇檔案",
-        "loading": "載入檔案中...",
-        "no_file_found": {
-          "description": "可存取的目錄中沒有檔案",
-          "label": "找不到檔案"
-        },
-        "title": "活動目錄"
-      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -749,6 +771,24 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resource_panel": {
+        "categories": {
+          "agents": "智能體",
+          "files": "檔案",
+          "skills": "技能"
+        },
+        "description": "從檔案、智能體或技能中選擇",
+        "loading": "載入中...",
+        "no_file_found": {
+          "description": "可存取目錄中無可用檔案",
+          "label": "找不到檔案"
+        },
+        "no_items_found": {
+          "description": "沒有可用的檔案、智能體或技能",
+          "label": "未找到項目"
+        },
+        "title": "資源"
+      },
       "send": "傳送",
       "settings": "設定",
       "slash_commands": {
@@ -1194,10 +1234,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent_one": "代理人",
-    "agent_other": "代理人",
+    "agent_one": "智能體",
+    "agent_other": "智能體",
     "and": "與",
-    "assistant": "智慧代理人",
+    "assistant": "智慧智能體",
     "assistant_one": "助手",
     "assistant_other": "助手",
     "avatar": "頭像",
@@ -1236,6 +1276,9 @@
       "validation": "驗證失敗"
     },
     "expand": "展開",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "不支援的檔案類型 {{type}}"
     },
@@ -1284,6 +1327,7 @@
     "rename": "重新命名",
     "required_field": "必填欄位",
     "reset": "重設",
+    "retry": "重試",
     "save": "儲存",
     "saved": "已儲存",
     "search": "搜尋",
@@ -1633,9 +1677,6 @@
     "notes": "筆記",
     "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
     "provider_not_found": "未找到供應商",
-    "quota": "{{name}} 剩餘配額：{{quota}}",
-    "quota_empty": "今日{{name}}額度不足，請前往官網申請",
-    "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
     "search": "搜尋知識庫",
     "search_placeholder": "輸入查詢內容",
@@ -1892,6 +1933,9 @@
         "model": "請先選擇一個模型",
         "name": "請先輸入知識庫名稱"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "話題命名失敗",
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "invalid": {
@@ -1930,6 +1974,9 @@
       "siyuan": {
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
+      },
+      "table": {
+        "invalid": "無法取得有效的表格資料"
       },
       "unknown": "未知錯誤",
       "yuque": {
@@ -2017,6 +2064,9 @@
     },
     "searching": "正在搜尋...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "成功匯出到 Joplin"
       },
@@ -2076,7 +2126,9 @@
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
       "sections": {
+        "args": "參數",
         "command": "命令",
+        "content": "內容",
         "exitCode": "退出碼",
         "input": "輸入",
         "output": "輸出",
@@ -2093,6 +2145,7 @@
         "running": "執行中",
         "success": "成功"
       },
+      "streaming": "串流",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
         "done_one": "{{count}} 完成",
@@ -2240,6 +2293,7 @@
     },
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
+    "json_parse_error": "無效的 JSON 格式",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -2451,6 +2505,80 @@
       "title": "保持活躍時間"
     },
     "title": "Ollama"
+  },
+  "openclaw": {
+    "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
+    "description": "使用 Cherry Studio 服務商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "請先選擇服務商和模型"
+    },
+    "gateway": {
+      "port": "連接埠",
+      "restart": "重新啟動",
+      "start": "啟動",
+      "status": "狀態",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "install_progress": "安裝進度",
+    "installed_at": "OpenClaw 安裝路徑",
+    "model_config": {
+      "auth_token": "認證令牌",
+      "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
+      "auth_token_placeholder": "輸入或產生令牌",
+      "generate_token": "產生",
+      "model": "模型",
+      "provider": "服務商",
+      "select_model": "選擇模型",
+      "select_provider": "選擇服務商",
+      "sync_hint": "選擇的服務商和模型將同步到 OpenClaw 設定檔",
+      "title": "模型設定"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安裝在您的系統上。請先安裝它以使用此功能。",
+      "install_button": "安裝 OpenClaw",
+      "install_guide_title": "安裝指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "重新整理",
+      "step2_hint": "安裝完成後，點擊上方的重新整理按鈕來偵測 OpenClaw",
+      "step2_title": "第二步：驗證安裝",
+      "title": "OpenClaw 未安裝",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
+      "download_button": "下載 Node.js",
+      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
+      "title": "需要 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "開啟控制面板",
+      "title": "快捷操作",
+      "uninstall": "解除安裝",
+      "view_docs": "檢視文件"
+    },
+    "status": {
+      "error": "錯誤",
+      "running": "執行中",
+      "starting": "啟動中",
+      "stopped": "已停止"
+    },
+    "tips": {
+      "permissions": "OpenClaw 擁有較高的系統權限，建議僅在可信環境中使用",
+      "title": "溫馨提示",
+      "token_usage": "AI 代理模式會消耗較多 Token，請注意用量"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
+    "uninstall_progress": "解除安裝進度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功解除安裝。",
+      "title": "解除安裝完成"
+    },
+    "uninstalling": {
+      "description": "請稍候，正在解除安裝 OpenClaw...",
+      "title": "解除安裝 OpenClaw"
+    }
   },
   "ovms": {
     "action": {
@@ -2738,6 +2866,7 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "confirm_uninstall_package": "確定要解除安裝套件 {{name}} 及其所有組件嗎？",
     "content_saved": "外掛內容已成功儲存",
     "detail": {
       "allowed_tools": "允許的工具",
@@ -2764,10 +2893,22 @@
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
+    "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "顯示 {{count}} 個技能",
+    "showing_results_skills_other": "顯示 {{count}} 個技能",
+    "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下載量",
+      "label": "排序",
+      "relevance": "相關性",
+      "stars": "星標"
+    },
+    "standalone_plugins": "獨立外掛",
     "try_different_search": "請嘗試調整搜尋或類別篩選",
     "type": "類型",
     "uninstall": "解除安裝",
+    "uninstall_package": "解除安裝外掛包",
     "uninstalling": "解除安裝中..."
   },
   "preview": {
@@ -4799,6 +4940,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
+      "balance": "餘額",
       "basic_auth": {
         "label": "HTTP 認證",
         "password": {
@@ -4874,10 +5016,29 @@
         "title": "模型備註"
       },
       "oauth": {
+        "balance": "餘額",
         "button": "使用 {{provider}} 帳號登入",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登入 CherryIN",
+          "logged_in": "已透過 OAuth 登入",
+          "login_button": "OAuth 登入",
+          "logout_button": "登出",
+          "title": "OAuth 登入"
+        },
+        "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
-        "official_website": "官方網站"
+        "logged_in": "已登入",
+        "logout": "登出",
+        "logout_confirm": "確定要登出嗎？",
+        "logout_success": "已成功登出",
+        "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
+        "official_website": "官方網站",
+        "provided_by": "本服務由",
+        "provided_by_suffix": " 提供",
+        "requests": "請求數",
+        "topup": "儲值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
@@ -5181,6 +5342,7 @@
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
     "notes": "筆記",
+    "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",

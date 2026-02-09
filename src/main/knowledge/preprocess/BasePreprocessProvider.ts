@@ -33,9 +33,7 @@ export default abstract class BasePreprocessProvider {
     }
   }
 
-  abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata; quota?: number }>
-
-  abstract checkQuota(): Promise<number>
+  abstract parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }>
 
   /**
    * 检查文件是否已经被预处理过

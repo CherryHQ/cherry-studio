@@ -115,9 +115,17 @@ vi.mock('electron', () => {
   }
 })
 
+import { beforeEach } from 'vitest'
+
 import { CdpBrowserController } from '../browser'
 
 describe('CdpBrowserController', () => {
+  // Reset mock state before each test to prevent state leakage
+  beforeEach(() => {
+    // Clear mock call history
+    vi.clearAllMocks()
+  })
+
   it('executes single-line code via Runtime.evaluate', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.execute('1+1')
