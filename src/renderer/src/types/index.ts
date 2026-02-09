@@ -460,10 +460,9 @@ export interface PpioPainting extends PaintingParams {
   ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
   // Edit 模式相关
   imageFile?: string // 输入图像 URL 或 base64
-  maskFile?: string // 遮罩图像文件 URL 或 base64（用于擦除功能）
+  ppioMask?: string // 遮罩图像 URL 或 base64（用于擦除功能）
   resolution?: string // 高清化分辨率
   outputFormat?: string // 输出格式
-  ppioMask?: string // 遮罩图像（用于擦除功能）- 发送给 API 的值
 }
 
 export type PaintingAction = Partial<

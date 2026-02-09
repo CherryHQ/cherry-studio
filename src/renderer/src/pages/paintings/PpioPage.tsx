@@ -207,7 +207,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     // 大部分模型需要 prompt（除了一些工具类模型）
-    const noPromptModels = ['image-upscaler', 'image-remove-background']
+    const noPromptModels = ['image-upscaler', 'image-remove-background', 'image-eraser']
     if (!noPromptModels.includes(painting.model || '') && !painting.prompt?.trim()) {
       window.modal.error({
         content: t('paintings.prompt_required'),

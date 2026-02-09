@@ -319,7 +319,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
   // mask 图片 - 只有 image-eraser 支持
   {
     type: 'image',
-    key: 'maskFile',
+    key: 'ppioMask',
     title: 'paintings.ppio.mask_image',
     tooltip: 'paintings.ppio.mask_image_tip',
     required: false,
