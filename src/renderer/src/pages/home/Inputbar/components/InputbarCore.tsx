@@ -47,7 +47,7 @@ export interface InputbarCoreProps {
 
   text: string
   onTextChange: (text: string) => void
-  textareaRef: React.RefObject<TextAreaRef>
+  textareaRef: React.RefObject<TextAreaRef | null>
   resizeTextArea: (force?: boolean) => void
   focusTextarea: () => void
 
@@ -349,8 +349,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       sendMessageShortcut,
       isSendDisabled,
       handleSendMessage,
-      setText,
-      setTimeoutTimer,
       setFiles
     ]
   )
