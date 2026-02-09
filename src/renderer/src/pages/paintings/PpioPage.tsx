@@ -276,7 +276,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           imageUrls.map(async (url) => {
             try {
               if (!url || url.trim() === '') {
-                logger.error('图像 URL 为空')
+                logger.error(t('message.empty_url'))
                 return null
               }
               return await window.api.file.download(url)
@@ -427,7 +427,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             beforeUpload={(file) => handleImageUpload({ originFileObj: file } as UploadFile, imageKey)}>
             {imageValue ? (
               <ImagePreview>
-                <img src={imageValue} alt="预览图" />
+                <img src={imageValue} alt={t('common.image_preview')} />
               </ImagePreview>
             ) : (
               <ImageSizeImage src={IcImageUp} theme={theme} />

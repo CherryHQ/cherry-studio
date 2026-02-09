@@ -50,35 +50,52 @@ class PpioService {
   private async request<T>(
     endpoint: string,
     body: Record<string, unknown>,
-    method: 'POST' | 'GET' = 'POST'
+    method: 'POST' | 'GET' = 'POST',
+    timeout: number = 120000 // 默认 2 分钟超时
   ): Promise<T> {
     const url = `${PPIO_API_HOST}${endpoint}`
 
-    logger.debug('PPIO API request', { url, body, method })
+    // 创建 AbortController 用于超时控制
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+    }, timeout)
 
     const options: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`
-      }
+      },
+      signal: controller.signal
     }
 
     if (method === 'POST') {
       options.body = JSON.stringify(body)
     }
 
-    const response = await fetch(url, options)
+    try {
+      const response = await fetch(url, options)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('PPIO API error', { status: response.status, error: errorText })
-      throw new Error(`PPIO API error: ${response.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('PPIO API error', { status: response.status, error: errorText })
+        throw new Error(`PPIO API error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      logger.debug('PPIO API response', data)
+      return data as T
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.error('PPIO API request timeout', { endpoint, timeout })
+        throw new Error(`PPIO API request timeout after ${timeout / 1000}s`)
+      }
+      throw error
+    } finally {
+      // 清理超时定时器
+      clearTimeout(timeoutId)
     }
-
-    const data = await response.json()
-    logger.debug('PPIO API response', data)
-    return data as T
   }
 
   /**
