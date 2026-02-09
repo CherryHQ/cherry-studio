@@ -12,9 +12,8 @@ import {
 } from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isRerankModel } from '@renderer/config/models'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
+import type { KnowledgeBase, PreprocessProvider, Provider } from '@renderer/types'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +24,7 @@ interface SelectOption {
 
 interface AdvancedSettingsPanelProps {
   newBase: KnowledgeBase
+  providers: Provider[]
   selectedDocPreprocessProvider?: PreprocessProvider
   docPreprocessSelectOptions: SelectOption[]
   handlers: {
@@ -38,12 +38,12 @@ interface AdvancedSettingsPanelProps {
 
 const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
   newBase,
+  providers,
   selectedDocPreprocessProvider,
   docPreprocessSelectOptions,
   handlers
 }) => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
   const {
     handleChunkSizeChange,
     handleChunkOverlapChange,

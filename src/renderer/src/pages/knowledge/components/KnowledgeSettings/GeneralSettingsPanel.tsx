@@ -3,13 +3,13 @@ import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimensio
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel } from '@renderer/config/models'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase, Provider } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 interface GeneralSettingsPanelProps {
   newBase: KnowledgeBase
+  providers: Provider[]
   setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
   handlers: {
     handleEmbeddingModelChange: (value: string) => void
@@ -17,9 +17,8 @@ interface GeneralSettingsPanelProps {
   }
 }
 
-const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, setNewBase, handlers }) => {
+const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, providers, setNewBase, handlers }) => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
   const { handleEmbeddingModelChange, handleDimensionChange } = handlers
 
   return (

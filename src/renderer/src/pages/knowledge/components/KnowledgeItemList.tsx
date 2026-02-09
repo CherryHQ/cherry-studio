@@ -3,8 +3,6 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useWindowHeight } from '../hooks/useWindowHeight'
-
 interface KnowledgeItemListProps<T> {
   items: T[]
   emptyText?: string
@@ -13,15 +11,8 @@ interface KnowledgeItemListProps<T> {
   heightOffset?: number
 }
 
-export function KnowledgeItemList<T>({
-  items,
-  emptyText,
-  renderItem,
-  estimateSize = 75,
-  heightOffset = 270
-}: KnowledgeItemListProps<T>) {
+export function KnowledgeItemList<T>({ items, emptyText, renderItem, estimateSize = 75 }: KnowledgeItemListProps<T>) {
   const { t } = useTranslation()
-  const windowHeight = useWindowHeight()
 
   const reversedItems = useMemo(() => [...items].reverse(), [items])
   const getEstimateSize = useCallback(() => estimateSize, [estimateSize])
@@ -31,12 +22,7 @@ export function KnowledgeItemList<T>({
   }
 
   return (
-    <DynamicVirtualList
-      list={reversedItems}
-      estimateSize={getEstimateSize}
-      overscan={2}
-      scrollerStyle={{ height: windowHeight - heightOffset }}
-      autoHideScrollbar>
+    <DynamicVirtualList list={reversedItems} estimateSize={getEstimateSize} overscan={2} autoHideScrollbar>
       {(item) => renderItem(item)}
     </DynamicVirtualList>
   )

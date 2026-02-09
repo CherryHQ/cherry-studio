@@ -64,10 +64,10 @@ const KnowledgeSideNav: FC<KnowledgeSideNavProps> = ({
           </div>
         </div>
       ))}
-      <div className="flex cursor-pointer items-center gap-2 pl-3 hover:opacity-70" onClick={onAdd}>
-        <Plus size={18} />
+      <Button variant="outline" className="h-7 rounded-3xs" onClick={onAdd}>
+        <Plus size={14} className="text-primary" />
         {t('button.add')}
-      </div>
+      </Button>
     </Scrollbar>
   )
 }

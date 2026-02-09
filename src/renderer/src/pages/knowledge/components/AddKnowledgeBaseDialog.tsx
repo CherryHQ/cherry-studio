@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCreateKnowledgeBase } from '../hooks/useCreateKnowledgeBase'
+import { useKnowledgeBaseMutation } from '../hooks/useKnowledgeBaseMutation'
 import { KnowledgeBaseFormContainer } from './KnowledgeSettings'
 
 interface AddKnowledgeBaseDialogProps {
@@ -12,7 +12,8 @@ interface AddKnowledgeBaseDialogProps {
 
 const AddKnowledgeBaseDialog: FC<AddKnowledgeBaseDialogProps> = ({ open, onOpenChange, onSuccess }) => {
   const { t } = useTranslation()
-  const { submit, loading } = useCreateKnowledgeBase({
+  const { submit, loading } = useKnowledgeBaseMutation({
+    mode: 'create',
     onSuccess: (baseId) => {
       onOpenChange(false)
       onSuccess?.(baseId)

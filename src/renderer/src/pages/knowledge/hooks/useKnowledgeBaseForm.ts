@@ -9,9 +9,8 @@
  */
 
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase, Provider } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,10 +47,13 @@ type UseKnowledgeBaseFormOptions = {
  * @returns An object containing the new base state, a function to update the base, and handlers for various form actions.
  *          Also includes provider data for dropdown options and selected provider.
  */
-export const useKnowledgeBaseForm = (base?: KnowledgeBase, options?: UseKnowledgeBaseFormOptions) => {
+export const useKnowledgeBaseForm = (
+  base?: KnowledgeBase,
+  options?: UseKnowledgeBaseFormOptions,
+  providers: Provider[] = []
+) => {
   const { t } = useTranslation()
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
-  const { providers } = useProviders()
 
   // TODO: Migrate usePreprocessProviders to v2 Data API
   // Currently using mock data - needs to be implemented when preprocess providers are migrated
@@ -173,8 +175,6 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase, options?: UseKnowledg
   }
 
   const providerData = {
-    providers,
-    preprocessProviders,
     selectedDocPreprocessProvider,
     docPreprocessSelectOptions
   }

@@ -53,8 +53,8 @@ export const mapKnowledgeBaseV2ToV1 = (
 ): KnowledgeBaseV1 => {
   const model = resolveModel(base.embeddingModelMeta ?? undefined, base.embeddingModelId)
   const rerankModel = resolveModel(base.rerankModelMeta ?? undefined, base.rerankModelId)
-  const preprocessProvider = base.preprocessProviderId
-    ? preprocessProviders.find((provider) => provider.id === base.preprocessProviderId)
+  const preprocessProvider = base.fileProcessorId
+    ? preprocessProviders.find((provider) => provider.id === base.fileProcessorId)
     : undefined
 
   const createdAt = Date.parse(base.createdAt)

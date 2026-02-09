@@ -31,7 +31,7 @@ type KnowledgeItemPath = `/knowledge-items/${string}`
 /** API path type for queue status */
 type KnowledgeQueuePath = `/knowledge-bases/${string}/queue`
 
-function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
+export function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
   const flattened: KnowledgeItem[] = []
 
   const traverse = (node: KnowledgeItemTreeNode) => {

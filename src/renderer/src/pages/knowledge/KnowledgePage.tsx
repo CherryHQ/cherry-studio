@@ -1,7 +1,6 @@
-import { type FC, useMemo } from 'react'
+import { type FC } from 'react'
 
 import AddKnowledgeBaseDialog from './components/AddKnowledgeBaseDialog'
-import EditKnowledgeBaseDialog from './components/EditKnowledgeBaseDialog'
 import KnowledgeSideNav from './components/KnowledgeSideNav'
 import { useKnowledgeBaseSelection } from './hooks/useKnowledgeBaseSelection'
 import KnowledgeContent from './KnowledgeContent'
@@ -13,17 +12,11 @@ const KnowledgePage: FC = () => {
     selectBase,
     handleAddKnowledgeBase,
     deleteKnowledgeBase,
-    // Dialog states and handlers
+    // Add dialog state and handlers
     addDialogOpen,
     setAddDialogOpen,
-    editDialogOpen,
-    editingBaseId,
-    handleAddSuccess,
-    handleEditSuccess,
-    handleEditDialogClose
+    handleAddSuccess
   } = useKnowledgeBaseSelection()
-
-  const editingBase = useMemo(() => bases.find((b) => b.id === editingBaseId), [bases, editingBaseId])
 
   return (
     <div className="flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col">
@@ -35,20 +28,11 @@ const KnowledgePage: FC = () => {
           onAdd={handleAddKnowledgeBase}
           deleteKnowledgeBase={deleteKnowledgeBase}
         />
-        {bases.length === 0 && <div className="flex w-full" />}
         {selectedBaseId && <KnowledgeContent selectedBaseId={selectedBaseId} />}
       </div>
 
       {/* Dialogs */}
       <AddKnowledgeBaseDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onSuccess={handleAddSuccess} />
-      {editingBase && (
-        <EditKnowledgeBaseDialog
-          base={editingBase}
-          open={editDialogOpen}
-          onOpenChange={handleEditDialogClose}
-          onSuccess={handleEditSuccess}
-        />
-      )}
     </div>
   )
 }

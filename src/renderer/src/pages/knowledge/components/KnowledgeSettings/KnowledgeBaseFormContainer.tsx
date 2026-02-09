@@ -1,3 +1,4 @@
+import { useProviders } from '@renderer/hooks/useProvider'
 import type { KnowledgeBase } from '@renderer/types'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,18 +33,21 @@ const KnowledgeBaseFormContainer: FC<KnowledgeBaseFormContainerProps> = ({
   okText
 }) => {
   const { t } = useTranslation()
+  const { providers } = useProviders()
   const {
     newBase,
     setNewBase,
     handlers,
     providerData: { selectedDocPreprocessProvider, docPreprocessSelectOptions }
-  } = useKnowledgeBaseForm(initialBase, { open })
+  } = useKnowledgeBaseForm(initialBase, { open }, providers)
 
   const panelConfigs: PanelConfig[] = [
     {
       key: 'general',
       label: t('settings.general.label'),
-      panel: <GeneralSettingsPanel newBase={newBase} setNewBase={setNewBase} handlers={handlers} />
+      panel: (
+        <GeneralSettingsPanel newBase={newBase} providers={providers} setNewBase={setNewBase} handlers={handlers} />
+      )
     },
     {
       key: 'advanced',
@@ -51,6 +55,7 @@ const KnowledgeBaseFormContainer: FC<KnowledgeBaseFormContainerProps> = ({
       panel: (
         <AdvancedSettingsPanel
           newBase={newBase}
+          providers={providers}
           selectedDocPreprocessProvider={selectedDocPreprocessProvider}
           docPreprocessSelectOptions={docPreprocessSelectOptions}
           handlers={handlers}

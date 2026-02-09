@@ -1,55 +1,61 @@
 import { ColFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
+import AiProviderNew from '@renderer/aiCore/index_new'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { flattenKnowledgeItems, useKnowledgeBases } from '@renderer/data/hooks/useKnowledgeData'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { CreateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
+import type { KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildKnowledgeBasePayload } from '../utils/knowledgeBasePayload'
 
-const logger = loggerService.withContext('useUpdateKnowledgeBase')
+const logger = loggerService.withContext('useKnowledgeBaseMutation')
 
-function flattenKnowledgeItems(treeNodes: KnowledgeItemTreeNode[]): KnowledgeItem[] {
-  const flattened: KnowledgeItem[] = []
-
-  const traverse = (node: KnowledgeItemTreeNode) => {
-    flattened.push(node.item)
-    node.children.forEach(traverse)
-  }
-
-  treeNodes.forEach(traverse)
-  return flattened
-}
-
-interface UseUpdateKnowledgeBaseOptions {
-  originalBase?: KnowledgeBase
-  onSuccess?: (baseId: string) => void
-  onError?: (error: Error) => void
-}
+type UseKnowledgeBaseMutationOptions =
+  | {
+      mode: 'create'
+      onSuccess?: (baseId: string) => void
+      onError?: (error: Error) => void
+    }
+  | {
+      mode: 'update'
+      originalBase: KnowledgeBase
+      onSuccess?: (baseId: string) => void
+      onError?: (error: Error) => void
+    }
 
 /**
- * Hook for updating an existing knowledge base
+ * Unified hook for creating or updating a knowledge base.
  *
- * Handles critical change detection, migration logic, and update API.
+ * - `mode: 'create'`: validates name/model, auto-fetches embedding dimensions, calls createKnowledgeBase().
+ * - `mode: 'update'`: detects critical changes (model/dimensions), handles migration or simple patch.
+ *
+ * Returns `{ submit, loading, hasCriticalChanges }`.
+ * `hasCriticalChanges` always returns `false` in create mode.
  */
-export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
-  const { originalBase, onSuccess, onError } = options
+export function useKnowledgeBaseMutation(options: UseKnowledgeBaseMutationOptions) {
+  const { mode, onSuccess, onError } = options
+  const originalBase = mode === 'update' ? options.originalBase : undefined
+
   const [loading, setLoading] = useState(false)
   const { t } = useTranslation()
+  const { providers } = useProviders()
+  const { createKnowledgeBase } = useKnowledgeBases()
   const invalidate = useInvalidateCache()
+
+  // --- Critical change detection (update mode only) ---
 
   const hasCriticalChanges = useCallback(
     (newBase: KnowledgeBase) => {
-      if (!originalBase) {
-        return false
-      }
+      if (!originalBase) return false
       return (
         getModelUniqId(originalBase.model) !== getModelUniqId(newBase.model) ||
         originalBase.dimensions !== newBase.dimensions
@@ -57,6 +63,13 @@ export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
     },
     [originalBase]
   )
+
+  const checkHasCriticalChanges = useMemo(
+    () => (newBase: KnowledgeBase) => hasCriticalChanges(newBase),
+    [hasCriticalChanges]
+  )
+
+  // --- Migration helpers (update mode only) ---
 
   const fetchAllItems = useCallback(async (sourceBaseId: string) => {
     const response = (await dataApiService.get(
@@ -137,7 +150,73 @@ export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
     [originalBase, invalidate, onSuccess, onError, t]
   )
 
-  const submit = useCallback(
+  // --- Create logic ---
+
+  const submitCreate = useCallback(
+    async (newBase: KnowledgeBase) => {
+      if (!newBase.name?.trim()) {
+        window.toast.error(t('knowledge.name_required'))
+        return
+      }
+
+      if (!newBase.model) {
+        window.toast.error(t('knowledge.embedding_model_required'))
+        return
+      }
+
+      setLoading(true)
+
+      try {
+        let dimensions = newBase.dimensions
+
+        // Auto-fetch dimensions if not manually set
+        if (!dimensions) {
+          const provider = providers.find((p) => p.id === newBase.model.provider)
+
+          if (!provider) {
+            window.toast.error(t('knowledge.provider_not_found'))
+            setLoading(false)
+            return
+          }
+
+          try {
+            const aiProvider = new AiProviderNew(provider)
+            dimensions = await aiProvider.getEmbeddingDimensions(newBase.model)
+            logger.info('Auto-fetched embedding dimensions', { dimensions, modelId: newBase.model.id })
+          } catch (error) {
+            logger.error('Failed to get embedding dimensions', error as Error)
+            window.toast.error(t('message.error.get_embedding_dimensions') + '\n' + formatErrorMessage(error))
+            setLoading(false)
+            return
+          }
+        }
+
+        logger.info('Creating knowledge base via Data API', {
+          id: newBase.id,
+          name: newBase.name,
+          modelId: newBase.model?.id,
+          provider: newBase.model?.provider,
+          dimensions
+        })
+
+        const payload = buildKnowledgeBasePayload({ ...newBase, dimensions })
+        const newBaseV2 = await createKnowledgeBase(payload)
+
+        onSuccess?.(newBaseV2.id)
+      } catch (error) {
+        logger.error('KnowledgeBase creation failed:', error as Error)
+        window.toast.error(t('knowledge.error.failed_to_create') + formatErrorMessage(error))
+        onError?.(error as Error)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [t, providers, createKnowledgeBase, onSuccess, onError]
+  )
+
+  // --- Update logic ---
+
+  const submitUpdate = useCallback(
     async (newBase: KnowledgeBase) => {
       if (!originalBase) return
 
@@ -176,9 +255,9 @@ export function useUpdateKnowledgeBase(options: UseUpdateKnowledgeBaseOptions) {
     [originalBase, hasCriticalChanges, handleMigration, handleUpdate, t]
   )
 
-  const checkHasCriticalChanges = useMemo(() => {
-    return (newBase: KnowledgeBase) => hasCriticalChanges(newBase)
-  }, [hasCriticalChanges])
+  // --- Public API ---
+
+  const submit = mode === 'create' ? submitCreate : submitUpdate
 
   return { submit, loading, hasCriticalChanges: checkHasCriticalChanges }
 }

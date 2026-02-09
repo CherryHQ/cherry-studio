@@ -24,7 +24,6 @@ export function buildKnowledgeBasePayload(base: KnowledgeBase) {
           name: base.rerankModel.name
         }
       : undefined,
-    preprocessProviderId: base.preprocessProvider?.provider.id,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,
     threshold: base.threshold,

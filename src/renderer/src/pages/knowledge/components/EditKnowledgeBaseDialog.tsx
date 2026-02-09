@@ -4,7 +4,7 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useUpdateKnowledgeBase } from '../hooks/useUpdateKnowledgeBase'
+import { useKnowledgeBaseMutation } from '../hooks/useKnowledgeBaseMutation'
 import { mapKnowledgeBaseV2ToV1 } from '../utils/knowledgeBaseAdapter'
 import { KnowledgeBaseFormContainer } from './KnowledgeSettings'
 
@@ -22,7 +22,8 @@ const EditKnowledgeBaseDialog: FC<EditKnowledgeBaseDialogProps> = ({ base: baseV
 
   const [currentHasCriticalChanges, setCurrentHasCriticalChanges] = useState(false)
 
-  const { submit, loading, hasCriticalChanges } = useUpdateKnowledgeBase({
+  const { submit, loading, hasCriticalChanges } = useKnowledgeBaseMutation({
+    mode: 'update',
     originalBase: base,
     onSuccess: (id) => {
       onOpenChange(false)
