@@ -2,7 +2,6 @@ import type {
   Model,
   ReasoningEffortConfig,
   ReasoningEffortOption,
-  SystemProviderId,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -259,29 +258,6 @@ export const getModelSupportedReasoningEffortOptions = (
 }
 
 function _isSupportedThinkingTokenModel(model: Model): boolean {
-  // Specifically for DeepSeek V3.1. White list for now
-  if (isDeepSeekHybridInferenceModel(model)) {
-    return (
-      [
-        'openrouter',
-        'dashscope',
-        'modelscope',
-        'doubao',
-        'silicon',
-        'nvidia',
-        'ppio',
-        'hunyuan',
-        'tencent-cloud-ti',
-        'deepseek',
-        'cherryin',
-        'new-api',
-        'aihubmix',
-        'sophnet',
-        'dmxapi'
-      ] satisfies SystemProviderId[]
-    ).some((id) => id === model.provider)
-  }
-
   return (
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
@@ -290,7 +266,8 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model) ||
     isSupportedThinkingTokenMiMoModel(model) ||
-    isSupportedThinkingTokenKimiModel(model)
+    isSupportedThinkingTokenKimiModel(model) ||
+    isSupportedThinkingTokenDeepSeekModel(model)
   )
 }
 

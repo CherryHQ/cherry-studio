@@ -304,9 +304,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         default:
-          logger.warn(
-            `Skipping thinking options for provider ${provider.name} as DeepSeek v3.1 thinking control method is unknown`
-          )
+          break
+      }
+    }
+    logger.warn(
+      `Use default thinking options for provider ${provider.name} as DeepSeek v3.1+ thinking control method is unknown`
+    )
+    return {
+      thinking: {
+        type: 'enabled'
       }
     }
   }
