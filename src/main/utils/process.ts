@@ -297,6 +297,18 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 }
 
 /**
+ * Common Git installation root directories on Windows
+ * Used by both findGit() and findGitBash() to check fallback paths
+ */
+function getCommonGitRoots(): string[] {
+  return [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
+  ]
+}
+
+/**
  * Find git.exe on Windows
  * Checks PATH, common install paths, and LOCALAPPDATA
  * @returns Full path to git.exe or null if not found
@@ -313,13 +325,7 @@ export function findGit(): string | null {
   }
 
   // 2. Fallback: check common Git installation paths directly
-  const commonGitRoots = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
-  ]
-
-  for (const root of commonGitRoots) {
+  for (const root of getCommonGitRoots()) {
     const fullPath = path.join(root, 'cmd', 'git.exe')
     if (fs.existsSync(fullPath)) {
       logger.debug('Found git.exe at common path', { path: fullPath })
@@ -413,13 +419,7 @@ export function findGitBash(customPath?: string | null): string | null {
   }
 
   // 4. Fallback: check common Git installation paths directly
-  const commonGitRoots = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
-  ]
-
-  for (const root of commonGitRoots) {
+  for (const root of getCommonGitRoots()) {
     const fullPath = path.join(root, 'bin', 'bash.exe')
     if (fs.existsSync(fullPath)) {
       logger.debug('Found bash.exe at common path', { path: fullPath })

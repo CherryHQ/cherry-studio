@@ -186,26 +186,22 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
-    // Check npm and git availability before installing
-    try {
-      const npmCheck = await window.api.openclaw.checkNpmAvailable()
-      if (!npmCheck.available) {
-        setNpmMissing(true)
-        return
-      }
-    } catch (err) {
-      logger.error('Failed to check npm availability', err as Error)
+    // Check npm and git availability in parallel before installing
+    const [npmResult, gitResult] = await Promise.allSettled([
+      window.api.openclaw.checkNpmAvailable(),
+      window.api.openclaw.checkGitAvailable()
+    ])
+
+    if (npmResult.status === 'rejected' || gitResult.status === 'rejected') {
+      logger.error('Failed to check tool availability')
       return
     }
-
-    try {
-      const gitCheck = await window.api.openclaw.checkGitAvailable()
-      if (!gitCheck.available) {
-        setGitMissing(true)
-        return
-      }
-    } catch (err) {
-      logger.error('Failed to check git availability', err as Error)
+    if (!npmResult.value.available) {
+      setNpmMissing(true)
+      return
+    }
+    if (!gitResult.value.available) {
+      setGitMissing(true)
       return
     }
 
