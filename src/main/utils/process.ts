@@ -9,6 +9,7 @@ import path from 'path'
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
+import getShellEnv, { refreshShellEnvCache } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -328,6 +329,30 @@ export function findGit(): string | null {
 
   logger.debug('git.exe not found - checked PATH and common paths')
   return null
+}
+
+/**
+ * Check if git is available in the user's environment
+ * Refreshes shell env cache to detect newly installed Git
+ * @returns Object with availability status and path to git executable
+ */
+export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+  let gitPath: string | null = null
+
+  if (isWin) {
+    gitPath = findGit()
+  } else {
+    refreshShellEnvCache()
+    const shellEnv = await getShellEnv()
+    gitPath = await findCommandInShellEnv('git', shellEnv)
+  }
+
+  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
+
+  return {
+    available: gitPath !== null,
+    path: gitPath
+  }
 }
 
 /**

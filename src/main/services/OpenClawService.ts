@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
+import { checkGitAvailable, findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -119,7 +119,6 @@ class OpenClawService {
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
     this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
-    this.checkGitAvailable = this.checkGitAvailable.bind(this)
     this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
@@ -185,26 +184,9 @@ class OpenClawService {
 
   /**
    * Check if git is available in the user's environment
-   * Refreshes shell env cache to detect newly installed Git
+   * Delegates to the shared utility in process.ts
    */
-  public async checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-    let gitPath: string | null = null
-
-    if (isWin) {
-      gitPath = findGit()
-    } else {
-      refreshShellEnvCache()
-      const shellEnv = await getShellEnv()
-      gitPath = await findCommandInShellEnv('git', shellEnv)
-    }
-
-    logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
-
-    return {
-      available: gitPath !== null,
-      path: gitPath
-    }
-  }
+  public checkGitAvailable = checkGitAvailable
 
   /**
    * Get Node.js download URL based on current OS and architecture
