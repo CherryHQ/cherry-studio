@@ -202,6 +202,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     if (!this.provider.apiHost) {
       throw new Error('PaddleOCR API host is not configured')
     }
+    const apiKey = this.provider.apiKey?.trim()
+    if (!apiKey) {
+      throw new Error('PaddleOCR API key is not configured')
+    }
 
     const endpoint = this.provider.apiHost
     const payload = {
@@ -219,7 +223,7 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         headers: {
           'Content-Type': 'application/json',
           'Client-Platform': 'cherry-studio',
-          Authorization: `token ${this.provider.apiKey}`
+          Authorization: `token ${apiKey}`
         },
         body: JSON.stringify(payload)
       })

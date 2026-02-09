@@ -40,15 +40,12 @@ import type {
   MemoryListOptions,
   MemorySearchOptions,
   Model,
-  OcrProvider,
-  OcrResult,
   Provider,
   RestartApiServerStatusResult,
   S3Config,
   Shortcut,
   StartApiServerStatusResult,
   StopApiServerStatusResult,
-  SupportedOcrFile,
   WebDavConfig
 } from '@types'
 import type { OpenDialogOptions } from 'electron'
@@ -582,11 +579,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
-  },
-  ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

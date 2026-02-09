@@ -153,6 +153,8 @@
  * ```
  */
 
+import { type FileProcessorTemplate, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
 // Re-export TransformResult for convenience
@@ -193,4 +195,280 @@ export function isValidNumber(value: unknown): value is number {
  */
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
+}
+
+function isValidProcessorId(value: string | undefined, validIds: Set<string>): value is string {
+  return isNonEmptyString(value) && validIds.has(value)
+}
+
+// ============================================================================
+// File Processing Migration
+// ============================================================================
+
+/**
+ * Get processor template by ID from presets
+ */
+function getTemplate(processorId: string): FileProcessorTemplate | undefined {
+  return PRESETS_FILE_PROCESSORS.find((template) => template.id === processorId)
+}
+
+/**
+ * Legacy OCR Provider type (for migration)
+ */
+interface LegacyOcrProvider {
+  id: string
+  name: string
+  config?: {
+    api?: {
+      apiKey?: string
+      apiHost?: string
+    }
+    langs?: Record<string, boolean>
+    apiUrl?: string
+    accessToken?: string
+  }
+}
+
+/**
+ * Legacy Preprocess Provider type (for migration)
+ */
+interface LegacyPreprocessProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+}
+
+/**
+ * Capability override (for migration)
+ */
+type CapabilityOverride = {
+  apiHost?: string
+  modelId?: string
+}
+
+type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
+
+/**
+ * User override for file processor (target format)
+ */
+interface FileProcessorOverride {
+  apiKeys?: string[]
+  capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
+  options?: Record<string, unknown>
+}
+
+type FileProcessorOverrides = Record<string, FileProcessorOverride>
+
+function normalizeApiHost(value?: string): string | undefined {
+  if (!isNonEmptyString(value)) return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+}
+
+function normalizeModelId(value?: string): string | undefined {
+  if (!isNonEmptyString(value)) return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function getTemplateDefaults(processorId: string, feature: FileProcessorFeature): CapabilityOverride {
+  const template = getTemplate(processorId)
+  const capability = template?.capabilities.find((item) => item.feature === feature)
+  return {
+    apiHost: normalizeApiHost(capability?.apiHost),
+    modelId: normalizeModelId(capability?.modelId)
+  }
+}
+
+function mergeCapabilities(
+  base?: Partial<Record<FileProcessorFeature, CapabilityOverride>>,
+  incoming?: Partial<Record<FileProcessorFeature, CapabilityOverride>>
+): Partial<Record<FileProcessorFeature, CapabilityOverride>> | undefined {
+  if (!base && !incoming) return undefined
+  if (!base) return incoming ? { ...incoming } : undefined
+  if (!incoming) return { ...base }
+
+  const merged = { ...base }
+  for (const [feature, cap] of Object.entries(incoming) as [FileProcessorFeature, CapabilityOverride][]) {
+    merged[feature] = { ...merged[feature], ...cap }
+  }
+
+  return merged
+}
+
+function mergeOverrides(
+  existing: FileProcessorOverride | undefined,
+  next: FileProcessorOverride
+): FileProcessorOverride {
+  if (!existing) return next
+
+  return {
+    apiKeys: next.apiKeys ?? existing.apiKeys,
+    capabilities: mergeCapabilities(existing.capabilities, next.capabilities),
+    options: existing.options || next.options ? { ...existing.options, ...next.options } : undefined
+  }
+}
+
+/**
+ * Extract user config from OCR provider
+ * Only extracts fields that differ from defaults
+ */
+function extractOcrUserConfig(provider: LegacyOcrProvider): FileProcessorOverride | null {
+  const userConfig: FileProcessorOverride = {}
+  let hasUserConfig = false
+  const capabilities: Partial<Record<FileProcessorFeature, CapabilityOverride>> = {}
+  const isPaddleOcr = provider.id === 'paddleocr'
+
+  // Extract API config (for API-based providers like paddleocr)
+  if (provider.config?.api?.apiKey) {
+    userConfig.apiKeys = [provider.config.api.apiKey]
+    hasUserConfig = true
+  }
+
+  if (!isPaddleOcr) {
+    // Only store apiHost if different from template default
+    const defaultOcrApiHost = getTemplateDefaults(provider.id, 'text_extraction').apiHost
+    const apiHost = normalizeApiHost(provider.config?.api?.apiHost)
+    if (apiHost && apiHost !== defaultOcrApiHost) {
+      capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost }
+      hasUserConfig = true
+    }
+  }
+
+  if (!isPaddleOcr) {
+    // Extract PaddleOCR specific config (apiUrl as apiHost)
+    const apiUrlHost = normalizeApiHost(provider.config?.apiUrl)
+    if (apiUrlHost) {
+      capabilities['text_extraction'] = { ...capabilities['text_extraction'], apiHost: apiUrlHost }
+      hasUserConfig = true
+    }
+  }
+  if (provider.config?.accessToken) {
+    userConfig.apiKeys = [provider.config.accessToken]
+    hasUserConfig = true
+  }
+
+  if (!isPaddleOcr) {
+    // Extract Tesseract language config (convert object to array)
+    if (provider.config?.langs && typeof provider.config.langs === 'object') {
+      const enabledLangs = Object.entries(provider.config.langs)
+        .filter(([, enabled]) => enabled === true)
+        .map(([lang]) => lang)
+
+      if (enabledLangs.length > 0) {
+        userConfig.options = { langs: enabledLangs }
+        hasUserConfig = true
+      }
+    }
+  }
+
+  // Add capabilities if any
+  if (Object.keys(capabilities).length > 0) {
+    userConfig.capabilities = capabilities
+  }
+
+  return hasUserConfig ? userConfig : null
+}
+
+/**
+ * Extract user config from Preprocess provider
+ * Only extracts fields that differ from defaults
+ */
+function extractPreprocessUserConfig(provider: LegacyPreprocessProvider): FileProcessorOverride | null {
+  const userConfig: FileProcessorOverride = {}
+  let hasUserConfig = false
+  const capabilityOverride: CapabilityOverride = {}
+  let hasCapabilityOverride = false
+  const isPaddleOcr = provider.id === 'paddleocr'
+
+  if (provider.apiKey) {
+    userConfig.apiKeys = [provider.apiKey]
+    hasUserConfig = true
+  }
+
+  if (!isPaddleOcr) {
+    // Only store apiHost if different from template default
+    const defaults = getTemplateDefaults(provider.id, 'markdown_conversion')
+    const apiHost = normalizeApiHost(provider.apiHost)
+    if (apiHost && apiHost !== defaults.apiHost) {
+      capabilityOverride.apiHost = apiHost
+      hasCapabilityOverride = true
+      hasUserConfig = true
+    }
+
+    // Only store modelId if different from template default
+    const modelId = normalizeModelId(provider.model)
+    if (modelId && modelId !== defaults.modelId) {
+      capabilityOverride.modelId = modelId
+      hasCapabilityOverride = true
+      hasUserConfig = true
+    }
+  }
+
+  // Add capability override if any field was set
+  if (hasCapabilityOverride) {
+    userConfig.capabilities = { markdown_conversion: capabilityOverride }
+  }
+
+  return hasUserConfig ? userConfig : null
+}
+
+/**
+ * Transform OCR + Preprocess providers to unified FileProcessorOverrides
+ *
+ * This transformer handles:
+ * 1. OCR providers (tesseract, system, paddleocr, ovocr)
+ * 2. Preprocess providers (mineru, doc2x, mistral, open-mineru)
+ * 3. Merging configs if same processor ID exists in both sources
+ * 4. Only storing user-modified fields (not defaults)
+ */
+export function transformFileProcessingConfig(sources: Record<string, unknown>): TransformResult {
+  const ocrProviders = sources.ocrProviders as LegacyOcrProvider[] | undefined
+  const ocrImageProviderId = sources.ocrImageProviderId as string | undefined
+  const preprocessProviders = sources.preprocessProviders as LegacyPreprocessProvider[] | undefined
+  const preprocessDefaultProvider = sources.preprocessDefaultProvider as string | undefined
+  const validProcessorIds = new Set(PRESETS_FILE_PROCESSORS.map((template) => template.id))
+
+  const overrides: FileProcessorOverrides = {}
+
+  // 1. Migrate OCR user configs
+  if (Array.isArray(ocrProviders)) {
+    for (const provider of ocrProviders) {
+      const override = extractOcrUserConfig(provider)
+      if (override) {
+        overrides[provider.id] = mergeOverrides(overrides[provider.id], override)
+      }
+    }
+  }
+
+  // 2. Migrate Preprocess user configs (merge with existing if same ID)
+  if (Array.isArray(preprocessProviders)) {
+    for (const provider of preprocessProviders) {
+      const override = extractPreprocessUserConfig(provider)
+      if (override) {
+        overrides[provider.id] = mergeOverrides(overrides[provider.id], override)
+      }
+    }
+  }
+
+  // Build result - undefined values will be skipped
+  const hasOverrides = Object.keys(overrides).length > 0
+  return {
+    'feature.file_processing.overrides': hasOverrides ? overrides : undefined,
+    'feature.file_processing.default_text_extraction_processor': isValidProcessorId(
+      ocrImageProviderId,
+      validProcessorIds
+    )
+      ? ocrImageProviderId
+      : undefined,
+    'feature.file_processing.default_markdown_conversion_processor': isValidProcessorId(
+      preprocessDefaultProvider,
+      validProcessorIds
+    )
+      ? preprocessDefaultProvider
+      : undefined
+  }
 }

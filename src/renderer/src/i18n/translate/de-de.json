@@ -4161,6 +4161,78 @@
         "title": "Zoom-Einstellungen"
       }
     },
+    "file_processing": {
+      "api_config": "API-Konfiguration",
+      "api_host": "API-Host",
+      "api_host_hint": "Standard-API-Adresse, benutzerdefinierte Adressen werden derzeit nicht unterstützt",
+      "api_host_placeholder": "Bitte API-Host eingeben",
+      "api_key": "API-Schlüssel",
+      "api_key_placeholder": "Bitte API-Schlüssel eingeben",
+      "builtin": "Integriert",
+      "capability": "Fähigkeit",
+      "configured_count": "{{count}} / {{total}} Dienste konfiguriert",
+      "custom": "Benutzerdefiniert",
+      "default_document_processor": "Standard-Dokumentenprozessor",
+      "default_image_processor": "Standard-Bildprozessor",
+      "default_service": "Standarddienst",
+      "default_setting": "Standardeinstellungen",
+      "document_processors": "Dokumentenverarbeitung",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Wird beim Hinzufügen von PDFs zur Wissensdatenbank verwendet.",
+          "title": "Dokument-Parsing"
+        },
+        "text_extraction": {
+          "description": "Extrahiert Textinhalte aus Bildern.",
+          "title": "Bild-OCR"
+        }
+      },
+      "get_api_key": "API-Schlüssel abrufen",
+      "image_processors": "Bildverarbeitung",
+      "input_document": "Dokument",
+      "input_image": "Bild",
+      "is_default": "Als Standard festgelegt",
+      "langs": "Unterstützte Sprachen",
+      "langs_placeholder": "Sprache auswählen",
+      "langs_tooltip": "Von Tesseract OCR unterstützte Sprachen auswählen",
+      "metadata": "Metadaten",
+      "no_config_needed": "Keine Konfiguration erforderlich",
+      "no_default": "Keine Vorverarbeitung verwenden",
+      "output_markdown": "Markdown",
+      "output_text": "Text",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "System-OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "Dienstkonfiguration",
+      "set_as_default": "Als Standard festlegen",
+      "title": "Dateiverarbeitung",
+      "type": "Typ",
+      "type_api": "API-Dienst",
+      "type_builtin": "Integrierter Dienst"
+    },
     "font_size": {
       "title": "Nachrichtenschriftgröße"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "Einstellungen",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Unterstützte Sprachen"
-        },
-        "error": {
-          "not_system": "System OCR unterstützt nur Windows und MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Der Anbieter wurde nicht gefunden"
-          },
-          "system": {
-            "no_need_configure": "MacOS nicht konfigurieren"
-          },
-          "title": "Bild"
-        },
-        "image_provider": "OCR-Anbieter",
-        "paddleocr": {
-          "aistudio_access_token": "StarRiver Community Access Token",
-          "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Abhängig von Windows, müssen Sie Sprachpakete im System herunterladen, um die entsprechenden Sprachen zu unterstützen."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Lesen Sie die Dokumentation, um zu erfahren, welche benutzerdefinierten Sprachen unterstützt werden"
-        },
-        "title": "OCR-Dienst"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Zugriffstoken der AI Studio Community",
-          "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "paddleocr_url_label": "Offizielle Website von PaddleOCR"
-        },
-        "provider": "Dokumentverarbeitungsanbieter",
-        "provider_placeholder": "Einen Dokumentverarbeitungsanbieter auswählen",
-        "title": "Dokumentverarbeitung",
-        "tooltip": "Setzen Sie den Dokumentverarbeitungsanbieter in den Einstellungen -> Tools, um die Suche nach komplexen Formatdokumenten und gescannten Dokumenten zu verbessern"
-      },
       "title": "Weitere Einstellungen",
       "websearch": {
         "api_key_required": {
@@ -5302,7 +5330,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Neuer Tab"
   },
   "title": {
     "apps": "Mini-Apps",

@@ -4,7 +4,7 @@ import { Modal } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DocPreprocessApiKeyList, LlmApiKeyList, WebSearchApiKeyList } from './list'
+import { LlmApiKeyList, WebSearchApiKeyList } from './list'
 
 interface ShowParams {
   providerId: string
@@ -40,8 +40,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealt
     switch (type) {
       case 'webSearch':
         return <WebSearchApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
-      case 'preprocess':
-        return <DocPreprocessApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
       case 'llm':
       default:
         return <LlmApiKeyList providerId={providerId} showHealthCheck={showHealthCheck} />

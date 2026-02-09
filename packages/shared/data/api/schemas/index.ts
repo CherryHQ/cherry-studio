@@ -20,6 +20,7 @@
  */
 
 import type { AssertValidSchemas } from '../apiTypes'
+import type { FileProcessingSchemas } from './fileProcessing'
 import type { MessageSchemas } from './messages'
 import type { TestSchemas } from './test'
 import type { TopicSchemas } from './topics'
@@ -36,4 +37,4 @@ import type { TopicSchemas } from './topics'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
-export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas>
+export type ApiSchemas = AssertValidSchemas<TestSchemas & TopicSchemas & MessageSchemas & FileProcessingSchemas>

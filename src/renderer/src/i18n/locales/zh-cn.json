@@ -4161,6 +4161,78 @@
         "title": "缩放设置"
       }
     },
+    "file_processing": {
+      "api_config": "API 配置",
+      "api_host": "API Host",
+      "api_host_hint": "默认 API 地址，暂不支持自定义",
+      "api_host_placeholder": "请输入 API Host",
+      "api_key": "API Key",
+      "api_key_placeholder": "请输入 API Key",
+      "builtin": "内置",
+      "capability": "能力",
+      "configured_count": "已配置 {{count}} / {{total}} 个服务",
+      "custom": "自定义",
+      "default_document_processor": "默认文档处理器",
+      "default_image_processor": "默认图片处理器",
+      "default_service": "默认服务",
+      "default_setting": "默认设置",
+      "document_processors": "文档处理",
+      "feature": {
+        "markdown_conversion": {
+          "description": "当添加 PDF 到知识库时使用",
+          "title": "文档解析"
+        },
+        "text_extraction": {
+          "description": "从图片中提取文本内容",
+          "title": "图片OCR"
+        }
+      },
+      "get_api_key": "点击这里获取密钥",
+      "image_processors": "图片处理",
+      "input_document": "文档",
+      "input_image": "图片",
+      "is_default": "已设为默认",
+      "langs": "支持的语言",
+      "langs_placeholder": "选择语言",
+      "langs_tooltip": "选择 Tesseract OCR 支持的语言",
+      "metadata": "元数据",
+      "no_config_needed": "无需配置",
+      "no_default": "不使用预处理",
+      "output_markdown": "Markdown",
+      "output_text": "文本",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "Paddle OCR"
+        },
+        "system": {
+          "name": "系统 OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "服务配置",
+      "set_as_default": "设为默认",
+      "title": "文件处理",
+      "type": "类型",
+      "type_api": "API 服务",
+      "type_builtin": "内置服务"
+    },
     "font_size": {
       "title": "消息字体大小"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "设置",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支持的语言"
-        },
-        "error": {
-          "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "该提供商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 无需配置"
-          },
-          "title": "图片"
-        },
-        "image_provider": "OCR 服务提供商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "api_url": "API URL",
-          "api_url_label": "获取访问令牌及API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
-        },
-        "title": "OCR 服务"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "api_url": "API URL",
-          "api_url_label": "获取访问令牌及API URL",
-          "paddleocr_url_label": "PaddleOCR 官网"
-        },
-        "provider": "文档处理服务商",
-        "provider_placeholder": "选择一个文档处理服务商",
-        "title": "文档处理",
-        "tooltip": "在设置 -> 工具中设置文档处理服务商，文档处理可以有效提升复杂格式文档与扫描版文档的检索效果"
-      },
       "title": "其他设置",
       "websearch": {
         "api_key_required": {

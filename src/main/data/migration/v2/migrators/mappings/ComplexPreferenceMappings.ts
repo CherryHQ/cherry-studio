@@ -18,6 +18,8 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { transformFileProcessingConfig } from '../transformers/PreferenceTransformers'
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -78,6 +80,25 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // File Processing Migration
+  // Migrates OCR + Preprocess providers to unified file processing config
+  {
+    id: 'file-processing-config',
+    description: 'Migrate OCR + Preprocess providers to unified file processing overrides',
+    sources: {
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' },
+      ocrImageProviderId: { source: 'redux', category: 'ocr', key: 'imageProviderId' },
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      preprocessDefaultProvider: { source: 'redux', category: 'preprocess', key: 'defaultProvider' }
+    },
+    targetKeys: [
+      'feature.file_processing.overrides',
+      'feature.file_processing.default_text_extraction_processor',
+      'feature.file_processing.default_markdown_conversion_processor'
+    ],
+    transform: transformFileProcessingConfig
+  }
+
   // Example mappings (commented out - uncomment when needed):
   //
   // {

@@ -4161,6 +4161,78 @@
         "title": "Zoom Settings"
       }
     },
+    "file_processing": {
+      "api_config": "API Configuration",
+      "api_host": "API Host",
+      "api_host_hint": "Default API address, custom address not supported for now",
+      "api_host_placeholder": "Please enter the API Host",
+      "api_key": "API Key",
+      "api_key_placeholder": "Please enter the API Key",
+      "builtin": "Built-in",
+      "capability": "Ability",
+      "configured_count": "{{count}} / {{total}} services configured",
+      "custom": "Custom",
+      "default_document_processor": "Default document processor",
+      "default_image_processor": "Default image processor",
+      "default_service": "Default service",
+      "default_setting": "Default settings",
+      "document_processors": "Document processing",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Used when adding PDFs to the knowledge base.",
+          "title": "Document Parsing"
+        },
+        "text_extraction": {
+          "description": "Extracts text content from images.",
+          "title": "Image OCR"
+        }
+      },
+      "get_api_key": "Get API Key",
+      "image_processors": "Image processing",
+      "input_document": "Document",
+      "input_image": "Image",
+      "is_default": "Set as default",
+      "langs": "Supported languages",
+      "langs_placeholder": "Select language",
+      "langs_tooltip": "Select languages supported by Tesseract OCR",
+      "metadata": "Metadata",
+      "no_config_needed": "No configuration required",
+      "no_default": "Do not use preprocessing",
+      "output_markdown": "Markdown",
+      "output_text": "Text",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "System OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "Service Configuration",
+      "set_as_default": "Set as default",
+      "title": "File Processing",
+      "type": "Type",
+      "type_api": "API service",
+      "type_builtin": "Built-in services"
+    },
     "font_size": {
       "title": "Message font size"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "Settings",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Supported languages"
-        },
-        "error": {
-          "not_system": "System OCR only supports Windows and MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "The provider does not exist"
-          },
-          "system": {
-            "no_need_configure": "MacOS requires no configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "OCR service provider",
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
-        },
-        "title": "OCR service"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL",
-          "paddleocr_url_label": "PaddleOCR Official Website"
-        },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
-        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
-      },
       "title": "Other Settings",
       "websearch": {
         "api_key_required": {

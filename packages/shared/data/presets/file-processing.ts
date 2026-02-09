@@ -1,0 +1,274 @@
+/**
+ * File Processing Presets
+ *
+ * Templates are read-only metadata about processors.
+ * User overrides are stored separately in preferences.
+ *
+ * i18n: Display names use `processor.${id}.name`
+ */
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Processor service type
+ */
+export type FileProcessorType = 'api' | 'builtin'
+
+/**
+ * Feature type
+ */
+export type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
+
+/**
+ * Input type (category)
+ * Can be migrated to FileTypes enum in @types later
+ */
+export type FileProcessorInput = 'image' | 'document'
+
+/**
+ * Output type
+ */
+export type FileProcessorOutput = 'text' | 'markdown'
+
+/**
+ * Processor metadata (reserved for future use)
+ */
+export type FileProcessorMetadata = Record<string, never>
+
+/**
+ * Feature capability definition
+ *
+ * Each capability binds a feature with its input/output and optional API settings.
+ */
+export type CapabilityMetadata = Record<string, unknown>
+
+export type TextExtractionCapability = {
+  feature: 'text_extraction'
+  input: 'image' | 'document'
+  output: 'text'
+  apiHost?: string // API Host (template default, can be overridden)
+  modelId?: string // Model ID (template default, can be overridden)
+  metadata?: CapabilityMetadata
+  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
+}
+
+export type MarkdownConversionCapability = {
+  feature: 'markdown_conversion'
+  input: 'document'
+  output: 'markdown'
+  apiHost?: string // API Host (template default, can be overridden)
+  modelId?: string // Model ID (template default, can be overridden)
+  metadata?: CapabilityMetadata
+  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
+}
+
+export type FeatureCapability = TextExtractionCapability | MarkdownConversionCapability
+
+/**
+ * Processor template (read-only metadata)
+ *
+ * Note: Display name is retrieved via i18n key `processor.${id}.name`
+ */
+export type FileProcessorTemplate = {
+  id: string // Unique identifier, also used for i18n key
+  type: FileProcessorType // 'api' | 'builtin'
+  metadata?: FileProcessorMetadata // Optional processor metadata
+  capabilities: FeatureCapability[] // Feature capabilities
+}
+
+// ============================================================================
+// Override Types (for user customization)
+// ============================================================================
+
+/**
+ * Processor-specific configuration
+ *
+ * Uses a generic Record type without predefined structure.
+ * Each processor's configuration is interpreted by UI components based on processor.id.
+ *
+ * Known options fields:
+ * - Tesseract: { langs: string[] }  // Array of enabled language codes
+ *
+ * Examples:
+ * - { langs: ['chi_sim', 'eng'] }        // Tesseract language config
+ * - { quality: 'high', timeout: 30000 }  // Other processor config
+ */
+export type FileProcessorOptions = Record<string, unknown>
+
+/**
+ * Capability override (user customization for a specific feature)
+ *
+ * Stored as Record<feature, CapabilityOverride> in FileProcessorOverride.
+ */
+export type CapabilityOverride = {
+  apiHost?: string
+  modelId?: string
+  metadata?: CapabilityMetadata
+}
+
+/**
+ * User-configured processor override (stored in Preference)
+ *
+ * Design principles:
+ * - Only stores user-modified fields
+ * - apiKey is shared across all features (processor-level)
+ * - apiHost/modelId are per-feature (in capabilities Record)
+ * - Field names use camelCase (consistent with TypeScript conventions)
+ */
+export type FileProcessorOverride = {
+  apiKeys?: string[] // API Keys (shared across all features)
+  capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>> // Per-feature overrides
+  options?: FileProcessorOptions // Processor-specific config (generic type)
+}
+
+/**
+ * Map of processor id -> overrides
+ */
+export type FileProcessorOverrides = Record<string, FileProcessorOverride>
+
+/**
+ * Merged processor configuration (template + user override)
+ *
+ * Used by both Renderer (UI display/editing) and Main (execution).
+ * Combines the read-only template with user-configured overrides.
+ *
+ * Note: capabilities is an array (from template) with overrides merged in,
+ * NOT a Record like in FileProcessorOverride.
+ */
+export type FileProcessorMerged = {
+  id: string
+  type: FileProcessorType
+  metadata?: FileProcessorMetadata
+  capabilities: FeatureCapability[] // Merged capabilities (array)
+  apiKeys?: string[]
+  options?: FileProcessorOptions
+}
+
+// ============================================================================
+// Processor Presets
+// ============================================================================
+
+/**
+ * Built-in processor presets
+ */
+export const PRESETS_FILE_PROCESSORS = [
+  // === Image Processors (former OCR) ===
+  {
+    id: 'tesseract',
+    type: 'builtin',
+    capabilities: [
+      {
+        feature: 'text_extraction',
+        input: 'image',
+        output: 'text'
+      }
+    ]
+  },
+  {
+    id: 'system',
+    type: 'builtin',
+    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+  },
+  {
+    id: 'paddleocr',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'text_extraction',
+        input: 'image',
+        output: 'text',
+        apiHost: 'https://paddleocr.aistudio-app.com/',
+        modelId: 'PP-OCRv5',
+        metadata: {
+          optionalPayload: {
+            useDocOrientationClassify: false,
+            useDocUnwarping: false
+          }
+        }
+      },
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'https://paddleocr.aistudio-app.com/',
+        modelId: 'PaddleOCR-VL-1.5',
+        metadata: {
+          optionalPayload: {
+            useDocOrientationClassify: false,
+            useDocUnwarping: false
+          }
+        }
+      }
+    ]
+  },
+  {
+    id: 'ovocr',
+    type: 'builtin',
+    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+  },
+
+  // === Document Processors (former Preprocess) ===
+  {
+    id: 'mineru',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'https://mineru.net',
+        metadata: {
+          optionalPayload: {
+            enable_formula: true,
+            enable_table: true,
+            is_ocr: true
+          }
+        }
+      }
+    ]
+  },
+  {
+    id: 'doc2x',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'https://v2.doc2x.noedgeai.com'
+      }
+    ]
+  },
+  {
+    id: 'mistral',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'https://api.mistral.ai',
+        modelId: 'mistral-ocr-latest'
+      }
+    ]
+  },
+  {
+    id: 'open-mineru',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'markdown_conversion',
+        input: 'document',
+        output: 'markdown',
+        apiHost: 'http://127.0.0.1:8000'
+      }
+    ]
+  }
+] as const satisfies readonly FileProcessorTemplate[]
+
+// Processor ID type derived from PRESETS_FILE_PROCESSORS
+export type FileProcessorId = (typeof PRESETS_FILE_PROCESSORS)[number]['id']

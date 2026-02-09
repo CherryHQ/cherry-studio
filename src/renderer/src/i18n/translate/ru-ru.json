@@ -4161,6 +4161,78 @@
         "title": "Настройки масштаба"
       }
     },
+    "file_processing": {
+      "api_config": "Конфигурация API",
+      "api_host": "Хост API",
+      "api_host_hint": "Адрес API по умолчанию, пользовательские адреса пока не поддерживаются",
+      "api_host_placeholder": "Пожалуйста, введите хост API",
+      "api_key": "Ключ API",
+      "api_key_placeholder": "Пожалуйста, введите ключ API",
+      "builtin": "Встроенный",
+      "capability": "Возможность",
+      "configured_count": "{{count}} / {{total}} сервисов настроено",
+      "custom": "Пользовательский",
+      "default_document_processor": "Обработчик документов по умолчанию",
+      "default_image_processor": "Обработчик изображений по умолчанию",
+      "default_service": "Сервис по умолчанию",
+      "default_setting": "Настройки по умолчанию",
+      "document_processors": "Обработка документов",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Используется при добавлении PDF в базу знаний.",
+          "title": "Анализ документов"
+        },
+        "text_extraction": {
+          "description": "Извлекает текстовое содержимое из изображений.",
+          "title": "OCR изображений"
+        }
+      },
+      "get_api_key": "Получить ключ API",
+      "image_processors": "Обработка изображений",
+      "input_document": "Документ",
+      "input_image": "Изображение",
+      "is_default": "Установлено по умолчанию",
+      "langs": "Поддерживаемые языки",
+      "langs_placeholder": "Выберите язык",
+      "langs_tooltip": "Выберите языки, поддерживаемые Tesseract OCR",
+      "metadata": "Метаданные",
+      "no_config_needed": "Настройка не требуется",
+      "no_default": "Не использовать предобработку",
+      "output_markdown": "Markdown",
+      "output_text": "Текст",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "Системный OCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "Конфигурация сервиса",
+      "set_as_default": "Установить по умолчанию",
+      "title": "Обработка файлов",
+      "type": "Тип",
+      "type_api": "API-сервис",
+      "type_builtin": "Встроенный сервис"
+    },
     "font_size": {
       "title": "Размер шрифта сообщений"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "Настройки",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Поддерживаемые языки"
-        },
-        "error": {
-          "not_system": "Системный OCR поддерживается только в Windows и MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Поставщик не существует"
-          },
-          "system": {
-            "no_need_configure": "MacOS не требует настройки"
-          },
-          "title": "Изображение"
-        },
-        "image_provider": "Поставщик услуг OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Токен доступа сообщества AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Получение токена доступа и URL API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Для предоставления служб Windows необходимо загрузить языковой пакет в системе для поддержки соответствующего языка."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Ознакомьтесь с документацией, чтобы узнать, какие пользовательские языки поддерживаются"
-        },
-        "title": "OCR-сервис"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Токен доступа к сообществу AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Получение токена доступа и URL API",
-          "paddleocr_url_label": "Официальный сайт PaddleOCR"
-        },
-        "provider": "Поставщик обработки документов",
-        "provider_placeholder": "Выберите поставщика услуг обработки документов",
-        "title": "Обработка документов",
-        "tooltip": "В настройках (Настройки -> Инструменты) укажите поставщика услуг обработки документов. Обработка документов может значительно повысить эффективность поиска для документов сложных форматов и отсканированных документов."
-      },
       "title": "Другие настройки",
       "websearch": {
         "api_key_required": {
@@ -5302,7 +5330,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Новая вкладка"
   },
   "title": {
     "apps": "Приложения",

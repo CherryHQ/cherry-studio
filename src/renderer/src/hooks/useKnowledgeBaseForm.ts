@@ -1,5 +1,5 @@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
+import { useFileProcessors } from '@renderer/hooks/useFileProcessing'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
@@ -39,7 +39,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const { t } = useTranslation()
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
-  const { preprocessProviders } = usePreprocessProviders()
+  const { processors: markdownConverters } = useFileProcessors({ feature: 'markdown_conversion' })
 
   useEffect(() => {
     if (base) {
@@ -56,12 +56,12 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     const preprocessOptions = {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
-      options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru', 'paddleocr'].includes(p.id))
-        .map((p) => ({ value: p.id, label: p.name }))
+      options: markdownConverters
+        .filter((p) => (p.apiKeys && p.apiKeys.length > 0) || p.id === 'open-mineru')
+        .map((p) => ({ value: p.id, label: t(`processor.${p.id}.name`) }))
     }
     return [preprocessOptions]
-  }, [preprocessProviders, t])
+  }, [markdownConverters, t])
 
   const handleEmbeddingModelChange = useCallback(
     (value: string) => {
@@ -87,22 +87,23 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     setNewBase((prev) => ({ ...prev, dimensions: value || undefined }))
   }, [])
 
+  // TODO: will be process in Knowledge PR
   const handleDocPreprocessChange = useCallback(
     (value: string) => {
-      const provider = preprocessProviders.find((p) => p.id === value)
+      const provider = markdownConverters.find((p) => p.id === value)
       if (!provider) {
         setNewBase((prev) => ({ ...prev, preprocessProvider: undefined }))
         return
       }
-      setNewBase((prev) => ({
-        ...prev,
-        preprocessProvider: {
-          type: 'preprocess',
-          provider
-        }
-      }))
+      // setNewBase((prev) => ({
+      //   ...prev,
+      //   preprocessProvider: {
+      //     type: 'preprocess',
+      //     provider
+      //   }
+      // }))
     },
-    [preprocessProviders]
+    [markdownConverters]
   )
 
   const handleChunkSizeChange = useCallback(
@@ -147,7 +148,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
 
   const providerData = {
     providers,
-    preprocessProviders,
+    markdownConverters,
     selectedDocPreprocessProvider,
     docPreprocessSelectOptions
   }

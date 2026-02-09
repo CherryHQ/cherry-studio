@@ -4161,6 +4161,78 @@
         "title": "ズーム設定"
       }
     },
+    "file_processing": {
+      "api_config": "API設定",
+      "api_host": "APIホスト",
+      "api_host_hint": "デフォルトAPIアドレス、カスタムは現在サポートされていません",
+      "api_host_placeholder": "APIホストを入力してください",
+      "api_key": "APIキー",
+      "api_key_placeholder": "APIキーを入力してください",
+      "builtin": "内蔵",
+      "capability": "機能",
+      "configured_count": "{{count}} / {{total}} サービス設定済み",
+      "custom": "カスタム",
+      "default_document_processor": "デフォルトドキュメントプロセッサ",
+      "default_image_processor": "デフォルト画像プロセッサ",
+      "default_service": "デフォルトサービス",
+      "default_setting": "デフォルト設定",
+      "document_processors": "ドキュメント処理",
+      "feature": {
+        "markdown_conversion": {
+          "description": "PDF を知識ベースに追加する際に使用します。",
+          "title": "文書解析"
+        },
+        "text_extraction": {
+          "description": "画像からテキスト内容を抽出します。",
+          "title": "画像 OCR"
+        }
+      },
+      "get_api_key": "APIキーを取得",
+      "image_processors": "画像処理",
+      "input_document": "文書",
+      "input_image": "画像",
+      "is_default": "デフォルトに設定済み",
+      "langs": "対応言語",
+      "langs_placeholder": "言語を選択",
+      "langs_tooltip": "Tesseract OCRがサポートする言語を選択",
+      "metadata": "メタデータ",
+      "no_config_needed": "設定不要",
+      "no_default": "前処理を使用しない",
+      "output_markdown": "Markdown",
+      "output_text": "テキスト",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "システムOCR"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "サービス設定",
+      "set_as_default": "デフォルトに設定",
+      "title": "ファイル処理",
+      "type": "タイプ",
+      "type_api": "APIサービス",
+      "type_builtin": "内蔵サービス"
+    },
     "font_size": {
       "title": "メッセージのフォントサイズ"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "サポートされている言語"
-        },
-        "error": {
-          "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該提供者は存在しません"
-          },
-          "system": {
-            "no_need_configure": "MacOS は設定不要"
-          },
-          "title": "画像"
-        },
-        "image_provider": "OCRサービスプロバイダー",
-        "paddleocr": {
-          "aistudio_access_token": "AI Studio Community のアクセス・トークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Windows が提供するサービスに依存しており、関連する言語をサポートするには、システムで言語パックをダウンロードする必要があります。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "ドキュメントを読んで、どのカスタム言語がサポートされているかを確認してください。"
-        },
-        "title": "OCRサービス"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する",
-          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト"
-        },
-        "provider": "プレプロセスプロバイダー",
-        "provider_placeholder": "前処理プロバイダーを選択してください",
-        "title": "前処理",
-        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
-      },
       "title": "その他の設定",
       "websearch": {
         "api_key_required": {
@@ -5302,7 +5330,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "新しいタブ"
   },
   "title": {
     "apps": "アプリ",

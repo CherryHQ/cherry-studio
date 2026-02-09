@@ -4161,6 +4161,78 @@
         "title": "Configuración de zoom"
       }
     },
+    "file_processing": {
+      "api_config": "Configuración de API",
+      "api_host": "Host de API",
+      "api_host_hint": "Dirección API predeterminada, las direcciones personalizadas aún no son compatibles",
+      "api_host_placeholder": "Por favor ingrese el host de API",
+      "api_key": "Clave de API",
+      "api_key_placeholder": "Por favor ingrese la clave de API",
+      "builtin": "Integrado",
+      "capability": "Capacidad",
+      "configured_count": "{{count}} / {{total}} servicios configurados",
+      "custom": "Personalizado",
+      "default_document_processor": "Procesador de documentos predeterminado",
+      "default_image_processor": "Procesador de imágenes predeterminado",
+      "default_service": "Servicio predeterminado",
+      "default_setting": "Configuración predeterminada",
+      "document_processors": "Procesamiento de documentos",
+      "feature": {
+        "markdown_conversion": {
+          "description": "Se utiliza al añadir PDF a la base de conocimientos.",
+          "title": "Análisis de documentos"
+        },
+        "text_extraction": {
+          "description": "Extrae el contenido de texto de las imágenes.",
+          "title": "OCR de imágenes"
+        }
+      },
+      "get_api_key": "Obtener clave API",
+      "image_processors": "Procesamiento de imágenes",
+      "input_document": "Documento",
+      "input_image": "Imagen",
+      "is_default": "Establecido como predeterminado",
+      "langs": "Idiomas compatibles",
+      "langs_placeholder": "Seleccionar idioma",
+      "langs_tooltip": "Seleccionar idiomas compatibles con Tesseract OCR",
+      "metadata": "Metadatos",
+      "no_config_needed": "No se requiere configuración",
+      "no_default": "No usar preprocesamiento",
+      "output_markdown": "Markdown",
+      "output_text": "Texto",
+      "processor": {
+        "doc2x": {
+          "name": "Doc2X"
+        },
+        "mineru": {
+          "name": "MinerU"
+        },
+        "mistral": {
+          "name": "Mistral OCR"
+        },
+        "open-mineru": {
+          "name": "Open MinerU"
+        },
+        "ovocr": {
+          "name": "Intel OV OCR"
+        },
+        "paddleocr": {
+          "name": "PaddleOCR"
+        },
+        "system": {
+          "name": "OCR del sistema"
+        },
+        "tesseract": {
+          "name": "Tesseract"
+        }
+      },
+      "service_config": "Configuración del servicio",
+      "set_as_default": "Establecer como predeterminado",
+      "title": "Procesamiento de archivos",
+      "type": "Tipo",
+      "type_api": "Servicio API",
+      "type_builtin": "Servicio integrado"
+    },
     "font_size": {
       "title": "Tamaño de fuente de mensajes"
     },
@@ -5089,50 +5161,6 @@
     },
     "title": "Configuración",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Idiomas compatibles"
-        },
-        "error": {
-          "not_system": "El OCR del sistema solo admite Windows y MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "El proveedor no existe"
-          },
-          "system": {
-            "no_need_configure": "MacOS no requiere configuración"
-          },
-          "title": "Imagen"
-        },
-        "image_provider": "Proveedor de servicios OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Token de acceso de la comunidad de AI Studio",
-          "api_url": "URL de la API",
-          "api_url_label": "Obtener el token de acceso y la URL de la API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependiendo de Windows para proporcionar servicios, necesita descargar el paquete de idioma en el sistema para admitir los idiomas correspondientes."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles"
-        },
-        "title": "Servicio OCR"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Token de acceso de la Comunidad AI Studio",
-          "api_url": "URL de la API",
-          "api_url_label": "Obtener el token de acceso y la URL de la API",
-          "paddleocr_url_label": "Sitio web oficial de PaddleOCR"
-        },
-        "provider": "Proveedor de servicios de preprocesamiento de documentos",
-        "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
-        "title": "Preprocesamiento de documentos",
-        "tooltip": "Configure un proveedor de preprocesamiento de documentos o OCR en Configuración -> Herramientas. El preprocesamiento de documentos puede mejorar significativamente la eficacia de búsqueda en documentos con formatos complejos o versiones escaneadas. El OCR solo puede reconocer texto en imágenes o en archivos PDF escaneados."
-      },
       "title": "Configuración de Herramientas",
       "websearch": {
         "api_key_required": {
@@ -5302,7 +5330,7 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "new": "Nueva pestaña"
   },
   "title": {
     "apps": "Aplicaciones",

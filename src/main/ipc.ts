@@ -22,16 +22,7 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import type {
-  AgentPersistedMessage,
-  FileMetadata,
-  Notification,
-  OcrProvider,
-  PluginError,
-  Provider,
-  Shortcut,
-  SupportedOcrFile
-} from '@types'
+import type { AgentPersistedMessage, FileMetadata, Notification, PluginError, Provider, Shortcut } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
@@ -61,7 +52,6 @@ import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceServic
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ocrService } from './services/ocr/OcrService'
 import { openClawService } from './services/OpenClawService'
 import { isOvmsSupported } from './services/OvmsManager'
 import powerMonitorService from './services/PowerMonitorService'
@@ -985,12 +975,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
     codeToolsService.removeCustomTerminalPath(terminalId)
   )
-
-  // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
-    ocrService.ocr(file, provider)
-  )
-  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // OVMS
   ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)

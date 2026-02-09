@@ -1,0 +1,580 @@
+/**
+ * File Processing Service
+ *
+ * Main orchestration service for file processing operations.
+ * Coordinates between ProcessorRegistry, ConfigurationService, and individual processors.
+ *
+ * Supports async task model:
+ * - startProcess(): Launch task, return immediately with pending status
+ * - getResult(): Query task status/progress/result (tasks cleaned up after TTL)
+ * - cancel(): Cancel an active task
+ */
+
+import { loggerService } from '@logger'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/apiErrors'
+import type {
+  FileProcessorFeature,
+  FileProcessorMerged,
+  FileProcessorOverride
+} from '@shared/data/presets/file-processing'
+import type {
+  CancelResponse,
+  ProcessFileDto,
+  ProcessingResult,
+  ProcessingResultOutput,
+  ProcessingResultPending,
+  ProcessResultResponse,
+  ProcessStartResponse
+} from '@shared/data/types/fileProcessing'
+import type { FileMetadata } from '@types'
+import { v4 as uuidv4 } from 'uuid'
+
+import { configurationService } from './config/ConfigurationService'
+import { UnsupportedInputError } from './errors'
+import type { IFileProcessor } from './interfaces'
+import { isMarkdownConverter, isProcessStatusProvider, isTextExtractor } from './interfaces'
+import { Doc2xProcessor } from './providers/api/Doc2xProcessor'
+import { MineruProcessor } from './providers/api/MineruProcessor'
+import { MistralProcessor } from './providers/api/MistralProcessor'
+import { OpenMineruProcessor } from './providers/api/OpenMineruProcessor'
+import { PaddleProcessor } from './providers/api/PaddleProcessor'
+import { OvOcrProcessor } from './providers/builtin/OvOcrProcessor'
+import { SystemOcrProcessor } from './providers/builtin/SystemOcrProcessor'
+import { TesseractProcessor } from './providers/builtin/TesseractProcessor'
+import { processorRegistry } from './registry/ProcessorRegistry'
+import type { ProcessingContext, TaskState } from './types'
+
+const logger = loggerService.withContext('FileProcessingService')
+
+/** TTL for completed/failed tasks before cleanup (5 minutes) */
+const TASK_TTL_MS = 5 * 60 * 1000
+/** Interval for cleanup timer (1 minute) */
+const CLEANUP_INTERVAL_MS = 60 * 1000
+
+export class FileProcessingService {
+  private static instance: FileProcessingService | null = null
+  private static processorsRegistered = false
+  private taskStates: Map<string, TaskState> = new Map()
+  private cleanupTimer: NodeJS.Timeout | null = null
+  /** Track recently expired request IDs to distinguish from "not_found" */
+  private expiredRequestIds: Map<string, number> = new Map()
+  /** TTL for expired request tracking (same as task TTL) */
+  private static readonly EXPIRED_TRACKING_TTL_MS = TASK_TTL_MS
+
+  private constructor() {}
+
+  static getInstance(): FileProcessingService {
+    if (!FileProcessingService.instance) {
+      FileProcessingService.instance = new FileProcessingService()
+    }
+    return FileProcessingService.instance
+  }
+
+  /**
+   * Start processing a file asynchronously
+   *
+   * Returns immediately with a request ID. Use getResult() to poll for completion.
+   *
+   * @param dto - Process file DTO containing file, feature, and optional processorId
+   * @returns Process start response with requestId and pending status
+   * @throws Error if processor not found
+   */
+  async startProcess(dto: ProcessFileDto): Promise<ProcessStartResponse> {
+    this.ensureProcessorsRegistered()
+    const requestId = uuidv4()
+    const { file, feature, processorId: requestedProcessorId } = dto
+
+    // Validate required parameters
+    if (!file) {
+      throw DataApiErrorFactory.validation({ file: ['File is required'] })
+    }
+    if (!feature) {
+      throw DataApiErrorFactory.validation({ feature: ['Feature is required'] })
+    }
+
+    // Resolve processor
+    const processorId = requestedProcessorId ?? configurationService.getDefaultProcessor(feature)
+    if (!processorId) {
+      throw DataApiErrorFactory.create(ErrorCode.BAD_REQUEST, `No default processor configured for feature: ${feature}`)
+    }
+
+    const processor = processorRegistry.get(processorId)
+    if (!processor) {
+      throw DataApiErrorFactory.notFound('Processor', processorId)
+    }
+
+    // Check processor supports the requested feature
+    const hasCapability = processor.template.capabilities.some((cap) => cap.feature === feature)
+    if (!hasCapability) {
+      throw DataApiErrorFactory.invalidOperation(
+        'startProcess',
+        `Processor '${processorId}' does not support feature '${feature}'`
+      )
+    }
+
+    // Get merged configuration
+    const config = configurationService.getConfiguration(processorId) ?? {
+      ...processor.template,
+      apiKeys: undefined,
+      options: undefined
+    }
+
+    // Create abort controller
+    const abortController = new AbortController()
+
+    // Initialize task state
+    const taskState: TaskState = {
+      requestId,
+      status: 'pending',
+      progress: 0,
+      processorId,
+      providerTaskId: null,
+      config,
+      abortController
+    }
+    this.taskStates.set(requestId, taskState)
+
+    logger.info('Processing started', {
+      requestId,
+      processorId,
+      feature,
+      file: file.origin_name
+    })
+
+    // Start async processing (don't await)
+    this.executeProcessing(requestId, processor, file, config, feature)
+
+    return { requestId, status: 'pending' }
+  }
+
+  /**
+   * Execute processing in background
+   *
+   * Updates task state as processing progresses.
+   */
+  private async executeProcessing(
+    requestId: string,
+    processor: IFileProcessor,
+    file: FileMetadata,
+    config: FileProcessorMerged,
+    feature: FileProcessorFeature
+  ): Promise<void> {
+    const task = this.taskStates.get(requestId)
+    if (!task) return
+
+    // Update to processing
+    task.status = 'processing'
+
+    const context: ProcessingContext = {
+      requestId,
+      signal: task.abortController.signal
+    }
+
+    try {
+      let result: ProcessingResult
+
+      if (feature === 'text_extraction' && isTextExtractor(processor)) {
+        result = await processor.extractText(file, config, context)
+      } else if (feature === 'markdown_conversion' && isMarkdownConverter(processor)) {
+        result = await processor.convertToMarkdown(file, config, context)
+      } else {
+        throw new Error(`Processor ${processor.id} does not implement ${feature}`)
+      }
+
+      if (isProcessStatusProvider(processor)) {
+        const providerTaskId = this.extractProviderTaskId(result)
+        if (!providerTaskId) {
+          throw new Error('Provider task id not found in processing metadata')
+        }
+
+        task.providerTaskId = providerTaskId
+        task.status = 'processing'
+        task.progress = 0
+        task.result = this.isProcessingResultPending(result) ? result : { metadata: { providerTaskId } }
+        return
+      }
+
+      task.status = 'completed'
+      task.progress = 100
+      task.result = result
+    } catch (error) {
+      const isCancelled = task.abortController.signal.aborted
+      const errorCode = isCancelled
+        ? 'cancelled'
+        : error instanceof UnsupportedInputError
+          ? error.code
+          : 'processing_failed'
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      task.status = 'failed'
+      task.error = {
+        code: errorCode,
+        message: errorMessage
+      }
+      logger.error('Processing failed', {
+        requestId,
+        processorId: processor.id,
+        error: errorMessage
+      })
+    }
+  }
+
+  /**
+   * Get the result/status of a processing request
+   *
+   * @param requestId - The request ID to query
+   * @returns Current status, progress, and result/error
+   */
+  async getResult(requestId: string): Promise<ProcessResultResponse> {
+    // Validate requestId
+    if (!requestId?.trim()) {
+      throw DataApiErrorFactory.validation({ requestId: ['Request ID is required'] })
+    }
+
+    const task = this.taskStates.get(requestId)
+
+    if (!task) {
+      // Check if this request was recently expired (cleaned up due to TTL)
+      if (this.expiredRequestIds.has(requestId)) {
+        return {
+          requestId,
+          status: 'failed',
+          progress: 0,
+          error: {
+            code: 'expired',
+            message: 'Request result has expired and been cleaned up. Please retry the operation.'
+          }
+        }
+      }
+      return {
+        requestId,
+        status: 'failed',
+        progress: 0,
+        error: { code: 'not_found', message: 'Request not found' }
+      }
+    }
+
+    // For async processors that implement IProcessStatusProvider,
+    // query the processor for real-time status
+    if (task.status === 'pending' || task.status === 'processing') {
+      const processor = processorRegistry.get(task.processorId)
+      if (processor && isProcessStatusProvider(processor)) {
+        if (!task.providerTaskId) {
+          // Task is still initializing, providerTaskId not yet available from async executeProcessing()
+          // Return current status and let client retry later
+          logger.debug('Provider task id not yet available, task still initializing', {
+            requestId,
+            processorId: task.processorId
+          })
+          // Skip processor status query, fall through to return current task state
+        } else {
+          try {
+            const providerStatus = await processor.getStatus(task.providerTaskId, task.config)
+            task.status = providerStatus.status
+            task.progress = providerStatus.progress
+            if (this.isCompletedStatus(providerStatus)) {
+              task.result = providerStatus.result
+              task.error = undefined
+            } else if (this.isFailedStatus(providerStatus)) {
+              task.error = providerStatus.error
+              task.result = undefined
+            }
+          } catch (error) {
+            // Log the error and update task state
+            logger.error('Failed to query provider status', {
+              requestId,
+              processorId: task.processorId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            // Mark task as failed with the error from provider
+            task.status = 'failed'
+            task.error = {
+              code: 'status_query_failed',
+              message: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }
+      }
+    }
+
+    let response: ProcessResultResponse
+    const result = task.result
+    let status = task.status
+    if (status === 'completed') {
+      if (result && this.isProcessingResultOutput(result)) {
+        response = {
+          requestId,
+          status: 'completed',
+          progress: task.progress,
+          result
+        }
+      } else {
+        status = 'failed'
+        task.status = status
+        task.error = {
+          code: 'processing_failed',
+          message: 'Processing completed but result is missing'
+        }
+        response = {
+          requestId,
+          status: 'failed',
+          progress: task.progress,
+          error: task.error
+        }
+      }
+    } else if (status === 'failed') {
+      response = {
+        requestId,
+        status: 'failed',
+        progress: task.progress,
+        error: task.error ?? { code: 'processing_failed', message: 'Processing failed' }
+      }
+    } else {
+      const pendingResult = result && this.isProcessingResultPending(result) ? result : undefined
+      response = {
+        requestId,
+        status,
+        progress: task.progress,
+        ...(pendingResult ? { result: pendingResult } : {})
+      }
+    }
+
+    // Mark completion time for TTL cleanup (don't delete immediately)
+    if ((task.status === 'completed' || task.status === 'failed') && !task.completedAt) {
+      task.completedAt = Date.now()
+      this.startCleanupTimer()
+    }
+
+    return response
+  }
+
+  /**
+   * Start cleanup timer if not already running
+   */
+  private startCleanupTimer(): void {
+    if (this.cleanupTimer) return
+    this.cleanupTimer = setInterval(() => this.cleanupExpiredTasks(), CLEANUP_INTERVAL_MS)
+  }
+
+  /**
+   * Remove tasks that have exceeded TTL
+   */
+  private cleanupExpiredTasks(): void {
+    const now = Date.now()
+    let cleanedCount = 0
+    let hasCompletedTasks = false
+
+    // Clean up expired task states
+    for (const [requestId, task] of this.taskStates) {
+      if (task.completedAt) {
+        if (now - task.completedAt > TASK_TTL_MS) {
+          // Log each evicted task with details
+          logger.info('Task expired and cleaned up', {
+            requestId,
+            processorId: task.processorId,
+            status: task.status,
+            completedAt: new Date(task.completedAt).toISOString(),
+            ttlMs: TASK_TTL_MS
+          })
+          this.taskStates.delete(requestId)
+          // Track this request as expired for a while
+          this.expiredRequestIds.set(requestId, now)
+          cleanedCount++
+        } else {
+          hasCompletedTasks = true
+        }
+      }
+    }
+
+    // Clean up old expired tracking entries
+    for (const [requestId, expiredAt] of this.expiredRequestIds) {
+      if (now - expiredAt > FileProcessingService.EXPIRED_TRACKING_TTL_MS) {
+        this.expiredRequestIds.delete(requestId)
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug(`Cleaned up ${cleanedCount} expired task(s)`)
+    }
+
+    // Stop timer if no completed tasks remaining
+    if (!hasCompletedTasks && this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+  }
+
+  private extractProviderTaskId(result: ProcessingResult): string | null {
+    if (!result.metadata || typeof result.metadata !== 'object') {
+      return null
+    }
+
+    const metadata = result.metadata as Record<string, unknown>
+    const providerTaskId = metadata['providerTaskId']
+
+    return typeof providerTaskId === 'string' && providerTaskId.trim().length > 0 ? providerTaskId : null
+  }
+
+  private isProcessingResultOutput(result: ProcessingResult): result is ProcessingResultOutput {
+    if ('text' in result) {
+      return typeof result.text === 'string'
+    }
+    if ('markdownPath' in result) {
+      return typeof result.markdownPath === 'string'
+    }
+    return false
+  }
+
+  private isProcessingResultPending(result: ProcessingResult): result is ProcessingResultPending {
+    if (this.isProcessingResultOutput(result)) {
+      return false
+    }
+    if (!('metadata' in result)) {
+      return false
+    }
+    if (!result.metadata || typeof result.metadata !== 'object') {
+      return false
+    }
+    const metadata = result.metadata as Record<string, unknown>
+    return typeof metadata.providerTaskId === 'string' && metadata.providerTaskId.trim().length > 0
+  }
+
+  private isCompletedStatus(
+    response: ProcessResultResponse
+  ): response is Extract<ProcessResultResponse, { status: 'completed' }> {
+    return response.status === 'completed'
+  }
+
+  private isFailedStatus(
+    response: ProcessResultResponse
+  ): response is Extract<ProcessResultResponse, { status: 'failed' }> {
+    return response.status === 'failed'
+  }
+
+  /**
+   * Cancel an active processing request
+   *
+   * @param requestId - The request ID to cancel
+   * @returns Cancel response with success status and message
+   */
+  cancel(requestId: string): CancelResponse {
+    // Validate requestId
+    if (!requestId?.trim()) {
+      throw DataApiErrorFactory.validation({ requestId: ['Request ID is required'] })
+    }
+
+    const task = this.taskStates.get(requestId)
+
+    if (!task || task.status === 'completed' || task.status === 'failed') {
+      return { success: false, message: 'Cannot cancel' }
+    }
+
+    task.abortController.abort()
+    task.status = 'failed'
+    task.error = { code: 'cancelled', message: 'Cancelled' }
+    if (!task.completedAt) {
+      task.completedAt = Date.now()
+      this.startCleanupTimer()
+    }
+
+    return { success: true, message: 'Cancelled' }
+  }
+
+  /**
+   * Get a single processor configuration by ID
+   *
+   * @param processorId - Processor ID to get
+   * @returns Merged processor config if found, null otherwise
+   */
+  getProcessor(processorId: string): FileProcessorMerged | null {
+    // Validate processorId
+    if (!processorId?.trim()) {
+      throw DataApiErrorFactory.validation({ processorId: ['Processor ID is required'] })
+    }
+
+    this.ensureProcessorsRegistered()
+    const processor = processorRegistry.get(processorId)
+    if (!processor) return null
+
+    return configurationService.getConfiguration(processorId) ?? { ...processor.template }
+  }
+
+  /**
+   * List available processors with optional feature filter
+   *
+   * @param feature - Optional feature filter
+   * @returns Array of merged processor configs (only available processors)
+   */
+  async listAvailableProcessors(feature?: FileProcessorFeature): Promise<FileProcessorMerged[]> {
+    this.ensureProcessorsRegistered()
+    const processors = (await processorRegistry.getAll()).filter(
+      (p) => !feature || p.template.capabilities.some((cap) => cap.feature === feature)
+    )
+
+    return Promise.all(
+      processors.map(
+        async (processor) => configurationService.getConfiguration(processor.id) ?? { ...processor.template }
+      )
+    )
+  }
+
+  /**
+   * Update processor configuration
+   *
+   * @param processorId - Processor ID to update
+   * @param update - Partial override to merge
+   * @returns Updated merged configuration
+   * @throws Error if processor not found
+   */
+  updateProcessorConfig(processorId: string, update: FileProcessorOverride): FileProcessorMerged {
+    // Validate parameters
+    if (!processorId?.trim()) {
+      throw DataApiErrorFactory.validation({ processorId: ['Processor ID is required'] })
+    }
+    if (!update || typeof update !== 'object') {
+      throw DataApiErrorFactory.validation({ update: ['Update object is required'] })
+    }
+
+    const result = configurationService.updateConfiguration(processorId, update)
+    if (!result) {
+      throw DataApiErrorFactory.notFound('Processor', processorId)
+    }
+    return result
+  }
+
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+
+  private ensureProcessorsRegistered(): void {
+    if (FileProcessingService.processorsRegistered) {
+      return
+    }
+
+    logger.info('Registering file processors...')
+
+    const builtinProcessors = [new TesseractProcessor(), new SystemOcrProcessor(), new OvOcrProcessor()]
+    const apiProcessors = [
+      new MineruProcessor(),
+      new Doc2xProcessor(),
+      new MistralProcessor(),
+      new OpenMineruProcessor(),
+      new PaddleProcessor()
+    ]
+
+    for (const processor of [...builtinProcessors, ...apiProcessors]) {
+      try {
+        processorRegistry.register(processor)
+        logger.debug(`Registered processor: ${processor.id}`)
+      } catch (error) {
+        logger.error(`Failed to register processor: ${processor.id}`, {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    FileProcessingService.processorsRegistered = true
+  }
+}
+
+export const fileProcessingService = FileProcessingService.getInstance()
