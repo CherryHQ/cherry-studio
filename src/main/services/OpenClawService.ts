@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { checkGitAvailable, findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -181,12 +181,6 @@ class OpenClawService {
       path: npmPath
     }
   }
-
-  /**
-   * Check if git is available in the user's environment
-   * Delegates to the shared utility in process.ts
-   */
-  public checkGitAvailable = checkGitAvailable
 
   /**
    * Get Node.js download URL based on current OS and architecture
