@@ -370,21 +370,8 @@ describe('DeepSeek & Thinking Tokens', () => {
     const allowed = createModel({ id: 'deepseek-v3.1', provider: 'doubao' })
     expect(isSupportedThinkingTokenModel(allowed)).toBe(true)
 
-    const disallowed = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
-    expect(isSupportedThinkingTokenModel(disallowed)).toBe(false)
-  })
-
-  it('supports DeepSeek v3.1+ models from newly added providers', () => {
-    // Test newly added providers for DeepSeek thinking token support
-    const newProviders = ['deepseek', 'cherryin', 'new-api', 'aihubmix', 'sophnet', 'dmxapi']
-
-    newProviders.forEach((provider) => {
-      const model = createModel({ id: 'deepseek-v3.1', provider })
-      expect(
-        isSupportedThinkingTokenModel(model),
-        `Provider ${provider} should support thinking tokens for deepseek-v3.1`
-      ).toBe(true)
-    })
+    const anyProvider = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
+    expect(isSupportedThinkingTokenModel(anyProvider)).toBe(true)
   })
 
   it('tests various prefix patterns for isDeepSeekHybridInferenceModel', () => {
