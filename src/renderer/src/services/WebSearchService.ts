@@ -333,6 +333,7 @@ class WebSearchService {
           processingStatus: 'pending'
         }
 
+        // TODO: [v2-cleanup] Migrate to DataApi when available
         await window.api.knowledgeBase.add({
           base: getKnowledgeBaseParams(searchBase),
           item

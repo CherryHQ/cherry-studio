@@ -1,201 +1,119 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import FileItem from '@renderer/pages/files/FileItem'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Dropdown } from 'antd'
-import dayjs from 'dayjs'
-import { PlusIcon } from 'lucide-react'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { useKnowledgeUrls } from '@renderer/hooks/useKnowledges'
+import type { KnowledgeItem, UrlItemData } from '@shared/data/types/knowledge'
+import { Link } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../KnowledgeContent'
+  ItemDeleteAction,
+  ItemEditAction,
+  ItemRefreshAction,
+  ItemStatusAction,
+  KnowledgeItemActions
+} from '../components/KnowledgeItemActions'
+import { KnowledgeItemList } from '../components/KnowledgeItemList'
+import { KnowledgeItemRow } from '../components/KnowledgeItemRow'
+import { useKnowledgeBaseCtx } from '../context'
+import { formatKnowledgeItemTime } from '../utils/time'
 
-interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-}
+const logger = loggerService.withContext('KnowledgeUrls')
 
-const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
-  return dayjs(timestamp).format('MM-DD HH:mm')
-}
-
-const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
+const KnowledgeUrls: FC = () => {
   const { t } = useTranslation()
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const { urlItems, deleteItem, refreshItem } = useKnowledgeUrls(selectedBase?.id ?? '')
 
-  const { base, urlItems, refreshItem, addUrl, removeItem, getProcessingStatus, updateItem } = useKnowledge(
-    selectedBase.id || ''
+  const invalidateCache = useInvalidateCache()
+  const itemsRefreshKey = selectedBase?.id ? `/knowledge-bases/${selectedBase.id}/items` : ''
+
+  const updateItem = useCallback(
+    async (item: KnowledgeItem, name: string) => {
+      const data = item.data as UrlItemData
+      try {
+        await dataApiService.patch(`/knowledge-items/${item.id}`, {
+          body: {
+            data: {
+              url: data.url,
+              name
+            } satisfies UrlItemData
+          }
+        })
+        logger.info('URL remark updated', { itemId: item.id })
+        if (itemsRefreshKey) {
+          await invalidateCache(itemsRefreshKey)
+        }
+      } catch (error) {
+        logger.error('Failed to update URL remark', error as Error, { itemId: item.id })
+        throw error
+      }
+    },
+    [invalidateCache, itemsRefreshKey]
   )
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
-
-  const reversedItems = useMemo(() => [...urlItems].reverse(), [urlItems])
-  const estimateSize = useCallback(() => 75, [])
-
-  if (!base) {
-    return null
-  }
-
-  const handleAddUrl = async () => {
-    if (disabled) {
-      return
-    }
-
-    const urlInput = await PromptPopup.show({
-      title: t('knowledge.add_url'),
-      message: '',
-      inputPlaceholder: t('knowledge.url_placeholder'),
-      inputProps: {
-        rows: 10,
-        onPressEnter: () => {}
-      }
-    })
-
-    if (urlInput) {
-      // Split input by newlines and filter out empty lines
-      const urls = urlInput.split('\n').filter((url) => url.trim())
-
-      for (const url of urls) {
-        try {
-          new URL(url.trim())
-          if (!urlItems.find((item) => item.content === url.trim())) {
-            addUrl(url.trim())
-          } else {
-            window.toast.success(t('knowledge.url_added'))
-          }
-        } catch (e) {
-          // Skip invalid URLs silently
-          continue
-        }
-      }
-    }
-  }
+  const disabled = !selectedBase?.embeddingModelId
 
   const handleEditRemark = async (item: KnowledgeItem) => {
-    if (disabled) {
-      return
-    }
+    if (disabled) return
 
+    const data = item.data as UrlItemData
+    const defaultName = data.name !== data.url ? data.name : ''
     const editedRemark: string | undefined = await PromptPopup.show({
       title: t('knowledge.edit_remark'),
       message: '',
       inputPlaceholder: t('knowledge.edit_remark_placeholder'),
-      defaultValue: item.remark || '',
-      inputProps: {
-        maxLength: 100,
-        rows: 1
-      }
+      defaultValue: defaultName,
+      inputProps: { maxLength: 100, rows: 1 }
     })
 
     if (editedRemark !== undefined && editedRemark !== null) {
-      updateItem({
-        ...item,
-        remark: editedRemark,
-        updated_at: Date.now()
-      })
+      const nextName = editedRemark.trim() ? editedRemark.trim() : data.url
+      updateItem(item, nextName)
     }
   }
 
+  if (!selectedBase) {
+    return null
+  }
+
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddUrl} disabled={disabled}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_url')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {urlItems.length === 0 && <KnowledgeEmptyView />}
-        <DynamicVirtualList
-          list={reversedItems}
-          estimateSize={estimateSize}
-          overscan={2}
-          scrollerStyle={{ paddingRight: 2 }}
-          itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar>
-          {(item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <Dropdown
-                    menu={{
-                      items: [
-                        {
-                          key: 'edit',
-                          icon: <EditIcon size={14} />,
-                          label: t('knowledge.edit_remark'),
-                          onClick: () => handleEditRemark(item)
-                        },
-                        {
-                          key: 'copy',
-                          icon: <CopyIcon size={14} />,
-                          label: t('common.copy'),
-                          onClick: () => {
-                            navigator.clipboard.writeText(item.content as string)
-                            window.toast.success(t('message.copied'))
-                          }
-                        }
-                      ]
-                    }}
-                    trigger={['contextMenu']}>
-                    <ClickableSpan>
-                      <Tooltip content={item.content as string}>
-                        <Ellipsis>
-                          <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                            {item.remark || (item.content as string)}
-                          </a>
-                        </Ellipsis>
-                      </Tooltip>
-                    </ClickableSpan>
-                  </Dropdown>
-                ),
-                ext: '.url',
-                extra: getDisplayTime(item),
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && (
-                      <Button variant="ghost" onClick={() => refreshItem(item)}>
-                        <RefreshIcon />
-                      </Button>
-                    )}
-                    <StatusIconWrapper>
-                      <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
-                    </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => removeItem(item)}>
-                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-                    </Button>
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          )}
-        </DynamicVirtualList>
-      </ItemFlexColumn>
-    </ItemContainer>
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        <KnowledgeItemList items={urlItems}>
+          {(item) => {
+            const data = item.data as UrlItemData
+            const displayName = data.name && data.name !== data.url ? data.name : data.url
+            return (
+              <KnowledgeItemRow
+                icon={<Link size={18} className="text-foreground" />}
+                content={
+                  <Tooltip content={data.url}>
+                    <a href={data.url} target="_blank" rel="noopener noreferrer">
+                      {displayName}
+                    </a>
+                  </Tooltip>
+                }
+                metadata={formatKnowledgeItemTime(item)}
+                actions={
+                  <KnowledgeItemActions>
+                    <ItemStatusAction item={item} />
+                    <ItemEditAction onClick={() => handleEditRemark(item)} />
+                    <ItemRefreshAction item={item} onRefresh={refreshItem} />
+                    <ItemDeleteAction itemId={item.id} onDelete={deleteItem} />
+                  </KnowledgeItemActions>
+                }
+              />
+            )
+          }}
+        </KnowledgeItemList>
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeUrls
