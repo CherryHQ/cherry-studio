@@ -5,7 +5,6 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
@@ -56,7 +55,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  const { setTimeoutTimer } = useTimer()
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({
@@ -232,7 +230,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     onResend(updatedBlocks)
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (message.role !== 'user') {
       return
     }
@@ -249,30 +247,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
         handleResend()
         return event.preventDefault()
-      } else {
-        if (!event.shiftKey) {
-          event.preventDefault()
-
-          const textArea = textareaRef.current?.resizableTextArea?.textArea
-          if (textArea) {
-            const start = textArea.selectionStart
-            const end = textArea.selectionEnd
-            const text = textArea.value
-            const newText = text.substring(0, start) + '\n' + text.substring(end)
-
-            //same with onChange()
-            handleTextChange(blockId, newText)
-
-            // set cursor position in the next render cycle
-            setTimeoutTimer(
-              'handleKeyDown',
-              () => {
-                textArea.selectionStart = textArea.selectionEnd = start + 1
-              },
-              0
-            )
-          }
-        }
       }
     }
   }
@@ -298,7 +272,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               onChange={(e) => {
                 handleTextChange(block.id, e.target.value)
               }}
-              onKeyDown={(e) => handleKeyDown(e, block.id)}
+              onKeyDown={handleKeyDown}
               autoFocus
               spellCheck={enableSpellCheck}
               onPaste={(e) => onPaste(e.nativeEvent)}
