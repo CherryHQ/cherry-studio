@@ -53,7 +53,7 @@ describe('Qwen Model Detection', () => {
   test('isQwenReasoningModel', () => {
     expect(isQwenReasoningModel({ id: 'qwen3-thinking' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-instruct' } as Model)).toBe(false)
-    expect(isQwenReasoningModel({ id: 'qwen3-max' } as Model)).toBe(false)
+    expect(isQwenReasoningModel({ id: 'qwen3-max' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-8b' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwq-32b' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen-plus' } as Model)).toBe(true)
@@ -61,7 +61,7 @@ describe('Qwen Model Detection', () => {
   })
 
   test('isSupportedThinkingTokenQwenModel', () => {
-    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-max' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-instruct' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-thinking' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-8b' } as Model)).toBe(true)

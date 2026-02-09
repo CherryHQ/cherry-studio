@@ -469,6 +469,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-2025-07-15',
     'qwen-flash',
     'qwen-flash-2025-07-28',
+    'qwen3-max', // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
     'qwen3-max-2026-01-23',
     'qwen3-max-preview'
   ].includes(modelId)

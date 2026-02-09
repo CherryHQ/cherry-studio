@@ -429,13 +429,10 @@ describe('Qwen & Gemini thinking coverage', () => {
     expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
   })
 
-  it('supports thinking tokens for qwen3-max-preview and qwen3-max-2026-01-23', () => {
+  it('supports thinking tokens for qwen3-max, qwen3-max-preview and qwen3-max-2026-01-23', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-preview' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe(true)
-  })
-
-  it('blocks thinking tokens for qwen3-max and other unsupported versions', () => {
-    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(false)
   })
 
   it.each(['qwen3-thinking', 'qwen3-vl-235b-thinking'])('always thinks for %s', (id) => {
