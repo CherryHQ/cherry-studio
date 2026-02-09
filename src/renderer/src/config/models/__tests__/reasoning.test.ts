@@ -730,6 +730,9 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'qwen-turbo' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen-flash' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen3-8b' }))).toBe('qwen')
+      // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
+      expect(getThinkModelType(createModel({ id: 'qwen3-max' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe('qwen')
     })
 
     it('should return default for always-thinking Qwen models (not controllable)', () => {
@@ -1992,6 +1995,21 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-8b' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      // qwen3-max is now a reasoning model with same options as qwen3-max-2026-01-23
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max-2026-01-23' }))).toEqual([
         'default',
         'none',
         'low',
