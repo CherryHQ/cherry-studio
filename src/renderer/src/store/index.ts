@@ -145,20 +145,6 @@ export const persistor = persistStore(store, undefined, () => {
   logger.info('Redux store ready, notified main process')
 })
 
-// Subscribe to store changes and notify main process (throttled to avoid performance issues)
-let throttleTimer: ReturnType<typeof setTimeout> | null = null
-store.subscribe(() => {
-  if (throttleTimer) return
-  throttleTimer = setTimeout(() => {
-    throttleTimer = null
-    // Guard for test environment where window may not exist (test tear-down)
-    if (typeof window === 'undefined') return
-    const state = store.getState()
-    // Guard for test environment where window.electron may not exist
-    window.electron?.ipcRenderer?.send(IpcChannel.ReduxStateChange, state)
-  }, 100) // 100ms throttle
-})
-
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
