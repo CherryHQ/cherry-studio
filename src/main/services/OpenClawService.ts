@@ -25,7 +25,7 @@ const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 // Original user config (read-only, used as template for first-time setup)
 const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
 // Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
-const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw_cherry.json')
+const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18789
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -771,7 +771,7 @@ class OpenClawService {
         try {
           const content = fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8')
           config = JSON.parse(content)
-          logger.info('Using original openclaw.json as base template for openclaw_cherry.json')
+          logger.info('Using original openclaw.json as base template for openclaw.cherry.json')
         } catch {
           logger.warn('Failed to parse original openclaw.json, creating new config')
         }
