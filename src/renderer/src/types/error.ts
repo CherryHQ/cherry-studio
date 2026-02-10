@@ -19,19 +19,25 @@ import type {
   TypeValidationError,
   UnsupportedFunctionalityError
 } from 'ai'
+import * as z from 'zod'
 
 import type { ProviderSpecificError } from './provider-specific-error'
-import type { Serializable } from './serialize'
+import { type Serializable, SerializableSchema } from './serialize'
 
-export interface SerializedError {
-  name: string | null
-  message: string | null
-  stack: string | null
-  [key: string]: Serializable
+export const SerializedErrorSchema = z
+  .object({
+    name: z.string().nullable(),
+    message: z.string().nullable(),
+    stack: z.string().nullable()
+  })
+  .catchall(SerializableSchema)
+
+export type SerializedError = z.infer<typeof SerializedErrorSchema>
+
+export const isSerializedError = (error: unknown): error is SerializedError => {
+  return SerializedErrorSchema.safeParse(error).success
 }
-export const isSerializedError = (error: Record<string, unknown>): error is SerializedError => {
-  return 'name' in error && 'message' in error && 'stack' in error
-}
+
 export interface SerializedAiSdkError extends SerializedError {
   readonly cause: string | null
 }
