@@ -12,6 +12,7 @@ import type {
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
+  MessageBlockType,
   ThinkingMessageBlock,
   ToolMessageBlock,
   TranslationMessageBlock,
@@ -19,8 +20,8 @@ import type {
 } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
+  MESSAGE_BLOCK_TYPE,
   MessageBlockStatus,
-  MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import { v4 as uuidv4 } from 'uuid'
@@ -65,7 +66,7 @@ export function createMainTextBlock(
   content: string,
   overrides: Partial<Omit<MainTextMessageBlock, 'id' | 'messageId' | 'type' | 'content'>> = {}
 ): MainTextMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.MAIN_TEXT, overrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.MAIN_TEXT, overrides)
   return {
     ...baseBlock,
     content,
@@ -87,7 +88,7 @@ export function createCodeBlock(
   language: string,
   overrides: Partial<Omit<CodeMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'language'>> = {}
 ): CodeMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.CODE, overrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.CODE, overrides)
   return {
     ...baseBlock,
     content,
@@ -109,7 +110,7 @@ export function createImageBlock(
     logger.warn(`Attempted to create ImageBlock with non-image file type: ${overrides.file.type}`)
   }
   const { file, url, metadata, ...baseOverrides } = overrides
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.IMAGE, baseOverrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.IMAGE, baseOverrides)
   return {
     ...baseBlock,
     url: url,
@@ -134,7 +135,7 @@ export function createThinkingBlock(
     status: MessageBlockStatus.PROCESSING,
     ...overrides
   }
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.THINKING, baseOverrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.THINKING, baseOverrides)
   return {
     ...baseBlock,
     content,
@@ -157,7 +158,7 @@ export function createTranslationBlock(
   overrides: Partial<Omit<TranslationMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'targetLanguage'>> = {}
 ): TranslationMessageBlock {
   const { sourceBlockId, sourceLanguage, ...baseOverrides } = overrides
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TRANSLATION, {
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.TRANSLATION, {
     status: MessageBlockStatus.SUCCESS,
     ...baseOverrides
   })
@@ -186,7 +187,7 @@ export function createFileBlock(
     logger.warn('Use createImageBlock for image file types.')
   }
   return {
-    ...createBaseMessageBlock(messageId, MessageBlockType.FILE, overrides),
+    ...createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.FILE, overrides),
     file
   }
 }
@@ -203,7 +204,7 @@ export function createErrorBlock(
   errorData: SerializedError,
   overrides: Partial<Omit<ErrorMessageBlock, 'id' | 'messageId' | 'type' | 'error'>> = {}
 ): ErrorMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.ERROR, {
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.ERROR, {
     status: MessageBlockStatus.ERROR,
     error: errorData,
     ...overrides
@@ -238,7 +239,7 @@ export function createToolBlock(
     ...baseOnlyOverrides
   }
   logger.info('createToolBlock_baseOverrides', baseOverrides.metadata)
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TOOL, baseOverrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.TOOL, baseOverrides)
   logger.info('createToolBlock_baseBlock', baseBlock.metadata)
   return {
     ...baseBlock,
@@ -266,7 +267,7 @@ export function createCitationBlock(
     ...overrides
   }
 
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.CITATION, {
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.CITATION, {
     status: MessageBlockStatus.SUCCESS,
     ...baseOverrides
   })
@@ -284,7 +285,7 @@ export function createVideoBlock(
   overrides: Partial<Omit<VideoMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): VideoMessageBlock {
   const { filePath, url, ...baseOverrides } = overrides
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.VIDEO, baseOverrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.VIDEO, baseOverrides)
   return {
     ...baseBlock,
     url: url,
@@ -306,7 +307,7 @@ export function createCompactBlock(
   compactedContent: string,
   overrides: Partial<Omit<CompactMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'compactedContent'>> = {}
 ): CompactMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.COMPACT, overrides)
+  const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.COMPACT, overrides)
   return {
     ...baseBlock,
     content,

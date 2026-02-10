@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { createVideoBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -32,7 +32,7 @@ export const createVideoCallbacks = (deps: VideoCallbacksDependencies) => {
           filePath: video.type === 'path' ? video.content : undefined,
           metadata: metadata || {}
         })
-        await blockManager.handleBlockTransition(videoBlock, MessageBlockType.VIDEO)
+        await blockManager.handleBlockTransition(videoBlock, MESSAGE_BLOCK_TYPE.VIDEO)
       }
     }
   }

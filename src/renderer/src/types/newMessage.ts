@@ -1,39 +1,57 @@
 import type { CompletionUsage } from '@cherrystudio/openai/resources'
 import type { ProviderMetadata } from 'ai'
+import * as z from 'zod'
 
-import type {
-  Assistant,
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  MCPServer,
-  MCPToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  NormalToolResponse,
-  Topic,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
+import {
+  type Assistant,
+  type FileMetadata,
+  type GenerateImageResponse,
+  type KnowledgeReference,
+  type MCPServer,
+  type MCPToolResponse,
+  type MemoryItem,
+  type Metrics,
+  type Model,
+  type NormalToolResponse,
+  objectValues,
+  type Topic,
+  type Usage,
+  type WebSearchResponse,
+  type WebSearchSource
 } from '.'
 import type { SerializedError } from './error'
 
-// MessageBlock 类型枚举 - 根据实际API返回特性优化
-export enum MessageBlockType {
-  UNKNOWN = 'unknown', // 未知类型，用于返回之前
-  MAIN_TEXT = 'main_text', // 主要文本内容
-  THINKING = 'thinking', // 思考过程（Claude、OpenAI-o系列等）
-  TRANSLATION = 'translation', // Re-added
-  IMAGE = 'image', // 图片内容
-  CODE = 'code', // 代码块
-  TOOL = 'tool', // Added unified tool block type
-  FILE = 'file', // 文件内容
-  ERROR = 'error', // 错误信息
-  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
-  VIDEO = 'video', // 视频内容
-  COMPACT = 'compact' // Compact command response
-}
+// MessageBlock type enum - optimized based on actual API return characteristics
+export const MESSAGE_BLOCK_TYPE = {
+  /** Unknown type, used before returning */
+  UNKNOWN: 'unknown',
+  /** Main text content */
+  MAIN_TEXT: 'main_text',
+  /** Thinking process (Claude, OpenAI-o series, etc.) */
+  THINKING: 'thinking',
+  /** Translation */
+  TRANSLATION: 'translation',
+  /** Image content */
+  IMAGE: 'image',
+  /** Code block */
+  CODE: 'code',
+  /** Added unified tool block type */
+  TOOL: 'tool',
+  /** File content */
+  FILE: 'file',
+  /** Error information */
+  ERROR: 'error',
+  /** Citation type (Now includes web search, grounding, etc.) */
+  CITATION: 'citation',
+  /** Video content */
+  VIDEO: 'video',
+  /** Compact command response */
+  COMPACT: 'compact'
+} as const
+
+export const MessageBlockTypeSchema = z.enum(objectValues(MESSAGE_BLOCK_TYPE))
+
+export type MessageBlockType = z.infer<typeof MessageBlockTypeSchema>
 
 // 块状态定义
 export enum MessageBlockStatus {
@@ -59,12 +77,12 @@ export interface BaseMessageBlock {
 }
 
 export interface PlaceholderMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.UNKNOWN
+  type: typeof MESSAGE_BLOCK_TYPE.UNKNOWN
 }
 
 // 主文本块 - 核心内容
 export interface MainTextMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.MAIN_TEXT
+  type: typeof MESSAGE_BLOCK_TYPE.MAIN_TEXT
   content: string
   knowledgeBaseIds?: string[]
   // Citation references
@@ -76,14 +94,14 @@ export interface MainTextMessageBlock extends BaseMessageBlock {
 
 // 思考块 - 模型推理过程
 export interface ThinkingMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.THINKING
+  type: typeof MESSAGE_BLOCK_TYPE.THINKING
   content: string
   thinking_millsec: number
 }
 
 // 翻译块
 export interface TranslationMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.TRANSLATION
+  type: typeof MESSAGE_BLOCK_TYPE.TRANSLATION
   content: string
   sourceBlockId?: string // Optional: ID of the block that was translated
   sourceLanguage?: string
@@ -92,13 +110,13 @@ export interface TranslationMessageBlock extends BaseMessageBlock {
 
 // 代码块 - 专门处理代码
 export interface CodeMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.CODE
+  type: typeof MESSAGE_BLOCK_TYPE.CODE
   content: string
   language: string // 代码语言
 }
 
 export interface ImageMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.IMAGE
+  type: typeof MESSAGE_BLOCK_TYPE.IMAGE
   url?: string // For generated images or direct links
   file?: FileMetadata // For user uploaded image files
   metadata?: BaseMessageBlock['metadata'] & {
@@ -110,7 +128,7 @@ export interface ImageMessageBlock extends BaseMessageBlock {
 
 // Added unified ToolBlock
 export interface ToolMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.TOOL
+  type: typeof MESSAGE_BLOCK_TYPE.TOOL
   toolId: string
   toolName?: string
   arguments?: Record<string, any>
@@ -122,7 +140,7 @@ export interface ToolMessageBlock extends BaseMessageBlock {
 
 // Consolidated and Enhanced Citation Block
 export interface CitationMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.CITATION
+  type: typeof MESSAGE_BLOCK_TYPE.CITATION
   response?: WebSearchResponse
   knowledge?: KnowledgeReference[]
   memories?: MemoryItem[]
@@ -130,25 +148,25 @@ export interface CitationMessageBlock extends BaseMessageBlock {
 
 // 文件块
 export interface FileMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.FILE
+  type: typeof MESSAGE_BLOCK_TYPE.FILE
   file: FileMetadata // 文件信息
 }
 
 // 视频块
 export interface VideoMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.VIDEO
+  type: typeof MESSAGE_BLOCK_TYPE.VIDEO
   url?: string // For generated video or direct links
   filePath?: string // For user uploaded video files
 }
 
 // 错误块
 export interface ErrorMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.ERROR
+  type: typeof MESSAGE_BLOCK_TYPE.ERROR
 }
 
 // Compact块 - 用于显示 /compact 命令的响应
 export interface CompactMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.COMPACT
+  type: typeof MESSAGE_BLOCK_TYPE.COMPACT
   content: string // 总结消息
   compactedContent: string // 从 <local-command-stdout> 提取的内容
 }

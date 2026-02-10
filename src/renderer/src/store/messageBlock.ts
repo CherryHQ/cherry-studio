@@ -28,7 +28,7 @@ import type {
 } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
 
@@ -326,7 +326,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
 
 // Memoized selector that takes a block ID and returns formatted citations
 export const selectFormattedCitationsByBlockId = createSelector([selectBlockEntityById], (blockEntity): Citation[] => {
-  if (blockEntity?.type === MessageBlockType.CITATION) {
+  if (blockEntity?.type === MESSAGE_BLOCK_TYPE.CITATION) {
     return formatCitationsFromBlock(blockEntity as CitationMessageBlock)
   }
   return []
@@ -354,7 +354,7 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
  * Check if a block is a TodoWrite tool block
  */
 const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
-  if (!block || block.type !== MessageBlockType.TOOL) return false
+  if (!block || block.type !== MESSAGE_BLOCK_TYPE.TOOL) return false
   const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse
   if (toolResponse?.tool?.name !== 'TodoWrite') return false
   // Defensive: validate todos is actually an array to prevent dirty data from crashing selectors (#12804)

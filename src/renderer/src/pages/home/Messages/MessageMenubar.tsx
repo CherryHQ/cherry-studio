@@ -23,7 +23,7 @@ import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageB
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
@@ -490,7 +490,7 @@ const MessageMenubar: FC<Props> = (props) => {
       return defaultFilter
     }
 
-    if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
+    if (relatedUserMessageBlocks.some((block) => block && block.type === MESSAGE_BLOCK_TYPE.IMAGE)) {
       return (m: Model) => isVisionModel(m) && defaultFilter(m)
     } else {
       return defaultFilter

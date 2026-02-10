@@ -5,7 +5,7 @@ import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
 import { isPlainObject } from 'lodash'
 
@@ -35,13 +35,13 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
 
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
-          type: MessageBlockType.TOOL,
+          type: MESSAGE_BLOCK_TYPE.TOOL,
           status: MessageBlockStatus.PENDING,
           toolName: toolResponse.tool.name,
           metadata: { rawMcpToolResponse: toolResponse }
         }
         toolBlockId = blockManager.initialPlaceholderBlockId!
-        blockManager.smartBlockUpdate(toolBlockId, changes, MessageBlockType.TOOL)
+        blockManager.smartBlockUpdate(toolBlockId, changes, MESSAGE_BLOCK_TYPE.TOOL)
         toolCallIdToBlockIdMap.set(toolResponse.id, toolBlockId)
       } else if (toolResponse.status === 'pending') {
         const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
@@ -50,7 +50,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           metadata: { rawMcpToolResponse: toolResponse }
         })
         toolBlockId = toolBlock.id
-        blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
+        blockManager.handleBlockTransition(toolBlock, MESSAGE_BLOCK_TYPE.TOOL)
         toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
       } else {
         logger.warn(
@@ -67,13 +67,13 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         // Create a new tool block if one doesn't exist yet
         if (blockManager.hasInitialPlaceholder) {
           const changes = {
-            type: MessageBlockType.TOOL,
+            type: MESSAGE_BLOCK_TYPE.TOOL,
             status: MessageBlockStatus.PENDING,
             toolName: toolResponse.tool.name,
             metadata: { rawMcpToolResponse: toolResponse }
           }
           toolBlockId = blockManager.initialPlaceholderBlockId!
-          blockManager.smartBlockUpdate(toolBlockId, changes, MessageBlockType.TOOL)
+          blockManager.smartBlockUpdate(toolBlockId, changes, MESSAGE_BLOCK_TYPE.TOOL)
           toolCallIdToBlockIdMap.set(toolResponse.id, toolBlockId)
           existingBlockId = toolBlockId
         } else {
@@ -83,7 +83,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             metadata: { rawMcpToolResponse: toolResponse }
           })
           toolBlockId = toolBlock.id
-          blockManager.handleBlockTransition(toolBlock, MessageBlockType.TOOL)
+          blockManager.handleBlockTransition(toolBlock, MESSAGE_BLOCK_TYPE.TOOL)
           toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
           existingBlockId = toolBlock.id
         }
@@ -95,7 +95,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         metadata: { rawMcpToolResponse: toolResponse }
       }
 
-      blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL)
+      blockManager.smartBlockUpdate(existingBlockId, changes, MESSAGE_BLOCK_TYPE.TOOL)
     },
 
     onToolCallComplete: (toolResponse: ToolResponse) => {
@@ -153,7 +153,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             stack: null
           }
         }
-        blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
+        blockManager.smartBlockUpdate(existingBlockId, changes, MESSAGE_BLOCK_TYPE.TOOL, true)
         // Handle citation block creation for web search results
         if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
@@ -166,7 +166,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             }
           )
           citationBlockId = citationBlock.id
-          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+          blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
         }
         if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
@@ -177,7 +177,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             }
           )
           citationBlockId = citationBlock.id
-          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+          blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
         }
       } else {
         logger.warn(

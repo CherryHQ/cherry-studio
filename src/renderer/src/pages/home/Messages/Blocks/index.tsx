@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -68,15 +68,15 @@ interface Props {
 
 const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
   return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
-    if (currentBlock.type === MessageBlockType.IMAGE) {
+    if (currentBlock.type === MESSAGE_BLOCK_TYPE.IMAGE) {
       // 对于IMAGE类型，按连续分组
       const prevGroup = acc[acc.length - 1]
-      if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.IMAGE) {
+      if (Array.isArray(prevGroup) && prevGroup[0].type === MESSAGE_BLOCK_TYPE.IMAGE) {
         prevGroup.push(currentBlock)
       } else {
         acc.push([currentBlock])
       }
-    } else if (currentBlock.type === MessageBlockType.VIDEO) {
+    } else if (currentBlock.type === MESSAGE_BLOCK_TYPE.VIDEO) {
       // 对于VIDEO类型，按相同filePath分组
       if (!isVideoBlock(currentBlock)) {
         logger.warn('Block type is VIDEO but failed type guard check', currentBlock)
@@ -87,7 +87,7 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
       const existingGroup = acc.find(
         (group) =>
           Array.isArray(group) &&
-          group[0].type === MessageBlockType.VIDEO &&
+          group[0].type === MESSAGE_BLOCK_TYPE.VIDEO &&
           isVideoBlock(group[0]) &&
           group[0].filePath === videoBlock.filePath
       ) as MessageBlock[] | undefined
@@ -97,10 +97,10 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
       } else {
         acc.push([currentBlock])
       }
-    } else if (currentBlock.type === MessageBlockType.TOOL) {
+    } else if (currentBlock.type === MESSAGE_BLOCK_TYPE.TOOL) {
       // 对于TOOL类型，按连续分组
       const prevGroup = acc[acc.length - 1]
-      if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.TOOL) {
+      if (Array.isArray(prevGroup) && prevGroup[0].type === MESSAGE_BLOCK_TYPE.TOOL) {
         prevGroup.push(currentBlock)
       } else {
         acc.push([currentBlock])
@@ -128,7 +128,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
         if (Array.isArray(block)) {
           const groupKey = block.map((b) => b.id).join('-')
 
-          if (block[0].type === MessageBlockType.IMAGE) {
+          if (block[0].type === MESSAGE_BLOCK_TYPE.IMAGE) {
             if (block.length === 1) {
               return (
                 <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
@@ -146,7 +146,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
                 </ImageBlockGroup>
               </AnimatedBlockWrapper>
             )
-          } else if (block[0].type === MessageBlockType.VIDEO) {
+          } else if (block[0].type === MESSAGE_BLOCK_TYPE.VIDEO) {
             // 对于相同路径的video，只渲染第一个
             if (!isVideoBlock(block[0])) {
               logger.warn('Expected video block but got different type', block[0])
@@ -158,7 +158,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
                 <VideoBlock key={firstVideoBlock.id} block={firstVideoBlock} />
               </AnimatedBlockWrapper>
             )
-          } else if (block[0].type === MessageBlockType.TOOL) {
+          } else if (block[0].type === MESSAGE_BLOCK_TYPE.TOOL) {
             // 对于连续的TOOL，使用分组显示
             if (block.length === 1) {
               // 单个工具调用，直接渲染
@@ -188,10 +188,10 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
         let blockComponent: React.ReactNode = null
 
         switch (block.type) {
-          case MessageBlockType.UNKNOWN:
+          case MESSAGE_BLOCK_TYPE.UNKNOWN:
             break
-          case MessageBlockType.MAIN_TEXT:
-          case MessageBlockType.CODE: {
+          case MESSAGE_BLOCK_TYPE.MAIN_TEXT:
+          case MESSAGE_BLOCK_TYPE.CODE: {
             if (!isMainTextBlock(block)) {
               logger.warn('Expected main text block but got different type', block)
               break
@@ -211,31 +211,31 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             )
             break
           }
-          case MessageBlockType.IMAGE:
+          case MESSAGE_BLOCK_TYPE.IMAGE:
             blockComponent = <ImageBlock key={block.id} block={block} />
             break
-          case MessageBlockType.FILE:
+          case MESSAGE_BLOCK_TYPE.FILE:
             blockComponent = <FileBlock key={block.id} block={block} />
             break
-          case MessageBlockType.TOOL:
+          case MESSAGE_BLOCK_TYPE.TOOL:
             blockComponent = <ToolBlock key={block.id} block={block} />
             break
-          case MessageBlockType.CITATION:
+          case MESSAGE_BLOCK_TYPE.CITATION:
             blockComponent = <CitationBlock key={block.id} block={block} />
             break
-          case MessageBlockType.ERROR:
+          case MESSAGE_BLOCK_TYPE.ERROR:
             blockComponent = <ErrorBlock key={block.id} block={block} message={message} />
             break
-          case MessageBlockType.THINKING:
+          case MESSAGE_BLOCK_TYPE.THINKING:
             blockComponent = <ThinkingBlock key={block.id} block={block} />
             break
-          case MessageBlockType.TRANSLATION:
+          case MESSAGE_BLOCK_TYPE.TRANSLATION:
             blockComponent = <TranslationBlock key={block.id} block={block} />
             break
-          case MessageBlockType.VIDEO:
+          case MESSAGE_BLOCK_TYPE.VIDEO:
             blockComponent = <VideoBlock key={block.id} block={block} />
             break
-          case MessageBlockType.COMPACT:
+          case MESSAGE_BLOCK_TYPE.COMPACT:
             blockComponent = <CompactBlock key={block.id} block={block} />
             break
           default:
@@ -255,7 +255,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             block={{
               id: `loading-${message.id}`,
               messageId: message.id,
-              type: MessageBlockType.UNKNOWN,
+              type: MESSAGE_BLOCK_TYPE.UNKNOWN,
               status: MessageBlockStatus.PROCESSING,
               createdAt: new Date().toISOString()
             }}

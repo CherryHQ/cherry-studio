@@ -1,5 +1,5 @@
 import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -154,7 +154,7 @@ describe('ThinkingBlock', () => {
   const createThinkingBlock = (overrides: Partial<ThinkingMessageBlock> = {}): ThinkingMessageBlock => ({
     id: 'test-thinking-block-1',
     messageId: 'test-message-1',
-    type: MessageBlockType.THINKING,
+    type: MESSAGE_BLOCK_TYPE.THINKING,
     status: MessageBlockStatus.SUCCESS,
     createdAt: new Date().toISOString(),
     content: 'I need to think about this carefully...',

@@ -8,8 +8,8 @@ import {
   type FileMessageBlock,
   type ImageMessageBlock,
   type MainTextMessageBlock,
+  MESSAGE_BLOCK_TYPE,
   type MessageBlock,
-  MessageBlockType,
   type PlaceholderMessageBlock,
   type ThinkingMessageBlock,
   type ToolMessageBlock,
@@ -24,7 +24,7 @@ import {
  * @returns True if the block is a MainTextMessageBlock, false otherwise.
  */
 export function isMainTextBlock(block: MessageBlock): block is MainTextMessageBlock {
-  return block.type === MessageBlockType.MAIN_TEXT
+  return block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT
 }
 
 /**
@@ -34,7 +34,7 @@ export function isMainTextBlock(block: MessageBlock): block is MainTextMessageBl
  * @returns True if the block is an ImageMessageBlock, false otherwise.
  */
 export function isImageBlock(block: MessageBlock): block is ImageMessageBlock {
-  return block.type === MessageBlockType.IMAGE
+  return block.type === MESSAGE_BLOCK_TYPE.IMAGE
 }
 
 /**
@@ -44,7 +44,7 @@ export function isImageBlock(block: MessageBlock): block is ImageMessageBlock {
  * @returns True if the block is a FileMessageBlock, false otherwise.
  */
 export function isFileBlock(block: MessageBlock): block is FileMessageBlock {
-  return block.type === MessageBlockType.FILE
+  return block.type === MESSAGE_BLOCK_TYPE.FILE
 }
 
 /**
@@ -54,7 +54,7 @@ export function isFileBlock(block: MessageBlock): block is FileMessageBlock {
  * @returns True if the block is a CodeMessageBlock, false otherwise.
  */
 export function isCodeBlock(block: MessageBlock): block is CodeMessageBlock {
-  return block.type === MessageBlockType.CODE
+  return block.type === MESSAGE_BLOCK_TYPE.CODE
 }
 
 /**
@@ -64,7 +64,7 @@ export function isCodeBlock(block: MessageBlock): block is CodeMessageBlock {
  * @returns True if the block is a ThinkingMessageBlock, false otherwise.
  */
 export function isThinkingBlock(block: MessageBlock): block is ThinkingMessageBlock {
-  return block.type === MessageBlockType.THINKING
+  return block.type === MESSAGE_BLOCK_TYPE.THINKING
 }
 
 /**
@@ -74,7 +74,7 @@ export function isThinkingBlock(block: MessageBlock): block is ThinkingMessageBl
  * @returns True if the block is an ErrorMessageBlock, false otherwise.
  */
 export function isErrorBlock(block: MessageBlock): block is ErrorMessageBlock {
-  return block.type === MessageBlockType.ERROR
+  return block.type === MESSAGE_BLOCK_TYPE.ERROR
 }
 
 /**
@@ -84,7 +84,7 @@ export function isErrorBlock(block: MessageBlock): block is ErrorMessageBlock {
  * @returns True if the block is a TranslationMessageBlock, false otherwise.
  */
 export function isTranslationBlock(block: MessageBlock): block is TranslationMessageBlock {
-  return block.type === MessageBlockType.TRANSLATION
+  return block.type === MESSAGE_BLOCK_TYPE.TRANSLATION
 }
 
 /**
@@ -103,11 +103,11 @@ export function isTextLikeBlock(
   | CodeMessageBlock
   | ErrorMessageBlock {
   return (
-    block.type === MessageBlockType.MAIN_TEXT ||
-    block.type === MessageBlockType.THINKING ||
-    block.type === MessageBlockType.TRANSLATION ||
-    block.type === MessageBlockType.CODE ||
-    block.type === MessageBlockType.ERROR
+    block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT ||
+    block.type === MESSAGE_BLOCK_TYPE.THINKING ||
+    block.type === MESSAGE_BLOCK_TYPE.TRANSLATION ||
+    block.type === MESSAGE_BLOCK_TYPE.CODE ||
+    block.type === MESSAGE_BLOCK_TYPE.ERROR
   )
 }
 
@@ -118,7 +118,7 @@ export function isTextLikeBlock(
  * @returns True if the block is a VideoMessageBlock, false otherwise.
  */
 export function isVideoBlock(block: MessageBlock): block is VideoMessageBlock {
-  return block.type === MessageBlockType.VIDEO
+  return block.type === MESSAGE_BLOCK_TYPE.VIDEO
 }
 
 /**
@@ -128,7 +128,7 @@ export function isVideoBlock(block: MessageBlock): block is VideoMessageBlock {
  * @returns True if the block is a ToolMessageBlock, false otherwise.
  */
 export function isToolBlock(block: MessageBlock): block is ToolMessageBlock {
-  return block.type === MessageBlockType.TOOL
+  return block.type === MESSAGE_BLOCK_TYPE.TOOL
 }
 
 /**
@@ -138,7 +138,7 @@ export function isToolBlock(block: MessageBlock): block is ToolMessageBlock {
  * @returns True if the block is a CitationMessageBlock, false otherwise.
  */
 export function isCitationBlock(block: MessageBlock): block is CitationMessageBlock {
-  return block.type === MessageBlockType.CITATION
+  return block.type === MESSAGE_BLOCK_TYPE.CITATION
 }
 
 /**
@@ -148,7 +148,7 @@ export function isCitationBlock(block: MessageBlock): block is CitationMessageBl
  * @returns True if the block is a PlaceholderMessageBlock, false otherwise.
  */
 export function isPlaceholderBlock(block: MessageBlock): block is PlaceholderMessageBlock {
-  return block.type === MessageBlockType.UNKNOWN
+  return block.type === MESSAGE_BLOCK_TYPE.UNKNOWN
 }
 
 /**
@@ -158,7 +158,7 @@ export function isPlaceholderBlock(block: MessageBlock): block is PlaceholderMes
  * @returns True if the block is a CompactMessageBlock, false otherwise.
  */
 export function isCompactBlock(block: MessageBlock): block is CompactMessageBlock {
-  return block.type === MessageBlockType.COMPACT
+  return block.type === MESSAGE_BLOCK_TYPE.COMPACT
 }
 
 export function isMessageProcessing(message: Message): boolean {

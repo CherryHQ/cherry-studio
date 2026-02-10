@@ -13,7 +13,7 @@ import type {
   ToolMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 
 import { findAllBlocks } from './messageUtils/find'
 
@@ -98,42 +98,42 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
 
   for (const block of blocks) {
     switch (block.type) {
-      case MessageBlockType.MAIN_TEXT: {
+      case MESSAGE_BLOCK_TYPE.MAIN_TEXT: {
         const mainTextBlock = block as MainTextMessageBlock
         if (mainTextBlock.content?.trim()) {
           stats.text++
         }
         break
       }
-      case MessageBlockType.CODE: {
+      case MESSAGE_BLOCK_TYPE.CODE: {
         const codeBlock = block as CodeMessageBlock
         if (codeBlock.content?.trim()) {
           stats.code++
         }
         break
       }
-      case MessageBlockType.THINKING:
+      case MESSAGE_BLOCK_TYPE.THINKING:
         stats.thinking++
         break
-      case MessageBlockType.TOOL:
+      case MESSAGE_BLOCK_TYPE.TOOL:
         stats.tools++
         break
-      case MessageBlockType.IMAGE:
+      case MESSAGE_BLOCK_TYPE.IMAGE:
         stats.images++
         break
-      case MessageBlockType.FILE:
+      case MESSAGE_BLOCK_TYPE.FILE:
         stats.files++
         break
-      case MessageBlockType.CITATION:
+      case MESSAGE_BLOCK_TYPE.CITATION:
         stats.citations++
         break
-      case MessageBlockType.TRANSLATION:
+      case MESSAGE_BLOCK_TYPE.TRANSLATION:
         stats.translations++
         break
-      case MessageBlockType.ERROR:
+      case MESSAGE_BLOCK_TYPE.ERROR:
         stats.errors++
         break
-      case MessageBlockType.UNKNOWN:
+      case MESSAGE_BLOCK_TYPE.UNKNOWN:
         // 占位符块不计入统计
         break
     }
@@ -181,26 +181,26 @@ export function processMessageContent(message: Message, selectedTypes: ContentTy
  */
 function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentType>): string {
   switch (block.type) {
-    case MessageBlockType.MAIN_TEXT: {
+    case MESSAGE_BLOCK_TYPE.MAIN_TEXT: {
       if (!selectedTypes.has(CONTENT_TYPES.TEXT)) return ''
       const mainTextBlock = block as MainTextMessageBlock
       return mainTextBlock.content || ''
     }
 
-    case MessageBlockType.CODE: {
+    case MESSAGE_BLOCK_TYPE.CODE: {
       if (!selectedTypes.has(CONTENT_TYPES.CODE)) return ''
       const codeBlock = block as CodeMessageBlock
       return codeBlock.content || ''
     }
 
-    case MessageBlockType.THINKING: {
+    case MESSAGE_BLOCK_TYPE.THINKING: {
       if (!selectedTypes.has(CONTENT_TYPES.THINKING)) return ''
       const thinkingBlock = block as ThinkingMessageBlock
       const thinkingContent = thinkingBlock.content || ''
       return `<think>\n${thinkingContent}\n</think>`
     }
 
-    case MessageBlockType.TOOL: {
+    case MESSAGE_BLOCK_TYPE.TOOL: {
       if (!selectedTypes.has(CONTENT_TYPES.TOOL_USE)) return ''
       const toolBlock = block as ToolMessageBlock
       const rawResponse = toolBlock.metadata?.rawMcpToolResponse
@@ -215,7 +215,7 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
       return `<tool>\n${JSON.stringify(toolInfo, null, 2)}\n</tool>`
     }
 
-    case MessageBlockType.IMAGE: {
+    case MESSAGE_BLOCK_TYPE.IMAGE: {
       if (!selectedTypes.has(CONTENT_TYPES.IMAGES)) return ''
       const imageBlock = block as ImageMessageBlock
       if (imageBlock.file) {
@@ -226,14 +226,14 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
       return `<image id="${imageBlock.id}" />`
     }
 
-    case MessageBlockType.FILE: {
+    case MESSAGE_BLOCK_TYPE.FILE: {
       // 文件信息在文本中只作为元信息记录，实际文件在files数组中
       if (!selectedTypes.has(CONTENT_TYPES.FILE)) return ''
       const fileBlock = block as FileMessageBlock
       return `<file id="${fileBlock.id}" filename="${fileBlock.file.name}" type="${fileBlock.file.type}" size="${fileBlock.file.size}" />`
     }
 
-    case MessageBlockType.CITATION: {
+    case MESSAGE_BLOCK_TYPE.CITATION: {
       if (!selectedTypes.has(CONTENT_TYPES.CITATION)) return ''
       const citationBlock = block as CitationMessageBlock
       const citationInfo = {
@@ -247,20 +247,20 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
       return `<citation id="${citationInfo.id}" />`
     }
 
-    case MessageBlockType.ERROR: {
+    case MESSAGE_BLOCK_TYPE.ERROR: {
       if (!selectedTypes.has(CONTENT_TYPES.ERROR)) return ''
       const errorBlock = block as ErrorMessageBlock
       const errorContent = errorBlock.error ? JSON.stringify(errorBlock.error) : 'Error occurred'
       return `<error>\n${errorContent}\n</error>`
     }
 
-    case MessageBlockType.TRANSLATION: {
+    case MESSAGE_BLOCK_TYPE.TRANSLATION: {
       if (!selectedTypes.has(CONTENT_TYPES.TRANSLATION)) return ''
       const translationBlock = block as TranslationMessageBlock
       return `<translation target="${translationBlock.targetLanguage}">\n${translationBlock.content}\n</translation>`
     }
 
-    case MessageBlockType.UNKNOWN:
+    case MESSAGE_BLOCK_TYPE.UNKNOWN:
       // 占位符块，通常不需要输出内容
       return ''
 
@@ -277,7 +277,7 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
  */
 function processFileBlocks(block: MessageBlock): FileMetadata | null {
   switch (block.type) {
-    case MessageBlockType.FILE: {
+    case MESSAGE_BLOCK_TYPE.FILE: {
       const fileBlock = block as FileMessageBlock
       return fileBlock.file
     }

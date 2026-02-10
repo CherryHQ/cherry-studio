@@ -1,7 +1,7 @@
 import 'katex/dist/katex.min.css'
 
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -169,7 +169,7 @@ describe('Markdown', () => {
   const createMainTextBlock = (overrides: Partial<MainTextMessageBlock> = {}): MainTextMessageBlock => ({
     id: 'test-block-1',
     messageId: 'test-message-1',
-    type: MessageBlockType.MAIN_TEXT,
+    type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
     status: MessageBlockStatus.SUCCESS,
     createdAt: new Date().toISOString(),
     content: '# Test Markdown\n\nThis is **bold** text.',
@@ -241,7 +241,7 @@ describe('Markdown', () => {
         block: {
           id: 'thinking-1',
           messageId: 'msg-1',
-          type: MessageBlockType.THINKING,
+          type: MESSAGE_BLOCK_TYPE.THINKING,
           status: MessageBlockStatus.SUCCESS,
           createdAt: new Date().toISOString(),
           content: 'Thinking content',
@@ -254,7 +254,7 @@ describe('Markdown', () => {
         block: {
           id: 'translation-1',
           messageId: 'msg-1',
-          type: MessageBlockType.TRANSLATION,
+          type: MESSAGE_BLOCK_TYPE.TRANSLATION,
           status: MessageBlockStatus.SUCCESS,
           createdAt: new Date().toISOString(),
           content: 'Translated content',
