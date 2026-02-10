@@ -13,7 +13,8 @@ import {
   isEmoji,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
-  sanitizeProviderName
+  sanitizeProviderName,
+  truncateText
 } from '../naming'
 
 describe('naming', () => {
@@ -318,6 +319,66 @@ describe('naming', () => {
 
     it('should return empty string for empty input', () => {
       expect(sanitizeProviderName('')).toBe('')
+    })
+  })
+
+  describe('truncateText', () => {
+    it('should return original text if shorter than minLength', () => {
+      expect(truncateText('Hello')).toBe('Hello')
+      expect(truncateText('Short text', { minLength: 20 })).toBe('Short text')
+    })
+
+    it('should return empty string for empty input', () => {
+      expect(truncateText('')).toBe('')
+    })
+
+    it('should preserve complete sentences within maxLength', () => {
+      const text = 'First sentence. Second sentence. Third sentence.'
+      const result = truncateText(text, { minLength: 10, maxLength: 40 })
+      expect(result).toBe('First sentence. Second sentence.')
+    })
+
+    it('should trim leading and trailing spaces', () => {
+      const text = '  Hello world. This is a test.  '
+      const result = truncateText(text, { minLength: 5, maxLength: 20 })
+      expect(result.startsWith(' ')).toBe(false)
+      expect(result.endsWith(' ')).toBe(false)
+    })
+
+    it('should truncate at ending punctuation, not comma', () => {
+      // When no complete sentence fits, should find ending punctuation (。！？；) not comma
+      const text = '这是一段很长的文字，里面有逗号，但是没有句号直到最后才有句号。'
+      const result = truncateText(text, { minLength: 10, maxLength: 25 })
+      // Should truncate at word boundary since no ending punctuation within range
+      expect(result.endsWith('，')).toBe(false)
+    })
+
+    it('should truncate at word boundary for English text without punctuation', () => {
+      const text = 'This is a very long sentence without any punctuation marks inside'
+      const result = truncateText(text, { minLength: 10, maxLength: 30 })
+      expect(result).toBe('This is a very long sentence')
+    })
+
+    it('should ensure result is at least minLength', () => {
+      const text = 'Hi. This is a longer sentence that goes on and on.'
+      const result = truncateText(text, { minLength: 20, maxLength: 50 })
+      expect(result.length).toBeGreaterThanOrEqual(20)
+    })
+
+    it('should handle Chinese text with sentences', () => {
+      const text = '你好。这是第一句话。这是第二句话。这是第三句话。'
+      const result = truncateText(text, { minLength: 5, maxLength: 15 })
+      expect(result).toBe('你好。这是第一句话。')
+    })
+
+    it('should use default options (minLength=15, maxLength=50)', () => {
+      const shortText = 'Short'
+      expect(truncateText(shortText)).toBe('Short')
+
+      const longText = '这是一个超过五十个字符的长文本，需要被截断。我们来看看它会在哪里被截断，是否能保持可读性。'
+      const result = truncateText(longText)
+      expect(result.length).toBeLessThanOrEqual(50)
+      expect(result.length).toBeGreaterThanOrEqual(15)
     })
   })
 })

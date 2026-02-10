@@ -211,3 +211,74 @@ export function sanitizeProviderName(name: string): string {
     .replace(/\s+/g, '-') // spaces -> dashes
     .replace(/[<>:"|?*\\/_]/g, '_') // dangerous chars -> underscores
 }
+
+/**
+ * Truncate text while preserving sentence boundaries where possible.
+ *
+ * Logic:
+ * 1. If text length <= minLength, return as-is
+ * 2. Use Intl.Segmenter to split by sentences, accumulate until approaching maxLength
+ * 3. If the first sentence exceeds maxLength, try to find the last punctuation within maxLength
+ * 4. If no punctuation found, fall back to word boundary truncation
+ *
+ * @param {string} text Input text
+ * @param {object} options Configuration options
+ * @param {number} [options.minLength=15] Minimum length, result should not be shorter
+ * @param {number} [options.maxLength=50] Maximum length, result should not exceed
+ * @returns {string} Truncated text
+ */
+export function truncateText(text: string, options: { minLength?: number; maxLength?: number } = {}): string {
+  const { minLength = 15, maxLength = 50 } = options
+
+  if (!text || text.length <= minLength) {
+    return text
+  }
+
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' })
+  let result = ''
+
+  for (const { segment } of segmenter.segment(text)) {
+    if (result.length + segment.length > maxLength) {
+      break
+    }
+    result += segment
+  }
+
+  // If we got a valid result within bounds, return it
+  if (result && result.length >= minLength) {
+    return result.trim()
+  }
+
+  // Need to truncate within a long sentence - try to find a good break point
+  const candidate = text.substring(0, maxLength)
+
+  // Try to find the last suitable ending punctuation (excluding comma-like marks)
+  const endingPunctuationPattern = /[。！？；!?;]/g
+  let lastEndingIndex = -1
+  let match: RegExpExecArray | null
+
+  while ((match = endingPunctuationPattern.exec(candidate)) !== null) {
+    if (match.index >= minLength) {
+      lastEndingIndex = match.index
+    }
+  }
+
+  // If found a proper ending punctuation, truncate there
+  if (lastEndingIndex > 0) {
+    return text.substring(0, lastEndingIndex + 1).trim()
+  }
+
+  // Fall back to word boundary using Intl.Segmenter
+  const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
+  let wordResult = ''
+
+  for (const { segment } of wordSegmenter.segment(text)) {
+    if (wordResult.length + segment.length > maxLength) {
+      break
+    }
+    wordResult += segment
+  }
+
+  // Return word-boundary result if valid, otherwise hard truncate
+  return wordResult.length >= minLength ? wordResult.trim() : text.substring(0, maxLength)
+}

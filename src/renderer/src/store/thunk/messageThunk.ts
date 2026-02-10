@@ -161,7 +161,7 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    const summary = await fetchMessagesSummary({ messages, assistant })
+    const { text: summary } = await fetchMessagesSummary({ messages, assistant })
     const summaryText = summary?.trim()
     if (!summaryText) {
       return
