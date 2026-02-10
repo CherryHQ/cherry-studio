@@ -890,7 +890,9 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
+const MCPToolResponseStatusSchema = z.enum(['pending', 'streaming', 'cancelled', 'invoking', 'done', 'error'])
+
+export type MCPToolResponseStatus = z.infer<typeof MCPToolResponseStatusSchema>
 
 interface BaseToolResponse {
   id: string // unique id
