@@ -78,7 +78,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   // e.g. accounts/fireworks/models/deepseek-v3p2 -> deepseek-v3.2
   // e.g. accounts/fireworks/models/kimi-k2p5 -> kimi-k2.5
   const normalizedId = id.toLowerCase().startsWith('accounts/fireworks/models/')
-    ? id.replace(/(\d)p(\d)/g, '$1.$2')
+    ? id.replace(/(\d)p(?=\d)/g, '$1.')
     : id
 
   let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
