@@ -94,9 +94,12 @@ const BaseMessageBlockSchema = z.object(BaseMessageBlockSchemaConfig)
 // BaseMessageBlock base type - more concise, containing only essential common properties
 export type BaseMessageBlock = z.infer<typeof BaseMessageBlockSchema>
 
-export interface PlaceholderMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.UNKNOWN
-}
+const PlaceholderMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.UNKNOWN)
+})
+
+export type PlaceholderMessageBlock = z.infer<typeof PlaceholderMessageBlockSchema>
 
 // 主文本块 - 核心内容
 export interface MainTextMessageBlock extends BaseMessageBlock {
