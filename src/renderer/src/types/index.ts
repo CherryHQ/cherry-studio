@@ -321,23 +321,25 @@ export const ModelCapabilitySchema = z.object({
 
 export type ModelCapability = z.infer<typeof ModelCapabilitySchema>
 
-export type Model = {
-  id: string
-  provider: string
-  name: string
-  group: string
-  owned_by?: string
-  description?: string
-  capabilities?: ModelCapability[]
+export const ModelSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  name: z.string(),
+  group: z.string(),
+  owned_by: z.string().optional(),
+  description: z.string().optional(),
+  capabilities: z.array(ModelCapabilitySchema).optional(),
   /**
    * @deprecated
    */
-  type?: ModelType[]
-  pricing?: ModelPricing
-  endpoint_type?: EndpointType
-  supported_endpoint_types?: EndpointType[]
-  supported_text_delta?: boolean
-}
+  type: z.array(ModelTypeSchema).optional(),
+  pricing: ModelPricingSchema.optional(),
+  endpoint_type: EndPointTypeSchema.optional(),
+  supported_endpoint_types: z.array(EndPointTypeSchema).optional(),
+  supported_text_delta: z.boolean().optional()
+})
+
+export type Model = z.infer<typeof ModelSchema>
 
 export type Suggestion = {
   content: string
