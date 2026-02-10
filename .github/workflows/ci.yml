@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        task: [lint, typecheck, test-main, test-renderer, test-other]
+        task: [basic-checks, general-test, render-test]
     env:
       CI: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
@@ -54,25 +54,45 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Run ${{ matrix.task }}
-        run: |
-          case ${{ matrix.task }} in
-            lint)
-              pnpm test:lint && pnpm format:check
-              ;;
-            typecheck)
-              pnpm typecheck
-              ;;
-            test-main)
-              pnpm test:main
-              ;;
-            test-renderer)
-              pnpm test:renderer
-              ;;
-            test-other)
-              pnpm test:aicore && pnpm test:shared && pnpm test:scripts && pnpm i18n:check && pnpm i18n:hardcoded:strict
-              ;;
-          esac
+      - name: Lint Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm test:lint
+
+      - name: Format Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm format:check
+
+      - name: Type Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm typecheck
+
+      - name: i18n Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm i18n:check
+
+      - name: Hardcoded Strings Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm i18n:hardcoded:strict
+
+      - name: Main Process Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:main
+
+      - name: AI Core Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:aicore
+
+      - name: Shared Package Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:shared
+
+      - name: Scripts Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:scripts
+
+      - name: Renderer Test
+        if: matrix.task == 'render-test'
+        run: pnpm test:renderer
 
   notify:
     runs-on: ubuntu-latest
