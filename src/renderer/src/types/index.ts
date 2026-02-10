@@ -615,10 +615,12 @@ export type GenerateImageParams = {
   quality?: string
 }
 
-export type GenerateImageResponse = {
-  type: 'url' | 'base64'
-  images: string[]
-}
+export const GenerateImageResponseSchema = z.object({
+  type: z.enum(['url', 'base64']),
+  images: z.array(z.string())
+})
+
+export type GenerateImageResponse = z.infer<typeof GenerateImageResponseSchema>
 
 // 为了支持自定义语言，设置为string别名
 /** zh-cn, en-us, etc. */
