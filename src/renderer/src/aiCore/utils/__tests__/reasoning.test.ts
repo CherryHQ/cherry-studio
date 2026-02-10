@@ -1012,7 +1012,7 @@ describe('reasoning utils', () => {
       expect(result).not.toHaveProperty('reasoning_effort')
     })
 
-    it('should not overwrite existing reasoningEffort with reasoning_effort', async () => {
+    it('should not overwrite existing reasoningEffort and should remove reasoning_effort', async () => {
       const assistant: Assistant = {
         id: 'test',
         name: 'Test',
@@ -1025,10 +1025,11 @@ describe('reasoning utils', () => {
       } as Assistant
 
       const result = getCustomParameters(assistant)
+      // reasoning_effort is always removed since the AI SDK drops it for openai-compatible providers
       expect(result).toEqual({
-        reasoningEffort: 'low',
-        reasoning_effort: 'high'
+        reasoningEffort: 'low'
       })
+      expect(result).not.toHaveProperty('reasoning_effort')
     })
   })
 

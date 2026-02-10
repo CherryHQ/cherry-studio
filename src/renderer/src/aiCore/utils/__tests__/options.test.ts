@@ -1137,9 +1137,7 @@ describe('options utils', () => {
           provider: 'openai-compatible'
         } as Model
 
-        // After the fix in getCustomParameters(), reasoning_effort is auto-converted to reasoningEffort.
-        // This simulates the real output of getCustomParameters when the user configures
-        // { name: 'reasoning_effort', value: 'high', type: 'string' }
+        // getCustomParameters returns camelCase after conversion
         vi.mocked(getCustomParameters).mockReturnValue({
           reasoningEffort: 'high'
         })
