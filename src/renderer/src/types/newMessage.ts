@@ -226,9 +226,12 @@ const VideoMessageBlockSchema = z.object({
 export type VideoMessageBlock = z.infer<typeof VideoMessageBlockSchema>
 
 // 错误块
-export interface ErrorMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.ERROR
-}
+const ErrorMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.ERROR)
+})
+
+export type ErrorMessageBlock = z.infer<typeof ErrorMessageBlockSchema>
 
 // Compact块 - 用于显示 /compact 命令的响应
 export interface CompactMessageBlock extends BaseMessageBlock {
