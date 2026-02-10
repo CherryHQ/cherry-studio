@@ -6,8 +6,8 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { audioExts, documentExts, HOME_CHERRY_DIR, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
-import type { FileMetadata, NotesTreeNode } from '@types'
-import { FileTypes } from '@types'
+import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import { app } from 'electron'
 import iconv from 'iconv-lite'
@@ -16,15 +16,15 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('Utils:File')
 
 // 创建文件类型映射表，提高查找效率
-const fileTypeMap = new Map<string, FileTypes>()
+const fileTypeMap = new Map<string, FileType>()
 
 // 初始化映射表
 function initFileTypeMap() {
-  imageExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.IMAGE))
-  videoExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.VIDEO))
-  audioExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.AUDIO))
-  textExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.TEXT))
-  documentExts.forEach((ext) => fileTypeMap.set(ext, FileTypes.DOCUMENT))
+  imageExts.forEach((ext) => fileTypeMap.set(ext, FILE_TYPE.IMAGE))
+  videoExts.forEach((ext) => fileTypeMap.set(ext, FILE_TYPE.VIDEO))
+  audioExts.forEach((ext) => fileTypeMap.set(ext, FILE_TYPE.AUDIO))
+  textExts.forEach((ext) => fileTypeMap.set(ext, FILE_TYPE.TEXT))
+  documentExts.forEach((ext) => fileTypeMap.set(ext, FILE_TYPE.DOCUMENT))
 }
 
 // 初始化映射表
@@ -84,9 +84,9 @@ export function isPathInside(childPath: string, parentPath: string): boolean {
   }
 }
 
-export function getFileType(ext: string): FileTypes {
+export function getFileType(ext: string): FileType {
   ext = ext.toLowerCase()
-  return fileTypeMap.get(ext) || FileTypes.OTHER
+  return fileTypeMap.get(ext) || FILE_TYPE.OTHER
 }
 
 export function getFileDir(filePath: string) {
@@ -116,7 +116,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
       const ext = path.extname(file)
       const fileType = getFileType(ext)
 
-      if ([FileTypes.OTHER, FileTypes.IMAGE, FileTypes.VIDEO, FileTypes.AUDIO].includes(fileType)) {
+      if ([FILE_TYPE.OTHER, FILE_TYPE.IMAGE, FILE_TYPE.VIDEO, FILE_TYPE.AUDIO].some((type) => type === fileType)) {
         return
       }
 

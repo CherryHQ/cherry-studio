@@ -2,7 +2,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -15,8 +15,8 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   couldAddImageFile: boolean
   extensions: string[]
-  files: FileType[]
-  setFiles: Dispatch<SetStateAction<FileType[]>>
+  files: FileMetadata[]
+  setFiles: Dispatch<SetStateAction<FileMetadata[]>>
   disabled?: boolean
 }
 
@@ -72,7 +72,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
         list: base.items
           .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
           .map((file) => {
-            const fileContent = file.content as FileType
+            const fileContent = file.content as FileMetadata
             return {
               label: fileContent.origin_name || fileContent.name,
               description:

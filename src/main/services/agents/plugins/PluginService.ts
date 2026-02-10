@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import * as crypto from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { directoryExists, fileExists, isPathInside, pathExists } from '@main/utils/file'
@@ -111,6 +112,10 @@ export class PluginService {
   private readonly cacheStore: PluginCacheStore
   private readonly installer: PluginInstaller
   private readonly agentService: AgentService
+
+  // Max folder/file name length to prevent Windows MAX_PATH (260 chars) issues.
+  // Applied cross-platform for consistency with cloud-synced workdirs.
+  private static readonly MAX_NAME_LENGTH = 80
 
   private readonly ALLOWED_EXTENSIONS = ['.md', '.markdown']
 
@@ -1706,6 +1711,12 @@ export class PluginService {
       sanitized += '.md'
     }
 
+    // Truncate base name (before extension) to prevent Windows MAX_PATH issues
+    const ext = sanitized.endsWith('.markdown') ? '.markdown' : '.md'
+    const baseName = sanitized.slice(0, -ext.length)
+    const maxBaseLength = PluginService.MAX_NAME_LENGTH - ext.length
+    sanitized = this.truncateWithHash(baseName, maxBaseLength) + ext
+
     return sanitized
   }
 
@@ -1730,7 +1741,22 @@ export class PluginService {
       })
     }
 
+    // Truncate to prevent Windows MAX_PATH issues
+    sanitized = this.truncateWithHash(sanitized, PluginService.MAX_NAME_LENGTH)
+
     return sanitized
+  }
+
+  /**
+   * Truncate a name to maxLength, appending a hash suffix for uniqueness.
+   * Names within the limit are returned unchanged.
+   */
+  private truncateWithHash(name: string, maxLength: number): string {
+    if (name.length <= maxLength) return name
+    if (maxLength <= 9) return name.slice(0, maxLength)
+    const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8)
+    const truncated = name.slice(0, maxLength - 9).replace(/[-_]+$/, '')
+    return `${truncated}-${hash}`
   }
 
   /**

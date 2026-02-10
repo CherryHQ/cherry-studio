@@ -1,6 +1,6 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import type { FileType, Model } from '@renderer/types'
+import type { FileMetadata, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { AtSign } from 'lucide-react'
 import type { FC } from 'react'
@@ -16,7 +16,7 @@ interface Props {
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   couldMentionNotVisionModel: boolean
-  files: FileType[]
+  files: FileMetadata[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 

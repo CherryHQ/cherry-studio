@@ -1276,6 +1276,9 @@
       "validation": "验证失败"
     },
     "expand": "展开",
+    "export": {
+      "excel": "导出为 Excel"
+    },
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
     },
@@ -1930,6 +1933,9 @@
         "model": "请选择一个模型",
         "name": "请输入知识库名称"
       },
+      "excel": {
+        "export": "导出 Excel 失败"
+      },
       "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
@@ -1968,6 +1974,9 @@
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"
+      },
+      "table": {
+        "invalid": "无法获取有效的表格数据"
       },
       "unknown": "未知错误",
       "yuque": {
@@ -2055,6 +2064,9 @@
     },
     "searching": "正在搜索...",
     "success": {
+      "excel": {
+        "export": "Excel 导出成功"
+      },
       "joplin": {
         "export": "成功导出到 Joplin"
       },
@@ -2508,6 +2520,12 @@
       "stop": "停止",
       "version": "版本"
     },
+    "git_missing": {
+      "description": "OpenClaw 的部分依赖需要 Git 来安装。请先安装 Git，然后再次点击安装。",
+      "download_button": "下载 Git",
+      "hint": "macOS: brew install git | Windows: 从 git-scm.com 下载（安装时请确保勾选将 Git 添加到 PATH）",
+      "title": "需要安装 Git"
+    },
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "model_config": {
@@ -2682,13 +2700,8 @@
       }
     },
     "edit": {
-      "image_file": "编辑的图像",
-      "magic_prompt_option_tip": "智能优化编辑提示词",
-      "model_tip": "支持 V3 和 V2 版本",
-      "number_images_tip": "生成的编辑结果数量",
-      "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
-      "seed_tip": "控制编辑结果的随机性",
-      "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本"
+      "image_file": "输入图片",
+      "image_required": "请先上传需要编辑的图片"
     },
     "generate": {
       "height": "高度",
@@ -2757,6 +2770,16 @@
       "allow_all": "允许所有",
       "allow_none": "不允许"
     },
+    "ppio": {
+      "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'",
+      "mask_image": "遮罩图像",
+      "mask_image_tip": "用于指示要擦除的区域。要擦除的区域应为白色，要保留的区域应为黑色",
+      "output_format": "输出格式",
+      "resolution": "目标分辨率",
+      "seed_tip": "随机种子，相同的种子和参数可以生成相似的图片，-1 表示随机",
+      "use_pre_llm_tip": "开启文本扩写，会针对输入提示词进行扩写优化。提示词较短建议开启，较长建议关闭",
+      "watermark_tip": "是否在生成的图片上添加水印，默认不添加"
+    },
     "pricing": "定价",
     "prompt_enhancement": "提示词增强",
     "prompt_enhancement_tip": "开启后将提示重写为详细的、适合模型的版本",
@@ -2799,6 +2822,7 @@
     "required_field": "必填项",
     "seed": "随机种子",
     "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
+    "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
     "style_type": "风格",
@@ -2825,6 +2849,7 @@
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
     },
+    "watermark": "添加水印",
     "zhipu": {
       "custom_size_divisible": "自定义尺寸必须能被16整除",
       "custom_size_hint": "长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px",

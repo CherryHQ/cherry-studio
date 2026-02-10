@@ -2,7 +2,6 @@ import type {
   Model,
   ReasoningEffortConfig,
   ReasoningEffortOption,
-  SystemProviderId,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -259,29 +258,6 @@ export const getModelSupportedReasoningEffortOptions = (
 }
 
 function _isSupportedThinkingTokenModel(model: Model): boolean {
-  // Specifically for DeepSeek V3.1. White list for now
-  if (isDeepSeekHybridInferenceModel(model)) {
-    return (
-      [
-        'openrouter',
-        'dashscope',
-        'modelscope',
-        'doubao',
-        'silicon',
-        'nvidia',
-        'ppio',
-        'hunyuan',
-        'tencent-cloud-ti',
-        'deepseek',
-        'cherryin',
-        'new-api',
-        'aihubmix',
-        'sophnet',
-        'dmxapi'
-      ] satisfies SystemProviderId[]
-    ).some((id) => id === model.provider)
-  }
-
   return (
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
@@ -290,7 +266,8 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model) ||
     isSupportedThinkingTokenMiMoModel(model) ||
-    isSupportedThinkingTokenKimiModel(model)
+    isSupportedThinkingTokenKimiModel(model) ||
+    isSupportedThinkingTokenDeepSeekModel(model)
   )
 }
 
@@ -469,6 +446,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-2025-07-15',
     'qwen-flash',
     'qwen-flash-2025-07-28',
+    'qwen3-max', // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
     'qwen3-max-2026-01-23',
     'qwen3-max-preview'
   ].includes(modelId)
@@ -775,6 +753,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-plus.*$': { min: 0, max: 81_920 },
   'qwen-turbo.*$': { min: 0, max: 38_912 },
   'qwen-flash.*$': { min: 0, max: 81_920 },
+  // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+  'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
