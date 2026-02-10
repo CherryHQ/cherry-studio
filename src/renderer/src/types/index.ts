@@ -15,7 +15,7 @@ import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
-import { type BaseTool, BaseToolSchema, type MCPTool, MCPToolSchema } from './tool'
+import { BaseToolSchema, type MCPTool, MCPToolSchema } from './tool'
 
 export * from './agent'
 export * from './apiModels'
@@ -941,11 +941,14 @@ const MCPToolResponseSchema = z.object({
 
 export type MCPToolResponse = z.infer<typeof MCPToolResponseSchema>
 
-export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
-  tool: BaseTool
-  toolCallId: string
-  parentToolUseId?: string
-}
+const NormalToolResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  tool: BaseToolSchema,
+  toolCallId: z.string(),
+  parentToolUseId: z.string().optional()
+})
+
+export type NormalToolResponse = z.infer<typeof NormalToolResponseSchema>
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
