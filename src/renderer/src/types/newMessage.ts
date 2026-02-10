@@ -120,11 +120,14 @@ const MainTextMessageBlockSchema = z.object({
 export type MainTextMessageBlock = z.infer<typeof MainTextMessageBlockSchema>
 
 // 思考块 - 模型推理过程
-export interface ThinkingMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.THINKING
-  content: string
-  thinking_millsec: number
-}
+const ThinkingMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.THINKING),
+  content: z.string(),
+  thinking_millsec: z.number()
+})
+
+export type ThinkingMessageBlock = z.infer<typeof ThinkingMessageBlockSchema>
 
 // 翻译块
 export interface TranslationMessageBlock extends BaseMessageBlock {
