@@ -1,3 +1,4 @@
+import type { LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
@@ -5,6 +6,9 @@ import { requestToolConfirmation } from '@renderer/utils/userConfirmation'
 import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
+
+type ToolResultContentOutput = Extract<LanguageModelV2ToolResultOutput, { type: 'content' }>
+type ToolResultContentPart = ToolResultContentOutput['value'][number]
 
 const logger = loggerService.withContext('MCP-utils')
 
@@ -44,7 +48,7 @@ export function setupToolsConfig(mcpTools?: MCPTool[]): Record<string, Tool<any,
  * - @ai-sdk/google 源码: convert-to-google-generative-ai-messages.ts 中 case "media" 分支
  * - Gemini CLI issue: https://github.com/google-gemini/gemini-cli/issues/2136
  */
-function mcpResultToModelOutput(result: MCPCallToolResponse): { type: 'content'; value: any[] } | undefined {
+function mcpResultToModelOutput(result: MCPCallToolResponse): ToolResultContentOutput | undefined {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return undefined
   }
@@ -55,7 +59,7 @@ function mcpResultToModelOutput(result: MCPCallToolResponse): { type: 'content';
     return undefined
   }
 
-  const parts: any[] = []
+  const parts: ToolResultContentPart[] = []
   for (const item of result.content) {
     switch (item.type) {
       case 'text':
