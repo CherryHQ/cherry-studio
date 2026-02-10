@@ -57,6 +57,12 @@ type UserInputMessage = {
   }
 }
 
+// Shared state wrapper to pass streamState between invoke and processSDKQuery
+type SharedState = {
+  streamState?: ClaudeStreamState
+  queryIterator?: any
+}
+
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
@@ -211,6 +217,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
     }
 
+    // Create shared state wrapper to pass streamState between invoke and processSDKQuery
+    const sharedState: SharedState = {}
+
     const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
       // Type guard to ensure we're handling PreToolUse event
       if (input.hook_event_name !== 'PreToolUse') {
@@ -229,6 +238,23 @@ class ClaudeCodeService implements AgentServiceInterface {
         permission_mode: hookInput.permission_mode,
         autoAllowTools: autoAllowTools
       })
+
+      // Detect ExitPlanMode tool call and switch permission mode to acceptEdits
+      if (toolName === 'ExitPlanMode') {
+        logger.info('ExitPlanMode detected, switching permission mode to acceptEdits', {
+          session_id: hookInput.session_id,
+          tool_use_id: toolUseID
+        })
+
+        try {
+          await sharedState.streamState?.switchToAcceptEditsMode()
+          logger.info('Successfully switched to acceptEdits mode')
+        } catch (error) {
+          logger.error('Failed to switch permission mode', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
 
       if (options?.signal?.aborted) {
         logger.debug('PreToolUse hook signal already aborted; skipping tool use', {
@@ -356,7 +382,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         aiStream,
         errorChunks,
         session.agent_id,
-        session.id
+        session.id,
+        sharedState
       ).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
           error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
@@ -468,15 +495,22 @@ class ClaudeCodeService implements AgentServiceInterface {
     stream: ClaudeCodeStream,
     errorChunks: string[],
     agentId: string,
-    sessionId: string
+    sessionId: string,
+    sharedState: SharedState
   ): Promise<void> {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
     const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
+    // Store streamState in shared wrapper for access by preToolUseHook
+    sharedState.streamState = streamState
 
     try {
-      for await (const message of query({ prompt: promptStream, options })) {
+      // Create query iterator and bind to streamState for setPermissionMode
+      const queryIterator = query({ prompt: promptStream, options })
+      streamState.setQueryIterator(queryIterator)
+
+      for await (const message of queryIterator) {
         if (hasCompleted) break
 
         jsonOutput.push(message)
