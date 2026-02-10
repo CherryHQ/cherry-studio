@@ -16,8 +16,12 @@ on:
     types: [ready_for_review, synchronize, opened, edited]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        task: [lint, typecheck, test-main, test-renderer, test-other]
     env:
       CI: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
@@ -50,26 +54,46 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Lint Check
-        run: pnpm test:lint
+      - name: Run ${{ matrix.task }}
+        run: |
+          case ${{ matrix.task }} in
+            lint)
+              pnpm test:lint && pnpm format:check
+              ;;
+            typecheck)
+              pnpm typecheck
+              ;;
+            test-main)
+              pnpm test:main
+              ;;
+            test-renderer)
+              pnpm test:renderer
+              ;;
+            test-other)
+              pnpm test:aicore && pnpm test:shared && pnpm test:scripts && pnpm i18n:check && pnpm i18n:hardcoded:strict
+              ;;
+          esac
 
-      - name: Format Check
-        run: pnpm format:check
+  notify:
+    runs-on: ubuntu-latest
+    needs: ci
+    if: always() && contains(needs.ci.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
 
-      - name: Type Check
-        run: pnpm typecheck
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
 
-      - name: i18n Check
-        run: pnpm i18n:check
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Hardcoded Strings Check
-        run: pnpm i18n:hardcoded:strict
-
-      - name: Test
-        run: pnpm test
+      - name: Install Dependencies
+        run: pnpm install
 
       - name: Send failure notification to Feishu
-        if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
