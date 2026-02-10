@@ -130,13 +130,17 @@ const ThinkingMessageBlockSchema = z.object({
 export type ThinkingMessageBlock = z.infer<typeof ThinkingMessageBlockSchema>
 
 // 翻译块
-export interface TranslationMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.TRANSLATION
-  content: string
-  sourceBlockId?: string // Optional: ID of the block that was translated
-  sourceLanguage?: string
-  targetLanguage: string
-}
+const TranslationMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.TRANSLATION),
+  content: z.string(),
+  /** ID of the block that was translated */
+  sourceBlockId: z.string().optional(),
+  sourceLanguage: z.string().optional(),
+  targetLanguage: z.string()
+})
+
+export type TranslationMessageBlock = z.infer<typeof TranslationMessageBlockSchema>
 
 // 代码块 - 专门处理代码
 export interface CodeMessageBlock extends BaseMessageBlock {
