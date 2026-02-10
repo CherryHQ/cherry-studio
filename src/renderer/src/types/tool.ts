@@ -50,10 +50,13 @@ export const MCPToolInputSchema = z
     return schema
   })
 
-export interface BuiltinTool extends BaseTool {
-  inputSchema: z.infer<typeof MCPToolInputSchema>
-  type: 'builtin'
-}
+const BuiltinToolSchema = z.object({
+  ...BaseToolSchemaConfig,
+  inputSchema: MCPToolInputSchema,
+  type: z.literal('builtin')
+})
+
+export type BuiltinTool = z.infer<typeof BuiltinToolSchema>
 
 export interface MCPTool extends BaseTool {
   id: string
