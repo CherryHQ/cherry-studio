@@ -51,7 +51,7 @@ import type {
 } from '@renderer/types'
 import {
   EFFORT_RATIO,
-  FileTypes,
+  FILE_TYPE,
   isSystemProvider,
   isTranslateAssistant,
   SystemProviderIds,
@@ -446,7 +446,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         continue
       }
 
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+      if ([FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => type === file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           type: 'text',

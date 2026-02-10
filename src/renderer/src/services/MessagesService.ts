@@ -8,7 +8,7 @@ import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, FileMetadata, Model, Topic, Usage } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -132,7 +132,7 @@ export function getUserMessage({
   }
   if (files?.length) {
     files.forEach((file) => {
-      if (file.type === FileTypes.IMAGE) {
+      if (file.type === FILE_TYPE.IMAGE) {
         const imgBlock = createImageBlock(messageId, { file, status: MessageBlockStatus.SUCCESS })
         blocks.push(imgBlock)
         blockIds.push(imgBlock.id)

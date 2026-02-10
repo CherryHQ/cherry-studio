@@ -11,7 +11,7 @@ import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { FileMetadata } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
@@ -204,7 +204,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
-        if (file.type === FileTypes.IMAGE) {
+        if (file.type === FILE_TYPE.IMAGE) {
           const imgBlock = createImageBlock(message.id, { file, status: MessageBlockStatus.SUCCESS })
           updatedBlocks.push(imgBlock)
         } else {

@@ -3,7 +3,7 @@ import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FileTypes } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,78 +67,78 @@ describe('file', () => {
 
   describe('getFileType', () => {
     it('should return IMAGE for image extensions', () => {
-      expect(getFileType('.jpg')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.jpeg')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.png')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.gif')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.webp')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.bmp')).toBe(FileTypes.IMAGE)
+      expect(getFileType('.jpg')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.jpeg')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.png')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.gif')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.webp')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.bmp')).toBe(FILE_TYPE.IMAGE)
     })
 
     it('should return VIDEO for video extensions', () => {
-      expect(getFileType('.mp4')).toBe(FileTypes.VIDEO)
-      expect(getFileType('.avi')).toBe(FileTypes.VIDEO)
-      expect(getFileType('.mov')).toBe(FileTypes.VIDEO)
-      expect(getFileType('.mkv')).toBe(FileTypes.VIDEO)
-      expect(getFileType('.flv')).toBe(FileTypes.VIDEO)
+      expect(getFileType('.mp4')).toBe(FILE_TYPE.VIDEO)
+      expect(getFileType('.avi')).toBe(FILE_TYPE.VIDEO)
+      expect(getFileType('.mov')).toBe(FILE_TYPE.VIDEO)
+      expect(getFileType('.mkv')).toBe(FILE_TYPE.VIDEO)
+      expect(getFileType('.flv')).toBe(FILE_TYPE.VIDEO)
     })
 
     it('should return AUDIO for audio extensions', () => {
-      expect(getFileType('.mp3')).toBe(FileTypes.AUDIO)
-      expect(getFileType('.wav')).toBe(FileTypes.AUDIO)
-      expect(getFileType('.ogg')).toBe(FileTypes.AUDIO)
-      expect(getFileType('.flac')).toBe(FileTypes.AUDIO)
-      expect(getFileType('.aac')).toBe(FileTypes.AUDIO)
+      expect(getFileType('.mp3')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.wav')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.ogg')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.flac')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.aac')).toBe(FILE_TYPE.AUDIO)
     })
 
     it('should return TEXT for text extensions', () => {
-      expect(getFileType('.txt')).toBe(FileTypes.TEXT)
-      expect(getFileType('.md')).toBe(FileTypes.TEXT)
-      expect(getFileType('.html')).toBe(FileTypes.TEXT)
-      expect(getFileType('.json')).toBe(FileTypes.TEXT)
-      expect(getFileType('.js')).toBe(FileTypes.TEXT)
-      expect(getFileType('.ts')).toBe(FileTypes.TEXT)
-      expect(getFileType('.css')).toBe(FileTypes.TEXT)
-      expect(getFileType('.java')).toBe(FileTypes.TEXT)
-      expect(getFileType('.py')).toBe(FileTypes.TEXT)
+      expect(getFileType('.txt')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.md')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.html')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.json')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.js')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.ts')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.css')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.java')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.py')).toBe(FILE_TYPE.TEXT)
     })
 
     it('should return DOCUMENT for document extensions', () => {
-      expect(getFileType('.pdf')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.pptx')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.doc')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.docx')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.xlsx')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.odt')).toBe(FileTypes.DOCUMENT)
+      expect(getFileType('.pdf')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.pptx')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.doc')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.docx')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.xlsx')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.odt')).toBe(FILE_TYPE.DOCUMENT)
     })
 
     it('should return OTHER for unknown extensions', () => {
-      expect(getFileType('.unknown')).toBe(FileTypes.OTHER)
-      expect(getFileType('')).toBe(FileTypes.OTHER)
-      expect(getFileType('.')).toBe(FileTypes.OTHER)
-      expect(getFileType('...')).toBe(FileTypes.OTHER)
-      expect(getFileType('.123')).toBe(FileTypes.OTHER)
+      expect(getFileType('.unknown')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('.')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('...')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('.123')).toBe(FILE_TYPE.OTHER)
     })
 
     it('should handle case-insensitive extensions', () => {
-      expect(getFileType('.JPG')).toBe(FileTypes.IMAGE)
-      expect(getFileType('.PDF')).toBe(FileTypes.DOCUMENT)
-      expect(getFileType('.Mp3')).toBe(FileTypes.AUDIO)
-      expect(getFileType('.HtMl')).toBe(FileTypes.TEXT)
-      expect(getFileType('.Xlsx')).toBe(FileTypes.DOCUMENT)
+      expect(getFileType('.JPG')).toBe(FILE_TYPE.IMAGE)
+      expect(getFileType('.PDF')).toBe(FILE_TYPE.DOCUMENT)
+      expect(getFileType('.Mp3')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.HtMl')).toBe(FILE_TYPE.TEXT)
+      expect(getFileType('.Xlsx')).toBe(FILE_TYPE.DOCUMENT)
     })
 
     it('should handle extensions without leading dot', () => {
-      expect(getFileType('jpg')).toBe(FileTypes.OTHER)
-      expect(getFileType('pdf')).toBe(FileTypes.OTHER)
-      expect(getFileType('mp3')).toBe(FileTypes.OTHER)
+      expect(getFileType('jpg')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('pdf')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('mp3')).toBe(FILE_TYPE.OTHER)
     })
 
     it('should handle extreme cases', () => {
-      expect(getFileType('.averylongfileextensionname')).toBe(FileTypes.OTHER)
-      expect(getFileType('.tar.gz')).toBe(FileTypes.OTHER)
-      expect(getFileType('.文件')).toBe(FileTypes.OTHER)
-      expect(getFileType('.файл')).toBe(FileTypes.OTHER)
+      expect(getFileType('.averylongfileextensionname')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('.tar.gz')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('.文件')).toBe(FILE_TYPE.OTHER)
+      expect(getFileType('.файл')).toBe(FILE_TYPE.OTHER)
     })
   })
 
@@ -168,9 +168,9 @@ describe('file', () => {
       expect(result).toHaveLength(4)
       expect(result[0].id).toBe('mock-uuid')
       expect(result[0].name).toBe('file1.txt')
-      expect(result[0].type).toBe(FileTypes.TEXT)
+      expect(result[0].type).toBe(FILE_TYPE.TEXT)
       expect(result[1].name).toBe('file2.pdf')
-      expect(result[1].type).toBe(FileTypes.DOCUMENT)
+      expect(result[1].type).toBe(FILE_TYPE.DOCUMENT)
     })
 
     it('should skip hidden files', () => {
@@ -200,7 +200,7 @@ describe('file', () => {
       // Should only include document.pdf as the others are excluded types
       expect(result).toHaveLength(1)
       expect(result[0].name).toBe('document.pdf')
-      expect(result[0].type).toBe(FileTypes.DOCUMENT)
+      expect(result[0].type).toBe(FILE_TYPE.DOCUMENT)
     })
 
     it('should return empty array for empty directory', () => {

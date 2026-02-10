@@ -1,6 +1,6 @@
 import type { Message, Model } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types/file'
-import { FileTypes } from '@renderer/types/file'
+import { FILE_TYPE } from '@renderer/types/file'
 import {
   AssistantMessageStatus,
   type FileMessageBlock,
@@ -87,7 +87,7 @@ const createFileBlock = (
       path: file?.path ?? '/tmp/document.txt',
       size: file?.size ?? 1024,
       ext: file?.ext ?? '.txt',
-      type: file?.type ?? FileTypes.TEXT,
+      type: file?.type ?? FILE_TYPE.TEXT,
       created_at: file?.created_at ?? timestamp,
       count: file?.count ?? 1,
       ...file
@@ -346,7 +346,7 @@ describe('messageConverter', () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const fileUser = createMessage('user')
       fileUser.__mockContent = 'Use this document as inspiration'
-      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FileTypes.DOCUMENT } })]
+      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FILE_TYPE.DOCUMENT } })]
       convertFileBlockToFilePartMock.mockResolvedValueOnce({
         type: 'file',
         filename: 'reference.pdf',

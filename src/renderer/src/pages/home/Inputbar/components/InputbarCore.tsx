@@ -12,7 +12,7 @@ import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
@@ -461,7 +461,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const appendTxtContentToInput = useCallback(
-    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+    async (file: FileMetadata, event: React.MouseEvent<HTMLDivElement>) => {
       event.preventDefault()
       event.stopPropagation()
 
