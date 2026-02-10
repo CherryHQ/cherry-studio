@@ -717,11 +717,13 @@ export type WebSearchProvider = {
   modelName?: string
 }
 
-export type WebSearchProviderResult = {
-  title: string
-  content: string
-  url: string
-}
+const WebSearchProviderResultSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  url: z.string()
+})
+
+export type WebSearchProviderResult = z.infer<typeof WebSearchProviderResultSchema>
 
 export type WebSearchProviderResponse = {
   query?: string
