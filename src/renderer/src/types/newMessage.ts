@@ -234,11 +234,16 @@ const ErrorMessageBlockSchema = z.object({
 export type ErrorMessageBlock = z.infer<typeof ErrorMessageBlockSchema>
 
 // Compact块 - 用于显示 /compact 命令的响应
-export interface CompactMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.COMPACT
-  content: string // 总结消息
-  compactedContent: string // 从 <local-command-stdout> 提取的内容
-}
+const CompactMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.COMPACT),
+  // 总结消息
+  content: z.string(),
+  // 从 <local-command-stdout> 提取的内容
+  compactedContent: z.string()
+})
+
+export type CompactMessageBlock = z.infer<typeof CompactMessageBlockSchema>
 
 // MessageBlock 联合类型
 export type MessageBlock =
