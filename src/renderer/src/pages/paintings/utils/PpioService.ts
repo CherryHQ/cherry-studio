@@ -7,6 +7,17 @@ const logger = loggerService.withContext('PpioService')
 
 const PPIO_API_HOST = 'https://api.ppio.com'
 
+// 自定义 API 错误类
+class PpioApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number
+  ) {
+    super(message)
+    this.name = 'PpioApiError'
+  }
+}
+
 // 任务状态
 export type PpioTaskStatus =
   | 'TASK_STATUS_QUEUED'
@@ -80,7 +91,7 @@ class PpioService {
       if (!response.ok) {
         const errorText = await response.text()
         logger.error('PPIO API error', { status: response.status, error: errorText })
-        throw new Error(`PPIO API error: ${response.status} - ${errorText}`)
+        throw new PpioApiError(`PPIO API error: ${response.status} - ${errorText}`, response.status)
       }
 
       const data = await response.json()
@@ -289,28 +300,11 @@ class PpioService {
   /**
    * 查询任务结果
    */
-  async getTaskResult(taskId: string): Promise<PpioTaskResult> {
-    const url = `${PPIO_API_HOST}/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
-
+  async getTaskResult(taskId: string, timeout: number = 120000): Promise<PpioTaskResult> {
     logger.debug('PPIO get task result', { taskId })
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
-      }
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('PPIO get task result error', { status: response.status, error: errorText })
-      throw new Error(`PPIO API error: ${response.status} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    logger.debug('PPIO task result', data)
-    return data as PpioTaskResult
+    const endpoint = `/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
+    return this.request<PpioTaskResult>(endpoint, {}, 'GET', timeout)
   }
 
   /**
@@ -325,28 +319,55 @@ class PpioService {
       signal?: AbortSignal
     }
   ): Promise<PpioTaskResult> {
-    const { interval = 2000, maxAttempts = 120, onProgress, signal } = options || {}
+    const { maxAttempts = 120, onProgress, signal } = options || {}
 
     let attempts = 0
+    const startTime = Date.now()
 
     while (attempts < maxAttempts) {
       if (signal?.aborted) {
         throw new Error('Task polling aborted')
       }
 
-      const result = await this.getTaskResult(taskId)
+      try {
+        // 单次请求超时设为 10 秒
+        const result = await this.getTaskResult(taskId, 10000)
 
-      if (result.task.progress_percent !== undefined && onProgress) {
-        onProgress(result.task.progress_percent)
+        if (result.task.progress_percent !== undefined && onProgress) {
+          onProgress(result.task.progress_percent)
+        }
+
+        if (result.task.status === 'TASK_STATUS_SUCCEED') {
+          return result
+        }
+
+        if (result.task.status === 'TASK_STATUS_FAILED') {
+          throw new Error(result.task.reason || 'Task failed')
+        }
+      } catch (error) {
+        // PpioApiError 说明 API 返回了错误响应 (非 2xx)，停止轮询
+        if (error instanceof PpioApiError) {
+          logger.error('PPIO API error, stop polling', { taskId, statusCode: error.statusCode })
+          throw error
+        }
+
+        // 任务失败，停止轮询
+        if (error instanceof Error && error.message.includes('Task failed')) {
+          throw error
+        }
+
+        // 超时或网络错误，记录日志但继续轮询
+        logger.warn('PPIO task polling request failed, will retry', {
+          taskId,
+          attempts: attempts + 1,
+          maxAttempts,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
 
-      if (result.task.status === 'TASK_STATUS_SUCCEED') {
-        return result
-      }
-
-      if (result.task.status === 'TASK_STATUS_FAILED') {
-        throw new Error(result.task.reason || 'Task failed')
-      }
+      // 动态间隔：前一分钟每3秒，之后每10秒
+      const elapsedTime = Date.now() - startTime
+      const interval = elapsedTime < 60000 ? 3000 : 10000
 
       // 等待后继续轮询
       await new Promise((resolve) => setTimeout(resolve, interval))
