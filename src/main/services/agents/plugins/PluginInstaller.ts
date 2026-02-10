@@ -9,31 +9,14 @@ const logger = loggerService.withContext('PluginInstaller')
 
 export class PluginInstaller {
   async installFilePlugin(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
-    const backupPath = `${destPath}.bak`
-    let hasBackup = false
-
-    try {
-      // Backup existing file before overwriting
-      if (await pathExists(destPath)) {
-        await this.safeUnlink(backupPath, 'stale backup')
-        await fs.promises.rename(destPath, backupPath)
-        hasBackup = true
-        logger.debug('Backed up existing plugin file', { agentId, backupPath })
-      }
-
-      await fs.promises.copyFile(sourceAbsolutePath, destPath)
-      logger.debug('File copied to destination', { agentId, destPath })
-
-      if (hasBackup) {
-        await this.safeUnlink(backupPath, 'backup file')
-      }
-    } catch (error) {
-      if (hasBackup) {
-        await this.safeUnlink(destPath, 'partial file')
-        await this.safeRename(backupPath, destPath, 'plugin backup')
-      }
-      throw this.toPluginError('install', error)
-    }
+    await this.installWithBackup({
+      destPath,
+      copy: () => fs.promises.copyFile(sourceAbsolutePath, destPath),
+      cleanup: (p, l) => this.safeUnlink(p, l),
+      operation: 'install',
+      label: 'plugin file',
+      agentId
+    })
   }
 
   async uninstallFilePlugin(
@@ -83,32 +66,14 @@ export class PluginInstaller {
   }
 
   async installSkill(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
-    const logContext = logger.withContext('installSkill')
-    const backupPath = `${destPath}.bak`
-    let hasBackup = false
-
-    try {
-      // Backup existing folder before overwriting
-      if (await pathExists(destPath)) {
-        await this.safeRemoveDirectory(backupPath, 'stale backup')
-        await fs.promises.rename(destPath, backupPath)
-        hasBackup = true
-        logContext.info('Backed up existing skill folder', { agentId, backupPath })
-      }
-
-      await copyDirectoryRecursive(sourceAbsolutePath, destPath)
-      logContext.info('Skill folder copied to destination', { agentId, destPath })
-
-      if (hasBackup) {
-        await this.safeRemoveDirectory(backupPath, 'backup folder')
-      }
-    } catch (error) {
-      if (hasBackup) {
-        await this.safeRemoveDirectory(destPath, 'partial skill folder')
-        await this.safeRename(backupPath, destPath, 'skill backup')
-      }
-      throw this.toPluginError('install-skill', error)
-    }
+    await this.installWithBackup({
+      destPath,
+      copy: () => copyDirectoryRecursive(sourceAbsolutePath, destPath),
+      cleanup: (p, l) => this.safeRemoveDirectory(p, l),
+      operation: 'install-skill',
+      label: 'skill folder',
+      agentId
+    })
   }
 
   async uninstallSkill(agentId: string, folderName: string, skillPath: string): Promise<void> {
@@ -123,6 +88,48 @@ export class PluginInstaller {
         throw this.toPluginError('uninstall-skill', error)
       }
       logContext.warn('Skill folder already deleted', { agentId, folderName, skillPath })
+    }
+  }
+
+  /**
+   * Shared backup-copy-restore pattern for both file and directory installs.
+   * 1. Rename existing destPath to .bak (avoids EPERM on Windows sync folders)
+   * 2. Copy source to destPath
+   * 3. On success: delete .bak
+   * 4. On failure: clean partial destPath, restore .bak
+   */
+  private async installWithBackup(opts: {
+    destPath: string
+    copy: () => Promise<void>
+    cleanup: (targetPath: string, label: string) => Promise<void>
+    operation: string
+    label: string
+    agentId: string
+  }): Promise<void> {
+    const { destPath, copy, cleanup, operation, label, agentId } = opts
+    const backupPath = `${destPath}.bak`
+    let hasBackup = false
+
+    try {
+      if (await pathExists(destPath)) {
+        await cleanup(backupPath, 'stale backup')
+        await fs.promises.rename(destPath, backupPath)
+        hasBackup = true
+        logger.debug(`Backed up existing ${label}`, { agentId, backupPath })
+      }
+
+      await copy()
+      logger.debug(`${label} copied to destination`, { agentId, destPath })
+
+      if (hasBackup) {
+        await cleanup(backupPath, `backup ${label}`)
+      }
+    } catch (error) {
+      if (hasBackup) {
+        await cleanup(destPath, `partial ${label}`)
+        await this.safeRename(backupPath, destPath, `${label} backup`)
+      }
+      throw this.toPluginError(operation, error)
     }
   }
 
