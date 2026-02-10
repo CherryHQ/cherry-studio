@@ -1,8 +1,5 @@
 import * as z from 'zod'
 
-// ============ Base Serializable Primitive Types ============
-const serializablePrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
-
 /**
  * Serializable type
  */
@@ -10,11 +7,9 @@ export type Serializable = string | number | boolean | null | Serializable[] | {
 
 /**
  * Zod schema for serializable values
- * Uses z.lazy() to define a recursive type
+ * Uses z.custom() with isSerializable type guard to ensure consistent validation behavior
  */
-export const SerializableSchema: z.ZodType<Serializable> = z.lazy(() =>
-  z.union([serializablePrimitiveSchema, z.array(SerializableSchema), z.record(z.string(), SerializableSchema)])
-)
+export const SerializableSchema: z.ZodType<Serializable> = z.custom<Serializable>(isSerializable)
 
 /**
  * Check if a value is serializable (suitable for Redux state)
