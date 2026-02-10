@@ -221,6 +221,10 @@ const shortcutKeyMap = {
   toggle_new_context: 'settings.shortcuts.toggle_new_context',
   toggle_show_assistants: 'settings.shortcuts.toggle_show_assistants',
   toggle_show_topics: 'settings.shortcuts.toggle_show_topics',
+  switch_next_assistant: 'settings.shortcuts.switch_next_assistant',
+  switch_prev_assistant: 'settings.shortcuts.switch_prev_assistant',
+  switch_next_topic: 'settings.shortcuts.switch_next_topic',
+  switch_prev_topic: 'settings.shortcuts.switch_prev_topic',
   zoom_in: 'settings.shortcuts.zoom_in',
   zoom_out: 'settings.shortcuts.zoom_out',
   zoom_reset: 'settings.shortcuts.zoom_reset'

@@ -5069,6 +5069,10 @@
       "toggle_new_context": "清除上下文",
       "toggle_show_assistants": "切換助手顯示",
       "toggle_show_topics": "切換話題顯示",
+      "switch_next_assistant": "切換下一個助手",
+      "switch_prev_assistant": "切換上一個助手",
+      "switch_next_topic": "切換下一個話題",
+      "switch_prev_topic": "切換上一個話題",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"

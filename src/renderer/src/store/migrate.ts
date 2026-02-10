@@ -3204,6 +3204,20 @@ const migrateConfig = {
       logger.error('migrate 195 error', error as Error)
       return state
     }
+  },
+  '196': (state: RootState) => {
+    try {
+      addShortcuts(
+        state,
+        ['switch_next_topic', 'switch_prev_topic', 'switch_next_assistant', 'switch_prev_assistant'],
+        'toggle_show_topics'
+      )
+      logger.info('migrate 196 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 196 error', error as Error)
+      return state
+    }
   }
 }
 
