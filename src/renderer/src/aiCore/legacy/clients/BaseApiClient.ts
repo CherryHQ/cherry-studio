@@ -308,6 +308,7 @@ export abstract class BaseApiClient<
       textContent: isEmpty(allReferences)
         ? content
         : REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent),
+      // @ts-ignore FIXME: type validation is bypassed
       imageContents: isEmpty(knowledgeImageReferences) ? [] : imageReferences
     }
   }

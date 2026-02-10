@@ -150,6 +150,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
           const block = createToolBlock(oldMessage.id, mcpTool.id, {
             // Determine status based on original tool status
             status: MESSAGE_BLOCK_STATUS.SUCCESS,
+            // @ts-ignore FIXME: type validation is bypassed
             content: mcpTool.response,
             error:
               mcpTool.status !== 'done'

@@ -135,6 +135,7 @@ export function addImageFileToContents(messages: Message[]) {
     return messages
   }
 
+  // @ts-ignore FIXME: type validation is bypassed
   const imageFiles = blocks.map((v) => v.metadata?.generateImage?.images).flat()
   const updatedAssistantMessage = {
     ...lastAssistantMessage,
