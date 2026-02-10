@@ -205,10 +205,13 @@ const CitationMessageBlockSchema = z.object({
 export type CitationMessageBlock = z.infer<typeof CitationMessageBlockSchema>
 
 // 文件块
-export interface FileMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.FILE
-  file: FileMetadata // 文件信息
-}
+const FileMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.FILE),
+  file: FileMetadataSchema
+})
+
+export type FileMessageBlock = z.infer<typeof FileMessageBlockSchema>
 
 // 视频块
 export interface VideoMessageBlock extends BaseMessageBlock {
