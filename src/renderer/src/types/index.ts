@@ -276,7 +276,17 @@ export type User = {
   email: string
 }
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
+export const ModelTypeSchema = z.enum([
+  'text',
+  'vision',
+  'embedding',
+  'reasoning',
+  'function_calling',
+  'web_search',
+  'rerank'
+])
+
+export type ModelType = z.infer<typeof ModelTypeSchema>
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
