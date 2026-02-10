@@ -1046,15 +1046,17 @@ export interface MemoryConfig {
   isAutoDimensions?: boolean
 }
 
-export interface MemoryItem {
-  id: string
-  memory: string
-  hash?: string
-  createdAt?: string
-  updatedAt?: string
-  score?: number
-  metadata?: Record<string, any>
-}
+const MemoryItemSchema = z.object({
+  id: z.string(),
+  memory: z.string(),
+  hash: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  score: z.number().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+})
+
+export type MemoryItem = z.infer<typeof MemoryItemSchema>
 
 export interface MemorySearchResult {
   results: MemoryItem[]
