@@ -8,11 +8,29 @@ const logger = loggerService.withContext('PluginInstaller')
 
 export class PluginInstaller {
   async installFilePlugin(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
+    const backupPath = `${destPath}.bak`
+    let hasBackup = false
+
     try {
+      // Backup existing file before overwriting
+      if (await this.pathExists(destPath)) {
+        await this.safeUnlink(backupPath, 'stale backup')
+        await fs.promises.rename(destPath, backupPath)
+        hasBackup = true
+        logger.debug('Backed up existing plugin file', { agentId, backupPath })
+      }
+
       await fs.promises.copyFile(sourceAbsolutePath, destPath)
       logger.debug('File copied to destination', { agentId, destPath })
+
+      if (hasBackup) {
+        await this.safeUnlink(backupPath, 'backup file')
+      }
     } catch (error) {
-      await this.safeUnlink(destPath, 'partial file')
+      if (hasBackup) {
+        await this.safeUnlink(destPath, 'partial file')
+        await this.safeRename(backupPath, destPath, 'plugin backup')
+      }
       throw this.toPluginError('install', error)
     }
   }
@@ -65,20 +83,29 @@ export class PluginInstaller {
 
   async installSkill(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
     const logContext = logger.withContext('installSkill')
+    const backupPath = `${destPath}.bak`
+    let hasBackup = false
 
     try {
-      try {
-        await fs.promises.access(destPath)
-        await deleteDirectoryRecursive(destPath)
-        logContext.info('Removed existing skill folder', { agentId, destPath })
-      } catch {
-        // No existing folder
+      // Backup existing folder before overwriting
+      if (await this.pathExists(destPath)) {
+        await this.safeRemoveDirectory(backupPath, 'stale backup')
+        await fs.promises.rename(destPath, backupPath)
+        hasBackup = true
+        logContext.info('Backed up existing skill folder', { agentId, backupPath })
       }
 
       await copyDirectoryRecursive(sourceAbsolutePath, destPath)
       logContext.info('Skill folder copied to destination', { agentId, destPath })
+
+      if (hasBackup) {
+        await this.safeRemoveDirectory(backupPath, 'backup folder')
+      }
     } catch (error) {
-      await this.safeRemoveDirectory(destPath, 'partial skill folder')
+      if (hasBackup) {
+        await this.safeRemoveDirectory(destPath, 'partial skill folder')
+        await this.safeRename(backupPath, destPath, 'skill backup')
+      }
       throw this.toPluginError('install-skill', error)
     }
   }
@@ -103,6 +130,28 @@ export class PluginInstaller {
       type: 'TRANSACTION_FAILED',
       operation,
       reason: error instanceof Error ? error.message : String(error)
+    }
+  }
+
+  private async pathExists(targetPath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(targetPath)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async safeRename(from: string, to: string, label: string): Promise<void> {
+    try {
+      await fs.promises.rename(from, to)
+      logger.debug(`Restored ${label}`, { from, to })
+    } catch (error) {
+      logger.error(`Failed to restore ${label}`, {
+        from,
+        to,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
