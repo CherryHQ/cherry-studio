@@ -1,8 +1,11 @@
 import type { ApiClient, Model } from '@types'
+import * as z from 'zod'
 
 import type { FileMetadata } from './file'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory' | 'video'
+const KnowledgeItemTypeSchema = z.enum(['file', 'url', 'note', 'sitemap', 'directory', 'memory', 'video'])
+
+export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
 export type KnowledgeItem = {
   id: string
