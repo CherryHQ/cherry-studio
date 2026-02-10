@@ -211,7 +211,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
       const titlePromise = fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
       window.toast.loading({ title: t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
-      const title = await titlePromise
+      const { text: title } = await titlePromise
 
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 

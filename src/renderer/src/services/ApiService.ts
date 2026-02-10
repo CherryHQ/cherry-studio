@@ -17,7 +17,7 @@ import type { Message, ResponseError } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { isAbortError } from '@renderer/utils/error'
+import { getErrorMessage, isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -274,7 +274,13 @@ export async function fetchChatCompletion({
   })
 }
 
-export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+export async function fetchMessagesSummary({
+  messages,
+  assistant
+}: {
+  messages: Message[]
+  assistant: Assistant
+}): Promise<{ text: string | null; error?: string }> {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getQuickModel() || assistant?.model || getDefaultModel()
 
@@ -287,7 +293,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
-    return null
+    return { text: null, error: i18n.t('error.no_api_key') }
   }
 
   // Apply API key rotation
@@ -376,9 +382,10 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
       callType: 'summary'
     })
     const text = getText()
-    return removeSpecialCharactersForTopicName(text) || null
+    const result = removeSpecialCharactersForTopicName(text)
+    return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
   } catch (error: any) {
-    return null
+    return { text: null, error: getErrorMessage(error) }
   }
 }
 

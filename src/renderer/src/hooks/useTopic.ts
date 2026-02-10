@@ -132,7 +132,9 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
 
     const applyTopicName = (name: string) => {
       const data = { ...topic, name } as Topic
-      topic.id === _activeTopic.id && _setActiveTopic(data)
+      if (topic.id === _activeTopic.id) {
+        _setActiveTopic(data)
+      }
       store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
     }
 
@@ -172,11 +174,13 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
       startTopicRenaming(topicId)
       try {
-        const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
+        const { text: summaryText, error } = await fetchMessagesSummary({ messages: topic.messages, assistant })
         if (summaryText) {
           applyTopicName(summaryText)
         } else {
-          // Fall back to first message text when LLM naming returns null (e.g. no API key)
+          if (error) {
+            window.toast?.error(`${i18n.t('message.error.fetchTopicName')}: ${error}`)
+          }
           const fallbackName = getFirstMessageName()
           if (fallbackName) {
             applyTopicName(fallbackName)
