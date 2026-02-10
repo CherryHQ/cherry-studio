@@ -291,11 +291,13 @@ export const EndPointTypeSchema = z.enum([
 ])
 export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
-export type ModelPricing = {
-  input_per_million_tokens: number
-  output_per_million_tokens: number
-  currencySymbol?: string
-}
+export const ModelPricingSchema = z.object({
+  input_per_million_tokens: z.number(),
+  output_per_million_tokens: z.number(),
+  currencySymbol: z.string().optional()
+})
+
+export type ModelPricing = z.infer<typeof ModelPricingSchema>
 
 export type ModelCapability = {
   type: ModelType
