@@ -1452,6 +1452,7 @@
     "provider_disabled": "Modellanbieter nicht aktiviert",
     "reason": "Grund",
     "render": {
+      "block": "Dieser Inhaltsblock konnte nicht gerendert werden",
       "description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
       "title": "Rendering-Fehler"
     },

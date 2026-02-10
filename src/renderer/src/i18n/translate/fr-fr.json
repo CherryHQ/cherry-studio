@@ -1452,6 +1452,7 @@
     "provider_disabled": "Le fournisseur de modèles n'est pas activé",
     "reason": "raison",
     "render": {
+      "block": "Ce bloc de contenu n'a pas pu être affiché",
       "description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
       "title": "Erreur de rendu"
     },

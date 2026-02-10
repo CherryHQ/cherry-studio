@@ -1452,6 +1452,7 @@
     "provider_disabled": "El proveedor de modelos no está habilitado",
     "reason": "causa",
     "render": {
+      "block": "Este bloque de contenido no se pudo mostrar",
       "description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto",
       "title": "Error de renderizado"
     },

@@ -1452,6 +1452,7 @@
     "provider_disabled": "Model provider is not enabled",
     "reason": "Reason",
     "render": {
+      "block": "This content block failed to render",
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },

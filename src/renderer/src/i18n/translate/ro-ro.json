@@ -1452,6 +1452,7 @@
     "provider_disabled": "Furnizorul modelului nu este activat",
     "reason": "Motiv",
     "render": {
+      "block": "Acest bloc de conținut nu a putut fi redat",
       "description": "Nu s-a putut randa conținutul mesajului. Te rugăm să verifici dacă formatul conținutului mesajului este corect",
       "title": "Eroare de randare"
     },

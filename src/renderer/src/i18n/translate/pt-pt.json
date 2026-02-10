@@ -1452,6 +1452,7 @@
     "provider_disabled": "O provedor de modelos está desativado",
     "reason": "causa",
     "render": {
+      "block": "Este bloco de conteúdo não foi renderizado",
       "description": "Falha ao renderizar a fórmula, por favor verifique se o formato da fórmula está correto",
       "title": "Erro de Renderização"
     },
