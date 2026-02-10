@@ -725,10 +725,12 @@ const WebSearchProviderResultSchema = z.object({
 
 export type WebSearchProviderResult = z.infer<typeof WebSearchProviderResultSchema>
 
-export type WebSearchProviderResponse = {
-  query?: string
-  results: WebSearchProviderResult[]
-}
+const WebSearchProviderResponseSchema = z.object({
+  query: z.string().optional(),
+  results: z.array(WebSearchProviderResultSchema)
+})
+
+export type WebSearchProviderResponse = z.infer<typeof WebSearchProviderResponseSchema>
 
 export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
 
