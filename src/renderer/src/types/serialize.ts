@@ -1,19 +1,35 @@
-export type Serializable = null | boolean | number | string | { [key: string]: SerializableValue } | SerializableValue[]
+import * as z from 'zod'
 
-// FIXME: any 不是可安全序列化的类型，但是递归定义会报ts2589
-type SerializableValue = null | boolean | number | string | { [key: string]: any } | any[]
+// ============ Base Serializable Primitive Types ============
+const serializablePrimitiveSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
 
 /**
- * 判断一个值是否可序列化（适合用于 Redux 状态）
- * 支持嵌套对象、数组的深度检测
+ * Serializable type
  */
+export type Serializable = string | number | boolean | null | Serializable[] | { [key: string]: Serializable }
 
-export function isSerializable(value: unknown): boolean {
-  const seen = new Set() // 用于防止循环引用
+/**
+ * Zod schema for serializable values
+ * Uses z.lazy() to define a recursive type
+ */
+export const SerializableSchema: z.ZodType<Serializable> = z.lazy(() =>
+  z.union([serializablePrimitiveSchema, z.array(SerializableSchema), z.record(z.string(), SerializableSchema)])
+)
+
+/**
+ * Check if a value is serializable (suitable for Redux state)
+ * Supports deep detection of nested objects and arrays
+ *
+ * @note On circular references: This function returns true when a circular reference is detected,
+ *       but JSON.stringify will actually throw an error.
+ *       This is historical behavior; callers should be aware.
+ */
+export function isSerializable(value: unknown): value is Serializable {
+  const seen = new Set<unknown>()
 
   function _isSerializable(val: unknown): boolean {
     if (val === null || val === undefined) {
-      return val !== undefined // null ✅, undefined ❌
+      return val !== undefined
     }
 
     const type = typeof val
@@ -23,9 +39,9 @@ export function isSerializable(value: unknown): boolean {
     }
 
     if (type === 'object') {
-      // 检查循环引用
+      // Check for circular references
       if (seen.has(val)) {
-        return true // 避免无限递归，假设循环引用对象本身结构合法（但实际 JSON.stringify 会报错）
+        return true // Maintain historical behavior: return true when circular reference detected
       }
       seen.add(val)
 
@@ -33,13 +49,13 @@ export function isSerializable(value: unknown): boolean {
         return val.every((item) => _isSerializable(item))
       }
 
-      // 检查是否为纯对象（plain object）
+      // Check if it's a plain object
       const proto = Object.getPrototypeOf(val)
       if (proto !== null && proto !== Object.prototype && proto !== Array.prototype) {
-        return false // 不是 plain object，比如 class 实例
+        return false
       }
 
-      // 检查内置对象（如 Date、RegExp、Map、Set 等）
+      // Check for built-in objects (Date, RegExp, Map, Set, etc.)
       if (
         val instanceof Date ||
         val instanceof RegExp ||
@@ -52,17 +68,34 @@ export function isSerializable(value: unknown): boolean {
         return false
       }
 
-      // 递归检查所有属性值
+      // Recursively check all property values
       return Object.values(val).every((v) => _isSerializable(v))
     }
 
-    // function、symbol 不可序列化
+    // function, symbol are not serializable
     return false
   }
 
   try {
     return _isSerializable(value)
   } catch {
-    return false // 如出现循环引用错误等
+    return false
   }
+}
+
+/**
+ * Type guard: Assert that a value is serializable
+ * Uses Zod schema for validation, throws detailed error on failure
+ */
+export function assertSerializable(value: unknown): Serializable {
+  return SerializableSchema.parse(value)
+}
+
+/**
+ * Safe parse: Attempt to parse a value as a serializable type
+ * Returns parse result, or null on failure
+ */
+export function tryParseSerializable(value: unknown): Serializable | null {
+  const result = SerializableSchema.safeParse(value)
+  return result.success ? result.data : null
 }
