@@ -9,7 +9,7 @@ import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/ty
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
@@ -411,7 +411,7 @@ describe('streamCallback Integration Tests', () => {
     const textBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     expect(textBlock).toBeDefined()
     expect(textBlock?.content).toBe('Hello world!')
-    expect(textBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(textBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
 
     // 验证消息状态更新
     const message = state.messages.entities[mockAssistantMsgId]
@@ -441,7 +441,7 @@ describe('streamCallback Integration Tests', () => {
     const thinkingBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.THINKING)
     expect(thinkingBlock).toBeDefined()
     expect(thinkingBlock?.content).toBe('Final thoughts')
-    expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(thinkingBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
     // thinking_millsec 现在是本地计算的，只验证它存在且是一个合理的数字
     expect((thinkingBlock as any)?.thinking_millsec).toBeDefined()
     expect(typeof (thinkingBlock as any)?.thinking_millsec).toBe('number')
@@ -515,7 +515,7 @@ describe('streamCallback Integration Tests', () => {
     const toolBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.TOOL)
     expect(toolBlock).toBeDefined()
     expect(toolBlock?.content).toBe('Tool result')
-    expect(toolBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(toolBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
     expect((toolBlock as any)?.toolName).toBe('test-tool')
   })
 
@@ -556,7 +556,7 @@ describe('streamCallback Integration Tests', () => {
     expect(imageBlock?.url).toBe(
       'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAQMEB//EACMQAAIBAwMEAwAAAAAAAAAAAAECAwAEEQUSIQYxQVExUYH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AM/8A//Z'
     )
-    expect(imageBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(imageBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
   })
 
   it('should handle web search flow', async () => {
@@ -582,7 +582,7 @@ describe('streamCallback Integration Tests', () => {
     const citationBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.CITATION)
     expect(citationBlock).toBeDefined()
     expect(citationBlock?.response?.source).toEqual(mockWebSearchResult.source)
-    expect(citationBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(citationBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
   })
 
   it('should handle mixed content flow (thinking + tool + text)', async () => {
@@ -676,15 +676,15 @@ describe('streamCallback Integration Tests', () => {
 
     const thinkingBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.THINKING)
     expect(thinkingBlock?.content).toBe('Let me calculate this..., I need to use a calculator')
-    expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(thinkingBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
 
     const toolBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.TOOL)
     expect(toolBlock?.content).toBe('42')
-    expect(toolBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(toolBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
 
     const textBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     expect(textBlock?.content).toBe('The answer is 42')
-    expect(textBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(textBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
   })
 
   it('should handle error flow', async () => {
@@ -709,7 +709,7 @@ describe('streamCallback Integration Tests', () => {
 
     const errorBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.ERROR)
     expect(errorBlock).toBeDefined()
-    expect(errorBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(errorBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
     expect((errorBlock as any)?.error?.message).toBe('Test error')
 
     // 验证消息状态更新
@@ -752,7 +752,7 @@ describe('streamCallback Integration Tests', () => {
     expect(citationBlock).toBeDefined()
     expect((citationBlock as any)?.response).toEqual(mockExternalToolResult.webSearch)
     expect((citationBlock as any)?.knowledge).toEqual(mockExternalToolResult.knowledge)
-    expect(citationBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(citationBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
   })
 
   it('should handle abort error correctly', async () => {
@@ -779,7 +779,7 @@ describe('streamCallback Integration Tests', () => {
 
     const errorBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.ERROR)
     expect(errorBlock).toBeDefined()
-    expect(errorBlock?.status).toBe(MessageBlockStatus.SUCCESS)
+    expect(errorBlock?.status).toBe(MESSAGE_BLOCK_STATUS.SUCCESS)
 
     // 验证消息状态更新为成功（因为是暂停，不是真正的错误）
     const message = state.messages.entities[mockAssistantMsgId]

@@ -19,7 +19,7 @@ import {
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
@@ -469,7 +469,7 @@ export const createKnowledgeReferencesBlock = async ({
   const citationBlock = createCitationBlock(
     assistantMsgId,
     { knowledge: knowledgeReferences },
-    { status: MessageBlockStatus.SUCCESS }
+    { status: MESSAGE_BLOCK_STATUS.SUCCESS }
   )
 
   // 处理引用块

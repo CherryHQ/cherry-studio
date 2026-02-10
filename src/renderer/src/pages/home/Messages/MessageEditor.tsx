@@ -13,7 +13,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
@@ -205,10 +205,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
         if (file.type === FILE_TYPE.IMAGE) {
-          const imgBlock = createImageBlock(message.id, { file, status: MessageBlockStatus.SUCCESS })
+          const imgBlock = createImageBlock(message.id, { file, status: MESSAGE_BLOCK_STATUS.SUCCESS })
           updatedBlocks.push(imgBlock)
         } else {
-          const fileBlock = createFileBlock(message.id, file, { status: MessageBlockStatus.SUCCESS })
+          const fileBlock = createFileBlock(message.id, file, { status: MESSAGE_BLOCK_STATUS.SUCCESS })
           updatedBlocks.push(fileBlock)
         }
       })

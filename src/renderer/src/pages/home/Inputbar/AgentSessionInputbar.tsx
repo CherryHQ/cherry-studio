@@ -19,7 +19,7 @@ import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messag
 import type { Assistant, Message } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -394,7 +394,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       }
 
       const mainBlock = createMainTextBlock(userMessageId, messageText, {
-        status: MessageBlockStatus.SUCCESS
+        status: MESSAGE_BLOCK_STATUS.SUCCESS
       })
       const userMessageBlocks: MessageBlock[] = [mainBlock]
 

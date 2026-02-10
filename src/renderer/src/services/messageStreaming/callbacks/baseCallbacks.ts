@@ -9,7 +9,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isAbortError, serializeError } from '@renderer/utils/error'
@@ -73,7 +73,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
   return {
     onLLMResponseCreated: async () => {
       const baseBlock = createBaseMessageBlock(assistantMsgId, MESSAGE_BLOCK_TYPE.UNKNOWN, {
-        status: MessageBlockStatus.PROCESSING
+        status: MESSAGE_BLOCK_STATUS.PROCESSING
       })
       await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MESSAGE_BLOCK_TYPE.UNKNOWN)
     },
@@ -111,7 +111,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       if (possibleBlockId) {
         // 更改上一个block的状态为ERROR/PAUSED
         const changes: Partial<ThinkingMessageBlock> = {
-          status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+          status: isErrorTypeAbort ? MESSAGE_BLOCK_STATUS.PAUSED : MESSAGE_BLOCK_STATUS.ERROR
         }
         // 如果是 thinking block，保留实际思考时间
         if (blockManager.lastBlockType === MESSAGE_BLOCK_TYPE.THINKING) {
@@ -133,10 +133,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         const thinkingInfo = getCurrentThinkingInfo?.()
         for (const blockRef of allBlockRefs) {
           const block = blockState.entities[blockRef.id]
-          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
+          if (block && block.status === MESSAGE_BLOCK_STATUS.STREAMING && block.id !== possibleBlockId) {
             // 构建更新对象
             const changes: Partial<ThinkingMessageBlock> = {
-              status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+              status: isErrorTypeAbort ? MESSAGE_BLOCK_STATUS.PAUSED : MESSAGE_BLOCK_STATUS.ERROR
             }
             // 如果是 thinking block 且有思考时间信息，保留实际思考时间
             if (
@@ -157,7 +157,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
+      const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MESSAGE_BLOCK_TYPE.ERROR)
       const messageErrorUpdate = {
         status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
@@ -194,7 +194,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
         if (possibleBlockId) {
           const changes = {
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
           blockManager.smartBlockUpdate(possibleBlockId, changes, blockManager.lastBlockType!, true)
         }

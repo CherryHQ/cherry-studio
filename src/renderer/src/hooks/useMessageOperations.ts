@@ -22,7 +22,7 @@ import {
 } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { difference, throttle } from 'lodash'
 import { useCallback } from 'react'
@@ -242,7 +242,7 @@ export function useMessageOperations(topic: Topic) {
         blockId = existingTranslationBlockId
         const changes: Partial<MessageBlock> = {
           content: '',
-          status: MessageBlockStatus.STREAMING,
+          status: MESSAGE_BLOCK_STATUS.STREAMING,
           metadata: {
             targetLanguage,
             sourceBlockId,

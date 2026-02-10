@@ -9,7 +9,7 @@ import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/stor
 import type { Assistant, Topic } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { cloneDeep } from 'lodash'
@@ -93,11 +93,11 @@ export const processMessages = async (
               thinkingStartTime = performance.now()
               if (thinkingBlockId) {
                 store.dispatch(
-                  updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
+                  updateOneBlock({ id: thinkingBlockId, changes: { status: MESSAGE_BLOCK_STATUS.STREAMING } })
                 )
               } else {
                 const block = createThinkingBlock(assistantMessage.id, '', {
-                  status: MessageBlockStatus.STREAMING
+                  status: MESSAGE_BLOCK_STATUS.STREAMING
                 })
                 thinkingBlockId = block.id
                 store.dispatch(
@@ -136,7 +136,7 @@ export const processMessages = async (
                     id: thinkingBlockId,
                     changes: {
                       content: chunk.text,
-                      status: MessageBlockStatus.SUCCESS,
+                      status: MESSAGE_BLOCK_STATUS.SUCCESS,
                       thinking_millsec: thinkingDuration
                     }
                   })
@@ -149,10 +149,10 @@ export const processMessages = async (
           case ChunkType.TEXT_START:
             {
               if (textBlockId) {
-                store.dispatch(updateOneBlock({ id: textBlockId, changes: { status: MessageBlockStatus.STREAMING } }))
+                store.dispatch(updateOneBlock({ id: textBlockId, changes: { status: MESSAGE_BLOCK_STATUS.STREAMING } }))
               } else {
                 const block = createMainTextBlock(assistantMessage.id, '', {
-                  status: MessageBlockStatus.STREAMING
+                  status: MESSAGE_BLOCK_STATUS.STREAMING
                 })
                 textBlockId = block.id
                 store.dispatch(
@@ -182,7 +182,7 @@ export const processMessages = async (
                 store.dispatch(
                   updateOneBlock({
                     id: textBlockId,
-                    changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
+                    changes: { content: chunk.text, status: MESSAGE_BLOCK_STATUS.SUCCESS }
                   })
                 )
                 onFinish(chunk.text)
@@ -214,7 +214,7 @@ export const processMessages = async (
                   updateOneBlock({
                     id: blockId,
                     changes: {
-                      status: isAbortError(chunk.error) ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+                      status: isAbortError(chunk.error) ? MESSAGE_BLOCK_STATUS.PAUSED : MESSAGE_BLOCK_STATUS.ERROR
                     }
                   })
                 )
@@ -233,7 +233,7 @@ export const processMessages = async (
                 requestId: chunk.error.request_id
               }
               const errorBlock = createErrorBlock(assistantMessage.id, serializableError, {
-                status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+                status: isErrorTypeAbort ? MESSAGE_BLOCK_STATUS.PAUSED : MESSAGE_BLOCK_STATUS.ERROR
               })
               store.dispatch(
                 newMessagesActions.updateMessage({

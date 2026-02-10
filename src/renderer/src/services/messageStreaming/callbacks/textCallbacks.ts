@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -37,13 +37,13 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
         const changes = {
           type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
           content: '',
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         }
         mainTextBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MESSAGE_BLOCK_TYPE.MAIN_TEXT, true)
       } else if (!mainTextBlockId) {
         const newBlock = createMainTextBlock(assistantMsgId, '', {
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         })
         mainTextBlockId = newBlock.id
         await blockManager.handleBlockTransition(newBlock, MESSAGE_BLOCK_TYPE.MAIN_TEXT)
@@ -58,7 +58,7 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
       if (text) {
         const blockChanges: Partial<MessageBlock> = {
           content: text,
-          status: MessageBlockStatus.STREAMING,
+          status: MESSAGE_BLOCK_STATUS.STREAMING,
           citationReferences: citationBlockId ? [{ citationBlockId, citationBlockSource }] : []
         }
         blockManager.smartBlockUpdate(mainTextBlockId!, blockChanges, MESSAGE_BLOCK_TYPE.MAIN_TEXT)
@@ -69,7 +69,7 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
       if (mainTextBlockId) {
         const changes = {
           content: finalText,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         }
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MESSAGE_BLOCK_TYPE.MAIN_TEXT, true)
         if (handleCompactTextComplete) {
