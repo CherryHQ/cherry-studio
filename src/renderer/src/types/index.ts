@@ -15,7 +15,7 @@ import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
-import type { BaseTool, MCPTool } from './tool'
+import { type BaseTool, BaseToolSchema, type MCPTool, MCPToolSchema } from './tool'
 
 export * from './agent'
 export * from './apiModels'
@@ -894,15 +894,25 @@ const MCPToolResponseStatusSchema = z.enum(['pending', 'streaming', 'cancelled',
 
 export type MCPToolResponseStatus = z.infer<typeof MCPToolResponseStatusSchema>
 
-interface BaseToolResponse {
-  id: string // unique id
-  tool: BaseTool | MCPTool
-  arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
-  status: MCPToolResponseStatus
-  response?: any
+const BaseToolResponseSchema = z.object({
+  /** Unique identifier */
+  id: z.string(),
+  tool: z.union([BaseToolSchema, MCPToolSchema]),
+  arguments: z.union([
+    z.record(z.string(), z.unknown()),
+    z.array(z.record(z.string(), z.unknown())),
+    z.string(),
+    z.undefined()
+  ]),
+  status: MCPToolResponseStatusSchema,
+  response: z.unknown().optional(),
+
   // Streaming arguments support
-  partialArguments?: string // Accumulated partial JSON string during streaming
-}
+  /** Accumulated partial JSON string during streaming */
+  partialArguments: z.string().optional()
+})
+
+type BaseToolResponse = z.infer<typeof BaseToolResponseSchema>
 
 export interface ToolUseResponse extends BaseToolResponse {
   toolUseId: string
