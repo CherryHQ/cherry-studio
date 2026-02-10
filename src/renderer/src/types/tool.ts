@@ -1,6 +1,8 @@
 import * as z from 'zod'
 
-export type ToolType = 'builtin' | 'provider' | 'mcp'
+const ToolTypeSchema = z.enum(['builtin', 'provider', 'mcp'])
+
+export type ToolType = z.infer<typeof ToolTypeSchema>
 
 export interface BaseTool {
   id: string
