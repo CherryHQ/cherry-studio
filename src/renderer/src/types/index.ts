@@ -931,7 +931,7 @@ const ToolCallResponseSchema = z.object({
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>
 
 // export type MCPToolResponse = ToolUseResponse | ToolCallResponse
-const MCPToolResponseSchema = z.object({
+export const MCPToolResponseSchema = z.object({
   ...BaseToolResponseSchemaConfig,
   tool: MCPToolSchema,
   toolCallId: z.string().optional(),
@@ -941,7 +941,7 @@ const MCPToolResponseSchema = z.object({
 
 export type MCPToolResponse = z.infer<typeof MCPToolResponseSchema>
 
-const NormalToolResponseSchema = z.object({
+export const NormalToolResponseSchema = z.object({
   ...BaseToolResponseSchemaConfig,
   tool: BaseToolSchema,
   toolCallId: z.string(),
