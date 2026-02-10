@@ -127,10 +127,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     })
   }, [])
 
-  const handleCopySource = useCallback(() => {
-    navigator.clipboard.writeText(children.trimEnd())
-    window.toast.success(t('code_block.copy.success'))
+  const handleCopySource = useCallback(async () => {
+    try {
+      // Prioritize getting content from editor, fallback to children
+      const content = sourceViewRef.current?.getContent?.() ?? children
+      await navigator.clipboard.writeText(content.trimEnd())
+      window.toast.success(t('code_block.copy.success'))
+    } catch (error) {
+      logger.error('Failed to copy to clipboard:', { error })
+      window.toast.error(t('code_block.copy.failed'))
+    }
   }, [children, t])
+  // Note: sourceViewRef not in deps because it's a stable ref,
+  // and getContent reads content in real-time from editorViewRef.current.state.doc
 
   const handleDownloadSource = useCallback(() => {
     let fileName = ''
