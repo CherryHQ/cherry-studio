@@ -346,17 +346,10 @@ export function findGit(env?: Record<string, string>): string | null {
  * @returns Object with availability status and path to git executable
  */
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-  let gitPath: string | null = null
-
   refreshShellEnvCache()
 
-  if (isWin) {
-    const shellEnv = await getShellEnv()
-    gitPath = findGit(shellEnv)
-  } else {
-    const shellEnv = await getShellEnv()
-    gitPath = await findCommandInShellEnv('git', shellEnv)
-  }
+  const shellEnv = await getShellEnv()
+  const gitPath = isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
 
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
 
