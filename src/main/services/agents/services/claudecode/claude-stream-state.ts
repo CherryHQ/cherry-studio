@@ -93,10 +93,31 @@ export class ClaudeStreamState {
    */
   private expectingSkillContent = false
 
+  // Reference to SDK query iterator for setPermissionMode
+  queryIterator?: any
+
   constructor(options: ClaudeStreamStateOptions) {
     this.logger = loggerService.withContext('ClaudeStreamState')
     this.agentSessionId = options.agentSessionId
     this.logger.silly('ClaudeStreamState', options)
+  }
+
+  /**
+   * Set the SDK query iterator reference to enable permission mode switching
+   * @param iterator - The query iterator returned by SDK's query() function
+   */
+  setQueryIterator(iterator: any) {
+    this.queryIterator = iterator
+  }
+
+  /**
+   * Switch the permission mode to 'acceptEdits' to auto-approve tool executions
+   * This is called after ExitPlanMode tool is invoked
+   */
+  async switchToAcceptEditsMode(): Promise<void> {
+    if (this.queryIterator?.setPermissionMode) {
+      await this.queryIterator.setPermissionMode('acceptEdits')
+    }
   }
 
   /** Marks the beginning of a new AiSDK step. */
