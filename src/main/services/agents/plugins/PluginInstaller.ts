@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { pathExists } from '@main/utils/file'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import type { PluginError } from '@types'
 import * as crypto from 'crypto'
@@ -13,7 +14,7 @@ export class PluginInstaller {
 
     try {
       // Backup existing file before overwriting
-      if (await this.pathExists(destPath)) {
+      if (await pathExists(destPath)) {
         await this.safeUnlink(backupPath, 'stale backup')
         await fs.promises.rename(destPath, backupPath)
         hasBackup = true
@@ -88,7 +89,7 @@ export class PluginInstaller {
 
     try {
       // Backup existing folder before overwriting
-      if (await this.pathExists(destPath)) {
+      if (await pathExists(destPath)) {
         await this.safeRemoveDirectory(backupPath, 'stale backup')
         await fs.promises.rename(destPath, backupPath)
         hasBackup = true
@@ -130,15 +131,6 @@ export class PluginInstaller {
       type: 'TRANSACTION_FAILED',
       operation,
       reason: error instanceof Error ? error.message : String(error)
-    }
-  }
-
-  private async pathExists(targetPath: string): Promise<boolean> {
-    try {
-      await fs.promises.access(targetPath)
-      return true
-    } catch {
-      return false
     }
   }
 
