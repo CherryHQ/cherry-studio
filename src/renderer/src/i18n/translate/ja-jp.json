@@ -2509,10 +2509,10 @@
       "version": "バージョン"
     },
     "git_missing": {
-      "description": "[to be translated]:OpenClaw requires Git for installing some dependencies. Please install Git first, then click Install again.",
-      "download_button": "[to be translated]:Download Git",
-      "hint": "[to be translated]:macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
-      "title": "[to be translated]:Git Required"
+      "description": "OpenClawは一部の依存関係をインストールするためにGitが必要です。まずGitをインストールしてから、もう一度「インストール」をクリックしてください。",
+      "download_button": "Gitをダウンロード",
+      "hint": "macOS: brew install git | Windows: git-scm.com からダウンロード（インストール時に Git を PATH に追加するよう設定してください）",
+      "title": "Gitが必要"
     },
     "install_progress": "インストール進行状況",
     "installed_at": "OpenClawのインストール先",
