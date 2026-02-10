@@ -920,10 +920,6 @@ const BaseToolResponseSchemaConfig = {
   partialArguments: z.string().optional()
 } as const
 
-const BaseToolResponseSchema = z.object(BaseToolResponseSchemaConfig)
-
-type BaseToolResponse = z.infer<typeof BaseToolResponseSchema>
-
 const ToolUseResponseSchema = z.object({
   ...BaseToolResponseSchemaConfig,
   toolUseId: z.string()
