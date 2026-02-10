@@ -931,12 +931,15 @@ const ToolCallResponseSchema = z.object({
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>
 
 // export type MCPToolResponse = ToolUseResponse | ToolCallResponse
-export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
-  tool: MCPTool
-  toolCallId?: string
-  toolUseId?: string
-  parentToolUseId?: string
-}
+const MCPToolResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  tool: MCPToolSchema,
+  toolCallId: z.string().optional(),
+  toolUseId: z.string().optional(),
+  parentToolUseId: z.string().optional()
+})
+
+export type MCPToolResponse = z.infer<typeof MCPToolResponseSchema>
 
 export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   tool: BaseTool
