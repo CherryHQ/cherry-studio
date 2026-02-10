@@ -76,56 +76,61 @@ const FileTypeSchema = z.enum(objectValues(FILE_TYPE))
 
 export type FileType = z.infer<typeof FileTypeSchema>
 
-/**
- * @interface
- * @description 文件元数据接口
- */
-export interface FileMetadata {
+export const FileMetadataSchema = z.object({
   /**
-   * 文件的唯一标识符
+   * Unique identifier of the file
    */
-  id: string
+  id: z.string(),
   /**
-   * 文件名
+   * File name
    */
-  name: string
+  name: z.string(),
   /**
-   * 文件的原始名称（展示名称）
+   * Original name of the file (display name)
    */
-  origin_name: string
+  origin_name: z.string(),
   /**
-   * 文件路径
+   * File path
    */
-  path: string
+  path: z.string(),
   /**
-   * 文件大小，单位为字节
+   * File size in bytes
    */
-  size: number
+  size: z.number(),
   /**
-   * 文件扩展名（包含.）
+   * File extension (including the dot)
    */
-  ext: string
+  ext: z.string(),
   /**
-   * 文件类型
+   * File type
    */
-  type: FileType
+  type: FileTypeSchema,
   /**
-   * 文件创建时间的ISO字符串
+   * ISO string of file creation time
    */
-  created_at: string
+  created_at: z.string(),
   /**
-   * 文件计数
+   * File count
    */
-  count: number
+  count: z.number(),
   /**
-   * 该文件预计的token大小 (可选)
+   * Estimated token size of the file (optional)
    */
-  tokens?: number
+  tokens: z.number().optional(),
   /**
-   * 该文件的用途
+   * Purpose of the file
+   *
+   * TODO: decouple with OpenAI.FilePurpose
    */
-  purpose?: OpenAI.FilePurpose
-}
+  purpose: z
+    .custom<OpenAI.FilePurpose>((value) => {
+      const validValues = ['assistants', 'batch', 'fine-tune', 'vision', 'user_data', 'evals']
+      return typeof value === 'string' && validValues.includes(value)
+    })
+    .optional()
+})
+
+export type FileMetadata = z.infer<typeof FileMetadataSchema>
 
 export type ImageFileMetadata = FileMetadata & {
   type: typeof FILE_TYPE.IMAGE
