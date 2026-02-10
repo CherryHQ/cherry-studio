@@ -17,7 +17,7 @@
 import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
 import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
-import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
+import { FILE_TYPE, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -186,7 +186,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       // 4. File Blocks (Non-Image) and Image Blocks (from Files) (Status is SUCCESS)
       if (oldMessage.files?.length) {
         oldMessage.files.forEach((file) => {
-          if (file.type === FileTypes.IMAGE) {
+          if (file.type === FILE_TYPE.IMAGE) {
             const block = createImageBlock(oldMessage.id, {
               file: file,
               createdAt: oldMessage.createdAt,
