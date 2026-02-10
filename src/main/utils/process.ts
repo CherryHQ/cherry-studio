@@ -312,6 +312,16 @@ function getCommonGitRoots(): string[] {
 }
 
 /**
+ * Find git executable path in the given shell environment
+ * Cross-platform: uses findGit on Windows, findCommandInShellEnv on Unix
+ * @param shellEnv - The shell environment from getShellEnv()
+ * @returns Full path to git executable or null if not found
+ */
+export async function findGitPath(shellEnv: Record<string, string>): Promise<string | null> {
+  return isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
+}
+
+/**
  * Find git.exe on Windows
  * Checks PATH, common install paths, and LOCALAPPDATA
  * @returns Full path to git.exe or null if not found
@@ -349,7 +359,7 @@ export async function checkGitAvailable(): Promise<{ available: boolean; path: s
   refreshShellEnvCache()
 
   const shellEnv = await getShellEnv()
-  const gitPath = isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
+  const gitPath = await findGitPath(shellEnv)
 
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
 

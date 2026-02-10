@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGitPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -238,7 +238,7 @@ class OpenClawService {
 
     // Try to find git and ensure it's in PATH for npm (some packages require git during install)
     // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
-    const gitPath = isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
+    const gitPath = await findGitPath(shellEnv)
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
       const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
