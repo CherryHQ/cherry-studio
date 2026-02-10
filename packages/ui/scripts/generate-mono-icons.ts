@@ -6,6 +6,7 @@
  * 2. Converts all fill colors to "currentColor"
  * 3. Removes gradient/pattern definitions (they're not needed for mono)
  * 4. Outputs to src/components/icons/logos-mono/
+ * 5. Generates compound logos/index.ts with .Color and .Mono sub-components
  *
  * Usage: pnpm tsx scripts/generate-mono-icons.ts
  */
@@ -124,31 +125,61 @@ function processIcon(filename: string): void {
   console.log(`✓ ${filename} -> ${monoName}`)
 }
 
-function generateIndex(): void {
+/**
+ * Generate the compound logos/index.ts barrel.
+ *
+ * Each exported icon is a compound component:
+ *   <Icon />        — Color (default)
+ *   <Icon.Color />  — Color (explicit)
+ *   <Icon.Mono />   — Mono (currentColor)
+ *
+ * Uses `#__PURE__` annotation so bundlers can tree-shake unused icons.
+ */
+function generateCompoundIndex(): void {
   const files = fs
     .readdirSync(LOGOS_DIR)
     .filter((f) => f.endsWith('.tsx') && f !== 'index.ts')
     .sort()
 
-  const exports = files.map((f) => {
+  const lines: string[] = []
+
+  lines.push(`/**`)
+  lines.push(` * Auto-generated compound icon exports`)
+  lines.push(` * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />`)
+  lines.push(` * Do not edit manually`)
+  lines.push(` *`)
+  lines.push(` * Generated at: ${new Date().toISOString()}`)
+  lines.push(` * Total icons: ${files.length}`)
+  lines.push(` */`)
+  lines.push(``)
+
+  for (const f of files) {
     const baseName = path.basename(f, '.tsx')
-    const componentName = getComponentName(f)
-    return `export { ${componentName}Mono } from './${baseName}'`
-  })
+    const colorName = getComponentName(f)
+    const monoName = `${colorName}Mono`
 
-  const indexContent = `/**
- * Auto-generated mono icon exports
- * Do not edit manually
- *
- * Generated at: ${new Date().toISOString()}
- * Total icons: ${files.length}
+    lines.push(`import { ${colorName} as _${colorName} } from './${baseName}'`)
+    lines.push(`import { ${monoName} as _${monoName} } from '../logos-mono/${baseName}'`)
+    lines.push(
+      `export const ${colorName} = /*#__PURE__*/ Object.assign(_${colorName}, { Color: _${colorName}, Mono: _${monoName} })`
+    )
+    lines.push(``)
+  }
+
+  fs.writeFileSync(path.join(LOGOS_DIR, 'index.ts'), lines.join('\n'))
+  console.log(`\n✓ Generated logos/index.ts with ${files.length} compound exports`)
+}
+
+/**
+ * Remove the old logos-mono/index.ts barrel (no longer needed —
+ * mono icons are accessed via <Icon.Mono />).
  */
-
-${exports.join('\n')}
-`
-
-  fs.writeFileSync(path.join(MONO_DIR, 'index.ts'), indexContent)
-  console.log(`\n✓ Generated index.ts with ${files.length} exports`)
+function cleanupOldMonoIndex(): void {
+  const oldIndex = path.join(MONO_DIR, 'index.ts')
+  if (fs.existsSync(oldIndex)) {
+    fs.unlinkSync(oldIndex)
+    console.log(`✓ Removed old logos-mono/index.ts`)
+  }
 }
 
 // Main
@@ -160,6 +191,7 @@ for (const file of files) {
   processIcon(file)
 }
 
-generateIndex()
+generateCompoundIndex()
+cleanupOldMonoIndex()
 
 console.log(`\nDone! Generated ${files.length} mono icons in ${MONO_DIR}`)
