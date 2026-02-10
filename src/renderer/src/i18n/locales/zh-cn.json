@@ -1452,6 +1452,7 @@
     "provider_disabled": "模型提供商未启用",
     "reason": "原因",
     "render": {
+      "block": "此内容块渲染失败",
       "description": "消息内容渲染失败，请检查消息内容格式是否正确",
       "title": "渲染错误"
     },

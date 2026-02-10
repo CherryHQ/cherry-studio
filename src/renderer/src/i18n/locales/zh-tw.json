@@ -1452,6 +1452,7 @@
     "provider_disabled": "模型供應商未啟用",
     "reason": "原因",
     "render": {
+      "block": "此內容區塊渲染失敗",
       "description": "訊息內容渲染失敗，請檢查訊息內容格式是否正確",
       "title": "渲染錯誤"
     },
