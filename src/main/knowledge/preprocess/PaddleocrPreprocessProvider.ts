@@ -282,9 +282,16 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
         .map((layoutResult) => layoutResult.markdown.text)
         .join('\n\n')
     } else if (result.ocrResults && result.ocrResults.length > 0) {
-      markdownText = result.ocrResults.map((ocrResult) => ocrResult.prunedResult.rec_texts.join('\n')).join('\n\n')
+      markdownText = result.ocrResults
+        .filter((ocrResult) => ocrResult?.prunedResult?.rec_texts)
+        .map((ocrResult) => ocrResult.prunedResult.rec_texts.join('\n'))
+        .join('\n\n')
     } else {
       throw new Error(`No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`)
+    }
+
+    if (!markdownText.trim()) {
+      throw new Error(`PaddleOCR returned empty text content for file [ID: ${file.id}]`)
     }
 
     // 直接构造目标文件名
