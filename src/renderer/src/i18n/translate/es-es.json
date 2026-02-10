@@ -2520,6 +2520,12 @@
       "stop": "Detente",
       "version": "Versión"
     },
+    "git_missing": {
+      "description": "OpenClaw requiere Git para instalar algunas dependencias. Por favor, instala Git primero y luego haz clic en Instalar de nuevo.",
+      "download_button": "Descargar Git",
+      "hint": "macOS: brew install git | Windows: Descarga desde git-scm.com (asegúrate de agregar Git al PATH durante la instalación)",
+      "title": "Git Requerido"
+    },
     "install_progress": "Progreso de instalación",
     "installed_at": "OpenClaw instalado en",
     "model_config": {

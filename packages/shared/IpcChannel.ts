@@ -410,6 +410,7 @@ export enum IpcChannel {
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
   OpenClaw_CheckNpmAvailable = 'openclaw:check-npm-available',
+  OpenClaw_CheckGitAvailable = 'openclaw:check-git-available',
   OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
   OpenClaw_Install = 'openclaw:install',
   OpenClaw_Uninstall = 'openclaw:uninstall',

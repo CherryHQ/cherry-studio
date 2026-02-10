@@ -2520,6 +2520,12 @@
       "stop": "停止",
       "version": "版本"
     },
+    "git_missing": {
+      "description": "OpenClaw 的部分依赖需要 Git 来安装。请先安装 Git，然后再次点击安装。",
+      "download_button": "下载 Git",
+      "hint": "macOS: brew install git | Windows: 从 git-scm.com 下载（安装时请确保勾选将 Git 添加到 PATH）",
+      "title": "需要安装 Git"
+    },
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "model_config": {

@@ -2520,6 +2520,12 @@
       "stop": "Σταμάτα",
       "version": "Έκδοση"
     },
+    "git_missing": {
+      "description": "Το OpenClaw απαιτεί το Git για την εγκατάσταση κάποιων εξαρτήσεων. Παρακαλούμε εγκαταστήστε πρώτα το Git και μετά κάντε κλικ ξανά στην Εγκατάσταση.",
+      "download_button": "Λήψη Git",
+      "hint": "macOS: brew install git | Windows: Κατεβάστε από το git-scm.com (βεβαιωθείτε ότι προσθέτετε το Git στο PATH κατά την εγκατάσταση)",
+      "title": "Απαιτείται Git"
+    },
     "install_progress": "Πρόοδος Εγκατάστασης",
     "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
     "model_config": {

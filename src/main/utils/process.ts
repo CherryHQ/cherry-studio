@@ -9,6 +9,7 @@ import path from 'path'
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
+import getShellEnv, { refreshShellEnvCache } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -296,7 +297,72 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 }
 
 /**
- * Find Git Bash executable on Windows
+ * Common Git installation root directories on Windows
+ * Used by both findGit() and findGitBash() to check fallback paths
+ */
+function getCommonGitRoots(): string[] {
+  return [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
+  ]
+}
+
+/**
+ * Find git.exe on Windows
+ * Checks PATH, common install paths, and LOCALAPPDATA
+ * @returns Full path to git.exe or null if not found
+ */
+export function findGit(): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Find git.exe via findExecutable (checks PATH + common Git install paths)
+  const gitPath = findExecutable('git')
+  if (gitPath) {
+    return gitPath
+  }
+
+  // 2. Fallback: check common Git installation paths directly
+  for (const root of getCommonGitRoots()) {
+    const fullPath = path.join(root, 'cmd', 'git.exe')
+    if (fs.existsSync(fullPath)) {
+      logger.debug('Found git.exe at common path', { path: fullPath })
+      return fullPath
+    }
+  }
+
+  logger.debug('git.exe not found - checked PATH and common paths')
+  return null
+}
+
+/**
+ * Check if git is available in the user's environment
+ * Refreshes shell env cache to detect newly installed Git
+ * @returns Object with availability status and path to git executable
+ */
+export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+  let gitPath: string | null = null
+
+  if (isWin) {
+    gitPath = findGit()
+  } else {
+    refreshShellEnvCache()
+    const shellEnv = await getShellEnv()
+    gitPath = await findCommandInShellEnv('git', shellEnv)
+  }
+
+  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
+
+  return {
+    available: gitPath !== null,
+    path: gitPath
+  }
+}
+
+/**
+ * Find Git Bash (bash.exe) on Windows
  * @param customPath - Optional custom path from config
  * @returns Full path to bash.exe or null if not found
  */
@@ -327,10 +393,10 @@ export function findGitBash(customPath?: string | null): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 3. Find git.exe and derive bash.exe path
+  // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
   const gitPath = findExecutable('git')
   if (gitPath) {
-    // Try multiple possible locations for bash.exe relative to git.exe
+    // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
     const possibleBashPaths = [
       path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
@@ -352,21 +418,16 @@ export function findGitBash(customPath?: string | null): string | null {
     })
   }
 
-  // 4. Fallback: check common Git Bash paths directly
-  const commonBashPaths = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')] : [])
-  ]
-
-  for (const bashPath of commonBashPaths) {
-    if (fs.existsSync(bashPath)) {
-      logger.debug('Found bash.exe at common path', { path: bashPath })
-      return bashPath
+  // 4. Fallback: check common Git installation paths directly
+  for (const root of getCommonGitRoots()) {
+    const fullPath = path.join(root, 'bin', 'bash.exe')
+    if (fs.existsSync(fullPath)) {
+      logger.debug('Found bash.exe at common path', { path: fullPath })
+      return fullPath
     }
   }
 
-  logger.debug('Git Bash not found - checked git derivation and common paths')
+  logger.debug('bash.exe not found - checked git derivation and common paths')
   return null
 }
 

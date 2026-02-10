@@ -2520,6 +2520,12 @@
       "stop": "Oprește",
       "version": "Versiune"
     },
+    "git_missing": {
+      "description": "OpenClaw necesită Git pentru a instala unele dependențe. Te rugăm să instalezi mai întâi Git, apoi apasă din nou pe Instalare.",
+      "download_button": "Descarcă Git",
+      "hint": "macOS: brew install git | Windows: Descarcă de pe git-scm.com (asigură-te că adaugi Git la PATH în timpul instalării)",
+      "title": "Git Necesar"
+    },
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
     "model_config": {

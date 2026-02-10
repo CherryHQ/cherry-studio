@@ -86,6 +86,7 @@ const OpenClawPage: FC = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [npmMissing, setNpmMissing] = useState(false)
+  const [gitMissing, setGitMissing] = useState(false)
   const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
 
   // Fetch Node.js download URL and poll npm availability when npmMissing is shown
@@ -112,6 +113,24 @@ const OpenClawPage: FC = () => {
 
     return () => clearInterval(pollInterval)
   }, [npmMissing])
+
+  // Poll git availability when gitMissing is shown
+  useEffect(() => {
+    if (!gitMissing) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const gitCheck = await window.api.openclaw.checkGitAvailable()
+        if (gitCheck.available) {
+          setGitMissing(false)
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    }, 3000)
+
+    return () => clearInterval(pollInterval)
+  }, [gitMissing])
 
   const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
   const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
@@ -151,14 +170,14 @@ const OpenClawPage: FC = () => {
       setShowLogs(false)
       setInstallPath(result.path)
 
-      // If not installed, check npm availability immediately
+      // If not installed, check npm and git availability in parallel
       if (!result.installed) {
-        try {
-          const npmCheck = await window.api.openclaw.checkNpmAvailable()
-          setNpmMissing(!npmCheck.available)
-        } catch {
-          // Ignore errors, will check again on install click
-        }
+        const [npmResult, gitResult] = await Promise.allSettled([
+          window.api.openclaw.checkNpmAvailable(),
+          window.api.openclaw.checkGitAvailable()
+        ])
+        if (npmResult.status === 'fulfilled') setNpmMissing(!npmResult.value.available)
+        if (gitResult.status === 'fulfilled') setGitMissing(!gitResult.value.available)
       }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
@@ -167,18 +186,27 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
-    // Check npm availability first
-    try {
-      const npmCheck = await window.api.openclaw.checkNpmAvailable()
-      if (!npmCheck.available) {
-        setNpmMissing(true)
-        return
-      }
-    } catch (err) {
-      logger.error('Failed to check npm availability', err as Error)
+    // Check npm and git availability in parallel before installing
+    const [npmResult, gitResult] = await Promise.allSettled([
+      window.api.openclaw.checkNpmAvailable(),
+      window.api.openclaw.checkGitAvailable()
+    ])
+
+    if (npmResult.status === 'rejected' || gitResult.status === 'rejected') {
+      logger.error('Failed to check tool availability')
+      return
+    }
+    if (!npmResult.value.available) {
+      setNpmMissing(true)
+      return
+    }
+    if (!gitResult.value.available) {
+      setGitMissing(true)
+      return
     }
 
     setNpmMissing(false)
+    setGitMissing(false)
     setIsInstalling(true)
     setInstallError(null)
     setInstallLogs([])
@@ -456,6 +484,33 @@ const OpenClawPage: FC = () => {
             showIcon
             closable
             onClose={() => setNpmMissing(false)}
+            className="mt-4 rounded-lg!"
+            style={{ width: 580, marginLeft: -30 }}
+          />
+        )}
+        {gitMissing && (
+          <Alert
+            message={t('openclaw.git_missing.title')}
+            description={
+              <div>
+                <p>{t('openclaw.git_missing.description')}</p>
+                <Space style={{ marginTop: 8 }}>
+                  <Button
+                    type="primary"
+                    icon={<Download size={16} />}
+                    onClick={() => window.open('https://git-scm.com/downloads', '_blank')}>
+                    {t('openclaw.git_missing.download_button')}
+                  </Button>
+                </Space>
+                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                  {t('openclaw.git_missing.hint')}
+                </p>
+              </div>
+            }
+            type="warning"
+            showIcon
+            closable
+            onClose={() => setGitMissing(false)}
             className="mt-4 rounded-lg!"
             style={{ width: 580, marginLeft: -30 }}
           />
