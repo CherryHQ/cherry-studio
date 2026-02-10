@@ -143,11 +143,15 @@ const TranslationMessageBlockSchema = z.object({
 export type TranslationMessageBlock = z.infer<typeof TranslationMessageBlockSchema>
 
 // 代码块 - 专门处理代码
-export interface CodeMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.CODE
-  content: string
-  language: string // 代码语言
-}
+const CodeMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.CODE),
+  content: z.string(),
+  /** Coding language */
+  language: z.string()
+})
+
+export type CodeMessageBlock = z.infer<typeof CodeMessageBlockSchema>
 
 export interface ImageMessageBlock extends BaseMessageBlock {
   type: typeof MESSAGE_BLOCK_TYPE.IMAGE
