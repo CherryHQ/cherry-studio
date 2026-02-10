@@ -12,6 +12,7 @@ import {
   type MemoryItem,
   type Metrics,
   type Model,
+  ModelSchema,
   type NormalToolResponse,
   objectValues,
   type Topic,
@@ -19,7 +20,7 @@ import {
   type WebSearchResponse,
   type WebSearchSource
 } from '.'
-import type { SerializedError } from './error'
+import { SerializedErrorSchema } from './error'
 
 // MessageBlock type enum - optimized based on actual API return characteristics
 export const MESSAGE_BLOCK_TYPE = {
@@ -67,18 +68,31 @@ export const MessageBlockStatusSchema = z.enum(objectValues(MESSAGE_BLOCK_STATUS
 
 export type MessageBlockStatus = z.infer<typeof MessageBlockStatusSchema>
 
-// BaseMessageBlock 基础类型 - 更简洁，只包含必要通用属性
-export interface BaseMessageBlock {
-  id: string // 块ID
-  messageId: string // 所属消息ID
-  type: MessageBlockType // 块类型
-  createdAt: string // 创建时间
-  updatedAt?: string // 更新时间
-  status: MessageBlockStatus // 块状态
-  model?: Model // 使用的模型
-  metadata?: Record<string, any> // 通用元数据
-  error?: SerializedError // Serializable error object instead of AISDKError
+export const BaseMessageBlockSchemaConfig = {
+  /** Block ID */
+  id: z.string(),
+  /** ID of the message this block belongs to */
+  messageId: z.string(),
+  /** Type of the block */
+  type: MessageBlockTypeSchema,
+  /** Creation time */
+  createdAt: z.string(),
+  /** Last update time */
+  updatedAt: z.string().optional(),
+  /** Status of the block */
+  status: MessageBlockStatusSchema,
+  /** Model used for this block */
+  model: ModelSchema.optional(),
+  /** General metadata */
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  /** Serializable error object instead of AISDKError */
+  error: SerializedErrorSchema.optional()
 }
+
+const BaseMessageBlockSchema = z.object(BaseMessageBlockSchemaConfig)
+
+// BaseMessageBlock base type - more concise, containing only essential common properties
+export type BaseMessageBlock = z.infer<typeof BaseMessageBlockSchema>
 
 export interface PlaceholderMessageBlock extends BaseMessageBlock {
   type: typeof MESSAGE_BLOCK_TYPE.UNKNOWN
