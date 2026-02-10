@@ -214,11 +214,16 @@ const FileMessageBlockSchema = z.object({
 export type FileMessageBlock = z.infer<typeof FileMessageBlockSchema>
 
 // 视频块
-export interface VideoMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.VIDEO
-  url?: string // For generated video or direct links
-  filePath?: string // For user uploaded video files
-}
+const VideoMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.VIDEO),
+  // For generated video or direct links
+  url: z.string().optional(),
+  // For user uploaded video files
+  filePath: z.string().optional()
+})
+
+export type VideoMessageBlock = z.infer<typeof VideoMessageBlockSchema>
 
 // 错误块
 export interface ErrorMessageBlock extends BaseMessageBlock {
