@@ -52,20 +52,21 @@ export const MCPToolInputSchema = z
 
 const BuiltinToolSchema = z.object({
   ...BaseToolSchemaConfig,
-  inputSchema: MCPToolInputSchema,
-  type: z.literal('builtin')
+  type: z.literal('builtin'),
+  inputSchema: MCPToolInputSchema
 })
 
 export type BuiltinTool = z.infer<typeof BuiltinToolSchema>
 
-export interface MCPTool extends BaseTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: z.infer<typeof MCPToolInputSchema>
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
-  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
-  type: 'mcp'
-}
+const MCPToolSchema = z.object({
+  ...BaseToolSchemaConfig,
+  type: z.literal('mcp'),
+  serverId: z.string(),
+  serverName: z.string(),
+  inputSchema: MCPToolInputSchema,
+  outputSchema: MCPToolOutputSchema.optional(),
+  /** Identifies whether it's a built-in tool. Built-in tools don't need to be called via the MCP protocol */
+  isBuiltIn: z.boolean().optional()
+})
+
+export type MCPTool = z.infer<typeof MCPToolSchema>
