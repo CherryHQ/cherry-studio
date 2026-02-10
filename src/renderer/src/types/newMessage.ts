@@ -5,7 +5,9 @@ import * as z from 'zod'
 import {
   type Assistant,
   type FileMetadata,
+  FileMetadataSchema,
   type GenerateImageResponse,
+  GenerateImageResponseSchema,
   type KnowledgeReference,
   type MCPServer,
   type MCPToolResponse,
@@ -153,16 +155,23 @@ const CodeMessageBlockSchema = z.object({
 
 export type CodeMessageBlock = z.infer<typeof CodeMessageBlockSchema>
 
-export interface ImageMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.IMAGE
-  url?: string // For generated images or direct links
-  file?: FileMetadata // For user uploaded image files
-  metadata?: BaseMessageBlock['metadata'] & {
-    prompt?: string
-    negativePrompt?: string
-    generateImageResponse?: GenerateImageResponse
-  }
-}
+const ImageMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.IMAGE),
+  url: z.string().optional(),
+  file: FileMetadataSchema.optional(),
+  metadata: z
+    .object({
+      prompt: z.string().optional(),
+      negativePrompt: z.string().optional(),
+      generateImageResponse: GenerateImageResponseSchema.optional()
+    })
+    .catchall(z.unknown())
+    .optional()
+})
+
+// Added unified ImageBlock
+export type ImageMessageBlock = z.infer<typeof ImageMessageBlockSchema>
 
 // Added unified ToolBlock
 export interface ToolMessageBlock extends BaseMessageBlock {
