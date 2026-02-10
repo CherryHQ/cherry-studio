@@ -4,12 +4,16 @@ const ToolTypeSchema = z.enum(['builtin', 'provider', 'mcp'])
 
 export type ToolType = z.infer<typeof ToolTypeSchema>
 
-export interface BaseTool {
-  id: string
-  name: string
-  description?: string
-  type: ToolType
+const BaseToolSchemaConfig = {
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  type: ToolTypeSchema
 }
+
+const BaseToolSchema = z.object(BaseToolSchemaConfig)
+
+export type BaseTool = z.infer<typeof BaseToolSchema>
 
 // export interface ToolCallResponse {
 //   id: string
