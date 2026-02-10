@@ -995,42 +995,6 @@ describe('reasoning utils', () => {
         valid: 'value3'
       })
     })
-
-    it('should auto-convert reasoning_effort to reasoningEffort', async () => {
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {
-          customParameters: [{ name: 'reasoning_effort', value: 'high', type: 'string' }]
-        }
-      } as Assistant
-
-      const result = getCustomParameters(assistant)
-      expect(result).toEqual({
-        reasoningEffort: 'high'
-      })
-      expect(result).not.toHaveProperty('reasoning_effort')
-    })
-
-    it('should not overwrite existing reasoningEffort and should remove reasoning_effort', async () => {
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {
-          customParameters: [
-            { name: 'reasoningEffort', value: 'low', type: 'string' },
-            { name: 'reasoning_effort', value: 'high', type: 'string' }
-          ]
-        }
-      } as Assistant
-
-      const result = getCustomParameters(assistant)
-      // reasoning_effort is always removed since the AI SDK drops it for openai-compatible providers
-      expect(result).toEqual({
-        reasoningEffort: 'low'
-      })
-      expect(result).not.toHaveProperty('reasoning_effort')
-    })
   })
 
   describe('getAnthropicThinkingBudget', () => {

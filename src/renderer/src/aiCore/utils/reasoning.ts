@@ -836,15 +836,5 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
       {} as Record<string, any>
     ) || {}
 
-  // Auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
-  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
-  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
-  if ('reasoning_effort' in params) {
-    if (!('reasoningEffort' in params)) {
-      params.reasoningEffort = params.reasoning_effort
-    }
-    delete params.reasoning_effort
-  }
-
   return params
 }

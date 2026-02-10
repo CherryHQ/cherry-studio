@@ -1118,7 +1118,7 @@ describe('options utils', () => {
         })
       })
 
-      it('should pass converted reasoningEffort to openai-compatible provider (issue #11987)', async () => {
+      it('should auto-convert reasoning_effort to reasoningEffort for openai-compatible provider (issue #11987)', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
         // Simulate Volcano Engine (Doubao) or similar OpenAI-compatible provider
@@ -1137,9 +1137,9 @@ describe('options utils', () => {
           provider: 'openai-compatible'
         } as Model
 
-        // getCustomParameters returns camelCase after conversion
+        // User configures reasoning_effort (snake_case) following API docs
         vi.mocked(getCustomParameters).mockReturnValue({
-          reasoningEffort: 'high'
+          reasoning_effort: 'high'
         })
 
         const result = buildProviderOptions(mockAssistant, doubaoModel, volcengineProvider, {
@@ -1148,10 +1148,73 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        // The converted reasoningEffort should appear in provider options
+        // buildProviderOptions converts reasoning_effort → reasoningEffort for openai-compatible
         expect(result.providerOptions['openai-compatible']).toHaveProperty('reasoningEffort')
         expect(result.providerOptions['openai-compatible'].reasoningEffort).toBe('high')
-        // The snake_case version should NOT be present (it was converted by getCustomParameters)
+        expect(result.providerOptions['openai-compatible']).not.toHaveProperty('reasoning_effort')
+      })
+
+      it('should NOT convert reasoning_effort for non-openai-compatible providers', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        // User configures reasoning_effort for native OpenAI provider
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // Native OpenAI provider should keep reasoning_effort as-is
+        expect(result.providerOptions.openai).toHaveProperty('reasoning_effort')
+        expect(result.providerOptions.openai.reasoning_effort).toBe('high')
+        expect(result.providerOptions.openai).not.toHaveProperty('reasoningEffort')
+      })
+
+      it('should not overwrite existing reasoningEffort when converting for openai-compatible', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const volcengineProvider = {
+          id: 'openai-compatible',
+          name: 'Volcano Engine',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+          models: [] as Model[]
+        } as Provider
+
+        const doubaoModel: Model = {
+          id: 'doubao-seed-1.8-thinking',
+          name: 'Doubao Seed 1.8 Thinking',
+          provider: 'openai-compatible'
+        } as Model
+
+        // User configures both forms
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoningEffort: 'low',
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, doubaoModel, volcengineProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // Explicit reasoningEffort should be preserved, reasoning_effort removed
+        expect(result.providerOptions['openai-compatible'].reasoningEffort).toBe('low')
         expect(result.providerOptions['openai-compatible']).not.toHaveProperty('reasoning_effort')
       })
 
