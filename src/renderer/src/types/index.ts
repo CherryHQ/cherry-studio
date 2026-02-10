@@ -762,10 +762,14 @@ export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
 
 export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
-export type WebSearchResponse = {
-  results?: WebSearchResults
-  source: WebSearchSource
-}
+export const WebSearchResponseSchema = z.object({
+  // It's a way too complicated to define a schema for WebSearchResults,
+  // so use z.custom to bypass validation
+  results: z.custom<WebSearchResults>(),
+  source: WebSearchSourceSchema
+})
+
+export type WebSearchResponse = z.infer<typeof WebSearchResponseSchema>
 
 export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
 
