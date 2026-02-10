@@ -145,7 +145,7 @@ export type KnowledgeBaseParams = {
   }
 }
 
-const KnowledgeReferenceSchema = z.object({
+export const KnowledgeReferenceSchema = z.object({
   id: z.number(),
   content: z.string(),
   sourceUrl: z.string(),
