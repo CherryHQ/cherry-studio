@@ -10,6 +10,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { CacheService } from '@renderer/services/CacheService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -414,6 +415,9 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
           sessionId
         })
       )
+
+      // Emit event to trigger scroll to bottom in AgentSessionMessages
+      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
       // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
