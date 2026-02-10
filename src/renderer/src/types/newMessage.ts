@@ -11,11 +11,12 @@ import {
   type KnowledgeReference,
   type MCPServer,
   type MCPToolResponse,
+  MCPToolResponseSchema,
   type MemoryItem,
   type Metrics,
   type Model,
   ModelSchema,
-  type NormalToolResponse,
+  NormalToolResponseSchema,
   objectValues,
   type Topic,
   type Usage,
@@ -173,17 +174,23 @@ const ImageMessageBlockSchema = z.object({
 // Added unified ImageBlock
 export type ImageMessageBlock = z.infer<typeof ImageMessageBlockSchema>
 
+const ToolMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.TOOL),
+  toolId: z.string(),
+  toolName: z.string().optional(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
+  content: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+  metadata: z
+    .object({
+      rawMcpToolResponse: z.union([MCPToolResponseSchema, NormalToolResponseSchema]).optional()
+    })
+    .catchall(z.unknown())
+    .optional()
+})
+
 // Added unified ToolBlock
-export interface ToolMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.TOOL
-  toolId: string
-  toolName?: string
-  arguments?: Record<string, any>
-  content?: string | object
-  metadata?: BaseMessageBlock['metadata'] & {
-    rawMcpToolResponse?: MCPToolResponse | NormalToolResponse
-  }
-}
+export type ToolMessageBlock = z.infer<typeof ToolMessageBlockSchema>
 
 // Consolidated and Enhanced Citation Block
 export interface CitationMessageBlock extends BaseMessageBlock {
