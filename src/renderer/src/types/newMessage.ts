@@ -246,19 +246,22 @@ const CompactMessageBlockSchema = z.object({
 export type CompactMessageBlock = z.infer<typeof CompactMessageBlockSchema>
 
 // MessageBlock 联合类型
-export type MessageBlock =
-  | PlaceholderMessageBlock
-  | MainTextMessageBlock
-  | ThinkingMessageBlock
-  | TranslationMessageBlock
-  | CodeMessageBlock
-  | ImageMessageBlock
-  | ToolMessageBlock
-  | FileMessageBlock
-  | ErrorMessageBlock
-  | CitationMessageBlock
-  | VideoMessageBlock
-  | CompactMessageBlock
+const MessageBlockSchema = z.discriminatedUnion('type', [
+  PlaceholderMessageBlockSchema,
+  MainTextMessageBlockSchema,
+  ThinkingMessageBlockSchema,
+  TranslationMessageBlockSchema,
+  CodeMessageBlockSchema,
+  ImageMessageBlockSchema,
+  ToolMessageBlockSchema,
+  FileMessageBlockSchema,
+  ErrorMessageBlockSchema,
+  CitationMessageBlockSchema,
+  VideoMessageBlockSchema,
+  CompactMessageBlockSchema
+])
+
+export type MessageBlock = z.infer<typeof MessageBlockSchema>
 
 export enum UserMessageStatus {
   SUCCESS = 'success'
