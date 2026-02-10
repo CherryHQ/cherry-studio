@@ -807,34 +807,30 @@ export function getBedrockReasoningParams(
  * 从 assistant 设置中提取自定义参数
  */
 export function getCustomParameters(assistant: Assistant): Record<string, any> {
-  const params =
-    assistant?.settings?.customParameters?.reduce(
-      (acc, param) => {
-        if (!param.name?.trim()) {
-          return acc
+  return (
+    assistant?.settings?.customParameters?.reduce((acc, param) => {
+      if (!param.name?.trim()) {
+        return acc
+      }
+      // Parse JSON type parameters
+      // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
+      // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
+      // This function parses them into objects before sending to the API
+      if (param.type === 'json') {
+        const value = param.value as string
+        if (value === 'undefined') {
+          return { ...acc, [param.name]: undefined }
         }
-        // Parse JSON type parameters
-        // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
-        // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
-        // This function parses them into objects before sending to the API
-        if (param.type === 'json') {
-          const value = param.value as string
-          if (value === 'undefined') {
-            return { ...acc, [param.name]: undefined }
-          }
-          try {
-            return { ...acc, [param.name]: JSON.parse(value) }
-          } catch {
-            return { ...acc, [param.name]: value }
-          }
+        try {
+          return { ...acc, [param.name]: JSON.parse(value) }
+        } catch {
+          return { ...acc, [param.name]: value }
         }
-        return {
-          ...acc,
-          [param.name]: param.value
-        }
-      },
-      {} as Record<string, any>
-    ) || {}
-
-  return params
+      }
+      return {
+        ...acc,
+        [param.name]: param.value
+      }
+    }, {}) || {}
+  )
 }
