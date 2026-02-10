@@ -923,10 +923,12 @@ const ToolUseResponseSchema = z.object({
 
 export type ToolUseResponse = z.infer<typeof ToolUseResponseSchema>
 
-export interface ToolCallResponse extends BaseToolResponse {
-  // gemini tool call id might be undefined
-  toolCallId?: string
-}
+const ToolCallResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  toolCallId: z.string().optional()
+})
+
+export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>
 
 // export type MCPToolResponse = ToolUseResponse | ToolCallResponse
 export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
