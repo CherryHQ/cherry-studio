@@ -207,6 +207,8 @@ export interface FindExecutableOptions {
   extensions?: string[]
   /** Common paths to check as fallback */
   commonPaths?: string[]
+  /** Environment variables to use for where.exe lookup (default: process.env) */
+  env?: Record<string, string>
 }
 
 /**
@@ -255,7 +257,8 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     // We then filter by allowed extensions below for security and precision
     const result = execFileSync('where.exe', [name], {
       encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: options?.env
     })
 
     // Handle both Windows (\r\n) and Unix (\n) line endings
@@ -313,13 +316,13 @@ function getCommonGitRoots(): string[] {
  * Checks PATH, common install paths, and LOCALAPPDATA
  * @returns Full path to git.exe or null if not found
  */
-export function findGit(): string | null {
+export function findGit(env?: Record<string, string>): string | null {
   if (!isWin) {
     return null
   }
 
   // 1. Find git.exe via findExecutable (checks PATH + common Git install paths)
-  const gitPath = findExecutable('git')
+  const gitPath = findExecutable('git', env ? { env } : undefined)
   if (gitPath) {
     return gitPath
   }
@@ -345,10 +348,12 @@ export function findGit(): string | null {
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
   let gitPath: string | null = null
 
+  refreshShellEnvCache()
+
   if (isWin) {
-    gitPath = findGit()
+    const shellEnv = await getShellEnv()
+    gitPath = findGit(shellEnv)
   } else {
-    refreshShellEnvCache()
     const shellEnv = await getShellEnv()
     gitPath = await findCommandInShellEnv('git', shellEnv)
   }
