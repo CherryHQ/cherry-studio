@@ -139,10 +139,21 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     const getFirstMessageName = () => {
       const message = topic.messages[0]
       const blocks = findMainTextBlocks(message)
-      return blocks
+      const text = blocks
         .map((block) => block.content)
         .join('\n\n')
-        .substring(0, 50)
+        .trim()
+
+      if (text.length <= 50) return text
+
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' })
+      let result = ''
+      for (const { segment } of segmenter.segment(text)) {
+        if (result.length + segment.length > 50) break
+        result += segment
+      }
+
+      return result || text.substring(0, 50)
     }
 
     if (!enableTopicNaming) {
@@ -159,24 +170,17 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     }
 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
+      startTopicRenaming(topicId)
       try {
-        startTopicRenaming(topicId)
         const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
         if (summaryText) {
           applyTopicName(summaryText)
         } else {
-          // Fall back to first message text when LLM naming fails (e.g. no API key)
-          // to avoid repeated "topic naming failed" error toasts on every message
+          // Fall back to first message text when LLM naming returns null (e.g. no API key)
           const fallbackName = getFirstMessageName()
           if (fallbackName) {
             applyTopicName(fallbackName)
           }
-        }
-      } catch (error) {
-        // Fall back to first message text when LLM naming throws
-        const fallbackName = getFirstMessageName()
-        if (fallbackName) {
-          applyTopicName(fallbackName)
         }
       } finally {
         finishTopicRenaming(topicId)
