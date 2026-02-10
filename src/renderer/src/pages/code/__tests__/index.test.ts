@@ -1,7 +1,8 @@
-import { generateToolEnvironment } from '../index'
 import type { Model, Provider } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { generateToolEnvironment } from '../index'
 
 // Mock CodeToolsPage which is default export
 vi.mock('../CodeToolsPage', () => ({ default: () => null }))
