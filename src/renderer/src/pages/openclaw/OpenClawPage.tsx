@@ -437,7 +437,7 @@ const OpenClawPage: FC = () => {
 
   const renderNotInstalledContent = () => (
     <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="m-auto min-h-fit w-130">
+      <div className="mx-auto min-h-fit w-130">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}

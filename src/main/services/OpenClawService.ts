@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable, findGit } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGitPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -162,13 +162,15 @@ class OpenClawService {
       // On Windows, npm is a .cmd file, use findExecutable with .cmd extension
       // Note: findExecutable is synchronous (uses execFileSync) which is acceptable here
       // since we're already in an async context and Windows file ops are fast
+      // Pass shellEnv so where.exe uses the refreshed PATH instead of stale process.env
       npmPath = findExecutable('npm', {
         extensions: ['.cmd', '.exe'],
         commonPaths: [
           path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
           path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
           path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-        ]
+        ],
+        env: shellEnv
       })
     } else {
       npmPath = await findCommandInShellEnv('npm', shellEnv)
@@ -236,7 +238,7 @@ class OpenClawService {
 
     // Try to find git and ensure it's in PATH for npm (some packages require git during install)
     // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
-    const gitPath = isWin ? findGit() : await findCommandInShellEnv('git', shellEnv)
+    const gitPath = await findGitPath(shellEnv)
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
       const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
@@ -879,6 +881,9 @@ class OpenClawService {
    * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
    */
   private async findOpenClawBinary(): Promise<string | null> {
+    // Refresh cache to detect newly installed OpenClaw without app restart
+    refreshShellEnvCache()
+
     // Try PATH lookup in user's login shell environment (best for npm global installs)
     const shellEnv = await getShellEnv()
     const binaryPath = await findCommandInShellEnv('openclaw', shellEnv)
