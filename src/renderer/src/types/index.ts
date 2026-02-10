@@ -276,7 +276,17 @@ export type User = {
   email: string
 }
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
+export const ModelTypeSchema = z.enum([
+  'text',
+  'vision',
+  'embedding',
+  'reasoning',
+  'function_calling',
+  'web_search',
+  'rerank'
+])
+
+export type ModelType = z.infer<typeof ModelTypeSchema>
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
@@ -291,38 +301,45 @@ export const EndPointTypeSchema = z.enum([
 ])
 export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
-export type ModelPricing = {
-  input_per_million_tokens: number
-  output_per_million_tokens: number
-  currencySymbol?: string
-}
+export const ModelPricingSchema = z.object({
+  input_per_million_tokens: z.number(),
+  output_per_million_tokens: z.number(),
+  currencySymbol: z.string().optional()
+})
 
-export type ModelCapability = {
-  type: ModelType
+export type ModelPricing = z.infer<typeof ModelPricingSchema>
+
+export const ModelCapabilitySchema = z.object({
+  type: ModelTypeSchema,
   /**
    * 是否为用户手动选择，如果为true，则表示用户手动选择了该类型，否则表示用户手动禁止了该模型；如果为undefined，则表示使用默认值
+   *
    * Is it manually selected by the user? If true, it means the user manually selected this type; otherwise, it means the user  * manually disabled the model.
    */
-  isUserSelected?: boolean
-}
+  isUserSelected: z.boolean().optional()
+})
 
-export type Model = {
-  id: string
-  provider: string
-  name: string
-  group: string
-  owned_by?: string
-  description?: string
-  capabilities?: ModelCapability[]
+export type ModelCapability = z.infer<typeof ModelCapabilitySchema>
+
+export const ModelSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  name: z.string(),
+  group: z.string(),
+  owned_by: z.string().optional(),
+  description: z.string().optional(),
+  capabilities: z.array(ModelCapabilitySchema).optional(),
   /**
    * @deprecated
    */
-  type?: ModelType[]
-  pricing?: ModelPricing
-  endpoint_type?: EndpointType
-  supported_endpoint_types?: EndpointType[]
-  supported_text_delta?: boolean
-}
+  type: z.array(ModelTypeSchema).optional(),
+  pricing: ModelPricingSchema.optional(),
+  endpoint_type: EndPointTypeSchema.optional(),
+  supported_endpoint_types: z.array(EndPointTypeSchema).optional(),
+  supported_text_delta: z.boolean().optional()
+})
+
+export type Model = z.infer<typeof ModelSchema>
 
 export type Suggestion = {
   content: string
