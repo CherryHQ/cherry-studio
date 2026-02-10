@@ -9,6 +9,7 @@ import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtim
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
+import { truncateText } from '@renderer/utils/naming'
 import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
@@ -146,16 +147,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
         .join('\n\n')
         .trim()
 
-      if (text.length <= 50) return text
-
-      const segmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' })
-      let result = ''
-      for (const { segment } of segmenter.segment(text)) {
-        if (result.length + segment.length > 50) break
-        result += segment
-      }
-
-      return result || text.substring(0, 50)
+      return truncateText(text)
     }
 
     if (!enableTopicNaming) {
