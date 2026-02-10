@@ -73,20 +73,3 @@ export function isSerializable(value: unknown): value is Serializable {
     return false
   }
 }
-
-/**
- * Type guard: Assert that a value is serializable
- * Uses Zod schema for validation, throws detailed error on failure
- */
-export function assertSerializable(value: unknown): Serializable {
-  return SerializableSchema.parse(value)
-}
-
-/**
- * Safe parse: Attempt to parse a value as a serializable type
- * Returns parse result, or null on failure
- */
-export function tryParseSerializable(value: unknown): Serializable | null {
-  const result = SerializableSchema.safeParse(value)
-  return result.success ? result.data : null
-}
