@@ -18,7 +18,7 @@ import {
   type Topic,
   type Usage,
   type WebSearchResponse,
-  type WebSearchSource
+  WebSearchSourceSchema
 } from '.'
 import { SerializedErrorSchema } from './error'
 
@@ -102,16 +102,22 @@ const PlaceholderMessageBlockSchema = z.object({
 export type PlaceholderMessageBlock = z.infer<typeof PlaceholderMessageBlockSchema>
 
 // 主文本块 - 核心内容
-export interface MainTextMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.MAIN_TEXT
-  content: string
-  knowledgeBaseIds?: string[]
-  // Citation references
-  citationReferences?: {
-    citationBlockId?: string
-    citationBlockSource?: WebSearchSource
-  }[]
-}
+const MainTextMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.MAIN_TEXT),
+  content: z.string(),
+  knowledgeBaseIds: z.array(z.string()).optional(),
+  citationReferences: z
+    .array(
+      z.object({
+        citationBlockId: z.string().optional(),
+        citationBlockSource: WebSearchSourceSchema.optional()
+      })
+    )
+    .optional()
+})
+
+export type MainTextMessageBlock = z.infer<typeof MainTextMessageBlockSchema>
 
 // 思考块 - 模型推理过程
 export interface ThinkingMessageBlock extends BaseMessageBlock {
