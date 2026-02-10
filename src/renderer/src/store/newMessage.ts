@@ -18,8 +18,8 @@ import { loggerService } from '@logger'
 import type { EntityState, PayloadAction } from '@reduxjs/toolkit'
 import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
-import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('newMessage')
 
@@ -249,7 +249,7 @@ export const messagesSlice = createSlice({
       // Update Block ID
       const currentBlocks = messageToUpdate.blocks || []
       if (!currentBlocks.includes(blockId)) {
-        if (blockType === MessageBlockType.THINKING) {
+        if (blockType === MESSAGE_BLOCK_TYPE.THINKING) {
           changes.blocks = [blockId, ...currentBlocks]
         } else {
           changes.blocks = [...currentBlocks, blockId]

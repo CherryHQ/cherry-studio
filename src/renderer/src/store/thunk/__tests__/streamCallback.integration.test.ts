@@ -9,7 +9,7 @@ import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/ty
 import { WebSearchSource } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '../../index'
@@ -391,7 +391,7 @@ describe('streamCallback Integration Tests', () => {
     const blocks = Object.values(state.messageBlocks.entities)
     expect(blocks.length).toBeGreaterThan(0)
 
-    const textBlock = blocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
+    const textBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     expect(textBlock).toBeDefined()
     expect(textBlock?.content).toBe('Hello world!')
     expect(textBlock?.status).toBe(MessageBlockStatus.SUCCESS)
@@ -421,7 +421,7 @@ describe('streamCallback Integration Tests', () => {
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
-    const thinkingBlock = blocks.find((block) => block.type === MessageBlockType.THINKING)
+    const thinkingBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.THINKING)
     expect(thinkingBlock).toBeDefined()
     expect(thinkingBlock?.content).toBe('Final thoughts')
     expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
@@ -495,7 +495,7 @@ describe('streamCallback Integration Tests', () => {
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
-    const toolBlock = blocks.find((block) => block.type === MessageBlockType.TOOL)
+    const toolBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.TOOL)
     expect(toolBlock).toBeDefined()
     expect(toolBlock?.content).toBe('Tool result')
     expect(toolBlock?.status).toBe(MessageBlockStatus.SUCCESS)
@@ -534,7 +534,7 @@ describe('streamCallback Integration Tests', () => {
     // 验证 Redux 状态
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
-    const imageBlock = blocks.find((block) => block.type === MessageBlockType.IMAGE)
+    const imageBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.IMAGE)
     expect(imageBlock).toBeDefined()
     expect(imageBlock?.url).toBe(
       'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAQABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAQMEB//EACMQAAIBAwMEAwAAAAAAAAAAAAECAwAEEQUSIQYxQVExUYH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AM/8A//Z'
@@ -562,7 +562,7 @@ describe('streamCallback Integration Tests', () => {
     // 验证 Redux 状态
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
-    const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
+    const citationBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.CITATION)
     expect(citationBlock).toBeDefined()
     expect(citationBlock?.response?.source).toEqual(mockWebSearchResult.source)
     expect(citationBlock?.status).toBe(MessageBlockStatus.SUCCESS)
@@ -657,15 +657,15 @@ describe('streamCallback Integration Tests', () => {
 
     expect(blocks.length).toBeGreaterThan(2) // 至少有思考块、工具块、文本块
 
-    const thinkingBlock = blocks.find((block) => block.type === MessageBlockType.THINKING)
+    const thinkingBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.THINKING)
     expect(thinkingBlock?.content).toBe('Let me calculate this..., I need to use a calculator')
     expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
 
-    const toolBlock = blocks.find((block) => block.type === MessageBlockType.TOOL)
+    const toolBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.TOOL)
     expect(toolBlock?.content).toBe('42')
     expect(toolBlock?.status).toBe(MessageBlockStatus.SUCCESS)
 
-    const textBlock = blocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
+    const textBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     expect(textBlock?.content).toBe('The answer is 42')
     expect(textBlock?.status).toBe(MessageBlockStatus.SUCCESS)
   })
@@ -690,7 +690,7 @@ describe('streamCallback Integration Tests', () => {
 
     expect(blocks.length).toBeGreaterThan(0)
 
-    const errorBlock = blocks.find((block) => block.type === MessageBlockType.ERROR)
+    const errorBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.ERROR)
     expect(errorBlock).toBeDefined()
     expect(errorBlock?.status).toBe(MessageBlockStatus.SUCCESS)
     expect((errorBlock as any)?.error?.message).toBe('Test error')
@@ -731,7 +731,7 @@ describe('streamCallback Integration Tests', () => {
     const state = getState()
     const blocks = Object.values(state.messageBlocks.entities)
 
-    const citationBlock = blocks.find((block) => block.type === MessageBlockType.CITATION)
+    const citationBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.CITATION)
     expect(citationBlock).toBeDefined()
     expect((citationBlock as any)?.response).toEqual(mockExternalToolResult.webSearch)
     expect((citationBlock as any)?.knowledge).toEqual(mockExternalToolResult.knowledge)
@@ -760,7 +760,7 @@ describe('streamCallback Integration Tests', () => {
 
     expect(blocks.length).toBeGreaterThan(0)
 
-    const errorBlock = blocks.find((block) => block.type === MessageBlockType.ERROR)
+    const errorBlock = blocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.ERROR)
     expect(errorBlock).toBeDefined()
     expect(errorBlock?.status).toBe(MessageBlockStatus.SUCCESS)
 

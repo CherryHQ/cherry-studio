@@ -5,8 +5,8 @@ import {
   AssistantMessageStatus,
   type MainTextMessageBlock,
   type Message,
+  MESSAGE_BLOCK_TYPE,
   MessageBlockStatus,
-  MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -221,7 +221,7 @@ export class ChatGPTImporter implements ConversationImporter {
     const block: MainTextMessageBlock = {
       id: blockId,
       messageId,
-      type: MessageBlockType.MAIN_TEXT,
+      type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
       content,
       createdAt,
       updatedAt: createdAt,

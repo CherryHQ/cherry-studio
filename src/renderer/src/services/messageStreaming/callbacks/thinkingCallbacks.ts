@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { createThinkingBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -28,20 +28,20 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
     onThinkingStart: async () => {
       if (blockManager.hasInitialPlaceholder) {
         const changes: Partial<MessageBlock> = {
-          type: MessageBlockType.THINKING,
+          type: MESSAGE_BLOCK_TYPE.THINKING,
           content: '',
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: 0
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
-        blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
+        blockManager.smartBlockUpdate(thinkingBlockId, changes, MESSAGE_BLOCK_TYPE.THINKING, true)
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,
           thinking_millsec: 0
         })
         thinkingBlockId = newBlock.id
-        await blockManager.handleBlockTransition(newBlock, MessageBlockType.THINKING)
+        await blockManager.handleBlockTransition(newBlock, MESSAGE_BLOCK_TYPE.THINKING)
       }
       thinking_millsec_now = performance.now()
     },
@@ -53,7 +53,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
           status: MessageBlockStatus.STREAMING
           // thinking_millsec: performance.now() - thinking_millsec_now
         }
-        blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MessageBlockType.THINKING)
+        blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MESSAGE_BLOCK_TYPE.THINKING)
       }
     },
 
@@ -65,7 +65,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
           status: MessageBlockStatus.SUCCESS,
           thinking_millsec: now - thinking_millsec_now
         }
-        blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
+        blockManager.smartBlockUpdate(thinkingBlockId, changes, MESSAGE_BLOCK_TYPE.THINKING, true)
         thinkingBlockId = null
         thinking_millsec_now = 0
       } else {

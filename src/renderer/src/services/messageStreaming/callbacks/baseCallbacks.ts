@@ -9,7 +9,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { isAbortError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
@@ -71,10 +71,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
   return {
     onLLMResponseCreated: async () => {
-      const baseBlock = createBaseMessageBlock(assistantMsgId, MessageBlockType.UNKNOWN, {
+      const baseBlock = createBaseMessageBlock(assistantMsgId, MESSAGE_BLOCK_TYPE.UNKNOWN, {
         status: MessageBlockStatus.PROCESSING
       })
-      await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
+      await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MESSAGE_BLOCK_TYPE.UNKNOWN)
     },
 
     onError: async (error: AISDKError) => {
@@ -113,7 +113,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
         }
         // 如果是 thinking block，保留实际思考时间
-        if (blockManager.lastBlockType === MessageBlockType.THINKING) {
+        if (blockManager.lastBlockType === MESSAGE_BLOCK_TYPE.THINKING) {
           const thinkingInfo = getCurrentThinkingInfo?.()
           if (thinkingInfo?.blockId === possibleBlockId && thinkingInfo?.millsec && thinkingInfo.millsec > 0) {
             changes.thinking_millsec = thinkingInfo.millsec
@@ -139,7 +139,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             }
             // 如果是 thinking block 且有思考时间信息，保留实际思考时间
             if (
-              block.type === MessageBlockType.THINKING &&
+              block.type === MESSAGE_BLOCK_TYPE.THINKING &&
               thinkingInfo?.blockId === block.id &&
               thinkingInfo?.millsec &&
               thinkingInfo.millsec > 0
@@ -157,7 +157,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       }
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
-      await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+      await blockManager.handleBlockTransition(errorBlock, MESSAGE_BLOCK_TYPE.ERROR)
       const messageErrorUpdate = {
         status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
       }

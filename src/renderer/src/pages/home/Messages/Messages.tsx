@@ -21,7 +21,7 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -206,7 +206,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
 
           // FIXME: 目前 error block 没有 content
-          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
+          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MESSAGE_BLOCK_TYPE.ERROR) {
             try {
               const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
               const updatedBlock: MessageBlock = {

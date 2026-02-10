@@ -10,7 +10,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, FileMetadata, Model, Topic, Usage } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { getTitleFromString } from '@renderer/utils/export'
 import {
@@ -59,7 +59,7 @@ export function deleteMessageFiles(message: Message) {
   const state = store.getState()
   message.blocks?.forEach((blockId) => {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
+    if (block && (block.type === MESSAGE_BLOCK_TYPE.IMAGE || block.type === MESSAGE_BLOCK_TYPE.FILE)) {
       const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
         FileManager.deleteFiles([fileData])

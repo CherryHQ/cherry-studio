@@ -17,7 +17,7 @@ import type { EndSpanParams, StartSpanParams } from '@renderer/trace/types/Model
 import { ModelSpanEntity } from '@renderer/trace/types/ModelSpanEntity'
 import type { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import type { SdkRawChunk } from '@renderer/types/sdk'
 
 const logger = loggerService.withContext('SpanManagerService')
@@ -146,7 +146,7 @@ class SpanManagerService {
           return await db.message_blocks.get(blockId)
         })
       )
-      _content = blocks.find((data) => data?.type === MessageBlockType.MAIN_TEXT)?.content
+      _content = blocks.find((data) => data?.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)?.content
     }
     return {
       topicId: message.topicId,

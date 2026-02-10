@@ -19,7 +19,7 @@ import {
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
@@ -473,7 +473,7 @@ export const createKnowledgeReferencesBlock = async ({
   )
 
   // 处理引用块
-  blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+  blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
 
   // 设置引用块ID
   setCitationBlockId(citationBlock.id)

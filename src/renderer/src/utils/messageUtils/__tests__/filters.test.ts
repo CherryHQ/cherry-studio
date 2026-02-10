@@ -1,6 +1,6 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createErrorBlock, createMainTextBlock, createMessage } from '../create'
@@ -157,7 +157,7 @@ describe('Message Filter Utils', () => {
         messageBlocksSlice.actions.upsertOneBlock({
           id: 'image-block-1',
           messageId: msgId,
-          type: MessageBlockType.IMAGE,
+          type: MESSAGE_BLOCK_TYPE.IMAGE,
           status: MessageBlockStatus.SUCCESS,
           createdAt: new Date().toISOString(),
           file: { id: 'file-1', origin_name: 'image.png' } as any
@@ -180,7 +180,7 @@ describe('Message Filter Utils', () => {
         messageBlocksSlice.actions.upsertOneBlock({
           id: 'file-block-1',
           messageId: msgId,
-          type: MessageBlockType.FILE,
+          type: MESSAGE_BLOCK_TYPE.FILE,
           status: MessageBlockStatus.SUCCESS,
           createdAt: new Date().toISOString(),
           file: { id: 'file-1', origin_name: 'doc.pdf' } as any
