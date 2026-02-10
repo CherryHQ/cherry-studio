@@ -74,7 +74,14 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * @returns {string} 小写的基础名称
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
-  let baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  // Normalize Fireworks model IDs: Fireworks replaces '.' with 'p' in version numbers
+  // e.g. accounts/fireworks/models/deepseek-v3p2 -> deepseek-v3.2
+  // e.g. accounts/fireworks/models/kimi-k2p5 -> kimi-k2.5
+  const normalizedId = id.toLowerCase().startsWith('accounts/fireworks/models/')
+    ? id.replace(/(\d)p(?=\d)/g, '$1.')
+    : id
+
+  let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
   // Remove suffix
   // for openrouter
   if (baseModelName.endsWith(':free')) {
