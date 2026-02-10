@@ -54,14 +54,18 @@ export const MessageBlockTypeSchema = z.enum(objectValues(MESSAGE_BLOCK_TYPE))
 export type MessageBlockType = z.infer<typeof MessageBlockTypeSchema>
 
 // 块状态定义
-export enum MessageBlockStatus {
-  PENDING = 'pending', // 等待处理
-  PROCESSING = 'processing', // 正在处理，等待接收
-  STREAMING = 'streaming', // 正在流式接收
-  SUCCESS = 'success', // 处理成功
-  ERROR = 'error', // 处理错误
-  PAUSED = 'paused' // 处理暂停
-}
+export const MESSAGE_BLOCK_STATUS = {
+  PENDING: 'pending', // 等待处理
+  PROCESSING: 'processing', // 正在处理，等待接收
+  STREAMING: 'streaming', // 正在流式接收
+  SUCCESS: 'success', // 处理成功
+  ERROR: 'error', // 处理错误
+  PAUSED: 'paused' // 处理暂停
+} as const
+
+export const MessageBlockStatusSchema = z.enum(objectValues(MESSAGE_BLOCK_STATUS))
+
+export type MessageBlockStatus = z.infer<typeof MessageBlockStatusSchema>
 
 // BaseMessageBlock 基础类型 - 更简洁，只包含必要通用属性
 export interface BaseMessageBlock {

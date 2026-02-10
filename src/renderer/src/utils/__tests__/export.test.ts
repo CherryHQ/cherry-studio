@@ -1,6 +1,6 @@
 // Import Message, MessageBlock, and necessary enums
 import type { Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
@@ -106,7 +106,7 @@ function createBlock(messageId: string, partialBlock: PartialBlockInput): Messag
     messageId: messageId, // Use the passed messageId
     type: partialBlock.type,
     createdAt: partialBlock.createdAt || '2024-01-01T00:00:00Z',
-    status: partialBlock.status || MessageBlockStatus.SUCCESS
+    status: partialBlock.status || MESSAGE_BLOCK_STATUS.SUCCESS
     // Add other base fields if they become required
   }
 

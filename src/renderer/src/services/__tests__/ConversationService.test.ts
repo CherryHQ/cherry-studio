@@ -1,6 +1,6 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { createErrorBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,11 +77,11 @@ describe('ConversationService.filterMessagesPipeline', () => {
     const topicId = 'topic-1'
     const assistantId = 'assistant-1'
 
-    const user1Block = createMainTextBlock('user-1', 'First question', { status: MessageBlockStatus.SUCCESS })
+    const user1Block = createMainTextBlock('user-1', 'First question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
     const user1 = createMessage('user', topicId, assistantId, { id: 'user-1', blocks: [user1Block.id] })
 
     const assistant1Block = createMainTextBlock('assistant-1', 'First answer', {
-      status: MessageBlockStatus.SUCCESS
+      status: MESSAGE_BLOCK_STATUS.SUCCESS
     })
     const assistant1 = createMessage('assistant', topicId, assistantId, {
       id: 'assistant-1',
@@ -89,13 +89,13 @@ describe('ConversationService.filterMessagesPipeline', () => {
       blocks: [assistant1Block.id]
     })
 
-    const user2Block = createMainTextBlock('user-2', 'Second question', { status: MessageBlockStatus.SUCCESS })
+    const user2Block = createMainTextBlock('user-2', 'Second question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
     const user2 = createMessage('user', topicId, assistantId, { id: 'user-2', blocks: [user2Block.id] })
 
     const errorBlock = createErrorBlock(
       'assistant-2',
       { message: 'Error occurred', name: 'Error', stack: null },
-      { status: MessageBlockStatus.ERROR }
+      { status: MESSAGE_BLOCK_STATUS.ERROR }
     )
     const assistantError = createMessage('assistant', topicId, assistantId, {
       id: 'assistant-2',
@@ -122,18 +122,18 @@ describe('ConversationService.filterMessagesPipeline', () => {
     const assistantId = 'assistant-1'
 
     const leadingAssistantBlock = createMainTextBlock('assistant-leading', 'Hi there', {
-      status: MessageBlockStatus.SUCCESS
+      status: MESSAGE_BLOCK_STATUS.SUCCESS
     })
     const leadingAssistant = createMessage('assistant', topicId, assistantId, {
       id: 'assistant-leading',
       blocks: [leadingAssistantBlock.id]
     })
 
-    const user1Block = createMainTextBlock('user-1', 'First question', { status: MessageBlockStatus.SUCCESS })
+    const user1Block = createMainTextBlock('user-1', 'First question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
     const user1 = createMessage('user', topicId, assistantId, { id: 'user-1', blocks: [user1Block.id] })
 
     const assistant1Block = createMainTextBlock('assistant-1', 'First answer', {
-      status: MessageBlockStatus.SUCCESS
+      status: MESSAGE_BLOCK_STATUS.SUCCESS
     })
     const assistant1 = createMessage('assistant', topicId, assistantId, {
       id: 'assistant-1',
@@ -141,10 +141,10 @@ describe('ConversationService.filterMessagesPipeline', () => {
       blocks: [assistant1Block.id]
     })
 
-    const user2Block = createMainTextBlock('user-2', 'Draft question', { status: MessageBlockStatus.SUCCESS })
+    const user2Block = createMainTextBlock('user-2', 'Draft question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
     const user2 = createMessage('user', topicId, assistantId, { id: 'user-2', blocks: [user2Block.id] })
 
-    const user3Block = createMainTextBlock('user-3', 'Final question', { status: MessageBlockStatus.SUCCESS })
+    const user3Block = createMainTextBlock('user-3', 'Final question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
     const user3 = createMessage('user', topicId, assistantId, { id: 'user-3', blocks: [user3Block.id] })
 
     mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(leadingAssistantBlock))

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { MessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createThinkingBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -30,14 +30,14 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
         const changes: Partial<MessageBlock> = {
           type: MESSAGE_BLOCK_TYPE.THINKING,
           content: '',
-          status: MessageBlockStatus.STREAMING,
+          status: MESSAGE_BLOCK_STATUS.STREAMING,
           thinking_millsec: 0
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MESSAGE_BLOCK_TYPE.THINKING, true)
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
-          status: MessageBlockStatus.STREAMING,
+          status: MESSAGE_BLOCK_STATUS.STREAMING,
           thinking_millsec: 0
         })
         thinkingBlockId = newBlock.id
@@ -50,7 +50,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
       if (thinkingBlockId) {
         const blockChanges: Partial<MessageBlock> = {
           content: text,
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
           // thinking_millsec: performance.now() - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MESSAGE_BLOCK_TYPE.THINKING)
@@ -62,7 +62,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
         const now = performance.now()
         const changes: Partial<MessageBlock> = {
           content: finalText,
-          status: MessageBlockStatus.SUCCESS,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           thinking_millsec: now - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MESSAGE_BLOCK_TYPE.THINKING, true)

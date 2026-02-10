@@ -1,6 +1,6 @@
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import { type ImageMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
+import { type ImageMessageBlock, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { Skeleton } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
@@ -11,11 +11,11 @@ interface Props {
 }
 
 const ImageBlock: React.FC<Props> = ({ block, isSingle = false }) => {
-  if (block.status === MessageBlockStatus.PENDING) {
+  if (block.status === MESSAGE_BLOCK_STATUS.PENDING) {
     return <Skeleton.Image active style={{ width: 200, height: 200 }} />
   }
 
-  if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.SUCCESS) {
+  if (block.status === MESSAGE_BLOCK_STATUS.STREAMING || block.status === MESSAGE_BLOCK_STATUS.SUCCESS) {
     const images = block.metadata?.generateImageResponse?.images?.length
       ? block.metadata?.generateImageResponse?.images
       : block?.file

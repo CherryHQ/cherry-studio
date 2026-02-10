@@ -4,7 +4,7 @@ import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -34,7 +34,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
           type: MESSAGE_BLOCK_TYPE.TOOL,
-          status: MessageBlockStatus.PENDING,
+          status: MESSAGE_BLOCK_STATUS.PENDING,
           toolName: toolResponse.tool.name,
           metadata: { rawMcpToolResponse: toolResponse }
         }
@@ -44,7 +44,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       } else if (toolResponse.status === 'pending') {
         const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
           toolName: toolResponse.tool.name,
-          status: MessageBlockStatus.PENDING,
+          status: MESSAGE_BLOCK_STATUS.PENDING,
           metadata: { rawMcpToolResponse: toolResponse }
         })
         toolBlockId = toolBlock.id
@@ -66,7 +66,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         if (blockManager.hasInitialPlaceholder) {
           const changes = {
             type: MESSAGE_BLOCK_TYPE.TOOL,
-            status: MessageBlockStatus.PENDING,
+            status: MESSAGE_BLOCK_STATUS.PENDING,
             toolName: toolResponse.tool.name,
             metadata: { rawMcpToolResponse: toolResponse }
           }
@@ -77,7 +77,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         } else {
           const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
             toolName: toolResponse.tool.name,
-            status: MessageBlockStatus.PENDING,
+            status: MESSAGE_BLOCK_STATUS.PENDING,
             metadata: { rawMcpToolResponse: toolResponse }
           })
           toolBlockId = toolBlock.id
@@ -89,7 +89,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
 
       // Update the tool block with streaming arguments
       const changes: Partial<ToolMessageBlock> = {
-        status: MessageBlockStatus.PENDING,
+        status: MESSAGE_BLOCK_STATUS.PENDING,
         metadata: { rawMcpToolResponse: toolResponse }
       }
 
@@ -113,8 +113,8 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
 
         const finalStatus =
           toolResponse.status === 'done' || toolResponse.status === 'cancelled'
-            ? MessageBlockStatus.SUCCESS
-            : MessageBlockStatus.ERROR
+            ? MESSAGE_BLOCK_STATUS.SUCCESS
+            : MESSAGE_BLOCK_STATUS.ERROR
 
         const changes: Partial<ToolMessageBlock> = {
           content: toolResponse.response,
@@ -122,7 +122,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           metadata: { rawMcpToolResponse: toolResponse }
         }
 
-        if (finalStatus === MessageBlockStatus.ERROR) {
+        if (finalStatus === MESSAGE_BLOCK_STATUS.ERROR) {
           changes.error = {
             message: `Tool execution failed/error`,
             details: toolResponse.response,
@@ -139,7 +139,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
               response: { results: toolResponse.response, source: WebSearchSource.WEBSEARCH }
             },
             {
-              status: MessageBlockStatus.SUCCESS
+              status: MESSAGE_BLOCK_STATUS.SUCCESS
             }
           )
           citationBlockId = citationBlock.id
@@ -150,7 +150,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             assistantMsgId,
             { knowledge: toolResponse.response },
             {
-              status: MessageBlockStatus.SUCCESS
+              status: MESSAGE_BLOCK_STATUS.SUCCESS
             }
           )
           citationBlockId = citationBlock.id

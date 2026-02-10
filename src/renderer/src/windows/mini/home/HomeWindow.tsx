@@ -16,7 +16,7 @@ import type { Topic } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
@@ -305,11 +305,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                   thinkingStartTime = performance.now()
                   if (thinkingBlockId) {
                     store.dispatch(
-                      updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
+                      updateOneBlock({ id: thinkingBlockId, changes: { status: MESSAGE_BLOCK_STATUS.STREAMING } })
                     )
                   } else {
                     const block = createThinkingBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
+                      status: MESSAGE_BLOCK_STATUS.STREAMING
                     })
                     thinkingBlockId = block.id
                     store.dispatch(
@@ -346,7 +346,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                     store.dispatch(
                       updateOneBlock({
                         id: thinkingBlockId,
-                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: thinkingDuration }
+                        changes: { status: MESSAGE_BLOCK_STATUS.SUCCESS, thinking_millsec: thinkingDuration }
                       })
                     )
                   }
@@ -358,10 +358,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 {
                   setIsOutputted(true)
                   if (blockId) {
-                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.STREAMING } }))
+                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MESSAGE_BLOCK_STATUS.STREAMING } }))
                   } else {
                     const block = createMainTextBlock(assistantMessage.id, '', {
-                      status: MessageBlockStatus.STREAMING
+                      status: MESSAGE_BLOCK_STATUS.STREAMING
                     })
                     blockId = block.id
                     store.dispatch(
@@ -391,7 +391,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                     store.dispatch(
                       updateOneBlock({
                         id: blockId,
-                        changes: { content: chunk.text, status: MessageBlockStatus.SUCCESS }
+                        changes: { content: chunk.text, status: MESSAGE_BLOCK_STATUS.SUCCESS }
                       })
                     )
                   }
@@ -406,7 +406,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                     updateOneBlock({
                       id: possibleBlockId,
                       changes: {
-                        status: isAborted ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
+                        status: isAborted ? MESSAGE_BLOCK_STATUS.PAUSED : MESSAGE_BLOCK_STATUS.ERROR
                       }
                     })
                   )

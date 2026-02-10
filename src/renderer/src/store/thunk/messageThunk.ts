@@ -32,7 +32,7 @@ import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, ty
 import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -1362,7 +1362,7 @@ export const initiateTranslationThunk =
         '', // Start with empty content
         targetLanguage,
         {
-          status: MessageBlockStatus.STREAMING, // Set to STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING, // Set to STREAMING
           sourceBlockId,
           sourceLanguage
         }
@@ -1401,7 +1401,7 @@ export const updateTranslationBlockThunk =
   async (dispatch: AppDispatch) => {
     // Logger.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
     try {
-      const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
+      const status = isComplete ? MESSAGE_BLOCK_STATUS.SUCCESS : MESSAGE_BLOCK_STATUS.STREAMING
       const changes: Partial<MessageBlock> = {
         content: accumulatedText,
         status: status

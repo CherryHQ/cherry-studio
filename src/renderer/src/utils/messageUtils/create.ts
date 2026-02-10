@@ -12,6 +12,7 @@ import type {
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
+  MessageBlockStatus,
   MessageBlockType,
   ThinkingMessageBlock,
   ToolMessageBlock,
@@ -20,8 +21,8 @@ import type {
 } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
+  MESSAGE_BLOCK_STATUS,
   MESSAGE_BLOCK_TYPE,
-  MessageBlockStatus,
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import { v4 as uuidv4 } from 'uuid'
@@ -48,7 +49,7 @@ export function createBaseMessageBlock<T extends MessageBlockType>(
     messageId,
     type,
     createdAt: now,
-    status: MessageBlockStatus.PROCESSING,
+    status: MESSAGE_BLOCK_STATUS.PROCESSING,
     error: undefined,
     ...overrides
   }
@@ -132,7 +133,7 @@ export function createThinkingBlock(
   overrides: Partial<Omit<ThinkingMessageBlock, 'id' | 'messageId' | 'type' | 'content'>> = {}
 ): ThinkingMessageBlock {
   const baseOverrides: Partial<Omit<BaseMessageBlock, 'id' | 'messageId' | 'type'>> = {
-    status: MessageBlockStatus.PROCESSING,
+    status: MESSAGE_BLOCK_STATUS.PROCESSING,
     ...overrides
   }
   const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.THINKING, baseOverrides)
@@ -159,7 +160,7 @@ export function createTranslationBlock(
 ): TranslationMessageBlock {
   const { sourceBlockId, sourceLanguage, ...baseOverrides } = overrides
   const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.TRANSLATION, {
-    status: MessageBlockStatus.SUCCESS,
+    status: MESSAGE_BLOCK_STATUS.SUCCESS,
     ...baseOverrides
   })
   return {
@@ -205,7 +206,7 @@ export function createErrorBlock(
   overrides: Partial<Omit<ErrorMessageBlock, 'id' | 'messageId' | 'type' | 'error'>> = {}
 ): ErrorMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.ERROR, {
-    status: MessageBlockStatus.ERROR,
+    status: MESSAGE_BLOCK_STATUS.ERROR,
     error: errorData,
     ...overrides
   })
@@ -224,11 +225,11 @@ export function createToolBlock(
   toolId: string,
   overrides: Partial<Omit<ToolMessageBlock, 'id' | 'messageId' | 'type' | 'toolId'>> = {}
 ): ToolMessageBlock {
-  let initialStatus = MessageBlockStatus.PROCESSING
+  let initialStatus: MessageBlockStatus = MESSAGE_BLOCK_STATUS.PROCESSING
   if (overrides.content !== undefined || overrides.error !== undefined) {
-    initialStatus = overrides.error ? MessageBlockStatus.ERROR : MessageBlockStatus.SUCCESS
+    initialStatus = overrides.error ? MESSAGE_BLOCK_STATUS.ERROR : MESSAGE_BLOCK_STATUS.SUCCESS
   } else if (overrides.toolName || overrides.arguments) {
-    initialStatus = MessageBlockStatus.PROCESSING
+    initialStatus = MESSAGE_BLOCK_STATUS.PROCESSING
   }
 
   const { toolName, arguments: args, content, error, metadata, ...baseOnlyOverrides } = overrides
@@ -268,7 +269,7 @@ export function createCitationBlock(
   }
 
   const baseBlock = createBaseMessageBlock(messageId, MESSAGE_BLOCK_TYPE.CITATION, {
-    status: MessageBlockStatus.SUCCESS,
+    status: MESSAGE_BLOCK_STATUS.SUCCESS,
     ...baseOverrides
   })
 

@@ -22,9 +22,10 @@ import type {
   BaseMessageBlock,
   CitationMessageBlock,
   Message as NewMessage,
-  MessageBlock
+  MessageBlock,
+  MessageBlockStatus
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
 
@@ -82,7 +83,7 @@ export async function upgradeToV5(tx: Transaction): Promise<void> {
 function mapOldStatusToBlockStatus(oldStatus: OldMessage['status']): MessageBlockStatus {
   // Handle statuses that need mapping
   if (oldStatus === 'sending' || oldStatus === 'pending' || oldStatus === 'searching') {
-    return MessageBlockStatus.PROCESSING
+    return MESSAGE_BLOCK_STATUS.PROCESSING
   }
   // For success, paused, error, the values match MessageBlockStatus
   if (oldStatus === 'success' || oldStatus === 'paused' || oldStatus === 'error') {
@@ -90,7 +91,7 @@ function mapOldStatusToBlockStatus(oldStatus: OldMessage['status']): MessageBloc
     return oldStatus as MessageBlockStatus
   }
   // Default fallback for any unexpected old status
-  return MessageBlockStatus.PROCESSING
+  return MESSAGE_BLOCK_STATUS.PROCESSING
 }
 
 function mapOldStatusToNewMessageStatus(oldStatus: OldMessage['status']): NewMessage['status'] {
@@ -136,7 +137,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         const block = createThinkingBlock(oldMessage.id, oldMessage.reasoning_content, {
           createdAt: oldMessage.createdAt,
           thinking_millsec: oldMessage?.metrics?.time_thinking_millsec,
-          status: MessageBlockStatus.SUCCESS // Thinking block is complete content
+          status: MESSAGE_BLOCK_STATUS.SUCCESS // Thinking block is complete content
         })
         blocksToCreate.push(block)
         messageBlockIds.push(block.id)
@@ -148,7 +149,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         oldMessage.metadata.mcpTools.forEach((mcpTool) => {
           const block = createToolBlock(oldMessage.id, mcpTool.id, {
             // Determine status based on original tool status
-            status: MessageBlockStatus.SUCCESS,
+            status: MESSAGE_BLOCK_STATUS.SUCCESS,
             content: mcpTool.response,
             error:
               mcpTool.status !== 'done'
@@ -177,7 +178,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       if (oldMessage.translatedContent?.trim()) {
         const block = createTranslationBlock(oldMessage.id, oldMessage.translatedContent, 'unknown', {
           createdAt: oldMessage.createdAt,
-          status: MessageBlockStatus.SUCCESS // Translation block is complete content
+          status: MESSAGE_BLOCK_STATUS.SUCCESS // Translation block is complete content
         })
         blocksToCreate.push(block)
         messageBlockIds.push(block.id)
@@ -190,14 +191,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
             const block = createImageBlock(oldMessage.id, {
               file: file,
               createdAt: oldMessage.createdAt,
-              status: MessageBlockStatus.SUCCESS
+              status: MESSAGE_BLOCK_STATUS.SUCCESS
             })
             blocksToCreate.push(block)
             messageBlockIds.push(block.id)
           } else {
             const block = createFileBlock(oldMessage.id, file, {
               createdAt: oldMessage.createdAt,
-              status: MessageBlockStatus.SUCCESS
+              status: MESSAGE_BLOCK_STATUS.SUCCESS
             })
             blocksToCreate.push(block)
             messageBlockIds.push(block.id)
@@ -210,7 +211,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         const block = createImageBlock(oldMessage.id, {
           metadata: { generateImageResponse: oldMessage.metadata.generateImage },
           createdAt: oldMessage.createdAt,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         })
         blocksToCreate.push(block)
         messageBlockIds.push(block.id)
@@ -269,7 +270,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
           citationDataToCreate as Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>,
           {
             createdAt: oldMessage.createdAt,
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
         )
         blocksToCreate.push(block)
@@ -288,7 +289,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
             },
             {
               createdAt: oldMessage.createdAt,
-              status: MessageBlockStatus.ERROR // Error block status is ERROR
+              status: MESSAGE_BLOCK_STATUS.ERROR // Error block status is ERROR
             }
           )
           blocksToCreate.push(block)

@@ -1,6 +1,6 @@
 import type { Assistant, Topic } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { processMessages } from '../ActionUtils'
@@ -138,19 +138,19 @@ describe('processMessages', () => {
     vi.mocked(createThinkingBlock).mockReturnValue({
       id: 'thinking-block-1',
       content: '',
-      status: MessageBlockStatus.STREAMING
+      status: MESSAGE_BLOCK_STATUS.STREAMING
     } as any)
 
     vi.mocked(createMainTextBlock).mockReturnValue({
       id: 'text-block-1',
       content: '',
-      status: MessageBlockStatus.STREAMING
+      status: MESSAGE_BLOCK_STATUS.STREAMING
     } as any)
 
     vi.mocked(createErrorBlock).mockReturnValue({
       id: 'error-block-1',
       content: '',
-      status: MessageBlockStatus.ERROR
+      status: MESSAGE_BLOCK_STATUS.ERROR
     } as any)
 
     vi.mocked(isAbortError).mockReturnValue(false)
@@ -222,7 +222,7 @@ describe('processMessages', () => {
 
       // Verify thinking block creation and updates
       expect(createThinkingBlock).toHaveBeenCalledWith('assistant-message-1', '', {
-        status: MessageBlockStatus.STREAMING
+        status: MESSAGE_BLOCK_STATUS.STREAMING
       })
       expect(throttledBlockUpdate).toHaveBeenCalledWith('thinking-block-1', {
         content: 'I need to think about this...',
@@ -240,7 +240,7 @@ describe('processMessages', () => {
           id: 'thinking-block-1',
           changes: {
             content: 'I need to think about this... Let me consider the options. Now I have a solution.',
-            status: MessageBlockStatus.SUCCESS,
+            status: MESSAGE_BLOCK_STATUS.SUCCESS,
             thinking_millsec: 3000
           }
         })
@@ -248,7 +248,7 @@ describe('processMessages', () => {
 
       // Verify text block creation and updates
       expect(createMainTextBlock).toHaveBeenCalledWith('assistant-message-1', '', {
-        status: MessageBlockStatus.STREAMING
+        status: MESSAGE_BLOCK_STATUS.STREAMING
       })
       expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Here is' })
       expect(throttledBlockUpdate).toHaveBeenCalledWith('text-block-1', { content: 'Here is my' })
@@ -261,7 +261,7 @@ describe('processMessages', () => {
           id: 'text-block-1',
           changes: {
             content: 'Here is my answer to your question.',
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
         })
       )
@@ -367,7 +367,7 @@ describe('processMessages', () => {
         updateOneBlock({
           id: 'text-block-1',
           changes: {
-            status: MessageBlockStatus.ERROR
+            status: MESSAGE_BLOCK_STATUS.ERROR
           }
         })
       )
@@ -379,7 +379,7 @@ describe('processMessages', () => {
           name: 'Error',
           message: 'Stream processing error'
         }),
-        { status: MessageBlockStatus.ERROR }
+        { status: MESSAGE_BLOCK_STATUS.ERROR }
       )
 
       expect(store.dispatch).toHaveBeenCalledWith(
@@ -461,7 +461,7 @@ describe('processMessages', () => {
         updateOneBlock({
           id: 'text-block-1',
           changes: {
-            status: MessageBlockStatus.PAUSED
+            status: MESSAGE_BLOCK_STATUS.PAUSED
           }
         })
       )
@@ -483,7 +483,7 @@ describe('processMessages', () => {
           name: 'Error',
           message: 'pause_placeholder'
         }),
-        { status: MessageBlockStatus.PAUSED }
+        { status: MESSAGE_BLOCK_STATUS.PAUSED }
       )
 
       // Verify callbacks
@@ -549,24 +549,24 @@ describe('processMessages', () => {
         .mockReturnValueOnce({
           id: 'thinking-block-1',
           content: '',
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         } as any)
         .mockReturnValueOnce({
           id: 'thinking-block-2',
           content: '',
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         } as any)
 
       vi.mocked(createMainTextBlock)
         .mockReturnValueOnce({
           id: 'text-block-1',
           content: '',
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         } as any)
         .mockReturnValueOnce({
           id: 'text-block-2',
           content: '',
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         } as any)
 
       vi.mocked(fetchChatCompletion).mockImplementation(async ({ onChunkReceived }: any) => {

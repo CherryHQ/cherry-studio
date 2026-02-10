@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { MESSAGE_BLOCK_TYPE, MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -256,7 +256,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
               id: `loading-${message.id}`,
               messageId: message.id,
               type: MESSAGE_BLOCK_TYPE.UNKNOWN,
-              status: MessageBlockStatus.PROCESSING,
+              status: MESSAGE_BLOCK_STATUS.PROCESSING,
               createdAt: new Date().toISOString()
             }}
           />
