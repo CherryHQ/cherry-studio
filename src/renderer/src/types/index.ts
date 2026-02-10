@@ -894,7 +894,7 @@ const MCPToolResponseStatusSchema = z.enum(['pending', 'streaming', 'cancelled',
 
 export type MCPToolResponseStatus = z.infer<typeof MCPToolResponseStatusSchema>
 
-const BaseToolResponseSchema = z.object({
+const BaseToolResponseSchemaConfig = {
   /** Unique identifier */
   id: z.string(),
   tool: z.union([BaseToolSchema, MCPToolSchema]),
@@ -910,13 +910,18 @@ const BaseToolResponseSchema = z.object({
   // Streaming arguments support
   /** Accumulated partial JSON string during streaming */
   partialArguments: z.string().optional()
-})
+} as const
+
+const BaseToolResponseSchema = z.object(BaseToolResponseSchemaConfig)
 
 type BaseToolResponse = z.infer<typeof BaseToolResponseSchema>
 
-export interface ToolUseResponse extends BaseToolResponse {
-  toolUseId: string
-}
+const ToolUseResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  toolUseId: z.string()
+})
+
+export type ToolUseResponse = z.infer<typeof ToolUseResponseSchema>
 
 export interface ToolCallResponse extends BaseToolResponse {
   // gemini tool call id might be undefined
