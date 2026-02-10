@@ -8,11 +8,11 @@ import {
   FileMetadataSchema,
   type GenerateImageResponse,
   GenerateImageResponseSchema,
-  type KnowledgeReference,
+  KnowledgeReferenceSchema,
   type MCPServer,
   type MCPToolResponse,
   MCPToolResponseSchema,
-  type MemoryItem,
+  MemoryItemSchema,
   type Metrics,
   type Model,
   ModelSchema,
@@ -21,6 +21,7 @@ import {
   type Topic,
   type Usage,
   type WebSearchResponse,
+  WebSearchResponseSchema,
   WebSearchSourceSchema
 } from '.'
 import { SerializedErrorSchema } from './error'
@@ -193,12 +194,15 @@ const ToolMessageBlockSchema = z.object({
 export type ToolMessageBlock = z.infer<typeof ToolMessageBlockSchema>
 
 // Consolidated and Enhanced Citation Block
-export interface CitationMessageBlock extends BaseMessageBlock {
-  type: typeof MESSAGE_BLOCK_TYPE.CITATION
-  response?: WebSearchResponse
-  knowledge?: KnowledgeReference[]
-  memories?: MemoryItem[]
-}
+const CitationMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.CITATION),
+  response: WebSearchResponseSchema.optional(),
+  knowledge: z.array(KnowledgeReferenceSchema).optional(),
+  memories: z.array(MemoryItemSchema).optional()
+})
+
+export type CitationMessageBlock = z.infer<typeof CitationMessageBlockSchema>
 
 // 文件块
 export interface FileMessageBlock extends BaseMessageBlock {

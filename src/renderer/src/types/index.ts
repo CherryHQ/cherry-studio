@@ -1054,7 +1054,7 @@ export interface MemoryConfig {
   isAutoDimensions?: boolean
 }
 
-const MemoryItemSchema = z.object({
+export const MemoryItemSchema = z.object({
   id: z.string(),
   memory: z.string(),
   hash: z.string().optional(),
