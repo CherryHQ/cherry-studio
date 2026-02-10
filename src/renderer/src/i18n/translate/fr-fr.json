@@ -2701,12 +2701,7 @@
     },
     "edit": {
       "image_file": "Image éditée",
-      "magic_prompt_option_tip": "Optimisation intelligente du mot-clé d'édition",
-      "model_tip": "L'édition partielle est uniquement prise en charge par les versions V_2 et V_2_TURBO",
-      "number_images_tip": "Nombre de résultats d'édition générés",
-      "rendering_speed_tip": "Contrôle l'équilibre entre la vitesse et la qualité du rendu, applicable uniquement à la version V_3",
-      "seed_tip": "Contrôle la variabilité aléatoire des résultats d'édition",
-      "style_type_tip": "Style de l'image après édition, uniquement applicable aux versions V_2 et ultérieures"
+      "image_required": "Veuillez d'abord télécharger une image à éditer"
     },
     "generate": {
       "height": "Hauteur",
@@ -2775,6 +2770,16 @@
       "allow_all": "Autoriser tous",
       "allow_none": "Ne pas autoriser"
     },
+    "ppio": {
+      "edit_prompt_tip": "Spécifie l'objet ou la zone à supprimer de l'image, ex: 'chien' ou 'chapeau'",
+      "mask_image": "Image de masque",
+      "mask_image_tip": "Indique la zone à effacer. Les zones à effacer doivent être blanches, les zones à conserver noires",
+      "output_format": "Format de sortie",
+      "resolution": "Résolution cible",
+      "seed_tip": "Graine aléatoire, même graine et paramètres produisent des images similaires, -1 signifie aléatoire",
+      "use_pre_llm_tip": "Active l'expansion de texte pour optimiser le prompt. Recommandé pour les prompts courts, désactiver pour les longs",
+      "watermark_tip": "Ajouter un filigrane aux images générées, désactivé par défaut"
+    },
     "pricing": "Tarification",
     "prompt_enhancement": "Amélioration des prompts",
     "prompt_enhancement_tip": "Activez pour réécrire le prompt en une version détaillée et adaptée au modèle",
@@ -2817,6 +2822,7 @@
     "required_field": "Champ obligatoire",
     "seed": "Graine aléatoire",
     "seed_desc_tip": "Un même grain et un même prompt permettent de générer des images similaires. Définissez -1 pour obtenir chaque fois une image différente",
+    "seed_random": "Aléatoire",
     "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
     "select_model": "Sélectionner un modèle",
     "style_type": "Style",
@@ -2843,6 +2849,7 @@
       "resemblance_tip": "Contrôle le niveau de similarité entre le résultat agrandi et l'image originale",
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     },
+    "watermark": "Ajouter un filigrane",
     "zhipu": {
       "custom_size_divisible": "La taille personnalisée doit être divisible par 16",
       "custom_size_hint": "La largeur et la hauteur doivent être comprises entre 512 px et 2048 px, divisibles par 16, et le nombre total de pixels ne peut pas dépasser 2^21 px.",

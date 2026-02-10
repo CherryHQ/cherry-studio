@@ -2701,12 +2701,7 @@
     },
     "edit": {
       "image_file": "Imagem editada",
-      "magic_prompt_option_tip": "Otimização inteligente da palavra-chave de edição",
-      "model_tip": "Edição localizada apenas suporta as versões V_2 e V_2_TURBO",
-      "number_images_tip": "Número de resultados da edição gerados",
-      "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
-      "seed_tip": "Controla a aleatoriedade do resultado da edição",
-      "style_type_tip": "Estilo da imagem editada, disponível apenas para a versão V_2 ou superior"
+      "image_required": "Por favor, carregue primeiro uma imagem para editar"
     },
     "generate": {
       "height": "Altura",
@@ -2775,6 +2770,16 @@
       "allow_all": "Permitir todos",
       "allow_none": "Não permitir"
     },
+    "ppio": {
+      "edit_prompt_tip": "Especifica o objeto ou área a remover da imagem, ex: 'cão' ou 'chapéu'",
+      "mask_image": "Imagem de máscara",
+      "mask_image_tip": "Indica a área a apagar. Áreas a apagar devem ser brancas, áreas a manter devem ser pretas",
+      "output_format": "Formato de saída",
+      "resolution": "Resolução alvo",
+      "seed_tip": "Semente aleatória, mesma semente e parâmetros produzem imagens semelhantes, -1 significa aleatório",
+      "use_pre_llm_tip": "Ativa expansão de texto para otimizar o prompt. Recomendado para prompts curtos, desativar para longos",
+      "watermark_tip": "Se adicionar marca d'água às imagens geradas, desativado por padrão"
+    },
     "pricing": "Preços",
     "prompt_enhancement": "Aumento do Prompt",
     "prompt_enhancement_tip": "Ao ativar, o prompt será reescrito para uma versão detalhada e adequada ao modelo",
@@ -2817,6 +2822,7 @@
     "required_field": "Campo obrigatório",
     "seed": "Semente Aleatória",
     "seed_desc_tip": "A mesma semente e prompt geram imagens semelhantes. Defina como -1 para gerar imagens diferentes a cada vez",
+    "seed_random": "Aleatório",
     "seed_tip": "A mesma semente e palavra-chave podem gerar imagens semelhantes",
     "select_model": "Selecionar modelo",
     "style_type": "Estilo",
@@ -2843,6 +2849,7 @@
       "resemblance_tip": "Controla o nível de semelhança entre o resultado ampliado e a imagem original",
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
     },
+    "watermark": "Adicionar marca d'água",
     "zhipu": {
       "custom_size_divisible": "Tamanho personalizado deve ser divisível por 16",
       "custom_size_hint": "Largura e altura devem estar entre 512px e 2048px, ser divisíveis por 16, e o total de pixels não pode exceder 2^21px.",

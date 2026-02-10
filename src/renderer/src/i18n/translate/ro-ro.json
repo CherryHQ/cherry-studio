@@ -2701,12 +2701,7 @@
     },
     "edit": {
       "image_file": "Imagine editată",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de editare",
-      "model_tip": "Versiunile V3 și V2 acceptate",
-      "number_images_tip": "Numărul de rezultate editate de generat",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "seed_tip": "Controlează aleatoriul editării",
-      "style_type_tip": "Stil pentru imaginea editată, doar pentru V_2 și versiuni ulterioare"
+      "image_required": "Vă rugăm să încărcați mai întâi o imagine pentru editare"
     },
     "generate": {
       "height": "Înălțime",
@@ -2775,6 +2770,16 @@
       "allow_all": "Permite tot",
       "allow_none": "Nepermis"
     },
+    "ppio": {
+      "edit_prompt_tip": "Specifică obiectul sau zona de eliminat din imagine, ex: 'câine' sau 'pălărie'",
+      "mask_image": "Imagine mască",
+      "mask_image_tip": "Indică zona de șters. Zonele de șters trebuie să fie albe, zonele de păstrat negre",
+      "output_format": "Format ieșire",
+      "resolution": "Rezoluție țintă",
+      "seed_tip": "Sămânță aleatorie, aceeași sămânță și parametri produc imagini similare, -1 înseamnă aleatoriu",
+      "use_pre_llm_tip": "Activează expansiunea textului pentru optimizarea promptului. Recomandat pentru prompturi scurte, dezactivați pentru cele lungi",
+      "watermark_tip": "Dacă se adaugă filigran la imaginile generate, dezactivat implicit"
+    },
     "pricing": "Prețuri",
     "prompt_enhancement": "Îmbunătățire prompt",
     "prompt_enhancement_tip": "Rescrie prompturile în versiuni detaliate, optimizate pentru model, când este activat",
@@ -2817,6 +2822,7 @@
     "required_field": "Câmp obligatoriu",
     "seed": "Seed",
     "seed_desc_tip": "Același seed și prompt pot genera imagini similare; setarea -1 va genera rezultate diferite de fiecare dată",
+    "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
     "style_type": "Stil",
@@ -2843,6 +2849,7 @@
       "resemblance_tip": "Controlează similaritatea cu imaginea originală",
       "seed_tip": "Controlează aleatoriul scalării"
     },
+    "watermark": "Adaugă filigran",
     "zhipu": {
       "custom_size_divisible": "Dimensiunea personalizată trebuie să fie divizibilă cu 16",
       "custom_size_hint": "Lățimea și înălțimea trebuie să fie între 512px-2048px, divizibile cu 16, iar numărul total de pixeli nu poate depăși 2^21px",

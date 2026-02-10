@@ -2701,12 +2701,7 @@
     },
     "edit": {
       "image_file": "Zu bearbeitendes Bild",
-      "magic_prompt_option_tip": "Intelligente Optimierung des Bearbeitungs-Prompts",
-      "model_tip": "Unterstützt V3 und V2 Versionen",
-      "number_images_tip": "Anzahl der generierten Bearbeitungsergebnisse",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "seed_tip": "Kontrolle der Zufälligkeit des Bearbeitungsergebnisses",
-      "style_type_tip": "Stil des bearbeiteten Bildes, nur für V_2 und höher"
+      "image_required": "Bitte laden Sie zuerst ein Bild zum Bearbeiten hoch"
     },
     "generate": {
       "height": "Höhe",
@@ -2775,6 +2770,16 @@
       "allow_all": "Alle erlauben",
       "allow_none": "Keine erlauben"
     },
+    "ppio": {
+      "edit_prompt_tip": "Gibt das zu entfernende Objekt oder den Bereich an, z.B. 'Hund' oder 'Hut'",
+      "mask_image": "Maskenbild",
+      "mask_image_tip": "Zeigt den zu löschenden Bereich an. Zu löschende Bereiche sollten weiß sein, zu behaltende schwarz",
+      "output_format": "Ausgabeformat",
+      "resolution": "Zielauflösung",
+      "seed_tip": "Zufallswert, gleicher Wert und Parameter erzeugen ähnliche Bilder, -1 bedeutet zufällig",
+      "use_pre_llm_tip": "Aktiviert Texterweiterung zur Prompt-Optimierung. Für kurze Prompts empfohlen, für lange deaktivieren",
+      "watermark_tip": "Ob dem generierten Bild ein Wasserzeichen hinzugefügt werden soll, standardmäßig deaktiviert"
+    },
     "pricing": "Preise",
     "prompt_enhancement": "Prompt-Verbesserung",
     "prompt_enhancement_tip": "Nach Aktivierung wird der Prompt in eine detaillierte, modellgerechte Version umgeschrieben",
@@ -2817,6 +2822,7 @@
     "required_field": "Pflichtfeld",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
+    "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
     "style_type": "Stil",
@@ -2843,6 +2849,7 @@
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     },
+    "watermark": "Wasserzeichen hinzufügen",
     "zhipu": {
       "custom_size_divisible": "Benutzerdefinierte Größe muss durch 16 teilbar sein",
       "custom_size_hint": "Breite und Höhe müssen zwischen 512 px und 2048 px liegen, durch 16 teilbar sein, und die Gesamtzahl der Pixel darf 2^21 px nicht überschreiten.",
