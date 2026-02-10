@@ -8,8 +8,8 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable, findGitPath } from '@main/utils/process'
-import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
+import { findExecutableInEnv, spawnWithEnv } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
@@ -151,40 +151,17 @@ class OpenClawService {
    * Refreshes shell env cache to detect newly installed Node.js
    */
   public async checkNpmAvailable(): Promise<{ available: boolean; path: string | null }> {
-    // Refresh cache to detect newly installed Node.js without app restart
-    refreshShellEnvCache()
-    const shellEnv = await getShellEnv()
-
-    // Log PATH for debugging npm detection issues
-    const envPath = shellEnv.PATH || shellEnv.Path || ''
-    logger.debug(`Checking npm availability with PATH: ${envPath}`)
-
-    let npmPath: string | null = null
-
-    if (isWin) {
-      // On Windows, npm is a .cmd file, use findExecutable with .cmd extension
-      // Note: findExecutable is synchronous (uses execFileSync) which is acceptable here
-      // since we're already in an async context and Windows file ops are fast
-      // Pass shellEnv so where.exe uses the refreshed PATH instead of stale process.env
-      npmPath = findExecutable('npm', {
-        extensions: ['.cmd', '.exe'],
-        commonPaths: [
-          path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-          path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-          path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-        ],
-        env: shellEnv
-      })
-    } else {
-      npmPath = await findCommandInShellEnv('npm', shellEnv)
-    }
+    const { path: npmPath } = await findExecutableInEnv('npm', {
+      extensions: ['.cmd', '.exe'],
+      commonPaths: [
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
+        path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
+      ]
+    })
 
     logger.debug(`npm check result: ${npmPath ? `found at ${npmPath}` : 'not found'}`)
-
-    return {
-      available: npmPath !== null,
-      path: npmPath
-    }
+    return { available: npmPath !== null, path: npmPath }
   }
 
   /**
@@ -241,7 +218,7 @@ class OpenClawService {
 
     // Try to find git and ensure it's in PATH for npm (some packages require git during install)
     // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
-    const gitPath = await findGitPath(shellEnv)
+    const { path: gitPath } = await findExecutableInEnv('git', { refreshCache: false })
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
       const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
@@ -513,7 +490,9 @@ class OpenClawService {
     let processExited = false
 
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
-    this.gatewayProcess = this.spawnOpenClaw(openclawPath, ['gateway', '--port', String(this.gatewayPort)], shellEnv)
+    this.gatewayProcess = spawnWithEnv(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
+      env: { ...shellEnv, OPENCLAW_CONFIG_PATH }
+    })
     logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
 
     // Monitor stderr for error messages
@@ -646,7 +625,7 @@ class OpenClawService {
    */
   private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
-      const proc = this.spawnOpenClaw(openclawPath, ['gateway', 'stop'], env)
+      const proc = spawnWithEnv(openclawPath, ['gateway', 'stop'], { env: { ...env, OPENCLAW_CONFIG_PATH } })
 
       const timeout = setTimeout(() => {
         proc.kill('SIGKILL')
@@ -892,35 +871,21 @@ class OpenClawService {
    * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
    */
   private async findOpenClawBinary(): Promise<string | null> {
-    // Refresh cache to detect newly installed OpenClaw without app restart
-    refreshShellEnvCache()
+    const home = os.homedir()
 
-    // Try PATH lookup in user's login shell environment (best for npm global installs)
-    const shellEnv = await getShellEnv()
-    const binaryPath = await findCommandInShellEnv('openclaw', shellEnv)
+    // Use unified lookup: refresh cache + shell env + findCommandInShellEnv + Windows .cmd fallback
+    const { path: binaryPath } = await findExecutableInEnv('openclaw', {
+      extensions: ['.cmd', '.exe'],
+      commonPaths: isWin ? [path.join(home, 'AppData', 'Roaming', 'npm', 'openclaw.cmd')] : []
+    })
     if (binaryPath) {
       return binaryPath
     }
 
-    // On Windows, npm global installs create .cmd files, not .exe files
-    // findCommandInShellEnv only accepts .exe, so we need to search for .cmd/.bat or files without extension
-    if (isWin) {
-      const cmdPath = await this.findNpmGlobalCmd('openclaw', shellEnv)
-      if (cmdPath) {
-        return cmdPath
-      }
-    }
-
-    // Check common locations as fallback
+    // Check common filesystem locations as fallback
     const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
-    const home = os.homedir()
     const possiblePaths = isWin
-      ? [
-          path.join(home, 'AppData', 'Local', 'openclaw', binaryName),
-          path.join(home, '.openclaw', 'bin', binaryName),
-          // Also check for .cmd in npm global locations
-          path.join(home, 'AppData', 'Roaming', 'npm', 'openclaw.cmd')
-        ]
+      ? [path.join(home, 'AppData', 'Local', 'openclaw', binaryName), path.join(home, '.openclaw', 'bin', binaryName)]
       : [
           path.join(home, '.openclaw', 'bin', binaryName),
           path.join(home, '.local', 'bin', binaryName),
@@ -939,88 +904,12 @@ class OpenClawService {
   }
 
   /**
-   * Find npm global command on Windows using 'where' command
-   * Accepts .cmd files (npm global wrappers) and files without extension
-   * Uses shell environment to find commands in paths set by nvm, etc.
-   */
-  private async findNpmGlobalCmd(command: string, shellEnv: Record<string, string>): Promise<string | null> {
-    return new Promise((resolve) => {
-      const child = spawn('where', [command], {
-        env: shellEnv,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-
-      let output = ''
-      const timeoutId = setTimeout(() => {
-        child.kill('SIGKILL')
-        resolve(null)
-      }, 5000)
-
-      child.stdout.on('data', (data) => {
-        output += data.toString()
-      })
-
-      child.on('close', (code) => {
-        clearTimeout(timeoutId)
-        if (code === 0 && output.trim()) {
-          const paths = output.trim().split(/\r?\n/)
-          // Prefer .cmd files (npm global wrappers), then accept files without .exe extension
-          // Skip .exe files as they should be found by findCommandInShellEnv
-          const cmdPath = paths.find((p) => p.toLowerCase().endsWith('.cmd'))
-          if (cmdPath) {
-            logger.info(`Found npm global command '${command}' at: ${cmdPath}`)
-            resolve(cmdPath)
-            return
-          }
-          // Accept files without extension (e.g., openclaw without .exe)
-          const noExtPath = paths.find((p) => !p.toLowerCase().endsWith('.exe'))
-          if (noExtPath) {
-            logger.info(`Found command '${command}' (no extension) at: ${noExtPath}`)
-            resolve(noExtPath)
-            return
-          }
-        }
-        resolve(null)
-      })
-
-      child.on('error', () => {
-        clearTimeout(timeoutId)
-        resolve(null)
-      })
-    })
-  }
-
-  /**
-   * Spawn OpenClaw process with proper Windows handling
-   * On Windows, .cmd files and npm shims (no extension) need to be executed via cmd.exe
-   */
-  private spawnOpenClaw(openclawPath: string, args: string[], env: Record<string, string>): ChildProcess {
-    const lowerPath = openclawPath.toLowerCase()
-    // OpenClaw reads OPENCLAW_CONFIG_PATH env var to locate its config file.
-    // Set it to Cherry Studio's isolated config to avoid modifying the user's original openclaw.json.
-    const spawnEnv = { ...env, OPENCLAW_CONFIG_PATH: OPENCLAW_CONFIG_PATH }
-    // On Windows, use cmd.exe for .cmd files and files without .exe extension (npm shims)
-    if (isWin && !lowerPath.endsWith('.exe')) {
-      return spawn('cmd.exe', ['/c', openclawPath, ...args], {
-        detached: false,
-        stdio: 'pipe',
-        env: spawnEnv
-      })
-    }
-    return spawn(openclawPath, args, {
-      detached: false,
-      stdio: 'pipe',
-      env: spawnEnv
-    })
-  }
-
-  /**
    * Check gateway status using `openclaw gateway status` command
    * Returns true if gateway is running
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = this.spawnOpenClaw(openclawPath, ['gateway', 'status'], env)
+      const statusProcess = spawnWithEnv(openclawPath, ['gateway', 'status'], { env: { ...env, OPENCLAW_CONFIG_PATH } })
 
       let stdout = ''
       const timeoutId = setTimeout(() => {

@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import * as crypto from 'node:crypto'
 
 import { loggerService } from '@logger'
@@ -10,7 +9,7 @@ import {
   parsePluginMetadata,
   parseSkillMetadata
 } from '@main/utils/markdownParser'
-import { findExecutable } from '@main/utils/process'
+import { executeInEnv, findExecutableInEnv } from '@main/utils/process'
 import {
   type GetAgentResponse,
   type InstalledPlugin,
@@ -492,57 +491,35 @@ export class PluginService {
   }
 
   private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-    const gitCommand = findExecutable('git') ?? 'git'
-    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
+    const { path: gitPath, env } = await findExecutableInEnv('git')
+    const gitCommand = gitPath ?? 'git'
+
+    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl, env)
     if (branch) {
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
+      await executeInEnv(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir], { env })
       return
     }
 
     try {
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
+      await executeInEnv(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir], { env })
     } catch (error: unknown) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
       })
-      await this.executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
+      await executeInEnv(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir], { env })
     }
   }
 
-  /**
-   * Execute a command and optionally capture its output
-   */
-  private executeCommand(command: string, args: string[], options?: { capture?: boolean }): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const child = spawn(command, args, { stdio: 'pipe' })
-      let stdout = ''
-      let stderr = ''
-
-      child.stdout?.on('data', (chunk) => {
-        stdout += chunk.toString()
-      })
-
-      child.stderr?.on('data', (chunk) => {
-        stderr += chunk.toString()
-      })
-
-      child.on('error', reject)
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve(options?.capture ? stdout : '')
-        } else {
-          reject(new Error(stderr || `Command failed with code ${code}`))
-        }
-      })
-    })
-  }
-
-  private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
+  private async resolveDefaultBranch(
+    command: string,
+    repoUrl: string,
+    env?: Record<string, string>
+  ): Promise<string | null> {
     try {
-      const output = await this.executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
-        capture: true
+      const output = await executeInEnv(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
+        capture: true,
+        env
       })
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
       return match?.[1] ?? null
