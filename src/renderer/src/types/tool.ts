@@ -11,7 +11,7 @@ const BaseToolSchemaConfig = {
   type: ToolTypeSchema
 }
 
-const BaseToolSchema = z.object(BaseToolSchemaConfig)
+export const BaseToolSchema = z.object(BaseToolSchemaConfig)
 
 export type BaseTool = z.infer<typeof BaseToolSchema>
 
@@ -58,7 +58,7 @@ const BuiltinToolSchema = z.object({
 
 export type BuiltinTool = z.infer<typeof BuiltinToolSchema>
 
-const MCPToolSchema = z.object({
+export const MCPToolSchema = z.object({
   ...BaseToolSchemaConfig,
   type: z.literal('mcp'),
   serverId: z.string(),
