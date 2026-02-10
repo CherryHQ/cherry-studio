@@ -146,7 +146,7 @@ const titleKeyMap = {
   memories: 'title.memories',
   notes: 'title.notes',
   paintings: 'title.paintings',
-  settings: 'title.settings',
+  questions: 'title.questions',
   translate: 'title.translate',
   openclaw: 'openclaw.title'
 } as const

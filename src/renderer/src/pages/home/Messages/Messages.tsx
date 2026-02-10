@@ -233,7 +233,24 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             window.toast.error(t('code_block.edit.save.failed.label'))
           }
         }
-      )
+      ),// Messages.tsx
+      EventEmitter.on(EVENT_NAMES.ENSURE_MESSAGE_RENDERED, (messageId: string) => {
+        const domExists = document.getElementById(`message-${messageId}`);
+
+        if (!domExists) {
+          // 如果 DOM 不存在，强制扩大显示数量
+          // 找到目标消息在总数组里的索引
+          const targetIndex = messagesRef.current.findIndex(m => m.id === messageId);
+          if (targetIndex !== -1) {
+            // 计算从末尾到目标消息需要的条数，并多给 10 条缓冲
+            const neededCount = messagesRef.current.length - targetIndex + 10;
+            // 这里的 computeDisplayMessages 是你文件里定义的函数
+            const newDisplay = computeDisplayMessages(messagesRef.current, 0, neededCount);
+            setDisplayMessages(newDisplay);
+            setHasMore(messagesRef.current.length > newDisplay.length);
+          }
+        }
+      }),
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())

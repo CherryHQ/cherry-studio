@@ -64,7 +64,7 @@ interface Props {
   message: Message
 }
 
-const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
+const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => { 
   return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
     if (currentBlock.type === MessageBlockType.IMAGE) {
       // 对于IMAGE类型，按连续分组
@@ -112,7 +112,7 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
 
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 始终调用useSelector，避免条件调用Hook
-  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
+  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state)) 
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
