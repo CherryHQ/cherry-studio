@@ -14,10 +14,6 @@ export const SerializableSchema: z.ZodType<Serializable> = z.custom<Serializable
 /**
  * Check if a value is serializable (suitable for Redux state)
  * Supports deep detection of nested objects and arrays
- *
- * @note On circular references: This function returns true when a circular reference is detected,
- *       but JSON.stringify will actually throw an error.
- *       This is historical behavior; callers should be aware.
  */
 export function isSerializable(value: unknown): value is Serializable {
   const seen = new Set<unknown>()
@@ -34,9 +30,9 @@ export function isSerializable(value: unknown): value is Serializable {
     }
 
     if (type === 'object') {
-      // Check for circular references
+      // Circular references are not JSON-serializable
       if (seen.has(val)) {
-        return true // Maintain historical behavior: return true when circular reference detected
+        return false
       }
       seen.add(val)
 

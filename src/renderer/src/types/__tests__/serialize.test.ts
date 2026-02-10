@@ -106,10 +106,16 @@ describe('isSerializable', () => {
   })
 
   describe('circular references', () => {
-    it('should return true for circular reference (historical behavior)', () => {
+    it('should reject circular reference in object', () => {
       const obj: Record<string, unknown> = { a: 1 }
       obj.self = obj
-      expect(isSerializable(obj)).toBe(true)
+      expect(isSerializable(obj)).toBe(false)
+    })
+
+    it('should reject circular reference in array', () => {
+      const arr: unknown[] = [1, 2]
+      arr.push(arr)
+      expect(isSerializable(arr)).toBe(false)
     })
   })
 })
