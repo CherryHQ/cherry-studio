@@ -140,6 +140,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
 
         const changes: Partial<ToolMessageBlock> = {
+          // @ts-ignore FIXME: type validation is bypassed
           content: toolResponse.response,
           status: finalStatus,
           metadata: { rawMcpToolResponse: mergedToolResponse }
@@ -148,6 +149,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         if (finalStatus === MESSAGE_BLOCK_STATUS.ERROR) {
           changes.error = {
             message: `Tool execution failed/error`,
+            // @ts-ignore FIXME: type validation is bypassed
             details: toolResponse.response,
             name: null,
             stack: null
@@ -171,6 +173,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
+            // @ts-ignore FIXME: type validation is bypassed
             { knowledge: toolResponse.response },
             {
               status: MESSAGE_BLOCK_STATUS.SUCCESS

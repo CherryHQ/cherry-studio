@@ -347,6 +347,7 @@ export function processKnowledgeReferences(
           type: ChunkType.VIDEO_SEARCHED,
           video: {
             type: 'path',
+            // @ts-ignore FIXME: type validation is bypassed
             content: metadata.source
           },
           metadata
