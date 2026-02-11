@@ -73,6 +73,11 @@ type ClaudeStreamStateOptions = {
   agentSessionId: string
 }
 
+// Interface for the SDK query iterator
+interface QueryIterator {
+  setPermissionMode(mode: string): Promise<void>
+}
+
 /**
  * Tracks the lifecycle of Claude streaming blocks (text, thinking, tool calls)
  * across individual websocket events. The transformer relies on this class to
@@ -94,7 +99,7 @@ export class ClaudeStreamState {
   private expectingSkillContent = false
 
   // Reference to SDK query iterator for setPermissionMode
-  queryIterator?: any
+  queryIterator?: QueryIterator
 
   constructor(options: ClaudeStreamStateOptions) {
     this.logger = loggerService.withContext('ClaudeStreamState')
