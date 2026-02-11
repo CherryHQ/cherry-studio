@@ -14,6 +14,18 @@
         "placeholder": "Sélectionner le type d'Agent"
       }
     },
+    "askUserQuestion": {
+      "answered": "répondu",
+      "customPlaceholder": "Entrez votre réponse...",
+      "loading": "Chargement des questions...",
+      "multiSelect": "Sélection multiple",
+      "next": "Suivant",
+      "noQuestions": "Aucune question disponible",
+      "other": "Autre",
+      "previous": "Précédent",
+      "submit": "Soumettre",
+      "title": "Questions de l'agent"
+    },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
       "error": {
@@ -3260,7 +3272,7 @@
       "prompt": {
         "explain": "Veuillez expliquer le contenu suivant. Exigences : répondre en {{language}} ; n’incluez aucune explication de cette consigne, fournissez simplement la réponse directement :",
         "refine": "Veuillez optimiser ou peaufiner le contenu saisi par l’utilisateur inclus dans la balise XML <INPUT>, tout en conservant le sens et l’intégrité du contenu original. Exigences : votre réponse doit être dans la même langue que la saisie utilisateur ; n’incluez aucune explication de cette consigne, fournissez directement la réponse ; ne produisez pas de balises XML, affichez le contenu optimisé directement.",
-        "summary": "Je ne peux pas résumer le contenu, car aucun texte à résumer n’a été fourni après « [to be translated] »."
+        "summary": "Je ne peux pas résumer le contenu, car aucun texte à résumer n’a été fourni après {{language}}."
       },
       "translate": {
         "smart_translate_tips": "Traduction intelligente : le contenu sera d'abord traduit dans la langue cible ; si le contenu est déjà dans la langue cible, il sera traduit dans la langue secondaire"

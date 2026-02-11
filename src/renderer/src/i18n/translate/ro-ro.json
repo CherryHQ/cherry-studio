@@ -14,6 +14,18 @@
         "placeholder": "Selectează un tip de agent"
       }
     },
+    "askUserQuestion": {
+      "answered": "răspuns",
+      "customPlaceholder": "Introdu răspunsul tău...",
+      "loading": "Se încarcă întrebările...",
+      "multiSelect": "Selecție multiplă",
+      "next": "Următorul",
+      "noQuestions": "Nu sunt disponibile întrebări",
+      "other": "Altele",
+      "previous": "Anterior",
+      "submit": "Trimite",
+      "title": "Întrebări de la Agent"
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {

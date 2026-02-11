@@ -230,6 +230,27 @@ describe('naming', () => {
     it('should remove trailing :cloud', () => {
       expect(getLowerBaseModelName('local/kimi-k2.5:cloud')).toBe('kimi-k2.5')
     })
+
+    it('should normalize Fireworks model IDs by replacing digit-p-digit with digit-.-digit', () => {
+      expect(getLowerBaseModelName('accounts/fireworks/models/deepseek-v3p2')).toBe('deepseek-v3.2')
+      expect(getLowerBaseModelName('accounts/fireworks/models/kimi-k2p5')).toBe('kimi-k2.5')
+      expect(getLowerBaseModelName('accounts/fireworks/models/glm-4p7')).toBe('glm-4.7')
+      expect(getLowerBaseModelName('accounts/fireworks/models/minimax-m2p1')).toBe('minimax-m2.1')
+    })
+
+    it('should not normalize non-Fireworks model IDs', () => {
+      expect(getLowerBaseModelName('openai/deepseek-v3p2')).toBe('deepseek-v3p2')
+      expect(getLowerBaseModelName('deepseek-v3p2')).toBe('deepseek-v3p2')
+    })
+
+    it('should handle Fireworks models without version dots', () => {
+      expect(getLowerBaseModelName('accounts/fireworks/models/mythomax-l2-13b')).toBe('mythomax-l2-13b')
+      expect(getLowerBaseModelName('accounts/fireworks/models/llama-v3-70b-instruct')).toBe('llama-v3-70b-instruct')
+    })
+
+    it('should handle Fireworks models with multiple version dots', () => {
+      expect(getLowerBaseModelName('accounts/fireworks/models/deepseek-v3p1p2')).toBe('deepseek-v3.1.2')
+    })
   })
 
   describe('getFirstCharacter', () => {
