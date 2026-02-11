@@ -236,12 +236,19 @@ class OpenClawService {
     this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
+    const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
+    let currentPath = shellEnv[pathKey] || ''
+
+    const nodeDir = path.dirname(npmPath)
+    if (!currentPath.split(path.delimiter).includes(nodeDir)) {
+      currentPath = `${nodeDir}${path.delimiter}${currentPath}`
+      shellEnv[pathKey] = currentPath
+      logger.info(`Added Node.js directory to PATH: ${nodeDir}`)
+    }
 
     const { path: gitPath } = await findExecutableInEnv('git', { refreshCache: false })
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
-      const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
-      const currentPath = shellEnv[pathKey] || ''
       if (!currentPath.split(path.delimiter).includes(gitDir)) {
         shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
         logger.info(`Added git directory to PATH: ${gitDir}`)
