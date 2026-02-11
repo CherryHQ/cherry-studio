@@ -8,10 +8,11 @@ import { updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
+import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { isAbortError, serializeError } from '@renderer/utils/error'
+import { isAbortError, isTimeoutError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
@@ -83,9 +84,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         return
       }
       const isErrorTypeAbort = isAbortError(error)
+      const isErrorTypeTimeout = isTimeoutError(error)
       const serializableError = serializeError(error)
       if (isErrorTypeAbort) {
-        serializableError.message = 'pause_placeholder'
+        serializableError.i18nKey = ERROR_I18N_KEY_STREAM_PAUSED
+      } else if (isErrorTypeTimeout) {
+        serializableError.i18nKey = ERROR_I18N_KEY_REQUEST_TIMEOUT
       }
 
       const duration = Date.now() - startTime

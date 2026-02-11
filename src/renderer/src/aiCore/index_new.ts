@@ -116,6 +116,10 @@ export default class ModernAiProvider {
     return this.actualProvider
   }
 
+  /**
+   * Note: This method routes text completions through `modernCompletions`,
+   * which only calls `streamText` (no `generateText` path).
+   */
   public async completions(modelId: string, params: StreamTextParams, providerConfig: ModernAiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
@@ -305,6 +309,10 @@ export default class ModernAiProvider {
 
   /**
    * 使用现代化AI SDK的completions实现
+   */
+  /**
+   * Note: This implementation always uses `executor.streamText` and never
+   * calls `generateText`, even when `onChunk` is not provided.
    */
   private async modernCompletions(
     model: LanguageModel,

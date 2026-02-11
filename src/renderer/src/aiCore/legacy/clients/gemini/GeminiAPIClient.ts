@@ -54,7 +54,7 @@ import {
   mcpToolsToGeminiTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { defaultTimeout, MB } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT, MB } from '@shared/config/constant'
 import { getTrailingApiVersion, withoutTrailingApiVersion } from '@shared/utils'
 import { t } from 'i18next'
 
@@ -117,7 +117,7 @@ export class GeminiAPIClient extends BaseApiClient<
         aspectRatio: imageSize,
         abortSignal: signal,
         httpOptions: {
-          timeout: defaultTimeout
+          timeout: DEFAULT_TIMEOUT
         }
       }
       const response = await sdk.models.generateImages({
