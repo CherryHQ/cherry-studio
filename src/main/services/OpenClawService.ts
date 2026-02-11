@@ -226,10 +226,14 @@ class OpenClawService {
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
 
+    const npmArgs = ['install', '-g', packageName]
+    if (registryArg) npmArgs.push(registryArg)
+
+    // Keep the command string for logging and sudo retry
     const npmCommand = `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
-    logger.info(`Installing OpenClaw with command: ${npmCommand}`)
-    this.sendInstallProgress(`Running: ${npmCommand}`)
+    logger.info(`Installing OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
+    this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
 
@@ -248,19 +252,11 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        let installProcess: ChildProcess
-
-        if (isWin) {
-          installProcess = spawn('cmd.exe', ['/c', npmCommand], {
-            stdio: 'pipe',
-            env: shellEnv
-          })
-        } else {
-          installProcess = spawn('/bin/bash', ['-c', npmCommand], {
-            stdio: 'pipe',
-            env: shellEnv
-          })
-        }
+        const installProcess = spawn(npmPath, npmArgs, {
+          stdio: 'pipe',
+          env: shellEnv,
+          shell: true
+        })
 
         let stderr = ''
 
@@ -348,28 +344,23 @@ class OpenClawService {
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
 
+    const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
+
+    // Keep the command string for logging and sudo retry
     const npmCommand = `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
 
-    logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
-    this.sendInstallProgress(`Running: ${npmCommand}`)
+    logger.info(`Uninstalling OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
+    this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        let uninstallProcess: ChildProcess
-
-        if (isWin) {
-          uninstallProcess = spawn('cmd.exe', ['/c', npmCommand], {
-            stdio: 'pipe',
-            env: shellEnv
-          })
-        } else {
-          uninstallProcess = spawn('/bin/bash', ['-c', npmCommand], {
-            stdio: 'pipe',
-            env: shellEnv
-          })
-        }
+        const uninstallProcess = spawn(npmPath, npmArgs, {
+          stdio: 'pipe',
+          env: shellEnv,
+          shell: true
+        })
 
         let stderr = ''
 

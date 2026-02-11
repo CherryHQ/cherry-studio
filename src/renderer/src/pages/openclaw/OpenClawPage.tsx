@@ -469,60 +469,60 @@ const OpenClawPage: FC = () => {
             </Space>
           }
         />
-        {npmMissing && (
-          <Alert
-            message={t('openclaw.npm_missing.title')}
-            description={
-              <div>
-                <p>{t('openclaw.npm_missing.description')}</p>
-                <Space style={{ marginTop: 8 }}>
-                  <Button
-                    type="primary"
-                    icon={<Download size={16} />}
-                    onClick={() => window.open(nodeDownloadUrl, '_blank')}>
-                    {t('openclaw.npm_missing.download_button')}
-                  </Button>
-                </Space>
-                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  {t('openclaw.npm_missing.hint')}
-                </p>
-              </div>
-            }
-            type="warning"
-            showIcon
-            closable
-            onClose={() => setNpmMissing(false)}
-            className="mt-4 rounded-lg!"
-            style={{ width: 580, marginLeft: -30 }}
-          />
-        )}
-        {gitMissing && (
-          <Alert
-            message={t('openclaw.git_missing.title')}
-            description={
-              <div>
-                <p>{t('openclaw.git_missing.description')}</p>
-                <Space style={{ marginTop: 8 }}>
-                  <Button
-                    type="primary"
-                    icon={<Download size={16} />}
-                    onClick={() => window.open(gitDownloadUrl, '_blank')}>
-                    {t('openclaw.git_missing.download_button')}
-                  </Button>
-                </Space>
-                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  {t('openclaw.git_missing.hint')}
-                </p>
-              </div>
-            }
-            type="warning"
-            showIcon
-            closable
-            onClose={() => setGitMissing(false)}
-            className="mt-4 rounded-lg!"
-            style={{ width: 580, marginLeft: -30 }}
-          />
-        )}
+        <div className="mt-4 space-y-3" style={{ width: 580, marginLeft: -30 }}>
+          {npmMissing && (
+            <Alert
+              message={t('openclaw.npm_missing.title')}
+              description={
+                <div>
+                  <p>{t('openclaw.npm_missing.description')}</p>
+                  <Space style={{ marginTop: 8 }}>
+                    <Button
+                      type="primary"
+                      icon={<Download size={16} />}
+                      onClick={() => window.open(nodeDownloadUrl, '_blank')}>
+                      {t('openclaw.npm_missing.download_button')}
+                    </Button>
+                  </Space>
+                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                    {t('openclaw.npm_missing.hint')}
+                  </p>
+                </div>
+              }
+              type="warning"
+              showIcon
+              closable
+              onClose={() => setNpmMissing(false)}
+              className="rounded-lg!"
+            />
+          )}
+          {gitMissing && (
+            <Alert
+              message={t('openclaw.git_missing.title')}
+              description={
+                <div>
+                  <p>{t('openclaw.git_missing.description')}</p>
+                  <Space style={{ marginTop: 8 }}>
+                    <Button
+                      type="primary"
+                      icon={<Download size={16} />}
+                      onClick={() => window.open(gitDownloadUrl, '_blank')}>
+                      {t('openclaw.git_missing.download_button')}
+                    </Button>
+                  </Space>
+                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                    {t('openclaw.git_missing.hint')}
+                  </p>
+                </div>
+              }
+              type="warning"
+              showIcon
+              closable
+              onClose={() => setGitMissing(false)}
+              className="rounded-lg!"
+            />
+          )}
+        </div>
         {installError && (
           <Alert
             message={installError}
