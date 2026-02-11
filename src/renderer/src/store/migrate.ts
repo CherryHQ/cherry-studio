@@ -3219,6 +3219,17 @@ const migrateConfig = {
       logger.error('migrate 196 error', error as Error)
       return state
     }
+  },
+  '197': (state: RootState) => {
+    try {
+      if (state.openclaw.gatewayPort === 18789) {
+        state.openclaw.gatewayPort = 18790
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 197 error', error as Error)
+      return state
+    }
   }
 }
 

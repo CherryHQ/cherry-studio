@@ -940,10 +940,10 @@ class OpenClawService {
         // On timeout, check stdout accumulated so far before giving up
         const lowerStdout = stdout.toLowerCase()
         const isRunning = lowerStdout.includes('listening')
-        logger.debug(`Gateway status check timed out after 5s, stdout indicates running: ${isRunning}`)
+        logger.debug(`Gateway status check timed out after 10s, stdout indicates running: ${isRunning}`)
         statusProcess.kill('SIGKILL')
         doResolve(isRunning)
-      }, 5000)
+      }, 10_000)
 
       statusProcess.stdout?.on('data', (data) => {
         stdout += data.toString()
