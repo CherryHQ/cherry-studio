@@ -220,26 +220,19 @@ class OpenClawService {
   public async install(): Promise<{ success: boolean; message: string }> {
     const inChina = await isUserInChina()
 
-    // For China users, install the Chinese-specific package with Chinese npm mirror
-    // For other users, install the standard openclaw package
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
-    // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
-    const npmDir = path.dirname(npmPath)
-    const npmCommand = `npm install -g ${packageName} ${registryArg}`.trim()
-    const npmCommandWithPath = `PATH=${npmDir}:$PATH ${npmPath} install -g ${packageName} ${registryArg}`.trim()
+
+    const npmCommand = `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
     logger.info(`Installing OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
-    // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
     const shellEnv = await getShellEnv()
 
-    // Try to find git and ensure it's in PATH for npm (some packages require git during install)
-    // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
     const { path: gitPath } = await findExecutableInEnv('git', { refreshCache: false })
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
@@ -310,7 +303,7 @@ class OpenClawService {
               this.sendInstallProgress('Permission denied. Requesting administrator access...')
 
               // Use full npm path since sudo runs in clean environment without user PATH
-              exec(npmCommandWithPath, { name: 'Cherry Studio' }, (error, stdout) => {
+              exec(npmCommand, { name: 'Cherry Studio' }, (error, stdout) => {
                 if (error) {
                   logger.error('Sudo install failed:', error)
                   this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
@@ -352,19 +345,14 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    // Find npm path for use in sudo command (sudo runs in clean environment without user PATH)
     const npmCheck = await this.checkNpmAvailable()
     const npmPath = npmCheck.path || 'npm'
-    const npmDir = path.dirname(npmPath)
 
-    // Uninstall both packages to handle both standard and Chinese editions
-    const npmCommand = 'npm uninstall -g openclaw @qingchencloud/openclaw-zh'
-    // Include PATH so that npm can find node (npm is a shell script that calls node)
-    const npmCommandWithPath = `PATH=${npmDir}:$PATH ${npmPath} uninstall -g openclaw @qingchencloud/openclaw-zh`
+    const npmCommand = `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+
     logger.info(`Uninstalling OpenClaw with command: ${npmCommand}`)
     this.sendInstallProgress(`Running: ${npmCommand}`)
 
-    // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
     const shellEnv = await getShellEnv()
 
     return new Promise((resolve) => {
@@ -421,8 +409,7 @@ class OpenClawService {
               logger.info('Permission denied, retrying uninstall with sudo-prompt...')
               this.sendInstallProgress('Permission denied. Requesting administrator access...')
 
-              // Use full npm path since sudo runs in clean environment without user PATH
-              exec(npmCommandWithPath, { name: 'Cherry Studio' }, (error, stdout) => {
+              exec(npmCommand, { name: 'Cherry Studio' }, (error, stdout) => {
                 if (error) {
                   logger.error('Sudo uninstall failed:', error)
                   this.sendInstallProgress(`Uninstallation failed: ${error.message}`, 'error')
