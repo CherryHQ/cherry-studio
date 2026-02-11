@@ -252,7 +252,9 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        const installProcess = spawn(npmPath, npmArgs, {
+        // On Windows, pre-quote the path so cmd.exe /d /s /c handles spaces correctly
+        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
+        const installProcess = spawn(spawnCmd, npmArgs, {
           stdio: 'pipe',
           env: shellEnv,
           shell: true
@@ -356,7 +358,8 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        const uninstallProcess = spawn(npmPath, npmArgs, {
+        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
+        const uninstallProcess = spawn(spawnCmd, npmArgs, {
           stdio: 'pipe',
           env: shellEnv,
           shell: true
