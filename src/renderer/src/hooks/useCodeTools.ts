@@ -13,6 +13,7 @@ import {
 } from '@renderer/store/codeTools'
 import type { Model } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
+import { message } from 'antd'
 import { useCallback } from 'react'
 
 export const useCodeTools = () => {
@@ -68,12 +69,34 @@ export const useCodeTools = () => {
     [dispatch]
   )
 
-  // 设置当前目录
+  // 设置当前目录，带路径验证
   const setCurrentDir = useCallback(
-    (directory: string) => {
-      dispatch(setCurrentDirectory(directory))
+    async (directory: string) => {
+      // 如果输入为空，则清除当前目录
+      if (!directory || directory.trim() === '') {
+        dispatch(setCurrentDirectory(''))
+        return
+      }
+
+      // 验证路径的有效性
+      try {
+        const validationResult = await window.api.file.validateWorkingDirectory(directory)
+
+        if (validationResult.isValid) {
+          dispatch(setCurrentDirectory(directory))
+          // 将有效路径添加到历史记录
+          dispatch(addDirectory(directory))
+        } else {
+          // 显示错误信息
+          message.error(validationResult.error || 'Invalid directory path')
+          logger.warn(`Invalid directory path: ${directory}`, validationResult)
+        }
+      } catch (error) {
+        logger.error('Failed to validate directory:', error as Error)
+        message.error('Failed to validate directory path')
+      }
     },
-    [dispatch]
+    [dispatch, logger]
   )
 
   // 清空所有目录
@@ -91,7 +114,7 @@ export const useCodeTools = () => {
     try {
       const folderPath = await window.api.file.selectFolder()
       if (folderPath) {
-        setCurrentDir(folderPath)
+        await setCurrentDir(folderPath)
         return folderPath
       }
       return null

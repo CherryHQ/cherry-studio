@@ -1366,6 +1366,38 @@ class FileStorage {
     return filenameResults.slice(0, options.maxEntries)
   }
 
+  public validateWorkingDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<{ isValid: boolean; error?: string }> => {
+    try {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return { isValid: false, error: 'Directory path is required and must be a string' }
+      }
+
+      // Import the shared validation utility
+      const { validateDirectoryPath } = require('@shared/utils')
+
+      // Define dangerous paths that should be avoided (system root directories)
+      const dangerousPaths = []
+
+      // On Windows, add drive roots like C:\, D:\, etc.
+      if (process.platform === 'win32') {
+        const drives = require('fs').readdirSync('\\\\.\\')
+        drives.forEach(drive => {
+          if (/^[A-Z]:$/.test(drive)) {
+            dangerousPaths.push(`${drive}\\`)
+          }
+        })
+      } else {
+        // On Unix-like systems, add common system directories
+        dangerousPaths.push('/', '/usr', '/etc', '/var', '/sys', '/proc', '/dev', '/System')
+      }
+
+      return validateDirectoryPath(dirPath, dangerousPaths)
+    } catch (error) {
+      logger.error('Failed to validate working directory:', error as Error)
+      return { isValid: false, error: `Validation error: ${(error as Error).message}` }
+    }
+  }
+
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
     try {
       if (!dirPath || typeof dirPath !== 'string') {

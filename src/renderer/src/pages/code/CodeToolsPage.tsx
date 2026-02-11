@@ -472,6 +472,9 @@ const CodeToolsPage: FC = () => {
                   onChange={setCurrentDir}
                   allowClear
                   showSearch
+                  // 启用自由输入模式
+                  mode="tags"
+                  // 自定义过滤逻辑，允许用户输入任意值
                   filterOption={(input, option) => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
                     return label.toLowerCase().includes(input.toLowerCase())
@@ -505,6 +508,13 @@ const CodeToolsPage: FC = () => {
                       </div>
                     )
                   }))}
+                  // 当用户输入新值时触发验证
+                  onSelect={(value) => {
+                    if (typeof value === 'string' && value !== currentDirectory) {
+                      // 使用异步方式来验证路径
+                      setCurrentDir(value)
+                    }
+                  }}
                 />
                 <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}

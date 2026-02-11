@@ -203,6 +203,56 @@ export const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN'
 export const NON_FUNCTIONAL_KEYS = ['$schema']
 
 /**
+ * Validates if a given path is a valid directory with proper permissions.
+ *
+ * @param path The path to validate
+ * @param dangerousPaths Optional array of dangerous paths to exclude (e.g., system root directories)
+ * @returns An object with isValid boolean and optional error message
+ */
+export function validateDirectoryPath(path: string, dangerousPaths: string[] = []): { isValid: boolean; error?: string } {
+  // Check if path is empty
+  if (!path.trim()) {
+    return { isValid: false, error: 'Path cannot be empty' }
+  }
+
+  try {
+    // Normalize the path to resolve relative paths and remove extra separators
+    const normalizedPath = require('path').normalize(path)
+
+    // Check if the path exists and is a directory
+    const fs = require('fs')
+
+    if (!fs.existsSync(normalizedPath)) {
+      return { isValid: false, error: 'Directory does not exist' }
+    }
+
+    const stats = fs.statSync(normalizedPath)
+    if (!stats.isDirectory()) {
+      return { isValid: false, error: 'Path is not a directory' }
+    }
+
+    // Check for write permissions (for creating files/folders)
+    try {
+      fs.accessSync(normalizedPath, fs.constants.W_OK)
+    } catch {
+      return { isValid: false, error: 'Directory lacks write permissions' }
+    }
+
+    // Check if path is in dangerous paths (like system root directories)
+    if (dangerousPaths.length > 0 && dangerousPaths.some(dangerPath =>
+      normalizedPath.toLowerCase() === dangerPath.toLowerCase() ||
+      normalizedPath.toLowerCase().startsWith(dangerPath.toLowerCase() + require('path').sep)
+    )) {
+      return { isValid: false, error: 'Access to this directory is restricted' }
+    }
+
+    return { isValid: true }
+  } catch (error) {
+    return { isValid: false, error: `Error validating directory: ${(error as Error).message}` }
+  }
+}
+
+/**
  * Parse JSON with comments (JSONC) support
  * Uses jsonc-parser library for safe parsing without code execution
  */
