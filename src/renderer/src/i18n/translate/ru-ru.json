@@ -15,16 +15,16 @@
       }
     },
     "askUserQuestion": {
-      "answered": "[to be translated]:answered",
-      "customPlaceholder": "[to be translated]:Enter your answer...",
-      "loading": "[to be translated]:Loading questions...",
-      "multiSelect": "[to be translated]:Multi-select",
-      "next": "[to be translated]:Next",
-      "noQuestions": "[to be translated]:No questions available",
-      "other": "[to be translated]:Other",
-      "previous": "[to be translated]:Previous",
-      "submit": "[to be translated]:Submit",
-      "title": "[to be translated]:Questions from Agent"
+      "answered": "ответил",
+      "customPlaceholder": "Введите ваш ответ...",
+      "loading": "Загрузка вопросов...",
+      "multiSelect": "Множественный выбор",
+      "next": "Далее",
+      "noQuestions": "Нет доступных вопросов",
+      "other": "Другое",
+      "previous": "Предыдущий",
+      "submit": "Отправить",
+      "title": "Вопросы от агента"
     },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
