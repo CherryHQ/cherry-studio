@@ -10,6 +10,12 @@ class AnalyticsService {
   private client: AnalyticsClient | null = null
   private static instance: AnalyticsService
 
+  constructor() {
+    this.init = this.init.bind(this)
+    this.trackTokenUsage = this.trackTokenUsage.bind(this)
+    this.destroy = this.destroy.bind(this)
+  }
+
   public static getInstance(): AnalyticsService {
     if (!AnalyticsService.instance) {
       AnalyticsService.instance = new AnalyticsService()
