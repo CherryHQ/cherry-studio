@@ -16,8 +16,12 @@ on:
     types: [ready_for_review, synchronize, opened, edited]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [basic-checks, general-test, render-test]
     env:
       CI: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
@@ -51,25 +55,78 @@ jobs:
         run: pnpm install
 
       - name: Lint Check
+        if: matrix.task == 'basic-checks'
         run: pnpm test:lint
 
       - name: Format Check
+        if: matrix.task == 'basic-checks'
         run: pnpm format:check
 
       - name: Type Check
+        if: matrix.task == 'basic-checks'
         run: pnpm typecheck
 
       - name: i18n Check
+        if: matrix.task == 'basic-checks'
         run: pnpm i18n:check
 
       - name: Hardcoded Strings Check
+        if: matrix.task == 'basic-checks'
         run: pnpm i18n:hardcoded:strict
 
-      - name: Test
-        run: pnpm test
+      - name: Main Process Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:main
+
+      - name: AI Core Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:aicore
+
+      - name: Shared Package Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:shared
+
+      - name: Scripts Test
+        if: matrix.task == 'general-test'
+        run: pnpm test:scripts
+
+      - name: Renderer Test
+        if: matrix.task == 'render-test'
+        run: pnpm test:renderer
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: ci
+    if: always() && needs.ci.result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
 
       - name: Send failure notification to Feishu
-        if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
