@@ -14,6 +14,18 @@
         "placeholder": "Agent-Typ auswählen"
       }
     },
+    "askUserQuestion": {
+      "answered": "beantwortet",
+      "customPlaceholder": "Gib deine Antwort ein...",
+      "loading": "Fragen werden geladen...",
+      "multiSelect": "Mehrfachauswahl",
+      "next": "Weiter",
+      "noQuestions": "Keine Fragen verfügbar",
+      "other": "Andere",
+      "previous": "Vorherige",
+      "submit": "Einreichen",
+      "title": "Fragen vom Agenten"
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {

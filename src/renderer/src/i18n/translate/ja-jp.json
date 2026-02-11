@@ -14,6 +14,18 @@
         "placeholder": "エージェントタイプを選択"
       }
     },
+    "askUserQuestion": {
+      "answered": "回答済み",
+      "customPlaceholder": "答えを入力してください...",
+      "loading": "質問を読み込んでいます…",
+      "multiSelect": "複数選択",
+      "next": "次",
+      "noQuestions": "利用可能な質問はありません",
+      "other": "その他",
+      "previous": "前",
+      "submit": "送信",
+      "title": "エージェントからの質問"
+    },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
       "error": {

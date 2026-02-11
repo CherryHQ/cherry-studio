@@ -39,20 +39,24 @@ export type ToolPermissionResultPayload = {
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
   toolCallId?: string
+  updatedInput?: Record<string, unknown>
 }
 
 export type ToolPermissionStatus = 'pending' | 'submitting-allow' | 'submitting-deny' | 'invoking'
 
 export type ToolPermissionEntry = ToolPermissionRequestPayload & {
   status: ToolPermissionStatus
+  resolvedInput?: Record<string, unknown>
 }
 
 export interface ToolPermissionsState {
   requests: Record<string, ToolPermissionEntry>
+  resolvedInputs: Record<string, Record<string, unknown>>
 }
 
 const initialState: ToolPermissionsState = {
-  requests: {}
+  requests: {},
+  resolvedInputs: {}
 }
 
 const toolPermissionsSlice = createSlice({
@@ -79,13 +83,17 @@ const toolPermissionsSlice = createSlice({
       entry.status = 'pending'
     },
     requestResolved: (state, action: PayloadAction<ToolPermissionResultPayload>) => {
-      const { requestId, behavior } = action.payload
+      const { requestId, behavior, updatedInput } = action.payload
       const entry = state.requests[requestId]
 
       if (!entry) return
 
       if (behavior === 'allow') {
         entry.status = 'invoking'
+        entry.resolvedInput = updatedInput
+        if (updatedInput && entry.toolCallId) {
+          state.resolvedInputs[entry.toolCallId] = updatedInput
+        }
       } else {
         delete state.requests[requestId]
       }
@@ -97,9 +105,11 @@ const toolPermissionsSlice = createSlice({
       if (entryId) {
         delete state.requests[entryId]
       }
+      delete state.resolvedInputs[toolCallId]
     },
     clearAll: (state) => {
       state.requests = {}
+      state.resolvedInputs = {}
     }
   }
 })

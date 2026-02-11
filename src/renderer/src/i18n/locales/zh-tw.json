@@ -14,6 +14,18 @@
         "placeholder": "選擇 Agent 類型"
       }
     },
+    "askUserQuestion": {
+      "answered": "已回答",
+      "customPlaceholder": "輸入你的答案...",
+      "loading": "載入問題中...",
+      "multiSelect": "多重選擇",
+      "next": "下一個",
+      "noQuestions": "沒有可用的問題",
+      "other": "其他",
+      "previous": "之前",
+      "submit": "提交",
+      "title": "來自Agent的提問"
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
