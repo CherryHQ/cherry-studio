@@ -10,12 +10,6 @@ class AnalyticsService {
   private client: AnalyticsClient | null = null
   private static instance: AnalyticsService
 
-  constructor() {
-    this.init = this.init.bind(this)
-    this.trackTokenUsage = this.trackTokenUsage.bind(this)
-    this.destroy = this.destroy.bind(this)
-  }
-
   public static getInstance(): AnalyticsService {
     if (!AnalyticsService.instance) {
       AnalyticsService.instance = new AnalyticsService()
@@ -37,7 +31,7 @@ class AnalyticsService {
     logger.info('Analytics service initialized')
   }
 
-  public trackTokenUsage(_: Electron.IpcMainInvokeEvent, data: TokenUsageData): void {
+  public trackTokenUsage(data: TokenUsageData): void {
     if (!this.client) return
     this.client.trackTokenUsage(data)
   }

@@ -10,23 +10,23 @@ interface TokenUsageParams {
 }
 
 /**
+ * Type guard to check if usage is in AI SDK format (LanguageModelUsage)
+ * AI SDK format uses inputTokens/outputTokens, OpenAI format uses prompt_tokens/completion_tokens
+ */
+function isAiSdkUsage(usage: TokenUsage): usage is LanguageModelUsage {
+  return typeof (usage as LanguageModelUsage).inputTokens === 'number'
+}
+
+/**
  * Track token usage for analytics
  * Handles both OpenAI format (prompt_tokens) and AI SDK format (inputTokens)
  */
 export function trackTokenUsage({ usage, model }: TokenUsageParams): void {
   if (!usage || !model?.provider || !model?.id) return
 
-  let inputTokens: number
-  let outputTokens: number
-
-  // AI SDK format uses inputTokens, OpenAI format uses prompt_tokens
-  if ('inputTokens' in usage) {
-    inputTokens = usage.inputTokens ?? 0
-    outputTokens = usage.outputTokens ?? 0
-  } else {
-    inputTokens = usage.prompt_tokens ?? 0
-    outputTokens = usage.completion_tokens ?? 0
-  }
+  const [inputTokens, outputTokens] = isAiSdkUsage(usage)
+    ? [usage.inputTokens ?? 0, usage.outputTokens ?? 0]
+    : [usage.prompt_tokens ?? 0, usage.completion_tokens ?? 0]
 
   if (inputTokens > 0 || outputTokens > 0) {
     window.api.analytics.trackTokenUsage({
