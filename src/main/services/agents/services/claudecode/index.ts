@@ -29,7 +29,7 @@ import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
-import { promptForToolApproval } from './tool-permissions'
+import { promptForExitPlanModeApproval, promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
 const require_ = createRequire(import.meta.url)
@@ -60,7 +60,6 @@ type UserInputMessage = {
 // Shared state wrapper to pass streamState between invoke and processSDKQuery
 type SharedState = {
   streamState?: ClaudeStreamState
-  queryIterator?: any
 }
 
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
@@ -239,18 +238,43 @@ class ClaudeCodeService implements AgentServiceInterface {
         autoAllowTools: autoAllowTools
       })
 
-      // Detect ExitPlanMode tool call and switch permission mode to acceptEdits
+      // Detect ExitPlanMode tool call and handle approval separately
       if (toolName === 'ExitPlanMode') {
-        logger.info('ExitPlanMode detected, switching permission mode to acceptEdits', {
+        logger.info('ExitPlanMode detected, preparing for approval', {
           session_id: hookInput.session_id,
-          tool_use_id: toolUseID
+          tool_use_id: toolUseID,
+          permission_mode: hookInput.permission_mode
         })
 
         try {
-          await sharedState.streamState?.switchToAcceptEditsMode()
-          logger.info('Successfully switched to acceptEdits mode')
+          // Get the plan from the tool input
+          const plan =
+            typeof hookInput.tool_input === 'object' && hookInput.tool_input !== null && 'plan' in hookInput.tool_input
+              ? String((hookInput.tool_input as any).plan || '')
+              : ''
+
+          // Get permission mode safely
+          const permissionMode = hookInput.permission_mode || 'default'
+
+          // Prompt for ExitPlanMode approval which returns the target permission mode
+          const approvalResult = await promptForExitPlanModeApproval(plan, permissionMode, {
+            ...options,
+            toolCallId: buildNamespacedToolCallId(session.id, toolUseID || 'unknown')
+          })
+
+          // Switch to appropriate permission mode based on user choice
+          if (approvalResult === 'accept_edits') {
+            await sharedState.streamState?.switchToAcceptEditsMode()
+            logger.info('Successfully switched to acceptEdits mode after ExitPlanMode approval')
+          } else if (approvalResult === 'default') {
+            await sharedState.streamState?.queryIterator?.setPermissionMode('default')
+            logger.info('Successfully switched to default mode after ExitPlanMode approval')
+          } else {
+            // If user rejects, don't change the permission mode
+            logger.info('ExitPlanMode rejected, keeping current permission mode')
+          }
         } catch (error) {
-          logger.error('Failed to switch permission mode', {
+          logger.error('Failed to handle ExitPlanMode approval', {
             error: error instanceof Error ? error.message : String(error)
           })
         }

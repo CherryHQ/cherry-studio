@@ -106,6 +106,8 @@ export enum IpcChannel {
   AgentToolPermission_Request = 'agent-tool-permission:request',
   AgentToolPermission_Response = 'agent-tool-permission:response',
   AgentToolPermission_Result = 'agent-tool-permission:result',
+  AgentExitPlanModeApproval_Request = 'agent-exit-plan-mode-approval:request',
+  AgentExitPlanModeApproval_Response = 'agent-exit-plan-mode-approval:response',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
