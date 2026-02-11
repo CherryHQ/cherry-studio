@@ -26,7 +26,7 @@ const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
 // Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
-const DEFAULT_GATEWAY_PORT = 18789
+const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -118,6 +118,10 @@ class OpenClawService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+
+  private get gatewayUrl(): string {
+    return `ws://127.0.0.1:${this.gatewayPort}`
+  }
 
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
@@ -550,10 +554,14 @@ class OpenClawService {
         return
       }
 
-      // Fallback: also check if port is open (in case CLI status check is unreliable)
       const portOpen = await this.checkPortOpen(this.gatewayPort)
       if (portOpen) {
-        logger.info(`Gateway port ${this.gatewayPort} is open (verified via port check after ${pollCount} polls)`)
+        await new Promise((r) => setTimeout(r, 2000))
+        if (processExited) {
+          logger.info(`Spawned process exited but port ${this.gatewayPort} is open — reusing existing gateway`)
+          return
+        }
+        logger.info(`Gateway port ${this.gatewayPort} is open and process alive (verified after ${pollCount} polls)`)
         return
       }
     }
@@ -568,13 +576,7 @@ class OpenClawService {
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      // If we have a process reference, kill it first
-      if (this.gatewayProcess) {
-        await this.killProcess(this.gatewayProcess)
-        this.gatewayProcess = null
-      }
-
-      // Use CLI to stop any gateway (handles external processes too)
+      // Use CLI to stop gateway (handles graceful shutdown, lock/PID cleanup)
       const openclawPath = await this.findOpenClawBinary()
       if (openclawPath) {
         const shellEnv = await getShellEnv()
@@ -583,14 +585,25 @@ class OpenClawService {
         // Verify stop was successful
         const stillRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
         if (stillRunning) {
-          logger.warn('Gateway still running after stop attempt')
-          return {
-            success: false,
-            message: 'Failed to stop gateway. Try running: openclaw gateway stop'
+          // CLI stop failed — fall back to killing the process directly
+          if (this.gatewayProcess) {
+            logger.warn('Gateway still running after CLI stop, falling back to kill')
+            await this.killProcess(this.gatewayProcess)
+          } else {
+            logger.warn('Gateway still running after stop attempt and no process reference')
+            return {
+              success: false,
+              message: 'Failed to stop gateway. Try running: openclaw gateway stop'
+            }
           }
         }
+      } else if (this.gatewayProcess) {
+        // No CLI binary found — kill directly as last resort
+        logger.warn('OpenClaw binary not found, killing process directly')
+        await this.killProcess(this.gatewayProcess)
       }
 
+      this.gatewayProcess = null
       this.gatewayStatus = 'stopped'
       logger.info('Gateway stopped')
       return { success: true, message: 'Gateway stopped successfully' }
@@ -625,7 +638,9 @@ class OpenClawService {
    */
   private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
-      const proc = spawnWithEnv(openclawPath, ['gateway', 'stop'], { env: { ...env, OPENCLAW_CONFIG_PATH } })
+      const proc = spawnWithEnv(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
+        env: { ...env, OPENCLAW_CONFIG_PATH }
+      })
 
       const timeout = setTimeout(() => {
         proc.kill('SIGKILL')
@@ -909,14 +924,27 @@ class OpenClawService {
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = spawnWithEnv(openclawPath, ['gateway', 'status'], { env: { ...env, OPENCLAW_CONFIG_PATH } })
+      const statusProcess = spawnWithEnv(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
+        env: { ...env, OPENCLAW_CONFIG_PATH }
+      })
 
       let stdout = ''
+      let resolved = false
+
+      const doResolve = (value: boolean) => {
+        if (resolved) return
+        resolved = true
+        resolve(value)
+      }
+
       const timeoutId = setTimeout(() => {
-        logger.debug('Gateway status check timed out after 2s')
+        // On timeout, check stdout accumulated so far before giving up
+        const lowerStdout = stdout.toLowerCase()
+        const isRunning = lowerStdout.includes('listening')
+        logger.debug(`Gateway status check timed out after 5s, stdout indicates running: ${isRunning}`)
         statusProcess.kill('SIGKILL')
-        resolve(false)
-      }, 2000)
+        doResolve(isRunning)
+      }, 5000)
 
       statusProcess.stdout?.on('data', (data) => {
         stdout += data.toString()
@@ -925,14 +953,14 @@ class OpenClawService {
       statusProcess.on('close', (code) => {
         clearTimeout(timeoutId)
         const lowerStdout = stdout.toLowerCase()
-        const isRunning = code === 0 && (lowerStdout.includes('listening') || lowerStdout.includes('running'))
+        const isRunning = (code === 0 || code === null) && lowerStdout.includes('listening')
         logger.debug('Gateway status check result:', { code, stdout: stdout.trim(), isRunning })
-        resolve(isRunning)
+        doResolve(isRunning)
       })
 
       statusProcess.on('error', () => {
         clearTimeout(timeoutId)
-        resolve(false)
+        doResolve(false)
       })
     })
   }
