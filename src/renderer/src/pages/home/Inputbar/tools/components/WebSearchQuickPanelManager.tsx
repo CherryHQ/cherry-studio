@@ -12,12 +12,10 @@ import {
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
-import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
+import { getEffectiveMcpMode, type WebSearchProvider } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse } from '@renderer/utils/mcp-tools'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
@@ -27,15 +25,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebSearchQuickPanel')
 
-export const WebSearchProviderIcon = ({
-  pid,
-  size = 18,
-  color
-}: {
-  pid?: WebSearchProviderId
-  size?: number
-  color?: string
-}) => {
+export const WebSearchProviderIcon = ({ pid, size = 18, color }: { pid?: string; size?: number; color?: string }) => {
   switch (pid) {
     case 'bocha':
       return <BochaLogo className="icon" width={size} height={size} color={color} />
@@ -61,7 +51,7 @@ export const WebSearchProviderIcon = ({
 export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
   const { assistant, updateAssistant } = useAssistant(assistantId)
-  const { providers } = useWebSearchProviders()
+  const { providers, isProviderEnabled } = useWebSearchProviders()
   const { setTimeoutTimer } = useTimer()
 
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
@@ -133,14 +123,14 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
         ...providers
           .map((p) => ({
             label: p.name,
-            description: WebSearchService.isWebSearchEnabled(p.id)
-              ? hasObjectKey(p, 'apiKey')
+            description: isProviderEnabled(p.id)
+              ? p.type === 'api'
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),
             icon: <WebSearchProviderIcon size={13} pid={p.id} />,
             isSelected: p.id === assistant?.webSearchProviderId,
-            disabled: !WebSearchService.isWebSearchEnabled(p.id),
+            disabled: !isProviderEnabled(p.id),
             action: () => updateQuickPanelItem(p.id)
           }))
           .filter((item) => !item.disabled)
@@ -161,7 +151,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     }
 
     return items
-  }, [assistant, providers, t, updateQuickPanelItem, updateToModelBuiltinWebSearch])
+  }, [assistant, providers, t, updateQuickPanelItem, updateToModelBuiltinWebSearch, isProviderEnabled])
 
   const openQuickPanel = useCallback(() => {
     quickPanelController.open({

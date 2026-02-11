@@ -5187,7 +5187,10 @@
             }
           },
           "error": {
-            "rag_failed": "RAG 失敗"
+            "cleanup_failed": "清理臨時搜尋庫失敗",
+            "cutoff_limit_not_set": "未設定截斷限制，跳過壓縮",
+            "rag_failed": "RAG 失敗",
+            "unknown_method": "未知壓縮方法: {{method}}，已回退到無壓縮"
           },
           "info": {
             "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
@@ -5217,6 +5220,7 @@
           "settings": "本地搜尋設定"
         },
         "local_providers": "本地搜尋",
+        "mcp_providers": "MCP 服務商",
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",

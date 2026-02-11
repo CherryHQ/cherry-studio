@@ -5187,7 +5187,10 @@
             }
           },
           "error": {
-            "rag_failed": "RAG failed"
+            "cleanup_failed": "Failed to cleanup temporary search base",
+            "cutoff_limit_not_set": "Cutoff limit is not configured, compression skipped",
+            "rag_failed": "RAG failed",
+            "unknown_method": "Unknown compression method: {{method}}, falling back to none"
           },
           "info": {
             "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
@@ -5217,6 +5220,7 @@
           "settings": "Local Search Settings"
         },
         "local_providers": "Local Providers",
+        "mcp_providers": "MCP Providers",
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",

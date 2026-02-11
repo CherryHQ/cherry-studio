@@ -14,7 +14,7 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
-import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
+import { Route as SettingsWebSearchRouteImport } from './routes/settings/webSearch'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selectionAssistant'
 import { Route as SettingsQuickphraseRouteImport } from './routes/settings/quickphrase'
@@ -37,11 +37,11 @@ import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppAssistantRouteImport } from './routes/app/assistant'
-import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
+import { Route as SettingsWebSearchIndexRouteImport } from './routes/settings/webSearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
 import { Route as AppMinappIndexRouteImport } from './routes/app/minapp/index'
-import { Route as SettingsWebsearchGeneralRouteImport } from './routes/settings/websearch/general'
+import { Route as SettingsWebSearchGeneralRouteImport } from './routes/settings/webSearch/general'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
 import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp/mcp-install'
@@ -50,7 +50,7 @@ import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/bu
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
 import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
-import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
+import { Route as SettingsWebSearchProviderProviderIdRouteImport } from './routes/settings/webSearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -78,9 +78,9 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
-  id: '/websearch',
-  path: '/websearch',
+const SettingsWebSearchRoute = SettingsWebSearchRouteImport.update({
+  id: '/webSearch',
+  path: '/webSearch',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
@@ -194,10 +194,10 @@ const AppAssistantRoute = AppAssistantRouteImport.update({
   path: '/assistant',
   getParentRoute: () => AppRoute,
 } as any)
-const SettingsWebsearchIndexRoute = SettingsWebsearchIndexRouteImport.update({
+const SettingsWebSearchIndexRoute = SettingsWebSearchIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => SettingsWebsearchRoute,
+  getParentRoute: () => SettingsWebSearchRoute,
 } as any)
 const SettingsMcpIndexRoute = SettingsMcpIndexRouteImport.update({
   id: '/',
@@ -214,11 +214,11 @@ const AppMinappIndexRoute = AppMinappIndexRouteImport.update({
   path: '/minapp/',
   getParentRoute: () => AppRoute,
 } as any)
-const SettingsWebsearchGeneralRoute =
-  SettingsWebsearchGeneralRouteImport.update({
+const SettingsWebSearchGeneralRoute =
+  SettingsWebSearchGeneralRouteImport.update({
     id: '/general',
     path: '/general',
-    getParentRoute: () => SettingsWebsearchRoute,
+    getParentRoute: () => SettingsWebSearchRoute,
   } as any)
 const SettingsMcpServersRoute = SettingsMcpServersRouteImport.update({
   id: '/servers',
@@ -260,11 +260,11 @@ const AppMinappAppIdRoute = AppMinappAppIdRouteImport.update({
   path: '/minapp/$appId',
   getParentRoute: () => AppRoute,
 } as any)
-const SettingsWebsearchProviderProviderIdRoute =
-  SettingsWebsearchProviderProviderIdRouteImport.update({
+const SettingsWebSearchProviderProviderIdRoute =
+  SettingsWebSearchProviderProviderIdRouteImport.update({
     id: '/provider/$providerId',
     path: '/provider/$providerId',
-    getParentRoute: () => SettingsWebsearchRoute,
+    getParentRoute: () => SettingsWebSearchRoute,
   } as any)
 const SettingsMcpSettingsServerIdRoute =
   SettingsMcpSettingsServerIdRouteImport.update({
@@ -300,7 +300,7 @@ export interface FileRoutesByFullPath {
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
+  '/settings/webSearch': typeof SettingsWebSearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
@@ -310,13 +310,13 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
-  '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/settings/webSearch/general': typeof SettingsWebSearchGeneralRoute
   '/app/minapp': typeof AppMinappIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
-  '/settings/websearch/': typeof SettingsWebsearchIndexRoute
+  '/settings/webSearch/': typeof SettingsWebSearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
-  '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
+  '/settings/webSearch/provider/$providerId': typeof SettingsWebSearchProviderProviderIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -352,13 +352,13 @@ export interface FileRoutesByTo {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
-  '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/settings/webSearch/general': typeof SettingsWebSearchGeneralRoute
   '/app/minapp': typeof AppMinappIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
-  '/settings/websearch': typeof SettingsWebsearchIndexRoute
+  '/settings/webSearch': typeof SettingsWebSearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
-  '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
+  '/settings/webSearch/provider/$providerId': typeof SettingsWebSearchProviderProviderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -388,7 +388,7 @@ export interface FileRoutesById {
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
+  '/settings/webSearch': typeof SettingsWebSearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
@@ -398,13 +398,13 @@ export interface FileRoutesById {
   '/settings/mcp/mcp-install': typeof SettingsMcpMcpInstallRoute
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
-  '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
+  '/settings/webSearch/general': typeof SettingsWebSearchGeneralRoute
   '/app/minapp/': typeof AppMinappIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
-  '/settings/websearch/': typeof SettingsWebsearchIndexRoute
+  '/settings/webSearch/': typeof SettingsWebSearchIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
-  '/settings/websearch/provider/$providerId': typeof SettingsWebsearchProviderProviderIdRoute
+  '/settings/webSearch/provider/$providerId': typeof SettingsWebSearchProviderProviderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -435,7 +435,7 @@ export interface FileRouteTypes {
     | '/settings/quickphrase'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
-    | '/settings/websearch'
+    | '/settings/webSearch'
     | '/settings/'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
@@ -445,13 +445,13 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
-    | '/settings/websearch/general'
+    | '/settings/webSearch/general'
     | '/app/minapp'
     | '/app/paintings'
     | '/settings/mcp/'
-    | '/settings/websearch/'
+    | '/settings/webSearch/'
     | '/settings/mcp/settings/$serverId'
-    | '/settings/websearch/provider/$providerId'
+    | '/settings/webSearch/provider/$providerId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -487,13 +487,13 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
-    | '/settings/websearch/general'
+    | '/settings/webSearch/general'
     | '/app/minapp'
     | '/app/paintings'
     | '/settings/mcp'
-    | '/settings/websearch'
+    | '/settings/webSearch'
     | '/settings/mcp/settings/$serverId'
-    | '/settings/websearch/provider/$providerId'
+    | '/settings/webSearch/provider/$providerId'
   id:
     | '__root__'
     | '/'
@@ -522,7 +522,7 @@ export interface FileRouteTypes {
     | '/settings/quickphrase'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
-    | '/settings/websearch'
+    | '/settings/webSearch'
     | '/settings/'
     | '/app/minapp/$appId'
     | '/app/paintings/$'
@@ -532,13 +532,13 @@ export interface FileRouteTypes {
     | '/settings/mcp/mcp-install'
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
-    | '/settings/websearch/general'
+    | '/settings/webSearch/general'
     | '/app/minapp/'
     | '/app/paintings/'
     | '/settings/mcp/'
-    | '/settings/websearch/'
+    | '/settings/webSearch/'
     | '/settings/mcp/settings/$serverId'
-    | '/settings/websearch/provider/$providerId'
+    | '/settings/webSearch/provider/$providerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -585,11 +585,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/websearch': {
-      id: '/settings/websearch'
-      path: '/websearch'
-      fullPath: '/settings/websearch'
-      preLoaderRoute: typeof SettingsWebsearchRouteImport
+    '/settings/webSearch': {
+      id: '/settings/webSearch'
+      path: '/webSearch'
+      fullPath: '/settings/webSearch'
+      preLoaderRoute: typeof SettingsWebSearchRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/shortcut': {
@@ -746,12 +746,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAssistantRouteImport
       parentRoute: typeof AppRoute
     }
-    '/settings/websearch/': {
-      id: '/settings/websearch/'
+    '/settings/webSearch/': {
+      id: '/settings/webSearch/'
       path: '/'
-      fullPath: '/settings/websearch/'
-      preLoaderRoute: typeof SettingsWebsearchIndexRouteImport
-      parentRoute: typeof SettingsWebsearchRoute
+      fullPath: '/settings/webSearch/'
+      preLoaderRoute: typeof SettingsWebSearchIndexRouteImport
+      parentRoute: typeof SettingsWebSearchRoute
     }
     '/settings/mcp/': {
       id: '/settings/mcp/'
@@ -774,12 +774,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMinappIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/settings/websearch/general': {
-      id: '/settings/websearch/general'
+    '/settings/webSearch/general': {
+      id: '/settings/webSearch/general'
       path: '/general'
-      fullPath: '/settings/websearch/general'
-      preLoaderRoute: typeof SettingsWebsearchGeneralRouteImport
-      parentRoute: typeof SettingsWebsearchRoute
+      fullPath: '/settings/webSearch/general'
+      preLoaderRoute: typeof SettingsWebSearchGeneralRouteImport
+      parentRoute: typeof SettingsWebSearchRoute
     }
     '/settings/mcp/servers': {
       id: '/settings/mcp/servers'
@@ -837,12 +837,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMinappAppIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/settings/websearch/provider/$providerId': {
-      id: '/settings/websearch/provider/$providerId'
+    '/settings/webSearch/provider/$providerId': {
+      id: '/settings/webSearch/provider/$providerId'
       path: '/provider/$providerId'
-      fullPath: '/settings/websearch/provider/$providerId'
-      preLoaderRoute: typeof SettingsWebsearchProviderProviderIdRouteImport
-      parentRoute: typeof SettingsWebsearchRoute
+      fullPath: '/settings/webSearch/provider/$providerId'
+      preLoaderRoute: typeof SettingsWebSearchProviderProviderIdRouteImport
+      parentRoute: typeof SettingsWebSearchRoute
     }
     '/settings/mcp/settings/$serverId': {
       id: '/settings/mcp/settings/$serverId'
@@ -910,21 +910,21 @@ const SettingsMcpRouteWithChildren = SettingsMcpRoute._addFileChildren(
   SettingsMcpRouteChildren,
 )
 
-interface SettingsWebsearchRouteChildren {
-  SettingsWebsearchGeneralRoute: typeof SettingsWebsearchGeneralRoute
-  SettingsWebsearchIndexRoute: typeof SettingsWebsearchIndexRoute
-  SettingsWebsearchProviderProviderIdRoute: typeof SettingsWebsearchProviderProviderIdRoute
+interface SettingsWebSearchRouteChildren {
+  SettingsWebSearchGeneralRoute: typeof SettingsWebSearchGeneralRoute
+  SettingsWebSearchIndexRoute: typeof SettingsWebSearchIndexRoute
+  SettingsWebSearchProviderProviderIdRoute: typeof SettingsWebSearchProviderProviderIdRoute
 }
 
-const SettingsWebsearchRouteChildren: SettingsWebsearchRouteChildren = {
-  SettingsWebsearchGeneralRoute: SettingsWebsearchGeneralRoute,
-  SettingsWebsearchIndexRoute: SettingsWebsearchIndexRoute,
-  SettingsWebsearchProviderProviderIdRoute:
-    SettingsWebsearchProviderProviderIdRoute,
+const SettingsWebSearchRouteChildren: SettingsWebSearchRouteChildren = {
+  SettingsWebSearchGeneralRoute: SettingsWebSearchGeneralRoute,
+  SettingsWebSearchIndexRoute: SettingsWebSearchIndexRoute,
+  SettingsWebSearchProviderProviderIdRoute:
+    SettingsWebSearchProviderProviderIdRoute,
 }
 
-const SettingsWebsearchRouteWithChildren =
-  SettingsWebsearchRoute._addFileChildren(SettingsWebsearchRouteChildren)
+const SettingsWebSearchRouteWithChildren =
+  SettingsWebSearchRoute._addFileChildren(SettingsWebSearchRouteChildren)
 
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
@@ -942,7 +942,7 @@ interface SettingsRouteChildren {
   SettingsQuickphraseRoute: typeof SettingsQuickphraseRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
-  SettingsWebsearchRoute: typeof SettingsWebsearchRouteWithChildren
+  SettingsWebSearchRoute: typeof SettingsWebSearchRouteWithChildren
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
@@ -962,7 +962,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsQuickphraseRoute: SettingsQuickphraseRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
-  SettingsWebsearchRoute: SettingsWebsearchRouteWithChildren,
+  SettingsWebSearchRoute: SettingsWebSearchRouteWithChildren,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { getNestedValue, isNonEmptyString, isValidNumber } from '../PreferenceTransformers'
+import {
+  flattenCompressionConfig,
+  getNestedValue,
+  isNonEmptyString,
+  isValidNumber,
+  migrateWebSearchProviders
+} from '../PreferenceTransformers'
 
 describe('PreferenceTransformers', () => {
   describe('utility functions', () => {
@@ -124,6 +130,120 @@ describe('PreferenceTransformers', () => {
 
       it('should return false for arrays', () => {
         expect(isNonEmptyString(['a'])).toBe(false)
+      })
+    })
+  })
+
+  describe('flattenCompressionConfig', () => {
+    it('should return defaults when no config provided', () => {
+      const result = flattenCompressionConfig({})
+      expect(result['chat.web_search.compression.method']).toBe('none')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBeNull()
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
+    })
+
+    it('should flatten compression config with all fields', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'rag',
+          cutoffLimit: 2000,
+          cutoffUnit: 'token',
+          documentCount: 10,
+          embeddingModel: { id: 'embed-model', provider: 'openai' },
+          embeddingDimensions: 1536,
+          rerankModel: { id: 'rerank-model', provider: 'cohere' }
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('rag')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(10)
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('embed-model')
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBe('openai')
+      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBe(1536)
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('rerank-model')
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBe('cohere')
+    })
+
+    it('should handle partial config with defaults', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'cutoff',
+          cutoffLimit: 1000
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
+      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
+    })
+
+    it('should handle null embeddingModel and rerankModel', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'none',
+          embeddingModel: null,
+          rerankModel: null
+        }
+      })
+
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
+    })
+  })
+
+  describe('migrateWebSearchProviders', () => {
+    it('should return empty overrides when no providers', () => {
+      const result = migrateWebSearchProviders({})
+      expect(result['chat.web_search.provider_overrides']).toEqual({})
+    })
+
+    it('should keep only non-empty user fields', () => {
+      const result = migrateWebSearchProviders({
+        providers: [
+          { id: 'tavily', name: 'Tavily', apiKey: ' key1 ', apiHost: 'https://api.tavily.com' },
+          { id: 'local-google', name: 'Google' }
+        ]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        tavily: { apiKey: 'key1', apiHost: 'https://api.tavily.com' }
+      })
+    })
+
+    it('should map url to apiHost and preserve auth fields', () => {
+      const result = migrateWebSearchProviders({
+        providers: [
+          {
+            id: 'local-bing',
+            name: 'Bing',
+            url: 'https://www.bing.com/search?q=%s',
+            engines: ['news'],
+            basicAuthUsername: 'user',
+            basicAuthPassword: 'pass'
+          }
+        ]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        'local-bing': {
+          apiHost: 'https://www.bing.com/search?q=%s',
+          engines: ['news'],
+          basicAuthUsername: 'user',
+          basicAuthPassword: 'pass'
+        }
       })
     })
   })

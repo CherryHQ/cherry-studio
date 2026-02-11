@@ -12,6 +12,7 @@ import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   isAnthropicModel,
@@ -28,11 +29,10 @@ import {
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { WebSearchConfig } from '@renderer/types/webSearch'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
@@ -42,7 +42,7 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
-import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { buildProviderBuiltinWebSearchConfig } from '../utils/webSearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
@@ -80,7 +80,7 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     webSearchProviderId?: string
-    webSearchConfig?: CherryWebSearchConfig
+    webSearchConfig?: WebSearchConfig
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -133,10 +133,10 @@ export async function buildStreamTextParams(
   let tools = setupToolsConfig(mcpTools)
 
   // 构建真正的 providerOptions
-  const webSearchConfig: CherryWebSearchConfig = {
-    maxResults: store.getState().websearch.maxResults,
-    excludeDomains: store.getState().websearch.excludeDomains,
-    searchWithTime: store.getState().websearch.searchWithTime
+  const webSearchConfig: WebSearchConfig = {
+    maxResults: await preferenceService.get('chat.web_search.max_results'),
+    excludeDomains: await preferenceService.get('chat.web_search.exclude_domains'),
+    searchWithTime: await preferenceService.get('chat.web_search.search_with_time')
   }
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {

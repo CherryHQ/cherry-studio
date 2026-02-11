@@ -8,8 +8,6 @@
  * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
  * 6. 部分类型应迁移到 packages/shared/data/types/ 以便 main/renderer 进程共享
  */
-import type { LanguageModelV2Source } from '@ai-sdk/provider'
-import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
@@ -28,6 +26,7 @@ import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
+import type { WebSearchProvider, WebSearchProviderResponse, WebSearchResponse } from './webSearch'
 
 export * from './agent'
 export * from './apiModels'
@@ -38,6 +37,7 @@ export * from './notification'
 export * from './ocr'
 export * from './plugin'
 export * from './provider'
+export * from './webSearch'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -670,89 +670,6 @@ export type ExternalToolResult = {
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
   memories?: MemoryItem[]
-}
-
-export const WebSearchProviderIds = {
-  zhipu: 'zhipu',
-  tavily: 'tavily',
-  searxng: 'searxng',
-  exa: 'exa',
-  'exa-mcp': 'exa-mcp',
-  bocha: 'bocha',
-  'local-google': 'local-google',
-  'local-bing': 'local-bing',
-  'local-baidu': 'local-baidu'
-} as const
-
-export type WebSearchProviderId = keyof typeof WebSearchProviderIds
-
-export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
-  return Object.hasOwn(WebSearchProviderIds, id)
-}
-
-export type WebSearchProvider = {
-  id: WebSearchProviderId
-  name: string
-  apiKey?: string
-  apiHost?: string
-  engines?: string[]
-  url?: string
-  basicAuthUsername?: string
-  basicAuthPassword?: string
-  usingBrowser?: boolean
-  topicId?: string
-  parentSpanId?: string
-  modelName?: string
-}
-
-export type WebSearchProviderResult = {
-  title: string
-  content: string
-  url: string
-}
-
-export type WebSearchProviderResponse = {
-  query?: string
-  results: WebSearchProviderResult[]
-}
-
-export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
-
-export type WebSearchResults =
-  | WebSearchProviderResponse
-  | GroundingMetadata
-  | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
-  | OpenAI.Responses.ResponseOutputText.URLCitation[]
-  | WebSearchResultBlock[]
-  | AISDKWebSearchResult[]
-  | any[]
-
-export enum WebSearchSource {
-  WEBSEARCH = 'websearch',
-  OPENAI = 'openai',
-  OPENAI_RESPONSE = 'openai-response',
-  OPENROUTER = 'openrouter',
-  ANTHROPIC = 'anthropic',
-  GEMINI = 'gemini',
-  PERPLEXITY = 'perplexity',
-  QWEN = 'qwen',
-  HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu',
-  GROK = 'grok',
-  AISDK = 'ai-sdk'
-}
-
-export type WebSearchResponse = {
-  results?: WebSearchResults
-  source: WebSearchSource
-}
-
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
 }
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
