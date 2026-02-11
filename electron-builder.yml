@@ -140,28 +140,68 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.17 - New Features & Bug Fixes
+    Cherry Studio 1.7.18 - New Features & Bug Fixes
 
     ✨ New Features
-    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
-    - [Tools] Add OpenCode CLI tool support
+    - [Agent] Add AskUserQuestion tool renderer for agent tools
+    - [Models] Add Claude Opus 4.6 model support
+    - [Models] Add PPIO painting models
+    - [Chat] Add export to Excel button for markdown tables
+    - [Settings] Use CodeEditor for JSON custom parameters with lint feedback
+    - [Analytics] Integrate analytics-client for token usage tracking
+    - [OpenClaw] Improve install path display with copy button; isolate config to separate file
 
     🐛 Bug Fixes
-    - [Agent] Fix tool output display showing blank content during streaming
-    - [Models] Fix Kimi K2.5 model parameter error
-    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
-    - [macOS] Fix npm detection when app launched from Dock/Finder
+    - [Windows] Avoid EPERM by removing .tmp+rename in PluginInstaller
+    - [Windows] Prevent MAX_PATH errors
+    - [Windows] Use refreshed shell environment for executable detection
+    - [Agent] Move agents.db into Data/ directory for backup consistency
+    - [Agent] Fix scroll to bottom when sending agent messages
+    - [Agent] Improve language instruction for Claude Code agent
+    - [Reasoning] Add qwen3-max to supported reasoning models
+    - [Reasoning] Normalize Fireworks model IDs for reasoning detection
+    - [Codeblock] Fix copy modified content after edit
+    - [Chat] Fall back to first message text when topic naming fails
+    - [Chat] Add block-level ErrorBoundary to prevent dirty data crashes
+    - [Models] Handle Gemini OpenAI-compatible thought signatures and missing tool_call index
+    - [Models] Correct openai-compatible strictJsonSchema patch
+    - [MCP] Escape double quotes in tool use prompt examples
+    - [OCR] Support PP-OCRv5 response and handle corrupted PDF in PaddleOCR
+    - [Build] Pin @uiw/codemirror-extensions-langs to 4.25.1 to fix production build
+
+    ⚡ Performance
+    - Remove unused Redux state cache in main process
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.17 - 新功能与问题修复
+    Cherry Studio 1.7.18 - 新功能与问题修复
 
     ✨ 新功能
-    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
-    - [工具] 新增 OpenCode CLI 工具支持
+    - [智能体] 新增 AskUserQuestion 工具渲染器
+    - [模型] 新增 Claude Opus 4.6 模型支持
+    - [模型] 新增 PPIO 绘画模型
+    - [对话] Markdown 表格新增导出为 Excel 按钮
+    - [设置] 自定义 JSON 参数使用代码编辑器并支持 lint 反馈
+    - [分析] 集成 analytics-client 用于 Token 用量追踪
+    - [OpenClaw] 改进安装路径显示，新增复制按钮；配置独立为单独文件
 
     🐛 问题修复
-    - [智能体] 修复工具流式输出时内容显示为空的问题
-    - [模型] 修复 Kimi K2.5 模型参数错误
-    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
-    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
+    - [Windows] 修复 PluginInstaller 中 .tmp 重命名导致的 EPERM 错误
+    - [Windows] 修复 MAX_PATH 路径过长错误
+    - [Windows] 修复可执行文件检测时 shell 环境未刷新的问题
+    - [智能体] 将 agents.db 移至 Data/ 目录以保持备份一致性
+    - [智能体] 修复发送智能体消息时不自动滚动到底部的问题
+    - [智能体] 改进 Claude Code 智能体的语言指令
+    - [推理] 新增 qwen3-max 推理模型支持
+    - [推理] 修复 Fireworks 模型 ID 的推理检测规范化
+    - [代码块] 修复编辑后复制内容不正确的问题
+    - [对话] 话题命名失败时回退到首条消息文本
+    - [对话] 新增块级 ErrorBoundary 防止脏数据导致崩溃
+    - [模型] 修复 Gemini OpenAI 兼容模式下的思维签名和缺失的 tool_call index
+    - [模型] 修复 openai-compatible strictJsonSchema 补丁
+    - [MCP] 修复工具使用提示中双引号未转义的问题
+    - [OCR] 支持 PP-OCRv5 响应格式并处理 PaddleOCR 中损坏的 PDF
+    - [构建] 固定 @uiw/codemirror-extensions-langs 版本为 4.25.1 以修复生产构建
+
+    ⚡ 性能优化
+    - 移除主进程中未使用的 Redux 状态缓存
     <!--LANG:END-->
