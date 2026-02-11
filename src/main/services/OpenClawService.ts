@@ -127,6 +127,7 @@ class OpenClawService {
     this.checkInstalled = this.checkInstalled.bind(this)
     this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
     this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
+    this.getGitDownloadUrl = this.getGitDownloadUrl.bind(this)
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
@@ -185,6 +186,23 @@ class OpenClawService {
     }
     // Fallback to official download page
     return 'https://nodejs.org/en/download'
+  }
+
+  /**
+   * Get Git download URL based on current OS and architecture
+   */
+  public getGitDownloadUrl(): string {
+    const version = '2.53.0'
+
+    if (isWin) {
+      const winArch = process.arch === 'arm64' ? 'arm64' : '64-bit'
+      return `https://github.com/git-for-windows/git/releases/download/v${version}.windows.1/Git-${version}-${winArch}.exe`
+    } else if (isMac) {
+      return 'https://git-scm.com/download/mac'
+    } else if (isLinux) {
+      return 'https://git-scm.com/download/linux'
+    }
+    return 'https://git-scm.com/downloads'
   }
 
   /**

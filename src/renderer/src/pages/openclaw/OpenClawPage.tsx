@@ -88,6 +88,7 @@ const OpenClawPage: FC = () => {
   const [npmMissing, setNpmMissing] = useState(false)
   const [gitMissing, setGitMissing] = useState(false)
   const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
+  const [gitDownloadUrl, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
 
   // Fetch Node.js download URL and poll npm availability when npmMissing is shown
   useEffect(() => {
@@ -114,9 +115,15 @@ const OpenClawPage: FC = () => {
     return () => clearInterval(pollInterval)
   }, [npmMissing])
 
-  // Poll git availability when gitMissing is shown
+  // Fetch Git download URL and poll git availability when gitMissing is shown
   useEffect(() => {
     if (!gitMissing) return
+
+    // Fetch the download URL from main process
+    window.api.openclaw
+      .getGitDownloadUrl()
+      .then(setGitDownloadUrl)
+      .catch(() => {})
 
     const pollInterval = setInterval(async () => {
       try {
@@ -499,7 +506,7 @@ const OpenClawPage: FC = () => {
                   <Button
                     type="primary"
                     icon={<Download size={16} />}
-                    onClick={() => window.open('https://git-scm.com/downloads', '_blank')}>
+                    onClick={() => window.open(gitDownloadUrl, '_blank')}>
                     {t('openclaw.git_missing.download_button')}
                   </Button>
                 </Space>
