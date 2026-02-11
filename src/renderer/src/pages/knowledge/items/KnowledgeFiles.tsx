@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -10,7 +11,7 @@ import type { FileMetadata, KnowledgeBase, KnowledgeItem } from '@renderer/types
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, mime2type, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Button, Tooltip, Upload } from 'antd'
+import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -141,14 +142,8 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
-          }}
-          disabled={disabled}>
+        <ResponsiveButton size="sm" variant="default" onClick={handleAddFile} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_file')}
         </ResponsiveButton>
       </ItemHeader>
@@ -193,7 +188,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),
@@ -202,7 +197,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button variant="ghost" onClick={() => refreshItem(item)}>
+                              <RefreshIcon />
+                            </Button>
                           )}
                           {showPreprocessIcon(item) && (
                             <StatusIconWrapper>
@@ -224,12 +221,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button
-                            type="text"
-                            danger
-                            onClick={() => removeItem(item)}
-                            icon={<DeleteIcon size={14} className="lucide-custom" />}
-                          />
+                          <Button variant="ghost" onClick={() => removeItem(item)}>
+                            <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}

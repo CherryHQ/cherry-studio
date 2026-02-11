@@ -1,8 +1,10 @@
+import { useCache } from '@data/hooks/useCache'
 import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
-import type { LanguageVarious, MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useMemo } from 'react'
 
 /**
@@ -37,6 +39,11 @@ export const useMinapps = () => {
   const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)
   const language = useAppSelector((state: RootState) => state.settings.language)
   const dispatch = useAppDispatch()
+
+  const [openedKeepAliveMinapps, setOpenedKeepAliveMinapps] = useCache('minapp.opened_keep_alive')
+  const [currentMinappId, setCurrentMinappId] = useCache('minapp.current_id')
+  const [minappShow, setMinappShow] = useCache('minapp.show')
+  const [openedOneOffMinapp, setOpenedOneOffMinapp] = useCache('minapp.opened_oneoff')
 
   const mapApps = useCallback(
     (apps: MinAppType[]) => apps.map((app) => allMinApps.find((item) => item.id === app.id) || app),
@@ -122,6 +129,14 @@ export const useMinapps = () => {
     minapps,
     disabled: disabledApps,
     pinned: pinnedApps,
+    openedKeepAliveMinapps,
+    currentMinappId,
+    minappShow,
+    openedOneOffMinapp,
+    setOpenedKeepAliveMinapps,
+    setCurrentMinappId,
+    setMinappShow,
+    setOpenedOneOffMinapp,
     updateMinapps,
     updateDisabledMinapps,
     updatePinnedMinapps

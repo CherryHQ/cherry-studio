@@ -2,7 +2,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 
-import { configManager } from './ConfigManager'
+import { ConfigKeys, configManager } from './ConfigManager'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -18,7 +18,7 @@ class AnalyticsService {
   }
 
   public init(): void {
-    if (!configManager.getEnableDataCollection()) {
+    if (!configManager.get<boolean>(ConfigKeys.EnableDataCollection, true)) {
       logger.info('Data collection is disabled, skipping analytics initialization')
       return
     }

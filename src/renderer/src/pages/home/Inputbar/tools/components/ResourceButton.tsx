@@ -33,9 +33,10 @@ const ResourceButton: FC<Props> = ({ quickPanel, quickPanelController, accessibl
 
   return (
     <Tooltip placement="top" title={t('chat.input.resource_panel.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} aria-label={t('chat.input.resource_panel.title')}>
-        <FolderOpen size={18} />
-      </ActionIconButton>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        aria-label={t('chat.input.resource_panel.title')}
+        icon={<FolderOpen size={18} />}></ActionIconButton>
     </Tooltip>
   )
 }

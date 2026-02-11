@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import {
   MdiLightbulbAutoOutline,
@@ -21,7 +22,6 @@ import {
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
-import { Tooltip } from 'antd'
 import type { FC, ReactElement } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -204,15 +204,15 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       : t('common.close')
 
   return (
-    <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={isFixedReasoning || currentReasoningEffort !== 'none'}
         aria-label={ariaLabel}
         aria-pressed={currentReasoningEffort !== 'none'}
-        style={isFixedReasoning ? { cursor: 'default' } : undefined}>
-        {ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
-      </ActionIconButton>
+        style={isFixedReasoning ? { cursor: 'default' } : undefined}
+        icon={ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
+      />
     </Tooltip>
   )
 }

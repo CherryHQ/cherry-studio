@@ -1,3 +1,4 @@
+import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -18,12 +19,12 @@ import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
+import { Link } from '@tanstack/react-router'
+import { Alert, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
@@ -376,13 +377,8 @@ const CodeToolsPage: FC = () => {
                       alignItems: 'center'
                     }}>
                     <span>{t('code.bun_required_message')}</span>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<Download size={14} />}
-                      onClick={handleInstallBun}
-                      loading={isInstallingBun}
-                      disabled={isInstallingBun}>
+                    <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
+                      <Download size={14} />
                       {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
                     </Button>
                   </div>
@@ -429,7 +425,11 @@ const CodeToolsPage: FC = () => {
                                     gap: 4
                                   }}
                                   to={`/settings/provider?id=${provider.id}`}>
-                                  <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
+                                  <Avatar
+                                    radius="md"
+                                    src={getProviderLogo(provider.id)}
+                                    className="h-5 w-5 rounded-md"
+                                  />
                                   {getProviderLabel(provider.id)}
                                   <ArrowUpRight size={14} />
                                 </Link>
@@ -553,8 +553,10 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.cmd &&
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                        <Button icon={<FolderOpen size={16} />} onClick={() => handleSetCustomPath(selectedTerminal)} />
+                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        <Button size="icon" onClick={() => handleSetCustomPath(selectedTerminal)}>
+                          <FolderOpen size={16} />
+                        </Button>
                       </Tooltip>
                     )}
                 </Space.Compact>
@@ -586,13 +588,11 @@ const CodeToolsPage: FC = () => {
           </SettingsPanel>
 
           <Button
-            type="primary"
-            icon={<Terminal size={16} />}
-            size="large"
+            size="lg"
             onClick={handleLaunch}
-            loading={isLaunching}
-            disabled={!canLaunch || !isBunInstalled}
-            block>
+            disabled={!canLaunch || !isBunInstalled || isLaunching}
+            className="w-full">
+            <Terminal size={16} />
             {isLaunching ? t('code.launching') : t('code.launch.label')}
           </Button>
         </MainContent>
@@ -654,10 +654,6 @@ const SettingsItem = styled.div`
 
 const BunInstallAlert = styled.div`
   margin-bottom: 24px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default CodeToolsPage

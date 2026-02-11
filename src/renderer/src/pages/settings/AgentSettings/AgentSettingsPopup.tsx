@@ -1,4 +1,4 @@
-import { Center } from '@renderer/components/Layout'
+import { Center } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
@@ -75,7 +75,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     if (isLoading) {
       // TODO: use skeleton for better ux
       return (
-        <Center flex={1}>
+        <Center>
           <Spin />
         </Center>
       )
@@ -83,7 +83,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
 
     if (error) {
       return (
-        <Center flex={1}>
+        <Center>
           <Alert type="error" message={t('agent.get.error.failed')} />
         </Center>
       )

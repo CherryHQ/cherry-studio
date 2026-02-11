@@ -264,7 +264,7 @@ describe('file', () => {
       const buffer = iconv.encode(content, 'GB18030')
 
       // 模拟文件读取和编码检测
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
@@ -276,7 +276,7 @@ describe('file', () => {
       const buffer = iconv.encode(content, 'UTF-8')
 
       // 模拟文件读取
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)

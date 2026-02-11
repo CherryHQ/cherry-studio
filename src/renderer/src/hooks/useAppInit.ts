@@ -1,14 +1,16 @@
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
+import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
 import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
@@ -24,29 +26,27 @@ import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useRuntime } from './useRuntime'
-import { useNavbarPosition, useSettings } from './useSettings'
-import useUpdateHandler from './useUpdateHandler'
-
+import { useMinapps } from './useMinapps'
+import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const {
-    proxyUrl,
-    proxyBypassRules,
-    language,
-    windowStyle,
-    autoCheckUpdate,
-    proxyMode,
-    customCss,
-    enableDataCollection
-  } = useSettings()
+  const [language] = usePreference('app.language')
+  const [windowStyle] = usePreference('ui.window_style')
+  const [customCss] = usePreference('ui.custom_css')
+  const [proxyUrl] = usePreference('app.proxy.url')
+  const [proxyBypassRules] = usePreference('app.proxy.bypass_rules')
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
+  const [proxyMode] = usePreference('app.proxy.mode')
+  const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+
   const { isLeftNavbar } = useNavbarPosition()
-  const { minappShow } = useRuntime()
+  const { minappShow } = useMinapps()
+  const { updateAppUpdateState } = useAppUpdateState()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
-  const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
+  const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const memoryConfig = useAppSelector(selectMemoryConfig)
 
@@ -62,7 +62,7 @@ export function useAppInit() {
   useEffect(() => {
     window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
-        window.navigate('/settings/data', { replace: true })
+        window.navigate({ to: '/settings/data', replace: true })
       }
     })
   }, [])
@@ -73,12 +73,12 @@ export function useAppInit() {
     })
   }, [])
 
-  useUpdateHandler()
+  useAppUpdateHandler()
   useFullScreenNotice()
 
   useEffect(() => {
-    avatar?.value && dispatch(setAvatar(avatar.value))
-  }, [avatar, dispatch])
+    savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
+  }, [savedAvatar])
 
   useEffect(() => {
     const checkForUpdates = async () => {
@@ -89,7 +89,7 @@ export function useAppInit() {
       }
 
       const { updateInfo } = await window.api.checkForUpdate()
-      dispatch(setUpdateState({ info: updateInfo }))
+      updateAppUpdateState({ info: updateInfo })
     }
 
     // Initial check with delay
@@ -106,7 +106,7 @@ export function useAppInit() {
     const intervalId = setInterval(checkForUpdates, FOUR_HOURS)
 
     return () => clearInterval(intervalId)
-  }, [dispatch, autoCheckUpdate])
+  }, [autoCheckUpdate, updateAppUpdateState])
 
   useEffect(() => {
     if (proxyMode === 'system') {
@@ -149,10 +149,10 @@ export function useAppInit() {
   useEffect(() => {
     // set files path
     window.api.getAppInfo().then((info) => {
-      dispatch(setFilesPath(info.filesPath))
-      dispatch(setResourcesPath(info.resourcesPath))
+      cacheService.set('app.path.files', info.filesPath)
+      cacheService.set('app.path.resources', info.resourcesPath)
     })
-  }, [dispatch])
+  }, [])
 
   useEffect(() => {
     KnowledgeQueue.checkAllBases()

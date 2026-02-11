@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
 import type { AssistantMessage } from '@renderer/types'
@@ -5,9 +6,9 @@ import {
   FactRetrievalSchema,
   getFactRetrievalMessages,
   getUpdateMemoryMessages,
-  MemoryUpdateSchema,
-  updateMemorySystemPrompt
+  MemoryUpdateSchema
 } from '@renderer/utils/memory-prompts'
+import { MEMORY_UPDATE_SYSTEM_PROMPT } from '@shared/config/prompts'
 import type { MemoryConfig, MemoryItem } from '@types'
 import jaison from 'jaison/lib/index.js'
 
@@ -105,7 +106,7 @@ export class MemoryProcessor {
       throw new Error('No LLM model configured for memory processing')
     }
 
-    const existingMemoriesResult = (window.keyv.get(`memory-search-${lastMessageId}`) as MemoryItem[]) || []
+    const existingMemoriesResult = cacheService.getCasual<MemoryItem[]>(`memory-search-${lastMessageId}`) || []
 
     const existingMemories = existingMemoriesResult.map((memory) => ({
       id: memory.id,
@@ -123,7 +124,7 @@ export class MemoryProcessor {
       const updateMemoryUserPrompt = getUpdateMemoryMessages(existingMemories, facts)
 
       const responseContent = await fetchGenerate({
-        prompt: updateMemorySystemPrompt,
+        prompt: MEMORY_UPDATE_SYSTEM_PROMPT,
         content: updateMemoryUserPrompt,
         model: getModel(memoryConfig.llmModel.id, memoryConfig.llmModel.provider)
       })
