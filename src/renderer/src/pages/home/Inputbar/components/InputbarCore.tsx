@@ -10,13 +10,14 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/lib/input/TextArea'
 import { CirclePause, Languages } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -44,7 +45,7 @@ export interface InputbarCoreProps {
 
   text: string
   onTextChange: (text: string) => void
-  textareaRef: React.RefObject<any>
+  textareaRef: React.RefObject<TextAreaRef | null>
   resizeTextArea: (force?: boolean) => void
   focusTextarea: () => void
 
@@ -323,25 +324,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         if (event.shiftKey) {
           return
         }
-
-        event.preventDefault()
-        const textArea = textareaRef.current?.resizableTextArea?.textArea
-        if (textArea) {
-          const start = textArea.selectionStart
-          const end = textArea.selectionEnd
-          const currentText = textArea.value
-          const newText = currentText.substring(0, start) + '\n' + currentText.substring(end)
-
-          setText(newText)
-
-          setTimeoutTimer(
-            'handleKeyDown',
-            () => {
-              textArea.selectionStart = textArea.selectionEnd = start + 1
-            },
-            0
-          )
-        }
       }
 
       if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
@@ -362,8 +344,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       sendMessageShortcut,
       isSendDisabled,
       handleSendMessage,
-      setText,
-      setTimeoutTimer,
       setFiles
     ]
   )
@@ -476,7 +456,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const appendTxtContentToInput = useCallback(
-    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+    async (file: FileMetadata, event: React.MouseEvent<HTMLDivElement>) => {
       event.preventDefault()
       event.stopPropagation()
 

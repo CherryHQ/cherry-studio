@@ -370,21 +370,8 @@ describe('DeepSeek & Thinking Tokens', () => {
     const allowed = createModel({ id: 'deepseek-v3.1', provider: 'doubao' })
     expect(isSupportedThinkingTokenModel(allowed)).toBe(true)
 
-    const disallowed = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
-    expect(isSupportedThinkingTokenModel(disallowed)).toBe(false)
-  })
-
-  it('supports DeepSeek v3.1+ models from newly added providers', () => {
-    // Test newly added providers for DeepSeek thinking token support
-    const newProviders = ['deepseek', 'cherryin', 'new-api', 'aihubmix', 'sophnet', 'dmxapi']
-
-    newProviders.forEach((provider) => {
-      const model = createModel({ id: 'deepseek-v3.1', provider })
-      expect(
-        isSupportedThinkingTokenModel(model),
-        `Provider ${provider} should support thinking tokens for deepseek-v3.1`
-      ).toBe(true)
-    })
+    const anyProvider = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
+    expect(isSupportedThinkingTokenModel(anyProvider)).toBe(true)
   })
 
   it('tests various prefix patterns for isDeepSeekHybridInferenceModel', () => {
@@ -429,13 +416,10 @@ describe('Qwen & Gemini thinking coverage', () => {
     expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
   })
 
-  it('supports thinking tokens for qwen3-max-preview and qwen3-max-2026-01-23', () => {
+  it('supports thinking tokens for qwen3-max, qwen3-max-preview and qwen3-max-2026-01-23', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-preview' }))).toBe(true)
     expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe(true)
-  })
-
-  it('blocks thinking tokens for qwen3-max and other unsupported versions', () => {
-    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(false)
   })
 
   it.each(['qwen3-thinking', 'qwen3-vl-235b-thinking'])('always thinks for %s', (id) => {
@@ -733,6 +717,9 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'qwen-turbo' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen-flash' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen3-8b' }))).toBe('qwen')
+      // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
+      expect(getThinkModelType(createModel({ id: 'qwen3-max' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe('qwen')
     })
 
     it('should return default for always-thinking Qwen models (not controllable)', () => {
@@ -1378,6 +1365,10 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
+    // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+    { modelId: 'qwen3-max', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-2026-01-23', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-preview', expected: { min: 0, max: 81_920 } },
     { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
     { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } },
     { modelId: 'Baichuan-M3', expected: { min: 0, max: 30_000 } },
@@ -2001,6 +1992,21 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'medium',
         'high'
       ])
+      // qwen3-max is now a reasoning model with same options as qwen3-max-2026-01-23
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max-2026-01-23' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
     })
 
     it('should return undefined for always-thinking Qwen models', () => {
@@ -2465,5 +2471,31 @@ describe('Kimi Models', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-turbo' }))).toBe(true)
       })
     })
+  })
+})
+
+describe('Fireworks provider model name normalization', () => {
+  it('should detect DeepSeek hybrid inference models from Fireworks', () => {
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p1' }))).toBe(true)
+  })
+
+  it('should detect Kimi reasoning models from Fireworks', () => {
+    expect(isKimiReasoningModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
+  })
+
+  it('should detect Zhipu thinking models from Fireworks', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p5' }))).toBe(true)
+  })
+
+  it('should detect MiniMax reasoning models from Fireworks', () => {
+    expect(isMiniMaxReasoningModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+  })
+
+  it('should detect interleaved thinking models from Fireworks', () => {
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
   })
 })

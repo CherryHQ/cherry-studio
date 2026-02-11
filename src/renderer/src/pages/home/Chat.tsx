@@ -10,6 +10,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -54,6 +55,7 @@ const Chat: FC<Props> = (props) => {
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
+  const chatMaxWidth = useChatMaxWidth()
   const [activeAgentId] = useCache('agent.active_id')
   const [activeTopicOrSession] = useCache('chat.active_view')
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
@@ -183,16 +185,19 @@ const Chat: FC<Props> = (props) => {
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <RowFlex>
         <motion.div
-          layout
+          animate={{
+            marginRight:
+              topicPosition === 'right' && showTopics ? 'calc(var(--assistants-width) + var(--border-width))' : 0
+          }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
+          style={{ flex: 1, display: 'flex', minWidth: 0 }}>
           <Main
             ref={mainRef}
             id="chat-main"
             vertical
             flex={1}
             justify="space-between"
-            style={{ height: mainHeight, width: '100%' }}>
+            style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -252,12 +257,17 @@ const Chat: FC<Props> = (props) => {
           {topicPosition === 'right' && showTopics && (
             <motion.div
               key="right-tabs"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
+              initial={{ x: 'var(--assistants-width)' }}
+              animate={{ x: 0 }}
+              exit={{ x: 'var(--assistants-width)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{
-                overflow: 'hidden'
+                position: 'absolute',
+                right: 0,
+                top: isTopNavbar ? 0 : 'calc(var(--navbar-height) + 1px)',
+                width: 'var(--assistants-width)',
+                height: '100%',
+                zIndex: 10
               }}>
               <Tabs
                 activeAssistant={assistant}
@@ -272,6 +282,20 @@ const Chat: FC<Props> = (props) => {
       </RowFlex>
     </Container>
   )
+}
+
+export const useChatMaxWidth = () => {
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
+  const [showAssistants] = usePreference('assistant.tab.show')
+
+  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+  const showRightTopics = showTopics && topicPosition === 'right'
+  const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
+  const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
+  const minusBorderWidth = isTopNavbar ? (showTopics ? '- 12px' : '- 6px') : ''
+  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
+  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth} ${minusBorderWidth})`
 }
 
 const Container = styled.div`

@@ -236,6 +236,9 @@ importers:
       '@cherrystudio/ai-core':
         specifier: workspace:^1.0.9
         version: link:packages/aiCore
+      '@cherrystudio/analytics-client':
+        specifier: ^1.1.0
+        version: 1.1.0(typescript@5.8.3)
       '@cherrystudio/embedjs':
         specifier: 0.1.31
         version: 0.1.31(@langchain/core@1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4)))(@langchain/ollama@0.1.6(@langchain/core@1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4))))(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(axios@1.13.2)(cheerio@1.1.2)(handlebars@4.7.8)(openai@6.15.0(ws@8.19.0)(zod@4.3.4))(ws@8.19.0)
@@ -606,8 +609,8 @@ importers:
         specifier: 7.0.0-dev.20260204.1
         version: 7.0.0-dev.20260204.1
       '@uiw/codemirror-extensions-langs':
-        specifier: ^4.25.1
-        version: 4.25.4(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)
+        specifier: 4.25.1
+        version: 4.25.1(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)
       '@uiw/codemirror-themes-all':
         specifier: ^4.25.1
         version: 4.25.4(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)
@@ -1445,7 +1448,7 @@ importers:
         version: 5.1.36
       '@uiw/codemirror-extensions-langs':
         specifier: ^4.25.1
-        version: 4.25.4(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)
+        version: 4.25.1(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)
       '@uiw/codemirror-themes-all':
         specifier: ^4.25.1
         version: 4.25.4(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)
@@ -2147,6 +2150,15 @@ packages:
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
+
+  '@cherrystudio/analytics-client@1.1.0':
+    resolution: {integrity: sha512-P+X+aCkP+4YLgBrO9SiicQyFh23TeIm85flsmVrJWgPjRzbzNMqGu9VDE8ndZlZaRohJ9UiN94MVIBRJiU9+pw==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      typescript: '>=4.7.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   '@cherrystudio/embedjs-interfaces@0.1.30':
     resolution: {integrity: sha512-ShUzWAUQVmX4LsrAZBO3pqusJV8vXVFuxmdmMjeVXWlynORnmRx2CQ1s6xghyxarBUzFCUsQOrOmXO+9ZQoS/Q==}
@@ -7381,8 +7393,8 @@ packages:
       '@codemirror/state': '>=6.0.0'
       '@codemirror/view': 6.38.1
 
-  '@uiw/codemirror-extensions-langs@4.25.4':
-    resolution: {integrity: sha512-mLcEEg8Gt0wzNPaeI350INSLHlXv7qV8eYzQt3oExN+rDB54zL0k2pVhR445wZXDQKbP/fMWuq3qv8SiL/3pxQ==}
+  '@uiw/codemirror-extensions-langs@4.25.1':
+    resolution: {integrity: sha512-P9Sxk0w8WgxxoOK4hC2yNV2f3shE0CH8gmk8lG5rDrAYYyuUrTsTmJANXh30TuQWCPCkEXwXZZVy+dbTYAgvMQ==}
     peerDependencies:
       '@codemirror/language': 6.11.3
       '@codemirror/language-data': '>=6.0.0'
@@ -15699,6 +15711,10 @@ snapshots:
 
   '@cfworker/json-schema@4.1.1': {}
 
+  '@cherrystudio/analytics-client@1.1.0(typescript@5.8.3)':
+    optionalDependencies:
+      typescript: 5.8.3
+
   '@cherrystudio/embedjs-interfaces@0.1.30(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4))':
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4))
@@ -22092,7 +22108,7 @@ snapshots:
       '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.1
 
-  '@uiw/codemirror-extensions-langs@4.25.4(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)':
+  '@uiw/codemirror-extensions-langs@4.25.1(@codemirror/autocomplete@6.20.0)(@codemirror/lang-css@6.3.1)(@codemirror/lang-html@6.4.11)(@codemirror/lang-javascript@6.2.4)(@codemirror/language-data@6.5.2)(@codemirror/language@6.11.3)(@codemirror/state@6.5.3)(@codemirror/view@6.38.1)(@lezer/common@1.5.0)(@lezer/highlight@1.2.3)(@lezer/javascript@1.5.4)(@lezer/lr@1.4.5)':
     dependencies:
       '@codemirror/language': 6.11.3
       '@codemirror/language-data': 6.5.2

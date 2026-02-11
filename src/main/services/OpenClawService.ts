@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, findExecutable } from '@main/utils/process'
+import { findCommandInShellEnv, findExecutable, findGitPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnvCache } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
@@ -22,7 +22,10 @@ const logger = loggerService.withContext('OpenClawService')
 const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
-const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+// Original user config (read-only, used as template for first-time setup)
+const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+// Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
+const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18789
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -162,13 +165,15 @@ class OpenClawService {
       // On Windows, npm is a .cmd file, use findExecutable with .cmd extension
       // Note: findExecutable is synchronous (uses execFileSync) which is acceptable here
       // since we're already in an async context and Windows file ops are fast
+      // Pass shellEnv so where.exe uses the refreshed PATH instead of stale process.env
       npmPath = findExecutable('npm', {
         extensions: ['.cmd', '.exe'],
         commonPaths: [
           path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
           path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
           path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-        ]
+        ],
+        env: shellEnv
       })
     } else {
       npmPath = await findCommandInShellEnv('npm', shellEnv)
@@ -233,6 +238,21 @@ class OpenClawService {
 
     // Use shell environment to find npm (handles GUI launch where process.env.PATH is limited)
     const shellEnv = await getShellEnv()
+
+    // Try to find git and ensure it's in PATH for npm (some packages require git during install)
+    // The frontend already gates on git availability with a localized UI; this is best-effort PATH augmentation
+    const gitPath = await findGitPath(shellEnv)
+    if (gitPath) {
+      const gitDir = path.dirname(gitPath)
+      const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
+      const currentPath = shellEnv[pathKey] || ''
+      if (!currentPath.split(path.delimiter).includes(gitDir)) {
+        shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
+        logger.info(`Added git directory to PATH: ${gitDir}`)
+      }
+    } else {
+      logger.warn('Git not found in environment, npm install may fail if packages require git')
+    }
 
     return new Promise((resolve) => {
       try {
@@ -755,14 +775,22 @@ class OpenClawService {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
       }
 
-      // Read existing config or create new one
+      // Read existing cherry config, or copy from original openclaw.json as base
       let config: OpenClawConfig = {}
       if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
         try {
           const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
           config = JSON.parse(content)
         } catch {
-          logger.warn('Failed to parse existing OpenClaw config, creating new one')
+          logger.warn('Failed to parse existing Cherry OpenClaw config, creating new one')
+        }
+      } else if (fs.existsSync(OPENCLAW_ORIGINAL_CONFIG_PATH)) {
+        try {
+          const content = fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8')
+          config = JSON.parse(content)
+          logger.info('Using original openclaw.json as base template for openclaw.cherry.json')
+        } catch {
+          logger.warn('Failed to parse original openclaw.json, creating new config')
         }
       }
 
@@ -864,6 +892,9 @@ class OpenClawService {
    * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
    */
   private async findOpenClawBinary(): Promise<string | null> {
+    // Refresh cache to detect newly installed OpenClaw without app restart
+    refreshShellEnvCache()
+
     // Try PATH lookup in user's login shell environment (best for npm global installs)
     const shellEnv = await getShellEnv()
     const binaryPath = await findCommandInShellEnv('openclaw', shellEnv)
@@ -965,18 +996,21 @@ class OpenClawService {
    */
   private spawnOpenClaw(openclawPath: string, args: string[], env: Record<string, string>): ChildProcess {
     const lowerPath = openclawPath.toLowerCase()
+    // OpenClaw reads OPENCLAW_CONFIG_PATH env var to locate its config file.
+    // Set it to Cherry Studio's isolated config to avoid modifying the user's original openclaw.json.
+    const spawnEnv = { ...env, OPENCLAW_CONFIG_PATH: OPENCLAW_CONFIG_PATH }
     // On Windows, use cmd.exe for .cmd files and files without .exe extension (npm shims)
     if (isWin && !lowerPath.endsWith('.exe')) {
       return spawn('cmd.exe', ['/c', openclawPath, ...args], {
         detached: false,
         stdio: 'pipe',
-        env
+        env: spawnEnv
       })
     }
     return spawn(openclawPath, args, {
       detached: false,
       stdio: 'pipe',
-      env
+      env: spawnEnv
     })
   }
 

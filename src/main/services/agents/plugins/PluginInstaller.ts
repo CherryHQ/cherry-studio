@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { pathExists } from '@main/utils/file'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import type { PluginError } from '@types'
 import * as crypto from 'crypto'
@@ -8,22 +9,14 @@ const logger = loggerService.withContext('PluginInstaller')
 
 export class PluginInstaller {
   async installFilePlugin(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
-    const tempPath = `${destPath}.tmp`
-    let fileCopied = false
-
-    try {
-      await fs.promises.copyFile(sourceAbsolutePath, tempPath)
-      fileCopied = true
-      logger.debug('File copied to temp location', { agentId, tempPath })
-
-      await fs.promises.rename(tempPath, destPath)
-      logger.debug('File moved to final location', { agentId, destPath })
-    } catch (error) {
-      if (fileCopied) {
-        await this.safeUnlink(tempPath, 'temp file')
-      }
-      throw this.toPluginError('install', error)
-    }
+    await this.installWithBackup({
+      destPath,
+      copy: () => fs.promises.copyFile(sourceAbsolutePath, destPath),
+      cleanup: (p, l) => this.safeUnlink(p, l),
+      operation: 'install',
+      label: 'plugin file',
+      agentId
+    })
   }
 
   async uninstallFilePlugin(
@@ -73,31 +66,14 @@ export class PluginInstaller {
   }
 
   async installSkill(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
-    const logContext = logger.withContext('installSkill')
-    let folderCopied = false
-    const tempPath = `${destPath}.tmp`
-
-    try {
-      try {
-        await fs.promises.access(destPath)
-        await deleteDirectoryRecursive(destPath)
-        logContext.info('Removed existing skill folder', { agentId, destPath })
-      } catch {
-        // No existing folder
-      }
-
-      await copyDirectoryRecursive(sourceAbsolutePath, tempPath)
-      folderCopied = true
-      logContext.info('Skill folder copied to temp location', { agentId, tempPath })
-
-      await fs.promises.rename(tempPath, destPath)
-      logContext.info('Skill folder moved to final location', { agentId, destPath })
-    } catch (error) {
-      if (folderCopied) {
-        await this.safeRemoveDirectory(tempPath, 'temp folder')
-      }
-      throw this.toPluginError('install-skill', error)
-    }
+    await this.installWithBackup({
+      destPath,
+      copy: () => copyDirectoryRecursive(sourceAbsolutePath, destPath),
+      cleanup: (p, l) => this.safeRemoveDirectory(p, l),
+      operation: 'install-skill',
+      label: 'skill folder',
+      agentId
+    })
   }
 
   async uninstallSkill(agentId: string, folderName: string, skillPath: string): Promise<void> {
@@ -115,11 +91,66 @@ export class PluginInstaller {
     }
   }
 
+  /**
+   * Shared backup-copy-restore pattern for both file and directory installs.
+   * 1. Rename existing destPath to .bak (avoids EPERM on Windows sync folders)
+   * 2. Copy source to destPath
+   * 3. On success: delete .bak
+   * 4. On failure: clean partial destPath, restore .bak
+   */
+  private async installWithBackup(opts: {
+    destPath: string
+    copy: () => Promise<void>
+    cleanup: (targetPath: string, label: string) => Promise<void>
+    operation: string
+    label: string
+    agentId: string
+  }): Promise<void> {
+    const { destPath, copy, cleanup, operation, label, agentId } = opts
+    const backupPath = `${destPath}.bak`
+    let hasBackup = false
+
+    try {
+      if (await pathExists(destPath)) {
+        await cleanup(backupPath, 'stale backup')
+        await fs.promises.rename(destPath, backupPath)
+        hasBackup = true
+        logger.debug(`Backed up existing ${label}`, { agentId, backupPath })
+      }
+
+      await copy()
+      logger.debug(`${label} copied to destination`, { agentId, destPath })
+
+      if (hasBackup) {
+        await cleanup(backupPath, `backup ${label}`)
+      }
+    } catch (error) {
+      if (hasBackup) {
+        await cleanup(destPath, `partial ${label}`)
+        await this.safeRename(backupPath, destPath, `${label} backup`)
+      }
+      throw this.toPluginError(operation, error)
+    }
+  }
+
   private toPluginError(operation: string, error: unknown): PluginError {
     return {
       type: 'TRANSACTION_FAILED',
       operation,
       reason: error instanceof Error ? error.message : String(error)
+    }
+  }
+
+  private async safeRename(from: string, to: string, label: string): Promise<void> {
+    try {
+      await fs.promises.rename(from, to)
+      logger.debug(`Restored ${label}`, { from, to })
+    } catch (error) {
+      logger.error(`Failed to restore ${label}`, {
+        from,
+        to,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

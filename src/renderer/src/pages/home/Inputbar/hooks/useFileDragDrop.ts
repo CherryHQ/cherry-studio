@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import type { TFunction } from 'i18next'
@@ -10,7 +10,7 @@ const logger = loggerService.withContext('useFileDragDrop')
 
 export interface UseFileDragDropOptions {
   supportedExts: string[]
-  setFiles: (updater: (prevFiles: FileType[]) => FileType[]) => void
+  setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void
   onTextDropped?: (text: string) => void
   enabled?: boolean
   t: TFunction

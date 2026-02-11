@@ -272,6 +272,21 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       // Finalize session and persist to database
       await streamingService.finalize(assistantMsgId, status)
 
+      // Track token usage analytics
+      const provider = assistant?.model?.provider
+      const model = assistant?.model?.id
+      if (status === 'success' && response?.usage && provider && model) {
+        const { prompt_tokens, completion_tokens } = response.usage
+        if (prompt_tokens > 0 || completion_tokens > 0) {
+          window.api.analytics.trackTokenUsage({
+            provider,
+            model,
+            input_tokens: prompt_tokens || 0,
+            output_tokens: completion_tokens || 0
+          })
+        }
+      }
+
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       logger.debug('onComplete finished')
     }

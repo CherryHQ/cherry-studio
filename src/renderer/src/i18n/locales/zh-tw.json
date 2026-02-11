@@ -14,6 +14,18 @@
         "placeholder": "選擇 Agent 類型"
       }
     },
+    "askUserQuestion": {
+      "answered": "已回答",
+      "customPlaceholder": "輸入你的答案...",
+      "loading": "載入問題中...",
+      "multiSelect": "多重選擇",
+      "next": "下一個",
+      "noQuestions": "沒有可用的問題",
+      "other": "其他",
+      "previous": "之前",
+      "submit": "提交",
+      "title": "來自Agent的提問"
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
@@ -1452,6 +1464,7 @@
     "provider_disabled": "模型供應商未啟用",
     "reason": "原因",
     "render": {
+      "block": "此內容區塊渲染失敗",
       "description": "訊息內容渲染失敗，請檢查訊息內容格式是否正確",
       "title": "渲染錯誤"
     },
@@ -2520,6 +2533,12 @@
       "stop": "停止",
       "version": "版本"
     },
+    "git_missing": {
+      "description": "OpenClaw 的部分依賴需要 Git 來安裝。請先安裝 Git，然後再次點擊安裝。",
+      "download_button": "下載 Git",
+      "hint": "macOS：brew install git | Windows：從 git-scm.com 下載（安裝時請確保勾選將 Git 添加到 PATH）",
+      "title": "需要安裝 Git"
+    },
     "install_progress": "安裝進度",
     "installed_at": "OpenClaw 安裝路徑",
     "model_config": {
@@ -2695,12 +2714,7 @@
     },
     "edit": {
       "image_file": "編輯影像",
-      "magic_prompt_option_tip": "開啟後會自動調整編輯提示詞，以提升效果",
-      "model_tip": "部分編輯僅支援 V_2 和 V_2_TURBO 版本",
-      "number_images_tip": "要產生的編輯結果數量",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "seed_tip": "控制編輯結果的隨機性",
-      "style_type_tip": "編輯後的影像風格，僅適用於 V_2 及以上版本"
+      "image_required": "請先上傳需要編輯的圖片"
     },
     "generate": {
       "height": "高度",
@@ -2769,6 +2783,16 @@
       "allow_all": "允許所有",
       "allow_none": "不允許"
     },
+    "ppio": {
+      "edit_prompt_tip": "用於指定要從圖像中移除的對象或區域，例如：'dog' 或 'hat'",
+      "mask_image": "遮罩圖像",
+      "mask_image_tip": "用於指示要擦除的區域。要擦除的區域應為白色，要保留的區域應為黑色",
+      "output_format": "輸出格式",
+      "resolution": "目標解析度",
+      "seed_tip": "隨機種子，相同的種子和參數可以生成相似的圖片，-1 表示隨機",
+      "use_pre_llm_tip": "開啟文字擴寫，會針對輸入提示詞進行擴寫優化。提示詞較短建議開啟，較長建議關閉",
+      "watermark_tip": "是否在生成的圖片上添加浮水印，預設不添加"
+    },
     "pricing": "定價",
     "prompt_enhancement": "提示詞增強",
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
@@ -2811,6 +2835,7 @@
     "required_field": "必填欄位",
     "seed": "隨機種子",
     "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
+    "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
     "style_type": "風格",
@@ -2837,6 +2862,7 @@
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
     },
+    "watermark": "添加浮水印",
     "zhipu": {
       "custom_size_divisible": "自訂尺寸必須能被 16 整除",
       "custom_size_hint": "寬度和高度必須介於 512px 到 2048px 之間，可被 16 整除，且總像素數不得超過 2^21px。",

@@ -10,6 +10,7 @@ import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import {
   autoDiscoverGitBash,
+  checkGitAvailable,
   getBinaryPath,
   getGitBashPathInfo,
   isBinaryExists,
@@ -39,6 +40,7 @@ import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { PluginService } from './services/agents/plugins/PluginService'
+import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -1140,6 +1142,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
   ipcMain.handle(IpcChannel.OpenClaw_CheckNpmAvailable, openClawService.checkNpmAvailable)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckGitAvailable, checkGitAvailable)
   ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
   ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
   ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
@@ -1151,4 +1154,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
   ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
+
+  // Analytics
+  ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, analyticsService.trackTokenUsage)
 }

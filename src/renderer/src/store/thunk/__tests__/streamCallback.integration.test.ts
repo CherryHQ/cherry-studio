@@ -72,6 +72,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   return {
     ...actual,
     // Override functions that need mocking for tests
+    getModelLogo: vi.fn(),
     isVisionModel: vi.fn(() => false),
     isFunctionCallingModel: vi.fn(() => false),
     isEmbeddingModel: vi.fn(() => false),
@@ -257,7 +258,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 vi.mock('@renderer/utils', () => ({
   default: {},
-  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).substr(2, 9))
+  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).slice(2, 11))
 }))
 
 interface MockTopicsState {

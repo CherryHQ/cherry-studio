@@ -356,7 +356,11 @@ const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
 const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
   if (!block || block.type !== MessageBlockType.TOOL) return false
   const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse
-  return toolResponse?.tool?.name === 'TodoWrite'
+  if (toolResponse?.tool?.name !== 'TodoWrite') return false
+  // Defensive: validate todos is actually an array to prevent dirty data from crashing selectors (#12804)
+  const args = toolResponse.arguments
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return false
+  return Array.isArray((args as Record<string, unknown>).todos)
 }
 
 /**

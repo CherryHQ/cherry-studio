@@ -296,7 +296,6 @@ export enum IpcChannel {
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
 
-  ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
 
   // Search Window
@@ -442,6 +441,7 @@ export enum IpcChannel {
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
   OpenClaw_CheckNpmAvailable = 'openclaw:check-npm-available',
+  OpenClaw_CheckGitAvailable = 'openclaw:check-git-available',
   OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
   OpenClaw_Install = 'openclaw:install',
   OpenClaw_Uninstall = 'openclaw:uninstall',
@@ -453,5 +453,8 @@ export enum IpcChannel {
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
-  OpenClaw_GetChannels = 'openclaw:get-channels'
+  OpenClaw_GetChannels = 'openclaw:get-channels',
+
+  // Analytics
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
 }

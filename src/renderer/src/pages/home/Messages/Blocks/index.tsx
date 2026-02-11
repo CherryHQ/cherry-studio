@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
@@ -9,6 +10,7 @@ import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
+import BlockErrorFallback from './BlockErrorFallback'
 import CitationBlock from './CitationBlock'
 import CompactBlock from './CompactBlock'
 import ErrorBlock from './ErrorBlock'
@@ -53,7 +55,7 @@ const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, e
       variants={blockWrapperVariants}
       initial={enableAnimation ? 'hidden' : 'static'}
       animate={enableAnimation ? 'visible' : 'static'}>
-      {children}
+      <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
     </motion.div>
   )
 }
