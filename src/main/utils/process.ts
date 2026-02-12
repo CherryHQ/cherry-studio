@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
-import { execFileSync, spawn } from 'child_process'
+import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -228,13 +228,10 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   const commonPaths = options?.commonPaths ?? []
 
   // Special handling for git - check common installation paths first
+  // Uses getCommonGitRoots() which includes ProgramFiles, ProgramFiles(x86), and LOCALAPPDATA
   if (name === 'git') {
-    const defaultGitPaths = [
-      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
-      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
-    ]
-
-    for (const gitPath of defaultGitPaths) {
+    for (const root of getCommonGitRoots()) {
+      const gitPath = path.join(root, 'cmd', 'git.exe')
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
@@ -299,9 +296,127 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   }
 }
 
+// ============================================================================
+// Unified Shell Environment Utilities
+// ============================================================================
+
+/**
+ * Find an executable with automatic shell environment refresh.
+ * Handles the full "refresh cache + get shell env + find command" flow.
+ * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows.
+ *
+ * @returns Both the found path and the shell env (callers often need the env for spawn)
+ */
+export async function findExecutableInEnv(
+  name: string,
+  options?: {
+    /** Whether to refresh the shell env cache first (default: true) */
+    refreshCache?: boolean
+    /** Windows-only: file extensions to accept in findExecutable fallback */
+    extensions?: string[]
+    /** Windows-only: common paths to check as filesystem fallback */
+    commonPaths?: string[]
+  }
+): Promise<{ path: string | null; env: Record<string, string> }> {
+  if (options?.refreshCache !== false) {
+    refreshShellEnvCache()
+  }
+
+  const env = await getShellEnv()
+
+  // Cross-platform: try shell environment lookup first
+  const found = await findCommandInShellEnv(name, env)
+  if (found) {
+    return { path: found, env }
+  }
+
+  // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
+  if (isWin) {
+    const winPath = findExecutable(name, {
+      extensions: options?.extensions,
+      commonPaths: options?.commonPaths,
+      env
+    })
+    return { path: winPath, env }
+  }
+
+  return { path: null, env }
+}
+
+/**
+ * Spawn a process with proper Windows handling for .cmd files and npm shims.
+ * On Windows, .cmd files and files without .exe extension are executed via cmd.exe.
+ */
+export function spawnWithEnv(
+  command: string,
+  args: string[],
+  options: SpawnOptions & { env: Record<string, string> }
+): ChildProcess {
+  if (isWin && !command.toLowerCase().endsWith('.exe')) {
+    return spawn('cmd.exe', ['/c', command, ...args], { ...options, stdio: options.stdio ?? 'pipe' })
+  }
+  return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
+}
+
+/**
+ * Execute a command and return its output.
+ * Uses spawnWithEnv internally for proper Windows .cmd handling.
+ * If no env is provided, automatically uses the shell environment.
+ */
+export async function executeInEnv(
+  command: string,
+  args: string[],
+  options?: {
+    /** Capture and return stdout (default: false) */
+    capture?: boolean
+    /** Environment variables (defaults to getShellEnv()) */
+    env?: Record<string, string>
+    /** Timeout in milliseconds */
+    timeout?: number
+  }
+): Promise<string> {
+  const env = options?.env ?? (await getShellEnv())
+
+  return new Promise<string>((resolve, reject) => {
+    const child = spawnWithEnv(command, args, { env })
+    let stdout = ''
+    let stderr = ''
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    if (options?.timeout) {
+      timeoutId = setTimeout(() => {
+        child.kill('SIGKILL')
+        reject(new Error(`Command timed out after ${options.timeout}ms`))
+      }, options.timeout)
+    }
+
+    child.on('error', (err) => {
+      if (timeoutId) clearTimeout(timeoutId)
+      reject(err)
+    })
+
+    child.on('close', (code) => {
+      if (timeoutId) clearTimeout(timeoutId)
+      if (code === 0) {
+        resolve(options?.capture ? stdout : '')
+      } else {
+        reject(new Error(stderr || `Command failed with code ${code}`))
+      }
+    })
+  })
+}
+
 /**
  * Common Git installation root directories on Windows
- * Used by both findGit() and findGitBash() to check fallback paths
+ * Used by findExecutable() (git special case) and findGitBash() to check fallback paths
  */
 function getCommonGitRoots(): string[] {
   return [
@@ -312,61 +427,14 @@ function getCommonGitRoots(): string[] {
 }
 
 /**
- * Find git executable path in the given shell environment
- * Cross-platform: uses findGit on Windows, findCommandInShellEnv on Unix
- * @param shellEnv - The shell environment from getShellEnv()
- * @returns Full path to git executable or null if not found
- */
-export async function findGitPath(shellEnv: Record<string, string>): Promise<string | null> {
-  return isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
-}
-
-/**
- * Find git.exe on Windows
- * Checks PATH, common install paths, and LOCALAPPDATA
- * @returns Full path to git.exe or null if not found
- */
-export function findGit(env?: Record<string, string>): string | null {
-  if (!isWin) {
-    return null
-  }
-
-  // 1. Find git.exe via findExecutable (checks PATH + common Git install paths)
-  const gitPath = findExecutable('git', env ? { env } : undefined)
-  if (gitPath) {
-    return gitPath
-  }
-
-  // 2. Fallback: check common Git installation paths directly
-  for (const root of getCommonGitRoots()) {
-    const fullPath = path.join(root, 'cmd', 'git.exe')
-    if (fs.existsSync(fullPath)) {
-      logger.debug('Found git.exe at common path', { path: fullPath })
-      return fullPath
-    }
-  }
-
-  logger.debug('git.exe not found - checked PATH and common paths')
-  return null
-}
-
-/**
  * Check if git is available in the user's environment
  * Refreshes shell env cache to detect newly installed Git
  * @returns Object with availability status and path to git executable
  */
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-  refreshShellEnvCache()
-
-  const shellEnv = await getShellEnv()
-  const gitPath = await findGitPath(shellEnv)
-
+  const { path: gitPath } = await findExecutableInEnv('git')
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
-
-  return {
-    available: gitPath !== null,
-    path: gitPath
-  }
+  return { available: gitPath !== null, path: gitPath }
 }
 
 /**

@@ -88,6 +88,7 @@ const OpenClawPage: FC = () => {
   const [npmMissing, setNpmMissing] = useState(false)
   const [gitMissing, setGitMissing] = useState(false)
   const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
+  const [gitDownloadUrl, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
 
   // Fetch Node.js download URL and poll npm availability when npmMissing is shown
   useEffect(() => {
@@ -114,9 +115,15 @@ const OpenClawPage: FC = () => {
     return () => clearInterval(pollInterval)
   }, [npmMissing])
 
-  // Poll git availability when gitMissing is shown
+  // Fetch Git download URL and poll git availability when gitMissing is shown
   useEffect(() => {
     if (!gitMissing) return
+
+    // Fetch the download URL from main process
+    window.api.openclaw
+      .getGitDownloadUrl()
+      .then(setGitDownloadUrl)
+      .catch(() => {})
 
     const pollInterval = setInterval(async () => {
       try {
@@ -436,8 +443,9 @@ const OpenClawPage: FC = () => {
   )
 
   const renderNotInstalledContent = () => (
-    <div id="content-container" className="flex flex-1 overflow-y-auto py-5">
-      <div className="mx-auto min-h-fit w-130">
+    <div id="content-container" className="flex flex-1 flex-col overflow-y-auto py-5">
+      <div className="flex-1" />
+      <div className="mx-auto min-h-fit w-130 shrink-0">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
           title={t('openclaw.not_installed.title')}
@@ -461,60 +469,60 @@ const OpenClawPage: FC = () => {
             </Space>
           }
         />
-        {npmMissing && (
-          <Alert
-            message={t('openclaw.npm_missing.title')}
-            description={
-              <div>
-                <p>{t('openclaw.npm_missing.description')}</p>
-                <Space style={{ marginTop: 8 }}>
-                  <Button
-                    type="primary"
-                    icon={<Download size={16} />}
-                    onClick={() => window.open(nodeDownloadUrl, '_blank')}>
-                    {t('openclaw.npm_missing.download_button')}
-                  </Button>
-                </Space>
-                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  {t('openclaw.npm_missing.hint')}
-                </p>
-              </div>
-            }
-            type="warning"
-            showIcon
-            closable
-            onClose={() => setNpmMissing(false)}
-            className="mt-4 rounded-lg!"
-            style={{ width: 580, marginLeft: -30 }}
-          />
-        )}
-        {gitMissing && (
-          <Alert
-            message={t('openclaw.git_missing.title')}
-            description={
-              <div>
-                <p>{t('openclaw.git_missing.description')}</p>
-                <Space style={{ marginTop: 8 }}>
-                  <Button
-                    type="primary"
-                    icon={<Download size={16} />}
-                    onClick={() => window.open('https://git-scm.com/downloads', '_blank')}>
-                    {t('openclaw.git_missing.download_button')}
-                  </Button>
-                </Space>
-                <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  {t('openclaw.git_missing.hint')}
-                </p>
-              </div>
-            }
-            type="warning"
-            showIcon
-            closable
-            onClose={() => setGitMissing(false)}
-            className="mt-4 rounded-lg!"
-            style={{ width: 580, marginLeft: -30 }}
-          />
-        )}
+        <div className="mt-4 space-y-3" style={{ width: 580, marginLeft: -30 }}>
+          {npmMissing && (
+            <Alert
+              message={t('openclaw.npm_missing.title')}
+              description={
+                <div>
+                  <p>{t('openclaw.npm_missing.description')}</p>
+                  <Space style={{ marginTop: 8 }}>
+                    <Button
+                      type="primary"
+                      icon={<Download size={16} />}
+                      onClick={() => window.open(nodeDownloadUrl, '_blank')}>
+                      {t('openclaw.npm_missing.download_button')}
+                    </Button>
+                  </Space>
+                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                    {t('openclaw.npm_missing.hint')}
+                  </p>
+                </div>
+              }
+              type="warning"
+              showIcon
+              closable
+              onClose={() => setNpmMissing(false)}
+              className="rounded-lg!"
+            />
+          )}
+          {gitMissing && (
+            <Alert
+              message={t('openclaw.git_missing.title')}
+              description={
+                <div>
+                  <p>{t('openclaw.git_missing.description')}</p>
+                  <Space style={{ marginTop: 8 }}>
+                    <Button
+                      type="primary"
+                      icon={<Download size={16} />}
+                      onClick={() => window.open(gitDownloadUrl, '_blank')}>
+                      {t('openclaw.git_missing.download_button')}
+                    </Button>
+                  </Space>
+                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                    {t('openclaw.git_missing.hint')}
+                  </p>
+                </div>
+              }
+              type="warning"
+              showIcon
+              closable
+              onClose={() => setGitMissing(false)}
+              className="rounded-lg!"
+            />
+          )}
+        </div>
         {installError && (
           <Alert
             message={installError}
@@ -527,6 +535,7 @@ const OpenClawPage: FC = () => {
 
         {showLogs && installLogs.length > 0 && renderLogContainer()}
       </div>
+      <div className="flex-1" />
     </div>
   )
 
