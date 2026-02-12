@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
@@ -1153,5 +1154,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
 
   // Analytics
-  ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, analyticsService.trackTokenUsage)
+  ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
+    analyticsService.trackTokenUsage(data)
+  )
 }
