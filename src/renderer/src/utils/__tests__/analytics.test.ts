@@ -9,9 +9,9 @@ vi.mock('@renderer/services/ProviderService', () => ({
 }))
 
 vi.mock('@renderer/types', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@renderer/types')>()
+  const actual = await importOriginal()
   return {
-    ...actual,
+    ...(actual as object),
     isSystemProvider: vi.fn()
   }
 })
