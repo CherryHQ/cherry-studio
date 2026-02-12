@@ -6,7 +6,7 @@ import type { AppDispatch } from '@renderer/store'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
 import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -563,7 +563,7 @@ describe('streamCallback Integration Tests', () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockWebSearchResult = {
-      source: WebSearchSource.WEBSEARCH,
+      source: WEB_SEARCH_SOURCE.WEBSEARCH,
       results: [{ title: 'Test Result', url: 'http://example.com', snippet: 'Test snippet' }]
     }
 
@@ -722,7 +722,7 @@ describe('streamCallback Integration Tests', () => {
 
     const mockExternalToolResult: ExternalToolResult = {
       webSearch: {
-        source: WebSearchSource.WEBSEARCH,
+        source: WEB_SEARCH_SOURCE.WEBSEARCH,
         results: [{ title: 'External Result', url: 'http://external.com', snippet: 'External snippet' }]
       },
       knowledge: [

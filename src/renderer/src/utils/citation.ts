@@ -1,6 +1,6 @@
 import type { GroundingSupport } from '@google/genai'
-import type { Citation } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import type { Citation, WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 
 import { cleanMarkdownContent, encodeHTML } from './formats'
 
@@ -112,9 +112,9 @@ export function normalizeCitationMarks(
   }
 
   switch (sourceType) {
-    case WebSearchSource.OPENAI:
-    case WebSearchSource.OPENAI_RESPONSE:
-    case WebSearchSource.PERPLEXITY: {
+    case WEB_SEARCH_SOURCE.OPENAI:
+    case WEB_SEARCH_SOURCE.OPENAI_RESPONSE:
+    case WEB_SEARCH_SOURCE.PERPLEXITY: {
       // OpenAI 格式: [<sup>N</sup>](url) → [cite:N]
       applyReplacements(/\[<sup>(\d+)<\/sup>\]\([^)]*\)/g, (match) => {
         const citationNum = parseInt(match[1], 10)
@@ -122,7 +122,7 @@ export function normalizeCitationMarks(
       })
       break
     }
-    case WebSearchSource.GEMINI: {
+    case WEB_SEARCH_SOURCE.GEMINI: {
       // Gemini 格式: 根据metadata添加 [cite:N]
       const firstCitation = Array.from(citationMap.values())[0]
       if (firstCitation?.metadata) {

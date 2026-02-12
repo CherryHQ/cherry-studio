@@ -34,7 +34,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { EFFORT_RATIO, FILE_TYPE, WebSearchSource } from '@renderer/types'
+import { EFFORT_RATIO, FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
@@ -656,7 +656,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
                     results: candidate.groundingMetadata,
-                    source: WebSearchSource.GEMINI
+                    source: WEB_SEARCH_SOURCE.GEMINI
                   }
                 } satisfies LLMWebSearchCompleteChunk)
               }
