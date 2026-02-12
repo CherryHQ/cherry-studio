@@ -122,6 +122,7 @@ const TextAreaContainer = styled.div`
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  margin-top: 5px;
 `
 
 const TokenCount = styled.div`

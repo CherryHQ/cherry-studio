@@ -154,8 +154,8 @@
       },
       "essential": "Grundeinstellungen",
       "permissionMode": {
-        "tab": "[to be translated]:Permission Mode",
-        "title": "[to be translated]:Permission Mode"
+        "tab": "Berechtigungsmodus",
+        "title": "Berechtigungsmodus"
       },
       "plugins": {
         "available": {
@@ -227,17 +227,16 @@
         "mcp": {
           "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
           "empty": "Keine MCP-Server erkannt. Bitte fügen Sie welche auf der MCP-Einstellungsseite hinzu.",
+          "inactiveTooltip": "Dieser MCP-Server ist nicht aktiv. Bitte starten Sie ihn zuerst.",
           "manageHint": "Benötigen Sie weitere Konfigurationen? Gehen Sie zu Einstellungen → MCP-Server.",
           "toggle": "{{name}} umschalten"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Vertrauenswürdige Dateisystem-Tools werden vorab autorisiert und können sofort ausgeführt werden.",
             "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
             "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "bypassPermissions": {
-            "behavior": "Alle Tools werden automatisch vorab autorisiert.",
             "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
             "title": "Alle Berechtigungsprüfungen überspringen",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
@@ -247,14 +246,12 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "behavior": "Nur-Lese-Tools werden automatisch vorab autorisiert.",
             "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
             "title": "Standard (vor Fortsetzung fragen)"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "behavior": "Standard-Nur-Lese-Tools werden automatisch vorab autorisiert, aber die Ausführung bleibt deaktiviert.",
             "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
             "title": "Planungsmodus"
           },
@@ -263,15 +260,12 @@
         "preapproved": {
           "autoBadge": "Automatisch vom Modus hinzugefügt",
           "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
+          "autoDisabledTooltip": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch genehmigt und kann nicht deaktiviert werden.",
           "empty": "Keine Tools entsprechen den Filterkriterien.",
           "mcpBadge": "MCP-Tool",
           "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
           "search": "Tools suchen",
-          "toggle": "{{name}} umschalten",
-          "warning": {
-            "description": "Aktivieren Sie nur Tools, denen Sie vertrauen. Modusstandardwerte werden automatisch gekennzeichnet.",
-            "title": "Vorab autorisierte Tools werden ohne manuelle Überprüfung ausgeführt."
-          }
+          "toggle": "{{name}} umschalten"
         }
       },
       "tools": {
@@ -285,11 +279,11 @@
       },
       "toolsMcp": {
         "mcp": {
-          "title": "[to be translated]:MCP Servers"
+          "title": "MCP-Server"
         },
-        "tab": "[to be translated]:Tools & MCP",
+        "tab": "Tools & MCP",
         "tools": {
-          "title": "[to be translated]:Pre-approved Tools"
+          "title": "Vorab genehmigte Tools"
         }
       }
     },

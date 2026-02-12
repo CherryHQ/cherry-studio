@@ -154,8 +154,8 @@
       },
       "essential": "Configuraciones esenciales",
       "permissionMode": {
-        "tab": "[to be translated]:Permission Mode",
-        "title": "[to be translated]:Permission Mode"
+        "tab": "Modo de permiso",
+        "title": "Modo de permisos"
       },
       "plugins": {
         "available": {
@@ -227,17 +227,16 @@
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",
           "empty": "No se detectaron servidores MCP. Añade uno desde la página de configuración de MCP.",
+          "inactiveTooltip": "Este servidor MCP no está activo. Por favor, primero inícielo.",
           "manageHint": "¿Necesitas configuración avanzada? Visita Configuración → Servidores MCP.",
           "toggle": "Alternar {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Preaprueba herramientas de sistema de archivos de confianza para que las ediciones se ejecuten inmediatamente.",
             "description": "Las ediciones de archivos y las operaciones del sistema de archivos se aprueban automáticamente.",
             "title": "Aceptar automáticamente las ediciones de archivos"
           },
           "bypassPermissions": {
-            "behavior": "Cada herramienta está pre-aprobada automáticamente.",
             "description": "Todos los mensajes de permiso se omiten — úsalo con precaución.",
             "title": "Omitir verificaciones de permisos",
             "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
@@ -247,14 +246,12 @@
             "title": "¿Cambiar modo de permisos?"
           },
           "default": {
-            "behavior": "No se aprueban herramientas automáticamente de antemano.",
             "description": "Se aplican los controles de permisos normales.",
             "title": "Predeterminado (preguntar antes de continuar)"
           },
           "helper": "Especifica cómo el agente maneja la autorización de uso de herramientas",
           "placeholder": "Seleccionar modo de permisos",
           "plan": {
-            "behavior": "Solo herramientas de solo lectura. La ejecución está deshabilitada.",
             "description": "Claude solo puede usar herramientas de solo lectura y presenta un plan antes de ejecutarlo.",
             "title": "Modo de planificación (próximamente)"
           },
@@ -263,15 +260,12 @@
         "preapproved": {
           "autoBadge": "Añadido por modo",
           "autoDescription": "Esta herramienta está aprobada automáticamente por el modo de permisos actual.",
+          "autoDisabledTooltip": "Esta herramienta está aprobada automáticamente por el modo de permisos actual y no se puede desactivar.",
           "empty": "Ninguna herramienta coincide con tus filtros.",
           "mcpBadge": "herramienta MCP",
           "requiresApproval": "Requiere aprobación cuando está deshabilitado",
           "search": "Herramientas de búsqueda",
-          "toggle": "Alternar {{name}}",
-          "warning": {
-            "description": "Habilita solo las herramientas en las que confíes. Los valores predeterminados del modo se resaltan automáticamente.",
-            "title": "Herramientas preaprobadas se ejecutan sin revisión manual."
-          }
+          "toggle": "Alternar {{name}}"
         }
       },
       "tools": {
@@ -285,11 +279,11 @@
       },
       "toolsMcp": {
         "mcp": {
-          "title": "[to be translated]:MCP Servers"
+          "title": "Servidores MCP"
         },
-        "tab": "[to be translated]:Tools & MCP",
+        "tab": "Herramientas y MCP",
         "tools": {
-          "title": "[to be translated]:Pre-approved Tools"
+          "title": "Herramientas preaprobadas"
         }
       }
     },

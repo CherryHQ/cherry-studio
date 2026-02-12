@@ -11,7 +11,7 @@ import type {
   UpdateAgentSessionFunction
 } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
-import { Alert, Card, Switch, Tag } from 'antd'
+import { Card, Switch, Tag, Tooltip } from 'antd'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -156,61 +156,50 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
           }>
           {t('agent.settings.toolsMcp.tools.title', 'Pre-approved Tools')}
         </SettingsTitle>
-        <div className="mt-2 flex flex-col gap-4">
-          <Alert
-            type="warning"
-            style={{ padding: '8px 12px' }}
-            description={
-              <span className="text-warning">
-                {t('agent.settings.tooling.preapproved.warning.title', 'Pre-approved tools run without manual review.')}
-                {t(
-                  'agent.settings.tooling.preapproved.warning.description',
-                  'Enable only tools you trust. Mode defaults are highlighted automatically.'
-                )}
-              </span>
-            }
-          />
-          <div className="flex flex-col gap-3">
-            {filteredTools.length === 0 ? (
-              <div className="rounded-medium border border-default-200 border-dashed px-4 py-10 text-center text-foreground-500 text-sm">
-                {t('agent.settings.tooling.preapproved.empty', 'No tools match your filters.')}
-              </div>
-            ) : (
-              filteredTools.map((tool) => {
-                const isAuto = autoToolIds.includes(tool.id)
-                const isApproved = approvedToolIds.includes(tool.id)
-                return (
-                  <Card
-                    key={tool.id}
-                    className="border border-default-200"
-                    title={
-                      <div className="flex items-start justify-between gap-3 py-2">
-                        <div className="flex min-w-0 flex-col gap-1">
-                          <span className="truncate font-medium text-sm">{tool.name}</span>
-                          {tool.description ? (
-                            <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">
-                              {tool.description}
-                            </span>
+        <div className="mt-2 flex flex-col gap-3">
+          {filteredTools.length === 0 ? (
+            <div className="rounded-medium border border-default-200 border-dashed px-4 py-10 text-center text-foreground-500 text-sm">
+              {t('agent.settings.tooling.preapproved.empty', 'No tools match your filters.')}
+            </div>
+          ) : (
+            filteredTools.map((tool) => {
+              const isAuto = autoToolIds.includes(tool.id)
+              const isApproved = approvedToolIds.includes(tool.id)
+              return (
+                <Card
+                  key={tool.id}
+                  className="border border-default-200"
+                  title={
+                    <div className="flex items-start justify-between gap-3 py-2">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate font-medium text-sm">{tool.name}</span>
+                        {tool.description ? (
+                          <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">
+                            {tool.description}
+                          </span>
+                        ) : null}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isAuto ? (
+                            <Tag color="success">
+                              {t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode')}
+                            </Tag>
                           ) : null}
-                          <div className="flex flex-wrap items-center gap-2">
-                            {isAuto ? (
-                              <Tag color="success">
-                                {t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode')}
-                              </Tag>
-                            ) : null}
-                            {tool.type === 'mcp' ? (
-                              <Tag color="default">{t('agent.settings.tooling.preapproved.mcpBadge', 'MCP tool')}</Tag>
-                            ) : null}
-                            {tool.requirePermissions ? (
-                              <Tag color="warning">
-                                {t(
-                                  'agent.settings.tooling.preapproved.requiresApproval',
-                                  'Requires approval when disabled'
-                                )}
-                              </Tag>
-                            ) : null}
-                          </div>
+                          {tool.type === 'mcp' ? (
+                            <Tag color="default">{t('agent.settings.tooling.preapproved.mcpBadge', 'MCP tool')}</Tag>
+                          ) : null}
+                          {tool.requirePermissions ? (
+                            <Tag color="warning">
+                              {t(
+                                'agent.settings.tooling.preapproved.requiresApproval',
+                                'Requires approval when disabled'
+                              )}
+                            </Tag>
+                          ) : null}
                         </div>
+                      </div>
+                      <Tooltip
+                        title={isAuto ? t('agent.settings.tooling.preapproved.autoDisabledTooltip') : undefined}
+                        open={isAuto ? undefined : false}>
                         <Switch
                           aria-label={t('agent.settings.tooling.preapproved.toggle', {
                             defaultValue: `Toggle ${tool.name}`,
@@ -221,36 +210,36 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                           size="small"
                           onChange={(checked) => handleToggleTool(tool.id, checked)}
                         />
-                      </div>
+                      </Tooltip>
+                    </div>
+                  }
+                  styles={{
+                    header: {
+                      paddingLeft: '12px',
+                      paddingRight: '12px',
+                      borderBottom: 'none'
+                    },
+                    body: {
+                      paddingLeft: '12px',
+                      paddingRight: '12px',
+                      paddingTop: '0px',
+                      paddingBottom: '0px'
                     }
-                    styles={{
-                      header: {
-                        paddingLeft: '12px',
-                        paddingRight: '12px',
-                        borderBottom: 'none'
-                      },
-                      body: {
-                        paddingLeft: '12px',
-                        paddingRight: '12px',
-                        paddingTop: '0px',
-                        paddingBottom: '0px'
-                      }
-                    }}>
-                    {isAuto ? (
-                      <div className="py-0 pb-3">
-                        <span className="text-foreground-400 text-xs">
-                          {t(
-                            'agent.settings.tooling.preapproved.autoDescription',
-                            'This tool is auto-approved by the current permission mode.'
-                          )}
-                        </span>
-                      </div>
-                    ) : null}
-                  </Card>
-                )
-              })
-            )}
-          </div>
+                  }}>
+                  {isAuto ? (
+                    <div className="py-0 pb-3">
+                      <span className="text-foreground-400 text-xs">
+                        {t(
+                          'agent.settings.tooling.preapproved.autoDescription',
+                          'This tool is auto-approved by the current permission mode.'
+                        )}
+                      </span>
+                    </div>
+                  ) : null}
+                </Card>
+              )
+            })
+          )}
         </div>
       </SettingsItem>
 
@@ -294,16 +283,20 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                             </span>
                           ) : null}
                         </div>
-                        <Switch
-                          aria-label={t('agent.settings.tooling.mcp.toggle', {
-                            defaultValue: `Toggle ${server.name}`,
-                            name: server.name
-                          })}
-                          checked={isSelected}
-                          size="small"
-                          disabled={!server.isActive || isUpdatingMcp}
-                          onChange={(checked) => handleToggleMcp(server.id, checked)}
-                        />
+                        <Tooltip
+                          title={!server.isActive ? t('agent.settings.tooling.mcp.inactiveTooltip') : undefined}
+                          open={!server.isActive ? undefined : false}>
+                          <Switch
+                            aria-label={t('agent.settings.tooling.mcp.toggle', {
+                              defaultValue: `Toggle ${server.name}`,
+                              name: server.name
+                            })}
+                            checked={isSelected}
+                            size="small"
+                            disabled={!server.isActive || isUpdatingMcp}
+                            onChange={(checked) => handleToggleMcp(server.id, checked)}
+                          />
+                        </Tooltip>
                       </div>
                     }
                     styles={{

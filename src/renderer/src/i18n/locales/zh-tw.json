@@ -227,17 +227,16 @@
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
           "empty": "尚未偵測到 MCP 伺服器，請前往 MCP 設定頁新增。",
+          "inactiveTooltip": "此 MCP 伺服器未啟用，請先啟動它。",
           "manageHint": "需要進階設定？前往 設定 → MCP 伺服器。",
           "toggle": "切換 {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "預先授權受信任的檔案系統工具，允許即時執行。",
             "description": "檔案編輯與檔案系統操作會自動核准。",
             "title": "自動接受檔案編輯"
           },
           "bypassPermissions": {
-            "behavior": "所有工具都會被自動預先授權。",
             "description": "所有權限提示都會被略過，請務必謹慎使用。",
             "title": "略過所有權限檢查",
             "warning": "警告：所有工具都會在無核准情況下執行。"
@@ -247,14 +246,12 @@
             "title": "確認切換權限模式？"
           },
           "default": {
-            "behavior": "唯讀工具會自動預先授權。",
             "description": "唯讀工具會自動預先授權，其它操作仍需核准。",
             "title": "預設（繼續前先詢問）"
           },
           "helper": "指定助手如何處理工具使用授權",
           "placeholder": "選擇權限模式",
           "plan": {
-            "behavior": "預設的唯讀工具會自動預先授權，但執行仍被停用。",
             "description": "沿用預設的唯讀工具集，並會在執行前先呈現計畫。",
             "title": "規劃模式"
           },
@@ -263,15 +260,12 @@
         "preapproved": {
           "autoBadge": "模式自動新增",
           "autoDescription": "此工具由目前的權限模式自動預先授權。",
+          "autoDisabledTooltip": "此工具已由目前的權限模式自動核准，且無法停用。",
           "empty": "沒有符合篩選條件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "停用時需要人工核准",
           "search": "搜尋工具",
-          "toggle": "切換 {{name}}",
-          "warning": {
-            "description": "僅啟用你信任的工具。模式預設值會自動標示。",
-            "title": "預先授權的工具將在無人工審查下執行。"
-          }
+          "toggle": "切換 {{name}}"
         }
       },
       "tools": {

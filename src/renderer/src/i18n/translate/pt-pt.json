@@ -154,8 +154,8 @@
       },
       "essential": "Configurações Essenciais",
       "permissionMode": {
-        "tab": "[to be translated]:Permission Mode",
-        "title": "[to be translated]:Permission Mode"
+        "tab": "Modo de Permissão",
+        "title": "Modo de Permissão"
       },
       "plugins": {
         "available": {
@@ -227,17 +227,16 @@
         "mcp": {
           "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",
           "empty": "Nenhum servidor MCP detectado. Adicione um na página de configurações do MCP.",
+          "inactiveTooltip": "Este servidor MCP não está ativo. Por favor, inicie-o primeiro.",
           "manageHint": "Precisa de configuração avançada? Visite Configurações → Servidores MCP.",
           "toggle": "Alternar {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pré-aplica ferramentas confiáveis do sistema de arquivos para que as edições sejam executadas imediatamente.",
             "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
             "title": "Aceitar automaticamente edições de arquivos"
           },
           "bypassPermissions": {
-            "behavior": "Cada ferramenta é pré-aprovada automaticamente.",
             "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
             "title": "Ignorar verificações de permissão",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
@@ -247,14 +246,12 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "behavior": "Nenhuma ferramenta é pré-aprovada automaticamente.",
             "description": "Verificações normais de permissão aplicam-se.",
             "title": "Padrão (perguntar antes de continuar)"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
             "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
             "title": "Modo de planejamento (em breve)"
           },
@@ -263,15 +260,12 @@
         "preapproved": {
           "autoBadge": "Adicionado por modo",
           "autoDescription": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual.",
+          "autoDisabledTooltip": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual e não pode ser desativada.",
           "empty": "Nenhuma ferramenta corresponde aos seus filtros.",
           "mcpBadge": "Ferramenta MCP",
           "requiresApproval": "Requer aprovação quando desativado",
           "search": "Ferramentas de pesquisa",
-          "toggle": "Alternar {{name}}",
-          "warning": {
-            "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
-            "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
-          }
+          "toggle": "Alternar {{name}}"
         }
       },
       "tools": {
@@ -285,11 +279,11 @@
       },
       "toolsMcp": {
         "mcp": {
-          "title": "[to be translated]:MCP Servers"
+          "title": "Servidores MCP"
         },
-        "tab": "[to be translated]:Tools & MCP",
+        "tab": "Ferramentas & MCP",
         "tools": {
-          "title": "[to be translated]:Pre-approved Tools"
+          "title": "Ferramentas pré-aprovadas"
         }
       }
     },

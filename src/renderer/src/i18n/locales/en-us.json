@@ -227,19 +227,18 @@
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
           "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "inactiveTooltip": "This MCP server is not active. Please start it first.",
           "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
           "toggle": "Toggle {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "File edits and filesystem operations are automatically approved.",
-            "title": "Auto-accept file edits"
+            "description": "Can read and edit files freely. Asks before running commands.",
+            "title": "Auto-edit Mode"
           },
           "bypassPermissions": {
-            "behavior": "Every tool is pre-approved automatically.",
-            "description": "All permission prompts are skipped — use with caution.",
-            "title": "Bypass permission checks",
+            "description": "Can do everything without asking. Use with caution.",
+            "title": "Full Auto Mode",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
           "confirmChange": {
@@ -247,31 +246,26 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "behavior": "Read-only tools are pre-approved automatically.",
-            "description": "Read-only tools are pre-approved; everything else still needs permission.",
-            "title": "Default (ask before continuing)"
+            "description": "Can read files freely. Asks before editing or running commands.",
+            "title": "Normal Mode"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
-            "description": "Shares the default read-only tool set but presents a plan before execution.",
-            "title": "Planning mode"
+            "description": "Can only read files and make plans. Cannot edit files or run commands.",
+            "title": "Plan Mode"
           },
           "title": "Permission mode"
         },
         "preapproved": {
           "autoBadge": "Added by mode",
           "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "autoDisabledTooltip": "This tool is auto-approved by the current permission mode and cannot be disabled.",
           "empty": "No tools match your filters.",
           "mcpBadge": "MCP tool",
           "requiresApproval": "Requires approval when disabled",
           "search": "Search tools",
-          "toggle": "Toggle {{name}}",
-          "warning": {
-            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "Pre-approved tools run without manual review."
-          }
+          "toggle": "Toggle {{name}}"
         }
       },
       "tools": {

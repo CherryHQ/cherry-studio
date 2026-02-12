@@ -152,7 +152,7 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
     <SettingsContainer>
       <SettingsItem divider={false}>
         <SettingsTitle>{t('agent.settings.permissionMode.title', 'Permission Mode')}</SettingsTitle>
-        <div className="mt-1 flex flex-col gap-3">
+        <div className="mt-2 flex flex-col gap-3">
           {permissionModeCards.map((card) => {
             const isSelected = card.mode === selectedMode
             const disabled = card.unsupported
@@ -161,7 +161,7 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
             return (
               <div
                 key={card.mode}
-                className={`flex flex-col gap-3 overflow-hidden rounded-lg border p-4 transition-colors ${
+                className={`flex flex-col gap-2 overflow-hidden rounded-lg border p-4 transition-colors ${
                   isSelected
                     ? 'border-primary bg-primary-50/30 dark:bg-primary-950/20'
                     : 'border-default-200 hover:bg-default-50 dark:hover:bg-default-900/20'
@@ -173,9 +173,8 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
                     <span className="whitespace-normal break-words text-left font-semibold text-sm">
                       {t(card.titleKey, card.titleFallback)}
                     </span>
-                    <span className="whitespace-normal break-words text-left text-foreground-500 text-xs">
+                    <span className="whitespace-normal break-words text-left text-[var(--color-text-2)] text-xs">
                       {t(card.descriptionKey, card.descriptionFallback)}
-                      {t(card.behaviorKey, card.behaviorFallback)}
                     </span>
                   </div>
                   {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
@@ -183,8 +182,8 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
                 </div>
 
                 {/* Body */}
-                <div className="flex flex-col gap-2">
-                  {showCaution && (
+                {showCaution && (
+                  <div className="flex flex-col gap-2">
                     <div className="flex items-start gap-2 rounded-md bg-[var(--color-error-bg)]">
                       <ShieldAlert className="flex-shrink-0 text-[var(--color-error)]" size={16} />
                       <span className="text-[var(--color-error)] text-xs">
@@ -194,8 +193,8 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
                         )}
                       </span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
           })}
