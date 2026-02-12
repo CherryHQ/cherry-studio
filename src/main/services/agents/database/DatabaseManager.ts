@@ -208,4 +208,30 @@ export class DatabaseManager {
   public isInitialized(): boolean {
     return this.state === InitState.INITIALIZED
   }
+
+  /**
+   * Close the database connection and reset the singleton.
+   * Must be called before deleting agents.db (e.g. during backup restore).
+   * After calling this, getInstance() will re-initialize a fresh connection.
+   */
+  public static async close(): Promise<void> {
+    const instance = DatabaseManager.instance
+    if (!instance) {
+      return
+    }
+
+    if (instance.client) {
+      try {
+        instance.client.close()
+        logger.info('Database connection closed')
+      } catch (error) {
+        logger.warn('Failed to close database connection:', error as Error)
+      }
+    }
+
+    instance.client = null
+    instance.db = null
+    instance.state = InitState.INITIALIZING
+    DatabaseManager.instance = null
+  }
 }
