@@ -153,6 +153,10 @@
         "title": "Расширенные настройки"
       },
       "essential": "Основные настройки",
+      "permissionMode": {
+        "tab": "[to be translated]:Permission Mode",
+        "title": "[to be translated]:Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Доступные плагины"
@@ -268,29 +272,7 @@
             "description": "Включайте только те инструменты, которым доверяете. Настройки по умолчанию выделяются автоматически.",
             "title": "Предварительно одобренные инструменты запускаются без ручной проверки."
           }
-        },
-        "review": {
-          "autoTools": "Авто: {{count}}",
-          "customTools": "Пользовательские: {{count}}",
-          "helper": "Изменения сохраняются автоматически. В любое время можно скорректировать шаги выше, чтобы уточнить разрешения.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Режим: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Серверы MCP"
-          },
-          "permissionMode": {
-            "title": "Шаг 1 · Режим разрешений"
-          },
-          "preapproved": {
-            "title": "Шаг 2 · Предварительно одобренные инструменты"
-          },
-          "review": {
-            "title": "Шаг 3 · Обзор"
-          }
-        },
-        "tab": "Инструменты и разрешения"
+        }
       },
       "tools": {
         "approved": "одобрено",
@@ -300,6 +282,15 @@
         "tab": "Предварительно одобренные инструменты",
         "title": "Предварительно одобренные инструменты",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "[to be translated]:MCP Servers"
+        },
+        "tab": "[to be translated]:Tools & MCP",
+        "tools": {
+          "title": "[to be translated]:Pre-approved Tools"
+        }
       }
     },
     "todo": {

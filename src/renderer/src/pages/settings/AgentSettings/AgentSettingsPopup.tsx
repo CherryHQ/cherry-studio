@@ -8,10 +8,11 @@ import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
 import EssentialSettings from './EssentialSettings'
+import PermissionModeSettings from './PermissionModeSettings'
 import { InstalledPluginsSettings, PluginBrowserSettings } from './PluginsSettings/PluginsSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
-import ToolingSettings from './ToolingSettings'
+import ToolsAndMCPSettings from './ToolsAndMCPSettings'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -22,7 +23,15 @@ interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'plugins' | 'installed' | 'session-mcps'
+type AgentSettingPopupTab =
+  | 'essential'
+  | 'prompt'
+  | 'permission-mode'
+  | 'tools-mcp'
+  | 'advanced'
+  | 'plugins'
+  | 'installed'
+  | 'session-mcps'
 
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -54,8 +63,12 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       label: t('agent.settings.prompt')
     },
     {
-      key: 'tooling',
-      label: t('agent.settings.tooling.tab', 'Tooling & permissions')
+      key: 'permission-mode',
+      label: t('agent.settings.permissionMode.tab', 'Permission Mode')
+    },
+    {
+      key: 'tools-mcp',
+      label: t('agent.settings.toolsMcp.tab', 'Tools & MCP')
     },
     {
       key: 'plugins',
@@ -107,7 +120,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         <Settings>
           {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
           {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'permission-mode' && <PermissionModeSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'tools-mcp' && <ToolsAndMCPSettings agentBase={agent} update={updateAgent} />}
           {menu === 'plugins' && <PluginBrowserSettings agentBase={agent} update={updateAgent} />}
           {menu === 'installed' && <InstalledPluginsSettings agentBase={agent} update={updateAgent} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}

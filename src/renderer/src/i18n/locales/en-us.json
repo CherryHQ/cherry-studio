@@ -153,6 +153,10 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "permissionMode": {
+        "tab": "Permission Mode",
+        "title": "Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Available Plugins"
@@ -268,29 +272,7 @@
             "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
             "title": "Pre-approved tools run without manual review."
           }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Custom: {{count}}",
-          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mode: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP servers"
-          },
-          "permissionMode": {
-            "title": "Step 1 · Permission mode"
-          },
-          "preapproved": {
-            "title": "Step 2 · Pre-approved tools"
-          },
-          "review": {
-            "title": "Step 3 · Review"
-          }
-        },
-        "tab": "Tooling & permissions"
+        }
       },
       "tools": {
         "approved": "approved",
@@ -300,6 +282,15 @@
         "tab": "Pre-approved tools",
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP Servers"
+        },
+        "tab": "Tools & MCP",
+        "tools": {
+          "title": "Pre-approved Tools"
+        }
       }
     },
     "todo": {

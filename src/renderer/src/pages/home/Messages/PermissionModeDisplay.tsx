@@ -51,7 +51,7 @@ const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
     SessionSettingsPopup.show({
       agentId,
       sessionId: session.id,
-      tab: 'tooling'
+      tab: 'permission-mode'
     })
   }
 

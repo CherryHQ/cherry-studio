@@ -153,6 +153,10 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "permissionMode": {
+        "tab": "[to be translated]:Permission Mode",
+        "title": "[to be translated]:Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "利用可能なプラグイン"
@@ -268,29 +272,7 @@
             "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
             "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
           }
-        },
-        "review": {
-          "autoTools": "自動: {{count}}",
-          "customTools": "カスタム: {{count}}",
-          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
-          "mcp": "MCP: {{count}}",
-          "mode": "モード: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCPサーバー"
-          },
-          "permissionMode": {
-            "title": "ステップ1・権限モード"
-          },
-          "preapproved": {
-            "title": "ステップ2・事前承認済みツール"
-          },
-          "review": {
-            "title": "ステップ3・レビュー"
-          }
-        },
-        "tab": "ツールと権限"
+        }
       },
       "tools": {
         "approved": "承認済み",
@@ -300,6 +282,15 @@
         "tab": "事前承認済みツール",
         "title": "事前承認済みツール",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "[to be translated]:MCP Servers"
+        },
+        "tab": "[to be translated]:Tools & MCP",
+        "tools": {
+          "title": "[to be translated]:Pre-approved Tools"
+        }
       }
     },
     "todo": {

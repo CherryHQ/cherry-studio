@@ -1,0 +1,236 @@
+import { permissionModeCards } from '@renderer/config/agent'
+import type {
+  AgentConfiguration,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  PermissionMode,
+  Tool,
+  UpdateAgentBaseForm,
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
+import { Modal, Tag } from 'antd'
+import { ShieldAlert } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+
+type PermissionModeSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: UpdateAgentFunction
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: UpdateAgentSessionFunction
+    }
+
+type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
+
+const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ */
+export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
+  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
+  switch (mode) {
+    case 'acceptEdits':
+      return [
+        ...defaultToolIds,
+        'Edit',
+        'MultiEdit',
+        'NotebookEdit',
+        'Write',
+        'Bash(mkdir:*)',
+        'Bash(touch:*)',
+        'Bash(rm:*)',
+        'Bash(mv:*)',
+        'Bash(cp:*)'
+      ]
+    case 'bypassPermissions':
+      return tools.map((tool) => tool.id)
+    case 'default':
+    case 'plan':
+      return defaultToolIds
+  }
+}
+
+export const unique = (values: string[]) => Array.from(new Set(values))
+
+export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentBase, update }) => {
+  const { t } = useTranslation()
+  const [modal, contextHolder] = Modal.useModal()
+  const [isUpdatingMode, setIsUpdatingMode] = useState(false)
+
+  const configuration: AgentConfigurationState = useMemo(
+    () => agentBase?.configuration ?? defaultConfiguration,
+    [agentBase?.configuration]
+  )
+  const selectedMode = useMemo(
+    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    [agentBase?.configuration?.permission_mode]
+  )
+  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
+  const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
+  const approvedToolIds = useMemo(() => {
+    const allowed = agentBase?.allowed_tools ?? []
+    const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+    const merged = unique([...sanitized, ...autoToolIds])
+    return merged
+  }, [agentBase?.allowed_tools, autoToolIds, availableTools])
+  const userAddedIds = useMemo(() => {
+    return approvedToolIds.filter((id) => !autoToolIds.includes(id))
+  }, [approvedToolIds, autoToolIds])
+
+  const handleSelectPermissionMode = useCallback(
+    (nextMode: PermissionMode) => {
+      if (!agentBase || nextMode === selectedMode || isUpdatingMode) {
+        return
+      }
+      const defaults = computeModeDefaults(nextMode, availableTools)
+      const merged = unique([...defaults, ...userAddedIds])
+      const removedDefaults = autoToolIds.filter((id) => !defaults.includes(id))
+
+      const applyChange = async () => {
+        setIsUpdatingMode(true)
+        try {
+          const nextConfiguration = { ...configuration, permission_mode: nextMode } satisfies AgentConfigurationState
+          await update({
+            id: agentBase.id,
+            configuration: nextConfiguration,
+            allowed_tools: merged
+          } satisfies UpdateAgentBaseForm)
+        } finally {
+          setIsUpdatingMode(false)
+        }
+      }
+
+      if (removedDefaults.length > 0) {
+        modal.confirm({
+          title: (
+            <span className="text-foreground">
+              {t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?')}
+            </span>
+          ),
+          content: (
+            <div className="flex flex-col gap-2">
+              <p className="text-foreground-500 text-sm">
+                {t(
+                  'agent.settings.tooling.permissionMode.confirmChange.description',
+                  'Switching modes updates the automatically approved tools.'
+                )}
+              </p>
+              <div className="rounded-medium border border-default-200 bg-default-50 px-3 py-2 text-sm">
+                <span className="font-medium text-foreground">{t('common.removed', 'Removed')}:</span>
+                <ul className="mt-1 list-disc pl-4">
+                  {removedDefaults.map((id) => {
+                    const tool = availableTools.find((item) => item.id === id)
+                    return (
+                      <li className="text-foreground" key={id}>
+                        {tool?.name ?? id}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            </div>
+          ),
+          centered: true,
+          okText: t('common.confirm'),
+          cancelText: t('common.cancel'),
+          onOk: applyChange,
+          classNames: {
+            content: 'bg-background! border! border-solid! rounded border-grey border-default-200!'
+          }
+        })
+      } else {
+        void applyChange()
+      }
+    },
+    [
+      agentBase,
+      selectedMode,
+      isUpdatingMode,
+      availableTools,
+      userAddedIds,
+      autoToolIds,
+      configuration,
+      update,
+      modal,
+      t
+    ]
+  )
+
+  if (!agentBase) {
+    return null
+  }
+
+  return (
+    <SettingsContainer>
+      {contextHolder}
+      <SettingsItem divider={false}>
+        <SettingsTitle>{t('agent.settings.permissionMode.title', 'Permission Mode')}</SettingsTitle>
+        <div className="flex flex-col gap-3">
+          {permissionModeCards.map((card) => {
+            const isSelected = card.mode === selectedMode
+            const disabled = card.unsupported
+            const showCaution = card.caution
+
+            return (
+              <div
+                key={card.mode}
+                className={`flex flex-col gap-3 overflow-hidden rounded-lg border p-4 transition-colors ${
+                  isSelected
+                    ? 'border-primary bg-primary-50/30 dark:bg-primary-950/20'
+                    : 'border-default-200 hover:bg-default-50 dark:hover:bg-default-900/20'
+                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                onClick={() => !disabled && handleSelectPermissionMode(card.mode)}>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="whitespace-normal break-words text-left font-semibold text-sm">
+                      {t(card.titleKey, card.titleFallback)}
+                    </span>
+                    <span className="whitespace-normal break-words text-left text-foreground-500 text-xs">
+                      {t(card.descriptionKey, card.descriptionFallback)}
+                    </span>
+                  </div>
+                  {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
+                  {isSelected && !disabled && (
+                    <Tag color="success">
+                      <div className="flex items-center gap-1">
+                        <span>{t('common.selected', 'Selected')}</span>
+                      </div>
+                    </Tag>
+                  )}
+                </div>
+
+                {/* Body */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-foreground-600 text-xs">{t(card.behaviorKey, card.behaviorFallback)}</span>
+                  {showCaution && (
+                    <div className="flex items-start gap-2 rounded-md bg-danger-50 p-2 dark:bg-danger-950/30">
+                      <ShieldAlert className="mt-0.5 flex-shrink-0 text-danger-600" size={16} />
+                      <span className="text-danger-600 text-xs">
+                        {t(
+                          'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+                          'Use with caution — all tools will run without asking for approval.'
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </SettingsItem>
+    </SettingsContainer>
+  )
+}
+
+export default PermissionModeSettings

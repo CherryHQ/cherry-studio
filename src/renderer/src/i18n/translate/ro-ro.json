@@ -153,6 +153,10 @@
         "title": "Setări avansate"
       },
       "essential": "Setări esențiale",
+      "permissionMode": {
+        "tab": "[to be translated]:Permission Mode",
+        "title": "[to be translated]:Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Pluginuri disponibile"
@@ -268,29 +272,7 @@
             "description": "Activează doar instrumentele în care ai încredere. Setările implicite ale modului sunt evidențiate automat.",
             "title": "Instrumentele pre-aprobate rulează fără revizuire manuală."
           }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizat: {{count}}",
-          "helper": "Modificările se salvează automat. Ajustează pașii de mai sus oricând pentru a regla fin permisiunile.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mod: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Servere MCP"
-          },
-          "permissionMode": {
-            "title": "Pasul 1 · Mod de permisiune"
-          },
-          "preapproved": {
-            "title": "Pasul 2 · Instrumente pre-aprobate"
-          },
-          "review": {
-            "title": "Pasul 3 · Revizuire"
-          }
-        },
-        "tab": "Instrumente și permisiuni"
+        }
       },
       "tools": {
         "approved": "aprobat",
@@ -300,6 +282,15 @@
         "tab": "Instrumente pre-aprobate",
         "title": "Instrumente pre-aprobate",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "[to be translated]:MCP Servers"
+        },
+        "tab": "[to be translated]:Tools & MCP",
+        "tools": {
+          "title": "[to be translated]:Pre-approved Tools"
+        }
       }
     },
     "todo": {

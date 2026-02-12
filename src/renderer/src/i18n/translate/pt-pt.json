@@ -153,6 +153,10 @@
         "title": "Configurações avançadas"
       },
       "essential": "Configurações Essenciais",
+      "permissionMode": {
+        "tab": "[to be translated]:Permission Mode",
+        "title": "[to be translated]:Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Plugins disponíveis"
@@ -268,29 +272,7 @@
             "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
             "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
           }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizado: {{count}}",
-          "helper": "As alterações são salvas automaticamente. Ajuste as etapas acima a qualquer momento para refinar as permissões.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modo: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Servidores MCP"
-          },
-          "permissionMode": {
-            "title": "Passo 1 · Modo de permissão"
-          },
-          "preapproved": {
-            "title": "Passo 2 · Ferramentas pré-aprovadas"
-          },
-          "review": {
-            "title": "Passo 3 · Revisão"
-          }
-        },
-        "tab": "Ferramentas e permissões"
+        }
       },
       "tools": {
         "approved": "aprovado",
@@ -300,6 +282,15 @@
         "tab": "Ferramentas pré-aprovadas",
         "title": "Ferramentas pré-aprovadas",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "[to be translated]:MCP Servers"
+        },
+        "tab": "[to be translated]:Tools & MCP",
+        "tools": {
+          "title": "[to be translated]:Pre-approved Tools"
+        }
       }
     },
     "todo": {

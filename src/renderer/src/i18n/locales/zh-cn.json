@@ -153,6 +153,10 @@
         "title": "高级设置"
       },
       "essential": "基础设置",
+      "permissionMode": {
+        "tab": "权限模式",
+        "title": "权限模式"
+      },
       "plugins": {
         "available": {
           "title": "可用插件"
@@ -268,29 +272,7 @@
             "description": "仅启用你信任的工具。模式默认值会自动标注。",
             "title": "预先授权的工具将在无人工审核时运行。"
           }
-        },
-        "review": {
-          "autoTools": "自动：{{count}}",
-          "customTools": "自定义：{{count}}",
-          "helper": "设置会自动保存，可随时返回上方步骤进行调整。",
-          "mcp": "MCP：{{count}}",
-          "mode": "模式：{{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP 服务器"
-          },
-          "permissionMode": {
-            "title": "步骤 1 · 权限模式"
-          },
-          "preapproved": {
-            "title": "步骤 2 · 预先授权工具"
-          },
-          "review": {
-            "title": "步骤 3 · 总览"
-          }
-        },
-        "tab": "工具与权限"
+        }
       },
       "tools": {
         "approved": "已授权",
@@ -300,6 +282,15 @@
         "tab": "预先授权工具",
         "title": "预先授权工具",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP 服务器"
+        },
+        "tab": "工具和 MCP",
+        "tools": {
+          "title": "预先授权工具"
+        }
       }
     },
     "todo": {

@@ -153,6 +153,10 @@
         "title": "Ρυθμίσεις για προχωρημένους"
       },
       "essential": "Βασικές Ρυθμίσεις",
+      "permissionMode": {
+        "tab": "[to be translated]:Permission Mode",
+        "title": "[to be translated]:Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Διαθέσιμα πρόσθετα"
@@ -268,29 +272,7 @@
             "description": "Ενεργοποιήστε μόνο εργαλεία που εμπιστεύεστε. Οι προεπιλογές λειτουργίας τονίζονται αυτόματα.",
             "title": "Τα προεγκεκριμένα εργαλεία εκτελούνται χωρίς χειροκίνητη αναθεώρηση."
           }
-        },
-        "review": {
-          "autoTools": "Αυτόματο: {{count}}",
-          "customTools": "Προσαρμοσμένο: {{count}}",
-          "helper": "Οι αλλαγές αποθηκεύονται αυτόματα. Προσαρμόστε τα παραπάνω βήματα ανά πάσα στιγμή για να εξειδικεύσετε τα δικαιώματα.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Λειτουργία: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Διακομιστές MCP"
-          },
-          "permissionMode": {
-            "title": "Βήμα 1 · Λειτουργία αδειών"
-          },
-          "preapproved": {
-            "title": "Βήμα 2 · Προεγκεκριμένα εργαλεία"
-          },
-          "review": {
-            "title": "Βήμα 3 · Ανασκόπηση"
-          }
-        },
-        "tab": "Εργαλεία & άδειες"
+        }
       },
       "tools": {
         "approved": "εγκεκριμένο",
@@ -300,6 +282,15 @@
         "tab": "Προεγκεκριμένα εργαλεία",
         "title": "Προεγκεκριμένα εργαλεία",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "[to be translated]:MCP Servers"
+        },
+        "tab": "[to be translated]:Tools & MCP",
+        "tools": {
+          "title": "[to be translated]:Pre-approved Tools"
+        }
       }
     },
     "todo": {

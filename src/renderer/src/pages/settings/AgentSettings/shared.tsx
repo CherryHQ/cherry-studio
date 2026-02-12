@@ -17,7 +17,7 @@ export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
 
 export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, contentAfter }) => {
   return (
-    <div className={cn(contentAfter ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
+    <div className="mb-1 flex items-center gap-2">
       <span className="flex items-center gap-1 font-bold">{children}</span>
       {contentAfter !== undefined && contentAfter}
     </div>

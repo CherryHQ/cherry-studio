@@ -57,8 +57,8 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
   if (!agentBase) return null
 
   return (
-    <SettingsContainer>
-      <SettingsItem divider={false} className="flex-1">
+    <SettingsContainer className="h-full">
+      <SettingsItem divider={false} className="h-full flex-1">
         <SettingsTitle>
           {t('common.prompt')}
           <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
