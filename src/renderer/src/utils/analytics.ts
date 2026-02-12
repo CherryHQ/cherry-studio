@@ -1,4 +1,5 @@
-import type { Model, Usage } from '@renderer/types'
+import { getProviderById } from '@renderer/services/ProviderService'
+import { isSystemProvider, type Model, type Usage } from '@renderer/types'
 import type { LanguageModelUsage } from 'ai'
 
 /** Token usage from streaming (OpenAI format) or non-streaming (AI SDK format) */
@@ -14,7 +15,36 @@ interface TokenUsageParams {
  * AI SDK format uses inputTokens/outputTokens, OpenAI format uses prompt_tokens/completion_tokens
  */
 function isAiSdkUsage(usage: TokenUsage): usage is LanguageModelUsage {
-  return typeof (usage as LanguageModelUsage).inputTokens === 'number'
+  return 'inputTokens' in usage
+}
+
+/**
+ * Get a trackable identifier for a provider
+ * - System providers: use provider.id directly (e.g., 'openai', 'anthropic')
+ * - Custom providers: extract hostname from apiHost (e.g., 'https://api.example.com/v1' -> 'api.example.com')
+ * - Fallback: provider.name or provider.id or 'unknown'
+ */
+function getProviderTrackId(id: string): string {
+  const provider = getProviderById(id)
+
+  if (!provider) {
+    return 'unknown'
+  }
+
+  if (isSystemProvider(provider)) {
+    return provider.id
+  }
+
+  // Custom provider: extract hostname from apiHost
+  if (provider.apiHost) {
+    try {
+      return new URL(provider.apiHost).hostname
+    } catch {
+      // URL parsing failed, fall through to name/id fallback
+    }
+  }
+
+  return provider.name || provider.id || 'unknown'
 }
 
 /**
@@ -30,7 +60,7 @@ export function trackTokenUsage({ usage, model }: TokenUsageParams): void {
 
   if (inputTokens > 0 || outputTokens > 0) {
     window.api.analytics.trackTokenUsage({
-      provider: model.provider,
+      provider: getProviderTrackId(model.provider),
       model: model.id,
       input_tokens: inputTokens,
       output_tokens: outputTokens
