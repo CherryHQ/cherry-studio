@@ -13,6 +13,7 @@ import {
   setLastHealthCheck,
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
+import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
 import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
@@ -27,12 +28,7 @@ const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
 type NodeStatus = { status: 'not_found' } | { status: 'version_low'; version: string } | { status: 'ok' }
 
 /** Map the IPC result to the UI-side NodeStatus (drops the `path` field the renderer doesn't need). */
-function toNodeStatus(
-  result:
-    | { status: 'not_found' }
-    | { status: 'version_low'; version: string; path: string }
-    | { status: 'ok'; version: string; path: string }
-): NodeStatus {
+function toNodeStatus(result: NodeCheckResult): NodeStatus {
   if (result.status === 'version_low') return { status: 'version_low', version: result.version }
   if (result.status === 'ok') return { status: 'ok' }
   return { status: 'not_found' }

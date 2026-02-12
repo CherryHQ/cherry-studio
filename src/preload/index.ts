@@ -12,6 +12,7 @@ import type {
   LanHandshakeAckMessage,
   LocalTransferConnectPayload,
   LocalTransferState,
+  NodeCheckResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -671,11 +672,7 @@ const api = {
   openclaw: {
     checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    checkNodeVersion: (): Promise<
-      | { status: 'not_found' }
-      | { status: 'version_low'; version: string; path: string }
-      | { status: 'ok'; version: string; path: string }
-    > => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
+    checkNodeVersion: (): Promise<NodeCheckResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
     checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
     getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),

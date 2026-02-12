@@ -10,6 +10,7 @@ import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
+import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
@@ -30,11 +31,6 @@ const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.jso
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
-
-export type NodeCheckResult =
-  | { status: 'not_found' }
-  | { status: 'version_low'; version: string; path: string }
-  | { status: 'ok'; version: string; path: string }
 
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
