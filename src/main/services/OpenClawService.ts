@@ -150,7 +150,7 @@ class OpenClawService {
    * Check if OpenClaw is installed
    */
   public async checkInstalled(): Promise<{ installed: boolean; path: string | null }> {
-    const { path: binaryPath } = await findExecutableInEnv('openclaw')
+    const binaryPath = await findExecutableInEnv('openclaw')
     return { installed: binaryPath !== null, path: binaryPath }
   }
 
@@ -167,13 +167,13 @@ class OpenClawService {
     const MINIMUM_VERSION = '22.0.0'
     try {
       await refreshShellEnv()
-      const { path: nodePath, env } = await findExecutableInEnv('node')
+      const nodePath = await findExecutableInEnv('node')
       if (!nodePath) {
         logger.debug('Node.js not found in environment')
         return { status: 'not_found' }
       }
 
-      const output = await executeCommand(nodePath, ['--version'], { capture: true, env, timeout: 5000 })
+      const output = await executeCommand(nodePath, ['--version'], { capture: true, timeout: 5000 })
       const version = semver.valid(semver.coerce(output.trim()))
 
       if (!version || semver.lt(version, MINIMUM_VERSION)) {
@@ -243,8 +243,7 @@ class OpenClawService {
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
-    const { path: npmPath_ } = await findExecutableInEnv('npm')
-    const npmPath = npmPath_ || 'npm'
+    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
     const npmArgs = ['install', '-g', packageName]
     if (registryArg) npmArgs.push(registryArg)
@@ -344,8 +343,7 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    const { path: npmPath_ } = await findExecutableInEnv('npm')
-    const npmPath = npmPath_ || 'npm'
+    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
     const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
 
@@ -447,7 +445,7 @@ class OpenClawService {
 
     // Refresh shell env first so findExecutableInEnv and crossPlatformSpawn both use the same fresh env
     const shellEnv = await refreshShellEnv()
-    const { path: openclawPath } = await findExecutableInEnv('openclaw')
+    const openclawPath = await findExecutableInEnv('openclaw')
     if (!openclawPath) {
       return {
         success: false,
@@ -572,7 +570,7 @@ class OpenClawService {
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      const { path: openclawPath } = await findExecutableInEnv('openclaw')
+      const openclawPath = await findExecutableInEnv('openclaw')
       if (openclawPath) {
         const shellEnv = await getShellEnv()
         await this.runGatewayStop(openclawPath, shellEnv)

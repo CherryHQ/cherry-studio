@@ -491,35 +491,29 @@ export class PluginService {
   }
 
   private async cloneRepository(repoUrl: string, destDir: string): Promise<void> {
-    const { path: gitPath, env } = await findExecutableInEnv('git')
-    const gitCommand = gitPath ?? 'git'
+    const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
 
-    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl, env)
+    const branch = await this.resolveDefaultBranch(gitCommand, repoUrl)
     if (branch) {
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir], { env })
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', branch, '--', repoUrl, destDir])
       return
     }
 
     try {
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir], { env })
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--', repoUrl, destDir])
     } catch (error: unknown) {
       logger.warn('Default clone failed, retrying with master branch', {
         repoUrl,
         error: error instanceof Error ? error.message : String(error)
       })
-      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir], { env })
+      await executeCommand(gitCommand, ['clone', '--depth', '1', '--branch', 'master', '--', repoUrl, destDir])
     }
   }
 
-  private async resolveDefaultBranch(
-    command: string,
-    repoUrl: string,
-    env?: Record<string, string>
-  ): Promise<string | null> {
+  private async resolveDefaultBranch(command: string, repoUrl: string): Promise<string | null> {
     try {
       const output = await executeCommand(command, ['ls-remote', '--symref', '--', repoUrl, 'HEAD'], {
-        capture: true,
-        env
+        capture: true
       })
       const match = output.match(/ref: refs\/heads\/([^\s]+)/)
       return match?.[1] ?? null

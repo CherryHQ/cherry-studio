@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Force Windows code path regardless of the host platform.
@@ -176,8 +176,6 @@ describe('shell-env – Windows registry PATH', () => {
   // -- does not spawn cmd.exe -----------------------------------------------
 
   it('should not spawn cmd.exe or any shell process', async () => {
-    const { spawn } = await import('child_process')
-
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const keyPath = (args as string[])[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')

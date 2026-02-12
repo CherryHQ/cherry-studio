@@ -296,30 +296,30 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows.
- *
- * @returns Both the found path and the shell env (callers often need the env for spawn)
  */
-export async function findExecutableInEnv(name: string): Promise<{ path: string | null; env: Record<string, string> }> {
+export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
 
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env)
   if (found) {
-    return { path: found, env }
+    return found
   }
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
-    const winPath = findExecutable(name, { env })
-    return { path: winPath, env }
+    return findExecutable(name, { env })
   }
 
-  return { path: null, env }
+  return null
 }
 
 /**
  * Spawn a process with proper Windows handling for .cmd files and npm shims.
- * On Windows, .cmd files and files without .exe extension are executed via cmd.exe.
+ * On Windows, .cmd/.bat files need `shell: true` so Node.js delegates quoting
+ * to cmd.exe via `/d /s /c "..."`. Manually constructing `cmd.exe /c` args
+ * breaks when both the command path and arguments contain spaces (cmd.exe's
+ * quote-stripping rule 2 kicks in and mangles the command line).
  */
 export function crossPlatformSpawn(
   command: string,
@@ -327,7 +327,7 @@ export function crossPlatformSpawn(
   options: SpawnOptions & { env: Record<string, string> }
 ): ChildProcess {
   if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    return spawn('cmd.exe', ['/c', command, ...args], { ...options, stdio: options.stdio ?? 'pipe' })
+    return spawn(command, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
   }
   return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
 }
@@ -407,7 +407,7 @@ function getCommonGitRoots(): string[] {
  */
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
   await refreshShellEnv()
-  const { path: gitPath } = await findExecutableInEnv('git')
+  const gitPath = await findExecutableInEnv('git')
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
   return { available: gitPath !== null, path: gitPath }
 }
