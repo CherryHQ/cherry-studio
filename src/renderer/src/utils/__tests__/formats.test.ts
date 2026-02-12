@@ -1,6 +1,6 @@
 // Import types and enums needed for testing
-import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { ImageMessageBlock, Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -28,13 +28,13 @@ import {
 // Mock the find utility functions if they are used by functions under test
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
-    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     return mainTextBlock?.content || ''
   }),
   // Add mock for findImageBlocks if needed by addImageFileToContents
   findImageBlocks: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
     return (
-      (message._fullBlocks?.filter((b) => b.type === MessageBlockType.IMAGE) as ImageMessageBlock[] | undefined) || []
+      (message._fullBlocks?.filter((b) => b.type === MESSAGE_BLOCK_TYPE.IMAGE) as ImageMessageBlock[] | undefined) || []
     )
   })
   // Add mocks for other find functions if needed
@@ -56,7 +56,7 @@ function createBlock(messageId: string, partialBlock: PartialBlockInput): Messag
     messageId: messageId,
     type: partialBlock.type,
     createdAt: partialBlock.createdAt || '2024-01-01T00:00:00Z',
-    status: partialBlock.status || MessageBlockStatus.SUCCESS
+    status: partialBlock.status || MESSAGE_BLOCK_STATUS.SUCCESS
   }
 
   const blockData = { ...baseBlock }
@@ -285,7 +285,7 @@ describe('formats', () => {
     it('should extract image URLs from markdown image syntax in main text block', () => {
       const message = createMessage({ role: 'assistant', id: 'a1' }, [
         {
-          type: MessageBlockType.MAIN_TEXT,
+          type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
           content: 'Here is an image: ![image](https://example.com/image.png)\nSome text after.'
         }
       ])
@@ -298,7 +298,7 @@ describe('formats', () => {
     it('should also clean up download links in main text block', () => {
       const message = createMessage({ role: 'assistant', id: 'a2' }, [
         {
-          type: MessageBlockType.MAIN_TEXT,
+          type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
           content:
             'Here is an image: ![image](https://example.com/image.png)\nYou can [download it](https://example.com/download)'
         }
@@ -311,7 +311,7 @@ describe('formats', () => {
 
     it('should handle messages without image markdown in main text block', () => {
       const message = createMessage({ role: 'assistant', id: 'a3' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'This is just text without any images.' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'This is just text without any images.' }
       ])
       const result = withGenerateImage(message)
       expect(result.content).toBe('This is just text without any images.')
@@ -321,7 +321,7 @@ describe('formats', () => {
     it('should handle image markdown with title attribute in main text block', () => {
       const message = createMessage({ role: 'assistant', id: 'a4' }, [
         {
-          type: MessageBlockType.MAIN_TEXT,
+          type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
           content: 'Here is an image: ![alt text](https://example.com/image.png "Image Title")'
         }
       ])
@@ -342,10 +342,12 @@ describe('formats', () => {
   describe('addImageFileToContents', () => {
     it('should add image files to the last assistant message if it has image blocks with metadata', () => {
       const messages = [
-        createMessage({ id: 'u1', role: 'user' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Generate an image' }]),
+        createMessage({ id: 'u1', role: 'user' }, [
+          { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Generate an image' }
+        ]),
         createMessage({ id: 'a1', role: 'assistant' }, [
-          { type: MessageBlockType.MAIN_TEXT, content: 'Here is your image.' },
-          { type: MessageBlockType.IMAGE, metadata: { generateImage: { images: ['image1.png', 'image2.png'] } } }
+          { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Here is your image.' },
+          { type: MESSAGE_BLOCK_TYPE.IMAGE, metadata: { generateImage: { images: ['image1.png', 'image2.png'] } } }
         ])
       ]
       const result = addImageFileToContents(messages)
@@ -355,7 +357,7 @@ describe('formats', () => {
 
     it('should not modify messages if no assistant message exists', () => {
       const messages = [
-        createMessage({ id: 'u1', role: 'user' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }])
+        createMessage({ id: 'u1', role: 'user' }, [{ type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Hello' }])
       ]
       const result = addImageFileToContents(messages)
       expect(result).toEqual(messages)
@@ -364,8 +366,8 @@ describe('formats', () => {
 
     it('should not modify messages if the last assistant message has no image blocks', () => {
       const messages = [
-        createMessage({ id: 'u1', role: 'user' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }]),
-        createMessage({ id: 'a1', role: 'assistant' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hi there' }])
+        createMessage({ id: 'u1', role: 'user' }, [{ type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Hello' }]),
+        createMessage({ id: 'a1', role: 'assistant' }, [{ type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Hi there' }])
       ]
       const result = addImageFileToContents(messages)
       expect(result).toEqual(messages)
@@ -374,10 +376,10 @@ describe('formats', () => {
 
     it('should not modify messages if image blocks lack generateImage metadata', () => {
       const messages = [
-        createMessage({ id: 'u1', role: 'user' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }]),
+        createMessage({ id: 'u1', role: 'user' }, [{ type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Hello' }]),
         createMessage({ id: 'a1', role: 'assistant' }, [
-          { type: MessageBlockType.MAIN_TEXT, content: 'Hi there' },
-          { type: MessageBlockType.IMAGE, metadata: {} } // No generateImage
+          { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Hi there' },
+          { type: MESSAGE_BLOCK_TYPE.IMAGE, metadata: {} } // No generateImage
         ])
       ]
       const result = addImageFileToContents(messages)
@@ -388,11 +390,11 @@ describe('formats', () => {
     it('should update only the last assistant message even if previous ones had images', () => {
       const messages = [
         createMessage({ id: 'a1', role: 'assistant' }, [
-          { type: MessageBlockType.IMAGE, metadata: { generateImage: { images: ['old.png'] } } }
+          { type: MESSAGE_BLOCK_TYPE.IMAGE, metadata: { generateImage: { images: ['old.png'] } } }
         ]),
-        createMessage({ id: 'u1', role: 'user' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Another request' }]),
+        createMessage({ id: 'u1', role: 'user' }, [{ type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Another request' }]),
         createMessage({ id: 'a2', role: 'assistant' }, [
-          { type: MessageBlockType.IMAGE, metadata: { generateImage: { images: ['new.png'] } } }
+          { type: MESSAGE_BLOCK_TYPE.IMAGE, metadata: { generateImage: { images: ['new.png'] } } }
         ])
       ]
       const result = addImageFileToContents(messages)

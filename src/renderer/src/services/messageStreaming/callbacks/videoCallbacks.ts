@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createVideoBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -27,12 +27,12 @@ export const createVideoCallbacks = (deps: VideoCallbacksDependencies) => {
       logger.debug(`onVideoSearched video: ${JSON.stringify(video)}, metadata: ${JSON.stringify(metadata)}`)
       if (!videoBlockId) {
         const videoBlock = createVideoBlock(assistantMsgId, {
-          status: MessageBlockStatus.SUCCESS,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           url: video.type === 'url' ? video.content : undefined,
           filePath: video.type === 'path' ? video.content : undefined,
           metadata: metadata || {}
         })
-        await blockManager.handleBlockTransition(videoBlock, MessageBlockType.VIDEO)
+        await blockManager.handleBlockTransition(videoBlock, MESSAGE_BLOCK_TYPE.VIDEO)
       }
     }
   }

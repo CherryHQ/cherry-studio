@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { ExternalToolResult } from '@renderer/types'
 import type { CitationMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 
@@ -28,9 +28,9 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         logger.warn(`[onExternalToolInProgress] Citation block already exists: ${citationBlockId}`)
         return
       }
-      const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+      const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MESSAGE_BLOCK_STATUS.PROCESSING })
       citationBlockId = citationBlock.id
-      await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+      await blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
     },
 
     onExternalToolComplete: (externalToolResult: ExternalToolResult) => {
@@ -38,9 +38,9 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         const changes: Partial<CitationMessageBlock> = {
           response: externalToolResult.webSearch,
           knowledge: externalToolResult.knowledge,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         }
-        blockManager.smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
+        blockManager.smartBlockUpdate(citationBlockId, changes, MESSAGE_BLOCK_TYPE.CITATION, true)
       } else {
         logger.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
       }
@@ -59,14 +59,14 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
         logger.debug(`citationBlockId: ${citationBlockId}`)
 
         const changes = {
-          type: MessageBlockType.CITATION,
-          status: MessageBlockStatus.PROCESSING
+          type: MESSAGE_BLOCK_TYPE.CITATION,
+          status: MESSAGE_BLOCK_STATUS.PROCESSING
         }
-        blockManager.smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION)
+        blockManager.smartBlockUpdate(citationBlockId, changes, MESSAGE_BLOCK_TYPE.CITATION)
       } else {
-        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MESSAGE_BLOCK_STATUS.PROCESSING })
         citationBlockId = citationBlock.id
-        await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        await blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
       }
     },
 
@@ -74,11 +74,11 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
       const blockId = citationBlockId || blockManager.initialPlaceholderBlockId
       if (blockId) {
         const changes: Partial<CitationMessageBlock> = {
-          type: MessageBlockType.CITATION,
+          type: MESSAGE_BLOCK_TYPE.CITATION,
           response: llmWebSearchResult,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         }
-        blockManager.smartBlockUpdate(blockId, changes, MessageBlockType.CITATION, true)
+        blockManager.smartBlockUpdate(blockId, changes, MESSAGE_BLOCK_TYPE.CITATION, true)
 
         const state = getState()
         const existingMainTextBlocks = findMainTextBlocks(state.messages.entities[assistantMsgId])
@@ -88,7 +88,7 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
           const mainTextChanges = {
             citationReferences: [...currentRefs, { blockId, citationBlockSource: llmWebSearchResult.source }]
           }
-          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
+          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MESSAGE_BLOCK_TYPE.MAIN_TEXT, true)
         }
 
         if (blockManager.hasInitialPlaceholder) {
@@ -101,7 +101,7 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
             response: llmWebSearchResult
           },
           {
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
         )
         citationBlockId = citationBlock.id
@@ -114,9 +114,9 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
           const mainTextChanges = {
             citationReferences: [...currentRefs, { citationBlockId, citationBlockSource: llmWebSearchResult.source }]
           }
-          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MessageBlockType.MAIN_TEXT, true)
+          blockManager.smartBlockUpdate(existingMainTextBlock.id, mainTextChanges, MESSAGE_BLOCK_TYPE.MAIN_TEXT, true)
         }
-        await blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        await blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
       }
     },
 

@@ -39,7 +39,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { EFFORT_RATIO, FILE_TYPE, WebSearchSource } from '@renderer/types'
+import { EFFORT_RATIO, FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types'
 import type {
   ErrorChunk,
   LLMWebSearchCompleteChunk,
@@ -588,7 +588,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: content.content,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     } as LLMWebSearchCompleteChunk)
                     break
@@ -641,7 +641,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: contentBlock.content as Array<WebSearchResultBlock>,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     } as LLMWebSearchCompleteChunk)
                   }

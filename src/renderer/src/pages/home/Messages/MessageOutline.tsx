@@ -2,7 +2,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { FC } from 'react'
 import React, { useMemo, useRef } from 'react'
@@ -30,7 +30,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   const headings: HeadingItem[] = useMemo(() => {
     const mainTextBlocks = message.blocks
       .map((blockId) => blockEntities[blockId])
-      .filter((b) => b?.type === MessageBlockType.MAIN_TEXT)
+      .filter((b) => b?.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
 
     if (!mainTextBlocks?.length) return []
 

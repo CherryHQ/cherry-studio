@@ -13,7 +13,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
@@ -161,7 +161,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   }
 
   const onTranslated = (translatedText: string) => {
-    const mainTextBlock = editedBlocks.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    const mainTextBlock = editedBlocks.find((b) => b.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     if (mainTextBlock) {
       handleTextChange(mainTextBlock.id, translatedText)
     }
@@ -205,10 +205,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
         if (file.type === FILE_TYPE.IMAGE) {
-          const imgBlock = createImageBlock(message.id, { file, status: MessageBlockStatus.SUCCESS })
+          const imgBlock = createImageBlock(message.id, { file, status: MESSAGE_BLOCK_STATUS.SUCCESS })
           updatedBlocks.push(imgBlock)
         } else {
-          const fileBlock = createFileBlock(message.id, file, { status: MessageBlockStatus.SUCCESS })
+          const fileBlock = createFileBlock(message.id, file, { status: MESSAGE_BLOCK_STATUS.SUCCESS })
           updatedBlocks.push(fileBlock)
         }
       })
@@ -261,7 +261,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}>
         {editedBlocks
-          .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+          .filter((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
           .map((block) => (
             <TextArea
               className={classNames('editing-message', isFileDragging && 'file-dragging')}
@@ -291,11 +291,13 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               <TranslateButton onTranslated={onTranslated} />
             </TextArea>
           ))}
-        {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+        {(editedBlocks.some(
+          (block) => block.type === MESSAGE_BLOCK_TYPE.FILE || block.type === MESSAGE_BLOCK_TYPE.IMAGE
+        ) ||
           files.length > 0) && (
           <FileBlocksContainer>
             {editedBlocks
-              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+              .filter((block) => block.type === MESSAGE_BLOCK_TYPE.FILE || block.type === MESSAGE_BLOCK_TYPE.IMAGE)
               .map(
                 (block) =>
                   block.file && (
