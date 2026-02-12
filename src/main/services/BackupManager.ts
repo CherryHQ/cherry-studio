@@ -28,6 +28,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
 import { DatabaseManager } from './agents/database/DatabaseManager'
+import { fileStorage } from './FileStorage'
 import KnowledgeService from './KnowledgeService'
 import MemoryService from './memory/MemoryService'
 import S3Storage from './S3Storage'
@@ -412,7 +413,7 @@ class BackupManager {
         const totalSize = await this.getDirSize(sourcePath)
         let copiedSize = 0
 
-        // Close all database connections before removing Data directory.
+        // Close all database connections and file watchers before removing Data directory.
         // On Windows, open file handles prevent deletion (EBUSY).
         await DatabaseManager.close()
         await MemoryService.getInstance()
@@ -421,6 +422,9 @@ class BackupManager {
         await KnowledgeService.closeAll().catch((e) =>
           logger.warn('[BackupManager] Failed to close KnowledgeService', e as Error)
         )
+        await fileStorage
+          .stopFileWatcher()
+          .catch((e) => logger.warn('[BackupManager] Failed to stop file watcher', e as Error))
 
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)
