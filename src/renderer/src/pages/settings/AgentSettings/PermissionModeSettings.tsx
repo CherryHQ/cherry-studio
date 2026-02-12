@@ -10,8 +10,8 @@ import type {
   UpdateAgentSessionFunction
 } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
-import { Modal, Tag } from 'antd'
-import { ShieldAlert } from 'lucide-react'
+import { Tag } from 'antd'
+import { CheckCircle, ShieldAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +63,6 @@ export const unique = (values: string[]) => Array.from(new Set(values))
 
 export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
-  const [modal, contextHolder] = Modal.useModal()
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
 
   const configuration: AgentConfigurationState = useMemo(
@@ -110,12 +109,8 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
       }
 
       if (removedDefaults.length > 0) {
-        modal.confirm({
-          title: (
-            <span className="text-foreground">
-              {t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?')}
-            </span>
-          ),
+        window.modal.confirm({
+          title: t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?'),
           content: (
             <div className="flex flex-col gap-2">
               <p className="text-foreground-500 text-sm">
@@ -140,29 +135,13 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
             </div>
           ),
           centered: true,
-          okText: t('common.confirm'),
-          cancelText: t('common.cancel'),
-          onOk: applyChange,
-          classNames: {
-            content: 'bg-background! border! border-solid! rounded border-grey border-default-200!'
-          }
+          onOk: applyChange
         })
       } else {
         void applyChange()
       }
     },
-    [
-      agentBase,
-      selectedMode,
-      isUpdatingMode,
-      availableTools,
-      userAddedIds,
-      autoToolIds,
-      configuration,
-      update,
-      modal,
-      t
-    ]
+    [agentBase, selectedMode, isUpdatingMode, availableTools, userAddedIds, autoToolIds, configuration, update, t]
   )
 
   if (!agentBase) {
@@ -171,10 +150,9 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
 
   return (
     <SettingsContainer>
-      {contextHolder}
       <SettingsItem divider={false}>
         <SettingsTitle>{t('agent.settings.permissionMode.title', 'Permission Mode')}</SettingsTitle>
-        <div className="flex flex-col gap-3">
+        <div className="mt-1 flex flex-col gap-3">
           {permissionModeCards.map((card) => {
             const isSelected = card.mode === selectedMode
             const disabled = card.unsupported
@@ -201,21 +179,15 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
                     </span>
                   </div>
                   {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
-                  {isSelected && !disabled && (
-                    <Tag color="success">
-                      <div className="flex items-center gap-1">
-                        <span>{t('common.selected', 'Selected')}</span>
-                      </div>
-                    </Tag>
-                  )}
+                  {isSelected && !disabled && <CheckCircle className="flex-shrink-0 text-primary" size={20} />}
                 </div>
 
                 {/* Body */}
                 <div className="flex flex-col gap-2">
                   {showCaution && (
-                    <div className="flex items-start gap-2 rounded-md bg-danger-50 p-2 dark:bg-danger-950/30">
-                      <ShieldAlert className="mt-0.5 flex-shrink-0 text-danger-600" size={16} />
-                      <span className="text-danger-600 text-xs">
+                    <div className="flex items-start gap-2 rounded-md bg-[var(--color-error-bg)]">
+                      <ShieldAlert className="flex-shrink-0 text-[var(--color-error)]" size={16} />
+                      <span className="text-[var(--color-error)] text-xs">
                         {t(
                           'agent.settings.tooling.permissionMode.bypassPermissions.warning',
                           'Use with caution — all tools will run without asking for approval.'
