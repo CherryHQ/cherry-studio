@@ -123,7 +123,7 @@ export async function reset() {
         onOk: async () => {
           await localStorage.clear()
           await clearDatabase()
-          await window.api.file.clear()
+          await window.api.resetData()
           window.api.relaunchApp()
         }
       })

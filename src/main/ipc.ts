@@ -38,7 +38,7 @@ import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository } from './services/agents/database'
+import { agentMessageRepository, DatabaseManager } from './services/agents/database'
 import { PluginService } from './services/agents/plugins/PluginService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
@@ -91,7 +91,7 @@ import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -485,6 +485,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
     app.relaunch(options)
     app.exit(0)
+  })
+
+  // Reset all data (factory reset)
+  ipcMain.handle(IpcChannel.App_ResetData, async () => {
+    await DatabaseManager.close()
+    await memoryService.close()
+    await KnowledgeService.closeAll()
+    await fs.promises.rm(getDataPath(), { recursive: true, force: true })
   })
 
   // check for update
