@@ -1,5 +1,5 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -9,7 +9,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import type { AppInfo } from '@renderer/types'
-import { Input } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -191,7 +190,7 @@ const LocalBackupSettings: React.FC = () => {
             onChange={(e) => setLocalBackupDir(e.target.value)}
             onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
             placeholder={t('settings.data.local.directory.placeholder')}
-            style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
+            className="min-w-[200px] max-w-[400px] flex-1"
           />
           <Button onClick={handleBrowseDirectory}>
             <FolderOpenOutlined />

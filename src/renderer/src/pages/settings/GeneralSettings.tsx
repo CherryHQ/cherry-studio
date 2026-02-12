@@ -1,6 +1,4 @@
-import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Flex, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { isMac } from '@renderer/config/constant'
@@ -12,7 +10,6 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { Input } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -218,7 +215,7 @@ const GeneralSettings: FC = () => {
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
                 onChange={(e) => setProxyUrl(e.target.value)}
-                style={{ width: 180 }}
+                className="w-[180px]"
                 onBlur={() => onSetProxyUrl()}
                 type="url"
               />
@@ -242,7 +239,7 @@ const GeneralSettings: FC = () => {
                 placeholder={defaultByPassRules}
                 value={proxyBypassRules}
                 onChange={(e) => setProxyBypassRules(e.target.value)}
-                style={{ width: 180 }}
+                className="w-[180px]"
                 onBlur={() => onSetProxyBypassRules()}
               />
             </SettingRow>
