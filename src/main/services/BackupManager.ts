@@ -415,8 +415,12 @@ class BackupManager {
         // Close all database connections before removing Data directory.
         // On Windows, open file handles prevent deletion (EBUSY).
         await DatabaseManager.close()
-        await MemoryService.getInstance().close()
-        await KnowledgeService.closeAll()
+        await MemoryService.getInstance()
+          .close()
+          .catch((e) => logger.warn('[BackupManager] Failed to close MemoryService', e as Error))
+        await KnowledgeService.closeAll().catch((e) =>
+          logger.warn('[BackupManager] Failed to close KnowledgeService', e as Error)
+        )
 
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)

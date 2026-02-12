@@ -691,9 +691,14 @@ class KnowledgeService {
       try {
         // LibSqlDb's client is private, but we need to close the underlying connection
         // to release file handles (critical on Windows to avoid EBUSY)
+        // LibSqlDb's client is private; upstream should add a close() method.
+        // TODO: Remove this cast once LibSqlDb exposes close() natively.
         const client = (db as any).client
         if (client && typeof client.close === 'function') {
           client.close()
+        } else {
+          logger.warn(`Cannot close database instance for id: ${id} — client not accessible`)
+          continue
         }
         logger.debug(`Closed database instance for id: ${id}`)
       } catch (error) {

@@ -124,7 +124,8 @@ export async function reset() {
           await localStorage.clear()
           await clearDatabase()
           await window.api.resetData()
-          window.api.relaunchApp()
+          window.toast.success(i18n.t('message.reset.success'))
+          setTimeout(() => window.api.relaunchApp(), 1000)
         }
       })
     }

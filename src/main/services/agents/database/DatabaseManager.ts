@@ -220,6 +220,10 @@ export class DatabaseManager {
       return
     }
 
+    // Detach singleton first so concurrent getInstance() creates a fresh connection
+    // instead of returning a stale instance with null client.
+    DatabaseManager.instance = null
+
     if (instance.client) {
       try {
         instance.client.close()
@@ -228,10 +232,5 @@ export class DatabaseManager {
         logger.warn('Failed to close database connection:', error as Error)
       }
     }
-
-    instance.client = null
-    instance.db = null
-    instance.state = InitState.INITIALIZING
-    DatabaseManager.instance = null
   }
 }

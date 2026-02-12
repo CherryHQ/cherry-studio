@@ -1289,7 +1289,7 @@
     },
     "expand": "展開",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Excelにエクスポート"
     },
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "ナレッジベース名を入力してください"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "エクセルエクスポートに失敗しました"
       },
       "fetchTopicName": "トピック名の取得に失敗しました",
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
@@ -1989,7 +1989,7 @@
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "テーブルの有効なデータを取得できません"
       },
       "unknown": "未知のエラー",
       "yuque": {
@@ -2064,7 +2064,8 @@
           "content": "すべてのデータが失われます。続行しますか？",
           "title": "データが失われます！！！"
         }
-      }
+      },
+      "success": "データの再設定に成功しました"
     },
     "restore": {
       "failed": "復元に失敗しました",
@@ -2078,7 +2079,7 @@
     "searching": "検索中...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excelのエクスポートに成功しました"
       },
       "joplin": {
         "export": "Joplin へのエクスポートに成功しました"

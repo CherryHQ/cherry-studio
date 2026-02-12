@@ -490,8 +490,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, async () => {
     await DatabaseManager.close()
-    await memoryService.close()
-    await KnowledgeService.closeAll()
+    await memoryService.close().catch((e) => logger.warn('Failed to close memoryService', e as Error))
+    await KnowledgeService.closeAll().catch((e) => logger.warn('Failed to close KnowledgeService', e as Error))
     await fs.promises.rm(getDataPath(), { recursive: true, force: true })
   })
 

@@ -1289,7 +1289,7 @@
     },
     "expand": "Extinde",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Export în Excel"
     },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
@@ -1989,7 +1989,7 @@
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Imposibil de recuperat date de tabel valide"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2064,7 +2064,8 @@
           "content": "Toate datele vor fi pierdute, vrei să continui?",
           "title": "DATE PIERDUTE !!!"
         }
-      }
+      },
+      "success": "Resetarea datelor a reușit"
     },
     "restore": {
       "failed": "Restaurare eșuată",
@@ -2078,7 +2079,7 @@
     "searching": "Se caută...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Export Excel reușit"
       },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
