@@ -16,7 +16,6 @@ import type { ComponentProps } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
-import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
@@ -34,7 +33,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
-  const maxWidth = useChatMaxWidth()
   const { setTimeoutTimer } = useTimer()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
@@ -270,8 +268,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     <MessageEditingProvider>
       <GroupContainer
         id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        style={{ maxWidth }}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
@@ -299,9 +296,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 }
 
 const GroupContainer = styled.div`
-  [navbar-position='left'] & {
-    max-width: calc(100vw - var(--sidebar-width) - var(--assistants-width) - 20px);
-  }
   &.horizontal,
   &.grid {
     padding: 4px 10px;
