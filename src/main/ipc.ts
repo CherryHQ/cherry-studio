@@ -489,9 +489,14 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Reset all data (factory reset)
+  // Best-effort: close handles then delete. Failures are logged but not thrown,
+  // because the caller must always proceed to relaunchApp() — process exit
+  // releases any remaining handles, and services auto-recreate on next start.
   ipcMain.handle(IpcChannel.App_ResetData, async () => {
     await closeAllDataConnections()
-    await fs.promises.rm(getDataPath(), { recursive: true, force: true })
+    await fs.promises.rm(getDataPath(), { recursive: true, force: true }).catch((e) => {
+      logger.warn('Failed to remove Data directory (will be cleaned up on restart)', e as Error)
+    })
   })
 
   // check for update
