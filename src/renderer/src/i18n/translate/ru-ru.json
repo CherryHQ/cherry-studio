@@ -1289,7 +1289,7 @@
     },
     "expand": "Развернуть",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Экспорт в Excel"
     },
     "file": {
       "not_supported": "Неподдерживаемый тип файла {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Пожалуйста, введите название базы знаний"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Не удалось экспортировать Excel"
       },
       "fetchTopicName": "Не удалось назвать топик",
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
@@ -1989,7 +1989,7 @@
         "no_config": "Не настроен API адрес или токен Siyuan"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Не удалось получить корректные данные таблицы"
       },
       "unknown": "Неизвестная ошибка",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Идет поиск...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel успешно экспортирован"
       },
       "joplin": {
         "export": "Успешный экспорт в Joplin"
