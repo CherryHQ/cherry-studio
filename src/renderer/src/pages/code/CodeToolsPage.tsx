@@ -19,7 +19,7 @@ import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
-import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
+import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -472,8 +472,6 @@ const CodeToolsPage: FC = () => {
                   onChange={setCurrentDir}
                   allowClear
                   showSearch
-                  // 启用自由输入模式
-                  mode="tags"
                   // 自定义过滤逻辑，允许用户输入任意值
                   filterOption={(input, option) => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
@@ -481,37 +479,11 @@ const CodeToolsPage: FC = () => {
                   }}
                   options={directories.map((dir) => ({
                     value: dir,
-                    label: (
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}>
-                        <span
-                          style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                          {dir}
-                        </span>
-                        <X
-                          size={14}
-                          style={{
-                            marginLeft: 8,
-                            cursor: 'pointer',
-                            color: '#999'
-                          }}
-                          onClick={(e) => handleRemoveDirectory(dir, e)}
-                        />
-                      </div>
-                    )
+                    label: dir
                   }))}
-                  // 当用户输入新值时触发验证
-                  onSelect={(value) => {
-                    if (typeof value === 'string' && value !== currentDirectory) {
-                      // 使用异步方式来验证路径
+                  // 处理用户直接输入/粘贴的路径
+                  onSearch={(value) => {
+                    if (value && value !== currentDirectory) {
                       setCurrentDir(value)
                     }
                   }}
