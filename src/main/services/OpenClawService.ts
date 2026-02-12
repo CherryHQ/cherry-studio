@@ -255,30 +255,7 @@ class OpenClawService {
     logger.info(`Installing OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
     this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
-    // Clone the cached env so PATH augmentation doesn't pollute the global cache
-    const spawnEnv = { ...(await getShellEnv()) }
-    const pathKey = isWin ? (spawnEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
-    let currentPath = spawnEnv[pathKey] || ''
-
-    // Ensure the npm/node directory is in PATH for preinstall scripts to find node,
-    // which is necessary when node was installed after the app started
-    const nodeDir = path.dirname(npmPath)
-    if (!currentPath.split(path.delimiter).includes(nodeDir)) {
-      currentPath = `${nodeDir}${path.delimiter}${currentPath}`
-      spawnEnv[pathKey] = currentPath
-      logger.info(`Added Node.js directory to PATH: ${nodeDir}`)
-    }
-
-    const { path: gitPath } = await findExecutableInEnv('git')
-    if (gitPath) {
-      const gitDir = path.dirname(gitPath)
-      if (!currentPath.split(path.delimiter).includes(gitDir)) {
-        spawnEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
-        logger.info(`Added git directory to PATH: ${gitDir}`)
-      }
-    } else {
-      logger.warn('Git not found in environment, npm install may fail if packages require git')
-    }
+    const spawnEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
@@ -595,7 +572,6 @@ class OpenClawService {
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      // Use CLI to stop gateway (handles graceful shutdown, lock/PID cleanup)
       const { path: openclawPath } = await findExecutableInEnv('openclaw')
       if (openclawPath) {
         const shellEnv = await getShellEnv()
