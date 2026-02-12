@@ -57,8 +57,8 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
   if (!agentBase) return null
 
   return (
-    <SettingsContainer className="h-full">
-      <SettingsItem divider={false} className="h-full flex-1">
+    <SettingsContainer className="flex h-full flex-col overflow-hidden">
+      <SettingsItem divider={false} className="flex min-h-0 flex-1 flex-col">
         <SettingsTitle>
           {t('common.prompt')}
           <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
@@ -120,6 +120,8 @@ const TextAreaContainer = styled.div`
   position: relative;
   width: 100%;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 `
 
 const TokenCount = styled.div`
