@@ -2064,7 +2064,8 @@
           "content": "Toate datele vor fi pierdute, vrei să continui?",
           "title": "DATE PIERDUTE !!!"
         }
-      }
+      },
+      "success": "Retelearea datelor a reușit"
     },
     "restore": {
       "failed": "Restaurare eșuată",
