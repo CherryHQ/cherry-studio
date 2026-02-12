@@ -193,7 +193,7 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('toolInput' in error) serializedError.toolInput = error.toolInput
   if ('text' in error) serializedError.text = error.text ?? null
   if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
-  if ('response' in error) serializedError.response = error.response ?? null
+  if ('response' in error) serializedError.response = safeSerialize(error.response)
   if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
   if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
   if ('modelId' in error) serializedError.modelId = error.modelId
