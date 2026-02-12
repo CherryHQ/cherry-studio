@@ -197,6 +197,7 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
                     </span>
                     <span className="whitespace-normal break-words text-left text-foreground-500 text-xs">
                       {t(card.descriptionKey, card.descriptionFallback)}
+                      {t(card.behaviorKey, card.behaviorFallback)}
                     </span>
                   </div>
                   {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
@@ -211,7 +212,6 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
 
                 {/* Body */}
                 <div className="flex flex-col gap-2">
-                  <span className="text-foreground-600 text-xs">{t(card.behaviorKey, card.behaviorFallback)}</span>
                   {showCaution && (
                     <div className="flex items-start gap-2 rounded-md bg-danger-50 p-2 dark:bg-danger-950/30">
                       <ShieldAlert className="mt-0.5 flex-shrink-0 text-danger-600" size={16} />

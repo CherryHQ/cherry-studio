@@ -45,10 +45,10 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
   if (!base) return null
 
   return (
-    <SettingsItem inline>
-      <SettingsTitle>{t('common.name')}</SettingsTitle>
-      <div className="flex max-w-70 flex-1 items-center gap-1">
-        {isAgent && (
+    <>
+      {isAgent && (
+        <SettingsItem inline>
+          <SettingsTitle>{t('common.avatar')}</SettingsTitle>
           <EmojiAvatarWithPicker
             emoji={emoji}
             onPick={(emoji: string) => {
@@ -57,19 +57,28 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
               updateAvatar(emoji)
             }}
           />
-        )}
-        <Input
-          placeholder={t('common.agent_one') + t('common.name')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            if (name !== base.name) {
-              updateName(name)
-            }
-          }}
-          className="flex-1"
-        />
-      </div>
-    </SettingsItem>
+        </SettingsItem>
+      )}
+      <SettingsItem inline>
+        <SettingsTitle>{t('common.name')}</SettingsTitle>
+        <div className="relative flex flex-1 justify-end">
+          <span className="invisible whitespace-pre px-[11px] py-1">
+            {name || t('common.agent_one') + t('common.name')}
+          </span>
+          <Input
+            placeholder={t('common.agent_one') + t('common.name')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              if (name !== base.name) {
+                updateName(name)
+              }
+            }}
+            className="absolute right-0"
+            style={{ width: '100%', maxWidth: 'fit-content', textAlign: 'center' }}
+          />
+        </div>
+      </SettingsItem>
+    </>
   )
 }
