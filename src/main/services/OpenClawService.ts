@@ -233,14 +233,7 @@ class OpenClawService {
    * Returns the resolved path, or 'npm' as a fallback for spawn.
    */
   private async findNpmPath(): Promise<string> {
-    const { path: npmPath } = await findExecutableInEnv('npm', {
-      extensions: ['.cmd', '.exe'],
-      commonPaths: [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-        path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-      ]
-    })
+    const { path: npmPath } = await findExecutableInEnv('npm')
     return npmPath || 'npm'
   }
 
@@ -924,11 +917,7 @@ class OpenClawService {
   private async findOpenClawBinary(): Promise<string | null> {
     const home = os.homedir()
 
-    // Use unified lookup: refresh cache + shell env + findCommandInShellEnv + Windows .cmd fallback
-    const { path: binaryPath } = await findExecutableInEnv('openclaw', {
-      extensions: ['.cmd', '.exe'],
-      commonPaths: isWin ? [path.join(home, 'AppData', 'Roaming', 'npm', 'openclaw.cmd')] : []
-    })
+    const { path: binaryPath } = await findExecutableInEnv('openclaw')
     if (binaryPath) {
       return binaryPath
     }

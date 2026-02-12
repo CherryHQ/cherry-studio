@@ -341,43 +341,13 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(result).toBeNull()
       })
 
-      it('should check commonPaths before using where.exe', () => {
-        const npmCmdPath = 'C:\\Program Files\\nodejs\\npm.cmd'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => p === npmCmdPath)
-
-        const result = findExecutable('npm', {
-          extensions: ['.cmd'],
-          commonPaths: [npmCmdPath]
-        })
-
-        expect(result).toBe(npmCmdPath)
-        // Should not call where.exe since commonPaths matched
-        expect(execFileSync).not.toHaveBeenCalled()
-      })
-
-      it('should fall back to where.exe when commonPaths do not exist', () => {
-        const npmCmdPath = 'C:\\fallback\\npm.cmd'
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => p === npmCmdPath)
-        vi.mocked(execFileSync).mockReturnValue(npmCmdPath)
-
-        const result = findExecutable('npm', {
-          extensions: ['.cmd'],
-          commonPaths: ['C:\\nonexistent\\npm.cmd']
-        })
-
-        expect(result).toBe(npmCmdPath)
-        expect(execFileSync).toHaveBeenCalled()
-      })
-
-      it('should use default .exe extension when options not provided', () => {
+      it('should match both .exe and .cmd by default', () => {
         vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\node.cmd\nC:\\nodejs\\node.exe\n')
 
         const result = findExecutable('node')
 
-        // Default extension is .exe, so should skip .cmd
-        expect(result).toBe('C:\\nodejs\\node.exe')
+        // Default extensions include both .exe and .cmd, returns first match
+        expect(result).toBe('C:\\nodejs\\node.cmd')
       })
 
       it('should handle case-insensitive extension matching', () => {

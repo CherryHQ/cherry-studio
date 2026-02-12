@@ -203,10 +203,8 @@ export async function findCommandInShellEnv(
 }
 
 export interface FindExecutableOptions {
-  /** File extensions to search for (default: ['.exe']) */
+  /** File extensions to search for (default: ['.exe', '.cmd']) */
   extensions?: string[]
-  /** Common paths to check as fallback */
-  commonPaths?: string[]
   /** Environment variables to use for where.exe lookup (default: process.env) */
   env?: Record<string, string>
 }
@@ -224,8 +222,7 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     return null
   }
 
-  const extensions = options?.extensions ?? ['.exe']
-  const commonPaths = options?.commonPaths ?? []
+  const extensions = options?.extensions ?? ['.exe', '.cmd']
 
   // Special handling for git - check common installation paths first
   // Uses getCommonGitRoots() which includes ProgramFiles, ProgramFiles(x86), and LOCALAPPDATA
@@ -236,14 +233,6 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
       }
-    }
-  }
-
-  // Check user-provided common paths first
-  for (const commonPath of commonPaths) {
-    if (fs.existsSync(commonPath)) {
-      logger.debug(`Found ${name} at common path`, { path: commonPath })
-      return commonPath
     }
   }
 
@@ -310,15 +299,7 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
  *
  * @returns Both the found path and the shell env (callers often need the env for spawn)
  */
-export async function findExecutableInEnv(
-  name: string,
-  options?: {
-    /** Windows-only: file extensions to accept in findExecutable fallback */
-    extensions?: string[]
-    /** Windows-only: common paths to check as filesystem fallback */
-    commonPaths?: string[]
-  }
-): Promise<{ path: string | null; env: Record<string, string> }> {
+export async function findExecutableInEnv(name: string): Promise<{ path: string | null; env: Record<string, string> }> {
   const env = await getShellEnv()
 
   // Cross-platform: try shell environment lookup first
@@ -329,11 +310,7 @@ export async function findExecutableInEnv(
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
-    const winPath = findExecutable(name, {
-      extensions: options?.extensions,
-      commonPaths: options?.commonPaths,
-      env
-    })
+    const winPath = findExecutable(name, { env })
     return { path: winPath, env }
   }
 
