@@ -14,6 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 import type { ChildProcess } from 'child_process'
+import semver from 'semver'
 
 import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
@@ -166,7 +167,7 @@ class OpenClawService {
    * - Node.js installed and version OK
    */
   public async checkNodeVersion(): Promise<NodeCheckResult> {
-    const REQUIRED_MAJOR = 22
+    const MINIMUM_VERSION = '22.0.0'
     try {
       await refreshShellEnv()
       const { path: nodePath, env } = await findExecutableInEnv('node')
@@ -176,12 +177,11 @@ class OpenClawService {
       }
 
       const output = await executeCommand(nodePath, ['--version'], { capture: true, env, timeout: 5000 })
-      const version = output.trim().replace(/^v/, '')
-      const major = parseInt(version.split('.')[0], 10)
+      const version = semver.valid(semver.coerce(output.trim()))
 
-      if (isNaN(major) || major < REQUIRED_MAJOR) {
+      if (!version || semver.lt(version, MINIMUM_VERSION)) {
         logger.debug(`Node.js version too low: ${version} at ${nodePath}`)
-        return { status: 'version_low', version, path: nodePath }
+        return { status: 'version_low', version: version ?? output.trim(), path: nodePath }
       }
 
       logger.debug(`Node.js version OK: ${version} at ${nodePath}`)
