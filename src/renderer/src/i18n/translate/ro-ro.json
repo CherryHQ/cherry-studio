@@ -1289,7 +1289,7 @@
     },
     "expand": "Extinde",
     "export": {
-      "excel": "Export în Excel"
+      "excel": "Exportă în Excel"
     },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
@@ -1989,7 +1989,7 @@
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
       "table": {
-        "invalid": "Imposibil de recuperat date de tabel valide"
+        "invalid": "Imposibil de recuperat date valide din tabel"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2064,8 +2064,7 @@
           "content": "Toate datele vor fi pierdute, vrei să continui?",
           "title": "DATE PIERDUTE !!!"
         }
-      },
-      "success": "Resetarea datelor a reușit"
+      }
     },
     "restore": {
       "failed": "Restaurare eșuată",
@@ -2079,7 +2078,7 @@
     "searching": "Se caută...",
     "success": {
       "excel": {
-        "export": "Export Excel reușit"
+        "export": "Excel exportat cu succes"
       },
       "joplin": {
         "export": "Exportat cu succes în Joplin"

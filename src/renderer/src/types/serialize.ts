@@ -1,19 +1,26 @@
-export type Serializable = null | boolean | number | string | { [key: string]: SerializableValue } | SerializableValue[]
-
-// FIXME: any 不是可安全序列化的类型，但是递归定义会报ts2589
-type SerializableValue = null | boolean | number | string | { [key: string]: any } | any[]
+import * as z from 'zod'
 
 /**
- * 判断一个值是否可序列化（适合用于 Redux 状态）
- * 支持嵌套对象、数组的深度检测
+ * Serializable type
  */
+export type Serializable = string | number | boolean | null | Serializable[] | { [key: string]: Serializable }
 
-export function isSerializable(value: unknown): boolean {
-  const seen = new Set() // 用于防止循环引用
+/**
+ * Zod schema for serializable values
+ * Uses z.custom() with isSerializable type guard to ensure consistent validation behavior
+ */
+export const SerializableSchema: z.ZodType<Serializable> = z.custom<Serializable>(isSerializable)
+
+/**
+ * Check if a value is serializable (suitable for Redux state)
+ * Supports deep detection of nested objects and arrays
+ */
+export function isSerializable(value: unknown): value is Serializable {
+  const seen = new Set<unknown>()
 
   function _isSerializable(val: unknown): boolean {
     if (val === null || val === undefined) {
-      return val !== undefined // null ✅, undefined ❌
+      return val !== undefined
     }
 
     const type = typeof val
@@ -23,9 +30,9 @@ export function isSerializable(value: unknown): boolean {
     }
 
     if (type === 'object') {
-      // 检查循环引用
+      // Circular references are not JSON-serializable
       if (seen.has(val)) {
-        return true // 避免无限递归，假设循环引用对象本身结构合法（但实际 JSON.stringify 会报错）
+        return false
       }
       seen.add(val)
 
@@ -33,13 +40,13 @@ export function isSerializable(value: unknown): boolean {
         return val.every((item) => _isSerializable(item))
       }
 
-      // 检查是否为纯对象（plain object）
+      // Check if it's a plain object
       const proto = Object.getPrototypeOf(val)
       if (proto !== null && proto !== Object.prototype && proto !== Array.prototype) {
-        return false // 不是 plain object，比如 class 实例
+        return false
       }
 
-      // 检查内置对象（如 Date、RegExp、Map、Set 等）
+      // Check for built-in objects (Date, RegExp, Map, Set, etc.)
       if (
         val instanceof Date ||
         val instanceof RegExp ||
@@ -52,17 +59,17 @@ export function isSerializable(value: unknown): boolean {
         return false
       }
 
-      // 递归检查所有属性值
+      // Recursively check all property values
       return Object.values(val).every((v) => _isSerializable(v))
     }
 
-    // function、symbol 不可序列化
+    // function, symbol are not serializable
     return false
   }
 
   try {
     return _isSerializable(value)
   } catch {
-    return false // 如出现循环引用错误等
+    return false
   }
 }

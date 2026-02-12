@@ -55,7 +55,7 @@ import {
   isSystemProvider,
   isTranslateAssistant,
   SystemProviderIds,
-  WebSearchSource
+  WEB_SEARCH_SOURCE
 } from '@renderer/types'
 import type { TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
@@ -754,7 +754,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         hasBeenCollectedWebSearch = true
         return {
           results: annotations,
-          source: WebSearchSource.OPENAI
+          source: WEB_SEARCH_SOURCE.OPENAI
         }
       }
 
@@ -765,7 +765,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
-          source: WebSearchSource.GROK
+          source: WEB_SEARCH_SOURCE.GROK
         }
       }
 
@@ -776,7 +776,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.search_results,
-          source: WebSearchSource.PERPLEXITY
+          source: WEB_SEARCH_SOURCE.PERPLEXITY
         }
       }
 
@@ -787,7 +787,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
-          source: WebSearchSource.OPENROUTER
+          source: WEB_SEARCH_SOURCE.OPENROUTER
         }
       }
 
@@ -798,7 +798,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return {
           // @ts-ignore - web_search may not be in standard type definitions
           results: chunk.web_search,
-          source: WebSearchSource.ZHIPU
+          source: WEB_SEARCH_SOURCE.ZHIPU
         }
       }
 
@@ -809,7 +809,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return {
           // @ts-ignore - search_info may not be in standard type definitions
           results: chunk.search_info.search_results,
-          source: WebSearchSource.HUNYUAN
+          source: WEB_SEARCH_SOURCE.HUNYUAN
         }
       }
 

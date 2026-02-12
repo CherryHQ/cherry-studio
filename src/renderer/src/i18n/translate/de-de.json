@@ -1289,7 +1289,7 @@
     },
     "expand": "Ausklappen",
     "export": {
-      "excel": "Export nach Excel"
+      "excel": "Nach Excel exportieren"
     },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
@@ -1989,7 +1989,7 @@
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
       "table": {
-        "invalid": "Ungültige Tabellendaten konnten nicht abgerufen werden"
+        "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2064,8 +2064,7 @@
           "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
           "title": "Datenverlust!!!"
         }
-      },
-      "success": "Daten erfolgreich zurückgesetzt"
+      }
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",

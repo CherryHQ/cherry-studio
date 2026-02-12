@@ -1289,7 +1289,7 @@
     },
     "expand": "Développer",
     "export": {
-      "excel": "Exportation vers Excel"
+      "excel": "Exporter vers Excel"
     },
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
@@ -1989,7 +1989,7 @@
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
       },
       "table": {
-        "invalid": "Impossible de récupérer des données de tableau valides"
+        "invalid": "Impossible de récupérer des données de table valides"
       },
       "unknown": "Erreur inconnue",
       "yuque": {
@@ -2064,8 +2064,7 @@
           "content": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
           "title": "Perte de données!!!"
         }
-      },
-      "success": "Réinitialisation des données réussie"
+      }
     },
     "restore": {
       "failed": "La restauration a échoué",
@@ -2079,7 +2078,7 @@
     "searching": "Recherche en ligne en cours...",
     "success": {
       "excel": {
-        "export": "Excel exporté avec succès"
+        "export": "Exportation Excel réussie"
       },
       "joplin": {
         "export": "Exportation réussie vers Joplin"
