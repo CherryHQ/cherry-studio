@@ -22,20 +22,23 @@ export function setupToolsConfig(mcpTools?: MCPTool[]): Record<string, Tool<any,
 }
 
 /**
- * 检查 MCP 工具调用结果是否包含多模态内容（image / audio）
+ * 检查 MCP 工具调用结果是否包含可能携带大体积 base64 数据的多模态内容。
+ * 包括 image、audio 以及含 blob 的 resource 类型。
  */
-function hasMultimodalContent(result: MCPCallToolResponse): boolean {
-  return Array.isArray(result?.content) && result.content.some((item) => item.type === 'image' || item.type === 'audio')
+export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
+  return (
+    Array.isArray(result?.content) &&
+    result.content.some(
+      (item) => item.type === 'image' || item.type === 'audio' || (item.type === 'resource' && !!item.resource?.blob)
+    )
+  )
 }
 
 /**
- * 将 MCP 工具调用结果转换为纯文本摘要（用于不支持多模态 tool result 的 provider）
- *
- * OpenAI 兼容格式的 tool 消息 content 只能是字符串。
- * 如果把 base64 图片塞进去，会导致消息大小超限（如 kimi 的 4MB 限制）。
- * 这里把图片/音频替换为文本占位描述。
+ * 将 MCP 工具调用结果转换为纯文本摘要，把图片/音频/resource blob 替换为文本占位描述，
+ * 避免 base64 数据超出消息大小限制（如 kimi 的 4MB 限制）。
  */
-function mcpResultToTextSummary(result: MCPCallToolResponse): string {
+export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
   }
@@ -51,6 +54,15 @@ function mcpResultToTextSummary(result: MCPCallToolResponse): string {
         break
       case 'audio':
         parts.push(`[Audio: ${item.mimeType || 'audio/mp3'}, delivered to user]`)
+        break
+      case 'resource':
+        if (item.resource?.blob) {
+          parts.push(
+            `[Resource: ${item.resource.mimeType || 'application/octet-stream'}, uri=${item.resource.uri || 'unknown'}, delivered to user]`
+          )
+        } else {
+          parts.push(item.resource?.text || JSON.stringify(item))
+        }
         break
       default:
         parts.push(JSON.stringify(item))
@@ -121,27 +133,14 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
         // 返回工具执行结果
         return result
       },
-      // 将 MCP 多模态结果（image/audio）转为文本摘要，避免 base64 超出消息大小限制
-      //
-      // 图片/音频已通过 IMAGE_COMPLETE chunk 展示给用户（UI 路径独立），
-      // 模型端只需知道"工具返回了图片/音频"即可。
-      // 所有 provider 统一使用 text summary，安全兼容（OpenAI 兼容格式不支持 media）。
-      //
-      // TODO: 等 AI SDK 提供 provider 感知能力后，可以按 provider 分别处理
-      // （如 Gemini 可返回 content + media 格式让模型"看见"图片）
-      //
-      // 注意：AI SDK 直接传 output 值本身（不是 { output: xxx } 包装），参见 ai.js createToolModelOutput
+      // 将多模态结果 (image/audio/resource blob) 转为文本摘要，避免 base64 超出消息大小限制。
+      // 图片/音频已通过 IMAGE_COMPLETE chunk 展示给用户。
+      // TODO: 待 AI SDK 支持 provider 感知后，可按 provider 返回 media 格式。
       toModelOutput(rawOutput: unknown) {
         // rawOutput 来自上方 execute 的 return result，类型始终为 MCPCallToolResponse
         // mcpResultToTextSummary 内部已有 null/content 校验，不会因意外输入崩溃
         const result = rawOutput as MCPCallToolResponse
-
-        if (hasMultimodalContent(result)) {
-          return { type: 'text' as const, value: mcpResultToTextSummary(result) }
-        }
-
-        // 无多模态内容时，走默认的 JSON 序列化
-        return { type: 'text' as const, value: JSON.stringify(result) }
+        return { type: 'text' as const, value: mcpResultToTextSummary(result) }
       }
     })
   }
