@@ -18,7 +18,7 @@ import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
+import { Alert, AutoComplete, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -465,28 +465,20 @@ const CodeToolsPage: FC = () => {
             <SettingsItem>
               <div className="settings-label">{t('code.working_directory')}</div>
               <Space.Compact style={{ width: '100%', display: 'flex' }}>
-                <Select
+                <AutoComplete
                   style={{ flex: 1, width: 480 }}
                   placeholder={t('code.folder_placeholder')}
                   value={currentDirectory || undefined}
                   onChange={setCurrentDir}
                   allowClear
-                  showSearch
-                  // 自定义过滤逻辑，允许用户输入任意值
-                  filterOption={(input, option) => {
+                  filterOption={(inputValue, option) => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
-                    return label.toLowerCase().includes(input.toLowerCase())
+                    return label.toLowerCase().includes(inputValue.toLowerCase())
                   }}
                   options={directories.map((dir) => ({
                     value: dir,
                     label: dir
                   }))}
-                  // 处理用户直接输入/粘贴的路径
-                  onSearch={(value) => {
-                    if (typeof value === 'string' && value.trim() !== '' && value !== currentDirectory) {
-                      setCurrentDir(value)
-                    }
-                  }}
                 />
                 <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}
