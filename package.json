@@ -231,6 +231,7 @@
     "@types/react-infinite-scroll-component": "^5.0.0",
     "@types/react-transition-group": "^4.4.12",
     "@types/react-window": "^1",
+    "@types/semver": "^7.7.1",
     "@types/swagger-jsdoc": "^6",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/tinycolor2": "^1",

@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -63,6 +63,82 @@ const appendCherryBinToPath = (env: Record<string, string>) => {
 }
 
 /**
+ * Run `reg query <keyPath> /v <valueName>` and return the string data, or null on failure.
+ */
+function queryRegValue(keyPath: string, valueName: string): string | null {
+  try {
+    const out = execFileSync('reg', ['query', keyPath, '/v', valueName], {
+      encoding: 'utf-8',
+      timeout: 5000,
+      windowsHide: true
+    })
+    // Output format:
+    //   HKEY_LOCAL_MACHINE\...\Environment
+    //       Path    REG_EXPAND_SZ    C:\Windows;...
+    const match = out.match(/REG_(?:EXPAND_)?SZ\s+(.*)/i)
+    return match ? match[1].trim() : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Replace `%VAR%` references with values from `env` (case-insensitive lookup).
+ */
+function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
+  return value.replace(/%([^%]+)%/g, (original, varName: string) => {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === varName.toLowerCase())
+    return key ? env[key] : original
+  })
+}
+
+/**
+ * Read the **current** system + user PATH from the Windows registry and expand
+ * embedded `%VAR%` references so callers get a ready-to-use PATH string.
+ * Returns null when both registry reads fail.
+ */
+function readWindowsRegistryPath(env: Record<string, string>): string | null {
+  const systemPath = queryRegValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'Path')
+  const userPath = queryRegValue('HKCU\\Environment', 'Path')
+
+  if (!systemPath && !userPath) {
+    return null
+  }
+
+  const combined = [systemPath, userPath].filter(Boolean).join(';')
+  return expandWindowsEnvVars(combined, env)
+}
+
+/**
+ * Build a fresh environment on Windows by copying `process.env` and replacing
+ * PATH with the current registry value. This avoids the stale PATH problem
+ * where `cmd.exe /c set` only inherits the Electron parent process's env.
+ */
+function getWindowsEnvironment(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const key in process.env) {
+    env[key] = process.env[key] || ''
+  }
+
+  const registryPath = readWindowsRegistryPath(env)
+  if (registryPath) {
+    const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
+    for (const key of pathKeys) {
+      env[key] = registryPath
+    }
+    if (pathKeys.length === 0) {
+      env.Path = registryPath
+    }
+    logger.debug('Replaced PATH with fresh registry value')
+  } else {
+    logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
+  }
+
+  appendCherryBinToPath(env)
+  return env
+}
+
+/**
  * Spawns a login shell in the user's home directory to capture its environment variables.
  *
  * We explicitly run a login + interactive shell so it sources the same init files that a user
@@ -76,6 +152,13 @@ const appendCherryBinToPath = (env: Record<string, string>) => {
  * the environment variables, or rejects with an error.
  */
 function getLoginShellEnvironment(): Promise<Record<string, string>> {
+  // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
+  // the (potentially stale) parent process env. Instead, read the current PATH
+  // straight from the Windows registry.
+  if (isWin) {
+    return Promise.resolve(getWindowsEnvironment())
+  }
+
   return new Promise((resolve, reject) => {
     const homeDirectory =
       process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
@@ -84,45 +167,20 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     let shellPath = process.env.SHELL
-    let commandArgs: string[]
-    let shellCommandToGetEnv: string
 
-    if (isWin) {
-      // On Windows, 'cmd.exe' is the common shell.
-      // The 'set' command lists environment variables.
-      // We don't typically talk about "login shells" in the same way,
-      // but cmd will load the user's environment.
-      shellPath = process.env.COMSPEC || 'cmd.exe'
-      shellCommandToGetEnv = 'set'
-      commandArgs = ['/c', shellCommandToGetEnv] // /c Carries out the command specified by string and then terminates
-    } else {
-      // For POSIX systems (Linux, macOS)
-      if (!shellPath) {
-        // Fallback if process.env.SHELL is not set (less common for interactive users)
-        // A more robust solution might involve checking /etc/passwd or similar,
-        // but that's more complex and often requires higher privileges or native modules.
-        if (isMac) {
-          // macOS defaults to zsh since Catalina (10.15)
-          logger.warn(
-            "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
-          )
-          shellPath = '/bin/zsh'
-        } else {
-          // Other POSIX systems (Linux) default to bash
-          logger.warn(
-            "process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell."
-          )
-          shellPath = '/bin/bash'
-        }
+    if (!shellPath) {
+      if (isMac) {
+        logger.warn(
+          "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
+        )
+        shellPath = '/bin/zsh'
+      } else {
+        logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
+        shellPath = '/bin/bash'
       }
-      // -l: Make it a login shell. This sources profile files like .profile, .bash_profile, .zprofile etc.
-      // -i: Make it interactive. Some shells or profile scripts behave differently.
-      // 'env': The command to print environment variables.
-      // Using 'env -0' would be more robust for parsing if values contain newlines,
-      // but requires splitting by null character. For simplicity, we'll use 'env'.
-      shellCommandToGetEnv = 'env'
-      commandArgs = ['-ilc', shellCommandToGetEnv] // -i for interactive, -l for login, -c to execute command
     }
+
+    const commandArgs = ['-ilc', 'env']
 
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
