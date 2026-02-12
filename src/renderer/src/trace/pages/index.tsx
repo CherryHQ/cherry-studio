@@ -15,9 +15,10 @@ export interface TracePageProp {
   traceId: string
   modelName?: string
   reload?: boolean
+  assistantMsgId?: string
 }
 
-export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName, reload = false }) => {
+export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, assistantMsgId, modelName, reload = false }) => {
   const [spans, setSpans] = useState<TraceModal[]>([])
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
   const [showList, setShowList] = useState(true)
@@ -90,13 +91,13 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
   }, [])
 
   const getTraceData = useCallback(async (): Promise<boolean> => {
-    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
+    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName, assistantMsgId) : []
     const matchedSpans = getRootSpan(datas)
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
-    const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
+    const isEnded = matchedSpans.length !== 0 && !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
     return isEnded
-  }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
+  }, [topicId, traceId, assistantMsgId, modelName, updatePercentAndStart, mergeTraceModals])
 
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
@@ -117,6 +118,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
+      setSpans([])
       const ended = await getTraceData()
       // 只有未结束时才启动定时刷新
       if (!ended) {
@@ -136,7 +138,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         intervalRef.current = null
       }
     }
-  }, [getTraceData, traceId, topicId, reload])
+  }, [getTraceData, traceId, topicId, assistantMsgId, reload])
 
   useEffect(() => {
     if (selectNode) {

@@ -39,8 +39,6 @@ const logger = loggerService.withContext('ModernAiProvider')
 
 export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
-  // topicId for tracing
-  topicId?: string
   callType: string
 }
 
@@ -176,13 +174,8 @@ export default class ModernAiProvider {
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
-    if (providerConfig.topicId && getEnableDeveloperMode()) {
-      // TypeScript类型窄化：确保topicId是string类型
-      const traceConfig = {
-        ...providerConfig,
-        topicId: providerConfig.topicId
-      }
-      return await this._completionsForTrace(model, params, traceConfig)
+    if (providerConfig.assistant.traceContext?.topicId && getEnableDeveloperMode()) {
+      return await this._completionsForTrace(model, params, providerConfig)
     } else {
       return await this._completionsOrImageGeneration(model, params, providerConfig)
     }
@@ -206,13 +199,12 @@ export default class ModernAiProvider {
         assistant: config.assistant,
         streamOutput: config.streamOutput ?? true,
         onChunk: config.onChunk,
-        topicId: config.topicId,
         mcpTools: config.mcpTools,
         enableWebSearch: config.enableWebSearch
       }
 
       // 调用 legacy 的 completions，会自动使用 ImageGenerationMiddleware
-      return await this.legacyProvider.completions(legacyParams)
+      return await this.legacyProvider.completionsForTrace(legacyParams)
     }
 
     return await this.modernCompletions(model as LanguageModel, params, config)
@@ -225,21 +217,22 @@ export default class ModernAiProvider {
   private async _completionsForTrace(
     model: AiSdkModel,
     params: StreamTextParams,
-    config: ModernAiProviderConfig & { topicId: string }
+    config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     const modelId = this.model!.id
     const traceName = `${this.actualProvider.name}.${modelId}.${config.callType}`
     const traceParams: StartSpanParams = {
       name: traceName,
       tag: 'LLM',
-      topicId: config.topicId,
+      topicId: config.assistant.traceContext?.topicId || '',
+      assistantMsgId: config.assistant.traceContext?.assistantMsgId,
       modelName: config.assistant.model?.name, // 使用modelId而不是provider名称
       inputs: params
     }
 
     logger.info('Starting AI SDK trace span', {
       traceName,
-      topicId: config.topicId,
+      topicId: config.assistant.traceContext?.topicId,
       modelId,
       hasTools: !!params.tools && Object.keys(params.tools).length > 0,
       toolNames: params.tools ? Object.keys(params.tools) : [],
@@ -249,7 +242,7 @@ export default class ModernAiProvider {
     const span = addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
-        topicId: config.topicId,
+        topicId: config.assistant.traceContext?.topicId,
         modelId,
         traceName
       })
@@ -260,7 +253,7 @@ export default class ModernAiProvider {
       logger.info('Created parent span, now calling completions', {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.topicId,
+        topicId: config.assistant.traceContext?.topicId,
         modelId,
         parentSpanCreated: true
       })
@@ -270,15 +263,16 @@ export default class ModernAiProvider {
       logger.info('Completions finished, ending parent span', {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.topicId,
+        topicId: config.assistant.traceContext?.topicId,
         modelId,
         resultLength: result.getText().length
       })
 
       // 标记span完成
       endSpan({
-        topicId: config.topicId,
-        outputs: result,
+        topicId: config.assistant.traceContext?.topicId || '',
+        assistantMsgId: config.assistant.traceContext?.assistantMsgId,
+        outputs: result.getText(),
         span,
         modelName: modelId // 使用modelId保持一致性
       })
@@ -288,13 +282,14 @@ export default class ModernAiProvider {
       logger.error('Error in completionsForTrace, ending parent span with error', error as Error, {
         spanId: span.spanContext().spanId,
         traceId: span.spanContext().traceId,
-        topicId: config.topicId,
+        topicId: config.assistant.traceContext?.topicId,
         modelId
       })
 
       // 标记span出错
       endSpan({
-        topicId: config.topicId,
+        topicId: config.assistant.traceContext?.topicId || '',
+        assistantMsgId: config.assistant.traceContext?.assistantMsgId,
         error: error as Error,
         span,
         modelName: modelId // 使用modelId保持一致性

@@ -129,7 +129,7 @@ function createToolHandlingTransform(
                     allToolResponses,
                     currentParams.onChunk,
                     currentParams.assistant.model!,
-                    currentParams.topicId
+                    currentParams.assistant.traceContext
                   )
 
                   // 缓存执行结果
@@ -158,7 +158,7 @@ function createToolHandlingTransform(
                     allToolResponses,
                     currentParams.onChunk,
                     currentParams.assistant.model!,
-                    currentParams.topicId
+                    currentParams.assistant.traceContext
                   )
 
                   // 缓存执行结果
@@ -229,7 +229,7 @@ async function executeToolCalls(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model,
-  topicId?: string
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: SdkMessageParam[]; confirmedToolCalls: SdkToolCall[] }> {
   const mcpToolResponses: MCPToolResponse[] = toolCalls
     .map((toolCall) => {
@@ -257,7 +257,7 @@ async function executeToolCalls(
     model,
     mcpTools,
     ctx._internal?.flowControl?.abortSignal,
-    topicId
+    traceContext
   )
 
   // 找出已确认工具对应的原始toolCalls
@@ -289,7 +289,7 @@ async function executeToolUseResponses(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model,
-  topicId?: CompletionsParams['topicId']
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: SdkMessageParam[] }> {
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
   const { toolResults } = await parseAndCallTools(
@@ -302,7 +302,7 @@ async function executeToolUseResponses(
     model,
     mcpTools,
     ctx._internal?.flowControl?.abortSignal,
-    topicId
+    traceContext
   )
 
   return { toolResults }
@@ -386,7 +386,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -397,7 +397,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }>
 
 export async function parseAndCallTools<R>(
@@ -408,7 +408,7 @@ export async function parseAndCallTools<R>(
   model: Model,
   mcpTools?: MCPTool[],
   abortSignal?: AbortSignal,
-  topicId?: CompletionsParams['topicId']
+  traceContext?: CompletionsParams['assistant']['traceContext']
 ): Promise<{ toolResults: R[]; confirmedToolResponses: MCPToolResponse[] }> {
   const toolResults: R[] = []
   let curToolResponses: MCPToolResponse[] = []
@@ -474,7 +474,7 @@ export async function parseAndCallTools<R>(
             // 根据工具类型选择不同的调用方式
             const toolCallResponse = toolResponse.tool.isBuiltIn
               ? await callBuiltInTool(toolResponse)
-              : await callMCPTool(toolResponse, topicId, model.name)
+              : await callMCPTool(toolResponse, traceContext)
 
             // 立即更新为done状态
             upsertMCPToolResponse(

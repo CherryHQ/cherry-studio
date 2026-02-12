@@ -27,6 +27,7 @@ import { BuiltinMCPServerNames } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
+import type { WebTraceContext } from '@renderer/types/trace'
 import { t } from 'i18next'
 import { nanoid } from 'nanoid'
 
@@ -133,8 +134,7 @@ export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MC
 
 export async function callMCPTool(
   toolResponse: MCPToolResponse,
-  topicId?: string,
-  modelName?: string
+  traceContext?: WebTraceContext
 ): Promise<MCPCallToolResponse> {
   logger.info(
     `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
@@ -154,7 +154,10 @@ export async function callMCPTool(
         args: toolResponse.arguments,
         callId: toolResponse.id
       },
-      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
+
+      traceContext?.topicId
+        ? currentSpan(traceContext.topicId, traceContext.modelName, traceContext.assistantMsgId)?.spanContext()
+        : undefined
     )
     if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
       if (resp.data) {

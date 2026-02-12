@@ -145,7 +145,8 @@ export default class AiProvider {
     const traceParams: StartSpanParams = {
       name: traceName,
       tag: 'LLM',
-      topicId: params.topicId || '',
+      topicId: params.assistant.traceContext?.topicId || '',
+      assistantMsgId: params.assistant.traceContext?.assistantMsgId,
       modelName: params.assistant.model?.name
     }
 

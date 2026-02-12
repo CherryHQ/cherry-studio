@@ -2,6 +2,7 @@ import type { Message, MessageStream } from '@anthropic-ai/sdk/resources/message
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 
 export class MessageStreamHandler {
   private span: Span
@@ -9,18 +10,20 @@ export class MessageStreamHandler {
   private topicId: string
   private tokenUsage: TokenUsage
   private modelName?: string
+  private assistantMsgId?: string
 
-  constructor(stream: MessageStream, span: Span, topicId: string, modelName?: string) {
+  constructor(stream: MessageStream, span: Span, topicId: string, modelName?: string, assistantMsgId?: string) {
     this.stream = stream
     this.span = span
     this.topicId = topicId
+    this.assistantMsgId = assistantMsgId
     this.tokenUsage = {
       completion_tokens: 0,
       prompt_tokens: 0,
       total_tokens: 0
     }
     stream.on('error', (err) => {
-      endSpan({ topicId, error: err, span, modelName: this.modelName })
+      endSpan({ topicId, error: err, span, modelName: this.modelName, assistantMsgId: this.assistantMsgId })
     })
     stream.on('message', (message) => this.write(message))
     stream.on('end', () => this.finish())
@@ -29,7 +32,7 @@ export class MessageStreamHandler {
 
   async finish() {
     window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
-    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
+    endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName, assistantMsgId: this.assistantMsgId })
   }
 
   async write(message: Message) {
@@ -58,11 +61,11 @@ export class MessageStreamHandler {
     window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, message)
   }
 
-  static handleStream(stream: MessageStream, span?: Span, topicId?: string, modelName?: string) {
-    if (!span || !topicId) {
+  static handleStream(stream: MessageStream, span?: Span, params?: StartSpanParams) {
+    if (!span || !params || !params.topicId) {
       return stream
     }
-    const handler = new MessageStreamHandler(stream, span!, topicId, modelName)
+    const handler = new MessageStreamHandler(stream, span!, params.topicId, params.modelName, params.assistantMsgId)
     return handler.stream
   }
 }

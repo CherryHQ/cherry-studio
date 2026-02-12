@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 
 export * from './file'
 export * from './note'
+export * from './trace'
 
 import * as z from 'zod'
 
@@ -16,6 +17,7 @@ import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
+import type { WebTraceContext } from './trace'
 
 export * from './agent'
 export * from './apiModels'
@@ -59,6 +61,7 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+  traceContext?: WebTraceContext
 }
 
 /**
@@ -693,9 +696,6 @@ export type WebSearchProvider = {
   basicAuthUsername?: string
   basicAuthPassword?: string
   usingBrowser?: boolean
-  topicId?: string
-  parentSpanId?: string
-  modelName?: string
 }
 
 export type WebSearchProviderResult = {
@@ -1191,7 +1191,6 @@ type BaseParams = {
   assistant: Assistant
   requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
-  topicId?: string // 添加 topicId 参数
   uiMessages?: Message[]
 }
 

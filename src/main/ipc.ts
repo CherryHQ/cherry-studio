@@ -918,8 +918,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     configManager.setUseSystemTitleBar(isActive)
   })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
-  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-    getSpans(topicId, traceId, modelName)
+  ipcMain.handle(
+    IpcChannel.TRACE_GET_DATA,
+    (_, topicId: string, traceId: string, modelName?: string, assistantMsgId?: string) =>
+      getSpans(topicId, traceId, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
   ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
@@ -931,8 +933,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
   ipcMain.handle(
     IpcChannel.TRACE_OPEN_WINDOW,
-    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      openTraceWindow(topicId, traceId, autoOpen, modelName)
+    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string, assistantMsgId?: string) =>
+      openTraceWindow(topicId, traceId, autoOpen, modelName, assistantMsgId)
   )
   ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
   ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>

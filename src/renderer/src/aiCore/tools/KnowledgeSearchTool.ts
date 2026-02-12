@@ -5,7 +5,6 @@ import type { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/ex
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import { isEmpty } from 'lodash'
 import * as z from 'zod'
-
 /**
  * 知识库搜索工具
  * 使用预提取关键词，直接使用插件阶段分析的搜索意图，避免重复分析
@@ -13,7 +12,6 @@ import * as z from 'zod'
 export const knowledgeSearchTool = (
   assistant: Assistant,
   extractedKeywords: KnowledgeExtractResults,
-  topicId: string,
   userMessage?: string
 ) => {
   return tool({
@@ -87,7 +85,7 @@ You can use this tool as-is, or provide additionalContext to refine the search f
       }
 
       // 执行知识库搜索
-      const knowledgeReferences = await processKnowledgeSearch(extractResults, knowledgeBaseIds, topicId)
+      const knowledgeReferences = await processKnowledgeSearch(extractResults, knowledgeBaseIds, assistant.traceContext)
       const knowledgeReferencesData = knowledgeReferences.map((ref: KnowledgeReference) => ({
         id: ref.id,
         content: ref.content,

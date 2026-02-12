@@ -12,17 +12,14 @@ const logger = loggerService.withContext('PluginBuilder')
 /**
  * 根据条件构建插件数组
  */
-export function buildPlugins(
-  middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
-): AiPlugin[] {
+export function buildPlugins(middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant }): AiPlugin[] {
   const plugins: AiPlugin[] = []
 
-  if (middlewareConfig.topicId && getEnableDeveloperMode()) {
+  if (middlewareConfig.assistant.traceContext?.topicId && getEnableDeveloperMode()) {
     // 0. 添加 telemetry 插件
     plugins.push(
       createTelemetryPlugin({
         enabled: true,
-        topicId: middlewareConfig.topicId,
         assistant: middlewareConfig.assistant
       })
     )
@@ -34,7 +31,7 @@ export function buildPlugins(
   }
   // 2. 支持工具调用时添加搜索插件
   if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
-    plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
+    plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant))
   }
 
   // 3. 推理模型时添加推理插件

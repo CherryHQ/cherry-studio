@@ -2,6 +2,7 @@ import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import type { CompletionsResult } from '@renderer/aiCore/legacy/middleware/schemas'
 import { endSpan } from '@renderer/services/SpanManagerService'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 
 export class CompletionsResultHandler {
   private data: any
@@ -9,13 +10,15 @@ export class CompletionsResultHandler {
   private span: Span
   private topicId: string
   private modelName?: string
+  private assistantMsgId?: string
 
-  constructor(data: any, span: Span, topicId: string, modelName?: string) {
+  constructor(data: any, span: Span, topicId: string, modelName?: string, assistantMsgId?: string) {
     this.data = data && this.isCompletionsResult(data) ? { ...data, finishText: data.getText() } : data
     this.span = span
     this.topicId = topicId
     this.tokenUsage = this.getUsage(data)
     this.modelName = modelName
+    this.assistantMsgId = assistantMsgId
   }
 
   isCompletionsResult(data: any): data is CompletionsResult {
@@ -58,16 +61,18 @@ export class CompletionsResultHandler {
     if (this.tokenUsage) {
       window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
     }
-    if (this.data) {
-      endSpan({ topicId: this.topicId, outputs: this.data, span: this.span, modelName: this.modelName })
-    } else {
-      endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
-    }
+    endSpan({
+      topicId: this.topicId,
+      outputs: this.data,
+      span: this.span,
+      modelName: this.modelName,
+      assistantMsgId: this.assistantMsgId
+    })
   }
 
-  static handleResult(data?: any, span?: Span, topicId?: string, modelName?: string) {
-    if (span && topicId) {
-      const handler = new CompletionsResultHandler(data, span!, topicId, modelName)
+  static handleResult(data?: any, span?: Span, params?: StartSpanParams) {
+    if (span && !!params && params.topicId) {
+      const handler = new CompletionsResultHandler(data, span!, params.topicId, params.modelName, params.assistantMsgId)
       handler.finish()
     }
     return data

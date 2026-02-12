@@ -7,6 +7,7 @@ import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
@@ -112,7 +113,12 @@ export async function fetchMcpTools(assistant: Assistant) {
     try {
       const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
         try {
-          const tools = await window.api.mcp.listTools(mcpServer)
+          const span = currentSpan(
+            assistant.traceContext?.topicId || '',
+            assistant.traceContext?.modelName,
+            assistant.traceContext?.assistantMsgId
+          )
+          const tools = await window.api.mcp.listTools(mcpServer, span?.spanContext())
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
         } catch (error) {
           logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
@@ -144,7 +150,6 @@ export async function transformMessagesAndFetch(
     blockManager: BlockManager
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
-    topicId?: string // 添加 topicId 用于 trace
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -166,7 +171,6 @@ export async function transformMessagesAndFetch(
       modelMessages,
       assistant,
       assistantMsgId: request.assistantMsgId,
-      topicId: request.topicId,
       blockManager: request.blockManager,
       setCitationBlockId: request.callbacks.setCitationBlockId!
     })
@@ -174,7 +178,6 @@ export async function transformMessagesAndFetch(
     await fetchChatCompletion({
       messages: modelMessages,
       assistant: assistant,
-      topicId: request.topicId,
       requestOptions: request.options,
       uiMessages,
       onChunkReceived
@@ -190,15 +193,13 @@ export async function fetchChatCompletion({
   assistant,
   requestOptions,
   onChunkReceived,
-  topicId,
   uiMessages
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
     prompt: prompt,
     assistantId: assistant.id,
-    topicId,
-    hasTopicId: !!topicId,
+    traceContext: assistant.traceContext,
     modelId: assistant.model?.id,
     modelName: assistant.model?.name
   })
@@ -269,7 +270,6 @@ export async function fetchChatCompletion({
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,
-    topicId,
     callType: 'chat',
     uiMessages
   })
@@ -379,7 +379,6 @@ export async function fetchMessagesSummary({
     const { getText, usage } = await AI.completions(model.id, llmMessages, {
       ...middlewareConfig,
       assistant: summaryAssistant,
-      topicId,
       callType: 'summary'
     })
 
