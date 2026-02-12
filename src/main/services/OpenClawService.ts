@@ -8,12 +8,12 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findExecutableInEnv, spawnWithEnv } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
+import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
-import { type ChildProcess, spawn } from 'child_process'
+import type { ChildProcess } from 'child_process'
 
 import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
@@ -29,6 +29,11 @@ const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.jso
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+export type NodeCheckResult =
+  | { status: 'not_found' }
+  | { status: 'version_low'; version: string; path: string }
+  | { status: 'ok'; version: string; path: string }
 
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
@@ -125,7 +130,7 @@ class OpenClawService {
 
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
-    this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
+    this.checkNodeVersion = this.checkNodeVersion.bind(this)
     this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
     this.getGitDownloadUrl = this.getGitDownloadUrl.bind(this)
     this.install = this.install.bind(this)
@@ -152,21 +157,39 @@ class OpenClawService {
   }
 
   /**
-   * Check if npm is available in the user's shell environment
-   * Refreshes shell env cache to detect newly installed Node.js
+   * Check if Node.js is available and meets the minimum version requirement (22.0+).
+   * Detects Node.js through the user's login shell environment (handles nvm, mise, fnm, etc.)
+   *
+   * Returns a discriminated union so callers can distinguish between:
+   * - Node.js not installed at all
+   * - Node.js installed but version too low
+   * - Node.js installed and version OK
    */
-  public async checkNpmAvailable(): Promise<{ available: boolean; path: string | null }> {
-    const { path: npmPath } = await findExecutableInEnv('npm', {
-      extensions: ['.cmd', '.exe'],
-      commonPaths: [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-        path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-      ]
-    })
+  public async checkNodeVersion(): Promise<NodeCheckResult> {
+    const REQUIRED_MAJOR = 22
+    try {
+      await refreshShellEnv()
+      const { path: nodePath, env } = await findExecutableInEnv('node')
+      if (!nodePath) {
+        logger.debug('Node.js not found in environment')
+        return { status: 'not_found' }
+      }
 
-    logger.debug(`npm check result: ${npmPath ? `found at ${npmPath}` : 'not found'}`)
-    return { available: npmPath !== null, path: npmPath }
+      const output = await executeCommand(nodePath, ['--version'], { capture: true, env, timeout: 5000 })
+      const version = output.trim().replace(/^v/, '')
+      const major = parseInt(version.split('.')[0], 10)
+
+      if (isNaN(major) || major < REQUIRED_MAJOR) {
+        logger.debug(`Node.js version too low: ${version} at ${nodePath}`)
+        return { status: 'version_low', version, path: nodePath }
+      }
+
+      logger.debug(`Node.js version OK: ${version} at ${nodePath}`)
+      return { status: 'ok', version, path: nodePath }
+    } catch (error) {
+      logger.warn('Failed to check Node.js version:', error as Error)
+      return { status: 'not_found' }
+    }
   }
 
   /**
@@ -206,6 +229,22 @@ class OpenClawService {
   }
 
   /**
+   * Locate the npm binary in the user's shell environment.
+   * Returns the resolved path, or 'npm' as a fallback for spawn.
+   */
+  private async findNpmPath(): Promise<string> {
+    const { path: npmPath } = await findExecutableInEnv('npm', {
+      extensions: ['.cmd', '.exe'],
+      commonPaths: [
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
+        path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
+      ]
+    })
+    return npmPath || 'npm'
+  }
+
+  /**
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
@@ -223,8 +262,7 @@ class OpenClawService {
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
-    const npmCheck = await this.checkNpmAvailable()
-    const npmPath = npmCheck.path || 'npm'
+    const npmPath = await this.findNpmPath()
 
     const npmArgs = ['install', '-g', packageName]
     if (registryArg) npmArgs.push(registryArg)
@@ -235,22 +273,25 @@ class OpenClawService {
     logger.info(`Installing OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
     this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
-    const shellEnv = await getShellEnv()
-    const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
-    let currentPath = shellEnv[pathKey] || ''
+    // Clone the cached env so PATH augmentation doesn't pollute the global cache
+    const spawnEnv = { ...(await getShellEnv()) }
+    const pathKey = isWin ? (spawnEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
+    let currentPath = spawnEnv[pathKey] || ''
 
+    // Ensure the npm/node directory is in PATH for preinstall scripts to find node,
+    // which is necessary when node was installed after the app started
     const nodeDir = path.dirname(npmPath)
     if (!currentPath.split(path.delimiter).includes(nodeDir)) {
       currentPath = `${nodeDir}${path.delimiter}${currentPath}`
-      shellEnv[pathKey] = currentPath
+      spawnEnv[pathKey] = currentPath
       logger.info(`Added Node.js directory to PATH: ${nodeDir}`)
     }
 
-    const { path: gitPath } = await findExecutableInEnv('git', { refreshCache: false })
+    const { path: gitPath } = await findExecutableInEnv('git')
     if (gitPath) {
       const gitDir = path.dirname(gitPath)
       if (!currentPath.split(path.delimiter).includes(gitDir)) {
-        shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
+        spawnEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
         logger.info(`Added git directory to PATH: ${gitDir}`)
       }
     } else {
@@ -259,13 +300,7 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        // On Windows, pre-quote the path so cmd.exe /d /s /c handles spaces correctly
-        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
-        const installProcess = spawn(spawnCmd, npmArgs, {
-          stdio: 'pipe',
-          env: shellEnv,
-          shell: true
-        })
+        const installProcess = crossPlatformSpawn(npmPath, npmArgs, { env: spawnEnv })
 
         let stderr = ''
 
@@ -350,8 +385,7 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    const npmCheck = await this.checkNpmAvailable()
-    const npmPath = npmCheck.path || 'npm'
+    const npmPath = await this.findNpmPath()
 
     const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
 
@@ -365,12 +399,7 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
-        const uninstallProcess = spawn(spawnCmd, npmArgs, {
-          stdio: 'pipe',
-          env: shellEnv,
-          shell: true
-        })
+        const uninstallProcess = crossPlatformSpawn(npmPath, npmArgs, { env: shellEnv })
 
         let stderr = ''
 
@@ -456,7 +485,8 @@ class OpenClawService {
       return { success: false, message: 'Gateway is already starting' }
     }
 
-    const shellEnv = await getShellEnv()
+    // Refresh shell env first so findOpenClawBinary and crossPlatformSpawn both use the same fresh env
+    const shellEnv = await refreshShellEnv()
     const openclawPath = await this.findOpenClawBinary()
     if (!openclawPath) {
       return {
@@ -500,7 +530,7 @@ class OpenClawService {
     let processExited = false
 
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
-    this.gatewayProcess = spawnWithEnv(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
+    this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
       env: { ...shellEnv, OPENCLAW_CONFIG_PATH }
     })
     logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
@@ -644,7 +674,7 @@ class OpenClawService {
    */
   private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
-      const proc = spawnWithEnv(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
+      const proc = crossPlatformSpawn(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 
@@ -930,7 +960,7 @@ class OpenClawService {
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = spawnWithEnv(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
+      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 

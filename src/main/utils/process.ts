@@ -9,7 +9,7 @@ import path from 'path'
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
-import getShellEnv, { refreshShellEnvCache } from './shell-env'
+import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -301,8 +301,11 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 // ============================================================================
 
 /**
- * Find an executable with automatic shell environment refresh.
- * Handles the full "refresh cache + get shell env + find command" flow.
+ * Find an executable in the user's shell environment.
+ * This is a pure query -- it reads the (possibly cached) shell env and searches for the command.
+ * It does NOT refresh the shell env cache. Callers that need a fresh environment should call
+ * refreshShellEnv() explicitly before calling this function.
+ *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows.
  *
  * @returns Both the found path and the shell env (callers often need the env for spawn)
@@ -310,18 +313,12 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 export async function findExecutableInEnv(
   name: string,
   options?: {
-    /** Whether to refresh the shell env cache first (default: true) */
-    refreshCache?: boolean
     /** Windows-only: file extensions to accept in findExecutable fallback */
     extensions?: string[]
     /** Windows-only: common paths to check as filesystem fallback */
     commonPaths?: string[]
   }
 ): Promise<{ path: string | null; env: Record<string, string> }> {
-  if (options?.refreshCache !== false) {
-    refreshShellEnvCache()
-  }
-
   const env = await getShellEnv()
 
   // Cross-platform: try shell environment lookup first
@@ -347,7 +344,7 @@ export async function findExecutableInEnv(
  * Spawn a process with proper Windows handling for .cmd files and npm shims.
  * On Windows, .cmd files and files without .exe extension are executed via cmd.exe.
  */
-export function spawnWithEnv(
+export function crossPlatformSpawn(
   command: string,
   args: string[],
   options: SpawnOptions & { env: Record<string, string> }
@@ -360,10 +357,10 @@ export function spawnWithEnv(
 
 /**
  * Execute a command and return its output.
- * Uses spawnWithEnv internally for proper Windows .cmd handling.
+ * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
  * If no env is provided, automatically uses the shell environment.
  */
-export async function executeInEnv(
+export async function executeCommand(
   command: string,
   args: string[],
   options?: {
@@ -378,7 +375,7 @@ export async function executeInEnv(
   const env = options?.env ?? (await getShellEnv())
 
   return new Promise<string>((resolve, reject) => {
-    const child = spawnWithEnv(command, args, { env })
+    const child = crossPlatformSpawn(command, args, { env })
     let stdout = ''
     let stderr = ''
 
@@ -432,6 +429,7 @@ function getCommonGitRoots(): string[] {
  * @returns Object with availability status and path to git executable
  */
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+  await refreshShellEnv()
   const { path: gitPath } = await findExecutableInEnv('git')
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
   return { available: gitPath !== null, path: gitPath }

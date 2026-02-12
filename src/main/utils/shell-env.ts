@@ -4,7 +4,6 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { spawn } from 'child_process'
-import { memoize } from 'lodash'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -85,8 +84,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     let shellPath = process.env.SHELL
-    let commandArgs
-    let shellCommandToGetEnv
+    let commandArgs: string[]
+    let shellCommandToGetEnv: string
 
     if (isWin) {
       // On Windows, 'cmd.exe' is the common shell.
@@ -238,7 +237,9 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
   })
 }
 
-const memoizedGetShellEnvs = memoize(async () => {
+let cachedEnv: Record<string, string> | null = null
+
+async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
     return await getLoginShellEnvironment()
   } catch (error) {
@@ -251,10 +252,30 @@ const memoizedGetShellEnvs = memoize(async () => {
     appendCherryBinToPath(fallbackEnv)
     return fallbackEnv
   }
-})
+}
 
-export default memoizedGetShellEnvs
+/**
+ * Get the cached shell environment. If no cache exists yet, fetches it once.
+ * This is a pure query -- it never invalidates the cache.
+ */
+async function getShellEnv(): Promise<Record<string, string>> {
+  if (!cachedEnv) {
+    cachedEnv = await fetchShellEnv()
+  }
+  return cachedEnv
+}
 
-export const refreshShellEnvCache = () => {
-  memoizedGetShellEnvs.cache.clear?.()
+export default getShellEnv
+
+/**
+ * Invalidate the shell env cache and immediately re-fetch a fresh environment.
+ * This is an explicit command -- callers use this when they need to pick up
+ * newly installed tools (nvm, mise, fnm, etc.) that change PATH.
+ *
+ * Returns the fresh environment so callers can use it directly without a
+ * separate getShellEnv() call, avoiding stale-read race conditions.
+ */
+export async function refreshShellEnv(): Promise<Record<string, string>> {
+  cachedEnv = await fetchShellEnv()
+  return cachedEnv
 }
