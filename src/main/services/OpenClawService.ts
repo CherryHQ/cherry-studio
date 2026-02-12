@@ -150,11 +150,8 @@ class OpenClawService {
    * Check if OpenClaw is installed
    */
   public async checkInstalled(): Promise<{ installed: boolean; path: string | null }> {
-    const binaryPath = await this.findOpenClawBinary()
-    return {
-      installed: binaryPath !== null,
-      path: binaryPath
-    }
+    const { path: binaryPath } = await findExecutableInEnv('openclaw')
+    return { installed: binaryPath !== null, path: binaryPath }
   }
 
   /**
@@ -229,15 +226,6 @@ class OpenClawService {
   }
 
   /**
-   * Locate the npm binary in the user's shell environment.
-   * Returns the resolved path, or 'npm' as a fallback for spawn.
-   */
-  private async findNpmPath(): Promise<string> {
-    const { path: npmPath } = await findExecutableInEnv('npm')
-    return npmPath || 'npm'
-  }
-
-  /**
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
@@ -255,7 +243,8 @@ class OpenClawService {
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
-    const npmPath = await this.findNpmPath()
+    const { path: npmPath_ } = await findExecutableInEnv('npm')
+    const npmPath = npmPath_ || 'npm'
 
     const npmArgs = ['install', '-g', packageName]
     if (registryArg) npmArgs.push(registryArg)
@@ -378,7 +367,8 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    const npmPath = await this.findNpmPath()
+    const { path: npmPath_ } = await findExecutableInEnv('npm')
+    const npmPath = npmPath_ || 'npm'
 
     const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
 
@@ -478,9 +468,9 @@ class OpenClawService {
       return { success: false, message: 'Gateway is already starting' }
     }
 
-    // Refresh shell env first so findOpenClawBinary and crossPlatformSpawn both use the same fresh env
+    // Refresh shell env first so findExecutableInEnv and crossPlatformSpawn both use the same fresh env
     const shellEnv = await refreshShellEnv()
-    const openclawPath = await this.findOpenClawBinary()
+    const { path: openclawPath } = await findExecutableInEnv('openclaw')
     if (!openclawPath) {
       return {
         success: false,
@@ -606,7 +596,7 @@ class OpenClawService {
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
       // Use CLI to stop gateway (handles graceful shutdown, lock/PID cleanup)
-      const openclawPath = await this.findOpenClawBinary()
+      const { path: openclawPath } = await findExecutableInEnv('openclaw')
       if (openclawPath) {
         const shellEnv = await getShellEnv()
         await this.runGatewayStop(openclawPath, shellEnv)
@@ -908,39 +898,6 @@ class OpenClawService {
     }
 
     return []
-  }
-
-  /**
-   * Find OpenClaw binary in PATH or common locations
-   * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
-   */
-  private async findOpenClawBinary(): Promise<string | null> {
-    const home = os.homedir()
-
-    const { path: binaryPath } = await findExecutableInEnv('openclaw')
-    if (binaryPath) {
-      return binaryPath
-    }
-
-    // Check common filesystem locations as fallback
-    const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
-    const possiblePaths = isWin
-      ? [path.join(home, 'AppData', 'Local', 'openclaw', binaryName), path.join(home, '.openclaw', 'bin', binaryName)]
-      : [
-          path.join(home, '.openclaw', 'bin', binaryName),
-          path.join(home, '.local', 'bin', binaryName),
-          `/usr/local/bin/${binaryName}`,
-          `/opt/homebrew/bin/${binaryName}`
-        ]
-
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        logger.info('Found OpenClaw binary at: ' + p)
-        return p
-      }
-    }
-
-    return null
   }
 
   /**
