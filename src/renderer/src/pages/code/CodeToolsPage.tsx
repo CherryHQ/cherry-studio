@@ -483,7 +483,7 @@ const CodeToolsPage: FC = () => {
                   }))}
                   // 处理用户直接输入/粘贴的路径
                   onSearch={(value) => {
-                    if (value && value !== currentDirectory) {
+                    if (typeof value === 'string' && value.trim() !== '' && value !== currentDirectory) {
                       setCurrentDir(value)
                     }
                   }}
