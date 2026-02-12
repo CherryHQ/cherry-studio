@@ -1289,7 +1289,7 @@
     },
     "expand": "展開",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "匯出至 Excel"
     },
     "file": {
       "not_supported": "不支援的檔案類型 {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "請先輸入知識庫名稱"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "匯出 Excel 失敗"
       },
       "fetchTopicName": "話題命名失敗",
       "get_embedding_dimensions": "取得嵌入維度失敗",
@@ -2078,7 +2078,7 @@
     "searching": "正在搜尋...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel 匯出成功"
       },
       "joplin": {
         "export": "成功匯出到 Joplin"

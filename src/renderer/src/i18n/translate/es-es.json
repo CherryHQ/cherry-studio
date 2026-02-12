@@ -1289,7 +1289,7 @@
     },
     "expand": "Expandir",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exportar a Excel"
     },
     "file": {
       "not_supported": "Tipo de archivo no compatible {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Ingrese el nombre de la base de conocimiento"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Error al exportar a Excel"
       },
       "fetchTopicName": "Error al asignar nombre al tema",
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
@@ -1989,7 +1989,7 @@
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "No se pueden recuperar datos de tabla válidos"
       },
       "unknown": "Error desconocido",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Buscando en línea...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel exportado con éxito"
       },
       "joplin": {
         "export": "Exportado con éxito a Joplin"

@@ -1289,7 +1289,7 @@
     },
     "expand": "Expandir",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exportar para Excel"
     },
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Insira o nome da base de conhecimento"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Falha ao exportar Excel"
       },
       "fetchTopicName": "Falha ao nomear o tópico",
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
@@ -1989,7 +1989,7 @@
         "no_config": "Endereço da API ou token do Siyuan não configurado"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Incapaz de recuperar dados de tabela válidos"
       },
       "unknown": "Erro desconhecido",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Pesquisando na internet...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel exportado com sucesso"
       },
       "joplin": {
         "export": "Exportado com sucesso para Joplin"
