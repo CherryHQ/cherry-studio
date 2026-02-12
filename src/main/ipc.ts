@@ -22,12 +22,12 @@ import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { PluginError } from '@types'
 import type {
   AgentPersistedMessage,
   FileMetadata,
   Notification,
   OcrProvider,
+  PluginError,
   Provider,
   Shortcut,
   SupportedOcrFile,
@@ -38,7 +38,7 @@ import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository, DatabaseManager } from './services/agents/database'
+import { agentMessageRepository } from './services/agents/database'
 import { PluginService } from './services/agents/plugins/PluginService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
@@ -103,6 +103,7 @@ import {
   untildify
 } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
+import { closeAllDataConnections } from './utils/lifecycle'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -489,10 +490,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, async () => {
-    await DatabaseManager.close()
-    await memoryService.close().catch((e) => logger.warn('Failed to close memoryService', e as Error))
-    await KnowledgeService.closeAll().catch((e) => logger.warn('Failed to close KnowledgeService', e as Error))
-    await fileManager.stopFileWatcher().catch((e) => logger.warn('Failed to stop file watcher', e as Error))
+    await closeAllDataConnections()
     await fs.promises.rm(getDataPath(), { recursive: true, force: true })
   })
 

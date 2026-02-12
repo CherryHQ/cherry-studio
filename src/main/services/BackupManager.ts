@@ -27,10 +27,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
-import { DatabaseManager } from './agents/database/DatabaseManager'
-import { fileStorage } from './FileStorage'
-import KnowledgeService from './KnowledgeService'
-import MemoryService from './memory/MemoryService'
+import { closeAllDataConnections } from '../utils/lifecycle'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -415,16 +412,7 @@ class BackupManager {
 
         // Close all database connections and file watchers before removing Data directory.
         // On Windows, open file handles prevent deletion (EBUSY).
-        await DatabaseManager.close()
-        await MemoryService.getInstance()
-          .close()
-          .catch((e) => logger.warn('[BackupManager] Failed to close MemoryService', e as Error))
-        await KnowledgeService.closeAll().catch((e) =>
-          logger.warn('[BackupManager] Failed to close KnowledgeService', e as Error)
-        )
-        await fileStorage
-          .stopFileWatcher()
-          .catch((e) => logger.warn('[BackupManager] Failed to stop file watcher', e as Error))
+        await closeAllDataConnections()
 
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)
