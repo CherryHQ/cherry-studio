@@ -10,6 +10,7 @@ import {
   findCommandInShellEnv,
   findExecutable,
   findGitBash,
+  findViaMise,
   validateGitBashPath
 } from '../process'
 
@@ -1045,6 +1046,92 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(execFileSync).not.toHaveBeenCalled()
       })
     })
+  })
+})
+
+describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
+  const misePath = 'C:\\Users\\User\\AppData\\Local\\mise\\bin\\mise.exe'
+  const env = { PATH: 'C:\\Windows\\system32' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    // Mock path.isAbsolute to recognise Windows absolute paths
+    vi.mocked(path.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
+  })
+
+  it('returns null when mise is not installed', () => {
+    // where.exe mise fails
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('Not found')
+    })
+
+    const result = findViaMise('node', env)
+
+    expect(result).toBeNull()
+  })
+
+  it('returns null when mise is installed but tool is not managed', () => {
+    let callCount = 0
+    vi.mocked(execFileSync).mockImplementation(() => {
+      callCount++
+      // First call: where.exe mise -> returns mise path
+      if (callCount === 1) return `${misePath}\r\n`
+      // Second call: mise which node -> tool not managed
+      throw new Error('No runtime found for node')
+    })
+
+    const result = findViaMise('node', env)
+
+    expect(result).toBeNull()
+  })
+
+  it('returns the resolved path when mise manages the tool', () => {
+    const nodePath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
+
+    let callCount = 0
+    vi.mocked(execFileSync).mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return `${misePath}\r\n`
+      return `${nodePath}\n`
+    })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === nodePath)
+
+    const result = findViaMise('node', env)
+
+    expect(result).toBe(nodePath)
+  })
+
+  it('returns null when mise which times out', () => {
+    let callCount = 0
+    vi.mocked(execFileSync).mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return `${misePath}\r\n`
+      const err = new Error('ETIMEDOUT') as NodeJS.ErrnoException
+      err.code = 'ETIMEDOUT'
+      throw err
+    })
+
+    const result = findViaMise('node', env)
+
+    expect(result).toBeNull()
+  })
+
+  it('returns null when mise which returns a non-existent path', () => {
+    const ghostPath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
+
+    let callCount = 0
+    vi.mocked(execFileSync).mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return `${misePath}\r\n`
+      return `${ghostPath}\n`
+    })
+    // The resolved path does not exist on disk
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+
+    const result = findViaMise('node', env)
+
+    expect(result).toBeNull()
   })
 })
 

@@ -289,13 +289,97 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 // Unified Shell Environment Utilities
 // ============================================================================
 
+/** Timeout for mise operations (in milliseconds) */
+const MISE_TIMEOUT_MS = 5000
+
+/**
+ * Find an executable via `mise which <name>` on Windows.
+ *
+ * When Node.js is installed through mise, the shims are `.cmd` files that
+ * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
+ * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
+ *
+ * This function locates `mise.exe` via `where.exe` and asks it directly for
+ * the real binary path, bypassing shim/PATH issues entirely.
+ *
+ * @param name - Tool name to resolve (e.g. 'node', 'npm')
+ * @param env  - Environment variables for subprocess
+ * @returns Absolute path to the real executable, or null
+ */
+export function findViaMise(name: string, env: Record<string, string>): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // Validate command name (reuse the same regex used by findCommandInShellEnv)
+  if (!VALID_COMMAND_NAME_REGEX.test(name)) {
+    return null
+  }
+
+  const misePath = findMiseExecutable(env)
+  if (!misePath) {
+    logger.debug('mise not found, skipping mise fallback')
+    return null
+  }
+
+  try {
+    const result = execFileSync(misePath, ['which', name], {
+      encoding: 'utf8',
+      timeout: MISE_TIMEOUT_MS,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env
+    })
+
+    const resolvedPath = result.trim().split(/\r?\n/)[0]?.trim()
+    if (!resolvedPath || !path.isAbsolute(resolvedPath)) {
+      logger.debug(`mise which ${name} returned non-absolute path: ${resolvedPath}`)
+      return null
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      logger.debug(`mise which ${name} returned non-existent path: ${resolvedPath}`)
+      return null
+    }
+
+    logger.debug(`Found ${name} via mise`, { path: resolvedPath })
+    return resolvedPath
+  } catch (error) {
+    // Expected when the tool is not managed by mise, or mise times out
+    logger.debug(`mise which ${name} failed`, { error })
+    return null
+  }
+}
+
+/**
+ * Locate `mise.exe` on the local machine via `where.exe`.
+ */
+function findMiseExecutable(env: Record<string, string>): string | null {
+  try {
+    const result = execFileSync('where.exe', ['mise'], {
+      encoding: 'utf8',
+      timeout: MISE_TIMEOUT_MS,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env
+    })
+    const firstLine = result.trim().split(/\r?\n/)[0]?.trim()
+    if (firstLine && firstLine.toLowerCase().endsWith('.exe')) {
+      return firstLine
+    }
+  } catch {
+    // mise not on PATH
+  }
+
+  return null
+}
+
 /**
  * Find an executable in the user's shell environment.
  * This is a pure query -- it reads the (possibly cached) shell env and searches for the command.
  * It does NOT refresh the shell env cache. Callers that need a fresh environment should call
  * refreshShellEnv() explicitly before calling this function.
  *
- * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows.
+ * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
+ * and finally tries mise as a last resort on Windows.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
@@ -308,7 +392,13 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
-    return findExecutable(name, { env })
+    const winFound = findExecutable(name, { env })
+    if (winFound) {
+      return winFound
+    }
+
+    // Last resort on Windows: ask mise for the real binary path
+    return findViaMise(name, env)
   }
 
   return null
