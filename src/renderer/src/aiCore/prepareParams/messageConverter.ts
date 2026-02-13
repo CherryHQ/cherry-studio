@@ -209,8 +209,9 @@ async function convertMessageToAssistantModelMessage(
   // The OpenRouter SDK reads from providerOptions.openrouter.reasoning_details
   // and flattens it to reasoning_details at the same level as content in the API request,
   // enabling models like Claude/Gemini to resume encrypted reasoning.
+  // Note: JSON round-trip strips undefined values that would fail AI SDK's Zod validation.
   const providerOptions: ProviderOptions | undefined = reasoningDetails?.length
-    ? { openrouter: { reasoning_details: reasoningDetails } }
+    ? { openrouter: { reasoning_details: JSON.parse(JSON.stringify(reasoningDetails)) } }
     : undefined
 
   return {
