@@ -14,7 +14,7 @@ import {
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
+import { Alert, Avatar, Button, Input, Result, Space, Spin } from 'antd'
 import { Download, ExternalLink, Play, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -26,6 +26,16 @@ import UpdateButton from './components/UpdateButton'
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
+const DASHBOARD_TOKEN_BYTES = 24
+
+function generateDashboardAuthToken(): string {
+  if (!globalThis.crypto?.getRandomValues) {
+    return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+  }
+  const bytes = new Uint8Array(DASHBOARD_TOKEN_BYTES)
+  globalThis.crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
 
 interface TitleSectionProps {
   title: string
@@ -88,6 +98,60 @@ const OpenClawPage: FC = () => {
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
+  const [npmMissing, setNpmMissing] = useState(false)
+  const [gitMissing, setGitMissing] = useState(false)
+  const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
+  const [gitDownloadUrl, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
+  const [dashboardAuthToken, setDashboardAuthToken] = useState('')
+
+  // Fetch Node.js download URL and poll npm availability when npmMissing is shown
+  useEffect(() => {
+    if (!npmMissing) return
+
+    // Fetch the download URL from main process
+    window.api.openclaw
+      .getNodeDownloadUrl()
+      .then(setNodeDownloadUrl)
+      .catch(() => {})
+
+    // Poll npm availability
+    const pollInterval = setInterval(async () => {
+      try {
+        const npmCheck = await window.api.openclaw.checkNpmAvailable()
+        if (npmCheck.available) {
+          setNpmMissing(false)
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    }, 3000) // Check every 3 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [npmMissing])
+
+  // Fetch Git download URL and poll git availability when gitMissing is shown
+  useEffect(() => {
+    if (!gitMissing) return
+
+    // Fetch the download URL from main process
+    window.api.openclaw
+      .getGitDownloadUrl()
+      .then(setGitDownloadUrl)
+      .catch(() => {})
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const gitCheck = await window.api.openclaw.checkGitAvailable()
+        if (gitCheck.available) {
+          setGitMissing(false)
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    }, 3000)
+
+    return () => clearInterval(pollInterval)
+  }, [gitMissing])
 
   const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
   const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
@@ -214,6 +278,28 @@ const OpenClawPage: FC = () => {
     { refreshInterval: 5000, revalidateOnFocus: false }
   )
 
+  const fetchDashboardAuthToken = useCallback(async () => {
+    try {
+      const token = await window.api.openclaw.getDashboardAuthToken()
+      setDashboardAuthToken(token || '')
+    } catch (err) {
+      logger.debug('Failed to fetch dashboard auth token', err as Error)
+    }
+  }, [])
+
+  const persistDashboardAuthToken = useCallback(
+    async (token: string): Promise<{ success: boolean; message: string; token: string }> => {
+      try {
+        return await window.api.openclaw.setDashboardAuthToken(token)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('Failed to persist dashboard auth token', err as Error)
+        return { success: false, message, token: '' }
+      }
+    },
+    []
+  )
+
   useEffect(() => {
     void checkInstallation()
   }, [checkInstallation])
@@ -229,6 +315,12 @@ const OpenClawPage: FC = () => {
     return cleanup
   }, [])
 
+  useEffect(() => {
+    if (pageState === 'installed') {
+      void fetchDashboardAuthToken()
+    }
+  }, [fetchDashboardAuthToken, pageState])
+
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
   }
@@ -239,11 +331,24 @@ const OpenClawPage: FC = () => {
       return
     }
 
+    const normalizedToken = dashboardAuthToken.trim()
+    if (!normalizedToken) {
+      setError(t('openclaw.error.auth_token_required'))
+      return
+    }
+
     setIsStarting(true)
     setError(null)
 
     try {
-      // First sync the configuration (auth token will be auto-generated in main process)
+      const tokenResult = await persistDashboardAuthToken(normalizedToken)
+      if (!tokenResult.success) {
+        setError(tokenResult.message)
+        return
+      }
+      setDashboardAuthToken(tokenResult.token)
+
+      // 先同步配置（包含持久化后的认证令牌）
       const syncResult = await window.api.openclaw.syncConfig(selectedProvider, selectedModel)
       if (!syncResult.success) {
         setError(syncResult.message)
@@ -278,6 +383,33 @@ const OpenClawPage: FC = () => {
       setError(err instanceof Error ? err.message : String(err))
       setIsStarting(false)
     }
+  }
+
+  const handleAuthTokenBlur = async () => {
+    const normalizedToken = dashboardAuthToken.trim()
+    if (!normalizedToken) {
+      return
+    }
+
+    const result = await persistDashboardAuthToken(normalizedToken)
+    if (!result.success) {
+      setError(result.message)
+      return
+    }
+    setDashboardAuthToken(result.token)
+  }
+
+  const handleGenerateAuthToken = async () => {
+    const token = generateDashboardAuthToken()
+    setDashboardAuthToken(token)
+    setError(null)
+
+    const result = await persistDashboardAuthToken(token)
+    if (!result.success) {
+      setError(result.message)
+      return
+    }
+    setDashboardAuthToken(result.token)
   }
 
   const handleStopGateway = async () => {
@@ -502,6 +634,26 @@ const OpenClawPage: FC = () => {
               {t('openclaw.model_config.sync_hint')}
             </div>
 
+            <div
+              className="mt-4 mb-2 flex items-center gap-2 font-medium text-sm"
+              style={{ color: 'var(--color-text-1)' }}>
+              {t('openclaw.model_config.auth_token')}
+            </div>
+            <Space.Compact style={{ width: '100%' }}>
+              <Input.Password
+                value={dashboardAuthToken}
+                placeholder={t('openclaw.model_config.auth_token_placeholder')}
+                onChange={(e) => setDashboardAuthToken(e.target.value)}
+                onBlur={handleAuthTokenBlur}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Button onClick={handleGenerateAuthToken}>{t('openclaw.model_config.generate_token')}</Button>
+            </Space.Compact>
+            <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
+              {t('openclaw.model_config.auth_token_hint')}
+            </div>
+
             {/* Tips about OpenClaw */}
             <div
               className="mt-4 rounded-lg p-3 text-xs leading-relaxed"
@@ -524,7 +676,12 @@ const OpenClawPage: FC = () => {
             onClick={handleStartGateway}
             loading={isStarting || gatewayStatus === 'starting'}
             disabled={
-              !selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting' || isOpenClawUpdating
+              !selectedProvider ||
+              !selectedModel ||
+              !dashboardAuthToken.trim() ||
+              isStarting ||
+              gatewayStatus === 'starting' ||
+              isOpenClawUpdating
             }
             size="large"
             block>

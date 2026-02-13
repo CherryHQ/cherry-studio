@@ -3012,6 +3012,7 @@
     "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
     "description": "使用 Cherry Studio 服務商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
     "error": {
+      "auth_token_required": "請先設定認證令牌",
       "select_provider_model": "請先選擇服務商和模型"
     },
     "gateway": {

@@ -3012,6 +3012,7 @@
     "checking_installation": "Checking OpenClaw installation...",
     "description": "Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
     "error": {
+      "auth_token_required": "Please set an auth token first",
       "select_provider_model": "Please select a provider and model first"
     },
     "gateway": {

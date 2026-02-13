@@ -142,10 +142,57 @@ class OpenClawService {
     this.getStatus = this.getStatus.bind(this)
     this.checkHealth = this.checkHealth.bind(this)
     this.getDashboardUrl = this.getDashboardUrl.bind(this)
+    this.getDashboardAuthToken = this.getDashboardAuthToken.bind(this)
+    this.setDashboardAuthToken = this.setDashboardAuthToken.bind(this)
     this.syncProviderConfig = this.syncProviderConfig.bind(this)
     this.getChannelStatus = this.getChannelStatus.bind(this)
     this.checkUpdate = this.checkUpdate.bind(this)
     this.performUpdate = this.performUpdate.bind(this)
+  }
+
+  /**
+   * Ensure OpenClaw config directory exists
+   */
+  private ensureConfigDir(): void {
+    if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
+      fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
+    }
+  }
+
+  /**
+   * Read current OpenClaw config, fallback to legacy Cherry config as template
+   */
+  private readOpenClawConfig(): OpenClawConfig {
+    let config: OpenClawConfig = {}
+
+    if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+      try {
+        const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+        config = JSON.parse(content)
+      } catch {
+        logger.warn('Failed to parse existing Cherry OpenClaw config, using empty config')
+      }
+      return config
+    }
+
+    if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
+      try {
+        const content = fs.readFileSync(OPENCLAW_LEGACY_CONFIG_PATH, 'utf-8')
+        config = JSON.parse(content)
+      } catch {
+        logger.warn('Failed to parse legacy OpenClaw config, using empty config')
+      }
+    }
+
+    return config
+  }
+
+  /**
+   * Write Cherry OpenClaw config
+   */
+  private writeOpenClawConfig(config: OpenClawConfig): void {
+    this.ensureConfigDir()
+    fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
   }
 
   /**
@@ -695,33 +742,59 @@ class OpenClawService {
    * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
    */
   public getDashboardUrl(): string {
-    // Ensure we have the token (may have been lost after app restart)
-    if (!this.gatewayAuthToken) {
-      this.loadAuthTokenFromConfig()
+    let dashboardUrl = `http://127.0.0.1:${this.gatewayPort}`
+    const token = this.getDashboardAuthToken()
+    if (token) {
+      dashboardUrl += `?token=${encodeURIComponent(token)}`
     }
-    let url = `http://127.0.0.1:${this.gatewayPort}`
-    if (this.gatewayAuthToken) {
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
-    }
-    return url
+    return dashboardUrl
   }
 
   /**
-   * Load auth token from the config file (for recovery after app restart).
+   * Get dashboard auth token from memory/config
    */
-  private loadAuthTokenFromConfig(): void {
+  public getDashboardAuthToken(): string {
+    if (this.gatewayAuthToken) {
+      return this.gatewayAuthToken
+    }
+
+    const config = this.readOpenClawConfig()
+    const token = config.gateway?.auth?.token?.trim() || ''
+    if (token) {
+      this.gatewayAuthToken = token
+    }
+    return token
+  }
+
+  /**
+   * Persist dashboard auth token to OpenClaw config
+   */
+  public setDashboardAuthToken(
+    _: Electron.IpcMainInvokeEvent,
+    token: string
+  ): { success: boolean; message: string; token: string } {
+    const normalizedToken = token.trim()
+    if (!normalizedToken) {
+      return { success: false, message: 'Auth token cannot be empty', token: '' }
+    }
+
     try {
-      if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
-        const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
-        const config = JSON.parse(content) as OpenClawConfig
-        const token = config.gateway?.auth?.token
-        if (token) {
-          this.gatewayAuthToken = token
-          logger.info('Recovered auth token from config file')
-        }
+      const config = this.readOpenClawConfig()
+      config.gateway = config.gateway || {}
+      config.gateway.mode = config.gateway.mode || 'local'
+      config.gateway.port = config.gateway.port || this.gatewayPort
+      config.gateway.auth = {
+        ...config.gateway.auth,
+        token: normalizedToken
       }
-    } catch {
-      logger.debug('Failed to load auth token from config file')
+
+      this.writeOpenClawConfig(config)
+      this.gatewayAuthToken = normalizedToken
+      return { success: true, message: 'Dashboard auth token saved', token: normalizedToken }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to save dashboard auth token:', error as Error)
+      return { success: false, message: errorMessage, token: '' }
     }
   }
 
@@ -741,10 +814,7 @@ class OpenClawService {
     primaryModel: Model
   ): Promise<OperationResult> {
     try {
-      // Ensure config directory exists
-      if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
-        fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
-      }
+      this.ensureConfigDir()
 
       // Migrate legacy openclaw.cherry.json → openclaw.json
       if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
@@ -756,16 +826,7 @@ class OpenClawService {
         logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
 
-      // Read existing config
-      let config: OpenClawConfig = {}
-      if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
-        try {
-          const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
-          config = JSON.parse(content)
-        } catch {
-          logger.warn('Failed to parse existing OpenClaw config, creating new one')
-        }
-      }
+      const config = this.readOpenClawConfig()
 
       // Build provider key
       const providerKey = `cherry-${provider.id}`
@@ -828,9 +889,13 @@ class OpenClawService {
       config.gateway = config.gateway || {}
       config.gateway.mode = 'local'
       config.gateway.port = this.gatewayPort
-      // Auto-generate auth token if not already set, and store it for API calls
-      const token = this.gatewayAuthToken || this.generateAuthToken()
-      config.gateway.auth = { token }
+      // 优先使用用户已保存的令牌，避免重启后鉴权令牌不一致
+      const persistedToken = config.gateway.auth?.token?.trim() || ''
+      const token = this.gatewayAuthToken || persistedToken || this.generateAuthToken()
+      config.gateway.auth = {
+        ...config.gateway.auth,
+        token
+      }
       this.gatewayAuthToken = token
 
       // Update config
@@ -844,7 +909,7 @@ class OpenClawService {
       }
 
       // Write config file
-      fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
+      this.writeOpenClawConfig(config)
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }

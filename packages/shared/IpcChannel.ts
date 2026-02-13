@@ -452,6 +452,8 @@ export enum IpcChannel {
   OpenClaw_GetStatus = 'openclaw:get-status',
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
+  OpenClaw_GetDashboardAuthToken = 'openclaw:get-dashboard-auth-token',
+  OpenClaw_SetDashboardAuthToken = 'openclaw:set-dashboard-auth-token',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
   OpenClaw_GetChannels = 'openclaw:get-channels',
   OpenClaw_CheckUpdate = 'openclaw:check-update',
