@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "模式自动添加",
           "autoDescription": "该工具由当前权限模式自动预先授权。",
-          "autoDisabledTooltip": "该工具由当前权限模式自动预先授权，无法禁用。",
+          "autoDisabledTooltip": "由「{{mode}}」自动授权，无法禁用。",
           "empty": "没有符合筛选条件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "禁用时需要人工审批",

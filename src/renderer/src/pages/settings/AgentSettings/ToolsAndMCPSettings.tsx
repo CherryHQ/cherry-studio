@@ -1,4 +1,5 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type {
   AgentConfiguration,
@@ -42,6 +43,7 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
     () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
     [agentBase?.configuration?.permission_mode]
   )
+  const selectedModeCard = useMemo(() => permissionModeCards.find((card) => card.mode === selectedMode), [selectedMode])
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
@@ -170,7 +172,15 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                         </div>
                       </div>
                       <Tooltip
-                        title={isAuto ? t('agent.settings.tooling.preapproved.autoDisabledTooltip') : undefined}
+                        title={
+                          isAuto
+                            ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', {
+                                mode: selectedModeCard
+                                  ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
+                                  : selectedMode
+                              })
+                            : undefined
+                        }
                         open={isAuto ? undefined : false}>
                         <Switch
                           aria-label={t('agent.settings.tooling.preapproved.toggle', {

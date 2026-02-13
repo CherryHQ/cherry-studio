@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "模式自動新增",
           "autoDescription": "此工具由目前的權限模式自動預先授權。",
-          "autoDisabledTooltip": "此工具已由目前的權限模式自動核准，且無法停用。",
+          "autoDisabledTooltip": "由「{{mode}}」自動授權，無法停用。",
           "empty": "沒有符合篩選條件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "停用時需要人工核准",
