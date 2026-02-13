@@ -247,20 +247,13 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      // Store reasoning_details in message providerMetadata for subsequent requests
-      const providerMetadata = response?.reasoning_details
-        ? {
-            openrouter: {
-              reasoning_details: response.reasoning_details
-            }
-          }
-        : undefined
-
       const messageUpdates = {
         status,
         metrics: response?.metrics,
         usage: response?.usage,
-        ...(providerMetadata ? { providerMetadata } : {})
+        // Store reasoning_details directly on the message for subsequent requests.
+        // When present, this allows models like Claude/Gemini to resume encrypted reasoning.
+        ...(response?.reasoning_details ? { reasoning_details: response.reasoning_details } : {})
       }
       dispatch(
         newMessagesActions.updateMessage({

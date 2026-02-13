@@ -168,9 +168,8 @@ async function convertMessageToAssistantModelMessage(
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
 
-  // Extract reasoning_details from message providerMetadata (OpenRouter)
-  const reasoningDetails = (message?.providerMetadata?.openrouter as Record<string, any> | undefined)
-    ?.reasoning_details as any[] | undefined
+  // Extract reasoning_details directly from the message (stored at the same level as content)
+  const reasoningDetails = message?.reasoning_details
 
   // Add reasoning blocks first (required by AWS Bedrock for Claude extended thinking)
   for (const thinkingBlock of thinkingBlocks) {
@@ -206,8 +205,9 @@ async function convertMessageToAssistantModelMessage(
     parts.push({ type: 'text', text: '[Image]' })
   }
 
-  // If reasoning_details exists from OpenRouter, include it in providerOptions
-  // This allows the OpenRouter SDK to send it back in subsequent requests,
+  // If reasoning_details exists from OpenRouter, pass it via providerOptions.
+  // The OpenRouter SDK reads from providerOptions.openrouter.reasoning_details
+  // and flattens it to reasoning_details at the same level as content in the API request,
   // enabling models like Claude/Gemini to resume encrypted reasoning.
   const providerOptions: ProviderOptions | undefined = reasoningDetails?.length
     ? { openrouter: { reasoning_details: reasoningDetails } }
