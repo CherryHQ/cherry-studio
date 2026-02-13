@@ -3,7 +3,7 @@ import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
+import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -262,7 +262,12 @@ export abstract class BaseService {
   }
 
   /**
-   * Validate agent model configuration
+   * Validate agent model configuration.
+   *
+   * **Side effect**: For local providers that don't require a real API key
+   * (e.g. ollama, lmstudio), this method sets `provider.apiKey` to the
+   * provider ID as a placeholder so downstream SDK calls don't reject the
+   * request. Callers should be aware that the provider object may be mutated.
    */
   protected async validateAgentModels(
     agentType: AgentType,
@@ -272,6 +277,10 @@ export abstract class BaseService {
     if (entries.length === 0) {
       return
     }
+
+    // Local providers that don't require a real API key (use placeholder).
+    // Note: lmstudio doesn't support Anthropic API format, only ollama does.
+    const localProvidersWithoutApiKey: readonly string[] = ['ollama', 'lmstudio'] satisfies SystemProviderId[]
 
     for (const [field, rawValue] of entries) {
       if (rawValue === undefined || rawValue === null) {
@@ -291,15 +300,22 @@ export abstract class BaseService {
         throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
       }
 
+      const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
+
       if (!validation.provider.apiKey) {
-        throw new AgentModelValidationError(
-          { agentType, field, model: modelValue },
-          {
-            type: 'invalid_format',
-            message: `Provider '${validation.provider.id}' is missing an API key`,
-            code: 'provider_api_key_missing'
-          }
-        )
+        if (requiresApiKey) {
+          throw new AgentModelValidationError(
+            { agentType, field, model: modelValue },
+            {
+              type: 'invalid_format',
+              message: `Provider '${validation.provider.id}' is missing an API key`,
+              code: 'provider_api_key_missing'
+            }
+          )
+        } else {
+          // Use provider id as placeholder API key for providers that don't require one
+          validation.provider.apiKey = validation.provider.id
+        }
       }
     }
   }
