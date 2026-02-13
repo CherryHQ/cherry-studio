@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "モードによって追加されました",
           "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
-          "autoDisabledTooltip": "このツールは現在の権限モードで自動承認されており、無効にすることはできません。",
+          "autoDisabledTooltip": "「{{mode}}」によって自動承認されており、無効化できません。",
           "empty": "フィルターに一致するツールはありません。",
           "mcpBadge": "MCPツール",
           "requiresApproval": "無効にするには承認が必要",

@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "Adăugat de mod",
           "autoDescription": "Acest instrument este aprobat automat de modul de permisiune curent.",
-          "autoDisabledTooltip": "Acest instrument este aprobat automat de modul de permisiuni actual și nu poate fi dezactivat.",
+          "autoDisabledTooltip": "Aprobat automat de „{{mode}}” și nu poate fi dezactivat.",
           "empty": "Niciun instrument nu corespunde filtrelor tale.",
           "mcpBadge": "Instrument MCP",
           "requiresApproval": "Necesită aprobare când este dezactivat",

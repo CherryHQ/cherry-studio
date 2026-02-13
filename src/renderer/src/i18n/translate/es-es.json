@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "Añadido por modo",
           "autoDescription": "Esta herramienta está aprobada automáticamente por el modo de permisos actual.",
-          "autoDisabledTooltip": "Esta herramienta está aprobada automáticamente por el modo de permisos actual y no se puede desactivar.",
+          "autoDisabledTooltip": "Auto-aprobado por \"{{mode}}\" y no se puede desactivar.",
           "empty": "Ninguna herramienta coincide con tus filtros.",
           "mcpBadge": "herramienta MCP",
           "requiresApproval": "Requiere aprobación cuando está deshabilitado",

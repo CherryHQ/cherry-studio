@@ -260,7 +260,7 @@
         "preapproved": {
           "autoBadge": "Automatisch vom Modus hinzugefügt",
           "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
-          "autoDisabledTooltip": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch genehmigt und kann nicht deaktiviert werden.",
+          "autoDisabledTooltip": "Automatisch genehmigt durch „{{mode}}“ und kann nicht deaktiviert werden.",
           "empty": "Keine Tools entsprechen den Filterkriterien.",
           "mcpBadge": "MCP-Tool",
           "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
