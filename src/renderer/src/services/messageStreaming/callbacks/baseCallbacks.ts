@@ -247,7 +247,21 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      const messageUpdates = { status, metrics: response?.metrics, usage: response?.usage }
+      // Store reasoning_details in message providerMetadata for subsequent requests
+      const providerMetadata = response?.reasoning_details
+        ? {
+            openrouter: {
+              reasoning_details: response.reasoning_details
+            }
+          }
+        : undefined
+
+      const messageUpdates = {
+        status,
+        metrics: response?.metrics,
+        usage: response?.usage,
+        ...(providerMetadata ? { providerMetadata } : {})
+      }
       dispatch(
         newMessagesActions.updateMessage({
           topicId,

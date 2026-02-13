@@ -226,6 +226,13 @@ export type Message = {
 export interface Response {
   text?: string
   reasoning_content?: string
+  /**
+   * Raw reasoning details from OpenRouter.
+   * When present, this should be saved and sent back in subsequent requests
+   * to allow models like Claude/Gemini to correctly resume encrypted reasoning.
+   * Has higher priority than other reasoning fields.
+   */
+  reasoning_details?: any[]
   usage?: Usage
   metrics?: Metrics
   webSearch?: WebSearchResponse

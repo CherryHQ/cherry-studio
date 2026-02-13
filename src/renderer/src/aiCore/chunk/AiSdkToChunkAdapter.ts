@@ -84,7 +84,8 @@ export class AiSdkToChunkAdapter {
       text: '',
       reasoningContent: '',
       webSearchResults: [],
-      reasoningId: ''
+      reasoningId: '',
+      reasoningDetails: [] as any[]
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -141,7 +142,13 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
+    final: {
+      text: string
+      reasoningContent: string
+      webSearchResults: AISDKWebSearchResult[]
+      reasoningId: string
+      reasoningDetails: any[]
+    }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -281,6 +288,11 @@ export class AiSdkToChunkAdapter {
 
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
+        // Capture reasoning_details from OpenRouter providerMetadata
+        const openrouterMeta = providerMetadata?.openrouter as Record<string, any> | undefined
+        if (openrouterMeta?.reasoning_details && Array.isArray(openrouterMeta.reasoning_details)) {
+          final.reasoningDetails = openrouterMeta.reasoning_details
+        }
         // googel web search
         if (providerMetadata?.google?.groundingMetadata) {
           this.onChunk({
@@ -351,7 +363,8 @@ export class AiSdkToChunkAdapter {
         const metrics = this.buildMetrics(chunk.totalUsage)
         const baseResponse = {
           text: final.text || '',
-          reasoning_content: final.reasoningContent || ''
+          reasoning_content: final.reasoningContent || '',
+          reasoning_details: final.reasoningDetails.length > 0 ? final.reasoningDetails : undefined
         }
 
         this.onChunk({
