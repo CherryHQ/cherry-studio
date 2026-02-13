@@ -5,7 +5,7 @@ import { Input } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsTitle } from './shared'
+import { SettingsItem, SettingsTitle } from '../shared'
 
 export interface NameSettingsProps {
   base: AgentBaseWithId | undefined | null

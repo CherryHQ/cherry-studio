@@ -6,7 +6,7 @@ import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContainer } from '../shared'
+import { SettingsContainer } from '../../shared'
 import { InstalledPluginsList } from './components/InstalledPluginsList'
 import { PluginBrowser } from './components/PluginBrowser'
 import { PluginUploader } from './components/PluginUploader'

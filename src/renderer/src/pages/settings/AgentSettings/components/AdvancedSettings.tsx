@@ -1,34 +1,20 @@
-import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import type {
-  AgentConfiguration,
-  GetAgentResponse,
-  GetAgentSessionResponse,
-  UpdateAgentBaseForm
-} from '@renderer/types'
+import type { UpdateAgentBaseForm } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
 import { InputNumber, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+import {
+  type AgentConfigurationState,
+  type AgentOrSessionSettingsProps,
+  defaultConfiguration,
+  SettingsContainer,
+  SettingsItem,
+  SettingsTitle
+} from '../shared'
 
-type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
-
-type AdvancedSettingsProps =
-  | {
-      agentBase: GetAgentResponse | undefined | null
-      update: ReturnType<typeof useUpdateAgent>['updateAgent']
-    }
-  | {
-      agentBase: GetAgentSessionResponse | undefined | null
-      update: ReturnType<typeof useUpdateSession>['updateSession']
-    }
-
-const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
-
-export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ agentBase, update }) => {
+export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [maxTurnsInput, setMaxTurnsInput] = useState<number>(defaultConfiguration.max_turns)

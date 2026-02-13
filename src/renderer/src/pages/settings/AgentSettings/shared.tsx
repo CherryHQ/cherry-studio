@@ -2,11 +2,21 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import type { AgentConfiguration, AgentEntity, AgentSessionEntity, PermissionMode, Tool } from '@renderer/types'
+import type {
+  AgentConfiguration,
+  AgentEntity,
+  AgentSessionEntity,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  PermissionMode,
+  Tool,
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
-import { uniq } from 'lodash'
 import type { ReactNode } from 'react'
 import React from 'react'
 import styled from 'styled-components'
@@ -16,6 +26,19 @@ import { SettingDivider } from '..'
 // Shared types and constants for agent settings
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+
+/**
+ * Unified props type for settings components that work with both Agent and Session
+ */
+export type AgentOrSessionSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: UpdateAgentFunction
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: UpdateAgentSessionFunction
+    }
 
 /**
  * Computes the list of tool IDs that should be automatically approved for a given permission mode.
@@ -43,8 +66,6 @@ export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string
       return defaultToolIds
   }
 }
-
-export { uniq }
 
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
   contentAfter?: ReactNode
@@ -189,3 +210,28 @@ export const StyledMenu = styled(Menu)`
     margin-bottom: 7px;
   }
 `
+
+/**
+ * Shared modal styles configuration for settings popups
+ */
+export const settingsModalStyles: ModalProps['styles'] = {
+  content: {
+    padding: 0,
+    overflow: 'hidden',
+    height: '80vh',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  header: {
+    padding: '10px 15px',
+    paddingRight: '32px',
+    borderBottom: '0.5px solid var(--color-border)',
+    margin: 0,
+    borderRadius: 0
+  },
+  body: {
+    padding: 0,
+    display: 'flex',
+    flex: 1
+  }
+}

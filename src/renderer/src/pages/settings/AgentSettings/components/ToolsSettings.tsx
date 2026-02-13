@@ -1,38 +1,23 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type {
-  GetAgentResponse,
-  GetAgentSessionResponse,
-  UpdateAgentBaseForm,
-  UpdateAgentFunction,
-  UpdateAgentSessionFunction
-} from '@renderer/types'
+import type { UpdateAgentBaseForm } from '@renderer/types'
 import type { CardProps } from 'antd'
 import { Card, Switch, Tag, Tooltip } from 'antd'
+import { uniq } from 'lodash'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type AgentOrSessionSettingsProps,
   computeModeDefaults,
   defaultConfiguration,
   SettingsContainer,
   SettingsItem,
-  SettingsTitle,
-  uniq
-} from './shared'
-
-type ToolsSettingsProps =
-  | {
-      agentBase: GetAgentResponse | undefined | null
-      update: UpdateAgentFunction
-    }
-  | {
-      agentBase: GetAgentSessionResponse | undefined | null
-      update: UpdateAgentSessionFunction
-    }
+  SettingsTitle
+} from '../shared'
 
 const cardStyles: CardProps['styles'] = {
   header: {
@@ -71,7 +56,7 @@ const useBuiltinToolDescription = () => {
   }
 }
 
-export const ToolsSettings: FC<ToolsSettingsProps> = ({ agentBase, update }) => {
+export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const getBuiltinToolDescription = useBuiltinToolDescription()
   const { mcpServers: allServers } = useMCPServers()

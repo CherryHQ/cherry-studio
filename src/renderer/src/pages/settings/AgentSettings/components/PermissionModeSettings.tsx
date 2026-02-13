@@ -1,13 +1,7 @@
 import { permissionModeCards } from '@renderer/config/agent'
-import type {
-  GetAgentResponse,
-  GetAgentSessionResponse,
-  PermissionMode,
-  UpdateAgentBaseForm,
-  UpdateAgentFunction,
-  UpdateAgentSessionFunction
-} from '@renderer/types'
+import type { PermissionMode, UpdateAgentBaseForm } from '@renderer/types'
 import { Tag } from 'antd'
+import { uniq } from 'lodash'
 import { CheckCircle, ShieldAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -15,25 +9,15 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type AgentConfigurationState,
+  type AgentOrSessionSettingsProps,
   computeModeDefaults,
   defaultConfiguration,
   SettingsContainer,
   SettingsItem,
-  SettingsTitle,
-  uniq
-} from './shared'
+  SettingsTitle
+} from '../shared'
 
-type PermissionModeSettingsProps =
-  | {
-      agentBase: GetAgentResponse | undefined | null
-      update: UpdateAgentFunction
-    }
-  | {
-      agentBase: GetAgentSessionResponse | undefined | null
-      update: UpdateAgentSessionFunction
-    }
-
-export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentBase, update }) => {
+export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
 
