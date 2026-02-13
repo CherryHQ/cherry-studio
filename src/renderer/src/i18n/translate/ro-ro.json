@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Execută comenzi shell în mediul tău",
-          "name": "Bash"
+          "description": "Execută comenzi shell în mediul tău"
         },
         "Edit": {
-          "description": "Efectuează editări țintite asupra fișierelor specifice",
-          "name": "Editare"
+          "description": "Efectuează editări țintite asupra fișierelor specifice"
         },
         "Glob": {
-          "description": "Găsește fișiere pe baza potrivirii modelelor",
-          "name": "Glob"
+          "description": "Găsește fișiere pe baza potrivirii modelelor"
         },
         "Grep": {
-          "description": "Caută modele în conținutul fișierelor",
-          "name": "Grep"
+          "description": "Caută modele în conținutul fișierelor"
         },
         "MultiEdit": {
-          "description": "Efectuează mai multe modificări într-un singur fișier atomic",
-          "name": "MultiEdit"
+          "description": "Efectuează mai multe modificări într-un singur fișier atomic"
         },
         "NotebookEdit": {
-          "description": "Modifică celulele din Jupyter notebook",
-          "name": "NotebookEdit"
+          "description": "Modifică celulele din Jupyter notebook"
         },
         "NotebookRead": {
-          "description": "Citește și afișează conținutul notebook-urilor Jupyter",
-          "name": "NotebookRead"
+          "description": "Citește și afișează conținutul notebook-urilor Jupyter"
         },
         "Read": {
-          "description": "Citește conținutul fișierelor",
-          "name": "Citește"
+          "description": "Citește conținutul fișierelor"
         },
         "Task": {
-          "description": "Rulează un sub-agent pentru a gestiona sarcini complexe, cu mai mulți pași",
-          "name": "Sarcină"
+          "description": "Rulează un sub-agent pentru a gestiona sarcini complexe, cu mai mulți pași"
         },
         "TodoWrite": {
-          "description": "Creează și gestionează liste de sarcini structurate",
-          "name": "TodoScrie"
+          "description": "Creează și gestionează liste de sarcini structurate"
         },
         "WebFetch": {
-          "description": "Preia conținutul de la o adresă URL specificată",
-          "name": "WebFetch"
+          "description": "Preia conținutul de la o adresă URL specificată"
         },
         "WebSearch": {
-          "description": "Efectuează căutări pe web cu filtrare pe domeniu",
-          "name": "CăutareWeb"
+          "description": "Efectuează căutări pe web cu filtrare pe domeniu"
         },
         "Write": {
-          "description": "Creează sau suprascrie fișiere",
-          "name": "Scrie"
+          "description": "Creează sau suprascrie fișiere"
         }
       }
     },

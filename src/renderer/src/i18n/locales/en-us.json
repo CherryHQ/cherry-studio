@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Executes shell commands in your environment",
-          "name": "Bash"
+          "description": "Executes shell commands in your environment"
         },
         "Edit": {
-          "description": "Makes targeted edits to specific files",
-          "name": "Edit"
+          "description": "Makes targeted edits to specific files"
         },
         "Glob": {
-          "description": "Finds files based on pattern matching",
-          "name": "Glob"
+          "description": "Finds files based on pattern matching"
         },
         "Grep": {
-          "description": "Searches for patterns in file contents",
-          "name": "Grep"
+          "description": "Searches for patterns in file contents"
         },
         "MultiEdit": {
-          "description": "Performs multiple edits on a single file atomically",
-          "name": "MultiEdit"
+          "description": "Performs multiple edits on a single file atomically"
         },
         "NotebookEdit": {
-          "description": "Modifies Jupyter notebook cells",
-          "name": "NotebookEdit"
+          "description": "Modifies Jupyter notebook cells"
         },
         "NotebookRead": {
-          "description": "Reads and displays Jupyter notebook contents",
-          "name": "NotebookRead"
+          "description": "Reads and displays Jupyter notebook contents"
         },
         "Read": {
-          "description": "Reads the contents of files",
-          "name": "Read"
+          "description": "Reads the contents of files"
         },
         "Task": {
-          "description": "Runs a sub-agent to handle complex, multi-step tasks",
-          "name": "Task"
+          "description": "Runs a sub-agent to handle complex, multi-step tasks"
         },
         "TodoWrite": {
-          "description": "Creates and manages structured task lists",
-          "name": "TodoWrite"
+          "description": "Creates and manages structured task lists"
         },
         "WebFetch": {
-          "description": "Fetches content from a specified URL",
-          "name": "WebFetch"
+          "description": "Fetches content from a specified URL"
         },
         "WebSearch": {
-          "description": "Performs web searches with domain filtering",
-          "name": "WebSearch"
+          "description": "Performs web searches with domain filtering"
         },
         "Write": {
-          "description": "Creates or overwrites files",
-          "name": "Write"
+          "description": "Creates or overwrites files"
         }
       }
     },

@@ -12,7 +12,7 @@ import PermissionModeSettings from './PermissionModeSettings'
 import { InstalledPluginsSettings, PluginBrowserSettings } from './PluginsSettings/PluginsSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
-import ToolsAndMCPSettings from './ToolsAndMCPSettings'
+import ToolsSettings from './ToolsSettings'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -121,7 +121,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
           {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
           {menu === 'permission-mode' && <PermissionModeSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'tools-mcp' && <ToolsAndMCPSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'tools-mcp' && <ToolsSettings agentBase={agent} update={updateAgent} />}
           {menu === 'plugins' && <PluginBrowserSettings agentBase={agent} update={updateAgent} />}
           {menu === 'installed' && <InstalledPluginsSettings agentBase={agent} update={updateAgent} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}

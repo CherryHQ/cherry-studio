@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Exécute des commandes shell dans votre environnement",
-          "name": "Bash"
+          "description": "Exécute des commandes shell dans votre environnement"
         },
         "Edit": {
-          "description": "Effectue des modifications ciblées sur des fichiers spécifiques",
-          "name": "Modifier"
+          "description": "Effectue des modifications ciblées sur des fichiers spécifiques"
         },
         "Glob": {
-          "description": "Trouve des fichiers selon la correspondance de modèles",
-          "name": "Globe"
+          "description": "Trouve des fichiers selon la correspondance de modèles"
         },
         "Grep": {
-          "description": "Recherche des motifs dans le contenu des fichiers",
-          "name": "Grep"
+          "description": "Recherche des motifs dans le contenu des fichiers"
         },
         "MultiEdit": {
-          "description": "Effectue plusieurs modifications sur un fichier unique de manière atomique",
-          "name": "MultiEdit"
+          "description": "Effectue plusieurs modifications sur un fichier unique de manière atomique"
         },
         "NotebookEdit": {
-          "description": "Modifie les cellules du notebook Jupyter",
-          "name": "ÉditeurDeCahier"
+          "description": "Modifie les cellules du notebook Jupyter"
         },
         "NotebookRead": {
-          "description": "Lit et affiche le contenu des notebooks Jupyter",
-          "name": "LectureDeCahier"
+          "description": "Lit et affiche le contenu des notebooks Jupyter"
         },
         "Read": {
-          "description": "Lit le contenu des fichiers",
-          "name": "Lire"
+          "description": "Lit le contenu des fichiers"
         },
         "Task": {
-          "description": "Exécute un sous-agent pour gérer des tâches complexes en plusieurs étapes",
-          "name": "Tâche"
+          "description": "Exécute un sous-agent pour gérer des tâches complexes en plusieurs étapes"
         },
         "TodoWrite": {
-          "description": "Crée et gère des listes de tâches structurées",
-          "name": "TodoWrite"
+          "description": "Crée et gère des listes de tâches structurées"
         },
         "WebFetch": {
-          "description": "Récupère le contenu à partir d'une URL spécifiée",
-          "name": "WebFetch"
+          "description": "Récupère le contenu à partir d'une URL spécifiée"
         },
         "WebSearch": {
-          "description": "Effectue des recherches web avec filtrage par domaine",
-          "name": "RechercheWeb"
+          "description": "Effectue des recherches web avec filtrage par domaine"
         },
         "Write": {
-          "description": "Crée ou écrase des fichiers",
-          "name": "Écrire"
+          "description": "Crée ou écrase des fichiers"
         }
       }
     },

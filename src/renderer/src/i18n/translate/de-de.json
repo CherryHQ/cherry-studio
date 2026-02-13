@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Führt Shell-Befehle in deiner Umgebung aus",
-          "name": "Bash"
+          "description": "Führt Shell-Befehle in deiner Umgebung aus"
         },
         "Edit": {
-          "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch",
-          "name": "Bearbeiten"
+          "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch"
         },
         "Glob": {
-          "description": "Findet Dateien anhand von Mustererkennung",
-          "name": "Kugel"
+          "description": "Findet Dateien anhand von Mustererkennung"
         },
         "Grep": {
-          "description": "Sucht nach Mustern im Dateiinhalt",
-          "name": "Grep"
+          "description": "Sucht nach Mustern im Dateiinhalt"
         },
         "MultiEdit": {
-          "description": "Führt mehrere Bearbeitungen an einer einzelnen Datei atomisch aus",
-          "name": "MultiEdit"
+          "description": "Führt mehrere Bearbeitungen an einer einzelnen Datei atomisch aus"
         },
         "NotebookEdit": {
-          "description": "Modifiziert Jupyter-Notebook-Zellen",
-          "name": "NotizbuchBearbeiten"
+          "description": "Modifiziert Jupyter-Notebook-Zellen"
         },
         "NotebookRead": {
-          "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an",
-          "name": "NotizbuchLesen"
+          "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an"
         },
         "Read": {
-          "description": "Liest die Inhalte von Dateien",
-          "name": "Lesen"
+          "description": "Liest die Inhalte von Dateien"
         },
         "Task": {
-          "description": "Führt einen Unter-Agenten aus, um komplexe, mehrstufige Aufgaben zu bearbeiten",
-          "name": "Aufgabe"
+          "description": "Führt einen Unter-Agenten aus, um komplexe, mehrstufige Aufgaben zu bearbeiten"
         },
         "TodoWrite": {
-          "description": "Erstellt und verwaltet strukturierte Aufgabenlisten",
-          "name": "TodoWrite"
+          "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
         },
         "WebFetch": {
-          "description": "Ruft Inhalte von einer angegebenen URL ab",
-          "name": "WebFetch"
+          "description": "Ruft Inhalte von einer angegebenen URL ab"
         },
         "WebSearch": {
-          "description": "Führt Websuchen mit Domainfilterung durch",
-          "name": "WebSuche"
+          "description": "Führt Websuchen mit Domainfilterung durch"
         },
         "Write": {
-          "description": "Erstellt oder überschreibt Dateien",
-          "name": "Schreiben"
+          "description": "Erstellt oder überschreibt Dateien"
         }
       }
     },

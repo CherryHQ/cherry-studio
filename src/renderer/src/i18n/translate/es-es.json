@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Ejecuta comandos de shell en tu entorno",
-          "name": "Bash"
+          "description": "Ejecuta comandos de shell en tu entorno"
         },
         "Edit": {
-          "description": "Realiza ediciones dirigidas a archivos específicos",
-          "name": "Editar"
+          "description": "Realiza ediciones dirigidas a archivos específicos"
         },
         "Glob": {
-          "description": "Encuentra archivos basándose en coincidencias de patrones",
-          "name": "Globo"
+          "description": "Encuentra archivos basándose en coincidencias de patrones"
         },
         "Grep": {
-          "description": "Busca patrones en el contenido de archivos",
-          "name": "Grep"
+          "description": "Busca patrones en el contenido de archivos"
         },
         "MultiEdit": {
-          "description": "Realiza varias ediciones en un solo archivo de forma atómica",
-          "name": "MultiEdit"
+          "description": "Realiza varias ediciones en un solo archivo de forma atómica"
         },
         "NotebookEdit": {
-          "description": "Modifica las celdas del cuaderno de Jupyter",
-          "name": "NotebookEdit"
+          "description": "Modifica las celdas del cuaderno de Jupyter"
         },
         "NotebookRead": {
-          "description": "Lee y muestra el contenido de cuadernos Jupyter",
-          "name": "LecturaDeCuaderno"
+          "description": "Lee y muestra el contenido de cuadernos Jupyter"
         },
         "Read": {
-          "description": "Lee el contenido de los archivos",
-          "name": "Leer"
+          "description": "Lee el contenido de los archivos"
         },
         "Task": {
-          "description": "Ejecuta un subagente para manejar tareas complejas de varios pasos",
-          "name": "Tarea"
+          "description": "Ejecuta un subagente para manejar tareas complejas de varios pasos"
         },
         "TodoWrite": {
-          "description": "Crea y gestiona listas de tareas estructuradas",
-          "name": "TodoWrite"
+          "description": "Crea y gestiona listas de tareas estructuradas"
         },
         "WebFetch": {
-          "description": "Obtiene contenido desde una URL especificada",
-          "name": "WebFetch"
+          "description": "Obtiene contenido desde una URL especificada"
         },
         "WebSearch": {
-          "description": "Realiza búsquedas web con filtrado por dominio",
-          "name": "BúsquedaWeb"
+          "description": "Realiza búsquedas web con filtrado por dominio"
         },
         "Write": {
-          "description": "Crea o sobrescribe archivos",
-          "name": "Escribir"
+          "description": "Crea o sobrescribe archivos"
         }
       }
     },

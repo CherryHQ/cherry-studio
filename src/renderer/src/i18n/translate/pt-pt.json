@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "Executa comandos shell no seu ambiente",
-          "name": "Bash"
+          "description": "Executa comandos shell no seu ambiente"
         },
         "Edit": {
-          "description": "Faz edições direcionadas em arquivos específicos",
-          "name": "Editar"
+          "description": "Faz edições direcionadas em arquivos específicos"
         },
         "Glob": {
-          "description": "Encontra arquivos com base na correspondência de padrões",
-          "name": "Globo"
+          "description": "Encontra arquivos com base na correspondência de padrões"
         },
         "Grep": {
-          "description": "Procura por padrões no conteúdo dos arquivos",
-          "name": "Grep"
+          "description": "Procura por padrões no conteúdo dos arquivos"
         },
         "MultiEdit": {
-          "description": "Realiza várias edições em um único arquivo de forma atômica",
-          "name": "MultiEdit"
+          "description": "Realiza várias edições em um único arquivo de forma atômica"
         },
         "NotebookEdit": {
-          "description": "Modifica células do Jupyter notebook",
-          "name": "Edição de Caderno"
+          "description": "Modifica células do Jupyter notebook"
         },
         "NotebookRead": {
-          "description": "Lê e exibe o conteúdo de notebooks Jupyter",
-          "name": "LeituraDoCaderno"
+          "description": "Lê e exibe o conteúdo de notebooks Jupyter"
         },
         "Read": {
-          "description": "Lê o conteúdo dos arquivos",
-          "name": "Ler"
+          "description": "Lê o conteúdo dos arquivos"
         },
         "Task": {
-          "description": "Executa um sub-agente para lidar com tarefas complexas de várias etapas",
-          "name": "Tarefa"
+          "description": "Executa um sub-agente para lidar com tarefas complexas de várias etapas"
         },
         "TodoWrite": {
-          "description": "Cria e gere listas de tarefas estruturadas",
-          "name": "TodoEscrever"
+          "description": "Cria e gere listas de tarefas estruturadas"
         },
         "WebFetch": {
-          "description": "Busca conteúdo de um URL especificado",
-          "name": "WebBuscar"
+          "description": "Busca conteúdo de um URL especificado"
         },
         "WebSearch": {
-          "description": "Realiza pesquisas na web com filtragem de domínio",
-          "name": "Pesquisa na Web"
+          "description": "Realiza pesquisas na web com filtragem de domínio"
         },
         "Write": {
-          "description": "Cria ou sobrescreve arquivos",
-          "name": "Escreva"
+          "description": "Cria ou sobrescreve arquivos"
         }
       }
     },

@@ -337,56 +337,43 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "環境でシェルコマンドを実行します",
-          "name": "バッシュ"
+          "description": "環境でシェルコマンドを実行します"
         },
         "Edit": {
-          "description": "特定のファイルに対してターゲットを絞った編集を行う",
-          "name": "編集"
+          "description": "特定のファイルに対してターゲットを絞った編集を行う"
         },
         "Glob": {
-          "description": "パターンマッチングに基づいてファイルを検索する",
-          "name": "グローブ"
+          "description": "パターンマッチングに基づいてファイルを検索する"
         },
         "Grep": {
-          "description": "ファイルの内容内でパターンを検索します",
-          "name": "Grep"
+          "description": "ファイルの内容内でパターンを検索します"
         },
         "MultiEdit": {
-          "description": "単一のファイルに対して複数の編集をアトミックに実行します",
-          "name": "マルチエディット"
+          "description": "単一のファイルに対して複数の編集をアトミックに実行します"
         },
         "NotebookEdit": {
-          "description": "Jupyterノートブックのセルを変更します",
-          "name": "ノートブック編集"
+          "description": "Jupyterノートブックのセルを変更します"
         },
         "NotebookRead": {
-          "description": "Jupyterノートブックの内容を読み取って表示します",
-          "name": "ノートブック読み取り"
+          "description": "Jupyterノートブックの内容を読み取って表示します"
         },
         "Read": {
-          "description": "ファイルの内容を読み取ります",
-          "name": "読む"
+          "description": "ファイルの内容を読み取ります"
         },
         "Task": {
-          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します",
-          "name": "タスク"
+          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
         },
         "TodoWrite": {
-          "description": "構造化されたタスクリストを作成し、管理します",
-          "name": "TodoWrite"
+          "description": "構造化されたタスクリストを作成し、管理します"
         },
         "WebFetch": {
-          "description": "指定されたURLからコンテンツを取得します",
-          "name": "WebFetch"
+          "description": "指定されたURLからコンテンツを取得します"
         },
         "WebSearch": {
-          "description": "ドメインフィルタリング付きのウェブ検索を実行します",
-          "name": "ウェブ検索"
+          "description": "ドメインフィルタリング付きのウェブ検索を実行します"
         },
         "Write": {
-          "description": "ファイルを作成または上書きします",
-          "name": "書く"
+          "description": "ファイルを作成または上書きします"
         }
       }
     },

@@ -11,7 +11,7 @@ import EssentialSettings from './EssentialSettings'
 import PermissionModeSettings from './PermissionModeSettings'
 import PromptSettings from './PromptSettings'
 import { LeftMenu, SessionLabel, Settings, StyledMenu, StyledModal } from './shared'
-import ToolsAndMCPSettings from './ToolsAndMCPSettings'
+import ToolsSettings from './ToolsSettings'
 
 interface SessionSettingPopupShowParams {
   agentId: string
@@ -102,7 +102,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
           {menu === 'essential' && <EssentialSettings agentBase={session} update={updateSession} />}
           {menu === 'prompt' && <PromptSettings agentBase={session} update={updateSession} />}
           {menu === 'permission-mode' && <PermissionModeSettings agentBase={session} update={updateSession} />}
-          {menu === 'tools-mcp' && <ToolsAndMCPSettings agentBase={session} update={updateSession} />}
+          {menu === 'tools-mcp' && <ToolsSettings agentBase={session} update={updateSession} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={session} update={updateSession} />}
         </Settings>
       </div>
