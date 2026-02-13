@@ -4,8 +4,6 @@ import type {
   AgentConfiguration,
   GetAgentResponse,
   GetAgentSessionResponse,
-  PermissionMode,
-  Tool,
   UpdateAgentBaseForm,
   UpdateAgentFunction,
   UpdateAgentSessionFunction
@@ -17,7 +15,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+import { computeModeDefaults, SettingsContainer, SettingsItem, SettingsTitle, uniq } from './shared'
 
 type ToolsAndMCPSettingsProps =
   | {
@@ -32,32 +30,6 @@ type ToolsAndMCPSettingsProps =
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
 const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
-
-const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
-  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
-  switch (mode) {
-    case 'acceptEdits':
-      return [
-        ...defaultToolIds,
-        'Edit',
-        'MultiEdit',
-        'NotebookEdit',
-        'Write',
-        'Bash(mkdir:*)',
-        'Bash(touch:*)',
-        'Bash(rm:*)',
-        'Bash(mv:*)',
-        'Bash(cp:*)'
-      ]
-    case 'bypassPermissions':
-      return tools.map((tool) => tool.id)
-    case 'default':
-    case 'plan':
-      return defaultToolIds
-  }
-}
-
-const unique = (values: string[]) => Array.from(new Set(values))
 
 export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
@@ -75,7 +47,7 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
   const approvedToolIds = useMemo(() => {
     const allowed = agentBase?.allowed_tools ?? []
     const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
-    const merged = unique([...sanitized, ...autoToolIds])
+    const merged = uniq([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
   const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
@@ -107,7 +79,7 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
       }
       setIsUpdatingTools(true)
       const next = isApproved ? [...approvedToolIds, toolId] : approvedToolIds.filter((id) => id !== toolId)
-      const sanitized = unique(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
+      const sanitized = uniq(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
       try {
         await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
       } finally {

@@ -4,7 +4,6 @@ import type {
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
-  Tool,
   UpdateAgentBaseForm,
   UpdateAgentFunction,
   UpdateAgentSessionFunction
@@ -16,7 +15,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+import { computeModeDefaults, SettingsContainer, SettingsItem, SettingsTitle, uniq } from './shared'
 
 type PermissionModeSettingsProps =
   | {
@@ -31,35 +30,6 @@ type PermissionModeSettingsProps =
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
 const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
-
-/**
- * Computes the list of tool IDs that should be automatically approved for a given permission mode.
- */
-export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
-  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
-  switch (mode) {
-    case 'acceptEdits':
-      return [
-        ...defaultToolIds,
-        'Edit',
-        'MultiEdit',
-        'NotebookEdit',
-        'Write',
-        'Bash(mkdir:*)',
-        'Bash(touch:*)',
-        'Bash(rm:*)',
-        'Bash(mv:*)',
-        'Bash(cp:*)'
-      ]
-    case 'bypassPermissions':
-      return tools.map((tool) => tool.id)
-    case 'default':
-    case 'plan':
-      return defaultToolIds
-  }
-}
-
-export const unique = (values: string[]) => Array.from(new Set(values))
 
 export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
@@ -78,7 +48,7 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
   const approvedToolIds = useMemo(() => {
     const allowed = agentBase?.allowed_tools ?? []
     const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
-    const merged = unique([...sanitized, ...autoToolIds])
+    const merged = uniq([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
   const userAddedIds = useMemo(() => {
@@ -91,7 +61,7 @@ export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentB
         return
       }
       const defaults = computeModeDefaults(nextMode, availableTools)
-      const merged = unique([...defaults, ...userAddedIds])
+      const merged = uniq([...defaults, ...userAddedIds])
       const removedDefaults = autoToolIds.filter((id) => !defaults.includes(id))
 
       const applyChange = async () => {

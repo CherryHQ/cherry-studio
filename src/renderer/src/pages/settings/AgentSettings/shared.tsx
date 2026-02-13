@@ -2,14 +2,44 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type { AgentEntity, AgentSessionEntity, PermissionMode, Tool } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Menu, Modal } from 'antd'
+import { uniq } from 'lodash'
 import type { ReactNode } from 'react'
 import React from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
+
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ */
+export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
+  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
+  switch (mode) {
+    case 'acceptEdits':
+      return [
+        ...defaultToolIds,
+        'Edit',
+        'MultiEdit',
+        'NotebookEdit',
+        'Write',
+        'Bash(mkdir:*)',
+        'Bash(touch:*)',
+        'Bash(rm:*)',
+        'Bash(mv:*)',
+        'Bash(cp:*)'
+      ]
+    case 'bypassPermissions':
+      return tools.map((tool) => tool.id)
+    case 'default':
+    case 'plan':
+      return defaultToolIds
+  }
+}
+
+export { uniq }
 
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
   contentAfter?: ReactNode
