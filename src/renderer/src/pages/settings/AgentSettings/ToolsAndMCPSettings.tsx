@@ -2,21 +2,27 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type {
-  AgentConfiguration,
   GetAgentResponse,
   GetAgentSessionResponse,
   UpdateAgentBaseForm,
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
+import type { CardProps } from 'antd'
 import { Card, Switch, Tag, Tooltip } from 'antd'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { computeModeDefaults, SettingsContainer, SettingsItem, SettingsTitle, uniq } from './shared'
+import {
+  computeModeDefaults,
+  defaultConfiguration,
+  SettingsContainer,
+  SettingsItem,
+  SettingsTitle,
+  uniq
+} from './shared'
 
 type ToolsAndMCPSettingsProps =
   | {
@@ -28,9 +34,19 @@ type ToolsAndMCPSettingsProps =
       update: UpdateAgentSessionFunction
     }
 
-type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
-
-const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+const cardStyles: CardProps['styles'] = {
+  header: {
+    paddingLeft: '12px',
+    paddingRight: '12px',
+    borderBottom: 'none'
+  },
+  body: {
+    paddingLeft: '12px',
+    paddingRight: '12px',
+    paddingTop: '0px',
+    paddingBottom: '0px'
+  }
+}
 
 export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
@@ -195,30 +211,8 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                       </Tooltip>
                     </div>
                   }
-                  styles={{
-                    header: {
-                      paddingLeft: '12px',
-                      paddingRight: '12px',
-                      borderBottom: 'none'
-                    },
-                    body: {
-                      paddingLeft: '12px',
-                      paddingRight: '12px',
-                      paddingTop: '0px',
-                      paddingBottom: '0px'
-                    }
-                  }}>
-                  {isAuto ? (
-                    <div className="py-0 pb-3">
-                      <span className="text-foreground-400 text-xs">
-                        {t(
-                          'agent.settings.tooling.preapproved.autoDescription',
-                          'This tool is auto-approved by the current permission mode.'
-                        )}
-                      </span>
-                    </div>
-                  ) : null}
-                </Card>
+                  styles={cardStyles}
+                />
               )
             })
           )}
@@ -281,19 +275,7 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                         </Tooltip>
                       </div>
                     }
-                    styles={{
-                      header: {
-                        paddingLeft: '12px',
-                        paddingRight: '12px',
-                        borderBottom: 'none'
-                      },
-                      body: {
-                        paddingLeft: '12px',
-                        paddingRight: '12px',
-                        paddingTop: '0px',
-                        paddingBottom: '0px'
-                      }
-                    }}
+                    styles={cardStyles}
                   />
                 )
               })}

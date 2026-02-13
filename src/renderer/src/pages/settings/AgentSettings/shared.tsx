@@ -2,7 +2,8 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import type { AgentEntity, AgentSessionEntity, PermissionMode, Tool } from '@renderer/types'
+import type { AgentConfiguration, AgentEntity, AgentSessionEntity, PermissionMode, Tool } from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Menu, Modal } from 'antd'
 import { uniq } from 'lodash'
@@ -11,6 +12,10 @@ import React from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
+
+// Shared types and constants for agent settings
+export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
+export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
 /**
  * Computes the list of tool IDs that should be automatically approved for a given permission mode.

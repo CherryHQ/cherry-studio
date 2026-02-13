@@ -1,6 +1,5 @@
 import { permissionModeCards } from '@renderer/config/agent'
 import type {
-  AgentConfiguration,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
@@ -8,14 +7,21 @@ import type {
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import { Tag } from 'antd'
 import { CheckCircle, ShieldAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { computeModeDefaults, SettingsContainer, SettingsItem, SettingsTitle, uniq } from './shared'
+import {
+  type AgentConfigurationState,
+  computeModeDefaults,
+  defaultConfiguration,
+  SettingsContainer,
+  SettingsItem,
+  SettingsTitle,
+  uniq
+} from './shared'
 
 type PermissionModeSettingsProps =
   | {
@@ -27,18 +33,11 @@ type PermissionModeSettingsProps =
       update: UpdateAgentSessionFunction
     }
 
-type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
-
-const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
-
 export const PermissionModeSettings: FC<PermissionModeSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
 
-  const configuration: AgentConfigurationState = useMemo(
-    () => agentBase?.configuration ?? defaultConfiguration,
-    [agentBase?.configuration]
-  )
+  const configuration = useMemo(() => agentBase?.configuration ?? defaultConfiguration, [agentBase?.configuration])
   const selectedMode = useMemo(
     () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
     [agentBase?.configuration?.permission_mode]
