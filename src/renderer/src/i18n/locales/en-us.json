@@ -334,6 +334,62 @@
       "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
     },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Executes shell commands in your environment",
+          "name": "Bash"
+        },
+        "Edit": {
+          "description": "Makes targeted edits to specific files",
+          "name": "Edit"
+        },
+        "Glob": {
+          "description": "Finds files based on pattern matching",
+          "name": "Glob"
+        },
+        "Grep": {
+          "description": "Searches for patterns in file contents",
+          "name": "Grep"
+        },
+        "MultiEdit": {
+          "description": "Performs multiple edits on a single file atomically",
+          "name": "MultiEdit"
+        },
+        "NotebookEdit": {
+          "description": "Modifies Jupyter notebook cells",
+          "name": "NotebookEdit"
+        },
+        "NotebookRead": {
+          "description": "Reads and displays Jupyter notebook contents",
+          "name": "NotebookRead"
+        },
+        "Read": {
+          "description": "Reads the contents of files",
+          "name": "Read"
+        },
+        "Task": {
+          "description": "Runs a sub-agent to handle complex, multi-step tasks",
+          "name": "Task"
+        },
+        "TodoWrite": {
+          "description": "Creates and manages structured task lists",
+          "name": "TodoWrite"
+        },
+        "WebFetch": {
+          "description": "Fetches content from a specified URL",
+          "name": "WebFetch"
+        },
+        "WebSearch": {
+          "description": "Performs web searches with domain filtering",
+          "name": "WebSearch"
+        },
+        "Write": {
+          "description": "Creates or overwrites files",
+          "name": "Write"
+        }
+      }
+    },
     "type": {
       "label": "Agent Type",
       "unknown": "Unknown Type"

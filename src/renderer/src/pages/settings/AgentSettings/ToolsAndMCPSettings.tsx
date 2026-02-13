@@ -155,6 +155,12 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
             filteredTools.map((tool) => {
               const isAuto = autoToolIds.includes(tool.id)
               const isApproved = approvedToolIds.includes(tool.id)
+              // For builtin tools, use i18n translations; otherwise fallback to original values
+              const toolName = tool.type === 'builtin' ? t(`agent.tools.builtin.${tool.id}.name`, tool.name) : tool.name
+              const toolDescription =
+                tool.type === 'builtin' && tool.description
+                  ? t(`agent.tools.builtin.${tool.id}.description`, tool.description)
+                  : tool.description
               return (
                 <Card
                   key={tool.id}
@@ -162,10 +168,10 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
                   title={
                     <div className="flex items-start justify-between gap-3 py-2">
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate font-medium text-sm">{tool.name}</span>
-                        {tool.description ? (
+                        <span className="truncate font-medium text-sm">{toolName}</span>
+                        {toolDescription ? (
                           <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">
-                            {tool.description}
+                            {toolDescription}
                           </span>
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2">

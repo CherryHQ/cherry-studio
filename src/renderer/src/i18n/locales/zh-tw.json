@@ -334,6 +334,62 @@
       "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "在你的環境中執行 Shell 命令",
+          "name": "Bash"
+        },
+        "Edit": {
+          "description": "對特定檔案進行精確編輯",
+          "name": "Edit"
+        },
+        "Glob": {
+          "description": "根據模式匹配尋找檔案",
+          "name": "Glob"
+        },
+        "Grep": {
+          "description": "在檔案內容中搜尋模式",
+          "name": "Grep"
+        },
+        "MultiEdit": {
+          "description": "在單一檔案上原子性地執行多次編輯",
+          "name": "MultiEdit"
+        },
+        "NotebookEdit": {
+          "description": "修改 Jupyter notebook 儲存格",
+          "name": "NotebookEdit"
+        },
+        "NotebookRead": {
+          "description": "讀取並顯示 Jupyter notebook 內容",
+          "name": "NotebookRead"
+        },
+        "Read": {
+          "description": "讀取檔案內容",
+          "name": "Read"
+        },
+        "Task": {
+          "description": "執行子代理來處理複雜的多步驟任務",
+          "name": "Task"
+        },
+        "TodoWrite": {
+          "description": "建立和管理結構化任務清單",
+          "name": "TodoWrite"
+        },
+        "WebFetch": {
+          "description": "從指定 URL 取得內容",
+          "name": "WebFetch"
+        },
+        "WebSearch": {
+          "description": "執行帶有網域過濾的網路搜尋",
+          "name": "WebSearch"
+        },
+        "Write": {
+          "description": "建立或覆寫檔案",
+          "name": "Write"
+        }
+      }
+    },
     "type": {
       "label": "Agent 類型",
       "unknown": "未知類型"

@@ -334,6 +334,62 @@
       "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
     },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "在你的环境中执行 Shell 命令",
+          "name": "Bash"
+        },
+        "Edit": {
+          "description": "对特定文件进行精确编辑",
+          "name": "Edit"
+        },
+        "Glob": {
+          "description": "根据模式匹配查找文件",
+          "name": "Glob"
+        },
+        "Grep": {
+          "description": "在文件内容中搜索模式",
+          "name": "Grep"
+        },
+        "MultiEdit": {
+          "description": "在单个文件上原子性地执行多次编辑",
+          "name": "MultiEdit"
+        },
+        "NotebookEdit": {
+          "description": "修改 Jupyter notebook 单元格",
+          "name": "NotebookEdit"
+        },
+        "NotebookRead": {
+          "description": "读取并显示 Jupyter notebook 内容",
+          "name": "NotebookRead"
+        },
+        "Read": {
+          "description": "读取文件内容",
+          "name": "Read"
+        },
+        "Task": {
+          "description": "运行子代理来处理复杂的多步骤任务",
+          "name": "Task"
+        },
+        "TodoWrite": {
+          "description": "创建和管理结构化任务列表",
+          "name": "TodoWrite"
+        },
+        "WebFetch": {
+          "description": "从指定 URL 获取内容",
+          "name": "WebFetch"
+        },
+        "WebSearch": {
+          "description": "执行带有域名过滤的网络搜索",
+          "name": "WebSearch"
+        },
+        "Write": {
+          "description": "创建或覆盖文件",
+          "name": "Write"
+        }
+      }
+    },
     "type": {
       "label": "智能体类型",
       "unknown": "未知类型"

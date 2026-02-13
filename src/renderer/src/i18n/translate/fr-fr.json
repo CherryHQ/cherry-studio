@@ -334,6 +334,62 @@
       "toolPendingFallback": "Outil",
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "[to be translated]:Executes shell commands in your environment",
+          "name": "[to be translated]:Bash"
+        },
+        "Edit": {
+          "description": "[to be translated]:Makes targeted edits to specific files",
+          "name": "[to be translated]:Edit"
+        },
+        "Glob": {
+          "description": "[to be translated]:Finds files based on pattern matching",
+          "name": "[to be translated]:Glob"
+        },
+        "Grep": {
+          "description": "[to be translated]:Searches for patterns in file contents",
+          "name": "[to be translated]:Grep"
+        },
+        "MultiEdit": {
+          "description": "[to be translated]:Performs multiple edits on a single file atomically",
+          "name": "[to be translated]:MultiEdit"
+        },
+        "NotebookEdit": {
+          "description": "[to be translated]:Modifies Jupyter notebook cells",
+          "name": "[to be translated]:NotebookEdit"
+        },
+        "NotebookRead": {
+          "description": "[to be translated]:Reads and displays Jupyter notebook contents",
+          "name": "[to be translated]:NotebookRead"
+        },
+        "Read": {
+          "description": "[to be translated]:Reads the contents of files",
+          "name": "[to be translated]:Read"
+        },
+        "Task": {
+          "description": "[to be translated]:Runs a sub-agent to handle complex, multi-step tasks",
+          "name": "[to be translated]:Task"
+        },
+        "TodoWrite": {
+          "description": "[to be translated]:Creates and manages structured task lists",
+          "name": "[to be translated]:TodoWrite"
+        },
+        "WebFetch": {
+          "description": "[to be translated]:Fetches content from a specified URL",
+          "name": "[to be translated]:WebFetch"
+        },
+        "WebSearch": {
+          "description": "[to be translated]:Performs web searches with domain filtering",
+          "name": "[to be translated]:WebSearch"
+        },
+        "Write": {
+          "description": "[to be translated]:Creates or overwrites files",
+          "name": "[to be translated]:Write"
+        }
+      }
+    },
     "type": {
       "label": "Type d'agent",
       "unknown": "Type inconnu"
