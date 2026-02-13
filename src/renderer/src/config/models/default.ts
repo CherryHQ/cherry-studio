@@ -952,52 +952,40 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   minimax: [
     {
-      id: 'abab6.5s-chat',
+      id: 'MiniMax-M2.5',
       provider: 'minimax',
-      name: 'abab6.5s',
-      group: 'abab6'
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
     },
     {
-      id: 'abab6.5g-chat',
+      id: 'MiniMax-M2.5-lightning',
       provider: 'minimax',
-      name: 'abab6.5g',
-      group: 'abab6'
-    },
-    {
-      id: 'abab6.5t-chat',
-      provider: 'minimax',
-      name: 'abab6.5t',
-      group: 'abab6'
-    },
-    {
-      id: 'abab5.5s-chat',
-      provider: 'minimax',
-      name: 'abab5.5s',
-      group: 'abab5'
-    },
-    {
-      id: 'minimax-text-01',
-      provider: 'minimax',
-      name: 'minimax-01',
-      group: 'minimax-01'
-    },
-    {
-      id: 'MiniMax-M2',
-      provider: 'minimax',
-      name: 'MiniMax M2',
-      group: 'minimax-m2'
-    },
-    {
-      id: 'MiniMax-M2-Stable',
-      provider: 'minimax',
-      name: 'MiniMax M2 Stable',
-      group: 'minimax-m2'
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
     },
     {
       id: 'MiniMax-M2.1',
       provider: 'minimax',
-      name: 'MiniMax M2.1',
-      group: 'minimax-m2'
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax',
+      name: 'MiniMax-M2',
+      group: 'M2'
+    },
+    {
+      id: 'M2-her',
+      provider: 'minimax',
+      name: 'M2-her',
+      group: 'M2'
     }
   ],
   hyperbolic: [
