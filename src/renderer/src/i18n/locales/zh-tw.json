@@ -281,9 +281,9 @@
         "mcp": {
           "title": "MCP 伺服器"
         },
-        "tab": "工具和 MCP",
+        "tab": "工具",
         "tools": {
-          "title": "預先授權工具"
+          "title": "工具"
         }
       }
     },

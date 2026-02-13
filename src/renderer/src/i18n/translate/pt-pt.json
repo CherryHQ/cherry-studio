@@ -274,16 +274,16 @@
         "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
         "requiresPermission": "Requer permissão quando não pré-aprovado.",
         "tab": "Ferramentas pré-aprovadas",
-        "title": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas",
         "toggle": "{{defaultValue}}"
       },
       "toolsMcp": {
         "mcp": {
           "title": "Servidores MCP"
         },
-        "tab": "Ferramentas & MCP",
+        "tab": "Ferramentas",
         "tools": {
-          "title": "Ferramentas pré-aprovadas"
+          "title": "Ferramentas"
         }
       }
     },

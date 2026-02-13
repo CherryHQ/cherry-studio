@@ -281,9 +281,9 @@
         "mcp": {
           "title": "Servere MCP"
         },
-        "tab": "Unelte și MCP",
+        "tab": "Unelte",
         "tools": {
-          "title": "Unelte pre-aprobate"
+          "title": "Unelte"
         }
       }
     },

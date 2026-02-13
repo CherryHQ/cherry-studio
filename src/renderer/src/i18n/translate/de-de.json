@@ -281,9 +281,9 @@
         "mcp": {
           "title": "MCP-Server"
         },
-        "tab": "Tools & MCP",
+        "tab": "Tools",
         "tools": {
-          "title": "Vorab genehmigte Tools"
+          "title": "Werkzeuge"
         }
       }
     },

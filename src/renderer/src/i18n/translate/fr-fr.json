@@ -274,16 +274,16 @@
         "description": "Choisissez quels outils peuvent s'exécuter sans approbation manuelle.",
         "requiresPermission": "Nécessite une autorisation lorsqu'elle n'est pas préapprouvée.",
         "tab": "Outils pré-approuvés",
-        "title": "Outils pré-approuvés",
+        "title": "Outils",
         "toggle": "{{defaultValue}}"
       },
       "toolsMcp": {
         "mcp": {
           "title": "Serveurs MCP"
         },
-        "tab": "Outils & MCP",
+        "tab": "Outils",
         "tools": {
-          "title": "Outils pré-approuvés"
+          "title": "Outils"
         }
       }
     },

@@ -274,16 +274,16 @@
         "description": "Elige qué herramientas pueden ejecutarse sin aprobación manual.",
         "requiresPermission": "Requiere permiso cuando no está preaprobado.",
         "tab": "Herramientas preaprobadas",
-        "title": "Herramientas preaprobadas",
+        "title": "Herramientas",
         "toggle": "{{defaultValue}}"
       },
       "toolsMcp": {
         "mcp": {
           "title": "Servidores MCP"
         },
-        "tab": "Herramientas y MCP",
+        "tab": "Herramientas",
         "tools": {
-          "title": "Herramientas preaprobadas"
+          "title": "Herramientas"
         }
       }
     },

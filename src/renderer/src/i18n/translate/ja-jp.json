@@ -274,16 +274,16 @@
         "description": "人による承認なしで実行できるツールを選択します。",
         "requiresPermission": "事前承認されていない場合は承認が必要です。",
         "tab": "事前承認済みツール",
-        "title": "事前承認済みツール",
+        "title": "ツール",
         "toggle": "{{defaultValue}}"
       },
       "toolsMcp": {
         "mcp": {
           "title": "MCPサーバー"
         },
-        "tab": "ツール＆MCP",
+        "tab": "ツール",
         "tools": {
-          "title": "事前承認済みツール"
+          "title": "ツール"
         }
       }
     },
