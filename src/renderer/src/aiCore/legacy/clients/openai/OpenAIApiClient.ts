@@ -92,6 +92,12 @@ import type { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransfo
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
+const KIMI_WEB_SEARCH_TOOL = {
+  type: 'builtin_function',
+  function: {
+    name: '$web_search'
+  }
+} as ChatCompletionTool
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
@@ -730,13 +736,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
 
         if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot && isKimi25Model(model)) {
-          const builtInWebSearchTool = {
-            type: 'builtin_function',
-            function: {
-              name: '$web_search'
-            }
-          } as ChatCompletionTool
-          commonParams.tools = [...(commonParams.tools ?? []), builtInWebSearchTool]
+          commonParams.tools = [...(commonParams.tools ?? []), KIMI_WEB_SEARCH_TOOL]
         }
 
         const timeout = this.getTimeout(model)
