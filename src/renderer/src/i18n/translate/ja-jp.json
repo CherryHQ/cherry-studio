@@ -337,56 +337,56 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "[to be translated]:Executes shell commands in your environment",
-          "name": "[to be translated]:Bash"
+          "description": "環境でシェルコマンドを実行します",
+          "name": "バッシュ"
         },
         "Edit": {
-          "description": "[to be translated]:Makes targeted edits to specific files",
-          "name": "[to be translated]:Edit"
+          "description": "特定のファイルに対してターゲットを絞った編集を行う",
+          "name": "編集"
         },
         "Glob": {
-          "description": "[to be translated]:Finds files based on pattern matching",
-          "name": "[to be translated]:Glob"
+          "description": "パターンマッチングに基づいてファイルを検索する",
+          "name": "グローブ"
         },
         "Grep": {
-          "description": "[to be translated]:Searches for patterns in file contents",
-          "name": "[to be translated]:Grep"
+          "description": "ファイルの内容内でパターンを検索します",
+          "name": "Grep"
         },
         "MultiEdit": {
-          "description": "[to be translated]:Performs multiple edits on a single file atomically",
-          "name": "[to be translated]:MultiEdit"
+          "description": "単一のファイルに対して複数の編集をアトミックに実行します",
+          "name": "マルチエディット"
         },
         "NotebookEdit": {
-          "description": "[to be translated]:Modifies Jupyter notebook cells",
-          "name": "[to be translated]:NotebookEdit"
+          "description": "Jupyterノートブックのセルを変更します",
+          "name": "ノートブック編集"
         },
         "NotebookRead": {
-          "description": "[to be translated]:Reads and displays Jupyter notebook contents",
-          "name": "[to be translated]:NotebookRead"
+          "description": "Jupyterノートブックの内容を読み取って表示します",
+          "name": "ノートブック読み取り"
         },
         "Read": {
-          "description": "[to be translated]:Reads the contents of files",
-          "name": "[to be translated]:Read"
+          "description": "ファイルの内容を読み取ります",
+          "name": "読む"
         },
         "Task": {
-          "description": "[to be translated]:Runs a sub-agent to handle complex, multi-step tasks",
-          "name": "[to be translated]:Task"
+          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します",
+          "name": "タスク"
         },
         "TodoWrite": {
-          "description": "[to be translated]:Creates and manages structured task lists",
-          "name": "[to be translated]:TodoWrite"
+          "description": "構造化されたタスクリストを作成し、管理します",
+          "name": "TodoWrite"
         },
         "WebFetch": {
-          "description": "[to be translated]:Fetches content from a specified URL",
-          "name": "[to be translated]:WebFetch"
+          "description": "指定されたURLからコンテンツを取得します",
+          "name": "WebFetch"
         },
         "WebSearch": {
-          "description": "[to be translated]:Performs web searches with domain filtering",
-          "name": "[to be translated]:WebSearch"
+          "description": "ドメインフィルタリング付きのウェブ検索を実行します",
+          "name": "ウェブ検索"
         },
         "Write": {
-          "description": "[to be translated]:Creates or overwrites files",
-          "name": "[to be translated]:Write"
+          "description": "ファイルを作成または上書きします",
+          "name": "書く"
         }
       }
     },

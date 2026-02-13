@@ -48,8 +48,107 @@ const cardStyles: CardProps['styles'] = {
   }
 }
 
+// Helper function to get translated builtin tool info
+const useBuiltinToolTranslation = () => {
+  const { t } = useTranslation()
+
+  return (toolId: string, fallbackName: string, fallbackDescription?: string) => {
+    // Use explicit i18n keys for each builtin tool
+    // t('agent.tools.builtin.Bash.name')
+    // t('agent.tools.builtin.Bash.description')
+    // t('agent.tools.builtin.Edit.name')
+    // t('agent.tools.builtin.Edit.description')
+    // t('agent.tools.builtin.Glob.name')
+    // t('agent.tools.builtin.Glob.description')
+    // t('agent.tools.builtin.Grep.name')
+    // t('agent.tools.builtin.Grep.description')
+    // t('agent.tools.builtin.MultiEdit.name')
+    // t('agent.tools.builtin.MultiEdit.description')
+    // t('agent.tools.builtin.NotebookEdit.name')
+    // t('agent.tools.builtin.NotebookEdit.description')
+    // t('agent.tools.builtin.NotebookRead.name')
+    // t('agent.tools.builtin.NotebookRead.description')
+    // t('agent.tools.builtin.Read.name')
+    // t('agent.tools.builtin.Read.description')
+    // t('agent.tools.builtin.Task.name')
+    // t('agent.tools.builtin.Task.description')
+    // t('agent.tools.builtin.TodoWrite.name')
+    // t('agent.tools.builtin.TodoWrite.description')
+    // t('agent.tools.builtin.WebFetch.name')
+    // t('agent.tools.builtin.WebFetch.description')
+    // t('agent.tools.builtin.WebSearch.name')
+    // t('agent.tools.builtin.WebSearch.description')
+    // t('agent.tools.builtin.Write.name')
+    // t('agent.tools.builtin.Write.description')
+    const translations: Record<string, { name: string; description: string }> = {
+      Bash: {
+        name: t('agent.tools.builtin.Bash.name', 'Bash'),
+        description: t('agent.tools.builtin.Bash.description', 'Executes shell commands in your environment')
+      },
+      Edit: {
+        name: t('agent.tools.builtin.Edit.name', 'Edit'),
+        description: t('agent.tools.builtin.Edit.description', 'Makes targeted edits to specific files')
+      },
+      Glob: {
+        name: t('agent.tools.builtin.Glob.name', 'Glob'),
+        description: t('agent.tools.builtin.Glob.description', 'Finds files based on pattern matching')
+      },
+      Grep: {
+        name: t('agent.tools.builtin.Grep.name', 'Grep'),
+        description: t('agent.tools.builtin.Grep.description', 'Searches for patterns in file contents')
+      },
+      MultiEdit: {
+        name: t('agent.tools.builtin.MultiEdit.name', 'MultiEdit'),
+        description: t(
+          'agent.tools.builtin.MultiEdit.description',
+          'Performs multiple edits on a single file atomically'
+        )
+      },
+      NotebookEdit: {
+        name: t('agent.tools.builtin.NotebookEdit.name', 'NotebookEdit'),
+        description: t('agent.tools.builtin.NotebookEdit.description', 'Modifies Jupyter notebook cells')
+      },
+      NotebookRead: {
+        name: t('agent.tools.builtin.NotebookRead.name', 'NotebookRead'),
+        description: t('agent.tools.builtin.NotebookRead.description', 'Reads and displays Jupyter notebook contents')
+      },
+      Read: {
+        name: t('agent.tools.builtin.Read.name', 'Read'),
+        description: t('agent.tools.builtin.Read.description', 'Reads the contents of files')
+      },
+      Task: {
+        name: t('agent.tools.builtin.Task.name', 'Task'),
+        description: t('agent.tools.builtin.Task.description', 'Runs a sub-agent to handle complex, multi-step tasks')
+      },
+      TodoWrite: {
+        name: t('agent.tools.builtin.TodoWrite.name', 'TodoWrite'),
+        description: t('agent.tools.builtin.TodoWrite.description', 'Creates and manages structured task lists')
+      },
+      WebFetch: {
+        name: t('agent.tools.builtin.WebFetch.name', 'WebFetch'),
+        description: t('agent.tools.builtin.WebFetch.description', 'Fetches content from a specified URL')
+      },
+      WebSearch: {
+        name: t('agent.tools.builtin.WebSearch.name', 'WebSearch'),
+        description: t('agent.tools.builtin.WebSearch.description', 'Performs web searches with domain filtering')
+      },
+      Write: {
+        name: t('agent.tools.builtin.Write.name', 'Write'),
+        description: t('agent.tools.builtin.Write.description', 'Creates or overwrites files')
+      }
+    }
+
+    const toolTranslation = translations[toolId]
+    return {
+      name: toolTranslation?.name ?? fallbackName,
+      description: toolTranslation?.description ?? fallbackDescription
+    }
+  }
+}
+
 export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
+  const getBuiltinToolTranslation = useBuiltinToolTranslation()
   const { mcpServers: allServers } = useMCPServers()
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
@@ -156,11 +255,10 @@ export const ToolsAndMCPSettings: FC<ToolsAndMCPSettingsProps> = ({ agentBase, u
               const isAuto = autoToolIds.includes(tool.id)
               const isApproved = approvedToolIds.includes(tool.id)
               // For builtin tools, use i18n translations; otherwise fallback to original values
-              const toolName = tool.type === 'builtin' ? t(`agent.tools.builtin.${tool.id}.name`, tool.name) : tool.name
-              const toolDescription =
-                tool.type === 'builtin' && tool.description
-                  ? t(`agent.tools.builtin.${tool.id}.description`, tool.description)
-                  : tool.description
+              const { name: toolName, description: toolDescription } =
+                tool.type === 'builtin'
+                  ? getBuiltinToolTranslation(tool.id, tool.name, tool.description)
+                  : { name: tool.name, description: tool.description }
               return (
                 <Card
                   key={tool.id}

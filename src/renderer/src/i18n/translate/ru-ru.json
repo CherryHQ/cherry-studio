@@ -337,56 +337,56 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "[to be translated]:Executes shell commands in your environment",
-          "name": "[to be translated]:Bash"
+          "description": "Выполняет shell-команды в вашей среде",
+          "name": "Баш"
         },
         "Edit": {
-          "description": "[to be translated]:Makes targeted edits to specific files",
-          "name": "[to be translated]:Edit"
+          "description": "Вносит целенаправленные правки в конкретные файлы",
+          "name": "Редактировать"
         },
         "Glob": {
-          "description": "[to be translated]:Finds files based on pattern matching",
-          "name": "[to be translated]:Glob"
+          "description": "Находит файлы на основе сопоставления шаблонов",
+          "name": "Глоб"
         },
         "Grep": {
-          "description": "[to be translated]:Searches for patterns in file contents",
-          "name": "[to be translated]:Grep"
+          "description": "Ищет шаблоны в содержимом файлов",
+          "name": "Grep"
         },
         "MultiEdit": {
-          "description": "[to be translated]:Performs multiple edits on a single file atomically",
-          "name": "[to be translated]:MultiEdit"
+          "description": "Выполняет несколько правок в одном файле атомарно",
+          "name": "МультиРедактирование"
         },
         "NotebookEdit": {
-          "description": "[to be translated]:Modifies Jupyter notebook cells",
-          "name": "[to be translated]:NotebookEdit"
+          "description": "Изменяет ячейки ноутбука Jupyter",
+          "name": "РедактированиеБлокнота"
         },
         "NotebookRead": {
-          "description": "[to be translated]:Reads and displays Jupyter notebook contents",
-          "name": "[to be translated]:NotebookRead"
+          "description": "Читает и отображает содержимое Jupyter-ноутбуков",
+          "name": "ЧтениеБлокнота"
         },
         "Read": {
-          "description": "[to be translated]:Reads the contents of files",
-          "name": "[to be translated]:Read"
+          "description": "Читает содержимое файлов",
+          "name": "Читать"
         },
         "Task": {
-          "description": "[to be translated]:Runs a sub-agent to handle complex, multi-step tasks",
-          "name": "[to be translated]:Task"
+          "description": "Запускает субагента для выполнения сложных многоэтапных задач",
+          "name": "Задача"
         },
         "TodoWrite": {
-          "description": "[to be translated]:Creates and manages structured task lists",
-          "name": "[to be translated]:TodoWrite"
+          "description": "Создает и управляет структурированными списками задач",
+          "name": "TodoWrite"
         },
         "WebFetch": {
-          "description": "[to be translated]:Fetches content from a specified URL",
-          "name": "[to be translated]:WebFetch"
+          "description": "Получает содержимое с указанного URL",
+          "name": "WebFetch"
         },
         "WebSearch": {
-          "description": "[to be translated]:Performs web searches with domain filtering",
-          "name": "[to be translated]:WebSearch"
+          "description": "Выполняет веб-поиск с фильтрацией по домену",
+          "name": "Поиск в интернете"
         },
         "Write": {
-          "description": "[to be translated]:Creates or overwrites files",
-          "name": "[to be translated]:Write"
+          "description": "Создает или перезаписывает файлы",
+          "name": "Написать"
         }
       }
     },

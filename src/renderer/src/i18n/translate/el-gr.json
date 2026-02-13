@@ -337,56 +337,56 @@
     "tools": {
       "builtin": {
         "Bash": {
-          "description": "[to be translated]:Executes shell commands in your environment",
-          "name": "[to be translated]:Bash"
+          "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
+          "name": "Bash"
         },
         "Edit": {
-          "description": "[to be translated]:Makes targeted edits to specific files",
-          "name": "[to be translated]:Edit"
+          "description": "Πραγματοποιεί στοχευμένες επεξεργασίες σε συγκεκριμένα αρχεία",
+          "name": "Επεξεργασία"
         },
         "Glob": {
-          "description": "[to be translated]:Finds files based on pattern matching",
-          "name": "[to be translated]:Glob"
+          "description": "Εντοπίζει αρχεία με βάση την αντιστοίχιση προτύπων",
+          "name": "Σφαίρα"
         },
         "Grep": {
-          "description": "[to be translated]:Searches for patterns in file contents",
-          "name": "[to be translated]:Grep"
+          "description": "Αναζητά μοτίβα στο περιεχόμενο αρχείων",
+          "name": "Grep"
         },
         "MultiEdit": {
-          "description": "[to be translated]:Performs multiple edits on a single file atomically",
-          "name": "[to be translated]:MultiEdit"
+          "description": "Εκτελεί πολλαπλές επεξεργασίες σε ένα μόνο αρχείο ατομικά",
+          "name": "Πολυεπεξεργασία"
         },
         "NotebookEdit": {
-          "description": "[to be translated]:Modifies Jupyter notebook cells",
-          "name": "[to be translated]:NotebookEdit"
+          "description": "Τροποποιεί τα κελιά του Jupyter notebook",
+          "name": "Επεξεργασία Σημειωματαρίου"
         },
         "NotebookRead": {
-          "description": "[to be translated]:Reads and displays Jupyter notebook contents",
-          "name": "[to be translated]:NotebookRead"
+          "description": "Διαβάζει και εμφανίζει το περιεχόμενο των Jupyter notebook",
+          "name": "NotebookRead"
         },
         "Read": {
-          "description": "[to be translated]:Reads the contents of files",
-          "name": "[to be translated]:Read"
+          "description": "Διαβάζει τα περιεχόμενα των αρχείων",
+          "name": "Διάβασε"
         },
         "Task": {
-          "description": "[to be translated]:Runs a sub-agent to handle complex, multi-step tasks",
-          "name": "[to be translated]:Task"
+          "description": "Εκτελεί έναν υπο-πράκτορα για τη διαχείριση πολύπλοκων, πολυβήματων εργασιών",
+          "name": "Εργασία"
         },
         "TodoWrite": {
-          "description": "[to be translated]:Creates and manages structured task lists",
-          "name": "[to be translated]:TodoWrite"
+          "description": "Δημιουργεί και διαχειρίζεται δομημένες λίστες εργασιών",
+          "name": "TodoWrite"
         },
         "WebFetch": {
-          "description": "[to be translated]:Fetches content from a specified URL",
-          "name": "[to be translated]:WebFetch"
+          "description": "Ανάκτηση περιεχομένου από καθορισμένη διεύθυνση URL",
+          "name": "WebFetch"
         },
         "WebSearch": {
-          "description": "[to be translated]:Performs web searches with domain filtering",
-          "name": "[to be translated]:WebSearch"
+          "description": "Πραγματοποιεί αναζητήσεις στον ιστό με φιλτράρισμα τομέα",
+          "name": "ΑναζήτησηΙστού"
         },
         "Write": {
-          "description": "[to be translated]:Creates or overwrites files",
-          "name": "[to be translated]:Write"
+          "description": "Δημιουργεί ή αντικαθιστά αρχεία",
+          "name": "Γράψε"
         }
       }
     },
