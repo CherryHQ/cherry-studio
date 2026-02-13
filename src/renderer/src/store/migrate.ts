@@ -3236,6 +3236,7 @@ const migrateConfig = {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'minimax') {
           provider.models = SYSTEM_MODELS['minimax']
+          provider.apiHost = 'https://api.minimaxi.com/v1/'
         }
       })
       return state
