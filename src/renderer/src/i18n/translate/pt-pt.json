@@ -2064,7 +2064,8 @@
           "content": "Todos os seus dados serão perdidos, se não houver backup, eles não poderão ser recuperados, tem certeza de que deseja continuar?",
           "title": "Perda de dados!!!"
         }
-      }
+      },
+      "success": "Redefinição de dados bem-sucedida"
     },
     "restore": {
       "failed": "Restauração falhou",

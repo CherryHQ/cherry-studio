@@ -2064,7 +2064,8 @@
           "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
           "title": "Datenverlust!!!"
         }
-      }
+      },
+      "success": "Daten-Reset erfolgreich"
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",

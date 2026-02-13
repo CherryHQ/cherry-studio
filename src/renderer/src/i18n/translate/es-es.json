@@ -2064,7 +2064,8 @@
           "content": "Todos sus datos se perderán, si no tiene una copia de seguridad, no podrán ser recuperados, ¿desea continuar?",
           "title": "¡¡Pérdida de datos!!"
         }
-      }
+      },
+      "success": "Restablecimiento de datos exitoso"
     },
     "restore": {
       "failed": "Restauración fallida",

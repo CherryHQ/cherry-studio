@@ -30,6 +30,7 @@ export enum IpcChannel {
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
   App_RelaunchApp = 'app:relaunch-app',
+  App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
