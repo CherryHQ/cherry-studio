@@ -20,6 +20,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { LogLevel } from '@shared/config/logger'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -253,6 +254,16 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
     }
+  })
+
+  ipcMain.handle(IpcChannel.App_SetLogLevel, (_, level: LogLevel) => {
+    logger.info(`set log level: ${level}`)
+    loggerService.setLevel(level)
+    configManager.setLogLevel(level)
+    // Broadcast to all renderer windows
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send(IpcChannel.App_SetLogLevel, level)
+    })
   })
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {

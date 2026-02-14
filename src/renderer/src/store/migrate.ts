@@ -3185,6 +3185,7 @@ const migrateConfig = {
           assistant.defaultModel = qwen3Next80BModel
         }
       })
+      state.settings.logLevel = 'info'
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)

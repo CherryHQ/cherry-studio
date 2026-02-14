@@ -37,6 +37,7 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
+  App_SetLogLevel = 'app:set-log-level',
   App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
   App_SetFullScreen = 'app:set-full-screen',
