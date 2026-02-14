@@ -122,10 +122,17 @@ vi.mock('node:os', () => {
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual('node:path')
+  const toPosixSlashes = (value: string) => value.replace(/\\/g, '/')
+
   return {
     ...actual,
+    sep: '/',
     join: vi.fn((...args: string[]) => args.join('/')),
-    resolve: vi.fn((...args: string[]) => args.join('/'))
+    resolve: vi.fn((...args: string[]) => args.join('/')),
+    // Keep behavior consistent with the mocked join/resolve output so code under test
+    // doesn't accidentally mix '\\' with '/' across different path operations.
+    normalize: vi.fn((p: string) => toPosixSlashes((actual as any).normalize(p))),
+    dirname: vi.fn((p: string) => toPosixSlashes((actual as any).dirname(p)))
   }
 })
 
