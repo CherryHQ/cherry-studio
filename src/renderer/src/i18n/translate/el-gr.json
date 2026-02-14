@@ -1289,7 +1289,7 @@
     },
     "expand": "Επεκτάση",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Εξαγωγή στο Excel"
     },
     "file": {
       "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Παρακαλώ εισάγετε ένα όνομα για τη βάση γνώσεων"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Αποτυχία εξαγωγής Excel"
       },
       "fetchTopicName": "Αποτυχία ονομασίας θέματος",
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
@@ -1989,7 +1989,7 @@
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Αδυναμία ανάκτησης έγκυρων δεδομένων πίνακα"
       },
       "unknown": "Άγνωστο σφάλμα",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Ενεργοποιείται αναζήτηση στο διαδίκτυο...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Η εξαγωγή του Excel ολοκληρώθηκε με επιτυχία"
       },
       "joplin": {
         "export": "Η εξαγωγή στο Joplin ήταν επιτυχής"
@@ -2560,9 +2560,9 @@
       "title": "Απαιτείται Node.js"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "Το OpenClaw απαιτεί Node.js 22.0 ή νεότερη έκδοση. Η τρέχουσα έκδοσή σας είναι v{{version}}. Παρακαλούμε αναβαθμίστε πρώτα το Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Η έκδοση του Node.js είναι πολύ χαμηλή"
     },
     "not_installed": {
       "description": "Το OpenClaw δεν είναι εγκατεστημένο στο σύστημά σας. Παρακαλούμε εγκαταστήστε το πρώτα για να χρησιμοποιήσετε αυτή τη λειτουργία.",

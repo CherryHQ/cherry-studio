@@ -1289,7 +1289,7 @@
     },
     "expand": "Ausklappen",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Nach Excel exportieren"
     },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Fehler beim Exportieren von Excel"
       },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
@@ -1989,7 +1989,7 @@
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Kann keine gültigen Tabellendaten abrufen"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Wird gesucht...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel erfolgreich exportiert"
       },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
@@ -2560,9 +2560,9 @@
       "title": "Node.js erforderlich"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "OpenClaw erfordert Node.js 22.0 oder höher. Deine aktuelle Version ist v{{version}}. Bitte aktualisiere Node.js zuerst.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js-Version zu niedrig"
     },
     "not_installed": {
       "description": "OpenClaw ist nicht auf Ihrem System installiert. Bitte installieren Sie es zuerst, um diese Funktion nutzen zu können.",

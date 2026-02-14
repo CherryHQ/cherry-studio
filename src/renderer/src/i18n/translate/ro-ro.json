@@ -1289,7 +1289,7 @@
     },
     "expand": "Extinde",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exportă în Excel"
     },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Eșec la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
@@ -1989,7 +1989,7 @@
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Imposibil de recuperat date valide ale tabelului"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Se caută...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel exportat cu succes"
       },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
@@ -2560,9 +2560,9 @@
       "title": "Node.js necesar"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "OpenClaw necesită Node.js 22.0 sau o versiune superioară. Versiunea ta actuală este v{{version}}. Te rugăm să actualizezi mai întâi Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Versiunea Node.js este prea mică"
     },
     "not_installed": {
       "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",

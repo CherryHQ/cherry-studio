@@ -1289,7 +1289,7 @@
     },
     "expand": "Развернуть",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Экспорт в Excel"
     },
     "file": {
       "not_supported": "Неподдерживаемый тип файла {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Пожалуйста, введите название базы знаний"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Не удалось экспортировать Excel"
       },
       "fetchTopicName": "Не удалось назвать топик",
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
@@ -1989,7 +1989,7 @@
         "no_config": "Не настроен API адрес или токен Siyuan"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Не удалось получить корректные данные таблицы"
       },
       "unknown": "Неизвестная ошибка",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Идет поиск...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel успешно экспортирован"
       },
       "joplin": {
         "export": "Успешный экспорт в Joplin"
@@ -2560,9 +2560,9 @@
       "title": "Требуется Node.js"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "OpenClaw требует Node.js версии 22.0 или выше. Ваша текущая версия — v{{version}}. Пожалуйста, сначала обновите Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Слишком низкая версия Node.js"
     },
     "not_installed": {
       "description": "OpenClaw не установлен в вашей системе. Пожалуйста, установите его сначала, чтобы использовать эту функцию.",

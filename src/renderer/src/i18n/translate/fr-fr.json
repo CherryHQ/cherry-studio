@@ -1289,7 +1289,7 @@
     },
     "expand": "Développer",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exporter vers Excel"
     },
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
@@ -1947,7 +1947,7 @@
         "name": "Veuillez entrer le nom de la base de connaissances"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Échec de l'exportation Excel"
       },
       "fetchTopicName": "Échec de la nomination du sujet",
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
@@ -1989,7 +1989,7 @@
         "no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Impossible de récupérer des données de table valides"
       },
       "unknown": "Erreur inconnue",
       "yuque": {
@@ -2078,7 +2078,7 @@
     "searching": "Recherche en ligne en cours...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Exportation Excel réussie"
       },
       "joplin": {
         "export": "Exportation réussie vers Joplin"
@@ -2560,9 +2560,9 @@
       "title": "Node.js requis"
     },
     "node_version_low": {
-      "description": "[to be translated]:OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
-      "hint": "[to be translated]:nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
-      "title": "[to be translated]:Node.js Version Too Low"
+      "description": "OpenClaw nécessite Node.js 22.0 ou supérieur. Votre version actuelle est v{{version}}. Veuillez d’abord mettre à jour Node.js.",
+      "hint": "nvm : nvm install 22 && nvm use 22 | mise : mise use node@22",
+      "title": "Version de Node.js trop basse"
     },
     "not_installed": {
       "description": "OpenClaw n’est pas installé sur votre système. Veuillez d’abord l’installer pour utiliser cette fonctionnalité.",
