@@ -254,20 +254,31 @@ describe('websearch utils', () => {
     })
 
     describe('xai provider', () => {
-      it('should return xai search options', () => {
+      it('should return xai search options with empty config when no excludeDomains', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
 
         expect(result).toEqual({
+          xai: {}
+        })
+      })
+
+      it('should include excludedDomains when excludeDomains provided', () => {
+        const config: CherryWebSearchConfig = {
+          searchWithTime: true,
+          maxResults: 40,
+          excludeDomains: ['site1.com', 'site2.com']
+        }
+
+        const result = buildProviderBuiltinWebSearchConfig('xai', config)
+
+        expect(result).toEqual({
           xai: {
-            maxSearchResults: 30,
-            returnCitations: true,
-            sources: [{ type: 'web', excludedWebsites: [] }, { type: 'news' }, { type: 'x' }],
-            mode: 'on'
+            excludedDomains: ['site1.com', 'site2.com']
           }
         })
       })
 
-      it('should limit excluded websites to 5', () => {
+      it('should limit excluded domains to 5', () => {
         const config: CherryWebSearchConfig = {
           searchWithTime: true,
           maxResults: 40,
@@ -276,20 +287,7 @@ describe('websearch utils', () => {
 
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
-        expect(result?.xai?.sources).toBeDefined()
-        const webSource = result?.xai?.sources?.[0]
-        if (webSource && webSource.type === 'web') {
-          expect(webSource.excludedWebsites).toHaveLength(5)
-        }
-      })
-
-      it('should include all sources types', () => {
-        const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
-
-        expect(result?.xai?.sources).toHaveLength(3)
-        expect(result?.xai?.sources?.[0].type).toBe('web')
-        expect(result?.xai?.sources?.[1].type).toBe('news')
-        expect(result?.xai?.sources?.[2].type).toBe('x')
+        expect(result?.xai?.excludedDomains).toHaveLength(5)
       })
     })
 
