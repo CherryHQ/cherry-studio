@@ -97,6 +97,8 @@ const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleP
 
 type HostField = 'apiHost' | 'anthropicApiHost'
 
+const API_IDENTIFIER_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$/
+
 const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
@@ -127,6 +129,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const fancyProviderName = getFancyProviderName(provider)
 
   const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
+  const [apiIdentifier, setApiIdentifier] = useState(provider.apiIdentifier ?? '')
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     status: HealthStatus.NOT_CHECKED,
     checking: false
@@ -155,6 +158,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setLocalApiKey(provider.apiKey)
     setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED })
   }, [provider.apiKey])
+
+  useEffect(() => {
+    setApiIdentifier(provider.apiIdentifier ?? '')
+  }, [provider.apiIdentifier])
 
   // 同步 localApiKey 到 provider.apiKey（防抖）
   useEffect(() => {
@@ -408,6 +415,41 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
 
+  const onUpdateApiIdentifier = useCallback(() => {
+    const normalizedIdentifier = apiIdentifier.trim()
+
+    if (!normalizedIdentifier) {
+      updateProvider({ apiIdentifier: undefined })
+      setApiIdentifier('')
+      return
+    }
+
+    if (!API_IDENTIFIER_PATTERN.test(normalizedIdentifier) || normalizedIdentifier.includes(':')) {
+      window.toast.error(t('settings.provider.api_identifier.error.invalid'))
+      setApiIdentifier(provider.apiIdentifier ?? '')
+      return
+    }
+
+    const conflictProvider = allProviders.find((p) => {
+      if (p.id === provider.id) {
+        return false
+      }
+      if (p.id === normalizedIdentifier) {
+        return true
+      }
+      return p.apiIdentifier?.trim() === normalizedIdentifier
+    })
+
+    if (conflictProvider) {
+      window.toast.error(t('settings.provider.api_identifier.error.duplicate'))
+      setApiIdentifier(provider.apiIdentifier ?? '')
+      return
+    }
+
+    updateProvider({ apiIdentifier: normalizedIdentifier })
+    setApiIdentifier(normalizedIdentifier)
+  }, [allProviders, apiIdentifier, provider.apiIdentifier, provider.id, t, updateProvider])
+
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -441,6 +483,34 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {!isSystemProvider(provider) && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {t('settings.provider.api_identifier.label')}
+            <HelpTooltip title={t('settings.provider.api_identifier.tip')}></HelpTooltip>
+          </SettingSubtitle>
+          <Input
+            value={apiIdentifier}
+            placeholder={t('settings.provider.api_identifier.placeholder')}
+            onChange={(e) => setApiIdentifier(e.target.value)}
+            onBlur={onUpdateApiIdentifier}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                onUpdateApiIdentifier()
+              }
+            }}
+            spellCheck={false}
+            maxLength={32}
+          />
+          <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <SettingHelpText>
+              {t('settings.provider.api_identifier.preview', {
+                model: `${apiIdentifier.trim() || provider.id}:glm-4.6`
+              })}
+            </SettingHelpText>
+          </SettingHelpTextRow>
+        </>
+      )}
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
