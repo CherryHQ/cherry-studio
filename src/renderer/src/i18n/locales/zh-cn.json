@@ -788,6 +788,10 @@
         "label": "清空消息 {{Command}}",
         "title": "清空消息"
       },
+      "code_editor": {
+        "insert": "插入",
+        "title": "代码编辑器"
+      },
       "collapse": "收起",
       "context_count": {
         "tip": "上下文数 / 最大上下文数"

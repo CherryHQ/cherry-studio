@@ -788,6 +788,10 @@
         "label": "Limpiar mensajes {{Command}}",
         "title": "Limpiar mensajes"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Colapsar",
       "context_count": {
         "tip": "Número de contextos / Número máximo de contextos"
