@@ -47,6 +47,7 @@ const visionAllowedModels = [
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
+  'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-thinking-preview',
   `gemma3(?:[-:\\w]+)?`,
