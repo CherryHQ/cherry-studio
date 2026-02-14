@@ -153,6 +153,10 @@
         "title": "Erweiterte Einstellungen"
       },
       "essential": "Grundeinstellungen",
+      "permissionMode": {
+        "tab": "Berechtigungsmodus",
+        "title": "Berechtigungsmodus"
+      },
       "plugins": {
         "available": {
           "title": "Verfügbare Plugins"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
           "empty": "Keine MCP-Server erkannt. Bitte fügen Sie welche auf der MCP-Einstellungsseite hinzu.",
+          "inactiveTooltip": "Dieser MCP-Server ist nicht aktiv. Bitte starten Sie ihn zuerst.",
           "manageHint": "Benötigen Sie weitere Konfigurationen? Gehen Sie zu Einstellungen → MCP-Server.",
           "toggle": "{{name}} umschalten"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Vertrauenswürdige Dateisystem-Tools werden vorab autorisiert und können sofort ausgeführt werden.",
             "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
             "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "bypassPermissions": {
-            "behavior": "Alle Tools werden automatisch vorab autorisiert.",
             "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
             "title": "Alle Berechtigungsprüfungen überspringen",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
@@ -243,14 +246,12 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "behavior": "Nur-Lese-Tools werden automatisch vorab autorisiert.",
             "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
             "title": "Standard (vor Fortsetzung fragen)"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "behavior": "Standard-Nur-Lese-Tools werden automatisch vorab autorisiert, aber die Ausführung bleibt deaktiviert.",
             "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
             "title": "Planungsmodus"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Automatisch vom Modus hinzugefügt",
           "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
+          "autoDisabledTooltip": "Automatisch genehmigt durch „{{mode}}“ und kann nicht deaktiviert werden.",
           "empty": "Keine Tools entsprechen den Filterkriterien.",
           "mcpBadge": "MCP-Tool",
           "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
           "search": "Tools suchen",
-          "toggle": "{{name}} umschalten",
-          "warning": {
-            "description": "Aktivieren Sie nur Tools, denen Sie vertrauen. Modusstandardwerte werden automatisch gekennzeichnet.",
-            "title": "Vorab autorisierte Tools werden ohne manuelle Überprüfung ausgeführt."
-          }
-        },
-        "review": {
-          "autoTools": "Automatisch: {{count}}",
-          "customTools": "Benutzerdefiniert: {{count}}",
-          "helper": "Einstellungen werden automatisch gespeichert. Sie können jederzeit zu den obigen Schritten zurückkehren und Anpassungen vornehmen.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modus: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP-Server"
-          },
-          "permissionMode": {
-            "title": "Schritt 1 · Berechtigungsmodus"
-          },
-          "preapproved": {
-            "title": "Schritt 2 · Vorab autorisierte Tools"
-          },
-          "review": {
-            "title": "Schritt 3 · Übersicht"
-          }
-        },
-        "tab": "Tools & Berechtigungen"
+          "toggle": "{{name}} umschalten"
+        }
       },
       "tools": {
         "approved": "Autorisiert",
@@ -300,6 +276,15 @@
         "tab": "Vorab autorisierte Tools",
         "title": "Vorab autorisierte Tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP-Server"
+        },
+        "tab": "Tools",
+        "tools": {
+          "title": "Werkzeuge"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Führt Shell-Befehle in deiner Umgebung aus"
+        },
+        "Edit": {
+          "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch"
+        },
+        "Glob": {
+          "description": "Findet Dateien anhand von Mustererkennung"
+        },
+        "Grep": {
+          "description": "Sucht nach Mustern im Dateiinhalt"
+        },
+        "MultiEdit": {
+          "description": "Führt mehrere Bearbeitungen an einer einzelnen Datei atomisch aus"
+        },
+        "NotebookEdit": {
+          "description": "Modifiziert Jupyter-Notebook-Zellen"
+        },
+        "NotebookRead": {
+          "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an"
+        },
+        "Read": {
+          "description": "Liest die Inhalte von Dateien"
+        },
+        "Task": {
+          "description": "Führt einen Unter-Agenten aus, um komplexe, mehrstufige Aufgaben zu bearbeiten"
+        },
+        "TodoWrite": {
+          "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
+        },
+        "WebFetch": {
+          "description": "Ruft Inhalte von einer angegebenen URL ab"
+        },
+        "WebSearch": {
+          "description": "Führt Websuchen mit Domainfilterung durch"
+        },
+        "Write": {
+          "description": "Erstellt oder überschreibt Dateien"
+        }
+      }
     },
     "type": {
       "label": "Agent-Typ",

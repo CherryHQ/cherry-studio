@@ -21,7 +21,7 @@ export const useUpdateAgent = () => {
         mutate<ListAgentsResponse['data']>(listKey, (prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
         mutate(itemKey, result)
         if (options?.showSuccessToast ?? true) {
-          window.toast.success(t('common.update_success'))
+          window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
         return result
       } catch (error) {

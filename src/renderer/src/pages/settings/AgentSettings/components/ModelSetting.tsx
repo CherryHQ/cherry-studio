@@ -3,7 +3,7 @@ import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAg
 import type { AgentBaseWithId, ApiModel, UpdateAgentFunctionUnion } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsTitle } from './shared'
+import { SettingsItem, SettingsTitle } from '../shared'
 
 export interface ModelSettingProps {
   base: AgentBaseWithId | undefined | null

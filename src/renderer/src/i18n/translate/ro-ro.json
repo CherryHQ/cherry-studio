@@ -153,6 +153,10 @@
         "title": "Setări avansate"
       },
       "essential": "Setări esențiale",
+      "permissionMode": {
+        "tab": "Mod de permisiune",
+        "title": "Mod de permisiune"
+      },
       "plugins": {
         "available": {
           "title": "Pluginuri disponibile"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "Conectează servere MCP pentru a debloca instrumente suplimentare pe care le poți aproba mai sus.",
           "empty": "Nu au fost detectate servere MCP. Adaugă unul din pagina de setări MCP.",
+          "inactiveTooltip": "Acest server MCP nu este activ. Vă rugăm să-l porniți mai întâi.",
           "manageHint": "Ai nevoie de configurare avansată? Vizitează Setări → Servere MCP.",
           "toggle": "Comută {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pre-aprobă instrumentele de sistem de fișiere de încredere, astfel încât editările să ruleze imediat.",
             "description": "Editările de fișiere și operațiunile sistemului de fișiere sunt aprobate automat.",
             "title": "Acceptă automat editările de fișiere"
           },
           "bypassPermissions": {
-            "behavior": "Fiecare instrument este pre-aprobat automat.",
             "description": "Toate solicitările de permisiune sunt omise — folosește cu precauție.",
             "title": "Omite verificările de permisiune",
             "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
@@ -243,14 +246,12 @@
             "title": "Schimbi modul de permisiune?"
           },
           "default": {
-            "behavior": "Instrumentele doar-pentru-citire sunt pre-aprobate automat.",
             "description": "Instrumentele doar-pentru-citire sunt pre-aprobate; orice altceva necesită încă permisiune.",
             "title": "Implicit (întreabă înainte de a continua)"
           },
           "helper": "Alege cum gestionează agentul aprobările pentru instrumente.",
           "placeholder": "Selectează modul de permisiune",
           "plan": {
-            "behavior": "Setările implicite doar-pentru-citire sunt pre-aprobate, în timp ce execuția rămâne dezactivată.",
             "description": "Partajează setul implicit de instrumente doar-pentru-citire, dar prezintă un plan înainte de execuție.",
             "title": "Mod de planificare"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Adăugat de mod",
           "autoDescription": "Acest instrument este aprobat automat de modul de permisiune curent.",
+          "autoDisabledTooltip": "Aprobat automat de „{{mode}}” și nu poate fi dezactivat.",
           "empty": "Niciun instrument nu corespunde filtrelor tale.",
           "mcpBadge": "Instrument MCP",
           "requiresApproval": "Necesită aprobare când este dezactivat",
           "search": "Caută instrumente",
-          "toggle": "Comută {{name}}",
-          "warning": {
-            "description": "Activează doar instrumentele în care ai încredere. Setările implicite ale modului sunt evidențiate automat.",
-            "title": "Instrumentele pre-aprobate rulează fără revizuire manuală."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizat: {{count}}",
-          "helper": "Modificările se salvează automat. Ajustează pașii de mai sus oricând pentru a regla fin permisiunile.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mod: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Servere MCP"
-          },
-          "permissionMode": {
-            "title": "Pasul 1 · Mod de permisiune"
-          },
-          "preapproved": {
-            "title": "Pasul 2 · Instrumente pre-aprobate"
-          },
-          "review": {
-            "title": "Pasul 3 · Revizuire"
-          }
-        },
-        "tab": "Instrumente și permisiuni"
+          "toggle": "Comută {{name}}"
+        }
       },
       "tools": {
         "approved": "aprobat",
@@ -300,6 +276,15 @@
         "tab": "Instrumente pre-aprobate",
         "title": "Instrumente pre-aprobate",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "Servere MCP"
+        },
+        "tab": "Unelte",
+        "tools": {
+          "title": "Unelte"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "Instrument",
       "waiting": "Se așteaptă decizia privind permisiunea instrumentului..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Execută comenzi shell în mediul tău"
+        },
+        "Edit": {
+          "description": "Efectuează editări țintite asupra fișierelor specifice"
+        },
+        "Glob": {
+          "description": "Găsește fișiere pe baza potrivirii modelelor"
+        },
+        "Grep": {
+          "description": "Caută modele în conținutul fișierelor"
+        },
+        "MultiEdit": {
+          "description": "Efectuează mai multe modificări într-un singur fișier atomic"
+        },
+        "NotebookEdit": {
+          "description": "Modifică celulele din Jupyter notebook"
+        },
+        "NotebookRead": {
+          "description": "Citește și afișează conținutul notebook-urilor Jupyter"
+        },
+        "Read": {
+          "description": "Citește conținutul fișierelor"
+        },
+        "Task": {
+          "description": "Rulează un sub-agent pentru a gestiona sarcini complexe, cu mai mulți pași"
+        },
+        "TodoWrite": {
+          "description": "Creează și gestionează liste de sarcini structurate"
+        },
+        "WebFetch": {
+          "description": "Preia conținutul de la o adresă URL specificată"
+        },
+        "WebSearch": {
+          "description": "Efectuează căutări pe web cu filtrare pe domeniu"
+        },
+        "Write": {
+          "description": "Creează sau suprascrie fișiere"
+        }
+      }
     },
     "type": {
       "label": "Tip agent",

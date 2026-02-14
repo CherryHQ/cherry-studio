@@ -153,6 +153,10 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "permissionMode": {
+        "tab": "パーミッションモード",
+        "title": "パーミッションモード"
+      },
       "plugins": {
         "available": {
           "title": "利用可能なプラグイン"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
           "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "inactiveTooltip": "このMCPサーバーはアクティブではありません。まず起動してください。",
           "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
           "toggle": "{{name}}を切り替え"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
             "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
             "title": "ファイル編集を自動承認"
           },
           "bypassPermissions": {
-            "behavior": "すべてのツールは自動的に事前承認されます。",
             "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
             "title": "権限チェックをバイパス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
@@ -243,14 +246,12 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "behavior": "ツールは自動的に事前承認されません。",
             "description": "通常の権限チェックが適用されます。",
             "title": "デフォルト（続行する前に確認）"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "behavior": "読み取り専用ツールのみ。実行は無効です。",
             "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
             "title": "計画モード（近日公開）"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "モードによって追加されました",
           "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "autoDisabledTooltip": "「{{mode}}」によって自動承認されており、無効化できません。",
           "empty": "フィルターに一致するツールはありません。",
           "mcpBadge": "MCPツール",
           "requiresApproval": "無効にするには承認が必要",
           "search": "検索ツール",
-          "toggle": "{{name}}を切り替える",
-          "warning": {
-            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
-            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
-          }
-        },
-        "review": {
-          "autoTools": "自動: {{count}}",
-          "customTools": "カスタム: {{count}}",
-          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
-          "mcp": "MCP: {{count}}",
-          "mode": "モード: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCPサーバー"
-          },
-          "permissionMode": {
-            "title": "ステップ1・権限モード"
-          },
-          "preapproved": {
-            "title": "ステップ2・事前承認済みツール"
-          },
-          "review": {
-            "title": "ステップ3・レビュー"
-          }
-        },
-        "tab": "ツールと権限"
+          "toggle": "{{name}}を切り替える"
+        }
       },
       "tools": {
         "approved": "承認済み",
@@ -298,8 +274,17 @@
         "description": "人による承認なしで実行できるツールを選択します。",
         "requiresPermission": "事前承認されていない場合は承認が必要です。",
         "tab": "事前承認済みツール",
-        "title": "事前承認済みツール",
+        "title": "ツール",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCPサーバー"
+        },
+        "tab": "ツール",
+        "tools": {
+          "title": "ツール"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "環境でシェルコマンドを実行します"
+        },
+        "Edit": {
+          "description": "特定のファイルに対してターゲットを絞った編集を行う"
+        },
+        "Glob": {
+          "description": "パターンマッチングに基づいてファイルを検索する"
+        },
+        "Grep": {
+          "description": "ファイルの内容内でパターンを検索します"
+        },
+        "MultiEdit": {
+          "description": "単一のファイルに対して複数の編集をアトミックに実行します"
+        },
+        "NotebookEdit": {
+          "description": "Jupyterノートブックのセルを変更します"
+        },
+        "NotebookRead": {
+          "description": "Jupyterノートブックの内容を読み取って表示します"
+        },
+        "Read": {
+          "description": "ファイルの内容を読み取ります"
+        },
+        "Task": {
+          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
+        },
+        "TodoWrite": {
+          "description": "構造化されたタスクリストを作成し、管理します"
+        },
+        "WebFetch": {
+          "description": "指定されたURLからコンテンツを取得します"
+        },
+        "WebSearch": {
+          "description": "ドメインフィルタリング付きのウェブ検索を実行します"
+        },
+        "Write": {
+          "description": "ファイルを作成または上書きします"
+        }
+      }
     },
     "type": {
       "label": "エージェントタイプ",

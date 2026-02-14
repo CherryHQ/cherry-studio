@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsTitle } from './shared'
+import { SettingsItem, SettingsTitle } from '../shared'
 
 export interface AccessibleDirsSettingProps {
   base: AgentBaseWithId | undefined | null

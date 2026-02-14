@@ -153,6 +153,10 @@
         "title": "高级设置"
       },
       "essential": "基础设置",
+      "permissionMode": {
+        "tab": "权限模式",
+        "title": "权限模式"
+      },
       "plugins": {
         "available": {
           "title": "可用插件"
@@ -223,19 +227,18 @@
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
           "empty": "未检测到 MCP 服务器，请前往 MCP 设置页添加。",
+          "inactiveTooltip": "该 MCP 服务器未激活，请先启动它。",
           "manageHint": "需要更多配置？前往 设置 → MCP 服务器。",
           "toggle": "切换 {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "预先授权受信任的文件系统工具，允许即时执行。",
-            "description": "文件编辑和文件系统操作将自动通过审批。",
-            "title": "自动接受文件编辑"
+            "description": "可自由读取和编辑文件，执行命令前会询问。",
+            "title": "自动编辑模式"
           },
           "bypassPermissions": {
-            "behavior": "所有工具都会被自动预先授权。",
-            "description": "所有权限提示都会被跳过，请谨慎使用。",
-            "title": "跳过所有权限检查",
+            "description": "可执行任何操作，无需询问。请谨慎使用。",
+            "title": "全自动模式",
             "warning": "危险：所有工具都会在无审批情况下执行。"
           },
           "confirmChange": {
@@ -243,54 +246,27 @@
             "title": "确认切换权限模式？"
           },
           "default": {
-            "behavior": "只读工具会自动预先授权。",
-            "description": "只读工具会自动预先授权，其它操作仍需权限。",
-            "title": "默认（继续前询问）"
+            "description": "可自由读取文件，编辑或执行命令前会询问。",
+            "title": "普通模式"
           },
           "helper": "指定智能体如何处理工具使用授权",
           "placeholder": "选择权限模式",
           "plan": {
-            "behavior": "默认的只读工具会自动预先授权，但执行仍被禁用。",
-            "description": "继承默认的只读工具集，并会在执行前先呈现计划。",
-            "title": "规划模式"
+            "description": "只能读取文件和制定计划，不能编辑文件或执行命令。",
+            "title": "计划模式"
           },
           "title": "权限模式"
         },
         "preapproved": {
           "autoBadge": "模式自动添加",
           "autoDescription": "该工具由当前权限模式自动预先授权。",
+          "autoDisabledTooltip": "由「{{mode}}」自动授权，无法禁用。",
           "empty": "没有符合筛选条件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "禁用时需要人工审批",
           "search": "搜索工具",
-          "toggle": "切换 {{name}}",
-          "warning": {
-            "description": "仅启用你信任的工具。模式默认值会自动标注。",
-            "title": "预先授权的工具将在无人工审核时运行。"
-          }
-        },
-        "review": {
-          "autoTools": "自动：{{count}}",
-          "customTools": "自定义：{{count}}",
-          "helper": "设置会自动保存，可随时返回上方步骤进行调整。",
-          "mcp": "MCP：{{count}}",
-          "mode": "模式：{{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP 服务器"
-          },
-          "permissionMode": {
-            "title": "步骤 1 · 权限模式"
-          },
-          "preapproved": {
-            "title": "步骤 2 · 预先授权工具"
-          },
-          "review": {
-            "title": "步骤 3 · 总览"
-          }
-        },
-        "tab": "工具与权限"
+          "toggle": "切换 {{name}}"
+        }
       },
       "tools": {
         "approved": "已授权",
@@ -300,6 +276,15 @@
         "tab": "预先授权工具",
         "title": "预先授权工具",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP 服务器"
+        },
+        "tab": "工具",
+        "tools": {
+          "title": "工具"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "在你的环境中执行 Shell 命令"
+        },
+        "Edit": {
+          "description": "对特定文件进行精确编辑"
+        },
+        "Glob": {
+          "description": "根据模式匹配查找文件"
+        },
+        "Grep": {
+          "description": "在文件内容中搜索模式"
+        },
+        "MultiEdit": {
+          "description": "在单个文件上原子性地执行多次编辑"
+        },
+        "NotebookEdit": {
+          "description": "修改 Jupyter notebook 单元格"
+        },
+        "NotebookRead": {
+          "description": "读取并显示 Jupyter notebook 内容"
+        },
+        "Read": {
+          "description": "读取文件内容"
+        },
+        "Task": {
+          "description": "运行子代理来处理复杂的多步骤任务"
+        },
+        "TodoWrite": {
+          "description": "创建和管理结构化任务列表"
+        },
+        "WebFetch": {
+          "description": "从指定 URL 获取内容"
+        },
+        "WebSearch": {
+          "description": "执行带有域名过滤的网络搜索"
+        },
+        "Write": {
+          "description": "创建或覆盖文件"
+        }
+      }
     },
     "type": {
       "label": "智能体类型",

@@ -153,6 +153,10 @@
         "title": "Configuración avanzada"
       },
       "essential": "Configuraciones esenciales",
+      "permissionMode": {
+        "tab": "Modo de permiso",
+        "title": "Modo de permisos"
+      },
       "plugins": {
         "available": {
           "title": "Complementos disponibles"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",
           "empty": "No se detectaron servidores MCP. Añade uno desde la página de configuración de MCP.",
+          "inactiveTooltip": "Este servidor MCP no está activo. Por favor, primero inícielo.",
           "manageHint": "¿Necesitas configuración avanzada? Visita Configuración → Servidores MCP.",
           "toggle": "Alternar {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Preaprueba herramientas de sistema de archivos de confianza para que las ediciones se ejecuten inmediatamente.",
             "description": "Las ediciones de archivos y las operaciones del sistema de archivos se aprueban automáticamente.",
             "title": "Aceptar automáticamente las ediciones de archivos"
           },
           "bypassPermissions": {
-            "behavior": "Cada herramienta está pre-aprobada automáticamente.",
             "description": "Todos los mensajes de permiso se omiten — úsalo con precaución.",
             "title": "Omitir verificaciones de permisos",
             "warning": "Usar con precaución: todas las herramientas se ejecutarán sin pedir aprobación."
@@ -243,14 +246,12 @@
             "title": "¿Cambiar modo de permisos?"
           },
           "default": {
-            "behavior": "No se aprueban herramientas automáticamente de antemano.",
             "description": "Se aplican los controles de permisos normales.",
             "title": "Predeterminado (preguntar antes de continuar)"
           },
           "helper": "Especifica cómo el agente maneja la autorización de uso de herramientas",
           "placeholder": "Seleccionar modo de permisos",
           "plan": {
-            "behavior": "Solo herramientas de solo lectura. La ejecución está deshabilitada.",
             "description": "Claude solo puede usar herramientas de solo lectura y presenta un plan antes de ejecutarlo.",
             "title": "Modo de planificación (próximamente)"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Añadido por modo",
           "autoDescription": "Esta herramienta está aprobada automáticamente por el modo de permisos actual.",
+          "autoDisabledTooltip": "Auto-aprobado por \"{{mode}}\" y no se puede desactivar.",
           "empty": "Ninguna herramienta coincide con tus filtros.",
           "mcpBadge": "herramienta MCP",
           "requiresApproval": "Requiere aprobación cuando está deshabilitado",
           "search": "Herramientas de búsqueda",
-          "toggle": "Alternar {{name}}",
-          "warning": {
-            "description": "Habilita solo las herramientas en las que confíes. Los valores predeterminados del modo se resaltan automáticamente.",
-            "title": "Herramientas preaprobadas se ejecutan sin revisión manual."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizado: {{count}}",
-          "helper": "Los cambios se guardan automáticamente. Ajusta los pasos anteriores en cualquier momento para afinar los permisos.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modo: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "servidores MCP"
-          },
-          "permissionMode": {
-            "title": "Paso 1 · Modo de permiso"
-          },
-          "preapproved": {
-            "title": "Paso 2 · Herramientas preaprobadas"
-          },
-          "review": {
-            "title": "Paso 3 · Revisar"
-          }
-        },
-        "tab": "Herramientas y permisos"
+          "toggle": "Alternar {{name}}"
+        }
       },
       "tools": {
         "approved": "aprobado",
@@ -298,8 +274,17 @@
         "description": "Elige qué herramientas pueden ejecutarse sin aprobación manual.",
         "requiresPermission": "Requiere permiso cuando no está preaprobado.",
         "tab": "Herramientas preaprobadas",
-        "title": "Herramientas preaprobadas",
+        "title": "Herramientas",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "Servidores MCP"
+        },
+        "tab": "Herramientas",
+        "tools": {
+          "title": "Herramientas"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "Herramienta",
       "waiting": "Esperando la decisión de permiso de la herramienta..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Ejecuta comandos de shell en tu entorno"
+        },
+        "Edit": {
+          "description": "Realiza ediciones dirigidas a archivos específicos"
+        },
+        "Glob": {
+          "description": "Encuentra archivos basándose en coincidencias de patrones"
+        },
+        "Grep": {
+          "description": "Busca patrones en el contenido de archivos"
+        },
+        "MultiEdit": {
+          "description": "Realiza varias ediciones en un solo archivo de forma atómica"
+        },
+        "NotebookEdit": {
+          "description": "Modifica las celdas del cuaderno de Jupyter"
+        },
+        "NotebookRead": {
+          "description": "Lee y muestra el contenido de cuadernos Jupyter"
+        },
+        "Read": {
+          "description": "Lee el contenido de los archivos"
+        },
+        "Task": {
+          "description": "Ejecuta un subagente para manejar tareas complejas de varios pasos"
+        },
+        "TodoWrite": {
+          "description": "Crea y gestiona listas de tareas estructuradas"
+        },
+        "WebFetch": {
+          "description": "Obtiene contenido desde una URL especificada"
+        },
+        "WebSearch": {
+          "description": "Realiza búsquedas web con filtrado por dominio"
+        },
+        "Write": {
+          "description": "Crea o sobrescribe archivos"
+        }
+      }
     },
     "type": {
       "label": "Tipo de Agente",

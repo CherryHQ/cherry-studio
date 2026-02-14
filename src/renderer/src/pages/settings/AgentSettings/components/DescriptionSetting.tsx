@@ -3,7 +3,7 @@ import TextArea from 'antd/es/input/TextArea'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsTitle } from './shared'
+import { SettingsItem, SettingsTitle } from '../shared'
 
 export interface DescriptionSettingProps {
   base: AgentBaseWithId | undefined | null

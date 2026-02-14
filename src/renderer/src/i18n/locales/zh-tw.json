@@ -153,6 +153,10 @@
         "title": "進階設定"
       },
       "essential": "必要設定",
+      "permissionMode": {
+        "tab": "權限模式",
+        "title": "權限模式"
+      },
       "plugins": {
         "available": {
           "title": "可用外掛"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
           "empty": "尚未偵測到 MCP 伺服器，請前往 MCP 設定頁新增。",
+          "inactiveTooltip": "此 MCP 伺服器未啟用，請先啟動它。",
           "manageHint": "需要進階設定？前往 設定 → MCP 伺服器。",
           "toggle": "切換 {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "預先授權受信任的檔案系統工具，允許即時執行。",
             "description": "檔案編輯與檔案系統操作會自動核准。",
             "title": "自動接受檔案編輯"
           },
           "bypassPermissions": {
-            "behavior": "所有工具都會被自動預先授權。",
             "description": "所有權限提示都會被略過，請務必謹慎使用。",
             "title": "略過所有權限檢查",
             "warning": "警告：所有工具都會在無核准情況下執行。"
@@ -243,14 +246,12 @@
             "title": "確認切換權限模式？"
           },
           "default": {
-            "behavior": "唯讀工具會自動預先授權。",
             "description": "唯讀工具會自動預先授權，其它操作仍需核准。",
             "title": "預設（繼續前先詢問）"
           },
           "helper": "指定助手如何處理工具使用授權",
           "placeholder": "選擇權限模式",
           "plan": {
-            "behavior": "預設的唯讀工具會自動預先授權，但執行仍被停用。",
             "description": "沿用預設的唯讀工具集，並會在執行前先呈現計畫。",
             "title": "規劃模式"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "模式自動新增",
           "autoDescription": "此工具由目前的權限模式自動預先授權。",
+          "autoDisabledTooltip": "由「{{mode}}」自動授權，無法停用。",
           "empty": "沒有符合篩選條件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "停用時需要人工核准",
           "search": "搜尋工具",
-          "toggle": "切換 {{name}}",
-          "warning": {
-            "description": "僅啟用你信任的工具。模式預設值會自動標示。",
-            "title": "預先授權的工具將在無人工審查下執行。"
-          }
-        },
-        "review": {
-          "autoTools": "自動：{{count}}",
-          "customTools": "自訂：{{count}}",
-          "helper": "設定會自動儲存，可隨時回到上方步驟調整。",
-          "mcp": "MCP:{{count}}",
-          "mode": "模式：{{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP 伺服器"
-          },
-          "permissionMode": {
-            "title": "步驟 1 · 權限模式"
-          },
-          "preapproved": {
-            "title": "步驟 2 · 預先授權工具"
-          },
-          "review": {
-            "title": "步驟 3 · 檢視"
-          }
-        },
-        "tab": "工具與權限"
+          "toggle": "切換 {{name}}"
+        }
       },
       "tools": {
         "approved": "已授權",
@@ -300,6 +276,15 @@
         "tab": "預先授權工具",
         "title": "預先授權工具",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP 伺服器"
+        },
+        "tab": "工具",
+        "tools": {
+          "title": "工具"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "在你的環境中執行 Shell 命令"
+        },
+        "Edit": {
+          "description": "對特定檔案進行精確編輯"
+        },
+        "Glob": {
+          "description": "根據模式匹配尋找檔案"
+        },
+        "Grep": {
+          "description": "在檔案內容中搜尋模式"
+        },
+        "MultiEdit": {
+          "description": "在單一檔案上原子性地執行多次編輯"
+        },
+        "NotebookEdit": {
+          "description": "修改 Jupyter notebook 儲存格"
+        },
+        "NotebookRead": {
+          "description": "讀取並顯示 Jupyter notebook 內容"
+        },
+        "Read": {
+          "description": "讀取檔案內容"
+        },
+        "Task": {
+          "description": "執行子代理來處理複雜的多步驟任務"
+        },
+        "TodoWrite": {
+          "description": "建立和管理結構化任務清單"
+        },
+        "WebFetch": {
+          "description": "從指定 URL 取得內容"
+        },
+        "WebSearch": {
+          "description": "執行帶有網域過濾的網路搜尋"
+        },
+        "Write": {
+          "description": "建立或覆寫檔案"
+        }
+      }
     },
     "type": {
       "label": "Agent 類型",
