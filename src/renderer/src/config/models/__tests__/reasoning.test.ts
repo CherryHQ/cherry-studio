@@ -2499,3 +2499,58 @@ describe('Fireworks provider model name normalization', () => {
     expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
   })
 })
+
+describe('Doubao Seed 2.0 Models', () => {
+  it('should identify doubao-seed-2-0-pro-260215 as thinking model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-pro-260215',
+      name: 'doubao-seed-2-0-pro',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+    expect(getThinkModelType(model)).toBe('doubao_after_251015')
+  })
+
+  it('should identify doubao-seed-2-0-lite-260215 as thinking model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-lite-260215',
+      name: 'doubao-seed-2-0-lite',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isSupportedThinkingTokenDoubaoModel(model)).toBe(true)
+  })
+
+  it('should support minimal, low, medium, high reasoning effort', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-lite-260215',
+      name: 'doubao-seed-2-0-lite',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    const options = getModelSupportedReasoningEffortOptions(model)
+    expect(options).toEqual(['default', 'minimal', 'low', 'medium', 'high'])
+  })
+
+  it('should identify doubao-seed-2-0-code-preview-260215', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-code-preview-260215',
+      name: 'doubao-seed-2-0-code-preview',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2-0-mini-260215', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-mini-260215',
+      name: 'doubao-seed-2-0-mini',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isDoubaoSeedAfter251015(model)).toBe(true)
+  })
+})

@@ -145,4 +145,56 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-coder', provider: 'deepseek' }))).toBe(true)
   })
+
+  describe('Doubao Seed 2.0 Models', () => {
+    it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
+      const model: Model = {
+        id: 'doubao-seed-2-0-pro-260215',
+        name: 'doubao-seed-2-0-pro',
+        provider: 'doubao',
+        group: 'Doubao-Seed-2.0'
+      }
+      expect(isFunctionCallingModel(model)).toBe(true)
+    })
+
+    it('should identify doubao-seed-2-0-lite-260215 as function calling model', () => {
+      const model: Model = {
+        id: 'doubao-seed-2-0-lite-260215',
+        name: 'doubao-seed-2-0-lite',
+        provider: 'doubao',
+        group: 'Doubao-Seed-2.0'
+      }
+      expect(isFunctionCallingModel(model)).toBe(true)
+    })
+
+    it('should identify doubao-seed-2-0-code-preview-260215 as function calling model', () => {
+      const model: Model = {
+        id: 'doubao-seed-2-0-code-preview-260215',
+        name: 'doubao-seed-2-0-code-preview',
+        provider: 'doubao',
+        group: 'Doubao-Seed-2.0'
+      }
+      expect(isFunctionCallingModel(model)).toBe(true)
+    })
+
+    it('should identify doubao-seed-2-0-mini-260215 as function calling model', () => {
+      const model: Model = {
+        id: 'doubao-seed-2-0-mini-260215',
+        name: 'doubao-seed-2-0-mini',
+        provider: 'doubao',
+        group: 'Doubao-Seed-2.0'
+      }
+      expect(isFunctionCallingModel(model)).toBe(true)
+    })
+
+    it('should identify doubao-seed-2.0 models by name when provider is doubao', () => {
+      const model: Model = {
+        id: 'custom-id',
+        name: 'doubao-seed-2.0-pro-260215',
+        provider: 'doubao',
+        group: 'Doubao-Seed-2.0'
+      }
+      expect(isFunctionCallingModel(model)).toBe(true)
+    })
+  })
 })
