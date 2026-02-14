@@ -2582,6 +2582,17 @@
       "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
       "title": "Configurare model"
     },
+    "node_missing": {
+      "description": "OpenClaw necesită Node.js 22+. Te rugăm să instalezi mai întâi Node.js, apoi apasă din nou pe Instalare.",
+      "download_button": "Descarcă Node.js",
+      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
+      "title": "Node.js necesar"
+    },
+    "node_version_low": {
+      "description": "OpenClaw necesită Node.js 22.0 sau o versiune superioară. Versiunea ta actuală este v{{version}}. Te rugăm să actualizezi mai întâi Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Versiunea Node.js este prea mică"
+    },
     "not_installed": {
       "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
       "install_button": "Instalează OpenClaw",
@@ -2592,12 +2603,6 @@
       "step2_title": "Pasul 2: Verifică instalarea",
       "title": "OpenClaw Nu Este Instalat",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
-      "download_button": "Descarcă Node.js",
-      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
-      "title": "Node.js necesar"
     },
     "quick_actions": {
       "open_dashboard": "Deschide Tabloul de Bord",

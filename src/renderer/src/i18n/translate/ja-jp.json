@@ -2582,6 +2582,17 @@
       "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
       "title": "モデル設定"
     },
+    "node_missing": {
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
+    },
+    "node_version_low": {
+      "description": "OpenClawにはNode.js 22.0以上が必要です。現在のバージョンはv{{version}}です。まずNode.jsをアップグレードしてください。",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.jsのバージョンが低すぎます"
+    },
     "not_installed": {
       "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
       "install_button": "OpenClawをインストール",
@@ -2592,12 +2603,6 @@
       "step2_title": "ステップ2: インストールを確認する",
       "title": "OpenClaw がインストールされていません",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
-      "download_button": "Node.jsをダウンロード",
-      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
-      "title": "Node.jsが必要"
     },
     "quick_actions": {
       "open_dashboard": "ダッシュボードを開く",

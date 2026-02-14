@@ -2582,6 +2582,17 @@
       "sync_hint": "O provedor e o modelo selecionados serão sincronizados com o arquivo de configuração do OpenClaw",
       "title": "Configuração do Modelo"
     },
+    "node_missing": {
+      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
+      "download_button": "Baixar Node.js",
+      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
+      "title": "Node.js Necessário"
+    },
+    "node_version_low": {
+      "description": "O OpenClaw requer Node.js 22.0 ou superior. Sua versão atual é v{{version}}. Por favor, atualize o Node.js primeiro.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Versão do Node.js Muito Baixa"
+    },
     "not_installed": {
       "description": "OpenClaw não está instalado no seu sistema. Por favor, instale-o primeiro para usar este recurso.",
       "install_button": "Instalar o OpenClaw",
@@ -2592,12 +2603,6 @@
       "step2_title": "Passo 2: Verificar a instalação",
       "title": "OpenClaw Não Instalado",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
-      "download_button": "Baixar Node.js",
-      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
-      "title": "Node.js Necessário"
     },
     "quick_actions": {
       "open_dashboard": "Abrir Painel",

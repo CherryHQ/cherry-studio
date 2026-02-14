@@ -2582,6 +2582,17 @@
       "sync_hint": "選擇的服務商和模型將同步到 OpenClaw 設定檔",
       "title": "模型設定"
     },
+    "node_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
+      "download_button": "下載 Node.js",
+      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
+      "title": "需要 Node.js"
+    },
+    "node_version_low": {
+      "description": "OpenClaw 需要 Node.js 22.0 或以上版本。您目前的版本是 v{{version}}。請先升級 Node.js。",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js 版本過低"
+    },
     "not_installed": {
       "description": "OpenClaw 尚未安裝在您的系統上。請先安裝它以使用此功能。",
       "install_button": "安裝 OpenClaw",
@@ -2592,12 +2603,6 @@
       "step2_title": "第二步：驗證安裝",
       "title": "OpenClaw 未安裝",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
-      "download_button": "下載 Node.js",
-      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
-      "title": "需要 Node.js"
     },
     "quick_actions": {
       "open_dashboard": "開啟控制面板",

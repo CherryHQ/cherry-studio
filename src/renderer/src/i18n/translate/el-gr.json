@@ -2582,6 +2582,17 @@
       "sync_hint": "Ο επιλεγμένος πάροχος και μοντέλο θα συγχρονιστούν στο αρχείο ρυθμίσεων του OpenClaw",
       "title": "Διαμόρφωση Μοντέλου"
     },
+    "node_missing": {
+      "description": "Το OpenClaw απαιτεί Node.js/npm. Παρακαλώ εγκαταστήστε πρώτα το Node.js και, στη συνέχεια, επανεκκινήστε το Cherry Studio.",
+      "download_button": "Κατεβάστε το Node.js",
+      "hint": "macOS: brew install node | Windows: Κατεβάστε την έκδοση LTS από το nodejs.org",
+      "title": "Απαιτείται Node.js"
+    },
+    "node_version_low": {
+      "description": "Το OpenClaw απαιτεί Node.js 22.0 ή νεότερη έκδοση. Η τρέχουσα έκδοσή σας είναι v{{version}}. Παρακαλούμε αναβαθμίστε πρώτα το Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Η έκδοση του Node.js είναι πολύ χαμηλή"
+    },
     "not_installed": {
       "description": "Το OpenClaw δεν είναι εγκατεστημένο στο σύστημά σας. Παρακαλούμε εγκαταστήστε το πρώτα για να χρησιμοποιήσετε αυτή τη λειτουργία.",
       "install_button": "Εγκατάσταση του OpenClaw",
@@ -2592,12 +2603,6 @@
       "step2_title": "Βήμα 2: Επαληθεύστε την εγκατάσταση",
       "title": "Το OpenClaw δεν είναι εγκατεστημένο",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "Το OpenClaw απαιτεί Node.js/npm. Παρακαλώ εγκαταστήστε πρώτα το Node.js και, στη συνέχεια, επανεκκινήστε το Cherry Studio.",
-      "download_button": "Κατεβάστε το Node.js",
-      "hint": "macOS: brew install node | Windows: Κατεβάστε την έκδοση LTS από το nodejs.org",
-      "title": "Απαιτείται Node.js"
     },
     "quick_actions": {
       "open_dashboard": "Άνοιγμα Πίνακα Ελέγχου",

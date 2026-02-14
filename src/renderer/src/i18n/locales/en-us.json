@@ -2582,6 +2582,17 @@
       "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
       "title": "Model Configuration"
     },
+    "node_missing": {
+      "description": "OpenClaw requires Node.js 22+. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "node_version_low": {
+      "description": "OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js Version Too Low"
+    },
     "not_installed": {
       "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
       "install_button": "Install OpenClaw",
@@ -2592,12 +2603,6 @@
       "step2_title": "Step 2: Verify installation",
       "title": "OpenClaw Not Installed",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
-      "download_button": "Download Node.js",
-      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "Node.js Required"
     },
     "quick_actions": {
       "open_dashboard": "Open Dashboard",

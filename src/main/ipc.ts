@@ -1150,7 +1150,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckNpmAvailable, openClawService.checkNpmAvailable)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckNodeVersion, openClawService.checkNodeVersion)
   ipcMain.handle(IpcChannel.OpenClaw_CheckGitAvailable, checkGitAvailable)
   ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
   ipcMain.handle(IpcChannel.OpenClaw_GetGitDownloadUrl, openClawService.getGitDownloadUrl)

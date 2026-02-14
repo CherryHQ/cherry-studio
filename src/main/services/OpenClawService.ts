@@ -8,12 +8,14 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { findExecutableInEnv, spawnWithEnv } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
+import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
+import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
-import { type ChildProcess, spawn } from 'child_process'
+import type { ChildProcess } from 'child_process'
+import semver from 'semver'
 
 import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
@@ -125,7 +127,7 @@ class OpenClawService {
 
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
-    this.checkNpmAvailable = this.checkNpmAvailable.bind(this)
+    this.checkNodeVersion = this.checkNodeVersion.bind(this)
     this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
     this.getGitDownloadUrl = this.getGitDownloadUrl.bind(this)
     this.install = this.install.bind(this)
@@ -144,29 +146,43 @@ class OpenClawService {
    * Check if OpenClaw is installed
    */
   public async checkInstalled(): Promise<{ installed: boolean; path: string | null }> {
-    const binaryPath = await this.findOpenClawBinary()
-    return {
-      installed: binaryPath !== null,
-      path: binaryPath
-    }
+    const binaryPath = await findExecutableInEnv('openclaw')
+    return { installed: binaryPath !== null, path: binaryPath }
   }
 
   /**
-   * Check if npm is available in the user's shell environment
-   * Refreshes shell env cache to detect newly installed Node.js
+   * Check if Node.js is available and meets the minimum version requirement (22.0+).
+   * Detects Node.js through the user's login shell environment (handles nvm, mise, fnm, etc.)
+   *
+   * Returns a discriminated union so callers can distinguish between:
+   * - Node.js not installed at all
+   * - Node.js installed but version too low
+   * - Node.js installed and version OK
    */
-  public async checkNpmAvailable(): Promise<{ available: boolean; path: string | null }> {
-    const { path: npmPath } = await findExecutableInEnv('npm', {
-      extensions: ['.cmd', '.exe'],
-      commonPaths: [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs', 'npm.cmd'),
-        path.join(os.homedir(), 'AppData', 'Roaming', 'npm', 'npm.cmd')
-      ]
-    })
+  public async checkNodeVersion(): Promise<NodeCheckResult> {
+    const MINIMUM_VERSION = '22.0.0'
+    try {
+      await refreshShellEnv()
+      const nodePath = await findExecutableInEnv('node')
+      if (!nodePath) {
+        logger.debug('Node.js not found in environment')
+        return { status: 'not_found' }
+      }
 
-    logger.debug(`npm check result: ${npmPath ? `found at ${npmPath}` : 'not found'}`)
-    return { available: npmPath !== null, path: npmPath }
+      const output = await executeCommand(nodePath, ['--version'], { capture: true, timeout: 5000 })
+      const version = semver.valid(semver.coerce(output.trim()))
+
+      if (!version || semver.lt(version, MINIMUM_VERSION)) {
+        logger.debug(`Node.js version too low: ${version} at ${nodePath}`)
+        return { status: 'version_low', version: version ?? output.trim(), path: nodePath }
+      }
+
+      logger.debug(`Node.js version OK: ${version} at ${nodePath}`)
+      return { status: 'ok', version, path: nodePath }
+    } catch (error) {
+      logger.warn('Failed to check Node.js version:', error as Error)
+      return { status: 'not_found' }
+    }
   }
 
   /**
@@ -223,8 +239,7 @@ class OpenClawService {
     const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
-    const npmCheck = await this.checkNpmAvailable()
-    const npmPath = npmCheck.path || 'npm'
+    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
     const npmArgs = ['install', '-g', packageName]
     if (registryArg) npmArgs.push(registryArg)
@@ -235,37 +250,11 @@ class OpenClawService {
     logger.info(`Installing OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
     this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
 
-    const shellEnv = await getShellEnv()
-    const pathKey = isWin ? (shellEnv.Path !== undefined ? 'Path' : 'PATH') : 'PATH'
-    let currentPath = shellEnv[pathKey] || ''
-
-    const nodeDir = path.dirname(npmPath)
-    if (!currentPath.split(path.delimiter).includes(nodeDir)) {
-      currentPath = `${nodeDir}${path.delimiter}${currentPath}`
-      shellEnv[pathKey] = currentPath
-      logger.info(`Added Node.js directory to PATH: ${nodeDir}`)
-    }
-
-    const { path: gitPath } = await findExecutableInEnv('git', { refreshCache: false })
-    if (gitPath) {
-      const gitDir = path.dirname(gitPath)
-      if (!currentPath.split(path.delimiter).includes(gitDir)) {
-        shellEnv[pathKey] = `${gitDir}${path.delimiter}${currentPath}`
-        logger.info(`Added git directory to PATH: ${gitDir}`)
-      }
-    } else {
-      logger.warn('Git not found in environment, npm install may fail if packages require git')
-    }
+    const spawnEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        // On Windows, pre-quote the path so cmd.exe /d /s /c handles spaces correctly
-        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
-        const installProcess = spawn(spawnCmd, npmArgs, {
-          stdio: 'pipe',
-          env: shellEnv,
-          shell: true
-        })
+        const installProcess = crossPlatformSpawn(npmPath, npmArgs, { env: spawnEnv })
 
         let stderr = ''
 
@@ -350,8 +339,7 @@ class OpenClawService {
       await this.stopGateway()
     }
 
-    const npmCheck = await this.checkNpmAvailable()
-    const npmPath = npmCheck.path || 'npm'
+    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
     const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
 
@@ -365,12 +353,7 @@ class OpenClawService {
 
     return new Promise((resolve) => {
       try {
-        const spawnCmd = isWin ? `"${npmPath}"` : npmPath
-        const uninstallProcess = spawn(spawnCmd, npmArgs, {
-          stdio: 'pipe',
-          env: shellEnv,
-          shell: true
-        })
+        const uninstallProcess = crossPlatformSpawn(npmPath, npmArgs, { env: shellEnv })
 
         let stderr = ''
 
@@ -456,8 +439,9 @@ class OpenClawService {
       return { success: false, message: 'Gateway is already starting' }
     }
 
-    const shellEnv = await getShellEnv()
-    const openclawPath = await this.findOpenClawBinary()
+    // Refresh shell env first so findExecutableInEnv and crossPlatformSpawn both use the same fresh env
+    const shellEnv = await refreshShellEnv()
+    const openclawPath = await findExecutableInEnv('openclaw')
     if (!openclawPath) {
       return {
         success: false,
@@ -500,7 +484,7 @@ class OpenClawService {
     let processExited = false
 
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
-    this.gatewayProcess = spawnWithEnv(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
+    this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
       env: { ...shellEnv, OPENCLAW_CONFIG_PATH }
     })
     logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
@@ -582,8 +566,7 @@ class OpenClawService {
    */
   public async stopGateway(): Promise<{ success: boolean; message: string }> {
     try {
-      // Use CLI to stop gateway (handles graceful shutdown, lock/PID cleanup)
-      const openclawPath = await this.findOpenClawBinary()
+      const openclawPath = await findExecutableInEnv('openclaw')
       if (openclawPath) {
         const shellEnv = await getShellEnv()
         await this.runGatewayStop(openclawPath, shellEnv)
@@ -644,7 +627,7 @@ class OpenClawService {
    */
   private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
     return new Promise((resolve) => {
-      const proc = spawnWithEnv(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
+      const proc = crossPlatformSpawn(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 
@@ -888,49 +871,12 @@ class OpenClawService {
   }
 
   /**
-   * Find OpenClaw binary in PATH or common locations
-   * On Windows, npm global packages create .cmd wrapper scripts, not .exe files
-   */
-  private async findOpenClawBinary(): Promise<string | null> {
-    const home = os.homedir()
-
-    // Use unified lookup: refresh cache + shell env + findCommandInShellEnv + Windows .cmd fallback
-    const { path: binaryPath } = await findExecutableInEnv('openclaw', {
-      extensions: ['.cmd', '.exe'],
-      commonPaths: isWin ? [path.join(home, 'AppData', 'Roaming', 'npm', 'openclaw.cmd')] : []
-    })
-    if (binaryPath) {
-      return binaryPath
-    }
-
-    // Check common filesystem locations as fallback
-    const binaryName = isWin ? 'openclaw.exe' : 'openclaw'
-    const possiblePaths = isWin
-      ? [path.join(home, 'AppData', 'Local', 'openclaw', binaryName), path.join(home, '.openclaw', 'bin', binaryName)]
-      : [
-          path.join(home, '.openclaw', 'bin', binaryName),
-          path.join(home, '.local', 'bin', binaryName),
-          `/usr/local/bin/${binaryName}`,
-          `/opt/homebrew/bin/${binaryName}`
-        ]
-
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        logger.info('Found OpenClaw binary at: ' + p)
-        return p
-      }
-    }
-
-    return null
-  }
-
-  /**
    * Check gateway status using `openclaw gateway status` command
    * Returns true if gateway is running
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = spawnWithEnv(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
+      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 
