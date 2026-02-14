@@ -2064,7 +2064,8 @@
           "content": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
           "title": "Perte de données!!!"
         }
-      }
+      },
+      "success": "Réinitialisation des données réussie"
     },
     "restore": {
       "failed": "La restauration a échoué",

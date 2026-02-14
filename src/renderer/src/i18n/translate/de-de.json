@@ -1947,7 +1947,7 @@
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
       "excel": {
-        "export": "Fehler beim Exportieren von Excel"
+        "export": "Excel-Export fehlgeschlagen"
       },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
@@ -1989,7 +1989,7 @@
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
       "table": {
-        "invalid": "Kann keine gültigen Tabellendaten abrufen"
+        "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2064,7 +2064,8 @@
           "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
           "title": "Datenverlust!!!"
         }
-      }
+      },
+      "success": "Daten-Reset erfolgreich"
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
@@ -2554,7 +2555,7 @@
       "title": "Modellkonfiguration"
     },
     "node_missing": {
-      "description": "OpenClaw benötigt Node.js/npm. Bitte installieren Sie zunächst Node.js und starten Sie Cherry Studio anschließend neu.",
+      "description": "OpenClaw benötigt Node.js 22+. Bitte installiere zuerst Node.js und klicke dann erneut auf Installieren.",
       "download_button": "Node.js herunterladen",
       "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
       "title": "Node.js erforderlich"

@@ -26,7 +26,7 @@ import type {
   NormalToolResponse,
   WebSearchProviderResponse
 } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
@@ -120,7 +120,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
   // 1. Handle Web Search Responses
   if (block.response) {
     switch (block.response.source) {
-      case WebSearchSource.GEMINI: {
+      case WEB_SEARCH_SOURCE.GEMINI: {
         const groundingMetadata = block.response.results as GroundingMetadata
         formattedCitations =
           groundingMetadata?.groundingChunks?.map((chunk, index) => ({
@@ -133,7 +133,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
           })) || []
         break
       }
-      case WebSearchSource.OPENAI_RESPONSE:
+      case WEB_SEARCH_SOURCE.OPENAI_RESPONSE:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
             let hostname: string | undefined
@@ -152,7 +152,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.OPENAI:
+      case WEB_SEARCH_SOURCE.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
@@ -172,7 +172,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.ANTHROPIC:
+      case WEB_SEARCH_SOURCE.ANTHROPIC:
         formattedCitations =
           (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
             const { url } = result
@@ -192,7 +192,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.PERPLEXITY: {
+      case WEB_SEARCH_SOURCE.PERPLEXITY: {
         formattedCitations =
           (block.response.results as any[])?.map((result, index) => ({
             number: index + 1,
@@ -203,8 +203,8 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
           })) || []
         break
       }
-      case WebSearchSource.GROK:
-      case WebSearchSource.OPENROUTER:
+      case WEB_SEARCH_SOURCE.GROK:
+      case WEB_SEARCH_SOURCE.OPENROUTER:
         formattedCitations =
           (block.response.results as AISDKWebSearchResult[])?.map((result, index) => {
             const url = result.url
@@ -230,8 +230,8 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.ZHIPU:
-      case WebSearchSource.HUNYUAN:
+      case WEB_SEARCH_SOURCE.ZHIPU:
+      case WEB_SEARCH_SOURCE.HUNYUAN:
         formattedCitations =
           (block.response.results as any[])?.map((result, index) => ({
             number: index + 1,
@@ -241,7 +241,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.WEBSEARCH:
+      case WEB_SEARCH_SOURCE.WEBSEARCH:
         formattedCitations =
           (block.response.results as WebSearchProviderResponse)?.results?.map((result, index) => ({
             number: index + 1,
@@ -252,7 +252,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.AISDK:
+      case WEB_SEARCH_SOURCE.AISDK:
         formattedCitations =
           (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({
             number: index + 1,

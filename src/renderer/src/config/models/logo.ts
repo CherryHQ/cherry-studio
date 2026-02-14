@@ -177,6 +177,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
+    'm2-her': isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     veo: isLight ? GeminiModelLogo : GeminiModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,

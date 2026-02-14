@@ -2064,7 +2064,8 @@
           "content": "All data will be lost, do you want to continue?",
           "title": "DATA LOST !!!"
         }
-      }
+      },
+      "success": "Data reset successful"
     },
     "restore": {
       "failed": "Restore failed",

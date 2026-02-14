@@ -1947,7 +1947,7 @@
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
       "excel": {
-        "export": "Eșec la exportul Excel"
+        "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
@@ -1989,7 +1989,7 @@
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
       "table": {
-        "invalid": "Imposibil de recuperat date valide ale tabelului"
+        "invalid": "Imposibil de recuperat date valide din tabel"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2064,7 +2064,8 @@
           "content": "Toate datele vor fi pierdute, vrei să continui?",
           "title": "DATE PIERDUTE !!!"
         }
-      }
+      },
+      "success": "Retelearea datelor a reușit"
     },
     "restore": {
       "failed": "Restaurare eșuată",
@@ -2554,7 +2555,7 @@
       "title": "Configurare model"
     },
     "node_missing": {
-      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
+      "description": "OpenClaw necesită Node.js 22+. Te rugăm să instalezi mai întâi Node.js, apoi apasă din nou pe Instalare.",
       "download_button": "Descarcă Node.js",
       "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
       "title": "Node.js necesar"
