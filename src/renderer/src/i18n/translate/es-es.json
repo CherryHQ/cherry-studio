@@ -5121,6 +5121,7 @@
       "reset_to_default": "Restablecer a predeterminado",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Asistente de selección de texto: obtener palabras",
       "selection_assistant_toggle": "Activar/desactivar el asistente de selección de texto",
       "show_app": "Mostrar aplicación",
