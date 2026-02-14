@@ -35,6 +35,7 @@ import {
   isVisionModel,
   ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
+import { isKimi25Model } from '@renderer/config/models/utils'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -91,6 +92,12 @@ import type { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransfo
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
+const KIMI_WEB_SEARCH_TOOL = {
+  type: 'builtin_function',
+  function: {
+    name: '$web_search'
+  }
+} as ChatCompletionTool
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
@@ -726,6 +733,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
+        }
+
+        if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot && isKimi25Model(model)) {
+          commonParams.tools = [...(commonParams.tools ?? []), KIMI_WEB_SEARCH_TOOL]
         }
 
         const timeout = this.getTimeout(model)
