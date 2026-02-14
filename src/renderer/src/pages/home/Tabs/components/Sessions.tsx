@@ -1,4 +1,4 @@
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -12,7 +12,8 @@ import {
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
-import { memo, useCallback, useEffect } from 'react'
+import { throttle } from 'lodash'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,11 +26,39 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+  const listRef = useRef<DynamicVirtualListRef>(null)
+
+  // Throttled scroll handler to avoid excessive calls
+  const handleScroll = useMemo(
+    () =>
+      throttle(() => {
+        const scrollElement = listRef.current?.scrollElement()
+        if (!scrollElement) return
+
+        const { scrollTop, scrollHeight, clientHeight } = scrollElement
+        if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isLoadingMore) {
+          loadMore()
+        }
+      }, 150),
+    [hasMore, isLoadingMore, loadMore]
+  )
+
+  // Handle scroll to load more
+  useEffect(() => {
+    const scrollElement = listRef.current?.scrollElement()
+    if (!scrollElement) return
+
+    scrollElement.addEventListener('scroll', handleScroll)
+    return () => {
+      handleScroll.cancel()
+      scrollElement.removeEventListener('scroll', handleScroll)
+    }
+  }, [handleScroll])
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -97,6 +126,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
 
   return (
     <StyledVirtualList
+      ref={listRef}
       className="sessions-tab"
       list={sessions}
       estimateSize={() => 9 * 4}
@@ -110,14 +140,21 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           </AddButton>
         </div>
       }>
-      {(session) => (
-        <SessionItem
-          key={session.id}
-          session={session}
-          agentId={agentId}
-          onDelete={() => handleDeleteSession(session.id)}
-          onPress={() => setActiveSessionId(agentId, session.id)}
-        />
+      {(session, index) => (
+        <>
+          <SessionItem
+            key={session.id}
+            session={session}
+            agentId={agentId}
+            onDelete={() => handleDeleteSession(session.id)}
+            onPress={() => setActiveSessionId(agentId, session.id)}
+          />
+          {index === sessions.length - 1 && isLoadingMore && (
+            <div className="flex justify-center py-2">
+              <Spin size="small" />
+            </div>
+          )}
+        </>
       )}
     </StyledVirtualList>
   )
