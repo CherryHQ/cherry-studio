@@ -212,6 +212,50 @@ const ensureIpcHandlersRegistered = () => {
 
     return { success: true }
   })
+
+  // Handler for ExitPlanMode approval responses
+  ipcMain.handle(
+    IpcChannel.AgentExitPlanModeApproval_Response,
+    async (_event, payload: ToolPermissionResponsePayload) => {
+      logger.debug('main received AgentExitPlanModeApproval_Response', payload)
+      const { requestId, behavior, updatedInput, message } = payload
+      const pending = pendingRequests.get(requestId)
+
+      if (!pending) {
+        logger.warn('Received renderer ExitPlanMode approval response for unknown request', { requestId })
+        return { success: false, error: 'unknown-request' }
+      }
+
+      logger.debug('Received renderer response for ExitPlanMode approval', {
+        requestId,
+        behavior,
+        toolName: pending.toolName
+      })
+
+      // Finalize the request with the appropriate result based on user choice
+      if (behavior === 'allow' && updatedInput && typeof updatedInput === 'object' && 'targetMode' in updatedInput) {
+        const targetMode = (updatedInput as any).targetMode
+        const finalUpdate: PermissionResult = {
+          behavior: 'allow',
+          updatedInput: { targetMode }
+        }
+
+        finalizeRequest(requestId, finalUpdate, 'response')
+      } else if (behavior === 'deny') {
+        const finalUpdate: PermissionResult = {
+          behavior: 'deny',
+          message: message ?? 'User denied ExitPlanMode approval'
+        }
+
+        finalizeRequest(requestId, finalUpdate, 'response')
+      } else {
+        logger.warn('Unexpected ExitPlanMode approval response format', { requestId, payload })
+        finalizeRequest(requestId, { behavior: 'deny', message: 'Invalid response format' }, 'response')
+      }
+
+      return { success: true }
+    }
+  )
 }
 
 type PromptForToolApprovalOptions = {
@@ -229,126 +273,276 @@ export async function promptForToolApproval(
   input: Record<string, unknown>,
   options: PromptForToolApprovalOptions
 ): Promise<PermissionResult> {
-  if (shouldAutoApproveTools) {
-    logger.debug('promptForToolApproval auto-approving tool for test', {
-      toolName
-    })
-
-    return { behavior: 'allow', updatedInput: input }
-  }
-
-  ensureIpcHandlersRegistered()
-
-  if (options?.signal?.aborted) {
-    logger.info('Skipping tool approval prompt because request signal is already aborted', { toolName })
-    return { behavior: 'deny', message: 'Tool request was cancelled before prompting the user' }
-  }
-
-  const mainWindow = windowService.getMainWindow()
-
-  if (!mainWindow) {
-    logger.warn('Denying tool usage because no renderer window is available to obtain approval', { toolName })
-    return { behavior: 'deny', message: 'Unable to request approval – renderer not ready' }
-  }
-
-  const toolMetadata = builtinTools.find((tool) => tool.name === toolName || tool.id === toolName)
-  const sanitizedInput = sanitizeStructuredData(input)
-  const inputPreview = buildInputPreview(sanitizedInput)
-  const sanitizedSuggestions = (options?.suggestions ?? []).map((suggestion) => sanitizeStructuredData(suggestion))
-
-  const requestId = randomUUID()
-  const createdAt = Date.now()
-  const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
-
-  logger.info('Requesting user approval for tool usage', {
-    requestId,
-    toolName,
-    toolCallId: options.toolCallId,
-    description: toolMetadata?.description
-  })
-
-  const requestPayload: RendererPermissionRequestPayload = {
-    requestId,
-    toolName,
-    toolId: toolMetadata?.id ?? toolName,
-    toolCallId: options.toolCallId,
-    description: toolMetadata?.description,
-    requiresPermissions: toolMetadata?.requirePermissions ?? false,
-    input: sanitizedInput,
-    inputPreview,
-    createdAt,
-    expiresAt,
-    suggestions: sanitizedSuggestions,
-    autoApprove: options.autoApprove
-  }
-
-  const defaultDenyUpdate: PermissionResult = { behavior: 'deny', message: 'Tool request aborted before user decision' }
-
-  logger.debug('Registering tool permission request', {
-    requestId,
-    toolName,
-    toolCallId: options.toolCallId,
-    requiresPermissions: requestPayload.requiresPermissions,
-    timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
-    suggestionCount: sanitizedSuggestions.length
-  })
-
-  return new Promise<PermissionResult>((resolve) => {
-    const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', {
-        requestId,
-        toolName,
-        toolCallId: options.toolCallId
+  try {
+    if (shouldAutoApproveTools) {
+      logger.debug('promptForToolApproval auto-approving tool for test', {
+        toolName
       })
-      finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
-    }, TOOL_APPROVAL_TIMEOUT_MS)
 
-    const pending: PendingPermissionRequest = {
-      fulfill: resolve,
-      timeout,
-      originalInput: sanitizedInput,
-      toolName,
-      signal: options?.signal,
-      toolCallId: options.toolCallId
+      return { behavior: 'allow', updatedInput: input }
     }
 
-    if (options?.signal) {
-      const abortListener = () => {
-        logger.info('Tool permission request aborted before user responded', {
+    ensureIpcHandlersRegistered()
+
+    if (options?.signal?.aborted) {
+      logger.info('Skipping tool approval prompt because request signal is already aborted', { toolName })
+      return { behavior: 'deny', message: 'Tool request was cancelled before prompting the user' }
+    }
+
+    const mainWindow = windowService.getMainWindow()
+
+    if (!mainWindow) {
+      logger.warn('Denying tool usage because no renderer window is available to obtain approval', { toolName })
+      return { behavior: 'deny', message: 'Unable to request approval – renderer not ready' }
+    }
+
+    const toolMetadata = builtinTools.find((tool) => tool.name === toolName || tool.id === toolName)
+    const sanitizedInput = sanitizeStructuredData(input)
+    const inputPreview = buildInputPreview(sanitizedInput)
+    const sanitizedSuggestions = (options?.suggestions ?? []).map((suggestion) => sanitizeStructuredData(suggestion))
+
+    const requestId = randomUUID()
+    const createdAt = Date.now()
+    const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
+
+    logger.info('Requesting user approval for tool usage', {
+      requestId,
+      toolName,
+      toolCallId: options.toolCallId,
+      description: toolMetadata?.description
+    })
+
+    const requestPayload: RendererPermissionRequestPayload = {
+      requestId,
+      toolName,
+      toolId: toolMetadata?.id ?? toolName,
+      toolCallId: options.toolCallId,
+      description: toolMetadata?.description,
+      requiresPermissions: toolMetadata?.requirePermissions ?? false,
+      input: sanitizedInput,
+      inputPreview,
+      createdAt,
+      expiresAt,
+      suggestions: sanitizedSuggestions,
+      autoApprove: options.autoApprove
+    }
+
+    const defaultDenyUpdate: PermissionResult = {
+      behavior: 'deny',
+      message: 'Tool request aborted before user decision'
+    }
+
+    logger.debug('Registering tool permission request', {
+      requestId,
+      toolName,
+      toolCallId: options.toolCallId,
+      requiresPermissions: requestPayload.requiresPermissions,
+      timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
+      suggestionCount: sanitizedSuggestions.length
+    })
+
+    return new Promise<PermissionResult>((resolve) => {
+      const timeout = setTimeout(() => {
+        logger.info('User tool permission request timed out', {
           requestId,
           toolName,
           toolCallId: options.toolCallId
         })
-        finalizeRequest(requestId, defaultDenyUpdate, 'aborted')
+        finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
+      }, TOOL_APPROVAL_TIMEOUT_MS)
+
+      const pending: PendingPermissionRequest = {
+        fulfill: resolve,
+        timeout,
+        originalInput: sanitizedInput,
+        toolName,
+        signal: options?.signal,
+        toolCallId: options.toolCallId
       }
 
-      pending.abortListener = abortListener
-      options.signal.addEventListener('abort', abortListener, { once: true })
-    }
+      if (options?.signal) {
+        const abortListener = () => {
+          logger.info('Tool permission request aborted before user responded', {
+            requestId,
+            toolName,
+            toolCallId: options.toolCallId
+          })
+          finalizeRequest(requestId, defaultDenyUpdate, 'aborted')
+        }
 
-    pendingRequests.set(requestId, pending)
+        pending.abortListener = abortListener
+        options.signal.addEventListener('abort', abortListener, { once: true })
+      }
 
-    logger.debug('Pending tool permission request count', {
-      count: pendingRequests.size
-    })
+      pendingRequests.set(requestId, pending)
 
-    const sent = broadcastToRenderer(IpcChannel.AgentToolPermission_Request, requestPayload)
+      logger.debug('Pending tool permission request count', {
+        count: pendingRequests.size
+      })
 
-    logger.debug('Broadcasted tool permission request to renderer', {
-      requestId,
-      toolName,
-      sent
-    })
+      const sent = broadcastToRenderer(IpcChannel.AgentToolPermission_Request, requestPayload)
 
-    if (!sent) {
-      finalizeRequest(
+      logger.debug('Broadcasted tool permission request to renderer', {
         requestId,
-        {
-          behavior: 'deny',
-          message: 'Unable to request approval because the renderer window is unavailable'
-        },
-        'no-window'
-      )
+        toolName,
+        sent
+      })
+
+      if (!sent) {
+        finalizeRequest(
+          requestId,
+          {
+            behavior: 'deny',
+            message: 'Unable to request approval because the renderer window is unavailable'
+          },
+          'no-window'
+        )
+      }
+    })
+  } catch (error) {
+    logger.error('Failed to prompt for tool approval', {
+      error: error instanceof Error ? error.message : String(error),
+      toolName
+    })
+    return { behavior: 'deny', message: 'Internal error occurred while requesting tool approval' }
+  }
+}
+
+/**
+ * Prompts the user for ExitPlanMode approval with options for different permission modes
+ */
+export async function promptForExitPlanModeApproval(
+  plan: string,
+  currentPermissionMode: string,
+  options: PromptForToolApprovalOptions
+): Promise<'accept_edits' | 'default' | 'reject'> {
+  try {
+    ensureIpcHandlersRegistered()
+
+    const mainWindow = windowService.getMainWindow()
+
+    if (!mainWindow) {
+      logger.warn('Unable to request ExitPlanMode approval – renderer not ready')
+      return 'reject'
     }
-  })
+
+    const requestId = randomUUID()
+    const createdAt = Date.now()
+    const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
+
+    logger.info('Requesting user approval for ExitPlanMode', {
+      requestId,
+      currentPermissionMode,
+      toolCallId: options.toolCallId
+    })
+
+    // Prepare the payload to send to the renderer for ExitPlanMode approval
+    const requestPayload: RendererPermissionRequestPayload = {
+      requestId,
+      toolName: 'ExitPlanMode',
+      toolId: 'ExitPlanMode',
+      toolCallId: options.toolCallId,
+      description: 'Exit plan mode approval',
+      requiresPermissions: false,
+      input: { plan, currentPermissionMode },
+      inputPreview: `Plan: ${plan.substring(0, 100)}${plan.length > 100 ? '...' : ''}`,
+      createdAt,
+      expiresAt,
+      suggestions: [],
+      autoApprove: false
+    }
+
+    logger.debug('Registering ExitPlanMode approval request', {
+      requestId,
+      currentPermissionMode,
+      toolCallId: options.toolCallId,
+      timeoutMs: TOOL_APPROVAL_TIMEOUT_MS
+    })
+
+    return new Promise<'accept_edits' | 'default' | 'reject'>((resolve) => {
+      const timeout = setTimeout(() => {
+        logger.info('ExitPlanMode approval request timed out', {
+          requestId,
+          currentPermissionMode,
+          toolCallId: options.toolCallId
+        })
+        resolve('reject')
+        // Clean up: remove the request if it exists in pendingRequests
+        const pending = pendingRequests.get(requestId)
+        if (pending) {
+          pendingRequests.delete(requestId)
+          clearTimeout(pending.timeout)
+        }
+      }, TOOL_APPROVAL_TIMEOUT_MS)
+
+      const pending: PendingPermissionRequest = {
+        fulfill: (result: PermissionResult) => {
+          // Map the behavior to the expected return type
+          if (result.behavior === 'allow' && result.updatedInput) {
+            const mode = (result.updatedInput as any).targetMode
+            if (mode === 'acceptEdits') resolve('accept_edits')
+            else if (mode === 'default') resolve('default')
+            else resolve('reject')
+          } else {
+            resolve('reject')
+          }
+        },
+        timeout,
+        originalInput: { plan, currentPermissionMode },
+        toolName: 'ExitPlanMode',
+        signal: options?.signal,
+        toolCallId: options.toolCallId
+      }
+
+      if (options?.signal) {
+        const abortListener = () => {
+          logger.info('ExitPlanMode approval request aborted before user responded', {
+            requestId,
+            currentPermissionMode,
+            toolCallId: options.toolCallId
+          })
+          resolve('reject')
+          const pending = pendingRequests.get(requestId)
+          if (pending) {
+            pendingRequests.delete(requestId)
+            clearTimeout(pending.timeout)
+          }
+        }
+
+        pending.abortListener = abortListener
+        options.signal.addEventListener('abort', abortListener, { once: true })
+      }
+
+      pendingRequests.set(requestId, pending)
+
+      logger.debug('Pending ExitPlanMode approval request count', {
+        count: pendingRequests.size
+      })
+
+      // Send the special ExitPlanMode approval request to the renderer
+      const sent = broadcastToRenderer(IpcChannel.AgentExitPlanModeApproval_Request, requestPayload)
+
+      logger.debug('Broadcasted ExitPlanMode approval request to renderer', {
+        requestId,
+        sent
+      })
+
+      if (!sent) {
+        logger.warn('Unable to broadcast ExitPlanMode approval request to renderer')
+        resolve('reject')
+        // Clean up: remove the request if it exists in pendingRequests
+        const pending = pendingRequests.get(requestId)
+        if (pending) {
+          pendingRequests.delete(requestId)
+          clearTimeout(pending.timeout)
+        }
+      }
+    })
+  } catch (error) {
+    logger.error('Failed to prompt for ExitPlanMode approval', {
+      error: error instanceof Error ? error.message : String(error),
+      currentPermissionMode
+    })
+    return 'reject'
+  }
 }

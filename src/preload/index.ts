@@ -536,7 +536,13 @@ const api = {
       updatedInput?: Record<string, unknown>
       message?: string
       updatedPermissions?: PermissionUpdate[]
-    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
+    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload),
+    respondToExitPlanModeApproval: (payload: {
+      requestId: string
+      behavior: 'allow' | 'deny'
+      updatedInput?: Record<string, unknown>
+      message?: string
+    }) => ipcRenderer.invoke(IpcChannel.AgentExitPlanModeApproval_Response, payload)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>

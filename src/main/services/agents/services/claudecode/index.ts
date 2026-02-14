@@ -29,7 +29,7 @@ import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
-import { promptForToolApproval } from './tool-permissions'
+import { promptForExitPlanModeApproval, promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
 const require_ = createRequire(import.meta.url)
@@ -55,6 +55,11 @@ type UserInputMessage = {
     role: 'user'
     content: string
   }
+}
+
+// Shared state wrapper to pass streamState between invoke and processSDKQuery
+type SharedState = {
+  streamState?: ClaudeStreamState
 }
 
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
@@ -211,6 +216,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
     }
 
+    // Create shared state wrapper to pass streamState between invoke and processSDKQuery
+    const sharedState: SharedState = {}
+
     const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
       // Type guard to ensure we're handling PreToolUse event
       if (input.hook_event_name !== 'PreToolUse') {
@@ -229,6 +237,48 @@ class ClaudeCodeService implements AgentServiceInterface {
         permission_mode: hookInput.permission_mode,
         autoAllowTools: autoAllowTools
       })
+
+      // Detect ExitPlanMode tool call and handle approval separately
+      if (toolName === 'ExitPlanMode') {
+        logger.info('ExitPlanMode detected, preparing for approval', {
+          session_id: hookInput.session_id,
+          tool_use_id: toolUseID,
+          permission_mode: hookInput.permission_mode
+        })
+
+        try {
+          // Get the plan from the tool input
+          const plan =
+            typeof hookInput.tool_input === 'object' && hookInput.tool_input !== null && 'plan' in hookInput.tool_input
+              ? String((hookInput.tool_input as any).plan || '')
+              : ''
+
+          // Get permission mode safely
+          const permissionMode = hookInput.permission_mode || 'default'
+
+          // Prompt for ExitPlanMode approval which returns the target permission mode
+          const approvalResult = await promptForExitPlanModeApproval(plan, permissionMode, {
+            ...options,
+            toolCallId: buildNamespacedToolCallId(session.id, toolUseID || 'unknown')
+          })
+
+          // Switch to appropriate permission mode based on user choice
+          if (approvalResult === 'accept_edits') {
+            await sharedState.streamState?.switchToAcceptEditsMode()
+            logger.info('Successfully switched to acceptEdits mode after ExitPlanMode approval')
+          } else if (approvalResult === 'default') {
+            await sharedState.streamState?.queryIterator?.setPermissionMode('default')
+            logger.info('Successfully switched to default mode after ExitPlanMode approval')
+          } else {
+            // If user rejects, don't change the permission mode
+            logger.info('ExitPlanMode rejected, keeping current permission mode')
+          }
+        } catch (error) {
+          logger.error('Failed to handle ExitPlanMode approval', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
 
       if (options?.signal?.aborted) {
         logger.debug('PreToolUse hook signal already aborted; skipping tool use', {
@@ -356,7 +406,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         aiStream,
         errorChunks,
         session.agent_id,
-        session.id
+        session.id,
+        sharedState
       ).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
           error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
@@ -468,15 +519,22 @@ class ClaudeCodeService implements AgentServiceInterface {
     stream: ClaudeCodeStream,
     errorChunks: string[],
     agentId: string,
-    sessionId: string
+    sessionId: string,
+    sharedState: SharedState
   ): Promise<void> {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
     const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
+    // Store streamState in shared wrapper for access by preToolUseHook
+    sharedState.streamState = streamState
 
     try {
-      for await (const message of query({ prompt: promptStream, options })) {
+      // Create query iterator and bind to streamState for setPermissionMode
+      const queryIterator = query({ prompt: promptStream, options })
+      streamState.setQueryIterator(queryIterator)
+
+      for await (const message of queryIterator) {
         if (hasCompleted) break
 
         jsonOutput.push(message)
