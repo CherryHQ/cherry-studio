@@ -284,6 +284,16 @@ export function buildProviderOptions(
   const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
 
+  // For openai-compatible providers, auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
+  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
+  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
+  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
+    if (!('reasoningEffort' in providerParams)) {
+      providerParams.reasoningEffort = providerParams.reasoning_effort
+    }
+    delete providerParams.reasoning_effort
+  }
+
   /**
    * Merge custom parameters into providerSpecificOptions.
    * Simple logic:
