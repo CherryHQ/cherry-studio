@@ -4174,6 +4174,14 @@
           "placeholder": "/* 這裡寫自訂 CSS */"
         }
       },
+      "experimental": {
+        "badge": "實驗性",
+        "rtl_text_fix": {
+          "description": "改善 RTL（例如波斯語/阿拉伯語）與 LTR 文字混排時的顯示。程式碼區塊與數學公式維持為 LTR。",
+          "title": "RTL/LTR 混合文字渲染修復"
+        },
+        "title": "實驗性功能"
+      },
       "font": {
         "code": "程式碼字型",
         "default": "預設",
