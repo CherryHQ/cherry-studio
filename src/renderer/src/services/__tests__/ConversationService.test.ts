@@ -1,7 +1,7 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { createErrorBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
+import { createErrorBlock, createImageBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConversationService } from '../ConversationService'
@@ -31,7 +31,7 @@ vi.mock('@renderer/services/AssistantService', () => {
     isNameManuallyEdited: false
   })
 
-  const defaultAssistantSettings = { contextCount: 10 }
+  const defaultAssistantSettings = { contextCount: 10, imageContextCount: 100000 }
 
   const createDefaultAssistant = () => ({
     id: 'assistant-default',
@@ -46,8 +46,11 @@ vi.mock('@renderer/services/AssistantService', () => {
 
   return {
     DEFAULT_ASSISTANT_SETTINGS: defaultAssistantSettings,
-    getAssistantSettings: () => ({ contextCount: 10 }),
-    getDefaultModel: () => ({ id: 'default-model' }),
+    getAssistantSettings: (assistant: any) => ({
+      contextCount: assistant?.settings?.contextCount ?? 10,
+      imageContextCount: assistant?.settings?.imageContextCount ?? 100000
+    }),
+    getDefaultModel: () => ({ id: 'default-model', name: 'Default Model', provider: 'openai', group: 'openai' }),
     getDefaultAssistant: () => createDefaultAssistant(),
     getDefaultTopic: () => createDefaultTopic(),
     getAssistantProvider: () => ({}),
@@ -162,5 +165,69 @@ describe('ConversationService.filterMessagesPipeline', () => {
     expect(filtered.find((m) => m.id === 'user-2')).toBeUndefined()
     expect(filtered[0].role).toBe('user')
     expect(filtered[filtered.length - 1].role).toBe('user')
+  })
+})
+
+describe('ConversationService.prepareMessagesForModel', () => {
+  beforeEach(() => {
+    mockStore = createMockStore()
+    vi.clearAllMocks()
+  })
+
+  it('limits historical images while keeping images in the current user message', async () => {
+    const topicId = 'topic-1'
+    const assistantId = 'assistant-1'
+
+    const user1Text = createMainTextBlock('user-1', 'Here are two images', { status: MessageBlockStatus.SUCCESS })
+    const user1Img1 = createImageBlock('user-1', { url: 'https://example.com/1.png', status: MessageBlockStatus.SUCCESS })
+    const user1Img2 = createImageBlock('user-1', { url: 'https://example.com/2.png', status: MessageBlockStatus.SUCCESS })
+    const user1 = createMessage('user', topicId, assistantId, {
+      id: 'user-1',
+      blocks: [user1Text.id, user1Img1.id, user1Img2.id]
+    })
+
+    const assistant1Text = createMainTextBlock('assistant-1', 'Thanks!', { status: MessageBlockStatus.SUCCESS })
+    const assistant1 = createMessage('assistant', topicId, assistantId, {
+      id: 'assistant-1',
+      askId: 'user-1',
+      blocks: [assistant1Text.id]
+    })
+
+    const user2Text = createMainTextBlock('user-2', 'New message with an image', { status: MessageBlockStatus.SUCCESS })
+    const user2Img = createImageBlock('user-2', { url: 'https://example.com/3.png', status: MessageBlockStatus.SUCCESS })
+    const user2 = createMessage('user', topicId, assistantId, { id: 'user-2', blocks: [user2Text.id, user2Img.id] })
+
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Text))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Img1))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Img2))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(assistant1Text))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user2Text))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user2Img))
+
+    const assistant = {
+      id: assistantId,
+      name: 'Test Assistant',
+      emoji: '😀',
+      prompt: '',
+      topics: [],
+      type: 'assistant',
+      regularPhrases: [],
+      model: { id: 'gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai', group: 'openai' },
+      settings: { contextCount: 10, imageContextCount: 1 }
+    } as any
+
+    const result = await ConversationService.prepareMessagesForModel([user1, assistant1, user2], assistant)
+
+    const userMessages = result.modelMessages.filter((m) => m.role === 'user') as any[]
+    expect(userMessages).toHaveLength(2)
+
+    const user1Sdk = userMessages[0]
+    const user2Sdk = userMessages[1]
+
+    const user1Images = (user1Sdk.content as any[]).filter((p: any) => p.type === 'image').map((p: any) => p.image)
+    const user2Images = (user2Sdk.content as any[]).filter((p: any) => p.type === 'image').map((p: any) => p.image)
+
+    expect(user1Images).toEqual(['https://example.com/2.png'])
+    expect(user2Images).toEqual(['https://example.com/3.png'])
   })
 })

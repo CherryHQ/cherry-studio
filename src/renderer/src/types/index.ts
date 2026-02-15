@@ -173,6 +173,11 @@ export type AssistantSettings = {
   topP: number
   enableTopP?: boolean
   contextCount: number
+  /**
+   * Limits how many historical images are included when building the model context.
+   * Uses the same slider semantics as contextCount (MAX_CONTEXT_COUNT represents Unlimited).
+   */
+  imageContextCount: number
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]

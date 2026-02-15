@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { convertMessagesToSdkMessages } from '@renderer/aiCore/prepareParams'
 import type { Assistant, Message } from '@renderer/types'
-import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
+import { applyImageContextLimit, filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import type { ModelMessage } from 'ai'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
@@ -39,7 +39,7 @@ export class ConversationService {
     messages: Message[],
     assistant: Assistant
   ): Promise<{ modelMessages: ModelMessage[]; uiMessages: Message[] }> {
-    const { contextCount } = getAssistantSettings(assistant)
+    const { contextCount, imageContextCount } = getAssistantSettings(assistant)
     // This logic is extracted from the original ApiService.fetchChatCompletion
     // const contextMessages = filterContextMessages(messages)
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
@@ -59,8 +59,11 @@ export class ConversationService {
       uiMessages = [lastUserMessage]
     }
 
+    const currentUserMessageId = findLast(uiMessages, (m) => m.role === 'user')?.id ?? lastUserMessage.id
+    const modelInputMessages = applyImageContextLimit(uiMessages, imageContextCount, currentUserMessageId)
+
     return {
-      modelMessages: await convertMessagesToSdkMessages(uiMessages, assistant.model || getDefaultModel()),
+      modelMessages: await convertMessagesToSdkMessages(modelInputMessages, assistant.model || getDefaultModel()),
       uiMessages
     }
   }

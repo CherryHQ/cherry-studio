@@ -1052,6 +1052,10 @@
         "label": "Context",
         "tip": "The number of previous messages to keep in the context."
       },
+      "image_context_count": {
+        "label": "Image Context",
+        "tip": "The number of previous images to keep in the context."
+      },
       "max": "Unlimited",
       "max_tokens": {
         "confirm": "Set max tokens",

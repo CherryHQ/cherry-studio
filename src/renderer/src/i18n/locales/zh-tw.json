@@ -1052,6 +1052,10 @@
         "label": "上下文",
         "tip": "在上下文中保留的前幾則訊息"
       },
+      "image_context_count": {
+        "label": "影像上下文",
+        "tip": "在上下文中保留的歷史影像數量（不影響目前送出的影像）"
+      },
       "max": "不限",
       "max_tokens": {
         "confirm": "設定最大 Token 數",

@@ -30,6 +30,7 @@ interface Props {
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [imageContextCount, setImageContextCount] = useState(assistant?.settings?.imageContextCount ?? MAX_CONTEXT_COUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
@@ -60,6 +61,12 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onContextCountChange = (value) => {
     if (!isNaN(value as number)) {
       updateAssistantSettings({ contextCount: value })
+    }
+  }
+
+  const onImageContextCountChange = (value) => {
+    if (!isNaN(value as number)) {
+      updateAssistantSettings({ imageContextCount: value })
     }
   }
 
@@ -186,6 +193,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
     setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
+    setImageContextCount(DEFAULT_ASSISTANT_SETTINGS.imageContextCount)
     setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
     setStreamOutput(DEFAULT_ASSISTANT_SETTINGS.streamOutput)
@@ -401,8 +409,57 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           </ContextSliderWrapper>
         </Col>
       </Row>
+      <Row align="middle">
+        <Col span={20}>
+          <Label>
+            {t('chat.settings.image_context_count.label')}{' '}
+            <Tooltip title={t('chat.settings.image_context_count.tip')}>
+              <QuestionIcon />
+            </Tooltip>
+          </Label>
+        </Col>
+        <Col span={4}>
+          <EditableNumber
+            min={0}
+            max={MAX_CONTEXT_COUNT}
+            step={1}
+            value={imageContextCount}
+            changeOnBlur
+            onChange={(value) => {
+              if (!isNull(value)) {
+                setImageContextCount(value)
+                setTimeoutTimer('imageContextCount_onChange', () => updateAssistantSettings({ imageContextCount: value }), 500)
+              }
+            }}
+            formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
+            style={{ width: '100%' }}
+          />
+        </Col>
+      </Row>
+      <Row align="middle" gutter={24}>
+        <Col span={24}>
+          <ContextSliderWrapper>
+            <Slider
+              min={0}
+              max={MAX_CONTEXT_COUNT}
+              onChange={setImageContextCount}
+              onChangeComplete={onImageContextCountChange}
+              value={typeof imageContextCount === 'number' ? imageContextCount : 0}
+              marks={{
+                0: '0',
+                25: '25',
+                50: '50',
+                75: '75',
+                100: <span style={{ position: 'absolute', right: -2 }}>{t('chat.settings.max')}</span>
+              }}
+              step={1}
+              tooltip={{ formatter: formatSliderTooltip, open: false }}
+            />
+          </ContextSliderWrapper>
+        </Col>
+      </Row>
       <Divider style={{ margin: '10px 0' }} />
-      <SettingRow style={{ minHeight: 30 }}>
+       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>

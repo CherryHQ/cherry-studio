@@ -1,3 +1,4 @@
+import { UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage' // Assuming correct Message type import
@@ -233,4 +234,94 @@ export function filterContextMessages(messages: Message[], contextCount: number)
   )
 
   return filteredMessages
+}
+
+/**
+ * Limits how many historical images are included in the model context.
+ *
+ * - Operates *within* the already-selected context message window
+ * - Counts each image block individually
+ * - Does NOT affect the current user message being sent (excludeMessageId)
+ * - Only strips images from user messages (assistant images are not part of the prompt payload for most providers,
+ *   and are also used to generate safe placeholders for image-only assistant turns)
+ */
+export function applyImageContextLimit(messages: Message[], imageContextCount: number, excludeMessageId?: string): Message[] {
+  if (!messages || messages.length === 0) return messages
+
+  const limit = Number.isFinite(imageContextCount) ? Math.max(0, imageContextCount) : UNLIMITED_CONTEXT_COUNT
+  if (limit >= UNLIMITED_CONTEXT_COUNT) return messages
+
+  const state = store.getState()
+
+  const imageBlockIds: string[] = []
+  for (const message of messages) {
+    if (message.id === excludeMessageId) continue
+    if (message.role !== 'user') continue
+    for (const blockId of message.blocks ?? []) {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      // Count both Image blocks and (rare) File blocks that are actually images.
+      if (block?.type === MessageBlockType.IMAGE || (block?.type === MessageBlockType.FILE && (block as any).file?.type === 'image')) {
+        imageBlockIds.push(blockId)
+      }
+    }
+  }
+
+  // Fast path: no need to strip anything
+  if (limit >= imageBlockIds.length) return messages
+
+  const keepIds = new Set(imageBlockIds.slice(Math.max(0, imageBlockIds.length - limit)))
+
+  const hasRenderableContent = (blockIds: string[]): boolean => {
+    for (const blockId of blockIds) {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      if (!block) continue
+
+      if (block.type === MessageBlockType.MAIN_TEXT && typeof (block as any).content === 'string') {
+        if ((block as any).content.trim()) return true
+        continue
+      }
+
+      if (
+        [
+          MessageBlockType.IMAGE, // kept images are still content
+          MessageBlockType.FILE,
+          MessageBlockType.CODE,
+          MessageBlockType.TOOL,
+          MessageBlockType.CITATION
+        ].includes(block.type)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const droppedUserMessageIds = new Set<string>()
+
+  const updated = messages.map((message) => {
+    // Never touch the current message the user is sending.
+    if (message.id === excludeMessageId) return message
+
+    // Only strip images from user messages.
+    if (message.role !== 'user') return message
+
+    const newBlocks = (message.blocks ?? []).filter((blockId) => {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      const isImageLike =
+        block?.type === MessageBlockType.IMAGE || (block?.type === MessageBlockType.FILE && (block as any).file?.type === 'image')
+      return !isImageLike || keepIds.has(blockId)
+    })
+
+    if (!hasRenderableContent(newBlocks)) {
+      droppedUserMessageIds.add(message.id)
+    }
+
+    return newBlocks.length === message.blocks.length ? message : { ...message, blocks: newBlocks }
+  })
+
+  // Remove user messages that become empty after stripping. Keep assistant replies: they often contain useful textual context.
+  const nonEmptyMessages = updated.filter((message) => !droppedUserMessageIds.has(message.id))
+
+  // Ensure we don't end up with a leading assistant turn after dropping image-only user messages.
+  return filterUserRoleStartMessages(nonEmptyMessages)
 }

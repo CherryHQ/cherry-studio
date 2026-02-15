@@ -48,6 +48,8 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   topP: 1,
   enableTopP: false,
   contextCount: DEFAULT_CONTEXTCOUNT,
+  // Unlimited by default for backward compatibility (MAX_CONTEXT_COUNT is the "Unlimited" sentinel).
+  imageContextCount: MAX_CONTEXT_COUNT,
   streamOutput: true,
   defaultModel: undefined,
   customParameters: [],
@@ -227,6 +229,7 @@ export function getProviderByModelId(modelId?: string) {
  */
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
   const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const imageContextCount = assistant?.settings?.imageContextCount ?? MAX_CONTEXT_COUNT
   const getAssistantMaxTokens = () => {
     if (assistant.settings?.enableMaxTokens) {
       const maxTokens = assistant.settings.maxTokens
@@ -240,6 +243,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
 
   return {
     contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
+    imageContextCount: imageContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : Math.max(0, imageContextCount),
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     enableTemperature: assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
     topP: assistant?.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP,
