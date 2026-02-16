@@ -23,6 +23,7 @@ description: Create or update GitHub pull requests using the repository-required
 - Never skip template sections.
 - Never rewrite the template format.
 - Keep content concise and specific to the current change set.
+- PR title and body must be written in English.
 - Never create the PR before showing the full final body to the user.
 - Never rely on command permission prompts as PR body preview.
 
