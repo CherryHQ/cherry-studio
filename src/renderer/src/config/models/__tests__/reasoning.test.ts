@@ -2280,7 +2280,6 @@ describe('isInterleavedThinkingModel', () => {
 
     it('should return false for other glm models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'glm-3.5' }))).toBe(false)
-      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'glm-zero-preview' }))).toBe(false)
     })
 
@@ -2298,9 +2297,9 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'glm-5-lite' }))).toBe(true)
     })
 
-    it('should return false for glm-5.x versions', () => {
-      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(false)
-      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.1' }))).toBe(false)
+    it('should return true for glm-5.x versions (future versions maintain same behavior)', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.1' }))).toBe(true)
     })
   })
 
