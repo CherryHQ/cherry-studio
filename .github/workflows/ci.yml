@@ -74,6 +74,10 @@ jobs:
         if: matrix.task == 'basic-checks'
         run: pnpm i18n:hardcoded:strict
 
+      - name: Skills Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm skills:check
+
       - name: Main Process Test
         if: matrix.task == 'general-test'
         run: pnpm test:main
