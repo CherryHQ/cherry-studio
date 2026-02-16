@@ -14,6 +14,18 @@ import {
   ROOT_DIR
 } from './skills-common'
 
+function normalizePath(filePath: string): string {
+  return path.normalize(path.resolve(filePath))
+}
+
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n/g, '\n')
+}
+
+function isAgentsReadmeFile(file: string): boolean {
+  return /^\.agents\/skills\/README(?:\.[a-z0-9-]+)?\.md$/i.test(file)
+}
+
 function checkGitignore(filePath: string, expected: string, displayPath: string, errors: string[]) {
   const actual = readFileSafe(filePath)
   if (actual === null) {
@@ -29,6 +41,8 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
   const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const skillFile = path.join(skillDir, 'SKILL.md')
   const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
+  const expectedResolvedTarget = normalizePath(agentsSkillFile)
+  const expectedRelativeTarget = `../../../.agents/skills/${skillName}/SKILL.md`
 
   if (!fs.existsSync(skillDir)) {
     errors.push(`.claude/skills/${skillName} is missing`)
@@ -50,9 +64,9 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
 
   if (stat.isSymbolicLink()) {
     const target = fs.readlinkSync(skillFile)
-    const expectedTarget = `../../../.agents/skills/${skillName}/SKILL.md`
-    if (target !== expectedTarget) {
-      errors.push(`.claude/skills/${skillName}/SKILL.md points to '${target}', expected '${expectedTarget}'`)
+    const actualResolvedTarget = normalizePath(path.resolve(skillDir, target))
+    if (actualResolvedTarget !== expectedResolvedTarget) {
+      errors.push(`.claude/skills/${skillName}/SKILL.md points to '${target}', expected '${expectedRelativeTarget}'`)
     }
     return
   }
@@ -68,18 +82,29 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
     errors.push(`failed to read .claude/skills/${skillName}/SKILL.md for content verification`)
     return
   }
-  if (actualContent !== expectedContent) {
+
+  const normalizedExpectedContent = normalizeLineEndings(expectedContent)
+  const normalizedActualContent = normalizeLineEndings(actualContent)
+  if (normalizedActualContent === normalizedExpectedContent) {
+    return
+  }
+
+  const literalTarget = normalizedActualContent.trim()
+  const hasSingleLineLiteralTarget = literalTarget !== '' && !literalTarget.includes('\n')
+  if (hasSingleLineLiteralTarget) {
+    const literalResolvedTarget = normalizePath(path.resolve(skillDir, literalTarget))
+    if (literalResolvedTarget === expectedResolvedTarget) {
+      return
+    }
+  }
+
+  if (normalizedActualContent !== normalizedExpectedContent) {
     errors.push(`.claude/skills/${skillName}/SKILL.md content differs from .agents/skills/${skillName}/SKILL.md`)
   }
 }
 
 function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[]) {
-  const sharedAgentsFiles = new Set([
-    '.agents/skills/.gitignore',
-    '.agents/skills/README.md',
-    '.agents/skills/README.zh.md',
-    '.agents/skills/public-skills.txt'
-  ])
+  const sharedAgentsFiles = new Set(['.agents/skills/.gitignore', '.agents/skills/public-skills.txt'])
   const sharedClaudeFiles = new Set(['.claude/skills/.gitignore'])
   const allowedAgentsPrefixes = skillNames.map((skillName) => `.agents/skills/${skillName}/`)
   const allowedClaudeFiles = new Set(skillNames.map((skillName) => `.claude/skills/${skillName}/SKILL.md`))
@@ -102,7 +127,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
 
   for (const file of trackedFiles) {
     if (file.startsWith('.agents/skills/')) {
-      if (sharedAgentsFiles.has(file)) {
+      if (sharedAgentsFiles.has(file) || isAgentsReadmeFile(file)) {
         continue
       }
       if (allowedAgentsPrefixes.some((prefix) => file.startsWith(prefix))) {
