@@ -43,6 +43,7 @@ pnpm skills:sync
 
 - 写入该文件的 skill 会同步到 `.agents/skills/.gitignore` 和 `.claude/skills/.gitignore`。
 - 私有/仅本地使用的 skill 不应写入 `public-skills.txt`。
+- 每行只写一个 skill 名称。注释行必须以 `#` 开头，不能写行尾注释。
 
 更新 `public-skills.txt` 后，请执行：
 

@@ -43,6 +43,7 @@ The public white-list is defined in `.agents/skills/public-skills.txt`.
 
 - Skills listed there are synced to both `.agents/skills/.gitignore` and `.claude/skills/.gitignore`.
 - Private/local-only skills should stay out of `public-skills.txt`.
+- Use one skill name per line. Comment lines must start with `#` and cannot be appended inline.
 
 After updating `public-skills.txt`, run:
 

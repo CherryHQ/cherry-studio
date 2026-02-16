@@ -26,10 +26,14 @@ export function listSkillNames(): string[] {
       continue
     }
 
-    const name = trimmedLine.replace(/\s+#.*$/, '').trim()
-    if (name === '' || name.startsWith('#')) {
-      continue
+    if (trimmedLine.includes('#')) {
+      throw new Error(
+        `inline comments are not allowed at .agents/skills/public-skills.txt:${index + 1}; ` +
+          'put comments on the previous line'
+      )
     }
+
+    const name = trimmedLine
 
     if (!SKILL_NAME_PATTERN.test(name)) {
       throw new Error(`invalid skill name '${name}' at .agents/skills/public-skills.txt:${index + 1}`)
