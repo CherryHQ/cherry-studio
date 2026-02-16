@@ -40,6 +40,12 @@ describe('keywordSearch', () => {
       expect(regex.test('sms-service')).toBe(true)
       expect(regex.test('smss')).toBe(false)
     })
+
+    it('does not match inside non-ASCII words', () => {
+      const regex = buildKeywordRegex('ana', { matchMode })
+      expect(regex.test('mañana')).toBe(false)
+      expect(regex.test('ana')).toBe(true)
+    })
   })
 
   describe('buildKeywordRegex (substring)', () => {

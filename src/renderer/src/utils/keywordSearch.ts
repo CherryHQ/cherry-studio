@@ -16,7 +16,11 @@ function buildWholeWordPattern(escapedTerm: string): string {
   // This avoids false positives like:
   // - API keys: "IMr4WSMS5dwa52"
   // - suffixes: "mechanis[m][s]" when searching "sms"
-  return `(?<![A-Za-z0-9])${escapedTerm}(?![A-Za-z0-9])`
+  return `(?<![\\p{L}\\p{N}])${escapedTerm}(?![\\p{L}\\p{N}])`
+}
+
+function addRegexFlag(flags: string, flag: string): string {
+  return flags.includes(flag) ? flags : `${flags}${flag}`
 }
 
 export function buildKeywordPattern(term: string, matchMode: KeywordMatchMode): string {
@@ -25,7 +29,9 @@ export function buildKeywordPattern(term: string, matchMode: KeywordMatchMode): 
 }
 
 export function buildKeywordRegex(term: string, options: { matchMode: KeywordMatchMode; flags?: string }): RegExp {
-  return new RegExp(buildKeywordPattern(term, options.matchMode), options.flags ?? 'i')
+  const flags = options.flags ?? 'i'
+  const normalizedFlags = options.matchMode === 'whole-word' ? addRegexFlag(flags, 'u') : flags
+  return new RegExp(buildKeywordPattern(term, options.matchMode), normalizedFlags)
 }
 
 export function buildKeywordRegexes(
@@ -46,5 +52,7 @@ export function buildKeywordUnionRegex(
     .sort((a, b) => b.length - a.length)
     .map((term) => buildKeywordPattern(term, options.matchMode))
 
-  return new RegExp(patterns.join('|'), options.flags ?? 'gi')
+  const flags = options.flags ?? 'gi'
+  const normalizedFlags = options.matchMode === 'whole-word' ? addRegexFlag(flags, 'u') : flags
+  return new RegExp(patterns.join('|'), normalizedFlags)
 }
