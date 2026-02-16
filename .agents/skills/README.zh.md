@@ -18,14 +18,16 @@
 
 ## Claude 兼容
 
-每个新 skill 需要在 `.claude/skills` 中创建目录，并仅对 `SKILL.md` 建立符号链接：
+每个新增的公共 skill，请执行：
 
 ```bash
-mkdir -p .claude/skills/<skill-name>
-ln -s ../../../.agents/skills/<skill-name>/SKILL.md .claude/skills/<skill-name>/SKILL.md
+pnpm skills:sync
 ```
 
-这样可以确保 Codex 与 Claude Code 共用同一份 `SKILL.md`，同时避免目录级符号链接带来的耦合问题。
+`skills:sync` 会自动创建/更新 `.claude/skills/<skill-name>/SKILL.md`：
+
+- 支持符号链接时，创建到 `.agents/skills/<skill-name>/SKILL.md` 的链接；
+- 不支持符号链接时（例如部分 Windows 环境），自动回退为文件拷贝。
 
 ## Windows 符号链接说明
 

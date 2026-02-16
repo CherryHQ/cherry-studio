@@ -18,14 +18,16 @@ This directory is the single source of truth for repository skills.
 
 ## Claude Compatibility
 
-For each new skill, create a directory in `.claude/skills` and symlink only `SKILL.md`:
+For each new public skill, run:
 
 ```bash
-mkdir -p .claude/skills/<skill-name>
-ln -s ../../../.agents/skills/<skill-name>/SKILL.md .claude/skills/<skill-name>/SKILL.md
+pnpm skills:sync
 ```
 
-This keeps Codex and Claude Code using the same `SKILL.md` source while avoiding directory-level symlink coupling.
+`skills:sync` will create/update `.claude/skills/<skill-name>/SKILL.md` as:
+
+- a symlink to `.agents/skills/<skill-name>/SKILL.md` when symlinks are supported;
+- a file copy fallback when symlinks are unavailable (for example, some Windows environments).
 
 ## Windows Symlink Notes
 
