@@ -1582,8 +1582,16 @@
       "message": "Locate the message"
     },
     "search": {
+      "match": {
+        "substring": "Contains",
+        "whole_word": "Whole word"
+      },
       "messages": "Search All Messages",
       "placeholder": "Search topics or messages...",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      },
       "topics": {
         "empty": "No topics found, press Enter to search all messages"
       }
