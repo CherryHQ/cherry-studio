@@ -17,7 +17,18 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
-    "logos:generate": "tsx scripts/generate-icons.ts --type=logos"
+    "providers:pipeline": "tsx scripts/pipeline.ts --dir=providers",
+    "providers:vectorize": "tsx scripts/vectorize-logo.ts --dir=providers",
+    "providers:validate": "tsx scripts/validate-svgs.ts --dir=providers",
+    "providers:normalize": "tsx scripts/normalize-viewbox.ts --dir=providers",
+    "providers:generate": "tsx scripts/generate-icons.ts --type=providers",
+    "providers:generate:mono": "tsx scripts/generate-mono-icons.ts --type=providers",
+    "models:pipeline": "tsx scripts/pipeline.ts --dir=models",
+    "models:vectorize": "tsx scripts/vectorize-logo.ts --dir=models",
+    "models:validate": "tsx scripts/validate-svgs.ts --dir=models",
+    "models:normalize": "tsx scripts/normalize-viewbox.ts --dir=models",
+    "models:generate": "tsx scripts/generate-icons.ts --type=models",
+    "models:generate:mono": "tsx scripts/generate-mono-icons.ts --type=models"
   },
   "keywords": [
     "ui",
@@ -73,6 +84,7 @@
   },
   "devDependencies": {
     "@heroui/react": "^2.8.4",
+    "@neplex/vectorizer": "^0.0.5",
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
     "@storybook/react": "^10.1.11",
