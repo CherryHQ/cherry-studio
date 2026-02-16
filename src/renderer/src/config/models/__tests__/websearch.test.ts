@@ -227,6 +227,12 @@ describe('websearch helpers', () => {
       providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
       expect(isWebSearchModel(createModel({ id: 'glm-4-air' }))).toBe(true)
 
+      providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
+      expect(isWebSearchModel(createModel({ id: 'glm-5' }))).toBe(true)
+
+      providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
+      expect(isWebSearchModel(createModel({ id: 'glm-4.5' }))).toBe(false)
+
       providerMock.mockReturnValueOnce(createProvider({ id: 'dashscope' }))
       expect(isWebSearchModel(createModel({ id: 'qwen-max-latest' }))).toBe(true)
 
