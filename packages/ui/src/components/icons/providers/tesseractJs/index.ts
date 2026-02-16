@@ -5,6 +5,6 @@ import { TesseractJsMono } from './mono'
 export const TesseractJsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(TesseractJs, {
   Color: TesseractJs,
   Mono: TesseractJsMono,
-  colorPrimary: '#FDFDFE'
+  colorPrimary: '#1866C0'
 })
 export default TesseractJsIcon

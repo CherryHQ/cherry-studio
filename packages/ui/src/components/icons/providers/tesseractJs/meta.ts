@@ -2,5 +2,5 @@ import type { IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'tesseractJs',
-  colorPrimary: '#FDFDFE'
+  colorPrimary: '#1866C0'
 }

@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-16T08:39:47.797Z
+ * Generated at: 2026-02-16T11:42:31.147Z
  * Total icons: 85
  */
 
