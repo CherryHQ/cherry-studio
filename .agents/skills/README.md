@@ -26,8 +26,8 @@ pnpm skills:sync
 
 `skills:sync` will create/update `.claude/skills/<skill-name>/SKILL.md` as:
 
-- a symlink to `.agents/skills/<skill-name>/SKILL.md` when symlinks are supported;
-- a file copy fallback when symlinks are unavailable (for example, some Windows environments).
+- a symlink to `.agents/skills/<skill-name>/SKILL.md`.
+- If symlink creation is unavailable, `skills:sync` fails and asks you to enable symlink support or use WSL.
 
 ## Windows Symlink Notes
 
@@ -35,6 +35,7 @@ On Windows, symbolic links may not work unless symlink support is enabled.
 
 - Before changing skill links, enable Windows Developer Mode (or use an elevated shell that can create symlinks).
 - If symlinks are restricted in your environment, use WSL to perform skill link changes.
+- Repository policy: `.claude/skills/<skill-name>/SKILL.md` must be committed as a symlink (git mode `120000`).
 
 ## White-list Tracking Rules
 

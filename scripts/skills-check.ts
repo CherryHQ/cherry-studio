@@ -37,6 +37,11 @@ function checkGitignore(filePath: string, expected: string, displayPath: string,
   }
 }
 
+/**
+ * Verifies `.claude/skills/<skillName>/SKILL.md` is correctly synced with
+ * `.agents/skills/<skillName>/SKILL.md`.
+ * Supports symlink mode and Windows plain-file fallback mode.
+ */
 function checkClaudeSkillFile(skillName: string, errors: string[]) {
   const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const skillFile = path.join(skillDir, 'SKILL.md')
@@ -149,6 +154,38 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   }
 }
 
+function checkClaudeSkillGitMode(skillName: string, errors: string[]) {
+  const skillFile = `.claude/skills/${skillName}/SKILL.md`
+
+  let output = ''
+  try {
+    output = execSync(`git ls-files --stage -- ${skillFile}`, {
+      cwd: ROOT_DIR,
+      encoding: 'utf-8'
+    }).trim()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    errors.push(`failed to read git index mode for ${skillFile}: ${message}`)
+    return
+  }
+
+  if (output === '') {
+    errors.push(`${skillFile} is not tracked in git index`)
+    return
+  }
+
+  const mode = output.split(/\s+/, 2)[0]
+  if (mode !== '120000') {
+    errors.push(`${skillFile} must be tracked as a symlink (mode 120000), got ${mode}`)
+  }
+}
+
+/**
+ * Validates public skills governance:
+ * - generated gitignore files are up to date
+ * - Claude skill links/files match source skills
+ * - tracked skill files do not exceed the public whitelist
+ */
 function main() {
   let skillNames: string[]
   try {
@@ -172,6 +209,7 @@ function main() {
     }
 
     checkClaudeSkillFile(skillName, errors)
+    checkClaudeSkillGitMode(skillName, errors)
   }
   checkTrackedFilesAgainstWhitelist(skillNames, errors)
 

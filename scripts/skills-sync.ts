@@ -27,7 +27,7 @@ function isLiteralSymlinkTarget(content: string, skillDir: string, expectedResol
   return normalizeLinkedTarget(skillDir, literalTarget) === expectedResolvedTarget
 }
 
-function shouldFallbackToFile(error: unknown): boolean {
+function isSymlinkCreationError(error: unknown): boolean {
   const nodeError = error as NodeJS.ErrnoException
   return (
     nodeError?.code === 'EPERM' ||
@@ -37,6 +37,11 @@ function shouldFallbackToFile(error: unknown): boolean {
   )
 }
 
+/**
+ * Ensures `.claude/skills/<skillName>/SKILL.md` is synchronized with
+ * `.agents/skills/<skillName>/SKILL.md`.
+ * Requires symlink support; no file-copy fallback is allowed.
+ */
 function ensureClaudeSkillLink(skillName: string): boolean {
   const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
   const claudeSkillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
@@ -90,15 +95,22 @@ function ensureClaudeSkillLink(skillName: string): boolean {
   try {
     fs.symlinkSync(expectedTarget, claudeSkillFile)
   } catch (error) {
-    if (!shouldFallbackToFile(error)) {
-      throw error
+    if (isSymlinkCreationError(error)) {
+      throw new Error(
+        `failed to create symlink for .claude/skills/${skillName}/SKILL.md; enable symlink support or use WSL`
+      )
     }
-    fs.copyFileSync(agentsSkillFile, claudeSkillFile)
+    throw error
   }
 
   return true
 }
 
+/**
+ * Synchronizes skill infrastructure for all public skills:
+ * - regenerates whitelist gitignore files
+ * - syncs Claude-side SKILL.md links/files
+ */
 function main() {
   let skillNames: string[]
   try {

@@ -26,8 +26,8 @@ pnpm skills:sync
 
 `skills:sync` 会自动创建/更新 `.claude/skills/<skill-name>/SKILL.md`：
 
-- 支持符号链接时，创建到 `.agents/skills/<skill-name>/SKILL.md` 的链接；
-- 不支持符号链接时（例如部分 Windows 环境），自动回退为文件拷贝。
+- 创建到 `.agents/skills/<skill-name>/SKILL.md` 的符号链接。
+- 若无法创建符号链接，`skills:sync` 会失败，并提示开启符号链接能力或改用 WSL。
 
 ## Windows 符号链接说明
 
@@ -35,6 +35,7 @@ pnpm skills:sync
 
 - 修改 skill 链接前，建议先开启 Windows Developer Mode（或使用可创建符号链接的管理员终端）。
 - 若当前环境对符号链接有限制，建议使用 WSL 进行相关改动。
+- 仓库约束：`.claude/skills/<skill-name>/SKILL.md` 提交到 Git 时必须是符号链接（mode `120000`）。
 
 ## 白名单跟踪规则
 
