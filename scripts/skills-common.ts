@@ -8,7 +8,7 @@ export const AGENTS_SKILLS_GITIGNORE = path.join(AGENTS_SKILLS_DIR, '.gitignore'
 export const CLAUDE_SKILLS_GITIGNORE = path.join(CLAUDE_SKILLS_DIR, '.gitignore')
 export const PUBLIC_SKILLS_FILE = path.join(AGENTS_SKILLS_DIR, 'public-skills.txt')
 
-const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function listSkillNames(): string[] {
   const content = readFileSafe(PUBLIC_SKILLS_FILE)
@@ -21,7 +21,12 @@ export function listSkillNames(): string[] {
   const lines = content.split('\n')
 
   for (const [index, rawLine] of lines.entries()) {
-    const name = rawLine.trim()
+    const trimmedLine = rawLine.trim()
+    if (trimmedLine === '' || trimmedLine.startsWith('#')) {
+      continue
+    }
+
+    const name = trimmedLine.replace(/\s+#.*$/, '').trim()
     if (name === '' || name.startsWith('#')) {
       continue
     }
@@ -47,8 +52,7 @@ export function buildAgentsSkillsGitignore(skillNames: string[]): string {
     '# Do not edit manually.',
     '*',
     '!.gitignore',
-    '!README.md',
-    '!README.zh.md',
+    '!README*.md',
     '!public-skills.txt'
   ]
 
@@ -73,7 +77,15 @@ export function buildClaudeSkillsGitignore(skillNames: string[]): string {
 }
 
 export function writeFileIfChanged(filePath: string, content: string): boolean {
-  const current = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+  let current = ''
+  try {
+    current = fs.readFileSync(filePath, 'utf-8')
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException
+    if (nodeError.code !== 'ENOENT') {
+      throw error
+    }
+  }
   if (current === content) {
     return false
   }
