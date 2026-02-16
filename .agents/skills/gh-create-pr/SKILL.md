@@ -41,4 +41,5 @@ EOF
 
 # run only after explicit user confirmation
 gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
+rm -f "$pr_body_file"
 ```
