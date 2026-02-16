@@ -567,7 +567,7 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
 
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
