@@ -34,7 +34,7 @@ description: Create or update GitHub pull requests using the repository-required
 cat .github/pull_request_template.md
 
 # show this full Markdown body in chat first
-pr_body_file="$(mktemp /tmp/gh-pr-body.XXXXXX.md)"
+pr_body_file="$(mktemp /tmp/gh-pr-body-XXXXXX).md"
 cat > "$pr_body_file" <<'EOF'
 ...filled template body...
 EOF
