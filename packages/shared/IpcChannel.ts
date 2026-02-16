@@ -158,6 +158,13 @@ export enum IpcChannel {
   Windows_MaximizedChanged = 'window:maximized-changed',
   Windows_NavigateToAbout = 'window:navigate-to-about',
 
+  // Tab
+  Tab_Attach = 'tab:attach',
+  Tab_Detach = 'tab:detach',
+  Tab_DragStart = 'tab:drag-start',
+  Tab_GetDragData = 'tab:get-drag-data',
+  Tab_DragEnd = 'tab:drag-end',
+
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',

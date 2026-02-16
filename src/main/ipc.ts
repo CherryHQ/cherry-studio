@@ -744,9 +744,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     mainWindow.unmaximize()
   })
 
-  ipcMain.handle(IpcChannel.Windows_Close, () => {
-    checkMainWindow()
-    mainWindow.close()
+  ipcMain.handle(IpcChannel.Windows_Close, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    win?.close()
   })
 
   ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
