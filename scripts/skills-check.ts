@@ -83,7 +83,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   const sharedAgentsFiles = new Set(['.agents/skills/.gitignore', '.agents/skills/public-skills.txt'])
   const sharedClaudeFiles = new Set(['.claude/skills/.gitignore'])
   const allowedAgentsPrefixes = skillNames.map((skillName) => `.agents/skills/${skillName}/`)
-  const allowedClaudeFiles = new Set(skillNames.map((skillName) => `.claude/skills/${skillName}/SKILL.md`))
+  const allowedClaudePrefixes = skillNames.map((skillName) => `.claude/skills/${skillName}/`)
 
   let trackedFiles: string[]
   try {
@@ -117,7 +117,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
       if (sharedClaudeFiles.has(file)) {
         continue
       }
-      if (allowedClaudeFiles.has(file)) {
+      if (allowedClaudePrefixes.some((prefix) => file.startsWith(prefix))) {
         continue
       }
       errors.push(`tracked file is outside public skill whitelist: ${file}`)

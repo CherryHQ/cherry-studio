@@ -3,5 +3,4 @@
 *
 !.gitignore
 !gh-create-pr/
-gh-create-pr/*
-!gh-create-pr/SKILL.md
+!gh-create-pr/**
