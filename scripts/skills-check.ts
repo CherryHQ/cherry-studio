@@ -1,3 +1,4 @@
+import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -9,7 +10,8 @@ import {
   CLAUDE_SKILLS_DIR,
   CLAUDE_SKILLS_GITIGNORE,
   listSkillNames,
-  readFileSafe
+  readFileSafe,
+  ROOT_DIR
 } from './skills-common'
 
 function checkGitignore(filePath: string, expected: string, displayPath: string, errors: string[]) {
@@ -26,6 +28,7 @@ function checkGitignore(filePath: string, expected: string, displayPath: string,
 function checkClaudeSkillFile(skillName: string, errors: string[]) {
   const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const skillFile = path.join(skillDir, 'SKILL.md')
+  const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
 
   if (!fs.existsSync(skillDir)) {
     errors.push(`.claude/skills/${skillName} is missing`)
@@ -56,6 +59,68 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
 
   if (!stat.isFile()) {
     errors.push(`.claude/skills/${skillName}/SKILL.md is neither a file nor a symlink`)
+    return
+  }
+
+  const expectedContent = readFileSafe(agentsSkillFile)
+  const actualContent = readFileSafe(skillFile)
+  if (expectedContent === null || actualContent === null) {
+    errors.push(`failed to read .claude/skills/${skillName}/SKILL.md for content verification`)
+    return
+  }
+  if (actualContent !== expectedContent) {
+    errors.push(`.claude/skills/${skillName}/SKILL.md content differs from .agents/skills/${skillName}/SKILL.md`)
+  }
+}
+
+function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[]) {
+  const sharedAgentsFiles = new Set([
+    '.agents/skills/.gitignore',
+    '.agents/skills/README.md',
+    '.agents/skills/README.zh.md',
+    '.agents/skills/public-skills.txt'
+  ])
+  const sharedClaudeFiles = new Set(['.claude/skills/.gitignore'])
+  const allowedAgentsPrefixes = skillNames.map((skillName) => `.agents/skills/${skillName}/`)
+  const allowedClaudeFiles = new Set(skillNames.map((skillName) => `.claude/skills/${skillName}/SKILL.md`))
+
+  let trackedFiles: string[]
+  try {
+    const output = execSync('git ls-files -- .agents/skills .claude/skills', {
+      cwd: ROOT_DIR,
+      encoding: 'utf-8'
+    })
+    trackedFiles = output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    errors.push(`failed to read tracked skill files via git ls-files: ${message}`)
+    return
+  }
+
+  for (const file of trackedFiles) {
+    if (file.startsWith('.agents/skills/')) {
+      if (sharedAgentsFiles.has(file)) {
+        continue
+      }
+      if (allowedAgentsPrefixes.some((prefix) => file.startsWith(prefix))) {
+        continue
+      }
+      errors.push(`tracked file is outside public skill whitelist: ${file}`)
+      continue
+    }
+
+    if (file.startsWith('.claude/skills/')) {
+      if (sharedClaudeFiles.has(file)) {
+        continue
+      }
+      if (allowedClaudeFiles.has(file)) {
+        continue
+      }
+      errors.push(`tracked file is outside public skill whitelist: ${file}`)
+    }
   }
 }
 
@@ -83,6 +148,7 @@ function main() {
 
     checkClaudeSkillFile(skillName, errors)
   }
+  checkTrackedFilesAgainstWhitelist(skillNames, errors)
 
   if (errors.length > 0) {
     console.error('skills:check failed')
