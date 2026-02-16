@@ -14,14 +14,6 @@ import {
   ROOT_DIR
 } from './skills-common'
 
-function normalizePath(filePath: string): string {
-  return path.normalize(path.resolve(filePath))
-}
-
-function normalizeLineEndings(content: string): string {
-  return content.replace(/\r\n/g, '\n')
-}
-
 function isAgentsReadmeFile(file: string): boolean {
   return /^\.agents\/skills\/README(?:\.[a-z0-9-]+)?\.md$/i.test(file)
 }
@@ -40,14 +32,12 @@ function checkGitignore(filePath: string, expected: string, displayPath: string,
 /**
  * Verifies `.claude/skills/<skillName>/SKILL.md` is correctly synced with
  * `.agents/skills/<skillName>/SKILL.md`.
- * Supports symlink mode and Windows plain-file fallback mode.
+ * Requires regular files (symlinks are disallowed for cross-platform compatibility).
  */
 function checkClaudeSkillFile(skillName: string, errors: string[]) {
   const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const skillFile = path.join(skillDir, 'SKILL.md')
   const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
-  const expectedResolvedTarget = normalizePath(agentsSkillFile)
-  const expectedRelativeTarget = `../../../.agents/skills/${skillName}/SKILL.md`
 
   if (!fs.existsSync(skillDir)) {
     errors.push(`.claude/skills/${skillName} is missing`)
@@ -68,16 +58,12 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
   }
 
   if (stat.isSymbolicLink()) {
-    const target = fs.readlinkSync(skillFile)
-    const actualResolvedTarget = normalizePath(path.resolve(skillDir, target))
-    if (actualResolvedTarget !== expectedResolvedTarget) {
-      errors.push(`.claude/skills/${skillName}/SKILL.md points to '${target}', expected '${expectedRelativeTarget}'`)
-    }
+    errors.push(`.claude/skills/${skillName}/SKILL.md must be a regular file, not a symlink`)
     return
   }
 
   if (!stat.isFile()) {
-    errors.push(`.claude/skills/${skillName}/SKILL.md is neither a file nor a symlink`)
+    errors.push(`.claude/skills/${skillName}/SKILL.md is not a regular file`)
     return
   }
 
@@ -88,22 +74,7 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
     return
   }
 
-  const normalizedExpectedContent = normalizeLineEndings(expectedContent)
-  const normalizedActualContent = normalizeLineEndings(actualContent)
-  if (normalizedActualContent === normalizedExpectedContent) {
-    return
-  }
-
-  const literalTarget = normalizedActualContent.trim()
-  const hasSingleLineLiteralTarget = literalTarget !== '' && !literalTarget.includes('\n')
-  if (hasSingleLineLiteralTarget) {
-    const literalResolvedTarget = normalizePath(path.resolve(skillDir, literalTarget))
-    if (literalResolvedTarget === expectedResolvedTarget) {
-      return
-    }
-  }
-
-  if (normalizedActualContent !== normalizedExpectedContent) {
+  if (actualContent !== expectedContent) {
     errors.push(`.claude/skills/${skillName}/SKILL.md content differs from .agents/skills/${skillName}/SKILL.md`)
   }
 }
@@ -154,36 +125,10 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   }
 }
 
-function checkClaudeSkillGitMode(skillName: string, errors: string[]) {
-  const skillFile = `.claude/skills/${skillName}/SKILL.md`
-
-  let output = ''
-  try {
-    output = execSync(`git ls-files --stage -- ${skillFile}`, {
-      cwd: ROOT_DIR,
-      encoding: 'utf-8'
-    }).trim()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    errors.push(`failed to read git index mode for ${skillFile}: ${message}`)
-    return
-  }
-
-  if (output === '') {
-    errors.push(`${skillFile} is not tracked in git index`)
-    return
-  }
-
-  const mode = output.split(/\s+/, 2)[0]
-  if (mode !== '120000') {
-    errors.push(`${skillFile} must be tracked as a symlink (mode 120000), got ${mode}`)
-  }
-}
-
 /**
  * Validates public skills governance:
  * - generated gitignore files are up to date
- * - Claude skill links/files match source skills
+ * - Claude skill files match source skills by content
  * - tracked skill files do not exceed the public whitelist
  */
 function main() {
@@ -209,7 +154,6 @@ function main() {
     }
 
     checkClaudeSkillFile(skillName, errors)
-    checkClaudeSkillGitMode(skillName, errors)
   }
   checkTrackedFilesAgainstWhitelist(skillNames, errors)
 

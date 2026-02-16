@@ -11,49 +11,23 @@ import {
   writeFileIfChanged
 } from './skills-common'
 
-function normalizePath(filePath: string): string {
-  return path.normalize(path.resolve(filePath))
-}
-
-function normalizeLinkedTarget(skillDir: string, target: string): string {
-  return normalizePath(path.resolve(skillDir, target))
-}
-
-function isLiteralSymlinkTarget(content: string, skillDir: string, expectedResolvedTarget: string): boolean {
-  const literalTarget = content.trim()
-  if (literalTarget === '' || literalTarget.includes('\n')) {
-    return false
-  }
-  return normalizeLinkedTarget(skillDir, literalTarget) === expectedResolvedTarget
-}
-
-function isSymlinkCreationError(error: unknown): boolean {
-  const nodeError = error as NodeJS.ErrnoException
-  return (
-    nodeError?.code === 'EPERM' ||
-    nodeError?.code === 'EACCES' ||
-    nodeError?.code === 'ENOTSUP' ||
-    nodeError?.code === 'EINVAL'
-  )
-}
-
 /**
  * Ensures `.claude/skills/<skillName>/SKILL.md` is synchronized with
  * `.agents/skills/<skillName>/SKILL.md`.
- * Requires symlink support; no file-copy fallback is allowed.
+ * Uses file copy to keep cross-platform compatibility.
  */
-function ensureClaudeSkillLink(skillName: string): boolean {
+function ensureClaudeSkillFile(skillName: string): boolean {
   const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
   const claudeSkillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const claudeSkillFile = path.join(claudeSkillDir, 'SKILL.md')
-  const expectedTarget = `../../../.agents/skills/${skillName}/SKILL.md`
-  const expectedResolvedTarget = normalizePath(agentsSkillFile)
 
   if (!fs.existsSync(agentsSkillFile)) {
     throw new Error(`.agents/skills/${skillName}/SKILL.md is missing`)
   }
 
   fs.mkdirSync(claudeSkillDir, { recursive: true })
+
+  const expectedContent = fs.readFileSync(agentsSkillFile, 'utf-8')
 
   let existing: fs.Stats | null = null
   try {
@@ -65,51 +39,24 @@ function ensureClaudeSkillLink(skillName: string): boolean {
     }
   }
 
-  if (existing?.isSymbolicLink()) {
-    const currentTarget = fs.readlinkSync(claudeSkillFile)
-    const currentResolvedTarget = normalizeLinkedTarget(claudeSkillDir, currentTarget)
-    if (currentResolvedTarget === expectedResolvedTarget) {
-      return false
-    }
-    fs.unlinkSync(claudeSkillFile)
-    existing = null
-  }
-
-  if (existing?.isFile()) {
-    const currentContent = fs.readFileSync(claudeSkillFile, 'utf-8')
-    const expectedContent = fs.readFileSync(agentsSkillFile, 'utf-8')
-    if (
-      currentContent === expectedContent ||
-      isLiteralSymlinkTarget(currentContent, claudeSkillDir, expectedResolvedTarget)
-    ) {
-      return false
-    }
-    fs.unlinkSync(claudeSkillFile)
-    existing = null
-  }
-
-  if (existing !== null) {
+  if (existing !== null && !existing.isFile()) {
     fs.rmSync(claudeSkillFile, { force: true, recursive: true })
-  }
-
-  try {
-    fs.symlinkSync(expectedTarget, claudeSkillFile)
-  } catch (error) {
-    if (isSymlinkCreationError(error)) {
-      throw new Error(
-        `failed to create symlink for .claude/skills/${skillName}/SKILL.md; enable symlink support or use WSL`
-      )
+    existing = null
+  } else if (existing?.isFile()) {
+    const currentContent = fs.readFileSync(claudeSkillFile, 'utf-8')
+    if (currentContent === expectedContent) {
+      return false
     }
-    throw error
   }
 
+  fs.writeFileSync(claudeSkillFile, expectedContent, 'utf-8')
   return true
 }
 
 /**
  * Synchronizes skill infrastructure for all public skills:
  * - regenerates whitelist gitignore files
- * - syncs Claude-side SKILL.md links/files
+ * - syncs Claude-side SKILL.md files
  */
 function main() {
   let skillNames: string[]
@@ -125,7 +72,7 @@ function main() {
   const claudeGitignore = buildClaudeSkillsGitignore(skillNames)
 
   const changedFiles: string[] = []
-  const changedSkillLinks: string[] = []
+  const changedSkillFiles: string[] = []
 
   if (writeFileIfChanged(AGENTS_SKILLS_GITIGNORE, agentsGitignore)) {
     changedFiles.push('.agents/skills/.gitignore')
@@ -134,22 +81,22 @@ function main() {
     changedFiles.push('.claude/skills/.gitignore')
   }
   for (const skillName of skillNames) {
-    if (ensureClaudeSkillLink(skillName)) {
-      changedSkillLinks.push(`.claude/skills/${skillName}/SKILL.md`)
+    if (ensureClaudeSkillFile(skillName)) {
+      changedSkillFiles.push(`.claude/skills/${skillName}/SKILL.md`)
     }
   }
 
-  if (changedFiles.length === 0 && changedSkillLinks.length === 0) {
+  if (changedFiles.length === 0 && changedSkillFiles.length === 0) {
     console.log(`skills:sync up-to-date (${skillNames.length} public skill${skillNames.length === 1 ? '' : 's'})`)
     return
   }
 
-  const updatedCount = changedFiles.length + changedSkillLinks.length
+  const updatedCount = changedFiles.length + changedSkillFiles.length
   console.log(`skills:sync updated ${updatedCount} file${updatedCount === 1 ? '' : 's'}:`)
   for (const file of changedFiles) {
     console.log(`- ${file}`)
   }
-  for (const file of changedSkillLinks) {
+  for (const file of changedSkillFiles) {
     console.log(`- ${file}`)
   }
 }
