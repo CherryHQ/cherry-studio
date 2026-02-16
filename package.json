@@ -45,6 +45,8 @@
     "i18n:sync": "dotenv -e .env -- tsx scripts/sync-i18n.ts",
     "i18n:translate": "dotenv -e .env -- tsx scripts/auto-translate-i18n.ts",
     "i18n:all": "pnpm i18n:sync && pnpm i18n:translate",
+    "skills:sync": "tsx scripts/skills-sync.ts",
+    "skills:check": "tsx scripts/skills-check.ts",
     "update:languages": "tsx scripts/update-languages.ts",
     "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "test": "vitest run --silent",

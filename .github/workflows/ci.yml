@@ -74,6 +74,10 @@ jobs:
         if: matrix.task == 'basic-checks'
         run: pnpm i18n:hardcoded:strict
 
+      - name: Skills Check
+        if: matrix.task == 'basic-checks'
+        run: pnpm skills:check
+
       - name: Main Process Test
         if: matrix.task == 'general-test'
         run: pnpm test:main
@@ -94,10 +98,46 @@ jobs:
         if: matrix.task == 'render-test'
         run: pnpm test:renderer
 
+  skills-check-windows:
+    runs-on: windows-latest
+    env:
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Skills Check
+        run: pnpm skills:check
+
   notify:
     runs-on: ubuntu-latest
-    needs: ci
-    if: always() && needs.ci.result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci, skills-check-windows]
+    if: always() && (needs.ci.result == 'failure' || needs.skills-check-windows.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6

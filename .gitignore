@@ -50,6 +50,8 @@ local
 .cursorrules
 .cursor/*
 .claude/*
+!.claude/skills/
+!.claude/skills/**
 .gemini/*
 .qwen/*
 .trae/*
