@@ -2,5 +2,6 @@
 # Do not edit manually.
 *
 !.gitignore
+!README*.md
 !gh-create-pr/
 !gh-create-pr/**

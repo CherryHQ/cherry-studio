@@ -18,6 +18,10 @@ function isAgentsReadmeFile(file: string): boolean {
   return /^\.agents\/skills\/README(?:\.[a-z0-9-]+)?\.md$/i.test(file)
 }
 
+function isClaudeReadmeFile(file: string): boolean {
+  return /^\.claude\/skills\/README(?:\.[a-z0-9-]+)?\.md$/i.test(file)
+}
+
 function checkGitignore(filePath: string, expected: string, displayPath: string, errors: string[]) {
   const actual = readFileSafe(filePath)
   if (actual === null) {
@@ -114,7 +118,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
     }
 
     if (file.startsWith('.claude/skills/')) {
-      if (sharedClaudeFiles.has(file)) {
+      if (sharedClaudeFiles.has(file) || isClaudeReadmeFile(file)) {
         continue
       }
       if (allowedClaudePrefixes.some((prefix) => file.startsWith(prefix))) {
