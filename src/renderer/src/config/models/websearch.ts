@@ -103,7 +103,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'zhipu') {
-    return modelId?.startsWith('glm-4-')
+    return modelId?.startsWith('glm-4-') || modelId === 'glm-5'
   }
 
   if (provider.id === 'dashscope') {
