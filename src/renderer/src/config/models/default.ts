@@ -711,6 +711,46 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
         output_per_million_tokens: 2.5,
         currencySymbol: 'USD'
       }
+    },
+    {
+      id: 'kimi-k2.5',
+      provider: 'moonshot',
+      name: 'Kimi K2.5',
+      group: 'Kimi K2.5',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-0905-Preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 0905 Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-turbo-preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 Turbo Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking-turbo',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking Turbo',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     }
   ],
   baichuan: [

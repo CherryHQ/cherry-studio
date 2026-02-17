@@ -2303,6 +2303,27 @@ describe('isInterleavedThinkingModel', () => {
     })
   })
 
+  describe('Kimi models', () => {
+    it('should return true for kimi-k2-thinking', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+    })
+
+    it('should return true for kimi-k2-thinking-turbo', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(true)
+    })
+
+    it('should return true for kimi-k2.5', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+    })
+
+    it('should return false for other kimi models', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-preview' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-turbo' }))).toBe(false)
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-0905-Preview' }))).toBe(false)
+    })
+  })
+
   describe('Non-matching models', () => {
     it('should return false for unrelated models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'gpt-4' }))).toBe(false)
