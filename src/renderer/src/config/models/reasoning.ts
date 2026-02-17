@@ -389,7 +389,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (modelId.startsWith('qwen3') || modelId.startsWith('qwen3.5')) {
+  if (modelId.startsWith('qwen3')) {
     if (modelId.includes('thinking')) {
       return true
     }
@@ -418,7 +418,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  if (modelId.startsWith('qwen3') || modelId.startsWith('qwen3.5')) {
+  if (modelId.startsWith('qwen3')) {
     // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
     if (modelId.includes('instruct') || modelId.includes('thinking')) {
       return false
