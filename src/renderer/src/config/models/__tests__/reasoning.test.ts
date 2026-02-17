@@ -2290,7 +2290,7 @@ describe('isInterleavedThinkingModel', () => {
     })
   })
 
-  describe('Kimi K2 models', () => {
+  describe('Kimi models', () => {
     it('should return true for kimi-k2-thinking', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
     })

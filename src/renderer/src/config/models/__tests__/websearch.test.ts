@@ -219,7 +219,7 @@ describe('websearch helpers', () => {
       expect(isWebSearchModel(createModel({ id: 'gemini-2.0-flash-latest' }))).toBe(true)
     })
 
-    it('evaluates hunyuan/zhipu/dashscope/openrouter/grok/moonshot providers', () => {
+    it('evaluates hunyuan/zhipu/dashscope/openrouter/grok providers', () => {
       providerMock.mockReturnValueOnce(createProvider({ id: 'hunyuan' }))
       expect(isWebSearchModel(createModel({ id: 'hunyuan-pro' }))).toBe(true)
       expect(isWebSearchModel(createModel({ id: 'hunyuan-lite', provider: 'hunyuan' }))).toBe(false)
@@ -235,19 +235,6 @@ describe('websearch helpers', () => {
 
       providerMock.mockReturnValueOnce(createProvider({ id: 'grok' }))
       expect(isWebSearchModel(createModel({ id: 'grok-2' }))).toBe(true)
-
-      // Moonshot Kimi K2.5 tests
-      providerMock.mockReturnValueOnce(createProvider({ id: 'moonshot' }))
-      expect(isWebSearchModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'moonshot' }))
-      expect(isWebSearchModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'moonshot' }))
-      expect(isWebSearchModel(createModel({ id: 'kimi-k2-0905-Preview' }))).toBe(true)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'moonshot' }))
-      expect(isWebSearchModel(createModel({ id: 'moonshot-v1-auto' }))).toBe(false)
     })
   })
 

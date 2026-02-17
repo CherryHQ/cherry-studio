@@ -120,10 +120,6 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
-  if (provider.id === 'moonshot') {
-    return modelId.startsWith('kimi-k2') || modelId === 'kimi-k2.5'
-  }
-
   return false
 }
 
