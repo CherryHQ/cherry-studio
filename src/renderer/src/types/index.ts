@@ -1000,6 +1000,10 @@ export interface MemoryConfig {
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */
   isAutoDimensions?: boolean
+  // Auto recall config
+  autoRecallEnabled?: boolean // Auto recall switch, default true
+  autoRecallLimit?: number // Max memories to return, default 5
+  highRelevanceThreshold?: number // High relevance threshold, default 0.8
 }
 
 export interface MemoryItem {
