@@ -1006,6 +1006,17 @@ export interface MemoryConfig {
   highRelevanceThreshold?: number // High relevance threshold, default 0.8
 }
 
+// User preference types for personalized responses
+export type TechnicalDepth = 'beginner' | 'intermediate' | 'expert'
+export type ResponseLength = 'concise' | 'balanced' | 'detailed'
+export type CodeStyle = 'minimal' | 'commented' | 'documented'
+
+export interface UserPreference {
+  type: 'technical_depth' | 'language' | 'response_length' | 'code_style'
+  value: string
+  source: string // Source memory ID
+}
+
 export interface MemoryItem {
   id: string
   memory: string
