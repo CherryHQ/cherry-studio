@@ -36,7 +36,11 @@ const defaultMemoryConfig: MemoryConfig = {
   embeddingDimensions: undefined,
   isAutoDimensions: true,
   customFactExtractionPrompt: factExtractionPrompt,
-  customUpdateMemoryPrompt: updateMemorySystemPrompt
+  customUpdateMemoryPrompt: updateMemorySystemPrompt,
+  // Auto recall defaults
+  autoRecallEnabled: true,
+  autoRecallLimit: 5,
+  highRelevanceThreshold: 0.8
 }
 
 /**
