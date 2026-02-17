@@ -1582,8 +1582,16 @@
       "message": "Localizează mesajul"
     },
     "search": {
+      "match": {
+        "substring": "Conține",
+        "whole_word": "Cuvânt întreg"
+      },
       "messages": "Caută în toate mesajele",
       "placeholder": "Caută subiecte sau mesaje...",
+      "sort": {
+        "newest": "Cele mai noi primele",
+        "oldest": "Cel mai vechi mai întâi"
+      },
       "topics": {
         "empty": "Nu s-au găsit subiecte, apasă Enter pentru a căuta în toate mesajele"
       }

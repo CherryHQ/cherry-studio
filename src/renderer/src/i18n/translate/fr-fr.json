@@ -1582,8 +1582,16 @@
       "message": "Localiser le message"
     },
     "search": {
+      "match": {
+        "substring": "Contient",
+        "whole_word": "Mot entier"
+      },
       "messages": "Rechercher tous les messages",
       "placeholder": "Rechercher un sujet ou un message...",
+      "sort": {
+        "newest": "Plus récent en premier",
+        "oldest": "Plus ancien en premier"
+      },
       "topics": {
         "empty": "Aucun sujet correspondant trouvé, appuyez sur Entrée pour rechercher tous les messages"
       }
