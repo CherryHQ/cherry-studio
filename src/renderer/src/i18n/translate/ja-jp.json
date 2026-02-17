@@ -1582,8 +1582,16 @@
       "message": "メッセージを探す"
     },
     "search": {
+      "match": {
+        "substring": "含む",
+        "whole_word": "単語全体"
+      },
       "messages": "すべてのメッセージを検索",
       "placeholder": "トピックまたはメッセージを検索...",
+      "sort": {
+        "newest": "最新のものから",
+        "oldest": "古いものから"
+      },
       "topics": {
         "empty": "トピックが見つかりませんでした。Enterキーを押してすべてのメッセージを検索"
       }

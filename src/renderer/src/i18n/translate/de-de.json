@@ -1582,8 +1582,16 @@
       "message": "Zu Nachricht navigieren"
     },
     "search": {
+      "match": {
+        "substring": "Enthält",
+        "whole_word": "Ganzes Wort"
+      },
       "messages": "Alle Nachrichten durchsuchen",
       "placeholder": "Themen oder Nachrichten suchen...",
+      "sort": {
+        "newest": "Neueste zuerst",
+        "oldest": "Älteste zuerst"
+      },
       "topics": {
         "empty": "Keine passenden Themen gefunden. Drücken Sie Enter, um alle Nachrichten zu durchsuchen"
       }
