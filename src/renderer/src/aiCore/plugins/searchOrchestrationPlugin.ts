@@ -17,14 +17,14 @@ import {
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import type { Assistant } from '@renderer/types'
+import type { Assistant, MemoryConfig, MemoryItem } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
 import type { LanguageModel, ModelMessage } from 'ai'
 import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
-import { MemoryProcessor } from '../../services/MemoryProcessor'
+import { MemoryProcessor, type MemoryProcessorConfig } from '../../services/MemoryProcessor'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
@@ -234,12 +234,51 @@ async function storeConversationMemory(
 }
 
 /**
+ * Auto recall memories and classify by relevance
+ */
+async function autoRecallMemories(
+  userMessage: string,
+  _assistant: Assistant,
+  config: MemoryProcessorConfig,
+  memoryConfig: MemoryConfig
+): Promise<{ highRelevance: MemoryItem[]; lowRelevance: MemoryItem[] }> {
+  // Check if auto recall is enabled
+  if (!memoryConfig.autoRecallEnabled) {
+    return { highRelevance: [], lowRelevance: [] }
+  }
+
+  try {
+    const memoryProcessor = new MemoryProcessor()
+    const memories = await memoryProcessor.searchRelevantMemories(
+      userMessage,
+      config,
+      memoryConfig.autoRecallLimit || 5
+    )
+
+    // Classify by relevance score
+    const threshold = memoryConfig.highRelevanceThreshold || 0.8
+    return {
+      highRelevance: memories.filter((m) => (m.score || 0) >= threshold),
+      lowRelevance: memories.filter((m) => (m.score || 0) < threshold)
+    }
+  } catch (error) {
+    logger.error('Auto recall failed:', error as Error)
+    return { highRelevance: [], lowRelevance: [] }
+  }
+}
+
+/**
  * 🎯 搜索编排插件
  */
 export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
+
+  // NEW: Store classified memories
+  const classifiedMemories: {
+    [requestId: string]: { highRelevance: MemoryItem[]; lowRelevance: MemoryItem[] }
+  } = {}
 
   return definePlugin({
     name: 'search-orchestration',
@@ -271,6 +310,27 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
+
+        // NEW: Auto recall memories if enabled
+        if (shouldMemorySearch) {
+          const memoryConfig = selectMemoryConfig(store.getState())
+          const currentUserId = selectCurrentUserId(store.getState())
+          const processorConfig = MemoryProcessor.getProcessorConfig(
+            memoryConfig,
+            assistant.id,
+            currentUserId,
+            context.requestId
+          )
+
+          const userMessageContent = getMessageContent(lastUserMessage) || ''
+          const classified = await autoRecallMemories(userMessageContent, assistant, processorConfig, memoryConfig)
+          classifiedMemories[context.requestId] = classified
+
+          logger.debug('Auto recalled memories:', {
+            high: classified.highRelevance.length,
+            low: classified.lowRelevance.length
+          })
+        }
 
         // 执行意图分析
         if (shouldWebSearch || shouldKnowledgeSearch) {
