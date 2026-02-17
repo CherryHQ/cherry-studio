@@ -115,6 +115,13 @@ const ListItem = styled.div`
   color: var(--color-text);
   font-size: 14px;
   line-height: 1;
+  cursor: pointer;
+  transition: all .2s ease;
+  padding: 4px 0 4px 6px;
+  &:hover {
+    background-color: var(--color-background-soft);
+    border-radius: 8px;
+  }
 `
 
 export default memo(ModelListItem)
