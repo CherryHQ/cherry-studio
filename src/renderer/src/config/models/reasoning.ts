@@ -389,7 +389,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (modelId.startsWith('qwen3')) {
+  if (modelId.startsWith('qwen3') || modelId.startsWith('qwen3.5')) {
     if (modelId.includes('thinking')) {
       return true
     }
@@ -418,7 +418,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  if (modelId.startsWith('qwen3')) {
+  if (modelId.startsWith('qwen3') || modelId.startsWith('qwen3.5')) {
     // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
     if (modelId.includes('instruct') || modelId.includes('thinking')) {
       return false
@@ -448,7 +448,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-flash-2025-07-28',
     'qwen3-max', // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
     'qwen3-max-2026-01-23',
-    'qwen3-max-preview'
+    'qwen3-max-preview',
+    'qwen3.5-plus',
+    'qwen3.5-plus-2026-02-15',
+    'qwen3.5-397b-a17b'
   ].includes(modelId)
 }
 
@@ -754,6 +757,9 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
+  // Qwen3.5 series (max thinking budget: 81920)
+  'qwen3\\.5-plus.*$': { min: 0, max: 81_920 },
+  'qwen3\\.5-397b-a17b$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)

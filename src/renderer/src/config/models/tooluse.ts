@@ -18,6 +18,7 @@ export const FUNCTION_CALLING_MODELS = [
   'claude',
   'qwen',
   'qwen3',
+  'qwen3\\.5',
   'hunyuan',
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
