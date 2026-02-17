@@ -1,3 +1,4 @@
+import type { MemoryItem } from '@types'
 import * as z from 'zod'
 
 // Define Zod schema for fact retrieval output
@@ -298,4 +299,22 @@ export function parseMessages(messages: string[]): string {
 
 export function removeCodeBlocks(text: string): string {
   return text.replace(/```[^`]*```/g, '')
+}
+
+export const memoryContextPrompt: string = `以下是与用户相关的记忆信息，请在回答时参考：
+
+{{ memoryItems }}
+
+注意事项：
+- 如果记忆与当前问题相关，请利用这些信息提供个性化回答
+- 如果记忆与当前问题无关，请忽略这些信息
+- 不要明确提及"根据记忆"或"我记得"，自然地使用信息即可`
+
+export function getMemoryContextPrompt(memories: MemoryItem[]): string {
+  if (memories.length === 0) {
+    return ''
+  }
+
+  const memoryText = memories.map((m, i) => `${i + 1}. ${m.memory}`).join('\n')
+  return memoryContextPrompt.replace('{{ memoryItems }}', memoryText)
 }
