@@ -219,13 +219,10 @@ describe('websearch helpers', () => {
       expect(isWebSearchModel(createModel({ id: 'gemini-2.0-flash-latest' }))).toBe(true)
     })
 
-    it('evaluates hunyuan/zhipu/dashscope/openrouter/grok providers', () => {
+    it('evaluates hunyuan/dashscope/openrouter/grok providers', () => {
       providerMock.mockReturnValueOnce(createProvider({ id: 'hunyuan' }))
       expect(isWebSearchModel(createModel({ id: 'hunyuan-pro' }))).toBe(true)
       expect(isWebSearchModel(createModel({ id: 'hunyuan-lite', provider: 'hunyuan' }))).toBe(false)
-
-      providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
-      expect(isWebSearchModel(createModel({ id: 'glm-4-air' }))).toBe(true)
 
       providerMock.mockReturnValueOnce(createProvider({ id: 'dashscope' }))
       expect(isWebSearchModel(createModel({ id: 'qwen-max-latest' }))).toBe(true)
@@ -235,6 +232,12 @@ describe('websearch helpers', () => {
 
       providerMock.mockReturnValueOnce(createProvider({ id: 'grok' }))
       expect(isWebSearchModel(createModel({ id: 'grok-2' }))).toBe(true)
+
+      // zhipu provider does not have built-in search capability
+      providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
+      expect(isWebSearchModel(createModel({ id: 'glm-4-air' }))).toBe(false)
+      providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
+      expect(isWebSearchModel(createModel({ id: 'glm-5' }))).toBe(false)
     })
   })
 

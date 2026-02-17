@@ -2280,13 +2280,26 @@ describe('isInterleavedThinkingModel', () => {
 
     it('should return false for other glm models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'glm-3.5' }))).toBe(false)
-      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'glm-zero-preview' }))).toBe(false)
     })
 
     it('should handle case insensitivity', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'GLM-4.5' }))).toBe(true)
       expect(isInterleavedThinkingModel(createModel({ id: 'Glm-4.6-Pro' }))).toBe(true)
+    })
+
+    it('should return true for glm-5', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5' }))).toBe(true)
+    })
+
+    it('should return true for glm-5 with suffixes', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5-pro' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5-lite' }))).toBe(true)
+    })
+
+    it('should return true for glm-5.x versions (future versions maintain same behavior)', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.0' }))).toBe(true)
+      expect(isInterleavedThinkingModel(createModel({ id: 'glm-5.1' }))).toBe(true)
     })
   })
 
