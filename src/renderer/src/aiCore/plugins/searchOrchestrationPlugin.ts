@@ -25,6 +25,7 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor, type MemoryProcessorConfig } from '../../services/MemoryProcessor'
+import { getMemoryContextPrompt } from '../../utils/memory-prompts'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
@@ -372,6 +373,18 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
           params.tools = {}
         }
 
+        // NEW: Inject high relevance memories to system prompt
+        const classified = classifiedMemories[context.requestId]
+        if (classified?.highRelevance.length > 0) {
+          const memoryContext = getMemoryContextPrompt(classified.highRelevance)
+          if (params.system) {
+            params.system = `${params.system}\n\n${memoryContext}`
+          } else {
+            params.system = memoryContext
+          }
+          logger.debug('Injected high relevance memories to system prompt')
+        }
+
         // 🌐 网络搜索工具配置
         if (analysisResult?.websearch && assistant.webSearchProviderId) {
           const needsSearch = analysisResult.websearch.question && analysisResult.websearch.question[0] !== 'not_needed'
@@ -415,8 +428,13 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 🧠 记忆搜索工具配置
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (globalMemoryEnabled && assistant.enableMemory) {
-          // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          // Only add tool if there are low relevance memories or if auto recall is disabled
+          const hasLowRelevance = classified?.lowRelevance.length > 0
+          const autoRecallDisabled = !selectMemoryConfig(store.getState()).autoRecallEnabled
+
+          if (hasLowRelevance || autoRecallDisabled) {
+            params.tools['builtin_memory_search'] = memorySearchTool()
+          }
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))
@@ -445,6 +463,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 清理缓存
         delete intentAnalysisResults[context.requestId]
         delete userMessages[context.requestId]
+        delete classifiedMemories[context.requestId]
       } catch (error) {
         logger.error('💾 Memory storage failed:', error as Error)
         // 不抛出错误，避免影响主流程
