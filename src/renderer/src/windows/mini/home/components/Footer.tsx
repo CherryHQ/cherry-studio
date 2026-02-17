@@ -64,6 +64,16 @@ const Footer: FC<FooterProps> = ({
                 : t('miniwindow.footer.esc_back')
           })}
         </Tag>
+        <Tag
+          bordered={false}
+          style={{ cursor: 'pointer' }}
+          className="nodrag"
+          onClick={() => {
+            window.api.openMainWindow()
+            window.api.miniWindow.hide()
+          }}>
+          打开主窗口
+        </Tag>
         {route === 'home' && !canUseBackspace && (
           <Tag
             bordered={false}
