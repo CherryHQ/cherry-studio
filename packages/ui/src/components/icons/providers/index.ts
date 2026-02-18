@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-18T14:51:12.448Z
- * Total icons: 113
+ * Generated at: 2026-02-18T15:38:09.856Z
+ * Total icons: 114
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { Ai21Icon as Ai21 } from './ai21'
@@ -72,7 +72,7 @@ export { MineruIcon as Mineru } from './mineru'
 export { MinimaxIcon as Minimax } from './minimax'
 export { MistralIcon as Mistral } from './mistral'
 export { MixedbreadIcon as Mixedbread } from './mixedbread'
-export { Mixedbread1Icon as Mixedbread1 } from './mixedbread1'
+export { ModelscopeIcon as Modelscope } from './modelscope'
 export { MoonshotIcon as Moonshot } from './moonshot'
 export { NeteaseYoudaoIcon as NeteaseYoudao } from './neteaseYoudao'
 export { NewapiIcon as Newapi } from './newapi'

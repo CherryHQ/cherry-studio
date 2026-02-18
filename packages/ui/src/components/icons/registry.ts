@@ -187,7 +187,8 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   stepfun: 'step',
   voyageai: 'voyage',
   gateway: 'vercel',
-  zhinao: 'xirang'
+  zhinao: 'xirang',
+  aionly: 'aiOnly'
 }
 
 /** Resolve a dedicated model icon by matching modelId against MODEL_ICON_PATTERNS */
@@ -212,11 +213,11 @@ export function resolveModelToProviderIcon(modelId: string): CompoundIcon | unde
   return undefined
 }
 
-/** Resolve a provider icon by provider ID (with alias support) */
+/** Resolve a provider icon by provider ID (with alias support, model icon fallback) */
 export function resolveProviderIcon(providerId: string): CompoundIcon | undefined {
   if (!providerId) return undefined
   const key = PROVIDER_ID_ALIASES[providerId] ?? providerId
-  return PROVIDER_ICON_CATALOG[key]
+  return PROVIDER_ICON_CATALOG[key] ?? MODEL_ICON_CATALOG[key]
 }
 
 /**
