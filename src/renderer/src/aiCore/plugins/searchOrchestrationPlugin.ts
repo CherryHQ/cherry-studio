@@ -25,7 +25,7 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor, type MemoryProcessorConfig } from '../../services/MemoryProcessor'
-import { getMemoryContextPrompt } from '../../utils/memory-prompts'
+import { getMemoryContextPrompt, getPersonalizationPrompt } from '../../utils/memory-prompts'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
@@ -373,16 +373,34 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
           params.tools = {}
         }
 
-        // NEW: Inject high relevance memories to system prompt
+        // Inject high relevance memories to system prompt
         const classified = classifiedMemories[context.requestId]
         if (classified?.highRelevance.length > 0) {
+          // Extract user preferences
+          const memoryProcessor = new MemoryProcessor()
+          const preferences = memoryProcessor.extractUserPreferences(classified.highRelevance)
+          const personalizationPrompt = getPersonalizationPrompt(preferences)
           const memoryContext = getMemoryContextPrompt(classified.highRelevance)
-          if (params.system) {
-            params.system = `${params.system}\n\n${memoryContext}`
-          } else {
-            params.system = memoryContext
+
+          // Build combined system prompt
+          let additionalContext = ''
+          if (personalizationPrompt) {
+            additionalContext += personalizationPrompt + '\n\n'
           }
-          logger.debug('Injected high relevance memories to system prompt')
+          if (memoryContext) {
+            additionalContext += memoryContext
+          }
+
+          if (params.system) {
+            params.system = `${params.system}\n\n${additionalContext}`
+          } else {
+            params.system = additionalContext
+          }
+
+          logger.debug('Injected memories and personalization to system prompt', {
+            memoryCount: classified.highRelevance.length,
+            preferenceCount: preferences.length
+          })
         }
 
         // 🌐 网络搜索工具配置
