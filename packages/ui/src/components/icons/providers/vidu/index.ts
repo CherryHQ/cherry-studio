@@ -7,7 +7,7 @@ export const ViduIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Vidu, {
   Color: Vidu,
   Mono: ViduMono,
   Avatar: ViduAvatar,
-  colorPrimary: '#000102'
+  colorPrimary: '#000000'
 })
 
 export default ViduIcon

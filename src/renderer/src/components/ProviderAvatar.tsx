@@ -2,7 +2,6 @@ import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar } from '@cherrystudio/ui'
 import { getProviderLogo } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
-import { cn } from '@renderer/utils'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
 
@@ -50,7 +49,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       <Avatar
         src={resolvedLogo}
         radius="full"
-        className={cn('border-[0.5px] border-(--color-border)', className)}
+        className={className}
         style={{ width: size, height: size, ...style }}
         imgProps={{ draggable: false }}
       />
@@ -64,7 +63,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   return (
     <Avatar
       radius="full"
-      className={cn('border-[0.5px] border-(--color-border)', className)}
+      className={className}
       style={{
         width: size,
         height: size,

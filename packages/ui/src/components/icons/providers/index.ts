@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-18T15:38:09.856Z
- * Total icons: 114
+ * Generated at: 2026-02-18T17:04:21.753Z
+ * Total icons: 113
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { Ai21Icon as Ai21 } from './ai21'
