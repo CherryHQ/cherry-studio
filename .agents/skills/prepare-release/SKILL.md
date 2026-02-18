@@ -9,7 +9,8 @@ Automate the Cherry Studio release workflow: collect changes → generate biling
 
 ## Arguments
 
-- First argument: version bump type or exact version (`patch`, `minor`, `major`, or `x.y.z`). Defaults to `patch`.
+- First argument: version bump type or exact version (`patch`, `minor`, `major`, or `x.y.z[-prerelease]`). Defaults to `patch`.
+  - Pre-release versions are supported: `1.8.0-beta.1`, `1.8.0-rc.1`, `1.8.0-alpha.1`, etc.
 - `--dry-run`: Preview only, do not create branch or PR.
 
 ## Workflow
@@ -23,7 +24,7 @@ Automate the Cherry Studio release workflow: collect changes → generate biling
 2. Read current version from `package.json`.
 3. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current tag version.
-   - `x.y.z`: use as-is after validating it is valid semver and greater than current.
+   - `x.y.z` or `x.y.z-pre.N`: use as-is after validating it is valid semver.
 
 ### Step 2: Collect Commits
 
