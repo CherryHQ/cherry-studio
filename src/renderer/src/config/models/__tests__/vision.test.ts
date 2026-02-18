@@ -319,6 +319,16 @@ describe('isVisionModel', () => {
       expect(isVisionModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
     })
   })
+
+  describe('Qwen Models', () => {
+    it('should return true for Qwen vision models', () => {
+      expect(isVisionModel(createModel({ id: 'qwen-vl-max' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3-vl' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-plus' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-plus-2026-02-15' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-397b-a17b' }))).toBe(true)
+    })
+  })
 })
 
 describe('Doubao Seed 2.0 Models', () => {
