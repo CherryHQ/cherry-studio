@@ -1,5 +1,5 @@
 import { cn } from '../../../../lib/utils'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Kimi } from './color'
 
 export function KimiAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

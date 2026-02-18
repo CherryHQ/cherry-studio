@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { PoeAvatar } from './avatar'
 import { Poe } from './color'
 import { PoeMono } from './mono'
@@ -9,4 +9,5 @@ export const PoeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Poe, {
   Avatar: PoeAvatar,
   colorPrimary: '#000000'
 })
+
 export default PoeIcon

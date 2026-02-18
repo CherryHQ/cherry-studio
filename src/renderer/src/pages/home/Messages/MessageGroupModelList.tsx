@@ -91,15 +91,23 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
               return (
                 <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
-                  <Avatar
-                    src={getModelLogo(message.model)}
-                    name={first(message.model?.name)}
-                    size="xs"
-                    isBordered={isSelected}
-                    color={isSelected ? 'primary' : 'default'}
-                    onClick={() => setSelectedMessage(message)}
-                    className="shadow-lg"
-                  />
+                  {(() => {
+                    const Icon = getModelLogo(message.model)
+                    return Icon ? (
+                      <div onClick={() => setSelectedMessage(message)} className="cursor-pointer">
+                        <Icon.Avatar size={24} className={isSelected ? 'shadow-lg ring-2 ring-primary' : 'shadow-lg'} />
+                      </div>
+                    ) : (
+                      <Avatar
+                        name={first(message.model?.name)}
+                        size="xs"
+                        isBordered={isSelected}
+                        color={isSelected ? 'primary' : 'default'}
+                        onClick={() => setSelectedMessage(message)}
+                        className="shadow-lg"
+                      />
+                    )
+                  })()}
                 </Tooltip>
               )
             })}

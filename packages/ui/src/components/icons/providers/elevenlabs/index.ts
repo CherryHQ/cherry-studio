@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { ElevenlabsAvatar } from './avatar'
 import { Elevenlabs } from './color'
 import { ElevenlabsMono } from './mono'
@@ -9,4 +9,5 @@ export const ElevenlabsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Elevenla
   Avatar: ElevenlabsAvatar,
   colorPrimary: '#000000'
 })
+
 export default ElevenlabsIcon

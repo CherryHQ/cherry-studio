@@ -23,8 +23,8 @@ interface MessageLineProps {
   messages: Message[]
 }
 
-const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return AppLogo
+const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
+  if (isLocalAi) return undefined
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -202,7 +202,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
-          const avatarSource = getAvatarSource(isLocalAi, getMessageModelId(message))
+          const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
           const content = getMainTextContent(message)
 
@@ -225,15 +225,19 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                <MessageItemAvatar
-                  src={avatarSource}
-                  style={{
-                    width: size,
-                    height: size,
-                    border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-                    filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                  }}
-                />
+                ModelIcon ? (
+                  <ModelIcon.Avatar size={size} />
+                ) : (
+                  <MessageItemAvatar
+                    src={isLocalAi ? AppLogo : undefined}
+                    style={{
+                      width: size,
+                      height: size,
+                      border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                      filter: theme === 'dark' ? 'invert(0.05)' : undefined
+                    }}
+                  />
+                )
               ) : (
                 <>
                   {isEmoji(avatar) ? (

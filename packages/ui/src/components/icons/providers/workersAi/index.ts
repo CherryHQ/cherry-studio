@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { WorkersAiAvatar } from './avatar'
 import { WorkersAi } from './color'
 import { WorkersAiMono } from './mono'
@@ -9,4 +9,5 @@ export const WorkersAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(WorkersAi
   Avatar: WorkersAiAvatar,
   colorPrimary: '#F38020'
 })
+
 export default WorkersAiIcon

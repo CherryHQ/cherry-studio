@@ -125,11 +125,10 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
             <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
-        icon: (
-          <Avatar src={getModelLogo(model)} size="xs">
-            {first(model.name) || 'M'}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogo(model)
+          return Icon ? <Icon.Avatar size={20} /> : <Avatar size="xs">{first(model.name) || 'M'}</Avatar>
+        })(),
         model,
         isPinned,
         isSelected: modelId === currentModelId

@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { Gpt51CodexMiniAvatar } from './avatar'
 import { Gpt51CodexMini } from './color'
 import { Gpt51CodexMiniMono } from './mono'
@@ -9,4 +9,5 @@ export const Gpt51CodexMiniIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt5
   Avatar: Gpt51CodexMiniAvatar,
   colorPrimary: '#F0B5CD'
 })
+
 export default Gpt51CodexMiniIcon

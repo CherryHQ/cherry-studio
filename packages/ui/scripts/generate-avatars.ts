@@ -20,6 +20,7 @@ import { type Config, optimize } from 'svgo'
 import {
   generateAvatar as codegenAvatar,
   generateBarrelIndex as codegenBarrelIndex,
+  generateCatalog as codegenCatalog,
   generateIconIndex as codegenIconIndex
 } from './codegen'
 import {
@@ -297,6 +298,19 @@ function main() {
   }
 
   generateBarrelIndex(baseDir, iconDirs)
+
+  // Generate catalog.ts for runtime icon lookup
+  const catalogName = iconType === 'models' ? 'MODEL_ICON_CATALOG' : 'PROVIDER_ICON_CATALOG'
+  const catalogEntries = iconDirs.map((dirName) => ({
+    dirName,
+    colorName: getComponentName(baseDir, dirName)
+  }))
+  codegenCatalog({
+    outPath: path.join(baseDir, 'catalog.ts'),
+    entries: catalogEntries,
+    catalogName
+  })
+  console.log(`Generated catalog.ts (${catalogName}) with ${catalogEntries.length} entries`)
 
   console.log(
     `\nDone! Generated ${fullBleedCount + paddedCount} avatar components (${fullBleedCount} full-bleed, ${paddedCount} padded)`

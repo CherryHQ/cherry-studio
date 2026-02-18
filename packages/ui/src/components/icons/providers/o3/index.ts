@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { O3Avatar } from './avatar'
 import { O3 } from './color'
 import { O3Mono } from './mono'
@@ -9,4 +9,5 @@ export const O3Icon: CompoundIcon = /*#__PURE__*/ Object.assign(O3, {
   Avatar: O3Avatar,
   colorPrimary: '#F5F6FC'
 })
+
 export default O3Icon

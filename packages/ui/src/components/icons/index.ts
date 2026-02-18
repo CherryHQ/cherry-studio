@@ -10,5 +10,8 @@
 
 export * from './general'
 export * as ModelIcons from './models'
+export { MODEL_ICON_CATALOG } from './models/catalog'
 export * from './providers'
+export { PROVIDER_ICON_CATALOG } from './providers/catalog'
+export { resolveIcon, resolveModelIcon, resolveModelToProviderIcon, resolveProviderIcon } from './registry'
 export * from './types'

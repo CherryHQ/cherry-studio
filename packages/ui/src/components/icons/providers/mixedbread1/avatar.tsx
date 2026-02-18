@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils'
 import { Avatar } from '../../../primitives/Avatar'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Mixedbread1 } from './color'
 
 export function Mixedbread1Avatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

@@ -1,4 +1,4 @@
-import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -402,11 +402,10 @@ const CodeToolsPage: FC = () => {
                                     gap: 4
                                   }}
                                   to={`/settings/provider?id=${provider.id}`}>
-                                  <Avatar
-                                    radius="md"
-                                    src={getProviderLogo(provider.id)}
-                                    className="h-5 w-5 rounded-md"
-                                  />
+                                  {(() => {
+                                    const Icon = getProviderLogo(provider.id)
+                                    return Icon ? <Icon.Avatar size={20} /> : null
+                                  })()}
                                   {getProviderLabel(provider.id)}
                                   <ArrowUpRight size={14} />
                                 </Link>

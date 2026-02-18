@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { TesseractJsAvatar } from './avatar'
 import { TesseractJs } from './color'
 import { TesseractJsMono } from './mono'
@@ -9,4 +9,5 @@ export const TesseractJsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Tessera
   Avatar: TesseractJsAvatar,
   colorPrimary: '#1866C0'
 })
+
 export default TesseractJsIcon

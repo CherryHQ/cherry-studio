@@ -1,5 +1,5 @@
 import { cn } from '../../../../lib/utils'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Ai302 } from './color'
 
 export function Ai302Avatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

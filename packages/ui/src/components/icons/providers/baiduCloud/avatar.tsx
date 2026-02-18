@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils'
 import { Avatar } from '../../../primitives/Avatar'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { BaiduCloud } from './color'
 
 export function BaiduCloudAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

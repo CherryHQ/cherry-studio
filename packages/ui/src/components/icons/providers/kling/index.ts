@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { KlingAvatar } from './avatar'
 import { Kling } from './color'
 import { KlingMono } from './mono'
@@ -9,4 +9,5 @@ export const KlingIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Kling, {
   Avatar: KlingAvatar,
   colorPrimary: '#41D741'
 })
+
 export default KlingIcon

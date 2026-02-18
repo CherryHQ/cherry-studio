@@ -16,7 +16,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Avatar, Input, InputNumber, Select, Slider } from 'antd'
+import { Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -498,12 +498,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   target="_blank"
                   href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
                   {t('paintings.learn_more')}
-                  <ProviderLogo
-                    shape="square"
-                    src={getProviderLogo(ovmsProvider.id)}
-                    size={16}
-                    style={{ marginLeft: 5 }}
-                  />
+                  {(() => {
+                    const Icon = getProviderLogo(ovmsProvider.id)
+                    return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                  })()}
                 </SettingHelpLink>
               </ProviderTitleContainer>
 
@@ -514,7 +512,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {providerOptions.map((provider) => (
                   <Select.Option value={provider.value} key={provider.value}>
                     <SelectOptionContainer>
-                      <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                      {(() => {
+                        const Icon = getProviderLogo(provider.value || '')
+                        return Icon ? <Icon.Avatar size={16} /> : null
+                      })()}
                       {provider.label}
                     </SelectOptionContainer>
                   </Select.Option>
@@ -669,10 +670,6 @@ const SliderContainer = styled.div`
 
 const StyledInputNumber = styled(InputNumber)`
   width: 70px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ProviderTitleContainer = styled.div`

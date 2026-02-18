@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { PalmAvatar } from './avatar'
 import { Palm } from './color'
 import { PalmMono } from './mono'
@@ -9,4 +9,5 @@ export const PalmIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Palm, {
   Avatar: PalmAvatar,
   colorPrimary: '#FEFEFE'
 })
+
 export default PalmIcon

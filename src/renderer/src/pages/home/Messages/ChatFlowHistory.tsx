@@ -90,8 +90,8 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     if (data.modelInfo) {
       avatar = <ModelAvatar model={data.modelInfo} size={32} />
     } else if (data.modelId) {
-      const modelLogo = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
-      avatar = <Avatar src={modelLogo} icon={!modelLogo ? <RobotOutlined /> : undefined} className="bg-primary" />
+      const ModelIcon = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
+      avatar = ModelIcon ? <ModelIcon.Avatar size={32} /> : <Avatar icon={<RobotOutlined />} className="bg-primary" />
     } else {
       avatar = <Avatar icon={<RobotOutlined />} className="bg-primary" />
     }

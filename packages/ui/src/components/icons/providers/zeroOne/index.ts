@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { ZeroOneAvatar } from './avatar'
 import { ZeroOne } from './color'
 import { ZeroOneMono } from './mono'
@@ -9,4 +9,5 @@ export const ZeroOneIcon: CompoundIcon = /*#__PURE__*/ Object.assign(ZeroOne, {
   Avatar: ZeroOneAvatar,
   colorPrimary: '#133426'
 })
+
 export default ZeroOneIcon

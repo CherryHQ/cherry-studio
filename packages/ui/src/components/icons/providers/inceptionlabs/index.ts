@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { InceptionlabsAvatar } from './avatar'
 import { Inceptionlabs } from './color'
 import { InceptionlabsMono } from './mono'
@@ -9,4 +9,5 @@ export const InceptionlabsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Incep
   Avatar: InceptionlabsAvatar,
   colorPrimary: '#FDFDFD'
 })
+
 export default InceptionlabsIcon

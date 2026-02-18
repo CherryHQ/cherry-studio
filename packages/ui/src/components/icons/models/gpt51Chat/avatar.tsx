@@ -1,5 +1,5 @@
 import { cn } from '../../../../lib/utils'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Gpt51Chat } from './color'
 
 export function Gpt51ChatAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

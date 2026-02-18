@@ -1,5 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -807,7 +807,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo radius="md" src={getProviderLogo(dmxapiProvider.id)} className="ml-1" />
+              {(() => {
+                const Icon = getProviderLogo(dmxapiProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
+              })()}
             </div>
           </ProviderTitleContainer>
           <ProviderSelect
@@ -1016,10 +1019,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ContentContainer = styled.div`

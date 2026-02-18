@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { PerplexityAvatar } from './avatar'
 import { Perplexity } from './color'
 import { PerplexityMono } from './mono'
@@ -9,4 +9,5 @@ export const PerplexityIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Perplexi
   Avatar: PerplexityAvatar,
   colorPrimary: '#20808D'
 })
+
 export default PerplexityIcon

@@ -33,8 +33,8 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return AppLogo
+const getAvatarIcon = (isLocalAi: boolean, modelId: string | undefined) => {
+  if (isLocalAi) return undefined
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -55,7 +55,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
+  const ModelIcon = useMemo(() => getAvatarIcon(isLocalAi, getMessageModelId(message)), [message])
 
   const getUserName = useCallback(() => {
     if (isLocalAi && message.role !== 'user') {
@@ -94,18 +94,24 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   return (
     <Container className="message-header">
       {isAssistantMessage ? (
-        <Avatar
-          src={avatarSource}
-          className="h-[35px] w-[35px]"
-          style={{
-            borderRadius: '25%',
-            cursor: showMinappIcon ? 'pointer' : 'default',
-            border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-            filter: theme === 'dark' ? 'invert(0.05)' : undefined
-          }}
-          onClick={showMiniApp}>
-          {avatarName}
-        </Avatar>
+        ModelIcon ? (
+          <div onClick={showMiniApp} className="cursor-pointer">
+            <ModelIcon.Avatar size={35} className="rounded-[25%]" />
+          </div>
+        ) : (
+          <Avatar
+            src={isLocalAi ? AppLogo : undefined}
+            className="h-[35px] w-[35px]"
+            style={{
+              borderRadius: '25%',
+              cursor: showMinappIcon ? 'pointer' : 'default',
+              border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+              filter: theme === 'dark' ? 'invert(0.05)' : undefined
+            }}
+            onClick={showMiniApp}>
+            {avatarName}
+          </Avatar>
+        )
       ) : (
         <>
           {isEmoji(avatar) ? (

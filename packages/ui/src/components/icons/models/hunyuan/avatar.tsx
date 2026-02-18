@@ -1,5 +1,5 @@
 import { cn } from '../../../../lib/utils'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Hunyuan } from './color'
 
 export function HunyuanAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

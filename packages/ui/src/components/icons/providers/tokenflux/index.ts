@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { TokenfluxAvatar } from './avatar'
 import { Tokenflux } from './color'
 import { TokenfluxMono } from './mono'
@@ -9,4 +9,5 @@ export const TokenfluxIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Tokenflux
   Avatar: TokenfluxAvatar,
   colorPrimary: '#FEFEFE'
 })
+
 export default TokenfluxIcon

@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { MixedbreadAvatar } from './avatar'
 import { Mixedbread } from './color'
 import { MixedbreadMono } from './mono'
@@ -9,4 +9,5 @@ export const MixedbreadIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Mixedbre
   Avatar: MixedbreadAvatar,
   colorPrimary: '#EC6168'
 })
+
 export default MixedbreadIcon

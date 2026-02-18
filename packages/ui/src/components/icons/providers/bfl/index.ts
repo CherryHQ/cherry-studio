@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { BflAvatar } from './avatar'
 import { Bfl } from './color'
 import { BflMono } from './mono'
@@ -9,4 +9,5 @@ export const BflIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Bfl, {
   Avatar: BflAvatar,
   colorPrimary: '#000000'
 })
+
 export default BflIcon

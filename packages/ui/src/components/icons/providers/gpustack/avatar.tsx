@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils'
 import { Avatar } from '../../../primitives/Avatar'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Gpustack } from './color'
 
 export function GpustackAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { MimoAvatar } from './avatar'
 import { Mimo } from './color'
 import { MimoMono } from './mono'
@@ -9,4 +9,5 @@ export const MimoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Mimo, {
   Avatar: MimoAvatar,
   colorPrimary: '#000000'
 })
+
 export default MimoIcon

@@ -197,11 +197,10 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
           boxShadow: 'none'
         }}
         fileInfo={{
-          icon: (
-            <Avatar src={getModelLogo(model)} size="sm">
-              {model?.name?.[0]?.toUpperCase()}
-            </Avatar>
-          ),
+          icon: (() => {
+            const Icon = getModelLogo(model)
+            return Icon ? <Icon.Avatar size={28} /> : <Avatar size="sm">{model?.name?.[0]?.toUpperCase()}</Avatar>
+          })(),
           name: <ModelIdWithTags model={model} />,
           extra: model.description && <ExpandableText text={model.description} />,
           ext: '.model',

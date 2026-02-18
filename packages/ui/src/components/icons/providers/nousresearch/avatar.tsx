@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils'
 import { Avatar } from '../../../primitives/Avatar'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Nousresearch } from './color'
 
 export function NousresearchAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

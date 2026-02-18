@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { BochaAvatar } from './avatar'
 import { Bocha } from './color'
 import { BochaMono } from './mono'
@@ -9,4 +9,5 @@ export const BochaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Bocha, {
   Avatar: BochaAvatar,
   colorPrimary: '#A5CCFF'
 })
+
 export default BochaIcon

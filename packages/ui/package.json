@@ -109,7 +109,7 @@
     "react-dom": "^19.0.0",
     "storybook": "^10.0.5",
     "styled-components": "^6.1.15",
-    "svgo": "^4.0.0",
+    "svgo": "^3.3.2",
     "ts-morph": "^27.0.2",
     "tsdown": "^0.15.5",
     "tsx": "^4.20.6",

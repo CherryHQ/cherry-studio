@@ -1,6 +1,6 @@
 import { cn } from '../../../../lib/utils'
 import { Avatar } from '../../../primitives/Avatar'
-import type { IconAvatarProps } from '../../types'
+import { type IconAvatarProps } from '../../types'
 import { Lanyun } from './color'
 
 export function LanyunAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {

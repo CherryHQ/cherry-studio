@@ -1,4 +1,4 @@
-import type { CompoundIcon } from '../../types'
+import { type CompoundIcon } from '../../types'
 import { CherryinAvatar } from './avatar'
 import { Cherryin } from './color'
 import { CherryinMono } from './mono'
@@ -9,4 +9,5 @@ export const CherryinIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Cherryin, 
   Avatar: CherryinAvatar,
   colorPrimary: '#FF5F5F'
 })
+
 export default CherryinIcon
