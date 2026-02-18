@@ -9,8 +9,13 @@ Automate the Cherry Studio release workflow: collect changes → generate biling
 
 ## Arguments
 
-- First argument: version bump type or exact version (`patch`, `minor`, `major`, or `x.y.z[-prerelease]`). Defaults to `patch`.
-  - Pre-release versions are supported: `1.8.0-beta.1`, `1.8.0-rc.1`, `1.8.0-alpha.1`, etc.
+Parse the version intent from the user's message. Accept any of these forms:
+- Bump type keyword: `patch`, `minor`, `major`
+- Exact version: `x.y.z` or `x.y.z-pre.N` (e.g. `1.8.0`, `1.8.0-beta.1`, `1.8.0-rc.1`)
+- Natural language: "prepare a beta release", "bump to 1.8.0-rc.2", etc.
+
+Defaults to `patch` if no version is specified. Always echo the resolved target version back to the user before proceeding with any file edits.
+
 - `--dry-run`: Preview only, do not create branch or PR.
 
 ## Workflow
@@ -119,7 +124,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git commit -m "chore: release v{version}"
    git push -u origin release/v{version}
    ```
-2. Create the PR using the `gh-create-pr` skill. If the skill tool is unavailable, read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
+2. Create the PR using the `gh-create-pr` skill. If the skill tool is unavailable, read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually. In CI (non-interactive) mode, skip interactive confirmation steps and create the PR directly after filling the template.
    - Use title: `chore: release v{version}`
    - Use base branch: `main`
    - When filling the PR template, incorporate:
