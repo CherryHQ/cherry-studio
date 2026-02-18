@@ -118,8 +118,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(81 76)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.6}
       d="M0 0 C3.4 1.46 5.56 3.29 8.06 6 C8.73 6.7 9.41 7.4 10.1 8.12 C15.61 16.46 15.33 25.45 15.19 35.12 C15.16 37.54 15.13 39.96 15.11 42.45 C15.07 44.28 15.04 46.11 15 48 C11.53 48.49 11.53 48.49 8 49 C8 48.34 8 47.68 8 47 C5.14 46.32 5.14 46.32 2 46 C1.01 46.66 0.02 47.32 -1 48 C-1 46.68 -1 45.36 -1 44 C0.48 43.51 0.48 43.51 2 43 C3.19 39.97 3.1 36.98 3.06 33.75 C3.05 32.86 3.04 31.97 3.04 31.05 C3.02 30.37 3.01 29.7 3 29 C3.99 28.67 4.98 28.34 6 28 C5.73 26.73 5.73 26.73 5.45 25.43 C3.63 16.95 1.82 8.48 0 0 Z"
       transform="translate(113 5)"
     />
@@ -277,8 +277,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(7.313 14.875)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C6.25 0.48 6.25 0.48 9.06 2.43 C11.95 6.25 12.64 10.18 13.75 14.81 C14.18 16.55 14.61 18.29 15.05 20.08 C15.86 24.27 16.42 27.77 16 32 C13.5 34.44 13.5 34.44 11 36 C10.87 35.29 10.73 34.58 10.6 33.85 C10.33 32.47 10.33 32.47 10.06 31.06 C9.89 30.15 9.71 29.23 9.54 28.29 C9.22 26.05 9.22 26.05 8 25 C7.5 21.02 7.1 17.04 6.7 13.05 C5.79 7.75 4.14 3.55 0 0 Z"
       transform="translate(103 1)"
     />
@@ -433,8 +433,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(76 6)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C3 2.98 3 4.96 3 7 C3.99 7 4.98 7 6 7 C6.12 7.8 6.25 8.61 6.38 9.44 C6.58 10.28 6.79 11.13 7 12 C7.66 12.33 8.32 12.66 9 13 C8.72 13.96 8.72 13.96 8.44 14.94 C8.22 15.96 8.22 15.96 8 17 C8.33 17.33 8.66 17.66 9 18 C9.66 17.34 10.32 16.68 11 16 C11.66 16.66 12.32 17.32 13 18 C12.98 20.16 12.98 20.16 12.62 22.62 C12.46 23.85 12.46 23.85 12.29 25.1 C12.15 26.04 12.15 26.04 12 27 C10.68 27.33 9.36 27.66 8 28 C4.31 18.9 2.11 9.57 0 0 Z"
       transform="translate(113 5)"
     />
@@ -577,8 +577,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(116 36)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C4.35 4.89 4.35 4.89 5.62 9.81 C6.05 11.43 6.48 13.04 6.91 14.71 C8.27 20.05 9.11 24.49 9 30 C8.01 30.33 7.02 30.66 6 31 C5.48 28.27 5.48 28.27 4.94 25.49 C4.49 23.12 4.03 20.75 3.56 18.31 C2.88 14.78 2.88 14.78 2.19 11.18 C1.47 7.45 0.74 3.72 0 0 Z"
       transform="translate(110 3)"
     />
@@ -589,8 +589,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(91 103)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.46}
       d="M0 0 C2 3 2 3 2 5 C2.66 5 3.32 5 4 5 C5.61 6.11 5.61 6.11 7 8 C7.29 10.92 7.29 10.92 7.19 14.19 C7.15 15.82 7.15 15.82 7.11 17.48 C7.05 18.73 7.05 18.73 7 20 C4.69 20.33 2.38 20.66 0 21 C1.33 18.33 2.67 15.67 4 13 C3.35 12.61 2.69 12.22 2.02 11.82 C0 10 0 10 -0.39 7.52 C-0.34 6.63 -0.3 5.73 -0.25 4.81 C-0.21 3.91 -0.18 3.01 -0.14 2.08 C-0.07 1.05 -0.07 1.05 0 0 Z"
       transform="translate(121 33)"
     />
@@ -685,8 +685,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(40 93)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.85}
       d="M0 0 C1.32 0 2.64 0 4 0 C4.94 3.79 4.98 6.94 4.56 10.81 C4.46 11.79 4.36 12.76 4.25 13.77 C4.13 14.87 4.13 14.87 4 16 C2.68 16 1.36 16 0 16 C0 10.72 0 5.44 0 0 Z"
       transform="translate(33 85)"
     />
@@ -727,8 +727,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(27 41)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.85}
       d="M0 0 C1.32 0 2.64 0 4 0 C4 5.28 4 10.56 4 16 C2.68 16 1.36 16 0 16 C0 10.72 0 5.44 0 0 Z"
       transform="translate(87 85)"
     />
@@ -858,8 +858,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(39 88)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.55}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C3 2.98 3 4.96 3 7 C3.99 7 4.98 7 6 7 C6.33 12.61 6.66 18.22 7 24 C4.15 19.72 3.53 15.31 2.38 10.31 C1.71 7.43 1.71 7.43 1.02 4.49 C0.69 3.01 0.35 1.53 0 0 Z"
       transform="translate(113 5)"
     />
@@ -1067,8 +1067,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(34 39)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C2 2 2 2 2.2 4.38 C2.17 5.29 2.15 6.19 2.12 7.12 C2.11 8.04 2.09 8.95 2.07 9.88 C2.05 10.58 2.02 11.28 2 12 C0 12 0 12 -1.69 10.81 C-3 9 -3 9 -2.69 6.31 C-2.35 5.17 -2.35 5.17 -2 4 C-1.34 4 -0.68 4 0 4 C0 2.68 0 1.36 0 0 Z"
       transform="translate(119 29)"
     />
@@ -1139,8 +1139,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(104 34)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.53}
       d="M0 0 C0 2.97 0 5.94 0 9 C-0.99 8.67 -1.98 8.34 -3 8 C-3 7.34 -3 6.68 -3 6 C-3.66 6 -4.32 6 -5 6 C-5.33 4.68 -5.66 3.36 -6 2 C-1.12 0 -1.12 0 0 0 Z"
       transform="translate(128 32)"
     />
@@ -1642,8 +1642,8 @@ const Gpt5MiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(30 97)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.81}
       d="M0 0 C1.66 0 3 1.34 3 2 C3 3.66 1.66 5 0 5 C-1.11 5 -2 4.11 -2 2 C-2 0.89 -1.11 0 0 0 Z"
       transform="translate(63 79)"
     />

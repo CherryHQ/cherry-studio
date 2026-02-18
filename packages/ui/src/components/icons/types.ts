@@ -5,10 +5,11 @@ export interface IconComponent {
   (props: SVGProps<SVGSVGElement>): React.JSX.Element
 }
 
-/** Compound icon with .Color and .Mono sub-components */
+/** Compound icon with .Color, .Mono, and .Avatar sub-components */
 export interface CompoundIcon extends IconComponent {
   Color: IconComponent
   Mono: IconComponent
+  Avatar: React.FC<Omit<IconAvatarProps, 'icon'>>
   colorPrimary: string
 }
 
@@ -18,6 +19,8 @@ export interface IconMeta {
   id: string
   /** Primary brand color hex. e.g. "#000000" */
   colorPrimary: string
+  /** Whether the source SVG is monochrome or colorful. Monochrome icons use currentColor in color.tsx. */
+  colorScheme?: 'mono' | 'color'
 }
 
 /** Generated catalog entry: metadata + component reference */

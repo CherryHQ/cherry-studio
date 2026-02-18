@@ -10,7 +10,6 @@
  *   // pass bg.plugin in svgoConfig.plugins
  *   // after transform: bg.getBackgroundFill()
  */
-
 import {
   colorToLuminance,
   isLargeShape,
@@ -19,14 +18,16 @@ import {
   parseSvgPathBounds,
   parseViewBox
 } from './svg-utils'
+import type { CustomPlugin, XastChild, XastElement, XastParent, XastRoot } from './types'
 
-const xast = require('svgo/lib/xast')
-const detachNodeFromParent: (node: any, parent: any) => void = xast.detachNodeFromParent
+const { detachNodeFromParent } = require('svgo/lib/xast') as {
+  detachNodeFromParent: (node: XastChild, parentNode: XastParent) => void
+}
 
 /** Regex patterns for rounded-rect path commands ([\d.]+ to handle decimal coords like 4.99999). */
 const ROUNDED_RECT_PATTERNS = [
-  /^M[\d.]+[\s,]+0H[\d.]+C/, // M18 0H6C... or M19 0H4.99999C...
-  /^M0[\s,]+[\d.]+C/, // M0 6C...
+  /^M[\d.]+[\s,]+0H[\d.]+[CA]/, // M18 0H6C... or M19.503 0H4.496A... (cubic/arc rounded corners)
+  /^M0[\s,]+[\d.]+[CA]/, // M0 6C... or M0 6A...
   /^M0[\s,]+0[HVhv]/, // M0 0H...
   /^M[\d.]+[\s,]+[\d.]+H[\d.]+V[\d.]+H[\d.]+V[\d.]+Z?$/i // Simple rect
 ]
@@ -41,8 +42,8 @@ function pathCommandCount(d: string): number {
 }
 
 interface PathInfo {
-  node: any
-  parent: any
+  node: XastElement
+  parent: XastElement
   d: string
   area: number
   fill: string
@@ -64,9 +65,9 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
   const plugin = {
     name: 'removeBackground',
-    fn: (root: any) => {
+    fn: (root: XastRoot) => {
       // Pre-scan: find <svg> element and extract viewBox
-      let svgNode: any = null
+      let svgNode: XastElement | null = null
       for (const child of root.children) {
         if (child.type === 'element' && child.name === 'svg') {
           svgNode = child
@@ -80,22 +81,22 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       // Collect gradient definitions for resolving url(#id) fills
       const gradients = new Map<string, string>()
-      function collectGradients(node: any) {
-        const children = node.children || []
+      function collectGradients(node: XastElement) {
+        const children = node.children
         for (const child of children) {
           if (child.type !== 'element') continue
           if (child.name === 'linearGradient' || child.name === 'radialGradient') {
-            const id = child.attributes?.id
+            const id = child.attributes.id
             if (id) {
-              const stops = (child.children || []).filter((s: any) => s.type === 'element' && s.name === 'stop')
+              const stops = child.children.filter((s): s is XastElement => s.type === 'element' && s.name === 'stop')
               if (stops.length > 0) {
                 // Use first stop color as representative brand color
-                const color = stops[0].attributes?.['stop-color']
+                const color = stops[0].attributes['stop-color']
                 if (color) gradients.set(id, color)
               }
             }
           }
-          if (child.children?.length > 0) collectGradients(child)
+          if (child.children.length > 0) collectGradients(child)
         }
       }
       collectGradients(svgNode)
@@ -108,10 +109,17 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       // Collect all <path> and <rect> info in document order
       const paths: PathInfo[] = []
-      const rects: { node: any; parent: any; w: number; h: number; fill: string; resolvedFill: string }[] = []
+      const rects: {
+        node: XastElement
+        parent: XastElement
+        w: number
+        h: number
+        fill: string
+        resolvedFill: string
+      }[] = []
 
-      function collectElements(node: any) {
-        const children = node.children || []
+      function collectElements(node: XastElement) {
+        const children = node.children
         for (const child of children) {
           if (child.type !== 'element') continue
 
@@ -173,7 +181,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
       collectElements(svgNode)
 
       // Helper: mark background detected, optionally remove from AST
-      function markBackground(node: any, parent: any, fill: string | null) {
+      function markBackground(node: XastElement, parent: XastElement, fill: string | null) {
         if (fill) backgroundFill = fill
         if (!detectOnly) detachNodeFromParent(node, parent)
         removed = true
@@ -241,7 +249,20 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
         if (hasNearWhiteFg && paths.length >= 2) {
           const first = paths[0]
+          // Check that remaining paths are all light / white (true vectorized bg pattern).
+          // If there are distinctly colored (low-luminance) paths among the remaining, the first
+          // path is likely part of the icon design (e.g. aihubmix circle + white cutout + blue smile),
+          // not a background.
+          const remainingPaths = paths.slice(1)
+          const hasColoredForeground = remainingPaths.some((p) => {
+            const fill = p.resolvedFill || p.fill
+            if (!fill || fill === 'none' || isWhiteFill(fill)) return false
+            const lum = colorToLuminance(fill)
+            return lum >= 0 && lum < 0.7
+          })
+
           if (
+            !hasColoredForeground &&
             first.area >= vbArea * 0.85 &&
             first.lum >= 0 &&
             first.lum < 0.5 &&
@@ -265,7 +286,7 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       return {}
     }
-  }
+  } satisfies CustomPlugin
 
   return {
     plugin,

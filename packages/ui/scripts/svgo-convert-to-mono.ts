@@ -11,9 +11,11 @@
  */
 
 import { colorToLuminance, isWhiteFill, parseSvgPathBounds, parseViewBox } from './svg-utils'
+import type { CustomPlugin, XastChild, XastElement, XastParent, XastRoot } from './types'
 
-const monoXast = require('svgo/lib/xast')
-const detachNode: (node: any, parent: any) => void = monoXast.detachNodeFromParent
+const { detachNodeFromParent } = require('svgo/lib/xast') as {
+  detachNodeFromParent: (node: XastChild, parentNode: XastParent) => void
+}
 
 interface ConvertToMonoOptions {
   /** Was a dark background removed upstream? If true, white fills become currentColor. */
@@ -46,8 +48,6 @@ function computeOpacityMap(colorLuminances: Map<string, number>, whiteIsFg: bool
   const range = maxL - minL
   const effectiveRange = Math.max(range, 0.2)
 
-  // Use a larger gap for narrow luminance ranges to keep layers distinguishable
-  // (e.g. Hunyuan with 5 blue shades spanning a narrow luminance band)
   const effectiveGap = range < 0.2 ? 0.12 : MIN_GAP
 
   // Sort by opacity (darkest → highest)
@@ -78,9 +78,9 @@ function computeOpacityMap(colorLuminances: Map<string, number>, whiteIsFg: bool
 export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
   const plugin = {
     name: 'convertToMono',
-    fn: (root: any) => {
+    fn: (root: XastRoot) => {
       // Find <svg> element
-      let svgNode: any = null
+      let svgNode: XastElement | null = null
       for (const child of root.children) {
         if (child.type === 'element' && child.name === 'svg') {
           svgNode = child
@@ -88,46 +88,42 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
         }
       }
       if (!svgNode) return {}
+      const maskElements = new Map<string, XastElement>()
 
-      // Phase 0: Replace mask-based groups with mask shape paths.
-      // Icons like Jimeng use <mask> to clip oversized geometry into a star shape.
-      // Without the mask, the geometry fills the entire viewBox as a solid square.
-      // We extract the mask's shape paths and use them as the mono content instead.
-      const maskElements = new Map<string, any>()
-
-      function collectMaskDefs(node: any) {
-        for (const child of node.children || []) {
+      function collectMaskDefs(node: XastElement) {
+        for (const child of node.children) {
           if (child.type !== 'element') continue
-          if (child.name === 'mask' && child.attributes?.id) {
+          if (child.name === 'mask' && child.attributes.id) {
             maskElements.set(child.attributes.id, child)
           }
-          if (child.children?.length > 0) collectMaskDefs(child)
+          if (child.children.length > 0) collectMaskDefs(child)
         }
       }
 
-      function replaceMaskedGroups(node: any, viewBoxArea: number) {
-        for (const child of node.children || []) {
+      function replaceMaskedGroups(node: XastElement, viewBoxArea: number) {
+        for (const child of node.children) {
           if (child.type !== 'element') continue
 
-          if (child.attributes?.mask) {
+          if (child.attributes.mask) {
             const maskMatch = child.attributes.mask.match(/url\(#([^)]+)\)/)
             if (maskMatch) {
               const maskEl = maskElements.get(maskMatch[1])
               if (maskEl) {
-                const shapePaths = (maskEl.children || []).filter(
-                  (c: any) => c.type === 'element' && ['path', 'rect', 'circle', 'ellipse'].includes(c.name)
+                const shapePaths = maskEl.children.filter(
+                  (c): c is XastElement =>
+                    c.type === 'element' && ['path', 'rect', 'circle', 'ellipse'].includes(c.name)
                 )
 
                 // Check if mask is a no-op (full viewBox rect) — if so, skip replacement.
                 // A no-op mask doesn't define a shape, it just clips to the viewBox.
-                const isNoopMask = shapePaths.every((sp: any) => {
+                const isNoopMask = shapePaths.every((sp) => {
                   if (sp.name === 'rect') {
-                    const w = parseFloat(sp.attributes?.width || '0')
-                    const h = parseFloat(sp.attributes?.height || '0')
+                    const w = parseFloat(sp.attributes.width || '0')
+                    const h = parseFloat(sp.attributes.height || '0')
                     return w * h >= viewBoxArea * 0.9
                   }
                   if (sp.name === 'path') {
-                    const d = sp.attributes?.d || ''
+                    const d = sp.attributes.d || ''
                     const bounds = parseSvgPathBounds(d)
                     if (!isFinite(bounds.minX)) return false
                     const area = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
@@ -138,7 +134,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
                 if (!isNoopMask && shapePaths.length > 0) {
                   // Replace group content with cloned mask shape paths
-                  child.children = shapePaths.map((sp: any) => {
+                  child.children = shapePaths.map((sp): XastElement => {
                     const attrs = { ...sp.attributes }
                     delete attrs.style // Remove mask-type:luminance etc.
                     return { type: 'element', name: sp.name, attributes: attrs, children: [] }
@@ -149,20 +145,20 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
             delete child.attributes.mask
           }
 
-          if (child.children?.length > 0) replaceMaskedGroups(child, viewBoxArea)
+          if (child.children.length > 0) replaceMaskedGroups(child, viewBoxArea)
         }
       }
 
-      function removeMaskElements(node: any) {
-        const children = node.children || []
+      function removeMaskElements(node: XastElement) {
+        const children = node.children
         for (let i = children.length - 1; i >= 0; i--) {
           const child = children[i]
           if (child.type !== 'element') continue
           if (child.name === 'mask') {
-            detachNode(child, node)
+            detachNodeFromParent(child, node)
             continue
           }
-          if (child.children?.length > 0) removeMaskElements(child)
+          if (child.children.length > 0) removeMaskElements(child)
         }
       }
 
@@ -178,15 +174,15 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       const colorLuminances = new Map<string, number>()
       const whiteColors = new Set<string>()
 
-      function collectColors(node: any) {
-        const children = node.children || []
+      function collectColors(node: XastElement) {
+        const children = node.children
         for (const child of children) {
           if (child.type !== 'element') continue
 
           // Skip elements inside <defs>
           if (child.name === 'defs') continue
 
-          const fill = child.attributes?.fill
+          const fill = child.attributes.fill
           if (fill && fill !== 'none' && fill !== 'currentColor' && !fill.startsWith('url(')) {
             if (isWhiteFill(fill)) {
               whiteColors.add(fill)
@@ -198,13 +194,60 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
             }
           }
 
-          if (child.children && child.children.length > 0) {
+          if (child.children.length > 0) {
             collectColors(child)
           }
         }
       }
 
       collectColors(svgNode)
+
+      // Phase 1.5: Container detection — when a large first shape covers most of
+      // the viewBox, lighter overlapping shapes should use white to create contrast.
+      // Without this, all paths become currentColor and details are invisible.
+      // (e.g. Hunyuan: blue circle with lighter blue/gray details inside)
+      let containerLum = -1
+
+      if (colorLuminances.size >= 2) {
+        const vb = parseViewBox(svgNode.attributes)
+        const vbArea = vb.w * vb.h
+
+        // Find first visible path element (skip defs)
+        function findFirstPath(node: XastElement): XastElement | null {
+          for (const child of node.children) {
+            if (child.type !== 'element') continue
+            if (child.name === 'defs') continue
+            if (child.name === 'path' && child.attributes.d && child.attributes.fill) {
+              return child
+            }
+            const found = findFirstPath(child)
+            if (found) return found
+          }
+          return null
+        }
+
+        const firstPath = findFirstPath(svgNode)
+        if (firstPath) {
+          const fill = firstPath.attributes.fill
+          if (fill && !isWhiteFill(fill) && fill !== 'none' && !fill.startsWith('url(')) {
+            const d = firstPath.attributes.d
+            const bounds = parseSvgPathBounds(d)
+            if (isFinite(bounds.minX)) {
+              const tx = (firstPath.attributes.transform || '').match(/translate\((-?[\d.]+)[,\s]+(-?[\d.]+)\)/)
+              if (tx) {
+                bounds.minX += parseFloat(tx[1]) || 0
+                bounds.maxX += parseFloat(tx[1]) || 0
+                bounds.minY += parseFloat(tx[2]) || 0
+                bounds.maxY += parseFloat(tx[2]) || 0
+              }
+              const area = (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)
+              if (area >= vbArea * 0.6) {
+                containerLum = colorToLuminance(fill)
+              }
+            }
+          }
+        }
+      }
 
       // Determine if white fills are foreground or cutouts
       const whiteIsFg = options.backgroundWasDark === true || (colorLuminances.size === 0 && whiteColors.size > 0)
@@ -213,8 +256,8 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       const opacityMap = computeOpacityMap(colorLuminances, whiteIsFg)
 
       // Phase 2: Walk tree and transform fill attributes
-      function transformNode(node: any) {
-        const children = node.children || []
+      function transformNode(node: XastElement) {
+        const children = node.children
         // Iterate backwards for safe detachment
         for (let i = children.length - 1; i >= 0; i--) {
           const child = children[i]
@@ -222,26 +265,35 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
           // Remove <defs>, <clipPath> elements
           if (child.name === 'defs' || child.name === 'clipPath') {
-            detachNode(child, node)
+            detachNodeFromParent(child, node)
             continue
           }
 
           // Remove clipPath/filter/mask attributes
-          if (child.attributes) {
-            delete child.attributes['clip-path']
-            delete child.attributes.filter
-            delete child.attributes.mask
+          delete child.attributes['clip-path']
+          delete child.attributes.filter
+          delete child.attributes.mask
 
-            // Remove existing fill-opacity (we'll set our own)
-            delete child.attributes['fill-opacity']
+          // Remove existing fill-opacity (we'll set our own)
+          delete child.attributes['fill-opacity']
 
-            // Replace fill values
-            const fill = child.attributes.fill
-            if (fill && fill !== 'none' && fill !== 'currentColor') {
-              if (fill.startsWith('url(')) {
-                child.attributes.fill = 'currentColor'
-              } else if (isWhiteFill(fill)) {
-                child.attributes.fill = whiteIsFg ? 'currentColor' : 'var(--color-background, white)'
+          // Replace fill values
+          const fill = child.attributes.fill
+          if (fill && fill !== 'none' && fill !== 'currentColor') {
+            if (fill.startsWith('url(')) {
+              child.attributes.fill = 'currentColor'
+            } else if (isWhiteFill(fill)) {
+              child.attributes.fill = whiteIsFg ? 'currentColor' : 'var(--color-background, white)'
+            } else {
+              const fillLum = colorToLuminance(fill)
+              // When a container shape exists, lighter overlapping paths become
+              // white overlays to create contrast (e.g. Hunyuan detail shapes).
+              if (containerLum >= 0 && fillLum >= 0 && fillLum - containerLum >= 0.15) {
+                child.attributes.fill = 'var(--color-background, white)'
+                const whiteOpacity = Math.min(0.9, (fillLum - containerLum) / (1 - containerLum + 0.01))
+                if (whiteOpacity < 0.99) {
+                  child.attributes['fill-opacity'] = Math.max(MIN_OPACITY, whiteOpacity).toFixed(2)
+                }
               } else {
                 const opacity = opacityMap.get(fill)
                 child.attributes.fill = 'currentColor'
@@ -253,7 +305,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           }
 
           // Recurse into children
-          if (child.children && child.children.length > 0) {
+          if (child.children.length > 0) {
             transformNode(child)
           }
         }
@@ -263,7 +315,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
 
       return {}
     }
-  }
+  } satisfies CustomPlugin
 
   return { plugin }
 }

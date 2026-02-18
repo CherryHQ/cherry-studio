@@ -45,8 +45,8 @@ const DmxapiMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(19 9)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C4.75 0.75 4.75 0.75 7 3 C7 3.99 7 4.98 7 6 C6.34 6 5.68 6 5 6 C5 5.34 5 4.68 5 4 C4.360625 3.71125 3.72125 3.4225 3.0625 3.125 C1 2 1 2 0 0 Z"
       transform="translate(19 5)"
     />

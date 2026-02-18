@@ -11,7 +11,7 @@ const Longcat: IconComponent = (props: SVGProps<SVGSVGElement>) => (
         clipRule="evenodd"
       />
       <path
-        fill="#000"
+        fill="currentColor"
         d="M9.21289 16.8431H10.7329V13.2971H9.44289L9.21289 16.8431ZM14.7859 16.8431H13.2659V13.2971H14.5559L14.7859 16.8431Z"
       />
     </g>

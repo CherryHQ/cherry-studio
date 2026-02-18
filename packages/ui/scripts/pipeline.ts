@@ -131,6 +131,10 @@ async function main() {
     {
       name: 'Mono',
       args: ['scripts/generate-mono-icons.ts', `--type=${dir}`]
+    },
+    {
+      name: 'Avatars',
+      args: ['scripts/generate-avatars.ts', `--type=${dir}`]
     }
   ]
 

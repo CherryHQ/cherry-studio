@@ -22,8 +22,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(90 26)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.46}
       d="M0 0 C5.99 0.01 11.98 0.02 18.14 0.03 C22.78 0.04 27.41 0.05 32.19 0.06 C32.19 1.05 32.19 2.04 32.19 3.06 C29.56 4.91 27.24 6.05 24.19 7.06 C23.86 8.05 23.53 9.04 23.19 10.06 C22.2 10.06 21.21 10.06 20.19 10.06 C19.9 10.64 19.61 11.22 19.31 11.81 C18.76 12.93 18.76 12.93 18.19 14.06 C17.96 14.76 17.73 15.46 17.5 16.19 C15.42 19.16 12.59 19.31 9.19 20.06 C9.19 21.05 9.19 22.04 9.19 23.06 C8.2 23.39 7.21 23.72 6.19 24.06 C5.86 24.72 5.53 25.38 5.19 26.06 C3.54 26.72 1.89 27.38 0.19 28.06 C5.8 28.39 11.41 28.72 17.19 29.06 C17.19 30.71 17.19 32.36 17.19 34.06 C11.58 34.06 5.97 34.06 0.19 34.06 C0.19 36.37 0.19 38.68 0.19 41.06 C-0.31 43.5 -0.31 43.5 -0.81 45.06 C0.18 44.4 1.17 43.74 2.19 43.06 C6.47 42.44 10.16 42.61 14.12 44.38 C16.65 46.44 18.06 48.08 18.49 51.37 C18.53 60.24 18.53 60.24 15.19 64.06 C10.52 66.97 5.5 66.7 0.19 66.06 C-2.94 64.38 -2.94 64.38 -4.81 62.06 C-5.62 59.31 -5.62 59.31 -5.81 57.06 C-1.14 57.69 -1.14 57.69 0.53 59.59 C2.83 61.63 4.35 61.37 7.38 61.25 C8.28 61.22 9.18 61.2 10.11 61.17 C10.79 61.13 11.48 61.1 12.19 61.06 C12.44 59.46 12.66 57.86 12.88 56.25 C13 55.36 13.13 54.46 13.26 53.54 C13.41 51.04 13.41 51.04 11.96 49.26 C8.91 47.19 5.73 47.48 2.19 48.06 C0.5 49.5 0.5 49.5 -0.81 51.06 C-2.46 51.06 -4.11 51.06 -5.81 51.06 C-5.81 47.43 -5.81 43.8 -5.81 40.06 C-6.8 39.73 -7.79 39.4 -8.81 39.06 C-8.81 39.72 -8.81 40.38 -8.81 41.06 C-13.5 43.55 -16.76 42.92 -21.81 42.06 C-20.82 41.73 -19.83 41.4 -18.81 41.06 C-18.81 39.74 -18.81 38.42 -18.81 37.06 C-22.44 37.06 -26.07 37.06 -29.81 37.06 C-29.57 35.45 -29.57 35.45 -29.31 33.81 C-28.72 30.03 -28.72 30.03 -28.81 26.06 C-29.47 26.06 -30.13 26.06 -30.81 26.06 C-32.73 23.18 -34.31 20.18 -35.81 17.06 C-36.55 17.25 -37.3 17.43 -38.06 17.62 C-40.76 18.05 -42.26 17.91 -44.81 17.06 C-45.14 17.72 -45.47 18.38 -45.81 19.06 C-48.78 18.73 -51.75 18.4 -54.81 18.06 C-54.05 11.87 -50.46 8.91 -45.81 5.06 C-32.43 -3.52 -15.07 -0.03 0 0 Z"
       transform="translate(58.813 -.063)"
     />
@@ -52,8 +52,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(95 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C4.78 0.01 9.56 0.02 14.49 0.03 C18.18 0.04 21.88 0.05 25.69 0.06 C25.69 0.72 25.69 1.38 25.69 2.06 C25.03 2.06 24.37 2.06 23.69 2.06 C23.36 3.71 23.03 5.36 22.69 7.06 C21.04 7.39 19.39 7.72 17.69 8.06 C17.69 8.72 17.69 9.38 17.69 10.06 C13.87 11.26 10.43 12.13 6.44 12.44 C2.66 12.67 2.66 12.67 0.81 15.12 C0.44 15.76 0.07 16.4 -0.31 17.06 C-0.97 17.06 -1.63 17.06 -2.31 17.06 C-2.58 17.66 -2.85 18.26 -3.12 18.88 C-5.16 22.63 -5.16 22.63 -7.31 24.06 C-12.17 24.38 -16.53 24.02 -21.31 23.06 C-21.51 21.04 -21.7 19.03 -21.9 17.01 C-22.18 14.84 -22.18 14.84 -24.31 13.06 C-26.3 12.66 -28.3 12.32 -30.31 12.06 C-30.31 12.72 -30.31 13.38 -30.31 14.06 C-33.27 16.81 -34.09 17.06 -38.31 17.06 C-38.64 17.72 -38.97 18.38 -39.31 19.06 C-42.28 18.73 -45.25 18.4 -48.31 18.06 C-47.55 11.87 -43.96 8.91 -39.31 5.06 C-27.54 -2.49 -13.46 -0.03 0 0 Z"
       transform="translate(52.313 -.063)"
     />
@@ -70,8 +70,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(124 96)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.48}
       d="M0 0 C3.35 0.95 6.69 1.9 10 3 C10.33 2.01 10.66 1.02 11 0 C11.72 0.19 12.44 0.37 13.19 0.56 C16.13 1.02 18.14 0.74 21 0 C21.29 0.78 21.58 1.57 21.88 2.38 C22.85 5.1 22.85 5.1 25 7 C25 7.99 25 8.98 25 10 C25.66 10 26.32 10 27 10 C27.66 11.32 28.32 12.64 29 14 C28.34 14 27.68 14 27 14 C27 14.99 27 15.98 27 17 C26.13 17.34 26.13 17.34 25.25 17.69 C22.79 18.94 22.79 18.94 20.94 21.62 C20.3 22.41 19.66 23.19 19 24 C18.01 24 17.02 24 16 24 C15.88 24.95 15.75 25.9 15.62 26.88 C15 30 15 30 13 32 C13.33 32.99 13.66 33.98 14 35 C12.92 34.97 12.92 34.97 11.81 34.94 C9.03 34.92 9.03 34.92 6.5 35.5 C3.94 36.01 1.61 36.07 -1 36 C-1 36.99 -1 37.98 -1 39 C-1.66 39 -2.32 39 -3 39 C-3.08 34.38 -3.14 29.75 -3.19 25.12 C-3.22 22.55 -3.26 19.97 -3.29 17.32 C-3.03 10.86 -2.21 6.02 0 0 Z"
       transform="translate(3 16)"
     />
@@ -94,8 +94,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(14 80)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C1.98 0 3.96 0 6 0 C4.56 3.36 2.75 5.59 0 8 C-0.66 8 -1.32 8 -2 8 C-2 8.66 -2 9.32 -2 10 C-2.66 10 -3.32 10 -4 10 C-4 10.66 -4 11.32 -4 12 C-4.66 12 -5.32 12 -6 12 C-6.66 13.98 -7.32 15.96 -8 18 C-9.65 18.33 -11.3 18.66 -13 19 C-13 19.66 -13 20.32 -13 21 C-14.32 21 -15.64 21 -17 21 C-17 21.66 -17 22.32 -17 23 C-20.03 23.63 -20.03 23.63 -23.05 24.27 C-25.37 24.92 -25.37 24.92 -27 28 C-27.66 28 -28.32 28 -29 28 C-29 28.66 -29 29.32 -29 30 C-40.96 31.95 -40.96 31.95 -45.94 29.62 C-46.62 29.09 -47.3 28.55 -48 28 C-48 27.34 -48 26.68 -48 26 C-48.66 26 -49.32 26 -50 26 C-51.92 23.12 -53.5 20.11 -55 17 C-56.65 17.33 -58.3 17.66 -60 18 C-59.34 16.68 -58.68 15.36 -58 14 C-57.34 14 -56.68 14 -56 14 C-56 13.34 -56 12.68 -56 12 C-50.67 11.64 -50.67 11.64 -48.12 13 C-46.3 16.25 -46.82 19.31 -47 23 C-38.77 23.99 -38.77 23.99 -31.13 21.84 C-29.71 20.09 -29.71 20.09 -28 17 C-25.03 13.39 -23.78 12.15 -19.12 11.25 C-17.75 11.16 -16.38 11.08 -15 11 C-13.66 10.83 -12.33 10.64 -11 10.44 C-10.01 10.29 -9.02 10.15 -8 10 C-8 9.34 -8 8.68 -8 8 C-7.2 7.75 -6.39 7.5 -5.56 7.25 C-2.83 6.28 -2.83 6.28 -2.19 3.88 C-2.09 2.95 -2.09 2.95 -2 2 C-1.34 2 -0.68 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(78)"
     />
@@ -112,8 +112,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(90 8)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C0.33 0.99 0.66 1.98 1 3 C1.66 3 2.32 3 3 3 C3 2.34 3 1.68 3 1 C6.69 1.71 9.78 3.07 13 5 C13.88 7.19 13.88 7.19 14 9 C15.11 8.96 16.23 8.92 17.38 8.88 C21 9 21 9 23 11 C23 12.32 23 13.64 23 15 C23.66 15.33 24.32 15.66 25 16 C25.64 16.52 26.28 17.03 26.94 17.56 C28.99 19.29 28.99 19.29 32 19 C33.71 20.62 35.37 22.29 37 24 C38.32 25.02 39.65 26.02 41 27 C18.95 27.74 18.95 27.74 9.62 19.69 C3.2 13.42 0.4 8.96 0 0 Z"
       transform="translate(1 101)"
     />
@@ -147,8 +147,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(56 30)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C13.2 0 26.4 0 40 0 C33.82 6.18 32.15 6.15 23.95 6.62 C21.11 6.99 19.38 7.44 17 9 C16.5 9.82 16.01 10.65 15.5 11.5 C13.81 14.31 13.1 15.05 10 16 C6.38 16.25 6.38 16.25 3 16 C1 14 1 14 0 0 Z"
       transform="translate(36)"
     />
@@ -159,8 +159,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(39 45)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.42}
       d="M0 0 C1.11 0.34 1.11 0.34 2.25 0.69 C4.04 6.05 3.34 11.77 3.31 17.38 C3.3 19.85 3.29 22.33 3.29 24.89 C3.27 26.8 3.26 28.72 3.25 30.69 C2.26 31.02 1.27 31.35 0.25 31.69 C-0.08 31.03 -0.41 30.37 -0.75 29.69 C-1.74 29.36 -2.73 29.03 -3.75 28.69 C-4.25 26.21 -4.25 26.21 -4.75 23.69 C-5.74 23.36 -6.73 23.03 -7.75 22.69 C-7.83 21.9 -7.92 21.12 -8 20.31 C-8.25 19.45 -8.5 18.58 -8.75 17.69 C-9.41 17.38 -10.07 17.07 -10.75 16.75 C-11.74 16.22 -11.74 16.22 -12.75 15.69 C-13.5 12.56 -13.5 12.56 -13.75 9.69 C-12.76 9.36 -11.77 9.03 -10.75 8.69 C-10.75 7.04 -10.75 5.39 -10.75 3.69 C-10.17 3.58 -9.59 3.48 -9 3.38 C-6.65 2.82 -6.65 2.82 -4.81 1.06 C-2.75 -0.31 -2.75 -0.31 0 0 Z"
       transform="translate(124.75 31.313)"
     />
@@ -207,8 +207,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(96 57)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C0.33 1.32 0.66 2.64 1 4 C2.26 3.81 3.52 3.63 4.81 3.44 C7.83 2.99 9 3 12 4 C12 5.32 12 6.64 12 8 C10.35 8.33 8.7 8.66 7 9 C6.51 7.52 6.51 7.52 6 6 C3.08 5.75 3.08 5.75 0 6 C-0.99 7.48 -0.99 7.48 -2 9 C-2.66 9 -3.32 9 -4 9 C-4.1 9.87 -4.21 10.73 -4.31 11.62 C-5.03 15.17 -6.27 17.84 -8 21 C-10.64 21 -13.28 21 -16 21 C-16 21.66 -16 22.32 -16 23 C-16.66 23 -17.32 23 -18 23 C-18.33 24.65 -18.66 26.3 -19 28 C-25.15 28.88 -25.15 28.88 -27 29 C-28 28 -28 28 -28.06 24.94 C-28.04 23.97 -28.02 23 -28 22 C-27.34 22 -26.68 22 -26 22 C-26 21.01 -26 20.02 -26 19 C-21.37 17.96 -16.71 17.48 -12 17 C-12.33 16.01 -12.66 15.02 -13 14 C-12.01 13.67 -11.02 13.34 -10 13 C-10.33 11.68 -10.66 10.36 -11 9 C-10.34 9 -9.68 9 -9 9 C-9 8.34 -9 7.68 -9 7 C-8.01 7 -7.02 7 -6 7 C-5.67 6.01 -5.34 5.02 -5 4 C-4.34 4 -3.68 4 -3 4 C-2.67 3.01 -2.34 2.02 -2 1 C-1.34 0.67 -0.68 0.34 0 0 Z"
       transform="translate(28 33)"
     />
@@ -231,8 +231,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(3 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C0.52 3.62 1.03 7.24 1.5 10.88 C1.66 13.86 1.66 13.86 3 15 C6.84 15.14 10.32 15.18 14 14 C14 16 14 16 12.44 18.06 C9.21 20.63 7.11 21.07 3 21 C-0.03 18.21 -1.09 15.9 -2 12 C-2.52 11.48 -3.03 10.97 -3.56 10.44 C-4.04 9.96 -4.51 9.49 -5 9 C-5 8.01 -5 7.02 -5 6 C-5.66 6 -6.32 6 -7 6 C-7 5.34 -7 4.68 -7 4 C-7.78 4.5 -8.57 4.99 -9.38 5.5 C-12 7 -12 7 -14 7 C-14 7.66 -14 8.32 -14 9 C-15.62 9.22 -17.25 9.43 -18.88 9.62 C-19.78 9.74 -20.68 9.86 -21.62 9.98 C-22.4 9.98 -23.19 9.99 -24 10 C-24.66 9.34 -25.32 8.68 -26 8 C-17.53 0.84 -10.94 -0.4 0 0 Z"
       transform="translate(36)"
     />
@@ -243,8 +243,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(91)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C3.62 -0.19 3.62 -0.19 7 0 C7 0.99 7 1.98 7 3 C4.37 4.85 2.05 5.98 -1 7 C-1.33 7.99 -1.66 8.98 -2 10 C-2.99 10 -3.98 10 -5 10 C-5.29 10.58 -5.58 11.15 -5.88 11.75 C-6.25 12.49 -6.62 13.23 -7 14 C-7.23 14.7 -7.45 15.4 -7.69 16.12 C-9.77 19.09 -12.59 19.24 -16 20 C-16 20.99 -16 21.98 -16 23 C-16.99 23.33 -17.98 23.66 -19 24 C-19.33 24.66 -19.66 25.32 -20 26 C-21.65 26.66 -23.3 27.32 -25 28 C-19.39 28.33 -13.78 28.66 -8 29 C-8 29.33 -8 29.66 -8 30 C-14.6 30 -21.2 30 -28 30 C-28 31.65 -28 33.3 -28 35 C-29.5 33.62 -29.5 33.62 -31 32 C-31 31.34 -31 30.68 -31 30 C-31.66 29.67 -32.32 29.34 -33 29 C-32.34 29 -31.68 29 -31 29 C-31.33 27.68 -31.66 26.36 -32 25 C-28.63 23.5 -26.8 23 -23 23 C-23 22.34 -23 21.68 -23 21 C-21.68 21 -20.36 21 -19 21 C-19 20.34 -19 19.68 -19 19 C-18.22 18.77 -17.43 18.55 -16.62 18.31 C-13.78 17.22 -13.78 17.22 -12.69 14.38 C-12.35 13.2 -12.35 13.2 -12 12 C-11.34 12 -10.68 12 -10 12 C-10 11.34 -10 10.68 -10 10 C-9.34 10 -8.68 10 -8 10 C-8 9.34 -8 8.68 -8 8 C-6.52 6.75 -5.04 5.5 -3.51 4.32 C-1.73 2.88 -1.73 2.88 0 0 Z"
       transform="translate(84)"
     />
@@ -260,8 +260,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(80 50)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.49}
       d="M0 0 C1.94 0.88 1.94 0.88 3.94 3.88 C6.5 4.6 6.5 4.6 8.94 4.88 C8.94 6.53 8.94 8.17 8.94 9.88 C9.87 10.02 10.79 10.16 11.75 10.31 C14.94 10.88 14.94 10.88 17.94 11.88 C17.94 12.53 17.94 13.19 17.94 13.88 C18.93 14.2 19.92 14.53 20.94 14.88 C20.94 15.53 20.94 16.19 20.94 16.88 C21.93 16.88 22.92 16.88 23.94 16.88 C23.94 17.53 23.94 18.19 23.94 18.88 C14.99 19.46 8.23 17.4 1.44 11.44 C-1.42 8.76 -3.54 6.5 -5.06 2.88 C-2.63 -0.16 -2.63 -0.16 0 0 Z"
       transform="translate(9.063 109.125)"
     />
@@ -301,8 +301,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(106 50)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0 0.66 0 1.32 0 2 C0.66 2 1.32 2 2 2 C2 3.98 2 5.96 2 8 C1.34 8 0.68 8 0 8 C0 7.34 0 6.68 0 6 C-3.82 6.98 -5.8 7.8 -8.62 10.62 C-9.41 11.41 -10.19 12.19 -11 13 C-12.32 13 -13.64 13 -15 13 C-15.33 13.66 -15.66 14.32 -16 15 C-18.97 14.67 -21.94 14.34 -25 14 C-24.67 11.01 -24.2 9.26 -22.38 6.84 C-19.2 4.38 -17.22 4.59 -13.25 4.75 C-12.08 4.79 -10.91 4.82 -9.7 4.86 C-8.81 4.91 -7.92 4.95 -7 5 C-7 4.34 -7 3.68 -7 3 C-2.62 0 -2.62 0 0 0 Z"
       transform="translate(29 4)"
     />
@@ -313,14 +313,14 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(102 105)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C-0.33 0.99 -0.66 1.98 -1 3 C-1.99 3.33 -2.98 3.66 -4 4 C-4.45 4.64 -4.91 5.27 -5.38 5.93 C-7.37 8.47 -8.99 9.09 -12 10.19 C-13.3 10.67 -13.3 10.67 -14.62 11.17 C-16.41 11.79 -18.2 12.4 -20 13 C-20.33 13.99 -20.66 14.98 -21 16 C-21.33 15.34 -21.66 14.68 -22 14 C-22.59 14.16 -23.18 14.31 -23.79 14.47 C-32.01 16.5 -32.01 16.5 -36 15 C-36.33 14.34 -36.66 13.68 -37 13 C-35.79 13.1 -35.79 13.1 -34.55 13.21 C-31.28 13.38 -28.25 13.41 -25 13 C-21.93 10.44 -21.93 10.44 -20 7 C-17.15 3.53 -15.37 1.78 -10.94 1.25 C-8.99 1.13 -8.99 1.13 -7 1 C-4.4 0.37 -2.72 0 0 0 Z"
       transform="translate(70 10)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C9.57 0 19.14 0 29 0 C25.45 1.78 23.08 2.49 19.25 3.12 C18.27 3.29 17.28 3.46 16.27 3.63 C15.52 3.75 14.77 3.88 14 4 C14 4.66 14 5.32 14 6 C11.01 8.37 8.97 9.92 5.12 10.25 C4.42 10.17 3.72 10.09 3 10 C0 3.37 0 3.37 0 0 Z"
       transform="translate(41)"
     />
@@ -397,8 +397,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(90 26)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C1.98 0 3.96 0 6 0 C6.33 1.32 6.66 2.64 7 4 C7.99 3.67 8.98 3.34 10 3 C9.34 5.31 8.68 7.62 8 10 C7.01 10 6.02 10 5 10 C5.23 10.76 5.45 11.53 5.69 12.31 C6 15 6 15 4.69 16.81 C3 18 3 18 1 18 C1 18.99 1 19.98 1 21 C0.34 21 -0.32 21 -1 21 C-1.05 18.75 -1.09 16.5 -1.12 14.25 C-1.15 13 -1.17 11.74 -1.2 10.45 C-1.01 7.17 -0.5 5.79 1 3 C0.67 2.01 0.34 1.02 0 0 Z"
       transform="translate(1 34)"
     />
@@ -437,8 +437,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(95 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0.66 0 1.32 0 2 0 C2 0.66 2 1.32 2 2 C1.34 2 0.68 2 0 2 C-0.33 3.65 -0.66 5.3 -1 7 C-2.65 7.33 -4.3 7.66 -6 8 C-6 8.66 -6 9.32 -6 10 C-12.07 12.16 -17.59 12.21 -24 12 C-24 12.66 -24 13.32 -24 14 C-24.66 14 -25.32 14 -26 14 C-25.08 10.9 -24.42 9.31 -21.79 7.36 C-18.66 5.83 -16.52 5.64 -13.06 5.56 C-7.24 5.23 -4.15 4.15 0 0 Z"
       transform="translate(76)"
     />
@@ -473,8 +473,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(90 8)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.42}
       d="M0 0 C0.33 1.32 0.66 2.64 1 4 C2.26 3.81 3.52 3.63 4.81 3.44 C7.83 2.99 9 3 12 4 C12 5.32 12 6.64 12 8 C10.35 8.33 8.7 8.66 7 9 C6.67 8.01 6.34 7.02 6 6 C3.08 5.75 3.08 5.75 0 6 C-0.99 7.48 -0.99 7.48 -2 9 C-2.66 9 -3.32 9 -4 9 C-4.1 9.87 -4.21 10.73 -4.31 11.62 C-5.03 15.17 -6.27 17.84 -8 21 C-9.98 21 -11.96 21 -14 21 C-13.67 20.34 -13.34 19.68 -13 19 C-11.68 19 -10.36 19 -9 19 C-8.88 18.36 -8.75 17.72 -8.62 17.06 C-8.42 16.05 -8.21 15.04 -8 14 C-7.87 13.24 -7.73 12.48 -7.59 11.7 C-7.44 10.89 -7.28 10.08 -7.12 9.25 C-6.98 8.47 -6.84 7.69 -6.7 6.89 C-6.47 6.27 -6.24 5.64 -6 5 C-5.01 4.67 -4.02 4.34 -3 4 C-2.67 3.01 -2.34 2.02 -2 1 C-1.34 0.67 -0.68 0.34 0 0 Z"
       transform="translate(28 33)"
     />
@@ -491,8 +491,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(86 66)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C5.33 -0.36 5.33 -0.36 7.88 1 C9.7 4.25 9.18 7.31 9 11 C10.32 11.66 11.64 12.32 13 13 C12.67 13.99 12.34 14.98 12 16 C11.67 15.01 11.34 14.02 11 13 C10.34 13 9.68 13 9 13 C9.33 14.32 9.66 15.64 10 17 C9.34 16.67 8.68 16.34 8 16 C8 15.34 8 14.68 8 14 C7.34 14 6.68 14 6 14 C4.08 11.12 2.5 8.11 1 5 C-0.65 5.33 -2.3 5.66 -4 6 C-3.34 4.68 -2.68 3.36 -2 2 C-1.34 2 -0.68 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(22 12)"
     />
@@ -527,8 +527,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(83 7)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.51}
       d="M0 0 C1 3 1 3 0.4 4.9 C-1.88 9.42 -3.99 11.84 -8 15 C-9.35 18.12 -9.35 18.12 -10 21 C-11.65 21.33 -13.3 21.66 -15 22 C-14.67 19.36 -14.34 16.72 -14 14 C-12.68 14 -11.36 14 -10 14 C-9.34 12.68 -8.68 11.36 -8 10 C-7.34 10 -6.68 10 -6 10 C-5.67 7.36 -5.34 4.72 -5 2 C-3.35 1.34 -1.7 0.68 0 0 Z"
       transform="translate(23 16)"
     />
@@ -569,8 +569,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(80 91)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.47}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C3 1.99 3 2.98 3 4 C0 6 0 6 -2 7 C3.61 7.33 9.22 7.66 15 8 C15 8.33 15 8.66 15 9 C8.4 9 1.8 9 -5 9 C-5 10.65 -5 12.3 -5 14 C-6.5 12.62 -6.5 12.62 -8 11 C-8 10.34 -8 9.68 -8 9 C-8.66 8.67 -9.32 8.34 -10 8 C-9.34 8 -8.68 8 -8 8 C-8.33 6.68 -8.66 5.36 -9 4 C-5.63 2.5 -3.8 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(61 21)"
     />
@@ -581,8 +581,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(117.188 8.938)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.47}
       d="M0 0 C1.07 0.25 2.14 0.49 3.25 0.75 C3.25 1.41 3.25 2.07 3.25 2.75 C3.91 3.08 4.57 3.41 5.25 3.75 C4.61 4.18 3.97 4.62 3.31 5.06 C0.98 6.66 0.98 6.66 0.25 9.75 C-2.72 9.42 -5.69 9.09 -8.75 8.75 C-8.41 5.72 -7.86 3.91 -6.12 1.38 C-3.75 -0.25 -3.75 -0.25 0 0 Z"
       transform="translate(12.75 9.25)"
     />
@@ -647,8 +647,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(92 78)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C2.5 1.81 2.5 1.81 5 4 C5 4.99 5 5.98 5 7 C5.66 7 6.32 7 7 7 C7 7.66 7 8.32 7 9 C-0.75 10.12 -0.75 10.12 -3 9 C-3.33 9.99 -3.66 10.98 -4 12 C-6.56 13.19 -6.56 13.19 -9 14 C-7.86 11.19 -6.71 9.71 -4.5 7.56 C-2.05 5.05 -1.04 3.3 0 0 Z"
       transform="translate(23 19)"
     />
@@ -665,8 +665,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(93 83)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.57}
       d="M0 0 C-3 1 -3 1 -5.56 1.31 C-6.37 1.54 -7.17 1.77 -8 2 C-9.05 3.85 -9.05 3.85 -10 6 C-11.64 7.36 -13.31 8.7 -15 10 C-15.33 10.66 -15.66 11.32 -16 12 C-18.84 12.74 -18.84 12.74 -22.38 13.31 C-24.12 13.62 -24.12 13.62 -25.9 13.93 C-29 14 -29 14 -30.91 12.54 C-31.27 12.03 -31.63 11.52 -32 11 C-30.79 11.1 -30.79 11.1 -29.55 11.21 C-26.28 11.38 -23.25 11.41 -20 11 C-16.93 8.44 -16.93 8.44 -15 5 C-9.81 -0.56 -7.5 -1.27 0 0 Z"
       transform="translate(65 12)"
     />
@@ -719,26 +719,26 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(69 97)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C1.65 0 3.3 0 5 0 C8 6.63 8 6.63 8 10 C9.65 10 11.3 10 13 10 C13 10.66 13 11.32 13 12 C10.67 12.38 8.34 12.71 6 13 C5 12 5 12 4.94 8.94 C4.96 7.97 4.98 7 5 6 C3.68 6 2.36 6 1 6 C0.67 4.02 0.34 2.04 0 0 Z"
       transform="translate(36)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.47}
       d="M0 0 C0 0.99 0 1.98 0 3 C-0.87 3.34 -0.87 3.34 -1.75 3.69 C-4.21 4.94 -4.21 4.94 -6.06 7.62 C-6.7 8.41 -7.34 9.19 -8 10 C-8.99 10 -9.98 10 -11 10 C-11.33 10.66 -11.66 11.32 -12 12 C-11.5 8.31 -11.03 5.16 -9 2 C-5.56 -0.29 -4.01 -0.18 0 0 Z"
       transform="translate(30 30)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.6}
       d="M0 0 C0.33 0.99 0.66 1.98 1 3 C5.64 4.55 10.33 4.5 15 3 C15 5 15 5 13.44 7.06 C10.21 9.63 8.11 10.07 4 10 C1.12 7.49 0.09 6.01 -0.25 2.19 C-0.17 1.47 -0.09 0.74 0 0 Z"
       transform="translate(35 11)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C-0.59 1.92 -0.59 1.92 -2 4 C-5.04 4.83 -5.04 4.83 -8.62 5.25 C-10.41 5.47 -10.41 5.47 -12.23 5.7 C-13.6 5.85 -13.6 5.85 -15 6 C-15 6.66 -15 7.32 -15 8 C-15.66 8 -16.32 8 -17 8 C-16.12 5.03 -15.32 3.29 -13 1.19 C-8.67 -0.53 -4.6 -0.24 0 0 Z"
       transform="translate(67 6)"
     />
@@ -749,8 +749,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(52 56)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0 1.65 0 3.3 0 5 C-5.88 5.99 -10.42 6.32 -16 4 C-16.33 3.01 -16.66 2.02 -17 1 C-16.34 1 -15.68 1 -15 1 C-14.67 1.66 -14.34 2.32 -14 3 C-13.01 2.34 -12.02 1.68 -11 1 C-8.81 0.59 -8.81 0.59 -6.44 0.38 C-5.65 0.3 -4.87 0.23 -4.06 0.15 C-2 0 -2 0 0 0 Z"
       transform="translate(48 24)"
     />
@@ -862,8 +862,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(127 78)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.57}
       d="M0 0 C3.63 0 7.26 0 11 0 C9 4 9 4 5.38 5.25 C4.26 5.5 3.15 5.75 2 6 C1.34 5.34 0.68 4.68 0 4 C0 2.68 0 1.36 0 0 Z"
       transform="translate(43)"
     />
@@ -896,8 +896,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(73 78)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.48}
       d="M0 0 C1.98 0 3.96 0 6 0 C4.14 4.35 1.72 7.16 -2.56 9.25 C-5 10 -5 10 -8 10 C-8 9.34 -8 8.68 -8 8 C-7.2 7.75 -6.39 7.5 -5.56 7.25 C-2.83 6.28 -2.83 6.28 -2.19 3.88 C-2.13 3.26 -2.06 2.64 -2 2 C-1.34 2 -0.68 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(78)"
     />
@@ -931,8 +931,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(104 29)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.47}
       d="M0 0 C0.66 0 1.32 0 2 0 C1.65 8.11 1.65 8.11 -0.88 11.56 C-3 13 -3 13 -6 13 C-6.5 10.52 -6.5 10.52 -7 8 C-6.4 7.98 -5.8 7.96 -5.19 7.94 C-2.57 7.1 -2.57 7.1 -1.25 3.44 C-0.84 2.3 -0.43 1.17 0 0 Z"
       transform="translate(16 17)"
     />
@@ -961,8 +961,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(30 67)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C5.75 1.88 5.75 1.88 8 3 C8 3.66 8 4.32 8 5 C9.98 4.67 11.96 4.34 14 4 C12.5 5.56 12.5 5.56 10 7 C7.24 6.97 4.74 6.48 2 6 C1.01 6 0.02 6 -1 6 C-0.67 4.02 -0.34 2.04 0 0 Z"
       transform="translate(30 31)"
     />
@@ -985,20 +985,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(52.688 30.313)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.46}
       d="M0 0 C1.36 3.09 0.89 4.36 -0.12 7.69 C-2 11 -2 11 -4.69 11.94 C-5.45 11.96 -6.21 11.98 -7 12 C-6.67 9.36 -6.34 6.72 -6 4 C-4.68 4 -3.36 4 -2 4 C-1.34 2.68 -0.68 1.36 0 0 Z"
       transform="translate(15 26)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C5.33 -0.36 5.33 -0.36 7.88 1 C9.7 4.25 9.18 7.31 9 11 C10.32 11.66 11.64 12.32 13 13 C12.67 13.99 12.34 14.98 12 16 C11.67 15.01 11.34 14.02 11 13 C10.01 13 9.02 13 8 13 C6.84 9.53 6.93 6.64 7 3 C4.69 2.67 2.38 2.34 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(22 12)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C-1.65 0.33 -3.3 0.66 -5 1 C-5 1.99 -5 2.98 -5 4 C-8 6 -8 6 -11 6 C-11 6.66 -11 7.32 -11 8 C-12.32 7.34 -13.64 6.68 -15 6 C-13.73 5.02 -12.46 4.04 -11.19 3.06 C-10.48 2.52 -9.77 1.97 -9.04 1.41 C-5.72 -0.89 -3.76 -1.17 0 0 Z"
       transform="translate(25 2)"
     />
@@ -1009,8 +1009,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(34 97)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C0.33 0.66 0.66 1.32 1 2 C0.34 2 -0.32 2 -1 2 C-1 2.66 -1 3.32 -1 4 C-1.66 4 -2.32 4 -3 4 C-3.66 5.98 -4.32 7.96 -5 10 C-6.65 10.33 -8.3 10.66 -10 11 C-9.65 10.38 -9.3 9.76 -8.94 9.12 C-8.63 8.42 -8.32 7.72 -8 7 C-8.33 6.34 -8.66 5.68 -9 5 C-8.01 4.67 -7.02 4.34 -6 4 C-5.67 3.34 -5.34 2.68 -5 2 C-3.36 1.28 -1.69 0.61 0 0 Z"
       transform="translate(75 8)"
     />
@@ -1027,20 +1027,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(59 65)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.46}
       d="M0 0 C2.77 0.01 4.99 2.23 5 5 C4.99 7.77 2.77 9.99 0 10 C-2.77 9.99 -4.99 7.77 -5 5 C-4.99 2.23 -2.77 0.01 0 0 Z"
       transform="translate(11 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.53}
       d="M0 0 C1.65 0 3.3 0 5 0 C5.77 4.72 6.1 9.22 6 14 C4.32 11.48 3.1 9.19 1.88 6.44 C1.52 5.65 1.17 4.87 0.8 4.06 C0 2 0 2 0 0 Z"
       transform="translate(31)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C3.75 0.19 3.75 0.19 7 1 C7 1.99 7 2.98 7 4 C4.59 5.2 3.05 5.1 0.38 5.06 C-0.85 5.05 -0.85 5.05 -2.1 5.04 C-3.04 5.02 -3.04 5.02 -4 5 C-2.44 2.44 -2.44 2.44 0 0 Z"
       transform="translate(9 9)"
     />
@@ -1051,14 +1051,14 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(50 111)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C0.33 0.66 0.66 1.32 1 2 C1.99 2.33 2.98 2.66 4 3 C4.47 4.11 4.95 5.23 5.44 6.38 C6.96 9.91 7.77 11.11 11 13 C8.03 12.5 8.03 12.5 5 12 C5 11.34 5 10.68 5 10 C4.01 10 3.02 10 2 10 C0.68 6.38 0 3.9 0 0 Z"
       transform="translate(31 9)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C1.32 0.33 2.64 0.66 4 1 C4.33 3.64 4.66 6.28 5 9 C6.98 9 8.96 9 11 9 C10.67 9.66 10.34 10.32 10 11 C6.62 11.12 6.62 11.12 3 11 C0.6 8.6 0.66 7.67 0.38 4.38 C0.3 3.56 0.23 2.74 0.15 1.9 C0.1 1.27 0.05 0.65 0 0 Z"
       transform="translate(36 5)"
     />
@@ -1153,8 +1153,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(30 41)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C-3.28 2.19 -6.21 3 -10 4 C-10.33 5.65 -10.66 7.3 -11 9 C-12.98 9.33 -14.96 9.66 -17 10 C-17 9.34 -17 8.68 -17 8 C-15.02 7.34 -13.04 6.68 -11 6 C-11 5.01 -11 4.02 -11 3 C-7.14 0.85 -4.45 -0.39 0 0 Z"
       transform="translate(31)"
     />
@@ -1177,20 +1177,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(40 37)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.49}
       d="M0 0 C0.66 0.33 1.32 0.66 2 1 C1.01 1.33 0.02 1.66 -1 2 C-1 2.66 -1 3.32 -1 4 C-12.41 5.86 -12.41 5.86 -18 4 C-17.67 3.34 -17.34 2.68 -17 2 C-15.14 2.28 -15.14 2.28 -13.25 2.56 C-10.17 2.96 -7.99 2.89 -5 2 C-4.01 2.33 -3.02 2.66 -2 3 C-2 2.34 -2 1.68 -2 1 C-1.34 0.67 -0.68 0.34 0 0 Z"
       transform="translate(50 26)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C1.65 0.33 3.3 0.66 5 1 C2.63 3.62 0.1 5.33 -3 7 C-3.66 7 -4.32 7 -5 7 C-5.33 7.99 -5.66 8.98 -6 10 C-6.33 9.34 -6.66 8.68 -7 8 C-5.38 5.96 -3.71 3.96 -2 2 C-1.34 2 -0.68 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(55 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.6}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C1.62 3 1.62 3 0 5 C-0.66 5 -1.32 5 -2 5 C-2.23 5.64 -2.45 6.28 -2.69 6.94 C-4 9 -4 9 -6.62 9.75 C-7.41 9.83 -8.19 9.91 -9 10 C-9.33 9.34 -9.66 8.68 -10 8 C-9.38 7.9 -8.76 7.79 -8.12 7.69 C-5.63 7.12 -5.63 7.12 -4 4 C-3.34 4 -2.68 4 -2 4 C-2 3.34 -2 2.68 -2 2 C-1.34 2 -0.68 2 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(52 12)"
     />
@@ -1267,8 +1267,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(63 47)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C0 0.66 0 1.32 0 2 C0.66 2 1.32 2 2 2 C2 3.98 2 5.96 2 8 C1.34 8 0.68 8 0 8 C0 7.34 0 6.68 0 6 C-1.65 6 -3.3 6 -5 6 C-4 4 -4 4 -2 3 C-2.99 2.67 -3.98 2.34 -5 2 C-2 0 -2 0 0 0 Z"
       transform="translate(29 4)"
     />
@@ -1285,8 +1285,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(54 68)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C1.65 0 3.3 0 5 0 C5 0.66 5 1.32 5 2 C5.99 2.33 6.98 2.66 8 3 C8.33 6.3 8.66 9.6 9 13 C8.34 13 7.68 13 7 13 C6.8 10.98 6.61 8.96 6.41 6.95 C6.14 4.77 6.14 4.77 4 3 C1.43 2.35 1.43 2.35 -1 2 C-0.67 1.34 -0.34 0.68 0 0 Z"
       transform="translate(24 10)"
     />
@@ -1309,20 +1309,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(81 50)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C0 0.99 0 1.98 0 3 C-1.62 3.19 -3.25 3.38 -4.88 3.56 C-5.78 3.67 -6.68 3.77 -7.62 3.88 C-10 4 -10 4 -12 3 C-11.67 2.34 -11.34 1.68 -11 1 C-9 0.59 -9 0.59 -6.56 0.38 C-5.76 0.3 -4.96 0.23 -4.13 0.15 C-2.76 0.05 -1.38 0 0 0 Z"
       transform="translate(48 24)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C4 0 4 0 5.69 1.19 C7.3 3.42 7.63 5.3 8 8 C1.43 4 1.43 4 0 0 Z"
       transform="translate(9 117)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.46}
       d="M0 0 C2.21 0.01 3.99 1.79 4 4 C3.99 6.21 2.21 8 0 8 C-2.21 8 -3.99 6.21 -4 4 C-3.99 1.79 -2.21 0.01 0 0 Z"
       transform="translate(5 105)"
     />
@@ -1339,8 +1339,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(106 90)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C-0.99 0.33 -1.98 0.66 -3 1 C-3.73 3.02 -3.73 3.02 -4 5 C-4.66 5 -5.32 5 -6 5 C-6 4.34 -6 3.68 -6 3 C-7.98 3.33 -9.96 3.66 -12 4 C-12 3.34 -12 2.68 -12 2 C-10.57 1.47 -9.13 0.95 -7.69 0.44 C-6.49 0 -6.49 0 -5.26 -0.44 C-3 -1 -3 -1 0 0 Z"
       transform="translate(50 32)"
     />
@@ -1393,8 +1393,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(93 46)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.51}
       d="M0 0 C0.66 0.33 1.32 0.66 2 1 C-1.17 4.54 -3.17 6.59 -8 7 C-8 6.34 -8 5.68 -8 5 C-6.32 3.68 -6.32 3.68 -4.12 2.31 C-3.41 1.85 -2.69 1.4 -1.95 0.93 C-1.3 0.62 -0.66 0.31 0 0 Z"
       transform="translate(22 10)"
     />
@@ -1417,8 +1417,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(78 45)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0 0.66 0 1.32 0 2 C-1.32 2 -2.64 2 -4 2 C-4 2.66 -4 3.32 -4 4 C-6.31 4.66 -8.62 5.32 -11 6 C-11 5.01 -11 4.02 -11 3 C-9.73 2.49 -8.46 2 -7.19 1.5 C-6.48 1.22 -5.77 0.94 -5.04 0.66 C-3 0 -3 0 0 0 Z"
       transform="translate(65 19)"
     />
@@ -1447,14 +1447,14 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(1 34)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C2.5 1.81 2.5 1.81 5 4 C5 4.99 5 5.98 5 7 C5.66 7 6.32 7 7 7 C7 7.66 7 8.32 7 9 C6.01 9 5.02 9 4 9 C2 6 2 6 2 3 C1.01 3.33 0.02 3.66 -1 4 C-0.67 2.68 -0.34 1.36 0 0 Z"
       transform="translate(23 19)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.57}
       d="M0 0 C1.32 0 2.64 0 4 0 C4 0.66 4 1.32 4 2 C-1.24 3.75 -5.47 4.19 -11 4 C-8.7 1.7 -8.05 1.7 -4.94 1.44 C-1.23 1.44 -1.23 1.44 0 0 Z"
       transform="translate(66 8)"
     />
@@ -1465,8 +1465,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(91)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.55}
       d="M0 0 C-4.23 2.42 -7.12 3.35 -12 3 C-12 2.34 -12 1.68 -12 1 C-3.96 -1.28 -3.96 -1.28 0 0 Z"
       transform="translate(74 1)"
     />
@@ -1489,8 +1489,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(12 54)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C0 0.99 0 1.98 0 3 C-2.63 4.85 -4.95 5.98 -8 7 C-8 6.01 -8 5.02 -8 4 C-7.34 4 -6.68 4 -6 4 C-6 3.34 -6 2.68 -6 2 C-2.25 0 -2.25 0 0 0 Z"
       transform="translate(91)"
     />
@@ -1531,8 +1531,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(77 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.6}
       d="M0 0 C0.33 0 0.66 0 1 0 C1.33 1.98 1.66 3.96 2 6 C4.31 6 6.62 6 9 6 C8.67 6.66 8.34 7.32 8 8 C4.5 8.69 4.5 8.69 1 9 C0 8 0 8 -0.1 6.15 C-0.07 4.1 -0.03 2.05 0 0 Z"
       transform="translate(40 6)"
     />
@@ -1549,14 +1549,14 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(82 15)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.42}
       d="M0 0 C2.64 0.66 5.28 1.32 8 2 C8 2.99 8 3.98 8 5 C5.03 4.67 2.06 4.34 -1 4 C-0.67 2.68 -0.34 1.36 0 0 Z"
       transform="translate(5 14)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.53}
       d="M0 0 C1.32 0 2.64 0 4 0 C4 1.98 4 3.96 4 6 C3.01 6 2.02 6 1 6 C0.67 4.02 0.34 2.04 0 0 Z"
       transform="translate(36)"
     />
@@ -1579,20 +1579,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(101 27)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C-2.4 2.9 -4.31 3.5 -8 4 C-7.19 2.06 -7.19 2.06 -6 0 C-3 -1 -3 -1 0 0 Z"
       transform="translate(26 14)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.47}
       d="M0 0 C2.21 0.01 3.99 1.79 4 3 C3.99 5.21 2.21 7 0 7 C-1.66 7 -3 5.66 -3 3 C-3 1.34 -1.66 0 0 0 Z"
       transform="translate(13 4)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C2.97 0 5.94 0 9 0 C7.52 1.48 7.52 1.48 6 3 C3.38 2.81 3.38 2.81 1 2 C0.67 1.34 0.34 0.68 0 0 Z"
       transform="translate(45)"
     />
@@ -1621,8 +1621,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(103 24)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.53}
       d="M0 0 C0.66 0.33 1.32 0.66 2 1 C-3.14 5.43 -3.14 5.43 -7 6 C-6 3 -6 3 -3.06 1.25 C-2.05 0.84 -1.04 0.42 0 0 Z"
       transform="translate(74)"
     />
@@ -1687,20 +1687,20 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(73 24)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C0.33 0 0.66 0 1 0 C1 1.65 1 3.3 1 5 C-1.31 4.67 -3.62 4.34 -6 4 C-6.33 3.01 -6.66 2.02 -7 1 C-4.61 1.58 -2.33 2.22 0 3 C0 2.01 0 1.02 0 0 Z"
       transform="translate(13 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.6}
       d="M0 0 C0.33 0.99 0.66 1.98 1 3 C1.99 3.33 2.98 3.66 4 4 C4 5.65 4 7.3 4 9 C0.06 5.68 0.06 5.68 -0.25 2.25 C-0.17 1.51 -0.09 0.77 0 0 Z"
       transform="translate(35 11)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0.99 0.33 1.98 0.66 3 1 C2.01 2.48 2.01 2.48 1 4 C0.34 4 -0.32 4 -1 4 C-1 4.66 -1 5.32 -1 6 C-1.66 6 -2.32 6 -3 6 C-2.62 3.56 -2.62 3.56 -2 1 C-1.34 0.67 -0.68 0.34 0 0 Z"
       transform="translate(23 3)"
     />
@@ -1741,8 +1741,8 @@ const Gpt5NanoMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(81 18)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C0.99 0 1.98 0 3 0 C4.48 2.96 4.06 5.74 4 9 C2.01 6.01 1.06 3.4 0 0 Z"
       transform="translate(33 5)"
     />

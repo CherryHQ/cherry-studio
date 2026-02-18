@@ -11,8 +11,8 @@ const TogetherMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       opacity={0.2}
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.38}
       d="M6.615 11.23C9.16379 11.23 11.23 9.16379 11.23 6.615C11.23 4.06621 9.16379 2 6.615 2C4.06621 2 2 4.06621 2 6.615C2 9.16379 4.06621 11.23 6.615 11.23Z"
     />
   </svg>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   colorToLuminance,
   isLargeShape,
+  isMonochromeSvg,
   isWhiteFill,
   normalizeColor,
   parseSvgPathBounds,
@@ -124,6 +125,16 @@ describe('parseSvgPathBounds', () => {
     expect(b.maxY).toBe(24)
   })
 
+  it('parses rounded-rect path with Arc (A) commands and concatenated flags (Sora pattern)', () => {
+    const d =
+      'M19.503 0H4.496A4.496 4.496 0 000 4.496v15.007A4.496 4.496 0 004.496 24h15.007A4.496 4.496 0 0024 19.503V4.496A4.496 4.496 0 0019.503 0z'
+    const b = parseSvgPathBounds(d)
+    expect(b.minX).toBeCloseTo(0, 0)
+    expect(b.minY).toBeCloseTo(0, 0)
+    expect(b.maxX).toBeCloseTo(24, 0)
+    expect(b.maxY).toBeCloseTo(24, 0)
+  })
+
   it('returns Infinity for empty path', () => {
     const b = parseSvgPathBounds('')
     expect(b.minX).toBe(Infinity)
@@ -196,5 +207,71 @@ describe('normalizeColor', () => {
     expect(normalizeColor('none')).toBe('none')
     expect(normalizeColor('currentColor')).toBe('currentColor')
     expect(normalizeColor('url(#a)')).toBe('url(#a)')
+  })
+})
+
+// ─── isMonochromeSvg ───────────────────────────────────────────────
+
+describe('isMonochromeSvg', () => {
+  it('detects pure black SVG as monochrome, not dark-designed', () => {
+    const svg = '<svg viewBox="0 0 24 24"><path fill="#000000" d="M0 0h24v24H0z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: false })
+  })
+
+  it('detects pure white SVG as monochrome and dark-designed', () => {
+    const svg = '<svg viewBox="0 0 24 24"><path fill="#ffffff" d="M0 0h24v24H0z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: true })
+  })
+
+  it('detects multi-color SVG as not monochrome', () => {
+    const svg =
+      '<svg viewBox="0 0 24 24"><path fill="#FF0000" d="M0 0h12v24H0z"/><path fill="#0000FF" d="M12 0h12v24H12z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: false, darkDesigned: false })
+  })
+
+  it('detects gray-only SVG as monochrome, not dark-designed', () => {
+    const svg =
+      '<svg viewBox="0 0 24 24"><path fill="#333333" d="M0 0h12v24H0z"/><path fill="#666666" d="M12 0h12v24H12z"/></svg>'
+    const result = isMonochromeSvg(svg)
+    expect(result.monochrome).toBe(true)
+    expect(result.darkDesigned).toBe(false)
+  })
+
+  it('ignores fills inside <defs> blocks', () => {
+    const svg = `<svg viewBox="0 0 24 24">
+      <defs><clipPath id="a"><rect fill="#ffffff" width="24" height="24"/></clipPath></defs>
+      <path fill="#000000" d="M0 0h24v24H0z"/>
+    </svg>`
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: false })
+  })
+
+  it('treats SVG with only white fills and none as monochrome + dark-designed', () => {
+    const svg =
+      '<svg viewBox="0 0 24 24"><path fill="#fff" d="M0 0h24v24H0z"/><path fill="none" d="M5 5h14v14H5z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: true })
+  })
+
+  it('treats SVG with mixed achromatic fills including light gray as monochrome + dark-designed', () => {
+    const svg =
+      '<svg viewBox="0 0 24 24"><path fill="#CCCCCC" d="M0 0h12v24H0z"/><path fill="#DDDDDD" d="M12 0h12v24H12z"/></svg>'
+    const result = isMonochromeSvg(svg)
+    expect(result.monochrome).toBe(true)
+    expect(result.darkDesigned).toBe(true)
+  })
+
+  it('treats SVG with gradient fills as not monochrome', () => {
+    const svg =
+      '<svg viewBox="0 0 24 24"><path fill="url(#paint0_linear)" d="M0 0h24v24H0z"/><defs><linearGradient id="paint0_linear"><stop stop-color="#FF0000"/></linearGradient></defs></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: false, darkDesigned: false })
+  })
+
+  it('treats near-black fills like #231F20 as monochrome', () => {
+    const svg = '<svg viewBox="0 0 24 24"><path fill="#231F20" d="M0 0h24v24H0z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: false })
+  })
+
+  it('treats very dark red #1F0909 as monochrome', () => {
+    const svg = '<svg viewBox="0 0 24 24"><path fill="#1F0909" d="M0 0h24v24H0z"/></svg>'
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: false })
   })
 })

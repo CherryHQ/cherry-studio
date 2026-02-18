@@ -14,6 +14,9 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 
+import { generateMeta } from './codegen'
+import { colorToLuminance, ensureViewBox, isMonochromeSvg, toCamelCase } from './svg-utils'
+import { createConvertToMonoPlugin } from './svgo-convert-to-mono'
 import { createRemoveBackgroundPlugin } from './svgo-remove-background'
 
 type IconType = 'icons' | 'providers' | 'models'
@@ -98,48 +101,6 @@ function toPascalCase(filename: string): string {
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('')
-}
-
-/**
- * Ensure SVG has a viewBox attribute.
- * Some traced/bitmap SVGs only have width/height but no viewBox.
- * Without viewBox, SVGR's icon:true (width/height="1em") clips all content.
- */
-function ensureViewBox(svgCode: string): string {
-  if (/viewBox\s*=\s*"[^"]*"/.test(svgCode)) {
-    return svgCode
-  }
-
-  const widthMatch = svgCode.match(/<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"/)
-  const heightMatch = svgCode.match(/<svg[^>]*\bheight="(\d+(?:\.\d+)?)"/)
-
-  if (widthMatch && heightMatch) {
-    const w = widthMatch[1]
-    const h = heightMatch[1]
-    return svgCode.replace(/<svg\b/, `<svg viewBox="0 0 ${w} ${h}"`)
-  }
-
-  return svgCode
-}
-
-/**
- * Convert kebab-case to camelCase for directory/file naming
- */
-function toCamelCase(filename: string): string {
-  const name = filename.replace(/\.svg$/, '')
-  const parts = name.split('-')
-
-  if (parts.length === 1) {
-    return parts[0]
-  }
-
-  return (
-    parts[0] +
-    parts
-      .slice(1)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('')
-  )
 }
 
 /**
@@ -236,23 +197,56 @@ async function generateFlatIcon(
  * Generate per-logo directory with color.tsx and meta.ts (for --type=logos).
  * Uses removeBackground svgo plugin to strip background shapes and capture
  * the background fill for colorPrimary.
+ *
+ * For monochrome SVGs (single-color/achromatic), applies removeBackground +
+ * convertToMono plugins so color.tsx uses currentColor for theme adaptation.
  */
 async function generateLogoDir(
   svgPath: string,
   outputDir: string,
   dirName: string,
   componentName: string
-): Promise<void> {
+): Promise<{ monochrome: boolean; darkDesigned: boolean }> {
   const logoDir = path.join(outputDir, dirName)
   await fs.mkdir(logoDir, { recursive: true })
 
   const svgCode = await fs.readFile(svgPath, 'utf-8')
+  const { monochrome, darkDesigned } = isMonochromeSvg(svgCode)
 
-  // Detect background fill for colorPrimary (detectOnly: don't modify the SVG)
-  const bgPlugin = createRemoveBackgroundPlugin({ detectOnly: true })
+  let jsCode: string
+  let colorPrimary: string
 
-  // Generate color.tsx — background is preserved, plugin only detects colorPrimary
-  let jsCode = await svgrTransform(svgCode, componentName, [bgPlugin.plugin])
+  if (monochrome) {
+    // Monochrome icon: remove background + convert to currentColor for theme adaptation
+    const bgPlugin = createRemoveBackgroundPlugin()
+    const monoPlugin = createConvertToMonoPlugin({
+      get backgroundWasDark() {
+        const fill = bgPlugin.getBackgroundFill()
+        const lum = fill ? colorToLuminance(fill) : -1
+        return (bgPlugin.wasRemoved() && lum >= 0 && lum < 0.5) || darkDesigned
+      }
+    })
+    jsCode = await svgrTransform(svgCode, componentName, [bgPlugin.plugin, monoPlugin.plugin])
+
+    // For colorPrimary: use background fill if available, else fall back to extractColorPrimary
+    colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
+  } else {
+    // Colorful icon: detect-only background, preserve original colors
+    const bgPlugin = createRemoveBackgroundPlugin({ detectOnly: true })
+    jsCode = await svgrTransform(svgCode, componentName, [bgPlugin.plugin])
+    colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
+
+    // Replace near-black fills with currentColor for dark mode adaptation,
+    // while preserving actual brand colors (e.g. Intel: black text + blue dot)
+    jsCode = jsCode.replace(/fill="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
+      const lum = colorToLuminance(hex)
+      if (lum >= 0 && lum < 0.15) {
+        return 'fill="currentColor"'
+      }
+      return match
+    })
+  }
+
   jsCode = jsCode.replace(
     `import type { SVGProps } from "react";`,
     `import type { SVGProps } from "react";\nimport type { IconComponent } from '../../types'`
@@ -260,17 +254,16 @@ async function generateLogoDir(
   jsCode = jsCode.replace(`const ${componentName} =`, `const ${componentName}: IconComponent =`)
   await fs.writeFile(path.join(logoDir, 'color.tsx'), jsCode, 'utf-8')
 
-  // Use background fill for colorPrimary; fall back to most prominent fill in source
-  let colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
   if (/^black$/i.test(colorPrimary)) colorPrimary = '#000000'
-  const metaContent = `import type { IconMeta } from '../../types'
+  const colorScheme = monochrome ? 'mono' : 'color'
+  generateMeta({
+    outPath: path.join(logoDir, 'meta.ts'),
+    dirName,
+    colorPrimary,
+    colorScheme
+  })
 
-export const meta: IconMeta = {
-  id: '${dirName}',
-  colorPrimary: '${colorPrimary}',
-}
-`
-  await fs.writeFile(path.join(logoDir, 'meta.ts'), metaContent, 'utf-8')
+  return { monochrome, darkDesigned }
 }
 
 /**
@@ -344,7 +337,16 @@ async function main() {
           continue
         }
 
-        await generateLogoDir(svgPath, outputDir, dirName, componentName)
+        const result = await generateLogoDir(svgPath, outputDir, dirName, componentName)
+        components.push({ dirName, componentName })
+        newHashCache[cacheKey] = hash
+
+        const tags: string[] = []
+        if (result.monochrome) tags.push('monochrome')
+        if (result.darkDesigned) tags.push('dark-designed')
+        const suffix = tags.length > 0 ? ` [${tags.join(', ')}]` : ''
+        console.log(`  ${svgFile} -> ${componentName}${suffix}`)
+        continue
       } else {
         // Flat output
         const outputFilename = dirName + '.tsx'

@@ -16,8 +16,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(63.875 -.313)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.49}
       d="M0 0 C1.65 1.65 3.3 3.3 5 5 C6.42 6.14 6.42 6.14 7.88 7.31 C11.1 9.94 13.71 12.99 16.4 16.15 C18.05 18.11 18.05 18.11 20.25 20.19 C22 22 22 22 23.44 24.44 C24.96 27.17 24.96 27.17 27.62 29.56 C29.89 31.88 30.65 32.86 31 36 C31.66 36 32.32 36 33 36 C33.49 37.98 33.49 37.98 34 40 C34.6 39.95 35.21 39.91 35.83 39.86 C42.4 39.56 42.4 39.56 45.56 41.88 C47 44 47 44 47 46 C45.68 46 44.36 46 43 46 C42.67 45.34 42.34 44.68 42 44 C39.53 44.5 39.53 44.5 37 45 C37 47.64 37 50.28 37 53 C38.36 52.5 38.36 52.5 39.75 52 C43 51 43 51 47 51 C47 52.98 47 54.96 47 57 C47.66 57 48.32 57 49 57 C49.33 49.41 49.66 41.82 50 34 C51.32 34 52.64 34 54 34 C54 36.31 54 38.62 54 41 C55.09 40.77 56.19 40.55 57.31 40.31 C61 40 61 40 62.72 41.06 C64.62 43.93 64.29 46.29 64.19 49.69 C64.15 51.46 64.15 51.46 64.11 53.26 C64.07 54.17 64.04 55.07 64 56 C63.01 56 62.02 56 61 56 C60.51 50.56 60.51 50.56 60 45 C58.68 44.67 57.36 44.34 56 44 C54.19 45.81 54.62 48.61 54.44 51.06 C54.35 52.17 54.27 53.27 54.18 54.41 C54.09 55.69 54.09 55.69 54 57 C53.01 57 52.02 57 51 57 C51 57.66 51 58.32 51 59 C51.78 59.25 52.57 59.5 53.38 59.75 C56.41 61.19 56.67 62.06 58 65 C58.99 65.33 59.98 65.66 61 66 C61 66.66 61 67.32 61 68 C61.99 68.5 61.99 68.5 63 69 C63.62 71.56 63.62 71.56 64 74 C64.66 74 65.32 74 66 74 C67.46 76.65 68 77.89 68 81 C68.66 81 69.32 81 70 81 C70 81.66 70 82.32 70 83 C62.88 83.08 55.75 83.14 48.62 83.19 C42.67 83.24 42.67 83.24 36.6 83.29 C24.46 82.96 16.65 81.55 8.13 73.27 C-3.5 60.91 -0.2 43.88 -0.12 28 C-0.11 22.78 -0.09 17.56 -0.07 12.19 C-0.05 8.17 -0.02 4.14 0 0 Z"
       transform="translate(0 45)"
     />
@@ -46,14 +46,14 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(1 21)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C1.65 1.65 3.3 3.3 5 5 C6.42 6.14 6.42 6.14 7.88 7.31 C11.1 9.94 13.71 12.99 16.4 16.15 C18.05 18.11 18.05 18.11 20.25 20.19 C22.27 22.28 23.55 24.48 25 27 C25.8 27.93 25.8 27.93 26.62 28.88 C29.73 33.68 28.98 38.65 28 44 C27.91 46.67 27.95 49.32 28 52 C28.66 52.33 29.32 52.66 30 53 C29.34 54.32 28.68 55.64 28 57 C27.67 56.01 27.34 55.02 27 54 C26.01 54 25.02 54 24 54 C23.67 54.99 23.34 55.98 23 57 C18.95 57.98 15.16 58.08 11 58 C11 58.66 11 59.32 11 60 C8.52 60.5 8.52 60.5 6 61 C6 61.66 6 62.32 6 63 C4.02 63.5 4.02 63.5 2 64 C-1.36 52.25 -0.18 40.23 -0.12 28.06 C-0.11 22.84 -0.09 17.61 -0.07 12.22 C-0.05 8.19 -0.02 4.16 0 0 Z"
       transform="translate(0 45)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C2.5 2.31 2.5 2.31 5 5 C5 5.99 5 6.98 5 8 C5.66 8 6.32 8 7 8 C7.33 9.32 7.66 10.64 8 12 C8.6 11.95 9.21 11.91 9.83 11.86 C16.4 11.56 16.4 11.56 19.56 13.88 C21 16 21 16 21 18 C19.68 18 18.36 18 17 18 C16.51 17.01 16.51 17.01 16 16 C14.35 16.33 12.7 16.66 11 17 C11 19.64 11 22.28 11 25 C11.91 24.67 12.81 24.34 13.75 24 C17 23 17 23 21 23 C19.63 26.16 19.01 26.99 16 29 C13.31 29.12 13.31 29.12 11 29 C11.49 30.98 11.49 30.98 12 33 C10.02 33.5 10.02 33.5 8 34 C8 33.34 8 32.68 8 32 C5.78 33.93 5.78 33.93 5 37 C5.49 37.5 5.49 37.5 6 38 C5.56 40.06 5.56 40.06 5 42 C5.99 42 6.98 42 8 42 C7.67 42.99 7.34 43.98 7 45 C7 47.16 7.45 48.92 8 51 C8.66 51 9.32 51 10 51 C10.49 50.01 10.49 50.01 11 49 C11.66 49.99 12.32 50.98 13 52 C13.98 53.02 14.98 54.02 16 55 C-6.01 55.74 -6.01 55.74 -15.38 47.75 C-19.15 44.12 -21.78 40.73 -24 36 C-22.02 35.5 -22.02 35.5 -20 35 C-20 34.34 -20 33.68 -20 33 C-17.52 32.5 -17.52 32.5 -15 32 C-15 31.34 -15 30.68 -15 30 C-13.42 29.78 -13.42 29.78 -11.81 29.56 C-7.37 28.95 -7.37 28.95 -3 28 C-2.67 27.34 -2.34 26.68 -2 26 C-1.01 26 -0.02 26 1 26 C1.33 26.66 1.66 27.32 2 28 C2.66 27.01 3.32 26.02 4 25 C3.01 24.67 2.02 24.34 1 24 C0.93 20.02 0.91 16.48 1.62 12.56 C2.1 8.04 1.19 4.34 0 0 Z"
       transform="translate(26 73)"
     />
@@ -118,8 +118,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(43 8)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C0.66 0 1.32 0 2 0 C2.62 0.78 3.24 1.57 3.88 2.38 C5.96 4.95 7.09 5.69 10 7 C11 8 12 9 13 10 C14.05 10.53 14.05 10.53 15.12 11.06 C17 12 17 12 18 14 C18.66 14.33 19.32 14.66 20 15 C19.67 15.99 19.34 16.98 19 18 C19.9 21.4 20.5 23.5 23 26 C20.06 26.05 17.13 26.09 14.19 26.12 C11.73 26.16 11.73 26.16 9.23 26.2 C5 26 5 26 2 24 C1.34 24.33 0.68 24.66 0 25 C-0.33 24.01 -0.66 23.02 -1 22 C-1.99 22.33 -2.98 22.66 -4 23 C-4.66 20.69 -5.32 18.38 -6 16 C-5.01 15.01 -4.02 14.02 -3 13 C-4.32 13.33 -5.64 13.66 -7 14 C-7.33 13.34 -7.66 12.68 -8 12 C-7.34 12 -6.68 12 -6 12 C-6.21 11.26 -6.41 10.52 -6.62 9.75 C-7.04 6.68 -6.62 5.57 -5 3 C-4.34 3 -3.68 3 -3 3 C-3 3.66 -3 4.32 -3 5 C-2.01 4.67 -1.02 4.34 0 4 C0 2.68 0 1.36 0 0 Z"
       transform="translate(37 102)"
     />
@@ -165,14 +165,14 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(20 59)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C7 4 7 4 8 6 C10.02 6.65 10.02 6.65 12 7 C12 7.66 12 8.32 12 9 C12.66 9 13.32 9 14 9 C15.86 12.13 16.2 14.37 16 18 C15.34 18 14.68 18 14 18 C14 18.66 14 19.32 14 20 C17.07 19.22 17.07 19.22 19 17 C18.75 19.88 18.75 19.88 18 23 C13.02 26.42 5.74 26.83 0 28 C0 18.76 0 9.52 0 0 Z"
       transform="translate(0 56)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.56}
       d="M0 0 C0.7 0.72 1.4 1.44 2.12 2.19 C3.98 4.05 5.81 5.65 7.88 7.31 C11.1 9.94 13.71 12.99 16.4 16.15 C18.05 18.11 18.05 18.11 20.25 20.19 C22.27 22.28 23.55 24.48 25 27 C25.8 27.93 25.8 27.93 26.62 28.88 C29.73 33.68 28.98 38.65 28 44 C27.91 46.67 27.95 49.32 28 52 C28.66 52.33 29.32 52.66 30 53 C29.34 54.32 28.68 55.64 28 57 C27.67 56.01 27.34 55.02 27 54 C25.68 53.3 24.35 52.63 23 52 C22.48 51.46 21.97 50.93 21.44 50.38 C19.97 48.65 19.97 48.65 17 49 C16.67 48.01 16.34 47.02 16 46 C15.34 45.01 14.68 44.02 14 43 C13.24 43.19 12.47 43.37 11.69 43.56 C9 44 9 44 6 43 C5.67 43.66 5.34 44.32 5 45 C5 44.01 5 43.02 5 42 C5.56 41.78 6.11 41.56 6.69 41.34 C12.46 38.94 17.16 35.95 22 32 C21.67 27.46 21.02 24.1 17.86 20.69 C16.24 19.3 14.58 17.94 12.9 16.63 C12.27 16.09 11.65 15.55 11 15 C11 14.34 11 13.68 11 13 C9.89 12.77 8.77 12.55 7.62 12.31 C4 11 4 11 2.69 8.56 C2.46 7.72 2.23 6.87 2 6 C1.34 5.01 0.68 4.02 0 3 C0 2.01 0 1.02 0 0 Z"
       transform="translate(0 45)"
     />
@@ -183,14 +183,14 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(77 36)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.51}
       d="M0 0 C2.5 2.31 2.5 2.31 5 5 C5 5.99 5 6.98 5 8 C5.66 8 6.32 8 7 8 C7.33 9.32 7.66 10.64 8 12 C8.6 11.95 9.21 11.91 9.83 11.86 C16.4 11.56 16.4 11.56 19.56 13.88 C21 16 21 16 21 18 C19.68 18 18.36 18 17 18 C16.67 17.34 16.34 16.68 16 16 C14.35 16.33 12.7 16.66 11 17 C11 19.64 11 22.28 11 25 C11.91 24.67 12.81 24.34 13.75 24 C17 23 17 23 21 23 C19.63 26.16 19.01 26.99 16 29 C13.31 29.12 13.31 29.12 11 29 C11.33 30.32 11.66 31.64 12 33 C10.02 33.5 10.02 33.5 8 34 C8 33.34 8 32.68 8 32 C6.68 32 5.36 32 4 32 C2.88 27.25 2.88 27.25 4 25 C3.01 24.67 2.02 24.34 1 24 C0.93 20.02 0.91 16.48 1.62 12.56 C2.1 8.04 1.19 4.34 0 0 Z"
       transform="translate(26 73)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C0.99 0 1.98 0 3 0 C6 3.33 6 3.33 6 6 C6.66 6.33 7.32 6.66 8 7 C7.81 7.64 7.63 8.28 7.44 8.94 C7.29 9.62 7.15 10.3 7 11 C7.33 11.33 7.66 11.66 8 12 C7.67 12.99 7.34 13.98 7 15 C6.42 14.81 5.84 14.63 5.25 14.44 C2.76 13.95 1.41 14.3 -1 15 C-4 15 -4 15 -6.44 13.88 C-8.92 12.71 -8.92 12.71 -10.94 13.81 C-11.62 14.2 -12.3 14.6 -13 15 C-14.99 15.38 -16.99 15.73 -19 16 C-19.99 14.02 -20.98 12.04 -22 10 C-20.68 9.67 -19.36 9.34 -18 9 C-18 8.34 -18 7.68 -18 7 C-16.35 6.67 -14.7 6.34 -13 6 C-13 5.34 -13 4.68 -13 4 C-11.42 3.78 -11.42 3.78 -9.81 3.56 C-5.37 2.95 -5.37 2.95 -1 2 C-0.67 1.34 -0.34 0.68 0 0 Z"
       transform="translate(24 99)"
     />
@@ -231,8 +231,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(65 5)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C2.53 2.36 3.89 3.66 5 7 C5.91 7.45 6.82 7.91 7.75 8.38 C11.31 10.15 13.31 12.1 16 15 C16.89 15.74 17.77 16.48 18.69 17.25 C21.74 20.87 22.92 24.25 23 29 C21.62 31.25 21.62 31.25 19 33 C18.39 33.43 17.78 33.86 17.16 34.31 C13.09 37.07 9.94 38.4 5 39 C4.67 39.66 4.34 40.32 4 41 C2.68 40.67 1.36 40.34 0 40 C0.33 38.35 0.66 36.7 1 35 C3.46 34.33 5.92 33.66 8.38 33 C9.74 32.63 11.11 32.26 12.52 31.88 C16 31 16 31 18 31 C18 29.68 18 28.36 18 27 C16.68 27.33 15.36 27.66 14 28 C14 27.34 14 26.68 14 26 C14.66 26 15.32 26 16 26 C15.34 23.03 14.68 20.06 14 17 C13.34 17 12.68 17 12 17 C12 16.34 12 15.68 12 15 C10.35 14.67 8.7 14.34 7 14 C7 13.34 7 12.68 7 12 C5.82 11.57 5.82 11.57 4.62 11.12 C2 10 2 10 0 8 C-0.27 5.31 -0.09 2.71 0 0 Z"
       transform="translate(0 48)"
     />
@@ -325,8 +325,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(26 41)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.51}
       d="M0 0 C0.66 0 1.32 0 2 0 C2.93 1.18 2.93 1.18 3.88 2.38 C5.96 4.95 7.09 5.69 10 7 C11 8 12 9 13 10 C13.7 10.35 14.4 10.7 15.12 11.06 C17 12 17 12 18 14 C18.66 14.33 19.32 14.66 20 15 C19.67 15.99 19.34 16.98 19 18 C19.9 21.4 20.5 23.5 23 26 C17.77 26.09 17.77 26.09 15 25 C13.57 22.87 12.8 20.78 11.93 18.36 C10.38 14.44 7.84 10.92 4 9 C4 8.34 4 7.68 4 7 C3.34 7 2.68 7 2 7 C2 6.34 2 5.68 2 5 C1.34 4.67 0.68 4.34 0 4 C0 2.68 0 1.36 0 0 Z"
       transform="translate(37 102)"
     />
@@ -349,8 +349,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(124 64)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C0.33 1.32 0.66 2.64 1 4 C1.66 4 2.32 4 3 4 C3.33 2.68 3.66 1.36 4 0 C4 0.99 4 1.98 4 3 C5.32 3.33 6.64 3.66 8 4 C7.01 4 6.02 4 5 4 C5 4.66 5 5.32 5 6 C5.78 6.25 6.57 6.5 7.38 6.75 C10.41 8.19 10.67 9.06 12 12 C12.99 12.33 13.98 12.66 15 13 C15 13.66 15 14.32 15 15 C15.66 15.33 16.32 15.66 17 16 C17.62 18.56 17.62 18.56 18 21 C18.66 21 19.32 21 20 21 C21.46 23.65 22 24.89 22 28 C22.66 28 23.32 28 24 28 C24 28.66 24 29.32 24 30 C22.35 29.67 20.7 29.34 19 29 C19 28.34 19 27.68 19 27 C18.34 27 17.68 27 17 27 C15.88 22.25 15.88 22.25 17 20 C16.01 19.67 15.02 19.34 14 19 C14 18.34 14 17.68 14 17 C13.01 16.67 12.02 16.34 11 16 C10.67 15.01 10.34 14.02 10 13 C7.91 11.76 7.91 11.76 5.44 10.81 C4.61 10.47 3.78 10.12 2.93 9.77 C2.3 9.52 1.66 9.26 1 9 C1 8.34 1 7.68 1 7 C-0.32 6.34 -1.64 5.68 -3 5 C-1.12 1.12 -1.12 1.12 0 0 Z"
       transform="translate(46 98)"
     />
@@ -479,8 +479,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(7 11)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.55}
       d="M0 0 C4.04 1.01 4.76 1.35 7.31 4.31 C7.84 4.91 8.38 5.5 8.93 6.11 C10 8 10 8 9.73 10.17 C9 12 9 12 8 13 C5.33 13.14 2.68 13.04 0 13 C0 8.71 0 4.42 0 0 Z"
       transform="translate(0 59)"
     />
@@ -491,8 +491,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(71 112)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.57}
       d="M0 0 C0.69 1.81 0.69 1.81 1 4 C-1.52 7.91 -5.93 8.2 -10.19 9.19 C-11.65 9.53 -13.1 9.88 -14.61 10.23 C-15.73 10.48 -16.85 10.74 -18 11 C-18 9.02 -18 7.04 -18 5 C-16.11 4.49 -14.21 3.99 -12.31 3.5 C-10.73 3.08 -10.73 3.08 -9.11 2.66 C-6.29 2.06 -3.87 1.87 -1 2 C-0.67 1.34 -0.34 0.68 0 0 Z"
       transform="translate(18 73)"
     />
@@ -515,8 +515,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(69)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.57}
       d="M0 0 C0.66 1.32 1.32 2.64 2 4 C-1.21 8.82 -5.77 11.55 -11.44 12.69 C-12.28 12.79 -13.13 12.89 -14 13 C-14.33 13.66 -14.66 14.32 -15 15 C-16.32 14.67 -17.64 14.34 -19 14 C-18.67 12.35 -18.34 10.7 -18 9 C-15.54 8.33 -13.08 7.66 -10.62 7 C-9.26 6.63 -7.89 6.26 -6.48 5.88 C-3 5 -3 5 -1 5 C-0.67 3.35 -0.34 1.7 0 0 Z"
       transform="translate(19 74)"
     />
@@ -533,8 +533,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(56 88)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C0.66 0 1.32 0 2 0 C2 0.66 2 1.32 2 2 C3.32 2.33 4.64 2.66 6 3 C6 3.99 6 4.98 6 6 C6.6 6.1 7.21 6.19 7.83 6.29 C10.48 7.16 11.16 8.08 12.69 10.38 C13.1 10.98 13.52 11.59 13.95 12.21 C15 14 15 14 16 17 C16.62 17.29 17.24 17.58 17.88 17.88 C20.68 19.36 21.47 21.28 23 24 C23.66 24.33 24.32 24.66 25 25 C25.73 27.31 26.4 29.65 27 32 C25.68 31.67 24.36 31.34 23 31 C23 29.68 23 28.36 23 27 C22.34 27 21.68 27 21 27 C20.44 25.93 19.89 24.86 19.31 23.75 C17.81 21.08 16.85 19.89 14.38 17.94 C11.44 15.55 11.15 13.53 10 10 C8.68 9.32 7.34 8.65 6 8 C4.3 6.31 4.3 6.31 2.75 4.44 C1.97 3.51 1.97 3.51 1.17 2.56 C0 1 0 1 0 0 Z"
       transform="translate(10 54)"
     />
@@ -634,8 +634,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(115 81)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.5}
       d="M0 0 C0.7 0.72 1.4 1.44 2.12 2.19 C3.98 4.05 5.81 5.65 7.88 7.31 C11.09 9.93 13.7 12.98 16.39 16.13 C18.16 18.19 20.04 20.12 22 22 C21.67 22.66 21.34 23.32 21 24 C20.29 23.28 20.29 23.28 19.57 22.54 C18.95 21.91 18.33 21.28 17.69 20.62 C16.77 19.69 16.77 19.69 15.82 18.73 C13.91 16.82 13.91 16.82 11 15 C11 14.34 11 13.68 11 13 C9.89 12.77 8.77 12.55 7.62 12.31 C4 11 4 11 2.69 8.56 C2.46 7.72 2.23 6.87 2 6 C1.34 5.01 0.68 4.02 0 3 C0 2.01 0 1.02 0 0 Z"
       transform="translate(0 45)"
     />
@@ -652,8 +652,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(124 22)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.48}
       d="M0 0 C2.69 1.81 2.69 1.81 5 4 C5 4.66 5 5.32 5 6 C5.56 6.06 6.11 6.12 6.69 6.19 C10.06 7.37 11.77 9.26 14 12 C13.81 14.31 13.81 14.31 13 16 C12.34 15.67 11.68 15.34 11 15 C10.67 14.01 10.34 13.02 10 12 C8.35 11.3 6.68 10.63 5 10 C4.67 9.34 4.34 8.68 4 8 C1.98 6.87 1.98 6.87 0 6 C0 5.34 0 4.68 0 4 C-0.99 3.67 -1.98 3.34 -3 3 C-3 2.34 -3 1.68 -3 1 C-2.01 0.67 -1.02 0.34 0 0 Z"
       transform="translate(42 101)"
     />
@@ -676,8 +676,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(14 16)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.41}
       d="M0 0 C2.62 0.38 2.62 0.38 5 1 C5 2.98 5 4.96 5 7 C6.32 7.33 7.64 7.66 9 8 C5.49 9.6 2.86 10.22 -1 10 C-2.38 7.24 -2.19 5.05 -2 2 C-1.34 1.34 -0.68 0.68 0 0 Z"
       transform="translate(38 88)"
     />
@@ -728,8 +728,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(48 55)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C3.32 0.01 5.99 2.68 6 5 C5.99 8.32 3.32 10.99 0 11 C-2.77 10.99 -4.99 8.77 -5 5 C-4.99 2.23 -2.77 0.01 0 0 Z"
       transform="translate(48 98)"
     />
@@ -794,8 +794,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(46 87)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.48}
       d="M0 0 C2.5 2.31 2.5 2.31 5 5 C5 5.99 5 6.98 5 8 C5.66 8 6.32 8 7 8 C9.29 12.94 9.29 12.94 8.46 15.96 C7.71 17.67 6.86 19.34 6 21 C5.34 20.67 4.68 20.34 4 20 C3.69 17.49 3.69 17.49 3.56 14.31 C3.25 9.5 2.54 6.19 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(26 73)"
     />
@@ -854,8 +854,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(100 93)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C5.08 3.8 8.17 6.84 10 13 C9.69 15.44 9.69 15.44 9 17 C8.34 17 7.68 17 7 17 C6.75 16.25 6.49 15.5 6.23 14.73 C5.71 13.26 5.71 13.26 5.19 11.75 C4.85 10.78 4.51 9.8 4.17 8.8 C3.06 6.13 1.75 4.27 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(13 61)"
     />
@@ -884,8 +884,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(100 103)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C2.75 0.44 2.75 0.44 6 2 C8.52 6.01 9.94 10.41 11 15 C10.01 15 9.02 15 8 15 C7.64 14.1 7.64 14.1 7.27 13.17 C5.36 8.63 3.73 5.33 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(44 112)"
     />
@@ -896,8 +896,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(100 107)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.54}
       d="M0 0 C2 1 2 1 3.06 3.81 C3.37 4.86 3.68 5.92 4 7 C4.34 8.05 4.34 8.05 4.69 9.12 C5.06 11.35 4.68 12.87 4 15 C2.35 15 0.7 15 -1 15 C-0.77 14 -0.77 14 -0.53 12.99 C-0.33 12.11 -0.14 11.22 0.06 10.31 C0.36 9.01 0.36 9.01 0.66 7.68 C1.02 4.84 0.71 2.75 0 0 Z M-2 15 C-1.67 15.66 -1.34 16.32 -1 17 C-1.66 16.67 -2.32 16.34 -3 16 C-2.67 15.67 -2.34 15.34 -2 15 Z"
       transform="translate(21 69)"
     />
@@ -926,8 +926,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(121 111)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.59}
       d="M0 0 C0.8 0.11 1.6 0.22 2.42 0.34 C3.33 0.48 3.33 0.48 4.25 0.62 C2.25 2.62 2.25 2.62 -0.81 3.12 C-2.27 3.37 -2.27 3.37 -3.75 3.62 C-4.08 4.28 -4.41 4.94 -4.75 5.62 C-6.07 5.3 -7.39 4.97 -8.75 4.62 C-8.75 3.64 -8.75 2.64 -8.75 1.62 C-5.58 -0.28 -3.64 -0.54 0 0 Z"
       transform="translate(8.75 83.375)"
     />
@@ -956,8 +956,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(43 3)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C2.69 -0.06 2.69 -0.06 6 1 C9.48 5.36 11.34 9.39 11 15 C9.68 15.33 8.36 15.66 7 16 C7 15.34 7 14.68 7 14 C7.66 14 8.32 14 9 14 C8.34 11.03 7.68 8.06 7 5 C6.34 5 5.68 5 5 5 C5 4.34 5 3.68 5 3 C3.35 2.67 1.7 2.34 0 2 C0 1.34 0 0.68 0 0 Z"
       transform="translate(7 60)"
     />
@@ -980,8 +980,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(98)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C0.66 0.66 1.32 1.32 2 2 C1.71 4.01 1.37 6.01 1 8 C0.91 10.67 0.95 13.32 1 16 C1.66 16.33 2.32 16.66 3 17 C2.34 18.32 1.68 19.64 1 21 C-2.21 15.65 -2.87 10.94 -1.54 4.93 C-1.08 3.27 -0.54 1.63 0 0 Z"
       transform="translate(27 81)"
     />
@@ -998,8 +998,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(87 3)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C0.33 0 0.66 0 1 0 C1 3.63 1 7.26 1 11 C1.99 11.33 2.98 11.66 4 12 C3.01 12 2.02 12 1 12 C1.33 14.64 1.66 17.28 2 20 C1.01 20 0.02 20 -1 20 C-1 19.01 -1 18.02 -1 17 C-1.66 17 -2.32 17 -3 17 C-3 15.68 -3 14.36 -3 13 C-2.34 13 -1.68 13 -1 13 C-0.67 8.71 -0.34 4.42 0 0 Z"
       transform="translate(60 90)"
     />
@@ -1124,8 +1124,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(114 58)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.45}
       d="M0 0 C2 1.38 2 1.38 4 3 C4 3.66 4 4.32 4 5 C4.66 5 5.32 5 6 5 C6.29 5.8 6.58 6.61 6.88 7.44 C7.73 10.13 7.73 10.13 10 11 C9.67 11.66 9.34 12.32 9 13 C5.44 10.33 2.5 7.71 0 4 C0 2.68 0 1.36 0 0 Z"
       transform="translate(0 41)"
     />
@@ -1148,8 +1148,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(125 98)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.52}
       d="M0 0 C2.56 1.94 2.56 1.94 5 5 C5.15 8.11 4.67 10.97 4 14 C3.34 14 2.68 14 2 14 C1.5 11.53 1.5 11.53 1 9 C1.66 9 2.32 9 3 9 C2.5 7.89 2.01 6.77 1.5 5.62 C0 2 0 2 0 0 Z"
       transform="translate(23 71)"
     />
@@ -1274,8 +1274,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(40 39)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.4}
       d="M0 0 C4.43 5.14 4.43 5.14 5 9 C5.66 9 6.32 9 7 9 C6.67 9.99 6.34 10.98 6 12 C6 11.34 6 10.68 6 10 C5.34 10 4.68 10 4 10 C4 9.34 4 8.68 4 8 C3.01 7.67 2.02 7.34 1 7 C0.88 6.2 0.75 5.39 0.62 4.56 C0.32 3.29 0.32 3.29 0 2 C-0.66 1.67 -1.32 1.34 -2 1 C-1.34 0.67 -0.68 0.34 0 0 Z"
       transform="translate(6 44)"
     />
@@ -1292,8 +1292,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(43.875 32.438)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.58}
       d="M0 0 C-2.51 2.51 -4.61 3.05 -8 4 C-9.32 4 -10.64 4 -12 4 C-12 3.34 -12 2.68 -12 2 C-10.38 1.47 -8.75 0.95 -7.12 0.44 C-6.22 0.15 -5.32 -0.14 -4.38 -0.44 C-2 -1 -2 -1 0 0 Z"
       transform="translate(12 76)"
     />
@@ -1370,8 +1370,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(54 98)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.43}
       d="M0 0 C2.48 0.5 2.48 0.5 5 1 C5 2.98 5 4.96 5 7 C6.32 7.33 7.64 7.66 9 8 C7.35 8.33 5.7 8.66 4 9 C2.57 6.65 1.91 5.52 2.38 2.75 C2.58 2.17 2.79 1.59 3 1 C2.01 0.67 1.02 0.34 0 0 Z"
       transform="translate(38 88)"
     />
@@ -1544,8 +1544,8 @@ const Gpt5ChatMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(107 113)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.44}
       d="M0 0 C0.66 0 1.32 0 2 0 C2 0.66 2 1.32 2 2 C3.32 2.33 4.64 2.66 6 3 C5.67 4.32 5.34 5.64 5 7 C0 1.12 0 1.12 0 0 Z"
       transform="translate(10 54)"
     />

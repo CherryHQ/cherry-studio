@@ -3,17 +3,6 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const GrokMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 512 512" {...props}>
-    <foreignObject width={560} height={560} x={-24} y={-22}>
-      <div
-        xmlns="http://www.w3.org/1999/xhtml"
-        style={{
-          backdropFilter: 'blur(16px)',
-          clipPath: 'url(#bgblur_1_304_111_clip_path)',
-          height: '100%',
-          width: '100%'
-        }}
-      />
-    </foreignObject>
     <path
       stroke="#000"
       strokeOpacity={0.05}

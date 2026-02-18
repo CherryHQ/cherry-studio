@@ -16,86 +16,20 @@ import { transform } from '@svgr/core'
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { colorToLuminance } from './svg-utils'
+import { generateBarrelIndex as codegenBarrelIndex, generateIconIndex as codegenIconIndex } from './codegen'
+import {
+  buildSvgMap,
+  collectIconDirs,
+  colorToLuminance,
+  ensureViewBox,
+  getComponentName,
+  isImageBased,
+  OUTPUT_DIR_MAP,
+  parseLogoTypeArg,
+  readColorPrimary
+} from './svg-utils'
 import { createConvertToMonoPlugin } from './svgo-convert-to-mono'
 import { createRemoveBackgroundPlugin } from './svgo-remove-background'
-
-type MonoType = 'providers' | 'models'
-
-function parseTypeArg(): MonoType {
-  const arg = process.argv.find((item) => item.startsWith('--type='))
-  if (!arg) return 'providers'
-  const value = arg.split('=')[1]
-  if (value === 'providers' || value === 'models') return value
-  throw new Error(`Invalid --type value: ${value}. Use "providers" or "models".`)
-}
-
-/** Component output directories (where color.tsx already exists). */
-const OUTPUT_DIR_MAP: Record<MonoType, string> = {
-  providers: path.join(__dirname, '../src/components/icons/providers'),
-  models: path.join(__dirname, '../src/components/icons/models')
-}
-
-/** Source SVG directories. */
-const SVG_SOURCE_MAP: Record<MonoType, string> = {
-  providers: path.join(__dirname, '../icons/providers'),
-  models: path.join(__dirname, '../icons/models')
-}
-
-/**
- * Convert kebab-case filename to camelCase directory name.
- * Must match the logic in generate-icons.ts.
- */
-function toCamelCase(filename: string): string {
-  const name = filename.replace(/\.svg$/, '')
-  const parts = name.split('-')
-  if (parts.length === 1) return parts[0]
-  return (
-    parts[0] +
-    parts
-      .slice(1)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('')
-  )
-}
-
-/**
- * Build a lookup map: dirName → source SVG path.
- */
-function buildSvgMap(type: MonoType): Map<string, string> {
-  const svgDir = SVG_SOURCE_MAP[type]
-  const map = new Map<string, string>()
-  if (!fs.existsSync(svgDir)) return map
-
-  for (const file of fs.readdirSync(svgDir)) {
-    if (!file.endsWith('.svg')) continue
-    const dirName = toCamelCase(file)
-    map.set(dirName, path.join(svgDir, file))
-  }
-  return map
-}
-
-/**
- * Ensure SVG has a viewBox attribute.
- */
-function ensureViewBox(svgCode: string): string {
-  if (/viewBox\s*=\s*"[^"]*"/.test(svgCode)) return svgCode
-
-  const widthMatch = svgCode.match(/<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"/)
-  const heightMatch = svgCode.match(/<svg[^>]*\bheight="(\d+(?:\.\d+)?)"/)
-
-  if (widthMatch && heightMatch) {
-    return svgCode.replace(/<svg\b/, `<svg viewBox="0 0 ${widthMatch[1]} ${heightMatch[1]}"`)
-  }
-  return svgCode
-}
-
-/**
- * Check if content is an image-based icon (embedded PNG/JPEG data).
- */
-function isImageBased(content: string): boolean {
-  return content.includes('<image') || content.includes('data:image')
-}
 
 /**
  * Generate a mono.tsx file from a source SVG using SVGR with custom svgo plugins.
@@ -119,7 +53,7 @@ async function generateMono(svgPath: string, monoName: string): Promise<string |
     get backgroundWasDark() {
       const fill = bgPlugin.getBackgroundFill()
       const lum = fill ? colorToLuminance(fill) : -1
-      return bgPlugin.wasRemoved() && lum >= 0 && lum < 0.3
+      return bgPlugin.wasRemoved() && lum >= 0 && lum < 0.5
     }
   })
 
@@ -132,6 +66,18 @@ async function generateMono(svgPath: string, monoName: string): Promise<string |
       jsxRuntime: 'automatic',
       svgoConfig: {
         plugins: [
+          {
+            name: 'removeForeignObject',
+            fn: () => ({
+              element: {
+                enter: (node, parentNode) => {
+                  if (node.name === 'foreignObject') {
+                    parentNode.children = parentNode.children.filter((c) => c !== node)
+                  }
+                }
+              }
+            })
+          },
           bgPlugin.plugin,
           monoPlugin.plugin,
           {
@@ -160,100 +106,50 @@ async function generateMono(svgPath: string, monoName: string): Promise<string |
   return jsCode
 }
 
-// ──────────────────────────────────────────────────────────
-// Directory management (kept from original)
-// ──────────────────────────────────────────────────────────
-
 /**
- * Parse the actual exported component name from color.tsx.
- */
-function getComponentName(baseDir: string, dirName: string): string {
-  const colorPath = path.join(baseDir, dirName, 'color.tsx')
-  try {
-    const content = fs.readFileSync(colorPath, 'utf-8')
-    const match = content.match(/export \{ (\w+) \}/)
-    if (match) return match[1]
-  } catch {
-    /* fallback */
-  }
-  return dirName.charAt(0).toUpperCase() + dirName.slice(1)
-}
-
-/**
- * Collect all subdirectories that contain color.tsx.
- */
-function collectIconDirs(baseDir: string): string[] {
-  return fs
-    .readdirSync(baseDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(baseDir, e.name, 'color.tsx')))
-    .map((e) => e.name)
-    .sort()
-}
-
-/**
- * Read colorPrimary from an icon's meta.ts.
- */
-function readColorPrimary(baseDir: string, dirName: string): string {
-  const metaPath = path.join(baseDir, dirName, 'meta.ts')
-  if (!fs.existsSync(metaPath)) return '#000000'
-  const content = fs.readFileSync(metaPath, 'utf-8')
-  const match = content.match(/colorPrimary:\s*'([^']+)'/)
-  return match ? match[1] : '#000000'
-}
-
-/**
- * Generate per-icon index.ts with compound export.
+ * Call the shared generateIconIndex from codegen.
+ * Detects Avatar presence and reads colorPrimary from meta.ts.
  */
 function generateIconIndex(baseDir: string, dirName: string, hasMono: boolean): void {
   const colorName = getComponentName(baseDir, dirName)
-  const monoName = `${colorName}Mono`
   const colorPrimary = readColorPrimary(baseDir, dirName)
+  const hasAvatar = fs.existsSync(path.join(baseDir, dirName, 'avatar.tsx'))
 
-  const lines: string[] = []
-  lines.push(`import type { CompoundIcon } from '../../types'`)
-  lines.push(``)
-  lines.push(`import { ${colorName} } from './color'`)
-  if (hasMono) {
-    lines.push(`import { ${monoName} } from './mono'`)
-  }
-  lines.push(``)
-
-  const monoRef = hasMono ? monoName : colorName
-  lines.push(
-    `export const ${colorName}Icon: CompoundIcon = /*#__PURE__*/ Object.assign(${colorName}, { Color: ${colorName}, Mono: ${monoRef}, colorPrimary: '${colorPrimary}' })`
-  )
-  lines.push(`export default ${colorName}Icon`)
-  lines.push(``)
-
-  fs.writeFileSync(path.join(baseDir, dirName, 'index.ts'), lines.join('\n'))
+  codegenIconIndex({
+    outPath: path.join(baseDir, dirName, 'index.ts'),
+    colorName,
+    hasMono,
+    hasAvatar,
+    colorPrimary
+  })
 }
 
 /**
- * Generate the barrel index.ts that re-exports all compound icons.
+ * Generate the barrel index.ts via shared codegen.
  */
 function generateBarrelIndex(baseDir: string, iconDirs: string[], skippedDirs: Set<string>): void {
-  const lines: string[] = []
+  const entries = iconDirs.map((dirName) => ({
+    dirName,
+    colorName: getComponentName(baseDir, dirName)
+  }))
 
-  lines.push(`/**`)
-  lines.push(` * Auto-generated compound icon exports`)
-  lines.push(` * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, Icon.colorPrimary`)
-  lines.push(` * Do not edit manually`)
-  lines.push(` *`)
-  lines.push(` * Generated at: ${new Date().toISOString()}`)
-  lines.push(` * Total icons: ${iconDirs.length}`)
+  const headerLines = [
+    'Auto-generated compound icon exports',
+    'Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, Icon.colorPrimary',
+    'Do not edit manually',
+    '',
+    `Generated at: ${new Date().toISOString()}`,
+    `Total icons: ${iconDirs.length}`
+  ]
   if (skippedDirs.size > 0) {
-    lines.push(` * Image-based icons (Mono = Color fallback): ${[...skippedDirs].join(', ')}`)
+    headerLines.push(`Image-based icons (Mono = Color fallback): ${[...skippedDirs].join(', ')}`)
   }
-  lines.push(` */`)
-  lines.push(``)
 
-  for (const dirName of iconDirs) {
-    const colorName = getComponentName(baseDir, dirName)
-    lines.push(`export { ${colorName}Icon as ${colorName} } from './${dirName}'`)
-  }
-  lines.push(``)
-
-  fs.writeFileSync(path.join(baseDir, 'index.ts'), lines.join('\n'))
+  codegenBarrelIndex({
+    outPath: path.join(baseDir, 'index.ts'),
+    entries,
+    header: headerLines.join('\n')
+  })
   console.log(
     `\nGenerated index.ts with ${iconDirs.length} compound exports (${skippedDirs.size} image-based fallbacks)`
   )
@@ -264,7 +160,7 @@ function generateBarrelIndex(baseDir: string, iconDirs: string[], skippedDirs: S
 // ──────────────────────────────────────────────────────────
 
 async function main() {
-  const monoType = parseTypeArg()
+  const monoType = parseLogoTypeArg()
   const baseDir = OUTPUT_DIR_MAP[monoType]
   const svgMap = buildSvgMap(monoType)
 

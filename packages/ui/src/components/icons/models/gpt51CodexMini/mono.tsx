@@ -900,8 +900,8 @@ const Gpt51CodexMiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(45 34)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.64}
       d="M0 0 C2.44 0.25 2.44 0.25 5 1 C5.66 1.99 6.32 2.98 7 4 C3.79 5.61 0.56 5.06 -3 5 C-1.12 1.12 -1.12 1.12 0 0 Z"
       transform="translate(73 80)"
     />
@@ -1065,8 +1065,8 @@ const Gpt51CodexMiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(19 100)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.75}
       d="M0 0 C0.33 0 0.66 0 1 0 C1 1.98 1 3.96 1 6 C-0.65 6.33 -2.3 6.66 -4 7 C-4.33 8.65 -4.66 10.3 -5 12 C-5.99 11.01 -6.98 10.02 -8 9 C-7.31 7.06 -7.31 7.06 -6 5 C-3.38 4.25 -3.38 4.25 -1 4 C-0.67 2.68 -0.34 1.36 0 0 Z"
       transform="translate(65 76)"
     />
@@ -1286,8 +1286,8 @@ const Gpt51CodexMiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(40 106)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.77}
       d="M0 0 C-0.66 1.32 -1.32 2.64 -2 4 C-4.44 3.62 -4.44 3.62 -7 3 C-7.33 2.34 -7.66 1.68 -8 1 C-2.25 0 -2.25 0 0 0 Z"
       transform="translate(54 88)"
     />
@@ -1387,8 +1387,8 @@ const Gpt51CodexMiniMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
       transform="translate(58 84)"
     />
     <path
-      fill="currentColor"
-      fillOpacity={0.3}
+      fill="var(--color-background, white)"
+      fillOpacity={0.64}
       d="M0 0 C-0.33 1.32 -0.66 2.64 -1 4 C-2.98 4.33 -4.96 4.66 -7 5 C-6 2 -6 2 -4.06 0.81 C-2 0 -2 0 0 0 Z"
       transform="translate(43 87)"
     />

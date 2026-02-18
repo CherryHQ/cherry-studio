@@ -142,6 +142,22 @@ describe('Rule 2: rounded-rect path background', () => {
     expect(bg.getBackgroundFill()).toBe('#055F4E')
   })
 
+  it('removes rounded-rect path with Arc (A) commands (Sora pattern)', () => {
+    const bgPath = el('path', {
+      d: 'M19.503 0H4.496A4.496 4.496 0 000 4.496v15.007A4.496 4.496 0 004.496 24h15.007A4.496 4.496 0 0024 19.503V4.496A4.496 4.496 0 0019.503 0z',
+      fill: '#012659'
+    })
+    const fgPath = el('path', { d: 'M10 8L14 16', fill: 'white' })
+    const root = svgRoot({}, [bgPath, fgPath])
+
+    const bg = createRemoveBackgroundPlugin()
+    bg.plugin.fn(root)
+
+    expect(bg.wasRemoved()).toBe(true)
+    expect(bg.getBackgroundFill()).toBe('#012659')
+    expect(childCount(root)).toBe(1)
+  })
+
   it('removes ZeroOne dark green rounded-rect (#133426)', () => {
     const bgPath = el('path', {
       d: 'M18.5455 0H5.45455C2.44208 0 0 2.44208 0 5.45455V18.5455C0 21.5579 2.44208 24 5.45455 24H18.5455C21.5579 24 24 21.5579 24 18.5455V5.45455C24 2.44208 21.5579 0 18.5455 0Z',
@@ -228,6 +244,24 @@ describe('Rule 3c: traced vectorized background with near-white foreground', () 
     bg.plugin.fn(root)
 
     expect(bg.wasRemoved()).toBe(false)
+  })
+
+  it('does NOT trigger when remaining paths include colored (non-white) shapes (Aihubmix pattern)', () => {
+    // Aihubmix: blue circle (#006FFB) as the icon shape, white cutout (#FDFEFE), blue smile (#006FFB)
+    // The blue circle should NOT be removed — it IS the icon, not a background
+    const circlePath = el('path', {
+      d: 'M0 0 C66 0 132 0 200 0 C200 66 200 132 200 200 C132 200 66 200 0 200 C0 132 0 66 0 0Z',
+      fill: '#006FFB'
+    })
+    const whiteCutout = el('path', { d: 'M40 60L80 60L80 120L40 120Z', fill: '#FDFEFE' })
+    const blueSmile = el('path', { d: 'M60 150L140 150L100 180Z', fill: '#006FFB' })
+    const root = svgRoot({ viewBox: '0 0 200 200' }, [circlePath, whiteCutout, blueSmile])
+
+    const bg = createRemoveBackgroundPlugin()
+    bg.plugin.fn(root)
+
+    expect(bg.wasRemoved()).toBe(false)
+    expect(childCount(root)).toBe(3) // all paths preserved
   })
 
   it('does NOT trigger when first path is light-colored', () => {

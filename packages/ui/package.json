@@ -23,12 +23,14 @@
     "providers:normalize": "tsx scripts/normalize-viewbox.ts --dir=providers",
     "providers:generate": "tsx scripts/generate-icons.ts --type=providers",
     "providers:generate:mono": "tsx scripts/generate-mono-icons.ts --type=providers",
+    "providers:generate:avatars": "tsx scripts/generate-avatars.ts --type=providers",
     "models:pipeline": "tsx scripts/pipeline.ts --dir=models",
     "models:vectorize": "tsx scripts/vectorize-logo.ts --dir=models",
     "models:validate": "tsx scripts/validate-svgs.ts --dir=models",
     "models:normalize": "tsx scripts/normalize-viewbox.ts --dir=models",
     "models:generate": "tsx scripts/generate-icons.ts --type=models",
-    "models:generate:mono": "tsx scripts/generate-mono-icons.ts --type=models"
+    "models:generate:mono": "tsx scripts/generate-mono-icons.ts --type=models",
+    "models:generate:avatars": "tsx scripts/generate-avatars.ts --type=models"
   },
   "keywords": [
     "ui",
@@ -107,6 +109,8 @@
     "react-dom": "^19.0.0",
     "storybook": "^10.0.5",
     "styled-components": "^6.1.15",
+    "svgo": "^4.0.0",
+    "ts-morph": "^27.0.2",
     "tsdown": "^0.15.5",
     "tsx": "^4.20.6",
     "typescript": "^5.6.2",

@@ -346,6 +346,44 @@ describe('mask-based shape extraction (Phase 0)', () => {
 
 // ─── Integration: backgroundWasDark threshold ────────────────────────
 
+describe('container shape detection (Phase 1.5)', () => {
+  it('converts lighter overlapping paths to white when a large container exists (Hunyuan pattern)', () => {
+    // Large dark circle covers most of viewBox, with lighter detail paths inside
+    const container = el('path', {
+      d: 'M0 0 C8 0 16 0 24 0 C24 8 24 16 24 24 C16 24 8 24 0 24 C0 16 0 8 0 0Z',
+      fill: '#0054E0'
+    })
+    const lightDetail = el('path', { d: 'M5 5L10 10', fill: '#B0DBF1' }) // much lighter
+    const darkDetail = el('path', { d: 'M12 12L18 18', fill: '#0859E0' }) // similar to container
+    const root = svgRoot({}, [container, lightDetail, darkDetail])
+
+    const mono = createConvertToMonoPlugin()
+    mono.plugin.fn(root)
+
+    const svgChildren = root.children[0].children.filter((c: any) => c.type === 'element')
+    // Container: currentColor
+    expect(svgChildren[0].attributes.fill).toBe('currentColor')
+    // Light detail: white overlay (creates contrast)
+    expect(svgChildren[1].attributes.fill).toBe('var(--color-background, white)')
+    // Dark detail: currentColor (similar luminance to container)
+    expect(svgChildren[2].attributes.fill).toBe('currentColor')
+  })
+
+  it('does NOT trigger container detection for small first paths', () => {
+    const smallPath = el('path', { d: 'M5 5L10 10', fill: '#0054E0' })
+    const otherPath = el('path', { d: 'M12 12L18 18', fill: '#B0DBF1' })
+    const root = svgRoot({}, [smallPath, otherPath])
+
+    const mono = createConvertToMonoPlugin()
+    mono.plugin.fn(root)
+
+    const svgChildren = root.children[0].children.filter((c: any) => c.type === 'element')
+    // Both should be currentColor (no container detected)
+    expect(svgChildren[0].attributes.fill).toBe('currentColor')
+    expect(svgChildren[1].attributes.fill).toBe('currentColor')
+  })
+})
+
 describe('backgroundWasDark threshold integration', () => {
   /**
    * Tests the threshold logic from generate-mono-icons.ts:

@@ -81,6 +81,43 @@ const ColorVsMonoGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: nu
   </div>
 )
 
+const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
+  <div className="flex flex-wrap gap-6 p-2">
+    {icons.map(({ Component, name }) => {
+      const AvatarComponent = (Component as any).Avatar
+      if (!AvatarComponent) return null
+      return (
+        <div key={name} className="flex flex-col items-center gap-1">
+          <div className="flex gap-2">
+            <AvatarComponent size={size} shape="circle" />
+            <AvatarComponent size={size} shape="rounded" />
+          </div>
+          <div className="flex gap-2 text-xs text-gray-400">
+            <span>Circle</span>
+            <span>Rounded</span>
+          </div>
+          <p className="text-sm">{name}</p>
+        </div>
+      )
+    })}
+  </div>
+)
+
+const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
+  return (
+    <div className="flex flex-col gap-8">
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
+        <AvatarGrid icons={providerIcons} size={fontSize} />
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Models ({modelIcons.length})</h2>
+        <AvatarGrid icons={modelIcons} size={fontSize} />
+      </div>
+    </div>
+  )
+}
+
 const ColorVsMonoShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8">
@@ -161,6 +198,26 @@ export const AllLogos: Story = {
  */
 export const ColorVsMono: StoryObj<typeof ColorVsMonoShowcase> = {
   render: (args) => <ColorVsMonoShowcase {...args} />,
+  args: {
+    fontSize: 32
+  }
+}
+
+/**
+ * Avatar 展示
+ *
+ * 每个 Logo 以 Avatar 形式展示，带有圆形边框。
+ * 通过 `size` 控制头像大小，图标自动缩放为容器的 75%。
+ *
+ * ```tsx
+ * import { Anthropic } from '@cherrystudio/ui/icons'
+ *
+ * <Anthropic.Avatar size={32} />
+ * <Anthropic.Avatar size={48} shape="rounded" />
+ * ```
+ */
+export const Avatars: StoryObj<typeof AvatarShowcase> = {
+  render: (args) => <AvatarShowcase {...args} />,
   args: {
     fontSize: 32
   }
