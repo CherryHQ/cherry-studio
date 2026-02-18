@@ -40,7 +40,8 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // If logo is a CompoundIcon, render its Avatar sub-component
   if (resolvedLogo && typeof resolvedLogo !== 'string') {
     const Icon = resolvedLogo as CompoundIcon
-    return <Icon.Avatar size={size} className={className} />
+    const resolvedSize = size ?? (style?.width as number | undefined)
+    return <Icon.Avatar size={resolvedSize} className={className} />
   }
 
   // If logo source is a string URL, render image avatar
@@ -49,7 +50,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       <Avatar
         src={resolvedLogo}
         radius="full"
-        className={cn('border-[0.5px] border-[var(--color-border)]', className)}
+        className={cn('border-[0.5px] border-(--color-border)', className)}
         style={{ width: size, height: size, ...style }}
         imgProps={{ draggable: false }}
       />
@@ -63,7 +64,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   return (
     <Avatar
       radius="full"
-      className={cn('border-[0.5px] border-[var(--color-border)]', className)}
+      className={cn('border-[0.5px] border-(--color-border)', className)}
       style={{
         width: size,
         height: size,
