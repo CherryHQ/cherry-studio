@@ -1,3 +1,4 @@
 # Public skills tracked by skills:sync and skills:check.
 # One skill name per line.
 gh-create-pr
+prepare-release

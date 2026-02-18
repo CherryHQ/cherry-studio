@@ -5,3 +5,5 @@
 !README*.md
 !gh-create-pr/
 !gh-create-pr/**
+!prepare-release/
+!prepare-release/**
