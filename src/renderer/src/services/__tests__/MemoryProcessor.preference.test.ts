@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MemoryItem } from '@renderer/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { MemoryProcessor } from '../MemoryProcessor'
 
 // Mock dependencies
@@ -14,9 +15,20 @@ vi.mock('../MemoryService', () => ({
   }
 }))
 
-vi.mock('@renderer/utils', () => ({
-  uuid: () => 'test-uuid-mock'
-}))
+vi.mock('@renderer/store/settings', () => {
+  const noop = vi.fn()
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (prop === 'initialState') {
+          return {}
+        }
+        return noop
+      }
+    }
+  )
+})
 
 vi.mock('@renderer/hooks/useModel', () => ({
   getModel: vi.fn()
