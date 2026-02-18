@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import type { MemoryItem, UserPreference } from '@renderer/types'
+import { describe, expect, it } from 'vitest'
 
 import { getMemoryContextPrompt, getPersonalizationPrompt } from '../memory-prompts'
 
