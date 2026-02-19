@@ -166,7 +166,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Runway
   [/runway/i, 'runaway'],
   // Stability AI
-  [/stable-|sd3|sdxl/i, 'stablility'],
+  [/stable-|sd3|sdxl/i, 'stability'],
   // TNG
   [/tng-/i, 'tng']
 ]

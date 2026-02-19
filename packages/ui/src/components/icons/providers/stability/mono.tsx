@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
-const StablilityMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+const StabilityMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 103.1 85.63" {...props}>
     <path
       fill="currentColor"
@@ -9,5 +9,5 @@ const StablilityMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
-export { StablilityMono }
-export default StablilityMono
+export { StabilityMono }
+export default StabilityMono

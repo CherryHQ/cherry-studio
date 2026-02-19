@@ -8,7 +8,6 @@
  *   - generateBarrelIndex — barrel index.ts (re-exports)
  */
 
-import { execSync } from 'child_process'
 import * as fs from 'fs'
 import { IndentationText, NewLineKind, Project, QuoteKind, VariableDeclarationKind } from 'ts-morph'
 
@@ -21,16 +20,6 @@ const project = new Project({
     indentationText: IndentationText.TwoSpaces
   }
 })
-
-/** Write file and format it with biome to match project conventions (no semicolons, single quotes, etc.) */
-function writeAndFormat(filePath: string, content: string): void {
-  fs.writeFileSync(filePath, content)
-  try {
-    execSync(`npx biome format --write ${filePath}`, { stdio: 'ignore' })
-  } catch {
-    // biome format is best-effort; file is still written
-  }
-}
 
 // ---------------------------------------------------------------------------
 // generateIconIndex
@@ -97,7 +86,7 @@ export function generateIconIndex(opts: {
     expression: `${colorName}Icon`
   })
 
-  writeAndFormat(outPath, sf.getFullText())
+  fs.writeFileSync(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +146,7 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   )`
   })
 
-  writeAndFormat(outPath, sf.getFullText())
+  fs.writeFileSync(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +184,7 @@ export function generateMeta(opts: {
     ]
   })
 
-  writeAndFormat(outPath, sf.getFullText())
+  fs.writeFileSync(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +217,7 @@ export function generateBarrelIndex(opts: {
     })
   }
 
-  writeAndFormat(outPath, sf.getFullText())
+  fs.writeFileSync(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -306,5 +295,5 @@ export function generateCatalog(opts: {
     writer.writeLine(`export type ${keyTypeName} = keyof typeof ${catalogName}`)
   })
 
-  writeAndFormat(outPath, sf.getFullText())
+  fs.writeFileSync(outPath, sf.getFullText())
 }
