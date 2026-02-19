@@ -1,4 +1,4 @@
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
@@ -188,7 +188,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         </LogoutCorner>
       )}
       <ProviderLogoWrapper onClick={() => window.open('https://open.cherryin.ai', '_blank')}>
-        <PROVIDER_ICON_CATALOG.cherryin.Avatar size={60} shape="circle" />
+        <Cherryin.Avatar size={60} shape="circle" />
       </ProviderLogoWrapper>
       {renderContent()}
       <Description>

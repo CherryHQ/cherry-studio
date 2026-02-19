@@ -1,4 +1,5 @@
-import { type CompoundIcon, PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Baidu, Bing, Bocha, Exa, Google, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 type WebSearchProviderConfig = {
@@ -121,22 +122,22 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
 export function getWebSearchProviderLogo(providerId: WebSearchProviderId): CompoundIcon | undefined {
   switch (providerId) {
     case 'zhipu':
-      return PROVIDER_ICON_CATALOG.zhipu
+      return Zhipu
     case 'tavily':
-      return PROVIDER_ICON_CATALOG.tavily
+      return Tavily
     case 'searxng':
-      return PROVIDER_ICON_CATALOG.searxng
+      return Searxng
     case 'exa':
     case 'exa-mcp':
-      return PROVIDER_ICON_CATALOG.exa
+      return Exa
     case 'bocha':
-      return PROVIDER_ICON_CATALOG.bocha
+      return Bocha
     case 'local-google':
-      return PROVIDER_ICON_CATALOG.google
+      return Google
     case 'local-bing':
-      return PROVIDER_ICON_CATALOG.bing
+      return Bing
     case 'local-baidu':
-      return PROVIDER_ICON_CATALOG.baidu
+      return Baidu
     default:
       return undefined
   }

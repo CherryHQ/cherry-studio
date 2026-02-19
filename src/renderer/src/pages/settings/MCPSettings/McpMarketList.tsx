@@ -1,4 +1,15 @@
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import {
+  Composio,
+  Github,
+  Glama,
+  Higress,
+  Mcp,
+  Mcpso,
+  Modelscope,
+  Pulse,
+  Smithery,
+  Zhipu
+} from '@cherrystudio/ui/icons'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,61 +21,61 @@ const mcpMarkets = [
   {
     name: 'BigModel MCP Market',
     url: 'https://bigmodel.cn/marketplace/index/mcp',
-    logo: PROVIDER_ICON_CATALOG.zhipu,
+    logo: Zhipu,
     descriptionKey: 'settings.mcp.more.zhipu'
   },
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',
-    logo: PROVIDER_ICON_CATALOG.modelscope,
+    logo: Modelscope,
     descriptionKey: 'settings.mcp.more.modelscope'
   },
   {
     name: 'mcp.higress.ai',
     url: 'https://mcp.higress.ai/',
-    logo: PROVIDER_ICON_CATALOG.higress,
+    logo: Higress,
     descriptionKey: 'settings.mcp.more.higress'
   },
   {
     name: 'mcp.so',
     url: 'https://mcp.so/',
-    logo: PROVIDER_ICON_CATALOG.mcpso,
+    logo: Mcpso,
     descriptionKey: 'settings.mcp.more.mcpso'
   },
   {
     name: 'smithery.ai',
     url: 'https://smithery.ai/',
-    logo: PROVIDER_ICON_CATALOG.smithery,
+    logo: Smithery,
     descriptionKey: 'settings.mcp.more.smithery'
   },
   {
     name: 'glama.ai',
     url: 'https://glama.ai/mcp/servers',
-    logo: PROVIDER_ICON_CATALOG.glama,
+    logo: Glama,
     descriptionKey: 'settings.mcp.more.glama'
   },
   {
     name: 'pulsemcp.com',
     url: 'https://www.pulsemcp.com',
-    logo: PROVIDER_ICON_CATALOG.pulse,
+    logo: Pulse,
     descriptionKey: 'settings.mcp.more.pulsemcp'
   },
   {
     name: 'mcp.composio.dev',
     url: 'https://mcp.composio.dev/',
-    logo: PROVIDER_ICON_CATALOG.composio,
+    logo: Composio,
     descriptionKey: 'settings.mcp.more.composio'
   },
   {
     name: 'Model Context Protocol Servers',
     url: 'https://github.com/modelcontextprotocol/servers',
-    logo: PROVIDER_ICON_CATALOG.mcp,
+    logo: Mcp,
     descriptionKey: 'settings.mcp.more.official'
   },
   {
     name: 'Awesome MCP Servers',
     url: 'https://github.com/punkpeye/awesome-mcp-servers',
-    logo: PROVIDER_ICON_CATALOG.github,
+    logo: Github,
     descriptionKey: 'settings.mcp.more.awesome'
   }
 ]

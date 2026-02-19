@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope, Tokenflux } from '@cherrystudio/ui/icons'
 import type { MCPServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -101,12 +101,12 @@ export const getProviderDisplayName = (provider: ProviderConfig, t: (key: string
 }
 
 const MCP_PROVIDER_ICONS: Record<string, CompoundIcon> = {
-  modelscope: PROVIDER_ICON_CATALOG.modelscope,
-  tokenflux: PROVIDER_ICON_CATALOG.tokenflux,
-  lanyun: PROVIDER_ICON_CATALOG.lanyun,
-  '302ai': PROVIDER_ICON_CATALOG['302ai'],
-  bailian: PROVIDER_ICON_CATALOG.bailian,
-  mcprouter: PROVIDER_ICON_CATALOG.mcprouter
+  modelscope: Modelscope,
+  tokenflux: Tokenflux,
+  lanyun: Lanyun,
+  '302ai': Ai302,
+  bailian: Bailian,
+  mcprouter: Mcprouter
 }
 
 export function getMCPProviderLogo(providerKey: string): CompoundIcon | undefined {

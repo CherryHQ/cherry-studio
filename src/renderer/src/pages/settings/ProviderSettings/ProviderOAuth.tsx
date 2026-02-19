@@ -1,6 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'

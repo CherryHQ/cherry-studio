@@ -1,4 +1,4 @@
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import { Intel, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
@@ -69,20 +69,14 @@ export const useOcrProviders = () => {
   const OcrProviderLogo = ({ provider: p, size = 14 }: { provider: OcrProvider; size?: number }) => {
     if (isBuiltinOcrProvider(p)) {
       switch (p.id) {
-        case 'tesseract': {
-          const TesseractIcon = PROVIDER_ICON_CATALOG.tesseractJs
-          return <TesseractIcon.Avatar size={size} shape="rounded" />
-        }
+        case 'tesseract':
+          return <TesseractJs.Avatar size={size} shape="rounded" />
         case 'system':
           return <MonitorIcon size={size} />
-        case 'paddleocr': {
-          const PaddleocrIcon = PROVIDER_ICON_CATALOG.paddleocr
-          return <PaddleocrIcon.Avatar size={size} shape="rounded" />
-        }
-        case 'ovocr': {
-          const IntelIcon = PROVIDER_ICON_CATALOG.intel
-          return <IntelIcon.Avatar size={size} shape="rounded" />
-        }
+        case 'paddleocr':
+          return <Paddleocr.Avatar size={size} shape="rounded" />
+        case 'ovocr':
+          return <Intel.Avatar size={size} shape="rounded" />
       }
     }
     return <FileQuestionMarkIcon size={size} />

@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { resolveIcon, resolveModelIcon } from '@cherrystudio/ui'
+import { resolveIcon, resolveModelIcon } from '@cherrystudio/ui/icons'
 import type { Model } from '@renderer/types'
 
 export type { CompoundIcon }

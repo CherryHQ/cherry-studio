@@ -1,4 +1,4 @@
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
+import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { RadioChangeEvent } from 'antd'
 import { Radio, Space } from 'antd'
@@ -71,7 +71,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
     <Container>
       <Space direction="vertical" style={{ width: '100%' }}>
         <LogoContainer>
-          <PROVIDER_ICON_CATALOG.dmxapi.Color height={70} width="auto" />
+          <Dmxapi.Color height={70} width="auto" />
         </LogoContainer>
 
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>

@@ -1,4 +1,4 @@
-import { resolveProviderIcon } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import type { AgentBase, AgentType } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 

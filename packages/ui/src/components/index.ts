@@ -21,11 +21,8 @@ export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './comp
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
 export { default as Scrollbar } from './composites/Scrollbar'
 
-// Icon Components
-
-// Brand Logo Icons (Colorful brand logo icons - 81 items)
-// Recommended to import using '@cherrystudio/ui/icons' path
-export * from './icons'
+// Icon Components — import from '@cherrystudio/ui/icons' path
+export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps } from './icons/types'
 
 /* Additional Composite Components */
 // CodeEditor

@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui'
+import { PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui/icons'
 import type { SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 

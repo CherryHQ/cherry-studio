@@ -1,4 +1,4 @@
-import { MODEL_ICON_CATALOG, PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui'
+import { MODEL_ICON_CATALOG, PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import type { MinAppType } from '@renderer/types'
