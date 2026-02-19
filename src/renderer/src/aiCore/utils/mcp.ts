@@ -9,14 +9,14 @@ import type { JSONSchema7 } from 'json-schema'
 const logger = loggerService.withContext('MCP-utils')
 
 // Setup tools configuration based on provided parameters
-export function setupToolsConfig(mcpTools?: MCPTool[]): Record<string, Tool<any, any>> | undefined {
+export function setupToolsConfig(mcpTools?: MCPTool[], allowedTools?: string[]): Record<string, Tool<any, any>> | undefined {
   let tools: ToolSet = {}
 
   if (!mcpTools?.length) {
     return undefined
   }
 
-  tools = convertMcpToolsToAiSdkTools(mcpTools)
+  tools = convertMcpToolsToAiSdkTools(mcpTools, allowedTools)
 
   return tools
 }
@@ -76,7 +76,7 @@ export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
 /**
  * 将 MCPTool 转换为 AI SDK 工具格式
  */
-export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
+export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: string[]): ToolSet {
   const tools: ToolSet = {}
 
   for (const mcpTool of mcpTools) {
@@ -88,7 +88,7 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
       execute: async (params, { toolCallId }) => {
         // 检查是否启用自动批准
         const server = getMcpServerByTool(mcpTool)
-        const isAutoApproveEnabled = isToolAutoApproved(mcpTool, server)
+        const isAutoApproveEnabled = isToolAutoApproved(mcpTool, server, allowedTools)
 
         let confirmed = true
 

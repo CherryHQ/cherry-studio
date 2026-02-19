@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 
 const logger = loggerService.withContext('useMcpToolApproval')
 
@@ -31,6 +32,7 @@ export function useMcpToolApproval(
   const { t } = useTranslation()
   const { mcpServers, updateMCPServer } = useMCPServers()
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+  const { agent } = useActiveAgent()
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
   const tool = toolResponse?.tool
@@ -43,9 +45,10 @@ export function useMcpToolApproval(
     if (!tool) return false
     return isToolAutoApproved(
       tool,
-      mcpServers.find((s) => s.id === tool.serverId)
+      mcpServers.find((s) => s.id === tool.serverId),
+      agent?.allowed_tools
     )
-  }, [tool, mcpServers])
+  }, [tool, mcpServers, agent?.allowed_tools])
 
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const [isConfirmed, setIsConfirmed] = useState(isAutoApproved)
