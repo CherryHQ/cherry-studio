@@ -13,7 +13,7 @@ const Avatar = (props: AvatarProps) => {
   const isExtraSmall = size === 'xs'
 
   const resolvedSize = isExtraSmall ? undefined : size
-  const mergedClassName = cn(isExtraSmall && 'w-6 h-6 text-tiny', 'shadow-lg ring-0', className)
+  const mergedClassName = cn(isExtraSmall && 'w-6 h-6 text-tiny', 'shadow-none ring-0', className)
 
   return <HeroUIAvatar size={resolvedSize} className={mergedClassName} {...rest} />
 }

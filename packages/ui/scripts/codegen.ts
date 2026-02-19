@@ -91,13 +91,6 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
 
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
 
-  if (variant === 'padded') {
-    sf.addImportDeclaration({
-      moduleSpecifier: '../../../primitives/Avatar',
-      namedImports: ['Avatar']
-    })
-  }
-
   sf.addImportDeclaration({
     moduleSpecifier: '../../../../lib/utils',
     namedImports: ['cn']
@@ -113,53 +106,37 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
     namedImports: [colorName]
   })
 
-  if (variant === 'full-bleed') {
-    sf.addFunction({
-      isExported: true,
-      name: avatarName,
-      parameters: [
-        {
-          name: `{ size = 32, shape = 'circle', className }`,
-          type: `Omit<IconAvatarProps, 'icon'>`
-        }
-      ],
-      statements: `return (
-    <div
-      className={cn(
-        'overflow-hidden border-[0.5px] border-[var(--color-border)]',
-        shape === 'circle' ? 'rounded-full' : 'rounded-[20%]',
-        className
-      )}
-      style={{ width: size, height: size }}>
-      <${colorName} style={{ width: size, height: size }} />
-    </div>
-  )`
-    })
-  } else {
-    sf.addFunction({
-      isExported: true,
-      name: avatarName,
-      parameters: [
-        {
-          name: `{ size = 32, shape = 'circle', className }`,
-          type: `Omit<IconAvatarProps, 'icon'>`
-        }
-      ],
-      statements: `return (
+  sf.addImportDeclaration({
+    moduleSpecifier: '../../../primitives/Avatar',
+    namedImports: ['Avatar']
+  })
+
+  const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.75'
+  const extraClasses = variant === 'padded' ? ' bg-background' : ''
+
+  sf.addFunction({
+    isExported: true,
+    name: avatarName,
+    parameters: [
+      {
+        name: `{ size = 32, shape = 'circle', className }`,
+        type: `Omit<IconAvatarProps, 'icon'>`
+      }
+    ],
+    statements: `return (
     <Avatar
       showFallback
-      icon={<${colorName} style={{ width: size * 0.75, height: size * 0.75 }} />}
+      icon={<${colorName} style={{ width: ${iconSize}, height: ${iconSize} }} />}
       radius={shape === 'circle' ? 'full' : 'none'}
       className={cn(
-        'overflow-hidden border-[0.5px] border-[var(--color-border)] bg-background',
+        'overflow-hidden${extraClasses}',
         shape !== 'circle' && 'rounded-[20%]',
         className
       )}
       style={{ width: size, height: size }}
     />
   )`
-    })
-  }
+  })
 
   fs.writeFileSync(outPath, sf.getFullText())
 }

@@ -9,11 +9,7 @@ export function EssentialAiAvatar({ size = 32, shape = 'circle', className }: Om
       showFallback
       icon={<EssentialAi style={{ width: size * 0.75, height: size * 0.75 }} />}
       radius={shape === 'circle' ? 'full' : 'none'}
-      className={cn(
-        'overflow-hidden border-[0.5px] border-[var(--color-border)] bg-background',
-        shape !== 'circle' && 'rounded-[20%]',
-        className
-      )}
+      className={cn('overflow-hidden bg-background', shape !== 'circle' && 'rounded-[20%]', className)}
       style={{ width: size, height: size }}
     />
   )

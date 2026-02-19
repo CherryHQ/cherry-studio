@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-19T07:05:30.312Z
- * Total icons: 152
+ * Generated at: 2026-02-19T07:52:48.761Z
+ * Total icons: 153
  */
 export { MinTop3Icon as MinTop3 } from './3minTop'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -49,6 +49,7 @@ export { DmxapiIcon as Dmxapi } from './dmxapi'
 export { Doc2xIcon as Doc2x } from './doc2x'
 export { DolaIcon as Dola } from './dola'
 export { DolphinAiIcon as DolphinAi } from './dolphinAi'
+export { DoubaoIcon as Doubao } from './doubao'
 export { DuckIcon as Duck } from './duck'
 export { ElevenlabsIcon as Elevenlabs } from './elevenlabs'
 export { EssentialAiIcon as EssentialAi } from './essentialAi'
