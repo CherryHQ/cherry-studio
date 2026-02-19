@@ -1,5 +1,4 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { McpLogo } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
@@ -11,7 +10,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { getProviderDisplayName, providers } from './providers/config'
+import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
   const { t } = useTranslation()
@@ -50,17 +49,6 @@ const MCPSettings: FC = () => {
     return providers.some((p) => path === `/settings/mcp/${p.key}`)
   }
 
-  // Provider icons map
-  const Ai302Avatar = PROVIDER_ICON_CATALOG['302ai'].Avatar
-  const providerIcons: Record<string, React.ReactNode> = {
-    modelscope: <PROVIDER_ICON_CATALOG.modelscope.Avatar size={24} shape="circle" />,
-    tokenflux: <PROVIDER_ICON_CATALOG.tokenflux.Avatar size={24} shape="circle" />,
-    lanyun: <PROVIDER_ICON_CATALOG.lanyun.Avatar size={24} shape="circle" />,
-    '302ai': <Ai302Avatar size={24} shape="circle" />,
-    bailian: <PROVIDER_ICON_CATALOG.bailian.Avatar size={24} shape="circle" />,
-    mcprouter: <PROVIDER_ICON_CATALOG.mcprouter.Avatar size={24} shape="circle" />
-  }
-
   return (
     <Container>
       <MainContainer>
@@ -94,7 +82,10 @@ const MCPSettings: FC = () => {
               title={getProviderDisplayName(provider, t)}
               active={activeView === provider.key}
               onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
-              icon={providerIcons[provider.key] || <FolderCog size={16} />}
+              icon={(() => {
+                const logo = getMCPProviderLogo(provider.key)
+                return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
+              })()}
               titleStyle={{ fontWeight: 500 }}
             />
           ))}
