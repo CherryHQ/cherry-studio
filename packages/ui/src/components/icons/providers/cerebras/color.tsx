@@ -3,7 +3,6 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const Cerebras: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 1000 1000" {...props}>
-    <path fill="#fff" d="M0 0H1000V1000H0z" />
     <path
       fill="#F05A28"
       fillRule="evenodd"

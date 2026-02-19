@@ -27,13 +27,15 @@ const GraphRagMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     <path
       fill="currentColor"
       fillOpacity={0.47}
-      stroke="#7ED321"
+      stroke="currentColor"
+      strokeOpacity={0.47}
       d="M11.9923 10.0394C14.2117 10.0394 16.0109 8.24024 16.0109 6.02082C16.0109 3.8014 14.2117 2.0022 11.9923 2.0022C9.77283 2.0022 7.97363 3.8014 7.97363 6.02082C7.97363 8.24024 9.77283 10.0394 11.9923 10.0394Z"
     />
     <path
       fill="currentColor"
       fillOpacity={0.55}
-      stroke="#ED9A12"
+      stroke="currentColor"
+      strokeOpacity={0.55}
       d="M5.01862 22.1178C7.23805 22.1178 9.03724 20.3186 9.03724 18.0992C9.03724 15.8798 7.23805 14.0806 5.01862 14.0806C2.7992 14.0806 1 15.8798 1 18.0992C1 20.3186 2.7992 22.1178 5.01862 22.1178Z"
     />
     <path

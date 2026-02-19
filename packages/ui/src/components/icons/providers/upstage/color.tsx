@@ -3,7 +3,6 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const Upstage: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 200 200" {...props}>
-    <path fill="#FEFEFE" d="M0 0 C66 0 132 0 200 0 C200 66 200 132 200 200 C134 200 68 200 0 200 C0 134 0 68 0 0 Z" />
     <path
       fill="#8968FB"
       d="M0 0 C33.33 0 66.66 0 101 0 C100.34 2.64 99.68 5.28 99 8 C65.67 8 32.34 8 -2 8 C-1.34 5.36 -0.68 2.72 0 0 Z"

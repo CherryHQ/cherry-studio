@@ -170,9 +170,21 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
         removeMaskElements(svgNode)
       }
 
-      // Phase 1: Pre-scan — collect unique fill colors and luminances
+      // Phase 1: Pre-scan — collect unique fill/stroke colors and luminances
       const colorLuminances = new Map<string, number>()
       const whiteColors = new Set<string>()
+
+      function addColorEntry(color: string) {
+        if (!color || color === 'none' || color === 'currentColor' || color.startsWith('url(')) return
+        if (isWhiteFill(color)) {
+          whiteColors.add(color)
+        } else {
+          const lum = colorToLuminance(color)
+          if (lum >= 0 && !colorLuminances.has(color)) {
+            colorLuminances.set(color, lum)
+          }
+        }
+      }
 
       function collectColors(node: XastElement) {
         const children = node.children
@@ -182,17 +194,8 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           // Skip elements inside <defs>
           if (child.name === 'defs') continue
 
-          const fill = child.attributes.fill
-          if (fill && fill !== 'none' && fill !== 'currentColor' && !fill.startsWith('url(')) {
-            if (isWhiteFill(fill)) {
-              whiteColors.add(fill)
-            } else {
-              const lum = colorToLuminance(fill)
-              if (lum >= 0 && !colorLuminances.has(fill)) {
-                colorLuminances.set(fill, lum)
-              }
-            }
-          }
+          addColorEntry(child.attributes.fill)
+          addColorEntry(child.attributes.stroke)
 
           if (child.children.length > 0) {
             collectColors(child)
@@ -201,6 +204,9 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       }
 
       collectColors(svgNode)
+      // Also collect colors from the SVG root element itself (inherited by children)
+      addColorEntry(svgNode.attributes.fill)
+      addColorEntry(svgNode.attributes.stroke)
 
       // Phase 1.5: Container detection — when a large first shape covers most of
       // the viewBox, lighter overlapping shapes should use white to create contrast.
@@ -304,6 +310,22 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
             }
           }
 
+          // Replace stroke values
+          const stroke = child.attributes.stroke
+          if (stroke && stroke !== 'none' && stroke !== 'currentColor') {
+            if (stroke.startsWith('url(')) {
+              child.attributes.stroke = 'currentColor'
+            } else if (isWhiteFill(stroke)) {
+              child.attributes.stroke = whiteIsFg ? 'currentColor' : 'var(--color-background, white)'
+            } else {
+              const opacity = opacityMap.get(stroke)
+              child.attributes.stroke = 'currentColor'
+              if (opacity !== undefined && opacity < 0.99) {
+                child.attributes['stroke-opacity'] = opacity.toFixed(2)
+              }
+            }
+          }
+
           // Recurse into children
           if (child.children.length > 0) {
             transformNode(child)
@@ -311,7 +333,23 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
         }
       }
 
-      if (svgNode) transformNode(svgNode)
+      if (svgNode) {
+        transformNode(svgNode)
+
+        // Handle SVG root element's own fill/stroke (inherited by children)
+        const rootFill = svgNode.attributes.fill
+        if (rootFill && rootFill !== 'none' && rootFill !== 'currentColor' && !rootFill.startsWith('url(')) {
+          svgNode.attributes.fill = isWhiteFill(rootFill)
+            ? whiteIsFg
+              ? 'currentColor'
+              : 'var(--color-background, white)'
+            : 'currentColor'
+        }
+        const rootStroke = svgNode.attributes.stroke
+        if (rootStroke && rootStroke !== 'none' && rootStroke !== 'currentColor' && !rootStroke.startsWith('url(')) {
+          svgNode.attributes.stroke = 'currentColor'
+        }
+      }
 
       return {}
     }

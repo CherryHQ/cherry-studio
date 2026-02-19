@@ -7,7 +7,7 @@ export const StablilityIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Stablili
   Color: Stablility,
   Mono: StablilityMono,
   Avatar: StablilityAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#e80000'
 })
 
 export default StablilityIcon

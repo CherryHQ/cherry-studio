@@ -416,22 +416,25 @@ export function isMonochromeSvg(svgContent: string): { monochrome: boolean; dark
   // Strip <defs>...</defs> blocks from analysis
   const stripped = svgContent.replace(/<defs[\s\S]*?<\/defs>/gi, '')
 
-  // Extract all fill="..." values from content elements
+  // Extract all fill="..." and stroke="..." values from content elements
   const fillMatches = [...stripped.matchAll(/fill="([^"]+)"/g)]
+  const strokeMatches = [...stripped.matchAll(/stroke="([^"]+)"/g)]
   const fills = fillMatches.map(([, value]) => value)
+  const strokes = strokeMatches.map(([, value]) => value)
+  const allColors = [...fills, ...strokes]
 
-  // If any content element uses gradient fills, the icon is colorful (not monochrome)
-  const hasGradientFill = fills.some((f) => f.startsWith('url('))
+  // If any content element uses gradient fills/strokes, the icon is colorful (not monochrome)
+  const hasGradientFill = allColors.some((f) => f.startsWith('url('))
   if (hasGradientFill) {
     return { monochrome: false, darkDesigned: false }
   }
 
-  // Filter out non-content fills
-  const contentFills = fills.filter((f) => f !== 'none' && f !== 'currentColor' && !isWhiteFill(f))
+  // Filter out non-content colors
+  const contentFills = allColors.filter((f) => f !== 'none' && f !== 'currentColor' && !isWhiteFill(f))
 
   if (contentFills.length === 0) {
-    // No colored fills remain — all-white/transparent content
-    const hasWhite = fills.some((f) => isWhiteFill(f))
+    // No colored fills/strokes remain — all-white/transparent content
+    const hasWhite = allColors.some((f) => isWhiteFill(f))
     return { monochrome: true, darkDesigned: hasWhite }
   }
 

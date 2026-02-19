@@ -1,9 +1,9 @@
 /**
  * Auto-generated compound icon exports
- * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
+ * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-18T17:04:21.753Z
+ * Generated at: 2026-02-18T18:05:58.351Z
  * Total icons: 113
  */
 export { Ai302Icon as Ai302 } from './302ai'

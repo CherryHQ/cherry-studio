@@ -6,13 +6,11 @@ const IdeogramMono: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     xmlns="http://www.w3.org/2000/svg"
     width="1em"
     height="1em"
-    style={{
-      fill: 'none',
-      stroke: '#0e0e10',
-      strokeWidth: 68,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round'
-    }}
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth={68}
     viewBox="0 0 900 900"
     {...props}>
     <path d="M377.87 204.445H237.224M377.87 696.305H237.224M44.007 450.582h334.226M390.122 816.411H355.82zm0-244.024c67.386 0 122.013 54.627 122.013 122.012 0 67.386-54.627 122.012-122.013 122.012m0-732.922H355.82zm0 488.898H117.421m272.701-244.874H117.421m272.701 0c9.259 0 18.276 1.88 26.944 3.834 54.421 12.267 95.069 60.9 95.069 119.028 0 67.385-54.627 122.012-122.013 122.012m0-488.898c67.386 0 122.013 54.627 122.013 122.012 0 67.386-54.627 122.012-122.013 122.012" />

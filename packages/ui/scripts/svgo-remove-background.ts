@@ -180,10 +180,12 @@ export function createRemoveBackgroundPlugin(options: RemoveBackgroundOptions = 
 
       collectElements(svgNode)
 
-      // Helper: mark background detected, optionally remove from AST
+      // Helper: mark background detected, optionally remove from AST.
+      // In detectOnly mode, white backgrounds (fill === null) are still removed
+      // since they are never brand elements and break dark mode rendering.
       function markBackground(node: XastElement, parent: XastElement, fill: string | null) {
         if (fill) backgroundFill = fill
-        if (!detectOnly) detachNodeFromParent(node, parent)
+        if (!detectOnly || !fill) detachNodeFromParent(node, parent)
         removed = true
       }
 

@@ -107,7 +107,7 @@ function toPascalCase(filename: string): string {
  * Extract the most prominent fill color from SVG content.
  */
 function extractColorPrimary(svgContent: string): string {
-  const fills = [...svgContent.matchAll(/fill="([^"]+)"/g)]
+  const fills = [...svgContent.matchAll(/(?:fill|stroke)="([^"]+)"/g)]
   const colorCounts = new Map<string, number>()
 
   for (const [, color] of fills) {
@@ -148,6 +148,18 @@ async function svgrTransform(svgCode: string, componentName: string, extraSvgoPl
       jsxRuntime: 'automatic',
       svgoConfig: {
         plugins: [
+          {
+            name: 'removeForeignObject',
+            fn: () => ({
+              element: {
+                enter: (node: any, parentNode: any) => {
+                  if (node.name === 'foreignObject') {
+                    parentNode.children = parentNode.children.filter((c: any) => c !== node)
+                  }
+                }
+              }
+            })
+          },
           ...extraSvgoPlugins,
           {
             name: 'preset-default',
@@ -237,14 +249,29 @@ async function generateLogoDir(
     colorPrimary = bgPlugin.getBackgroundFill() || extractColorPrimary(svgCode)
 
     // Replace near-black fills with currentColor for dark mode adaptation,
-    // while preserving actual brand colors (e.g. Intel: black text + blue dot)
-    jsCode = jsCode.replace(/fill="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
-      const lum = colorToLuminance(hex)
-      if (lum >= 0 && lum < 0.15) {
-        return 'fill="currentColor"'
-      }
-      return match
-    })
+    // while preserving actual brand colors (e.g. Intel: black text + blue dot).
+    // Skip when the icon has a preserved dark background — dark fills are integral
+    // to the design and the icon provides its own contrast (e.g. Poe, Kimi).
+    const bgFill = bgPlugin.getBackgroundFill()
+    const bgLum = bgFill ? colorToLuminance(bgFill) : -1
+    const hasDarkBackground = bgPlugin.wasRemoved() && bgLum >= 0 && bgLum < 0.15
+
+    if (!hasDarkBackground) {
+      jsCode = jsCode.replace(/fill="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
+        const lum = colorToLuminance(hex)
+        if (lum >= 0 && lum < 0.15) {
+          return 'fill="currentColor"'
+        }
+        return match
+      })
+      jsCode = jsCode.replace(/stroke="(#[0-9a-fA-F]{3,6})"/g, (match, hex) => {
+        const lum = colorToLuminance(hex)
+        if (lum >= 0 && lum < 0.15) {
+          return 'stroke="currentColor"'
+        }
+        return match
+      })
+    }
   }
 
   jsCode = jsCode.replace(
