@@ -16,6 +16,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
 import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -23,7 +24,6 @@ import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -84,6 +84,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
+  const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const textareaRef = useRef<any>(null)
@@ -170,7 +171,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleProviderChange = (providerId: string) => {
-    navigate(`/paintings/${providerId}`, { replace: true })
+    const routeName = location.pathname.split('/').pop()
+    if (providerId !== routeName) {
+      navigate({ to: '../' + providerId, replace: true })
+    }
   }
 
   const handleModeChange = (value: string) => {
