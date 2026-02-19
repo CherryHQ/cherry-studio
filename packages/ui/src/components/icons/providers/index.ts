@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-19T11:41:49.037Z
- * Total icons: 153
+ * Generated at: 2026-02-19T12:11:35.625Z
+ * Total icons: 155
  */
 export { MinTop3Icon as MinTop3 } from './3minTop'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -60,6 +60,7 @@ export { FlowithIcon as Flowith } from './flowith'
 export { GensparkIcon as Genspark } from './genspark'
 export { GiteeAiIcon as GiteeAi } from './giteeAi'
 export { GithubIcon as Github } from './github'
+export { GithubCopilotIcon as GithubCopilot } from './githubCopilot'
 export { GlamaIcon as Glama } from './glama'
 export { GoogleIcon as Google } from './google'
 export { GpustackIcon as Gpustack } from './gpustack'

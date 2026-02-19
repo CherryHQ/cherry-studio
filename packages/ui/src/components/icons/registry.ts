@@ -184,13 +184,14 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   yi: 'zeroOne',
   ovms: 'intel',
   gemini: 'google',
-  copilot: 'github',
+  copilot: 'githubCopilot',
   doubao: 'volcengine',
   stepfun: 'step',
   voyageai: 'voyage',
   gateway: 'vercel',
   zhinao: 'xirang',
-  aionly: 'aiOnly'
+  aionly: 'aiOnly',
+  dashscope: 'bailian'
 }
 
 /** Resolve a dedicated model icon by matching modelId against MODEL_ICON_PATTERNS */
