@@ -1,3 +1,4 @@
+import { type CompoundIcon, PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 type WebSearchProviderConfig = {
@@ -112,3 +113,31 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     url: 'https://www.baidu.com/s?wd=%s'
   }
 ] as const
+
+/**
+ * Resolve the CompoundIcon for a given web search provider ID.
+ * Centralised here so every UI surface uses the same mapping.
+ */
+export function getWebSearchProviderLogo(providerId: WebSearchProviderId): CompoundIcon | undefined {
+  switch (providerId) {
+    case 'zhipu':
+      return PROVIDER_ICON_CATALOG.zhipu
+    case 'tavily':
+      return PROVIDER_ICON_CATALOG.tavily
+    case 'searxng':
+      return PROVIDER_ICON_CATALOG.searxng
+    case 'exa':
+    case 'exa-mcp':
+      return PROVIDER_ICON_CATALOG.exa
+    case 'bocha':
+      return PROVIDER_ICON_CATALOG.bocha
+    case 'local-google':
+      return PROVIDER_ICON_CATALOG.google
+    case 'local-bing':
+      return PROVIDER_ICON_CATALOG.bing
+    case 'local-baidu':
+      return PROVIDER_ICON_CATALOG.baidu
+    default:
+      return undefined
+  }
+}

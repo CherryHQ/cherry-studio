@@ -384,6 +384,117 @@ describe('container shape detection (Phase 1.5)', () => {
   })
 })
 
+// ─── Cutout / luminance mask preservation ─────────────────────────────
+
+describe('cutout mask preservation (AI Studio pattern)', () => {
+  it('preserves cutout masks (white bg + black shapes) and their defs', () => {
+    // AI Studio pattern: rect with mask that cuts out an ellipse
+    const maskRect = el('rect', { width: '512', height: '512', fill: 'white' })
+    const maskEllipse = el('ellipse', { cx: '330', cy: '175', rx: '110', ry: '110', fill: 'black' })
+    const mask = el('mask', { id: 'starMask' }, [maskRect, maskEllipse])
+    const defs = el('defs', {}, [mask])
+
+    const rect = el('rect', {
+      x: '120',
+      y: '120',
+      width: '256',
+      height: '256',
+      rx: '24',
+      ry: '24',
+      fill: 'none',
+      stroke: '#1A1A1A',
+      'stroke-width': '28',
+      mask: 'url(#starMask)'
+    })
+    const sparkle = el('path', {
+      d: 'M 330 68 C 330 68 318 118 302 134 Z',
+      fill: '#1A1A1A'
+    })
+    const root = svgRoot({ viewBox: '0 0 512 512' }, [defs, rect, sparkle])
+
+    const mono = createConvertToMonoPlugin()
+    mono.plugin.fn(root)
+
+    const children = svgChildren(root)
+
+    // <defs> should be preserved (contains the cutout mask)
+    const defsEl = children.find((c) => c.name === 'defs')
+    expect(defsEl).toBeDefined()
+
+    // <mask> should still exist inside defs
+    const maskEl = defsEl.children.find((c: any) => c.type === 'element' && c.name === 'mask')
+    expect(maskEl).toBeDefined()
+    expect(maskEl.attributes.id).toBe('starMask')
+
+    // The rect should still have its mask attribute
+    const rectEl = children.find((c) => c.name === 'rect')
+    expect(rectEl).toBeDefined()
+    expect(rectEl.attributes.mask).toBe('url(#starMask)')
+
+    // Colors should still be converted to currentColor
+    expect(rectEl.attributes.stroke).toBe('currentColor')
+    expect(children.find((c) => c.name === 'path').attributes.fill).toBe('currentColor')
+  })
+
+  it('does not leak mask colors into opacity calculation', () => {
+    // Same AI Studio pattern — mask colors (white, black) should NOT
+    // affect the opacity of #1A1A1A (the only real content color).
+    const maskRect = el('rect', { width: '512', height: '512', fill: 'white' })
+    const maskEllipse = el('ellipse', { cx: '330', cy: '175', rx: '110', ry: '110', fill: 'black' })
+    const mask = el('mask', { id: 'starMask' }, [maskRect, maskEllipse])
+    const defs = el('defs', {}, [mask])
+
+    const rect = el('rect', {
+      x: '120',
+      y: '120',
+      width: '256',
+      height: '256',
+      fill: 'none',
+      stroke: '#1A1A1A',
+      'stroke-width': '28',
+      mask: 'url(#starMask)'
+    })
+    const sparkle = el('path', {
+      d: 'M 330 68 C 330 68 318 118 302 134 Z',
+      fill: '#1A1A1A'
+    })
+    const root = svgRoot({ viewBox: '0 0 512 512' }, [defs, rect, sparkle])
+
+    const mono = createConvertToMonoPlugin()
+    mono.plugin.fn(root)
+
+    const children = svgChildren(root)
+    const rectEl = children.find((c) => c.name === 'rect')
+    const pathEl = children.find((c) => c.name === 'path')
+
+    // Single content color #1A1A1A → full opacity, no stroke-opacity/fill-opacity
+    expect(rectEl.attributes['stroke-opacity']).toBeUndefined()
+    expect(pathEl.attributes['fill-opacity']).toBeUndefined()
+  })
+
+  it('still removes non-cutout masks (white-only shape masks)', () => {
+    // A mask with only white shapes (no black cutout) should still be processed normally
+    const maskStar = el('path', {
+      d: 'M12 3L14.5 9.5L21 12L14.5 14.5L12 21L9.5 14.5L3 12L9.5 9.5Z',
+      fill: 'white'
+    })
+    const mask = el('mask', { id: 'mask0' }, [maskStar])
+    const group = el('g', { mask: 'url(#mask0)' }, [el('path', { d: 'M0 0H24V24H0Z', fill: '#333' })])
+    const root = svg([mask, group])
+
+    const mono = createConvertToMonoPlugin()
+    mono.plugin.fn(root)
+
+    // Mask should be removed (not preserved)
+    const masks = svgChildren(root).filter((c) => c.name === 'mask')
+    expect(masks.length).toBe(0)
+
+    // Group content should be replaced with mask shape
+    const g = svgChildren(root).find((c) => c.name === 'g')
+    expect(g.children[0].attributes.d).toBe('M12 3L14.5 9.5L21 12L14.5 14.5L12 21L9.5 14.5L3 12L9.5 9.5Z')
+  })
+})
+
 describe('backgroundWasDark threshold integration', () => {
   /**
    * Tests the threshold logic from generate-mono-icons.ts:

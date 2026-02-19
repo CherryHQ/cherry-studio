@@ -2,6 +2,6 @@ import { type IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'zAi',
-  colorPrimary: '#000000',
+  colorPrimary: '#2D2D2D',
   colorScheme: 'mono'
 }

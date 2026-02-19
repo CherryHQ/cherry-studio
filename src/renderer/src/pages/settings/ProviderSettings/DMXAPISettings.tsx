@@ -1,6 +1,4 @@
-import DmxapiLogo from '@renderer/assets/images/providers/dmxapi-logo.webp'
-import DmxapiLogoDark from '@renderer/assets/images/providers/dmxapi-logo-dark.webp'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { RadioChangeEvent } from 'antd'
 import { Radio, Space } from 'antd'
@@ -43,7 +41,6 @@ const PlatformOptions = [
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
-  const { theme } = useTheme()
 
   const { t } = useTranslation()
 
@@ -75,7 +72,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
     <Container>
       <Space direction="vertical" style={{ width: '100%' }}>
         <LogoContainer>
-          <Logo src={theme === 'dark' ? DmxapiLogoDark : DmxapiLogo}></Logo>
+          <PROVIDER_ICON_CATALOG.dmxapi.Color height={70} width="auto" />
         </LogoContainer>
 
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
@@ -115,12 +112,6 @@ const LogoContainer = styled.div`
   justify-content: center;
   align-items: center;
   margin-bottom: 30px;
-`
-
-const Logo = styled.img`
-  height: 70px;
-  display: block;
-  width: auto;
 `
 
 export default DMXAPISettings

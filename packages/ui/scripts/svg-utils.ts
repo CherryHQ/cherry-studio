@@ -416,9 +416,9 @@ export function isMonochromeSvg(svgContent: string): { monochrome: boolean; dark
   // Strip <defs>...</defs> blocks from analysis
   const stripped = svgContent.replace(/<defs[\s\S]*?<\/defs>/gi, '')
 
-  // Extract all fill="..." and stroke="..." values from content elements
-  const fillMatches = [...stripped.matchAll(/fill="([^"]+)"/g)]
-  const strokeMatches = [...stripped.matchAll(/stroke="([^"]+)"/g)]
+  // Extract all fill="..." / fill='...' and stroke="..." / stroke='...' values from content elements
+  const fillMatches = [...stripped.matchAll(/fill=["']([^"']+)["']/g)]
+  const strokeMatches = [...stripped.matchAll(/stroke=["']([^"']+)["']/g)]
   const fills = fillMatches.map(([, value]) => value)
   const strokes = strokeMatches.map(([, value]) => value)
   const allColors = [...fills, ...strokes]

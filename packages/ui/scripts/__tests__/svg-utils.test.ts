@@ -274,4 +274,17 @@ describe('isMonochromeSvg', () => {
     const svg = '<svg viewBox="0 0 24 24"><path fill="#1F0909" d="M0 0h24v24H0z"/></svg>'
     expect(isMonochromeSvg(svg)).toEqual({ monochrome: true, darkDesigned: false })
   })
+
+  it('handles single-quoted attributes (Skywork pattern)', () => {
+    const svg = `<svg width='80' height='80' viewBox='0 0 80 80' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path fill='#4D5EFF' d='M43 12L14 13L13 45L42 49L24 30L43 12Z'/>
+      <path fill='#00FFCE' d='M37 30L66 34L65 66L36 67L55 49L37 30Z'/>
+    </svg>`
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: false, darkDesigned: false })
+  })
+
+  it('handles mixed single and double quoted attributes', () => {
+    const svg = `<svg viewBox="0 0 24 24"><path fill='#FF0000' d="M0 0h12v24H0z"/><path fill="#0000FF" d="M12 0h12v24H12z"/></svg>`
+    expect(isMonochromeSvg(svg)).toEqual({ monochrome: false, darkDesigned: false })
+  })
 })

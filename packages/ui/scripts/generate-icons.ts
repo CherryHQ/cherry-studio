@@ -107,7 +107,7 @@ function toPascalCase(filename: string): string {
  * Extract the most prominent fill color from SVG content.
  */
 function extractColorPrimary(svgContent: string): string {
-  const fills = [...svgContent.matchAll(/(?:fill|stroke)="([^"]+)"/g)]
+  const fills = [...svgContent.matchAll(/(?:fill|stroke)=["']([^"']+)["']/g)]
   const colorCounts = new Map<string, number>()
 
   for (const [, color] of fills) {

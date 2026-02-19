@@ -1,13 +1,6 @@
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
-import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
-import BingLogo from '@renderer/assets/images/search/bing.svg'
-import BochaLogo from '@renderer/assets/images/search/bocha.webp'
-import ExaLogo from '@renderer/assets/images/search/exa.png'
-import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
-import TavilyLogo from '@renderer/assets/images/search/tavily.png'
-import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import Selector from '@renderer/components/Selector'
+import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import {
   useDefaultWebSearchProvider,
@@ -16,7 +9,7 @@ import {
 } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
-import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
 import { Slider } from 'antd'
@@ -24,31 +17,6 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
-// Provider logos map
-const getProviderLogo = (providerId: WebSearchProviderId): string | undefined => {
-  switch (providerId) {
-    case 'zhipu':
-      return ZhipuLogo
-    case 'tavily':
-      return TavilyLogo
-    case 'searxng':
-      return SearxngLogo
-    case 'exa':
-    case 'exa-mcp':
-      return ExaLogo
-    case 'bocha':
-      return BochaLogo
-    case 'local-google':
-      return GoogleLogo
-    case 'local-bing':
-      return BingLogo
-    case 'local-baidu':
-      return BaiduLogo
-    default:
-      return undefined
-  }
-}
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
@@ -96,13 +64,13 @@ const BasicSettings: FC = () => {
   })
 
   const renderProviderLabel = (provider: WebSearchProvider) => {
-    const logo = getProviderLogo(provider.id)
+    const logo = getWebSearchProviderLogo(provider.id)
     const needsApiKey = hasObjectKey(provider, 'apiKey')
 
     return (
       <div className="flex items-center gap-2">
         {logo ? (
-          <img src={logo} alt={provider.name} className="h-4 w-4 rounded-sm object-contain" />
+          <logo.Avatar size={16} shape="rounded" />
         ) : (
           <div className="h-4 w-4 rounded-sm bg-[var(--color-background-soft)]" />
         )}

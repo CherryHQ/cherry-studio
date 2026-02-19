@@ -10,6 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -543,11 +544,20 @@ const MinappPopupContainer: React.FC = () => {
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
         <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
-          <Avatar
-            src={currentAppInfo?.logo}
-            className="h-20 w-20"
-            style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
-          />
+          {(() => {
+            const logo = currentAppInfo?.logo
+            if (logo && typeof logo !== 'string') {
+              const Icon = logo as CompoundIcon
+              return <Icon.Avatar size={80} shape="rounded" />
+            }
+            return (
+              <Avatar
+                src={logo}
+                className="h-20 w-20"
+                style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
+              />
+            )
+          })()}
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}

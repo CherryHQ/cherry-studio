@@ -42,7 +42,7 @@ import { SensenovaIcon } from './sensenova'
 import { SoraIcon } from './sora'
 import { TrinityIcon } from './trinity'
 
-export const MODEL_ICON_CATALOG: Record<string, CompoundIcon> = {
+export const MODEL_ICON_CATALOG = {
   aya: AyaIcon,
   claude: ClaudeIcon,
   codegeex: CodegeexIcon,
@@ -78,4 +78,6 @@ export const MODEL_ICON_CATALOG: Record<string, CompoundIcon> = {
   sensenova: SensenovaIcon,
   sora: SoraIcon,
   trinity: TrinityIcon
-}
+} as const satisfies Record<string, CompoundIcon>
+
+export type ModelIconKey = keyof typeof MODEL_ICON_CATALOG

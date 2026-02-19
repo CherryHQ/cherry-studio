@@ -1,3 +1,4 @@
+import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
@@ -110,7 +111,14 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
         {!isReady && (
           <LoadingMask>
             <LoadingOverlay>
-              <Avatar src={app.logo} className="h-[60px] w-[60px] border border-border" />
+              {(() => {
+                const logo = app.logo
+                if (logo && typeof logo !== 'string') {
+                  const Icon = logo as CompoundIcon
+                  return <Icon.Avatar size={60} shape="rounded" />
+                }
+                return <Avatar src={logo} className="h-[60px] w-[60px] border border-border" />
+              })()}
               <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
             </LoadingOverlay>
           </LoadingMask>

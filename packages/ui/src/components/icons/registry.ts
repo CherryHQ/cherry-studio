@@ -1,5 +1,5 @@
-import { MODEL_ICON_CATALOG } from './models/catalog'
-import { PROVIDER_ICON_CATALOG } from './providers/catalog'
+import { MODEL_ICON_CATALOG, type ModelIconKey } from './models/catalog'
+import { PROVIDER_ICON_CATALOG, type ProviderIconKey } from './providers/catalog'
 import type { CompoundIcon } from './types'
 
 /**
@@ -196,7 +196,7 @@ export function resolveModelIcon(modelId: string): CompoundIcon | undefined {
   if (!modelId) return undefined
   for (const [regex, catalogKey] of MODEL_ICON_PATTERNS) {
     if (regex.test(modelId)) {
-      return MODEL_ICON_CATALOG[catalogKey]
+      return MODEL_ICON_CATALOG[catalogKey as ModelIconKey]
     }
   }
   return undefined
@@ -207,7 +207,7 @@ export function resolveModelToProviderIcon(modelId: string): CompoundIcon | unde
   if (!modelId) return undefined
   for (const [regex, catalogKey] of MODEL_TO_PROVIDER_PATTERNS) {
     if (regex.test(modelId)) {
-      return PROVIDER_ICON_CATALOG[catalogKey]
+      return PROVIDER_ICON_CATALOG[catalogKey as ProviderIconKey]
     }
   }
   return undefined
@@ -217,7 +217,10 @@ export function resolveModelToProviderIcon(modelId: string): CompoundIcon | unde
 export function resolveProviderIcon(providerId: string): CompoundIcon | undefined {
   if (!providerId) return undefined
   const key = PROVIDER_ID_ALIASES[providerId] ?? providerId
-  return PROVIDER_ICON_CATALOG[key] ?? MODEL_ICON_CATALOG[key]
+  return (
+    (PROVIDER_ICON_CATALOG as Record<string, CompoundIcon>)[key] ??
+    (MODEL_ICON_CATALOG as Record<string, CompoundIcon>)[key]
+  )
 }
 
 /**

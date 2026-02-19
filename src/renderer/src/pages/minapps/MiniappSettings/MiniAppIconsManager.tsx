@@ -1,4 +1,5 @@
 import { CloseOutlined } from '@ant-design/icons'
+import type { CompoundIcon } from '@cherrystudio/ui'
 import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
@@ -96,7 +97,13 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
     return (
       <ProgramItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
         <ProgramContent>
-          <AppLogo src={logo} alt={name} />
+          {(() => {
+            if (logo && typeof logo !== 'string') {
+              const Icon = logo as CompoundIcon
+              return <Icon.Avatar size={16} shape="rounded" />
+            }
+            return <AppLogo src={logo as string} alt={name} />
+          })()}
           <span>{name}</span>
         </ProgramContent>
         <CloseButton onClick={() => onMoveMiniApp(program, listType)}>

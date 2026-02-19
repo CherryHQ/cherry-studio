@@ -89,6 +89,7 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
       }
       if (!svgNode) return {}
       const maskElements = new Map<string, XastElement>()
+      const preservedMaskIds = new Set<string>()
 
       function collectMaskDefs(node: XastElement) {
         for (const child of node.children) {
@@ -98,6 +99,25 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           }
           if (child.children.length > 0) collectMaskDefs(child)
         }
+      }
+
+      /**
+       * Check if a mask is a luminance cutout mask (white background + dark cutout shapes).
+       * These masks create a "punch-through" effect and must be preserved as-is.
+       */
+      function isCutoutMask(shapePaths: XastElement[]): boolean {
+        const hasDarkFill = shapePaths.some((sp) => {
+          const fill = sp.attributes.fill || ''
+          if (/^black$/i.test(fill)) return true
+          const lum = colorToLuminance(fill)
+          return lum >= 0 && lum < 0.3
+        })
+        const hasLightFill = shapePaths.some((sp) => {
+          const fill = sp.attributes.fill || ''
+          if (/^white$/i.test(fill)) return true
+          return isWhiteFill(fill)
+        })
+        return hasDarkFill && hasLightFill
       }
 
       function replaceMaskedGroups(node: XastElement, viewBoxArea: number) {
@@ -113,6 +133,13 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
                   (c): c is XastElement =>
                     c.type === 'element' && ['path', 'rect', 'circle', 'ellipse'].includes(c.name)
                 )
+
+                // Cutout masks (white bg + dark shapes) create visual gaps — preserve them.
+                if (isCutoutMask(shapePaths)) {
+                  preservedMaskIds.add(maskMatch[1])
+                  if (child.children.length > 0) replaceMaskedGroups(child, viewBoxArea)
+                  continue
+                }
 
                 // Check if mask is a no-op (full viewBox rect) — if so, skip replacement.
                 // A no-op mask doesn't define a shape, it just clips to the viewBox.
@@ -155,6 +182,8 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           const child = children[i]
           if (child.type !== 'element') continue
           if (child.name === 'mask') {
+            // Preserve cutout masks that are still referenced
+            if (child.attributes.id && preservedMaskIds.has(child.attributes.id)) continue
             detachNodeFromParent(child, node)
             continue
           }
@@ -269,16 +298,32 @@ export function createConvertToMonoPlugin(options: ConvertToMonoOptions = {}) {
           const child = children[i]
           if (child.type !== 'element') continue
 
-          // Remove <defs>, <clipPath> elements
-          if (child.name === 'defs' || child.name === 'clipPath') {
+          // Remove <clipPath> elements
+          if (child.name === 'clipPath') {
             detachNodeFromParent(child, node)
             continue
           }
 
-          // Remove clipPath/filter/mask attributes
+          // Preserve <defs> containing cutout masks; remove others
+          if (child.name === 'defs') {
+            const hasPreservedMask = child.children.some(
+              (c) =>
+                c.type === 'element' && c.name === 'mask' && c.attributes.id && preservedMaskIds.has(c.attributes.id)
+            )
+            if (hasPreservedMask) continue // keep defs and skip color transform inside
+            detachNodeFromParent(child, node)
+            continue
+          }
+
+          // Remove clipPath/filter attributes; preserve mask if it references a preserved mask
           delete child.attributes['clip-path']
           delete child.attributes.filter
-          delete child.attributes.mask
+          if (child.attributes.mask) {
+            const ref = child.attributes.mask.match(/url\(#([^)]+)\)/)
+            if (!ref || !preservedMaskIds.has(ref[1])) {
+              delete child.attributes.mask
+            }
+          }
 
           // Remove existing fill-opacity (we'll set our own)
           delete child.attributes['fill-opacity']

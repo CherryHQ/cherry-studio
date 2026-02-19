@@ -469,7 +469,7 @@ export interface PaintingsState {
 export type MinAppType = {
   id: string
   name: string
-  logo?: string
+  logo?: string | object
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean

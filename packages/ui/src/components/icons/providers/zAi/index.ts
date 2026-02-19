@@ -7,7 +7,7 @@ export const ZAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(ZAi, {
   Color: ZAi,
   Mono: ZAiMono,
   Avatar: ZAiAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#2D2D2D'
 })
 
 export default ZAiIcon

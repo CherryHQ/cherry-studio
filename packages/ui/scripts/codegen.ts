@@ -241,13 +241,15 @@ export function generateBarrelIndex(opts: {
 
 /**
  * Generate a catalog.ts that maps camelCase keys to CompoundIcon values.
- * Used by the icon registry for runtime lookup.
+ * Uses `as const satisfies` for type-safe key access while preserving
+ * literal key types.
  *
  * Output:
  *   import type { CompoundIcon } from '../types'
  *   import { FooIcon } from './foo'
  *   ...
- *   export const MODEL_ICON_CATALOG: Record<string, CompoundIcon> = { foo: FooIcon, ... }
+ *   export const PROVIDER_ICON_CATALOG = { foo: FooIcon, ... } as const satisfies Record<string, CompoundIcon>
+ *   export type ProviderIconKey = keyof typeof PROVIDER_ICON_CATALOG
  */
 export function generateCatalog(opts: {
   outPath: string
@@ -280,21 +282,32 @@ export function generateCatalog(opts: {
     })
   }
 
-  sf.addVariableStatement({
-    isExported: true,
-    declarationKind: VariableDeclarationKind.Const,
-    declarations: [
-      {
-        name: catalogName,
-        type: 'Record<string, CompoundIcon>',
-        initializer: `{\n${entries
-          .map(({ dirName, colorName }) => {
-            const key = /^\d/.test(dirName) ? `'${dirName}'` : dirName
-            return `  ${key}: ${colorName}Icon`
-          })
-          .join(',\n')}\n}`
-      }
-    ]
+  // Derive the key type name from the catalog name, e.g.
+  //   PROVIDER_ICON_CATALOG → ProviderIconKey
+  //   MODEL_ICON_CATALOG    → ModelIconKey
+  const keyTypeName =
+    catalogName
+      .replace(/_CATALOG$/, '')
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join('')
+      .replace(/Icon$/, 'Icon') + 'Key'
+
+  // Use raw text to emit `as const satisfies` (ts-morph doesn't support this syntax natively)
+  const objectBody = entries
+    .map(({ dirName, colorName }) => {
+      const key = /^\d/.test(dirName) ? `'${dirName}'` : dirName
+      return `  ${key}: ${colorName}Icon`
+    })
+    .join(',\n')
+
+  sf.addStatements((writer) => {
+    writer.blankLine()
+    writer.writeLine(
+      `export const ${catalogName} = {\n${objectBody}\n} as const satisfies Record<string, CompoundIcon>`
+    )
+    writer.blankLine()
+    writer.writeLine(`export type ${keyTypeName} = keyof typeof ${catalogName}`)
   })
 
   fs.writeFileSync(outPath, sf.getFullText())
