@@ -10,13 +10,14 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
@@ -26,8 +27,9 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import ChatNavbar from './ChatNavbar'
+import ChatNavbar from './components/ChatNavBar'
 import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
+import { PinnedTodoPanel } from './Inputbar/components/PinnedTodoPanel'
 import Inputbar from './Inputbar/Inputbar'
 import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
@@ -167,17 +169,17 @@ const Chat: FC<Props> = (props) => {
 
   // TODO: more info
   const AgentInvalid = useCallback(() => {
-    return <Alert type="warning" message="Select an agent" style={{ margin: '5px 16px' }} />
-  }, [])
+    return <Alert type="warning" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
+  }, [t])
 
   // TODO: more info
   const SessionInvalid = useCallback(() => {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <Alert type="warning" message="Create a session" style={{ margin: '5px 16px' }} />
+        <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
       </div>
     )
-  }, [])
+  }, [t])
 
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
@@ -235,7 +237,12 @@ const Chat: FC<Props> = (props) => {
                     {!apiServerEnabled ? (
                       <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
                     ) : (
-                      <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                      <>
+                        <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                        <PinnedTodoPanelWrapper>
+                          <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                        </PinnedTodoPanelWrapper>
+                      </>
                     )}
                     {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                     <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
@@ -278,10 +285,11 @@ const Chat: FC<Props> = (props) => {
 }
 
 export const useChatMaxWidth = () => {
-  const { showTopics, topicPosition } = useSettings()
-  const [isLeftNavbar] = usePreference('ui.navbar.position')
-  const [isTopNavbar] = usePreference('ui.navbar.position')
-  const { showAssistants } = useShowAssistants()
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
+  const [showAssistants] = usePreference('assistant.tab.show')
+
+  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const showRightTopics = showTopics && topicPosition === 'right'
   const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
   const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
@@ -310,6 +318,11 @@ const Main = styled(Flex)`
   }
   transform: translateZ(0);
   position: relative;
+`
+
+const PinnedTodoPanelWrapper = styled.div`
+  margin-top: auto;
+  padding: 0 18px 8px 18px;
 `
 
 export default Chat

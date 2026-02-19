@@ -1,8 +1,7 @@
 import type { CollapseProps } from 'antd'
-import { FileText } from 'lucide-react'
 
 import { renderCodeBlock } from './EditTool'
-import { ToolTitle } from './GenericTools'
+import { ToolHeader } from './GenericTools'
 import type { MultiEditToolInput, MultiEditToolOutput } from './types'
 import { AgentToolsType } from './types'
 
@@ -15,7 +14,14 @@ export function MultiEditTool({
   const edits = Array.isArray(input?.edits) ? input.edits : []
   return {
     key: AgentToolsType.MultiEdit,
-    label: <ToolTitle icon={<FileText className="h-4 w-4" />} label="MultiEdit" params={input?.file_path} />,
+    label: (
+      <ToolHeader
+        toolName={AgentToolsType.MultiEdit}
+        params={input?.file_path}
+        variant="collapse-label"
+        showStatus={false}
+      />
+    ),
     children: (
       <div>
         {edits.map((edit, index) => (

@@ -1,3 +1,6 @@
+import type { CollapseProps } from 'antd'
+import * as z from 'zod'
+
 export enum AgentToolsType {
   Skill = 'Skill',
   Read = 'Read',
@@ -14,7 +17,8 @@ export enum AgentToolsType {
   MultiEdit = 'MultiEdit',
   BashOutput = 'BashOutput',
   NotebookEdit = 'NotebookEdit',
-  ExitPlanMode = 'ExitPlanMode'
+  ExitPlanMode = 'ExitPlanMode',
+  AskUserQuestion = 'AskUserQuestion'
 }
 
 export type TextOutput = {
@@ -27,7 +31,8 @@ export interface SkillToolInput {
   /**
    * The skill to use
    */
-  command: string
+  skill: string
+  args?: string
 }
 
 export type SkillToolOutput = string
@@ -322,6 +327,48 @@ export type ExitPlanModeToolInput = {
 }
 export type ExitPlanModeToolOutput = string
 
+// AskUserQuestion 工具的类型定义 (使用 Zod)
+export const AskUserQuestionOptionSchema = z.object({
+  /** The display text for this option */
+  label: z.string(),
+  /** Explanation of what this option means */
+  description: z.string().optional()
+})
+
+export const AskUserQuestionItemSchema = z.object({
+  /** The complete question to ask the user */
+  question: z.string(),
+  /** Very short label displayed as a chip/tag (max 12 chars) */
+  header: z.string(),
+  /** The available choices for this question (2-4 options) */
+  options: z.array(AskUserQuestionOptionSchema),
+  /** Set to true to allow multiple selections */
+  multiSelect: z.boolean()
+})
+
+export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
+
+export const AskUserQuestionToolInputSchema = z.object({
+  /** Questions to ask the user (1-4 questions) */
+  questions: z.array(AskUserQuestionItemSchema),
+  answers: AskUserQuestionAnswerSchema.optional()
+})
+
+// 从 Zod schema 推断类型
+export type AskUserQuestionOption = z.infer<typeof AskUserQuestionOptionSchema>
+export type AskUserQuestionItem = z.infer<typeof AskUserQuestionItemSchema>
+export type AskUserQuestionToolInput = z.infer<typeof AskUserQuestionToolInputSchema>
+export type AskUserQuestionAnswer = z.infer<typeof AskUserQuestionAnswerSchema>
+
+/**
+ * Safely parse AskUserQuestionToolInput from unknown data.
+ * Returns undefined if the data doesn't match the expected structure.
+ */
+export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
+  const result = AskUserQuestionToolInputSchema.safeParse(value)
+  return result.success ? result.data : undefined
+}
+
 // ListMcpResourcesToolInput
 export type ListMcpResourcesToolInput = {
   /**
@@ -365,6 +412,7 @@ export type ToolInput =
   | ExitPlanModeToolInput
   | ListMcpResourcesToolInput
   | ReadMcpResourceToolInput
+  | AskUserQuestionToolInput
 
 export type ToolOutput =
   | ReadToolOutput
@@ -386,3 +434,52 @@ export type ToolOutput =
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
 }
+
+// 工具类型到输入类型的映射（用于文档和类型提示）
+export interface ToolInputMap {
+  [AgentToolsType.Skill]: SkillToolInput
+  [AgentToolsType.Read]: ReadToolInput
+  [AgentToolsType.Task]: TaskToolInput
+  [AgentToolsType.Bash]: BashToolInput
+  [AgentToolsType.Search]: SearchToolInput
+  [AgentToolsType.Glob]: GlobToolInput
+  [AgentToolsType.TodoWrite]: TodoWriteToolInput
+  [AgentToolsType.WebSearch]: WebSearchToolInput
+  [AgentToolsType.Grep]: GrepToolInput
+  [AgentToolsType.Write]: WriteToolInput
+  [AgentToolsType.WebFetch]: WebFetchToolInput
+  [AgentToolsType.Edit]: EditToolInput
+  [AgentToolsType.MultiEdit]: MultiEditToolInput
+  [AgentToolsType.BashOutput]: BashOutputToolInput
+  [AgentToolsType.NotebookEdit]: NotebookEditToolInput
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeToolInput
+}
+
+// 工具类型到输出类型的映射
+export interface ToolOutputMap {
+  [AgentToolsType.Skill]: SkillToolOutput
+  [AgentToolsType.Read]: ReadToolOutput
+  [AgentToolsType.Task]: TaskToolOutput
+  [AgentToolsType.Bash]: BashToolOutput
+  [AgentToolsType.Search]: SearchToolOutput
+  [AgentToolsType.Glob]: GlobToolOutput
+  [AgentToolsType.TodoWrite]: TodoWriteToolOutput
+  [AgentToolsType.WebSearch]: WebSearchToolOutput
+  [AgentToolsType.Grep]: GrepToolOutput
+  [AgentToolsType.Write]: WriteToolOutput
+  [AgentToolsType.WebFetch]: WebFetchToolOutput
+  [AgentToolsType.Edit]: EditToolOutput
+  [AgentToolsType.MultiEdit]: MultiEditToolOutput
+  [AgentToolsType.BashOutput]: BashOutputToolOutput
+  [AgentToolsType.NotebookEdit]: NotebookEditToolOutput
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeToolOutput
+}
+
+// 通用工具渲染器函数类型 - 接受宽松的输入类型
+export type ToolRendererFn = (props: {
+  input?: ToolInput | Record<string, unknown> | string
+  output?: ToolOutput | unknown
+}) => NonNullable<CollapseProps['items']>[number]
+
+// 工具渲染器映射类型
+export type ToolRenderersMap = Record<AgentToolsType, ToolRendererFn>

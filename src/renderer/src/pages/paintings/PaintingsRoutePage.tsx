@@ -13,13 +13,14 @@ import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
 import NewApiPage from './NewApiPage'
 import OvmsPage from './OvmsPage'
+import PpioPage from './PpioPage'
 import SiliconPage from './SiliconPage'
 import TokenFluxPage from './TokenFluxPage'
 import ZhipuPage from './ZhipuPage'
 
 const logger = loggerService.withContext('PaintingsRoutePage')
 
-const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms']
+const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms', 'ppio']
 
 const PaintingsRoutePage: FC = () => {
   const params = useParams({ strict: false }) as { _splat?: string }
@@ -64,6 +65,8 @@ const PaintingsRoutePage: FC = () => {
         return <TokenFluxPage Options={validOptions} />
       case 'ovms':
         return <OvmsPage Options={validOptions} />
+      case 'ppio':
+        return <PpioPage Options={validOptions} />
       case 'new-api':
         return <NewApiPage Options={validOptions} />
       default:

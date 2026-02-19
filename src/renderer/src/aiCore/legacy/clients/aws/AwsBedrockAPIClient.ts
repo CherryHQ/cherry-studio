@@ -29,7 +29,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { EFFORT_RATIO, FileTypes } from '@renderer/types'
+import { EFFORT_RATIO, FILE_TYPE } from '@renderer/types'
 import type { MCPToolCreatedChunk, TextDeltaChunk, ThinkingDeltaChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
@@ -727,7 +727,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         continue
       }
 
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+      if ([FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => file.type === type)) {
         try {
           const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
           if (fileContent) {

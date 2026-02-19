@@ -1,14 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('os', () => ({
-  default: {
-    release: vi.fn(() => '10.0.0'),
-    homedir: vi.fn(() => '/home/test')
-  },
-  release: vi.fn(() => '10.0.0'),
-  homedir: vi.fn(() => '/home/test')
-}))
-
 vi.mock('node:fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
@@ -104,8 +95,7 @@ vi.mock('electron', () => {
       return '/mock/unknown'
     }),
     getAppPath: vi.fn(() => '/mock/app'),
-    setPath: vi.fn(),
-    getVersion: vi.fn(() => '1.0.0')
+    setPath: vi.fn()
   }
 
   const nativeTheme = {
@@ -125,9 +115,17 @@ vi.mock('electron', () => {
   }
 })
 
+import { beforeEach } from 'vitest'
+
 import { CdpBrowserController } from '../browser'
 
 describe('CdpBrowserController', () => {
+  // Reset mock state before each test to prevent state leakage
+  beforeEach(() => {
+    // Clear mock call history
+    vi.clearAllMocks()
+  })
+
   it('executes single-line code via Runtime.evaluate', async () => {
     const controller = new CdpBrowserController()
     const result = await controller.execute('1+1')
@@ -368,10 +366,10 @@ describe('CdpBrowserController', () => {
     })
 
     it('cleans up idle windows on next access', async () => {
-      const controller = new CdpBrowserController({ idleTimeoutMs: 1 })
+      const controller = new CdpBrowserController({ idleTimeoutMs: 50 })
       await controller.open('https://example.com/', 5000, false)
 
-      await new Promise((r) => setTimeout(r, 10))
+      await new Promise((r) => setTimeout(r, 100))
 
       await controller.open('https://example.com/', 5000, true)
 

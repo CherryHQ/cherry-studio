@@ -9,9 +9,7 @@ import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUp
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
-import { handleSaveData } from '@renderer/store'
+import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
   type ToolPermissionRequestPayload,
@@ -185,16 +183,12 @@ export function useAppInit() {
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })
-      dispatch(toolPermissionsActions.requestReceived(payload))
 
-      // Auto-approve if requested
       if (payload.autoApprove) {
         logger.debug('Auto-approving tool permission request', {
           requestId: payload.requestId,
           toolName: payload.toolName
         })
-
-        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
 
         try {
           const response = await window.api.agentTools.respondToPermission({
@@ -214,9 +208,13 @@ export function useAppInit() {
           })
         } catch (error) {
           logger.error('Failed to send auto-approval response', error as Error)
-          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+          // Fall through to add to store for manual approval
+          dispatch(toolPermissionsActions.requestReceived(payload))
         }
+        return
       }
+
+      dispatch(toolPermissionsActions.requestReceived(payload))
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {

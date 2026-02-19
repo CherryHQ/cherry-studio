@@ -1,7 +1,6 @@
 import { PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
-import i18n from '@renderer/i18n'
 import type { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
@@ -61,55 +60,70 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'yi',
-    name: i18n.t('minapps.wanzhi'),
+    name: 'Wanzhi',
+    nameKey: 'minapps.wanzhi',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.wanzhi.com/',
     logo: resolveProviderIcon('yi')
   },
   {
     id: 'zhipu',
-    name: i18n.t('minapps.chatglm'),
+    name: 'ChatGLM',
+    nameKey: 'minapps.chatglm',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: resolveProviderIcon('zhipu')
   },
   {
     id: 'moonshot',
     name: 'Kimi',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://kimi.moonshot.cn/',
     logo: resolveProviderIcon('moonshot')
   },
   {
     id: 'baichuan',
-    name: i18n.t('minapps.baichuan'),
+    name: 'Baichuan',
+    nameKey: 'minapps.baichuan',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ying.baichuan-ai.com/chat',
     logo: resolveProviderIcon('baichuan')
   },
   {
     id: 'dashscope',
-    name: i18n.t('minapps.qwen'),
+    name: 'Qwen',
+    nameKey: 'minapps.qwen',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.qianwen.com',
     logo: PROVIDER_ICON_CATALOG.qwen
   },
   {
     id: 'stepfun',
-    name: i18n.t('minapps.stepfun'),
+    name: 'Stepfun',
+    nameKey: 'minapps.stepfun',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://stepfun.com',
     logo: resolveProviderIcon('stepfun')
   },
   {
     id: 'doubao',
-    name: i18n.t('minapps.doubao'),
+    name: 'Doubao',
+    nameKey: 'minapps.doubao',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.doubao.com/chat/',
     logo: PROVIDER_ICON_CATALOG.doubao
   },
   {
     id: 'cici',
-    name: 'Cici',
-    url: 'https://www.cici.com/chat/',
+    name: 'Dola',
+    url: 'https://www.dola.com/chat/',
     logo: PROVIDER_ICON_CATALOG.dola
   },
   {
     id: 'minimax',
-    name: i18n.t('minapps.hailuo'),
+    name: 'Hailuo',
+    nameKey: 'minapps.hailuo',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chat.minimaxi.com/',
     logo: resolveProviderIcon('minimax')
   },
@@ -133,37 +147,48 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baidu-ai-chat',
-    name: i18n.t('minapps.wenxin'),
+    name: 'Wenxin',
+    nameKey: 'minapps.wenxin',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.wenxin,
     url: 'https://yiyan.baidu.com/'
   },
   {
     id: 'baidu-ai-search',
-    name: i18n.t('minapps.baidu-ai-search'),
+    name: 'Baidu AI Search',
+    nameKey: 'minapps.baidu-ai-search',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.baidu,
     url: 'https://chat.baidu.com/'
   },
   {
     id: 'tencent-yuanbao',
-    name: i18n.t('minapps.tencent-yuanbao'),
+    name: 'Tencent Yuanbao',
+    nameKey: 'minapps.tencent-yuanbao',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.yuanbao,
     url: 'https://yuanbao.tencent.com/chat'
   },
   {
     id: 'sensetime-chat',
-    name: i18n.t('minapps.sensechat'),
+    name: 'Sensechat',
+    nameKey: 'minapps.sensechat',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.sensetime,
     url: 'https://chat.sensetime.com/wb/chat'
   },
   {
     id: 'spark-desk',
     name: 'SparkDesk',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.xinghuo,
     url: 'https://xinghuo.xfyun.cn/desk'
   },
   {
     id: 'metaso',
-    name: i18n.t('minapps.metaso'),
+    name: 'Metaso',
+    nameKey: 'minapps.metaso',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.metaso,
     url: 'https://metaso.cn/'
   },
@@ -187,7 +212,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tiangong-ai',
-    name: i18n.t('minapps.tiangong-ai'),
+    name: 'Tiangong AI',
+    nameKey: 'minapps.tiangong-ai',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.skywork,
     url: 'https://www.tiangong.cn/'
   },
@@ -211,7 +238,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
-    name: i18n.t('minapps.nami-ai'),
+    name: 'Nami AI',
+    nameKey: 'minapps.nami-ai',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.namiAi,
     url: 'https://bot.n.cn/'
   },
@@ -252,6 +281,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'qwenlm',
     name: 'QwenChat',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.qwen,
     url: 'https://chat.qwen.ai'
   },
@@ -275,7 +305,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'xiaoyi',
-    name: i18n.t('minapps.xiaoyi'),
+    name: 'Xiaoyi',
+    nameKey: 'minapps.xiaoyi',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.xiaoyi,
     url: 'https://xiaoyi.huawei.com/chat/'
   },
@@ -299,7 +331,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'wpslingxi',
-    name: i18n.t('minapps.wps-copilot'),
+    name: 'WPS AI',
+    nameKey: 'minapps.wps-copilot',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.lingxi,
     url: 'https://copilot.wps.cn/'
   },
@@ -336,13 +370,17 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'zhihu',
-    name: i18n.t('minapps.zhihu'),
+    name: 'Zhihu Zhida',
+    nameKey: 'minapps.zhihu',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.zhida,
     url: 'https://zhida.zhihu.com/'
   },
   {
     id: 'dangbei',
-    name: i18n.t('minapps.dangbei'),
+    name: 'Dangbei AI',
+    nameKey: 'minapps.dangbei',
+    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.dangbei,
     url: 'https://ai.dangbei.com/'
   },
@@ -361,12 +399,15 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'longcat',
     name: 'LongCat',
+    locales: ['zh-CN', 'zh-TW'],
     logo: resolveProviderIcon('longcat'),
     url: 'https://longcat.chat/'
   },
   {
     id: 'ling',
-    name: i18n.t('minapps.ant-ling'),
+    name: 'Ant Ling',
+    nameKey: 'minapps.ant-ling',
+    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ling.tbox.cn/chat',
     logo: resolveProviderIcon('ling'),
     bodered: true,
@@ -382,11 +423,11 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   }
 ]
 
-// 加载自定义小应用并合并到默认应用中
-let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+// All mini apps: built-in defaults + custom apps loaded from user config
+let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
-function updateDefaultMinApps(param) {
-  DEFAULT_MIN_APPS = param
+function updateAllMinApps(apps: MinAppType[]) {
+  allMinApps = apps
 }
 
-export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }
+export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }

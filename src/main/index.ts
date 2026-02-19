@@ -18,11 +18,13 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
+import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
@@ -257,6 +259,7 @@ if (!app.requestSingleInstanceLock()) {
     appMenuService?.setupApplicationMenu()
     nodeTraceService.init()
     powerMonitorService.init()
+    analyticsService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -368,10 +371,12 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     try {
+      await analyticsService.destroy()
+      await openClawService.stopGateway()
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {
-      logger.warn('Error cleaning up MCP service:', error as Error)
+      logger.warn('Error cleaning up services:', error as Error)
     }
 
     // finish the logger

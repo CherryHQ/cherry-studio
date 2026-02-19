@@ -14,6 +14,18 @@
         "placeholder": "選擇 Agent 類型"
       }
     },
+    "askUserQuestion": {
+      "answered": "已回答",
+      "customPlaceholder": "輸入你的答案...",
+      "loading": "載入問題中...",
+      "multiSelect": "多重選擇",
+      "next": "下一個",
+      "noQuestions": "沒有可用的問題",
+      "other": "其他",
+      "previous": "之前",
+      "submit": "提交",
+      "title": "來自Agent的提問"
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
@@ -154,24 +166,43 @@
         "error": {
           "install": "安裝外掛失敗",
           "load": "載入外掛失敗",
+          "load_more": "無法載入更多外掛程式",
           "uninstall": "解除安裝外掛失敗"
         },
         "filter": {
           "all": "所有類別"
         },
-        "install": "安裝",
+        "install": {
+          "button": "安裝",
+          "title": "安裝外掛程式"
+        },
         "installed": {
           "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
-          "title": "已安裝外掛"
+          "title": "已安裝外掛程式"
         },
         "installing": "安裝中...",
+        "plugin_upload": {
+          "all_failed": "全部 {{failed}} 個元件安裝失敗",
+          "error": "安裝失敗",
+          "format_hint": "支援外掛包格式（.claude-plugin/plugin.json）",
+          "hint": "拖曳外掛 ZIP 至此處，或點擊選擇檔案",
+          "invalid_format": "請上傳 ZIP 格式的檔案",
+          "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
+          "select_folder": "選擇資料夾",
+          "select_folder_title": "選擇外掛資料夾",
+          "success": "外掛 \"{{name}}\" 安裝成功（{{count}} 個元件）",
+          "success_multi": "已從 {{packages}} 個外掛包安裝 {{count}} 個元件",
+          "uploading": "正在上傳並安裝..."
+        },
         "results": "找到 {{count}} 個外掛",
         "search": {
           "placeholder": "搜尋外掛..."
         },
+        "standalone_plugins": "獨立外掛",
         "success": {
           "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功"
+          "uninstall": "外掛解除安裝成功",
+          "uninstall_package": "外掛包 \"{{name}}\" 解除安裝成功"
         },
         "tab": "外掛",
         "type": {
@@ -183,6 +214,8 @@
           "skills": "技能"
         },
         "uninstall": "解除安裝",
+        "uninstall_package": "解除安裝整個包",
+        "uninstall_package_confirm": "確定要解除安裝整個 \"{{name}}\" 外掛包嗎？這將刪除 {{count}} 個元件。",
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
@@ -269,8 +302,19 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "已完成 {{completed}}/{{total}} 個任務"
+      },
+      "status": {
+        "completed": "已完成",
+        "in_progress": "進行中",
+        "pending": "待處理"
+      }
+    },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "總是允許此工具",
         "allowRequest": "允許工具請求",
         "denyRequest": "拒絕工具請求",
         "hideDetails": "隱藏工具詳細資訊",
@@ -278,6 +322,7 @@
         "showDetails": "顯示工具詳細資訊"
       },
       "button": {
+        "allowAll": "總是允許",
         "cancel": "取消",
         "run": "執行"
       },
@@ -667,6 +712,10 @@
         "title": "新增話題"
       }
     },
+    "alerts": {
+      "create_session": "建立工作階段",
+      "select_agent": "選擇一個智能體"
+    },
     "artifacts": {
       "button": {
         "download": "下載",
@@ -705,15 +754,6 @@
       "view_full_content": "檢視完整內容"
     },
     "input": {
-      "activity_directory": {
-        "description": "從活動目錄中選擇檔案",
-        "loading": "載入檔案中...",
-        "no_file_found": {
-          "description": "可存取的目錄中沒有檔案",
-          "label": "找不到檔案"
-        },
-        "title": "活動目錄"
-      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -743,6 +783,24 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resource_panel": {
+        "categories": {
+          "agents": "智能體",
+          "files": "檔案",
+          "skills": "技能"
+        },
+        "description": "從檔案、智能體或技能中選擇",
+        "loading": "載入中...",
+        "no_file_found": {
+          "description": "可存取目錄中無可用檔案",
+          "label": "找不到檔案"
+        },
+        "no_items_found": {
+          "description": "沒有可用的檔案、智能體或技能",
+          "label": "未找到項目"
+        },
+        "title": "資源"
+      },
       "send": "傳送",
       "settings": "設定",
       "slash_commands": {
@@ -1188,10 +1246,10 @@
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent_one": "代理人",
-    "agent_other": "代理人",
+    "agent_one": "智能體",
+    "agent_other": "智能體",
     "and": "與",
-    "assistant": "智慧代理人",
+    "assistant": "智慧智能體",
     "assistant_one": "助手",
     "assistant_other": "助手",
     "avatar": "頭像",
@@ -1200,6 +1258,8 @@
     "cancel": "取消",
     "chat": "聊天",
     "clear": "清除",
+    "clear_all": "全部清除",
+    "click_to_replace": "點擊以替換",
     "close": "關閉",
     "collapse": "收合",
     "completed": "已完成",
@@ -1228,15 +1288,24 @@
       "validation": "驗證失敗"
     },
     "expand": "展開",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "不支援的檔案類型 {{type}}"
     },
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
+    "generate_random_seed": "產生隨機種子",
+    "get_embedding_dimension": "取得嵌入維度",
     "go_to_settings": "前往設定",
+    "html_preview": "HTML 預覽",
     "i_know": "我知道了",
     "ignore": "忽略",
+    "image_preview": "圖片預覽",
+    "image_url": "圖片網址",
+    "image_url_or_upload": "輸入圖片網址或上傳檔案",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -1246,6 +1315,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名稱",
+    "next_match": "下一場比賽",
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
@@ -1257,14 +1327,19 @@
         "model": "選擇模型"
       }
     },
+    "powered_by": "技術提供",
     "preview": "預覽",
+    "previous_match": "上一場比賽",
     "prompt": "提示詞",
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
     "regenerate": "重新產生",
+    "remove_image": "移除圖片",
     "rename": "重新命名",
+    "required_field": "必填欄位",
     "reset": "重設",
+    "retry": "重試",
     "save": "儲存",
     "saved": "已儲存",
     "search": "搜尋",
@@ -1286,13 +1361,28 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "translate_text": "翻譯文字",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
+    "upload_image": "上傳圖片檔案",
+    "uploaded_image": "已上傳圖片",
     "warning": "警告",
     "you": "您"
+  },
+  "dialog": {
+    "all_files": "所有檔案",
+    "html_files": "HTML 檔案",
+    "open_file": "開啟檔案",
+    "pdf_files": "PDF 檔案",
+    "png_image": "PNG 影像",
+    "save_as_html": "儲存為 HTML",
+    "save_as_pdf": "儲存為 PDF",
+    "save_file": "儲存檔案",
+    "select_folder": "選擇資料夾",
+    "word_document": "Word 文件"
   },
   "docs": {
     "title": "說明文件"
@@ -1374,6 +1464,7 @@
     "provider_disabled": "模型供應商未啟用",
     "reason": "原因",
     "render": {
+      "block": "此內容區塊渲染失敗",
       "description": "訊息內容渲染失敗，請檢查訊息內容格式是否正確",
       "title": "渲染錯誤"
     },
@@ -1599,9 +1690,6 @@
     "notes": "筆記",
     "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
     "provider_not_found": "未找到供應商",
-    "quota": "{{name}} 剩餘配額：{{quota}}",
-    "quota_empty": "今日{{name}}額度不足，請前往官網申請",
-    "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
     "search": "搜尋知識庫",
     "search_placeholder": "輸入查詢內容",
@@ -1858,6 +1946,9 @@
         "model": "請先選擇一個模型",
         "name": "請先輸入知識庫名稱"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "話題命名失敗",
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "invalid": {
@@ -1896,6 +1987,9 @@
       "siyuan": {
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"
+      },
+      "table": {
+        "invalid": "無法取得有效的表格資料"
       },
       "unknown": "未知錯誤",
       "yuque": {
@@ -1983,6 +2077,9 @@
     },
     "searching": "正在搜尋...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "成功匯出到 Joplin"
       },
@@ -2015,10 +2112,68 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "發生錯誤",
+      "groupHeader": "{{count}} 次工具呼叫",
       "invoking": "呼叫中",
+      "labels": {
+        "bash": "執行命令",
+        "edit": "編輯",
+        "exitPlanMode": "退出計畫模式",
+        "glob": "檔案匹配",
+        "grep": "搜尋",
+        "mcpServerTool": "MCP 伺服器工具",
+        "multiEdit": "批次編輯",
+        "notebookEdit": "筆記本編輯",
+        "readFile": "讀取檔案",
+        "search": "搜尋",
+        "skill": "技能",
+        "task": "任務",
+        "todoWrite": "待辦寫入",
+        "tool": "工具",
+        "webFetch": "網頁擷取",
+        "webSearch": "網頁搜尋",
+        "write": "寫入"
+      },
+      "noData": "此工具暫無可用資料",
       "pending": "等待中",
       "preview": "預覽",
-      "raw": "原始碼"
+      "raw": "原始碼",
+      "runningCount": "{{count}} 個工具正在運行",
+      "sections": {
+        "args": "參數",
+        "command": "命令",
+        "content": "內容",
+        "exitCode": "退出碼",
+        "input": "輸入",
+        "output": "輸出",
+        "prompt": "提示",
+        "searchQuery": "搜尋查詢",
+        "searchResults": "搜尋結果",
+        "stderr": "標準錯誤",
+        "stdout": "標準輸出"
+      },
+      "status": {
+        "done": "完成",
+        "error": "錯誤",
+        "failed": "失敗",
+        "running": "執行中",
+        "success": "成功"
+      },
+      "streaming": "串流",
+      "truncated": "輸出已截斷（原始大小：{{size}}）",
+      "units": {
+        "done_one": "{{count}} 完成",
+        "done_other": "{{count}} 完成",
+        "file_one": "{{count}} 個檔案",
+        "file_other": "{{count}} 個檔案",
+        "item_one": "{{count}} 個項目",
+        "item_other": "{{count}} 個項目",
+        "line_one": "{{count}} 行",
+        "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 方案",
+        "plan_other": "{{count}} 個方案",
+        "result_one": "{{count}} 個結果",
+        "result_other": "{{count}} 個結果"
+      }
     },
     "topic": {
       "added": "新話題已新增"
@@ -2151,6 +2306,7 @@
     },
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
+    "json_parse_error": "無效的 JSON 格式",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -2363,6 +2519,86 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "正在檢查 OpenClaw 安裝狀態...",
+    "description": "使用 Cherry Studio 服務商為 OpenClaw 提供支援，OpenClaw 是您的個人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
+    "error": {
+      "select_provider_model": "請先選擇服務商和模型"
+    },
+    "gateway": {
+      "port": "連接埠",
+      "restart": "重新啟動",
+      "start": "啟動",
+      "status": "狀態",
+      "stop": "停止",
+      "version": "版本"
+    },
+    "git_missing": {
+      "description": "OpenClaw 的部分依賴需要 Git 來安裝。請先安裝 Git，然後再次點擊安裝。",
+      "download_button": "下載 Git",
+      "hint": "macOS：brew install git | Windows：從 git-scm.com 下載（安裝時請確保勾選將 Git 添加到 PATH）",
+      "title": "需要安裝 Git"
+    },
+    "install_progress": "安裝進度",
+    "installed_at": "OpenClaw 安裝路徑",
+    "model_config": {
+      "auth_token": "認證令牌",
+      "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
+      "auth_token_placeholder": "輸入或產生令牌",
+      "generate_token": "產生",
+      "model": "模型",
+      "provider": "服務商",
+      "select_model": "選擇模型",
+      "select_provider": "選擇服務商",
+      "sync_hint": "選擇的服務商和模型將同步到 OpenClaw 設定檔",
+      "title": "模型設定"
+    },
+    "not_installed": {
+      "description": "OpenClaw 尚未安裝在您的系統上。請先安裝它以使用此功能。",
+      "install_button": "安裝 OpenClaw",
+      "install_guide_title": "安裝指南",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "重新整理",
+      "step2_hint": "安裝完成後，點擊上方的重新整理按鈕來偵測 OpenClaw",
+      "step2_title": "第二步：驗證安裝",
+      "title": "OpenClaw 未安裝",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。請先安裝 Node.js，然後重新啟動 Cherry Studio。",
+      "download_button": "下載 Node.js",
+      "hint": "macOS：brew install node | Windows：從 nodejs.org 下載 LTS 版本",
+      "title": "需要 Node.js"
+    },
+    "quick_actions": {
+      "open_dashboard": "開啟控制面板",
+      "title": "快捷操作",
+      "uninstall": "解除安裝",
+      "view_docs": "檢視文件"
+    },
+    "status": {
+      "error": "錯誤",
+      "running": "執行中",
+      "starting": "啟動中",
+      "stopped": "已停止"
+    },
+    "tips": {
+      "permissions": "OpenClaw 擁有較高的系統權限，建議僅在可信環境中使用",
+      "title": "溫馨提示",
+      "token_usage": "AI 代理模式會消耗較多 Token，請注意用量"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "您確定要解除安裝 OpenClaw 嗎？按下「確定」以確認。",
+    "uninstall_progress": "解除安裝進度",
+    "uninstalled": {
+      "description": "OpenClaw 已成功解除安裝。",
+      "title": "解除安裝完成"
+    },
+    "uninstalling": {
+      "description": "請稍候，正在解除安裝 OpenClaw...",
+      "title": "解除安裝 OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "安裝",
@@ -2443,14 +2679,42 @@
       }
     },
     "custom_size": "自訂尺寸",
+    "dmxapi": {
+      "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。",
+      "style": "，風格：",
+      "style_types": {
+        "25d_animation": "2.5D動畫",
+        "3d_cartoon": "3D卡通",
+        "american_retro": "美式復古",
+        "baroque": "巴洛克",
+        "cartoon_illustration": "卡通插圖",
+        "chinese_gongbi": "中國工筆",
+        "clay": "黏土",
+        "cyberpunk": "賽博龐克",
+        "felt": "氈",
+        "flat": "平的",
+        "fresh_anime": "新鮮動漫",
+        "ghibli": "吉卜力",
+        "japanese_anime": "日本動畫",
+        "little_people_book": "小小人書",
+        "monet_garden": "莫內花園",
+        "oil_painting": "油畫",
+        "pixar": "皮克斯",
+        "pixel_art": "像素藝術",
+        "poetic_ancient": "詩意的古代",
+        "psychedelic": "迷幻",
+        "sketch": "草圖",
+        "street_art": "街頭藝術",
+        "texture": "質地",
+        "ukiyo_e": "浮世繪",
+        "watercolor": "水彩",
+        "wood_carving": "木雕",
+        "yarn_doll": "毛線娃娃"
+      }
+    },
     "edit": {
       "image_file": "編輯影像",
-      "magic_prompt_option_tip": "開啟後會自動調整編輯提示詞，以提升效果",
-      "model_tip": "部分編輯僅支援 V_2 和 V_2_TURBO 版本",
-      "number_images_tip": "要產生的編輯結果數量",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "seed_tip": "控制編輯結果的隨機性",
-      "style_type_tip": "編輯後的影像風格，僅適用於 V_2 及以上版本"
+      "image_required": "請先上傳需要編輯的圖片"
     },
     "generate": {
       "height": "高度",
@@ -2467,6 +2731,7 @@
       "style_type_tip": "產生圖片的風格，僅適用於 V_2 及以上版本",
       "width": "寬度"
     },
+    "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
@@ -2477,6 +2742,7 @@
     "image_file_required": "請先上傳圖片",
     "image_file_retry": "請重新上傳圖片",
     "image_handle_required": "請先上傳圖片。",
+    "image_mix_failed": "無法混合圖片",
     "image_placeholder": "無圖片",
     "image_retry": "重試",
     "image_size_options": {
@@ -2486,6 +2752,7 @@
     "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
     "input_parameters": "輸入參數",
+    "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
     "magic_prompt_option": "提示詞增強",
     "mode": {
@@ -2507,6 +2774,7 @@
     "no_image_generation_model": "暫無可用的圖片產生模型，請先新增模型並設定端點類型為 {{endpoint_type}}",
     "number_images": "張數",
     "number_images_tip": "一次產生的圖片數量 (1-4)",
+    "operation_failed": "操作失敗，請稍後再試",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -2514,6 +2782,16 @@
       "allow_adult": "允許成人",
       "allow_all": "允許所有",
       "allow_none": "不允許"
+    },
+    "ppio": {
+      "edit_prompt_tip": "用於指定要從圖像中移除的對象或區域，例如：'dog' 或 'hat'",
+      "mask_image": "遮罩圖像",
+      "mask_image_tip": "用於指示要擦除的區域。要擦除的區域應為白色，要保留的區域應為黑色",
+      "output_format": "輸出格式",
+      "resolution": "目標解析度",
+      "seed_tip": "隨機種子，相同的種子和參數可以生成相似的圖片，-1 表示隨機",
+      "use_pre_llm_tip": "開啟文字擴寫，會針對輸入提示詞進行擴寫優化。提示詞較短建議開啟，較長建議關閉",
+      "watermark_tip": "是否在生成的圖片上添加浮水印，預設不添加"
     },
     "pricing": "定價",
     "prompt_enhancement": "提示詞增強",
@@ -2557,6 +2835,7 @@
     "required_field": "必填欄位",
     "seed": "隨機種子",
     "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
+    "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
     "style_type": "風格",
@@ -2582,6 +2861,27 @@
       "resemblance": "相似度",
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
+    },
+    "watermark": "添加浮水印",
+    "zhipu": {
+      "custom_size_divisible": "自訂尺寸必須能被 16 整除",
+      "custom_size_hint": "寬度和高度必須介於 512px 到 2048px 之間，可被 16 整除，且總像素數不得超過 2^21px。",
+      "custom_size_pixels": "自訂尺寸的總像素數不可超過 2,097,152",
+      "custom_size_range": "自訂尺寸必須介於 512 像素至 2048 像素之間",
+      "custom_size_required": "請設定自訂寬度和高度",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024（預設）",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "標準（預設）"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2892,21 @@
     "category": "類別",
     "commands": "指令",
     "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "confirm_uninstall_package": "確定要解除安裝套件 {{name}} 及其所有組件嗎？",
+    "content_saved": "外掛內容已成功儲存",
+    "detail": {
+      "allowed_tools": "允許的工具",
+      "author": "作者",
+      "content": "內容",
+      "description": "描述",
+      "file": "檔案",
+      "installed": "已安裝",
+      "metadata": "詮釋資料",
+      "size": "尺寸",
+      "source": "來源",
+      "tags": "標籤",
+      "tools": "工具"
+    },
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
     "installing": "安裝中...",
@@ -2604,10 +2919,22 @@
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
+    "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "顯示 {{count}} 個技能",
+    "showing_results_skills_other": "顯示 {{count}} 個技能",
+    "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
+    "sort": {
+      "downloads": "下載量",
+      "label": "排序",
+      "relevance": "相關性",
+      "stars": "星標"
+    },
+    "standalone_plugins": "獨立外掛",
     "try_different_search": "請嘗試調整搜尋或類別篩選",
     "type": "類型",
     "uninstall": "解除安裝",
+    "uninstall_package": "解除安裝外掛包",
     "uninstalling": "解除安裝中..."
   },
   "preview": {
@@ -2941,6 +3268,11 @@
         "search": "搜尋",
         "summary": "總結",
         "translate": "翻譯"
+      },
+      "prompt": {
+        "explain": "請說明以下內容。要求：以{{language}}回覆；不要包含任何對此提示的說明，直接給出回應：",
+        "refine": "請優化或潤飾以 XML 標籤 <INPUT> 包覆的使用者輸入內容，同時保留原意與完整性。要求：輸出須與使用者輸入使用相同語言；不需包含本提示的任何說明，直接給出回應；勿輸出 XML 標籤，直接輸出優化後的內容：\n\n{{text}}",
+        "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
@@ -4035,6 +4367,10 @@
       "jsonModeHint": "編輯 MCP 伺服器設定的 JSON 表示。儲存前請確認格式正確",
       "jsonSaveError": "儲存 JSON 設定失敗",
       "jsonSaveSuccess": "JSON 設定已儲存",
+      "lanyun": {
+        "description": "藍雲科技雲平台MCP服務",
+        "name": "藍雲科技"
+      },
       "logoUrl": "Logo URL",
       "logs": "日誌",
       "longRunning": "長時間運作模式",
@@ -4131,6 +4467,14 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
+        "providerDescriptions": {
+          "302ai": "302.AI 平台 MCP 服務",
+          "bailian": "阿里雲百鍊平台 MCP 服務",
+          "lanyun": "藍雲科技雲平台 MCP 服務",
+          "mcprouter": "MCP 路由器平台 MCP 服務",
+          "modelscope": "ModelScope平台MCP服務",
+          "tokenflux": "TokenFlux 平台 MCP 服務"
+        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -4550,6 +4894,7 @@
           "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
+      "balance": "餘額",
       "basic_auth": {
         "label": "HTTP 認證",
         "password": {
@@ -4608,6 +4953,9 @@
         "title": "刪除提供者"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com（企業版）",
+        "platform_international": "www.DMXAPI.com（國際）",
+        "platform_official": "www.DMXAPI.cn（人民幣）",
         "select_platform": "選擇平台"
       },
       "docs_check": "檢查",
@@ -4622,10 +4970,29 @@
         "title": "模型備註"
       },
       "oauth": {
+        "balance": "餘額",
         "button": "使用 {{provider}} 帳號登入",
+        "cherryIn": {
+          "description": "使用 OAuth 2.0 登入 CherryIN",
+          "logged_in": "已透過 OAuth 登入",
+          "login_button": "OAuth 登入",
+          "logout_button": "登出",
+          "title": "OAuth 登入"
+        },
+        "connect": "關聯 {{provider}} 帳號",
         "description": "本服務由 <website>{{provider}}</website> 提供",
         "error": "認證失敗",
-        "official_website": "官方網站"
+        "logged_in": "已登入",
+        "logout": "登出",
+        "logout_confirm": "確定要登出嗎？",
+        "logout_success": "已成功登出",
+        "logout_warning": "已在本機登出，但伺服器端權杖撤銷可能失敗",
+        "official_website": "官方網站",
+        "provided_by": "本服務由",
+        "provided_by_suffix": " 提供",
+        "requests": "請求數",
+        "topup": "儲值",
+        "usage_title": "用量"
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
@@ -4766,11 +5133,9 @@
         },
         "image_provider": "OCR 服務供應商",
         "paddleocr": {
-          "aistudio_access_token": "星河社群存取權杖",
-          "aistudio_url_label": "星河社群",
+          "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",
-          "serving_doc_url_label": "PaddleOCR 服務化部署文件",
-          "tip": "您可以參考 PaddleOCR 官方文件來部署本機服務，或是在飛槳星河社群部署雲端服務。對於後者，請提供星河社群的存取權杖。"
+          "api_url_label": "取得訪問令牌及 API 網址"
         },
         "system": {
           "win": {
@@ -4783,6 +5148,12 @@
         "title": "OCR 服務"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "星河社區訪問令牌",
+          "api_url": "API 網址",
+          "api_url_label": "取得訪問令牌及 API 網址",
+          "paddleocr_url_label": "PaddleOCR 官方網站"
+        },
         "provider": "文件處理供應商",
         "provider_placeholder": "選擇一個文件處理供應商",
         "title": "文件處理",
@@ -4969,6 +5340,7 @@
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
     "notes": "筆記",
+    "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
     "store": "助手庫",
@@ -5031,6 +5403,8 @@
     "detected": {
       "language": "自動偵測"
     },
+    "detected_source": "偵測到",
+    "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
@@ -5083,6 +5457,7 @@
       "not_pair": "來源語言與設定的語言不同",
       "same": "來源語言和目標語言相同"
     },
+    "language_settings": "語言設定",
     "menu": {
       "description": "對目前輸入框內容進行翻譯"
     },
@@ -5092,6 +5467,7 @@
     "output": {
       "placeholder": "翻譯"
     },
+    "preferred_target": "首選目標",
     "processing": "翻譯中...",
     "settings": {
       "autoCopy": "翻譯完成後自動複製",

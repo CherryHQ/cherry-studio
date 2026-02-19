@@ -280,12 +280,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           if (messages.length >= 2) {
             startTopicRenaming(topic.id)
             try {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              const { text: summaryText, error } = await fetchMessagesSummary({ messages, assistant })
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
-              } else {
-                window.toast?.error(t('message.error.fetchTopicName'))
+              } else if (error) {
+                window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
               }
             } finally {
               finishTopicRenaming(topic.id)
@@ -930,7 +930,7 @@ const HeaderRow = styled.div`
   align-items: center;
   gap: 6px;
   padding-right: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   margin-top: 2px;
 `
 

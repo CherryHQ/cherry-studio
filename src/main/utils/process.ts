@@ -9,6 +9,7 @@ import path from 'path'
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
+import getShellEnv, { refreshShellEnvCache } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -129,7 +130,6 @@ export async function findCommandInShellEnv(
           // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
           if (exePath) {
-            logger.debug(`Found command '${command}' at: ${exePath}`)
             safeResolve(exePath)
           } else {
             logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
@@ -181,7 +181,6 @@ export async function findCommandInShellEnv(
           // Validate the output is an absolute path (not an alias, function, or builtin)
           // command -v can return just the command name for aliases/builtins
           if (path.isAbsolute(commandPath)) {
-            logger.debug(`Found command '${command}' at: ${commandPath}`)
             safeResolve(commandPath)
           } else {
             logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
@@ -203,26 +202,39 @@ export async function findCommandInShellEnv(
   })
 }
 
+export interface FindExecutableOptions {
+  /** File extensions to search for (default: ['.exe']) */
+  extensions?: string[]
+  /** Common paths to check as fallback */
+  commonPaths?: string[]
+  /** Environment variables to use for where.exe lookup (default: process.env) */
+  env?: Record<string, string>
+}
+
 /**
  * Find executable in common paths or PATH environment variable
  * Based on Claude Code's implementation with security checks
- * @param name - Name of the executable to find (without .exe extension)
+ * @param name - Name of the executable to find (without extension)
+ * @param options - Optional configuration for extensions and common paths
  * @returns Full path to the executable or null if not found
  */
-export function findExecutable(name: string): string | null {
+export function findExecutable(name: string, options?: FindExecutableOptions): string | null {
   // This implementation uses where.exe which is Windows-only
   if (!isWin) {
     return null
   }
 
+  const extensions = options?.extensions ?? ['.exe']
+  const commonPaths = options?.commonPaths ?? []
+
   // Special handling for git - check common installation paths first
   if (name === 'git') {
-    const commonGitPaths = [
+    const defaultGitPaths = [
       path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
       path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
     ]
 
-    for (const gitPath of commonGitPaths) {
+    for (const gitPath of defaultGitPaths) {
       if (fs.existsSync(gitPath)) {
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
@@ -230,24 +242,41 @@ export function findExecutable(name: string): string | null {
     }
   }
 
+  // Check user-provided common paths first
+  for (const commonPath of commonPaths) {
+    if (fs.existsSync(commonPath)) {
+      logger.debug(`Found ${name} at common path`, { path: commonPath })
+      return commonPath
+    }
+  }
+
   // Use where.exe to find executable in PATH
   // Use execFileSync to prevent command injection
   try {
-    // Add .exe extension for more precise matching on Windows
-    const executableName = `${name}.exe`
-    const result = execFileSync('where.exe', [executableName], {
+    // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
+    // We then filter by allowed extensions below for security and precision
+    const result = execFileSync('where.exe', [name], {
       encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: options?.env
     })
 
     // Handle both Windows (\r\n) and Unix (\n) line endings
     const paths = result.trim().split(/\r?\n/).filter(Boolean)
     const currentDir = process.cwd().toLowerCase()
 
-    // Security check: skip executables in current directory
+    // Filter by allowed extensions
     for (const exePath of paths) {
       // Trim whitespace from where.exe output
       const cleanPath = exePath.trim()
+      const lowerPath = cleanPath.toLowerCase()
+
+      // Check if the file has an allowed extension
+      const hasAllowedExtension = extensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
+      if (!hasAllowedExtension) {
+        continue
+      }
+
       const resolvedPath = path.resolve(cleanPath).toLowerCase()
       const execDir = path.dirname(resolvedPath).toLowerCase()
 
@@ -271,7 +300,77 @@ export function findExecutable(name: string): string | null {
 }
 
 /**
- * Find Git Bash executable on Windows
+ * Common Git installation root directories on Windows
+ * Used by both findGit() and findGitBash() to check fallback paths
+ */
+function getCommonGitRoots(): string[] {
+  return [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
+  ]
+}
+
+/**
+ * Find git executable path in the given shell environment
+ * Cross-platform: uses findGit on Windows, findCommandInShellEnv on Unix
+ * @param shellEnv - The shell environment from getShellEnv()
+ * @returns Full path to git executable or null if not found
+ */
+export async function findGitPath(shellEnv: Record<string, string>): Promise<string | null> {
+  return isWin ? findGit(shellEnv) : await findCommandInShellEnv('git', shellEnv)
+}
+
+/**
+ * Find git.exe on Windows
+ * Checks PATH, common install paths, and LOCALAPPDATA
+ * @returns Full path to git.exe or null if not found
+ */
+export function findGit(env?: Record<string, string>): string | null {
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Find git.exe via findExecutable (checks PATH + common Git install paths)
+  const gitPath = findExecutable('git', env ? { env } : undefined)
+  if (gitPath) {
+    return gitPath
+  }
+
+  // 2. Fallback: check common Git installation paths directly
+  for (const root of getCommonGitRoots()) {
+    const fullPath = path.join(root, 'cmd', 'git.exe')
+    if (fs.existsSync(fullPath)) {
+      logger.debug('Found git.exe at common path', { path: fullPath })
+      return fullPath
+    }
+  }
+
+  logger.debug('git.exe not found - checked PATH and common paths')
+  return null
+}
+
+/**
+ * Check if git is available in the user's environment
+ * Refreshes shell env cache to detect newly installed Git
+ * @returns Object with availability status and path to git executable
+ */
+export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+  refreshShellEnvCache()
+
+  const shellEnv = await getShellEnv()
+  const gitPath = await findGitPath(shellEnv)
+
+  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
+
+  return {
+    available: gitPath !== null,
+    path: gitPath
+  }
+}
+
+/**
+ * Find Git Bash (bash.exe) on Windows
  * @param customPath - Optional custom path from config
  * @returns Full path to bash.exe or null if not found
  */
@@ -302,10 +401,10 @@ export function findGitBash(customPath?: string | null): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 3. Find git.exe and derive bash.exe path
+  // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
   const gitPath = findExecutable('git')
   if (gitPath) {
-    // Try multiple possible locations for bash.exe relative to git.exe
+    // Derive bash.exe from git.exe location
     // Different Git installations have different directory structures
     const possibleBashPaths = [
       path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
@@ -327,21 +426,16 @@ export function findGitBash(customPath?: string | null): string | null {
     })
   }
 
-  // 4. Fallback: check common Git Bash paths directly
-  const commonBashPaths = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')] : [])
-  ]
-
-  for (const bashPath of commonBashPaths) {
-    if (fs.existsSync(bashPath)) {
-      logger.debug('Found bash.exe at common path', { path: bashPath })
-      return bashPath
+  // 4. Fallback: check common Git installation paths directly
+  for (const root of getCommonGitRoots()) {
+    const fullPath = path.join(root, 'bin', 'bash.exe')
+    if (fs.existsSync(fullPath)) {
+      logger.debug('Found bash.exe at common path', { path: fullPath })
+      return fullPath
     }
   }
 
-  logger.debug('Git Bash not found - checked git derivation and common paths')
+  logger.debug('bash.exe not found - checked git derivation and common paths')
   return null
 }
 

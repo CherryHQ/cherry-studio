@@ -36,7 +36,7 @@ vi.mock('@renderer/config/models', () => ({
   isFunctionCallingModel: vi.fn().mockReturnValue(false),
   DEFAULT_MAX_TOKENS: 4096,
   qwen38bModel: {},
-  glm45FlashModel: {}
+  qwen3Next80BModel: {}
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

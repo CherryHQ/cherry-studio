@@ -1,6 +1,6 @@
 import { TopicManager } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
-import type { FileType, Topic } from '@renderer/types'
+import type { FileMetadata, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import type {
   CitationMessageBlock,
@@ -64,7 +64,7 @@ export interface MessagePreprocessResult {
   text: string
 
   // 文件列表
-  files: FileType[]
+  files: FileMetadata[]
 }
 
 /**
@@ -75,7 +75,7 @@ export interface TopicPreprocessResult {
   text: string
 
   // 文件列表
-  files: FileType[]
+  files: FileMetadata[]
 }
 
 /**
@@ -149,7 +149,7 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
 export function processMessageContent(message: Message, selectedTypes: ContentType[]): MessagePreprocessResult {
   const blocks = findAllBlocks(message)
   const textParts: string[] = []
-  const files: FileType[] = []
+  const files: FileMetadata[] = []
 
   // 提高查找效率
   const selectedTypeSet = new Set(selectedTypes)
@@ -275,7 +275,7 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
 /**
  * 处理文件块
  */
-function processFileBlocks(block: MessageBlock): FileType | null {
+function processFileBlocks(block: MessageBlock): FileMetadata | null {
   switch (block.type) {
     case MessageBlockType.FILE: {
       const fileBlock = block as FileMessageBlock
@@ -341,7 +341,7 @@ export async function processTopicContent(topic: Topic, selectedTypes: ContentTy
   const messages = await TopicManager.getTopicMessages(topic.id)
 
   const textParts: string[] = []
-  const files: FileType[] = []
+  const files: FileMetadata[] = []
 
   // 添加话题标题（如果选择了文本类型）
   const selectedTypeSet = new Set(selectedTypes)

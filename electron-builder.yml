@@ -75,10 +75,6 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
-  # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -122,7 +118,6 @@ linux:
     - target: AppImage
     - target: deb
     - target: rpm
-    - target: pacman
   maintainer: electronjs.org
   category: Utility
   desktop:
@@ -147,30 +142,28 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.13 - Security & Bug Fixes
+    Cherry Studio 1.7.17 - New Features & Bug Fixes
 
-    🔒 Security
-    - [Plugin] Fix security vulnerability in DXT plugin system on Windows
+    ✨ New Features
+    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
+    - [Tools] Add OpenCode CLI tool support
 
     🐛 Bug Fixes
-    - [Agent] Fix Agent not working when Node.js is not installed on system
-    - [Chat] Fix app crash when opening certain agents
-    - [Chat] Fix reasoning process not displaying correctly for some providers
-    - [Chat] Fix memory leak issue during streaming conversations
-    - [MCP] Fix timeout field not accepting string format in MCP configuration
-    - [Settings] Add careers section in About page
+    - [Agent] Fix tool output display showing blank content during streaming
+    - [Models] Fix Kimi K2.5 model parameter error
+    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
+    - [macOS] Fix npm detection when app launched from Dock/Finder
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.13 - 安全与问题修复
+    Cherry Studio 1.7.17 - 新功能与问题修复
 
-    🔒 安全修复
-    - [插件] 修复 Windows 系统 DXT 插件的安全漏洞
+    ✨ 新功能
+    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
+    - [工具] 新增 OpenCode CLI 工具支持
 
     🐛 问题修复
-    - [Agent] 修复系统未安装 Node.js 时 Agent 功能无法使用的问题
-    - [对话] 修复打开某些智能体时应用崩溃的问题
-    - [对话] 修复部分服务商推理过程无法正确显示的问题
-    - [对话] 修复流式对话时的内存泄漏问题
-    - [MCP] 修复 MCP 配置的 timeout 字段不支持字符串格式的问题
-    - [设置] 关于页面新增招聘入口
+    - [智能体] 修复工具流式输出时内容显示为空的问题
+    - [模型] 修复 Kimi K2.5 模型参数错误
+    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
+    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
     <!--LANG:END-->

@@ -7,7 +7,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { FileTypes, isKnowledgeVideoItem } from '@renderer/types'
+import { FILE_TYPE, isKnowledgeVideoItem } from '@renderer/types'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
@@ -109,7 +109,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 return null
               }
               const files = item.content
-              const videoFile = files.find((f) => f.type === FileTypes.VIDEO)
+              const videoFile = files.find((f) => f.type === FILE_TYPE.VIDEO)
 
               if (!videoFile) {
                 logger.warn('Knowledge item is missing video file data.', { itemId: item.id })

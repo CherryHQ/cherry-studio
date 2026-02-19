@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import type { MinAppType } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -11,10 +11,10 @@ interface Props {
 }
 
 const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
-  // First try to find in DEFAULT_MIN_APPS for predefined styling
-  const _app = DEFAULT_MIN_APPS.find((item) => item.id === app.id)
+  // First try to find in allMinApps for predefined styling
+  const _app = allMinApps.find((item) => item.id === app.id)
 
-  // If found in DEFAULT_MIN_APPS, use predefined styling
+  // If found in allMinApps, use predefined styling
   if (_app) {
     const logo = _app.logo
 
@@ -43,7 +43,7 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
     )
   }
 
-  // If not found in DEFAULT_MIN_APPS but app has logo, use it (for temporary apps)
+  // If not found in allMinApps but app has logo, use it (for temporary apps)
   if (app.logo) {
     const logo = app.logo
 

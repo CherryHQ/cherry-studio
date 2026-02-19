@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
 import EssentialSettings from './EssentialSettings'
-import PluginSettings from './PluginSettings'
+import { InstalledPluginsSettings, PluginBrowserSettings } from './PluginsSettings/PluginsSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
@@ -22,7 +22,7 @@ interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'plugins' | 'session-mcps'
+type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'plugins' | 'installed' | 'session-mcps'
 
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -59,7 +59,11 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     },
     {
       key: 'plugins',
-      label: t('agent.settings.plugins.tab', 'Plugins')
+      label: t('agent.settings.plugins.available.title', 'Available Plugins')
+    },
+    {
+      key: 'installed',
+      label: t('agent.settings.plugins.installed.title', 'Installed Plugins')
     },
     {
       key: 'advanced',
@@ -104,7 +108,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
           {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
           {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'plugins' && <PluginSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'plugins' && <PluginBrowserSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'installed' && <InstalledPluginsSettings agentBase={agent} update={updateAgent} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
         </Settings>
       </div>
@@ -142,7 +147,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           flex: 1
         }
       }}
-      width="min(800px, 70vw)"
+      width="min(900px, 70vw)"
       centered>
       {renderModalContent()}
     </StyledModal>

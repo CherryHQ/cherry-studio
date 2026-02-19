@@ -11,6 +11,8 @@ export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
       return PROVIDER_ICON_CATALOG.mineru
     case 'open-mineru':
       return PROVIDER_ICON_CATALOG.mineru
+    case 'paddleocr':
+      return PROVIDER_ICON_CATALOG.paddleocr
     default:
       return undefined
   }
@@ -41,6 +43,12 @@ export const PREPROCESS_PROVIDER_CONFIG: Record<PreprocessProviderId, Preprocess
     websites: {
       official: 'https://github.com/opendatalab/MinerU/',
       apiKey: 'https://github.com/opendatalab/MinerU/'
+    }
+  },
+  paddleocr: {
+    websites: {
+      official: 'https://aistudio.baidu.com/paddleocr/',
+      apiKey: 'https://aistudio.baidu.com/paddleocr/'
     }
   }
 }

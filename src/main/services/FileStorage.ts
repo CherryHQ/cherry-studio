@@ -9,10 +9,11 @@ import {
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
+import { t } from '@main/utils/language'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, NotesTreeNode } from '@types'
-import { FileTypes } from '@types'
+import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
@@ -227,11 +228,11 @@ class FileStorage {
     return null
   }
 
-  public getFileType = async (filePath: string): Promise<FileTypes> => {
+  public getFileType = async (filePath: string): Promise<FileType> => {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
+    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -821,9 +822,9 @@ class FileStorage {
   ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '打开文件',
+        title: t('dialog.open_file'),
         properties: ['openFile'],
-        filters: [{ name: '所有文件', extensions: ['*'] }],
+        filters: [{ name: t('dialog.all_files'), extensions: ['*'] }],
         ...options
       })
 
@@ -1437,7 +1438,7 @@ class FileStorage {
   ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
-        title: '保存文件',
+        title: t('dialog.save_file'),
         defaultPath: fileName,
         ...options
       })
@@ -1461,7 +1462,7 @@ class FileStorage {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
-        filters: [{ name: 'PNG Image', extensions: ['png'] }]
+        filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
       if (filePath) {
@@ -1476,7 +1477,7 @@ class FileStorage {
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
-        title: '选择文件夹',
+        title: t('dialog.select_folder'),
         properties: ['openDirectory'],
         ...options
       })
@@ -1850,6 +1851,15 @@ class FileStorage {
       return false
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
+      return false
+    }
+  }
+
+  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const stat = await fs.promises.stat(filePath)
+      return stat.isDirectory()
+    } catch {
       return false
     }
   }

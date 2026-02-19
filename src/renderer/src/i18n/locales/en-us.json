@@ -14,6 +14,18 @@
         "placeholder": "Select an agent type"
       }
     },
+    "askUserQuestion": {
+      "answered": "answered",
+      "customPlaceholder": "Enter your answer...",
+      "loading": "Loading questions...",
+      "multiSelect": "Multi-select",
+      "next": "Next",
+      "noQuestions": "No questions available",
+      "other": "Other",
+      "previous": "Previous",
+      "submit": "Submit",
+      "title": "Questions from Agent"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -154,24 +166,43 @@
         "error": {
           "install": "Failed to install plugin",
           "load": "Failed to load plugins",
+          "load_more": "Failed to load more plugins",
           "uninstall": "Failed to uninstall plugin"
         },
         "filter": {
           "all": "All Categories"
         },
-        "install": "Install",
+        "install": {
+          "button": "Install",
+          "title": "Install Plugins"
+        },
         "installed": {
           "empty": "No plugins installed yet. Browse available plugins to get started.",
           "title": "Installed Plugins"
         },
         "installing": "Installing...",
+        "plugin_upload": {
+          "all_failed": "All {{failed}} components failed to install",
+          "error": "Installation failed",
+          "format_hint": "Supports plugin packages (.claude-plugin/plugin.json)",
+          "hint": "Drag and drop plugin ZIP here, or click to select",
+          "invalid_format": "Please upload a ZIP file",
+          "partial_success": "Installed {{installed}} components, {{failed}} failed",
+          "select_folder": "Select Folder",
+          "select_folder_title": "Select Plugin Folder",
+          "success": "Plugin \"{{name}}\" installed successfully ({{count}} components)",
+          "success_multi": "Installed {{count}} components from {{packages}} packages",
+          "uploading": "Uploading and installing..."
+        },
         "results": "{{count}} plugin(s) found",
         "search": {
           "placeholder": "Search plugins..."
         },
+        "standalone_plugins": "Standalone Plugins",
         "success": {
           "install": "Plugin installed successfully",
-          "uninstall": "Plugin uninstalled successfully"
+          "uninstall": "Plugin uninstalled successfully",
+          "uninstall_package": "Package \"{{name}}\" uninstalled successfully"
         },
         "tab": "Plugins",
         "type": {
@@ -183,6 +214,8 @@
           "skills": "Skills"
         },
         "uninstall": "Uninstall",
+        "uninstall_package": "Uninstall Package",
+        "uninstall_package_confirm": "Are you sure you want to uninstall the entire \"{{name}}\" package? This will remove {{count}} component(s).",
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
@@ -269,8 +302,19 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} tasks completed"
+      },
+      "status": {
+        "completed": "Completed",
+        "in_progress": "In Progress",
+        "pending": "Pending"
+      }
+    },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Always allow this tool",
         "allowRequest": "Allow tool request",
         "denyRequest": "Deny tool request",
         "hideDetails": "Hide tool details",
@@ -278,6 +322,7 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allowAll": "Always Allow",
         "cancel": "Cancel",
         "run": "Run"
       },
@@ -667,6 +712,10 @@
         "title": "New Topic"
       }
     },
+    "alerts": {
+      "create_session": "Create a session",
+      "select_agent": "Select an agent"
+    },
     "artifacts": {
       "button": {
         "download": "Download",
@@ -705,15 +754,6 @@
       "view_full_content": "View Full Content"
     },
     "input": {
-      "activity_directory": {
-        "description": "Select file from activity directory",
-        "loading": "Loading Files...",
-        "no_file_found": {
-          "description": "No files available in accessible directories",
-          "label": "No File Found"
-        },
-        "title": "Activity Directory"
-      },
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -743,6 +783,24 @@
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Files",
+          "skills": "Skills"
+        },
+        "description": "Select from files, agents, or skills",
+        "loading": "Loading...",
+        "no_file_found": {
+          "description": "No files available in accessible directories",
+          "label": "No File Found"
+        },
+        "no_items_found": {
+          "description": "No files, agents, or skills available",
+          "label": "No Items Found"
+        },
+        "title": "Resources"
+      },
       "send": "Send",
       "settings": "Settings",
       "slash_commands": {
@@ -1200,6 +1258,8 @@
     "cancel": "Cancel",
     "chat": "Chat",
     "clear": "Clear",
+    "clear_all": "Clear All",
+    "click_to_replace": "Click to replace",
     "close": "Close",
     "collapse": "Collapse",
     "completed": "Completed",
@@ -1228,15 +1288,24 @@
       "validation": "Verification failed"
     },
     "expand": "Expand",
+    "export": {
+      "excel": "Export to Excel"
+    },
     "file": {
       "not_supported": "Unsupported file type {{type}}"
     },
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+    "generate_random_seed": "Generate random seed",
+    "get_embedding_dimension": "Get embedding dimension",
     "go_to_settings": "Go to settings",
+    "html_preview": "HTML Preview",
     "i_know": "I know",
     "ignore": "Ignore",
+    "image_preview": "Image preview",
+    "image_url": "Image URL",
+    "image_url_or_upload": "Enter image URL or upload file",
     "inspect": "Inspect",
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
@@ -1246,6 +1315,7 @@
     "models": "Models",
     "more": "More",
     "name": "Name",
+    "next_match": "Next match",
     "no_results": "No results",
     "none": "None",
     "off": "Off",
@@ -1257,14 +1327,19 @@
         "model": "Select a model"
       }
     },
+    "powered_by": "Powered by ",
     "preview": "Preview",
+    "previous_match": "Previous match",
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
     "regenerate": "Regenerate",
+    "remove_image": "Remove image",
     "rename": "Rename",
+    "required_field": "Required field",
     "reset": "Reset",
+    "retry": "Retry",
     "save": "Save",
     "saved": "Saved",
     "search": "Search",
@@ -1286,13 +1361,28 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "translate_text": "Translate text",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
     "update_success": "Update successfully",
     "upload_files": "Upload file",
+    "upload_image": "Upload image file",
+    "uploaded_image": "Uploaded image",
     "warning": "Warning",
     "you": "You"
+  },
+  "dialog": {
+    "all_files": "All Files",
+    "html_files": "HTML Files",
+    "open_file": "Open File",
+    "pdf_files": "PDF Files",
+    "png_image": "PNG Image",
+    "save_as_html": "Save as HTML",
+    "save_as_pdf": "Save as PDF",
+    "save_file": "Save File",
+    "select_folder": "Select Folder",
+    "word_document": "Word Document"
   },
   "docs": {
     "title": "Docs"
@@ -1374,6 +1464,7 @@
     "provider_disabled": "Model provider is not enabled",
     "reason": "Reason",
     "render": {
+      "block": "This content block failed to render",
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },
@@ -1599,9 +1690,6 @@
     "notes": "Notes",
     "notes_placeholder": "Enter additional information or context for this knowledge base...",
     "provider_not_found": "Provider not found",
-    "quota": "{{name}} Left Quota: {{quota}}",
-    "quota_empty": "Today's {{name}} quota exhausted, please apply on the official website",
-    "quota_infinity": "{{name}} Quota: Unlimited",
     "rename": "Rename",
     "search": "Search knowledge base",
     "search_placeholder": "Enter text to search",
@@ -1858,6 +1946,9 @@
         "model": "Please select a model first",
         "name": "Please enter the name of the knowledge base"
       },
+      "excel": {
+        "export": "Failed to export Excel"
+      },
       "fetchTopicName": "Failed to name the topic",
       "get_embedding_dimensions": "Failed to get embedding dimensions",
       "invalid": {
@@ -1896,6 +1987,9 @@
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
+      },
+      "table": {
+        "invalid": "Unable to retrieve valid table data"
       },
       "unknown": "Unknown error",
       "yuque": {
@@ -1983,6 +2077,9 @@
     },
     "searching": "Searching...",
     "success": {
+      "excel": {
+        "export": "Excel exported successfully"
+      },
       "joplin": {
         "export": "Successfully exported to Joplin"
       },
@@ -2015,10 +2112,68 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Edit",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "MCP Server Tool",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Read File",
+        "search": "Search",
+        "skill": "Skill",
+        "task": "Task",
+        "todoWrite": "Todo Write",
+        "tool": "Tool",
+        "webFetch": "Web Fetch",
+        "webSearch": "Web Search",
+        "write": "Write"
+      },
+      "noData": "No data available for this tool",
       "pending": "Pending",
       "preview": "Preview",
-      "raw": "Raw"
+      "raw": "Raw",
+      "runningCount": "{{count}} tools running",
+      "sections": {
+        "args": "Arguments",
+        "command": "Command",
+        "content": "Content",
+        "exitCode": "Exit Code",
+        "input": "Input",
+        "output": "Output",
+        "prompt": "Prompt",
+        "searchQuery": "Search Query",
+        "searchResults": "Search Results",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Done",
+        "error": "Error",
+        "failed": "Failed",
+        "running": "Running",
+        "success": "Success"
+      },
+      "streaming": "Streaming",
+      "truncated": "Output truncated (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Done",
+        "done_other": "{{count}} Done",
+        "file_one": "{{count}} file",
+        "file_other": "{{count}} files",
+        "item_one": "{{count}} item",
+        "item_other": "{{count}} items",
+        "line_one": "{{count}} line",
+        "line_other": "{{count}} lines",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} plans",
+        "result_one": "{{count}} result",
+        "result_other": "{{count}} results"
+      }
     },
     "topic": {
       "added": "New topic added"
@@ -2151,6 +2306,7 @@
     },
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
+    "json_parse_error": "Invalid JSON format",
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -2363,6 +2519,86 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Checking OpenClaw installation...",
+    "description": "Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
+    "error": {
+      "select_provider_model": "Please select a provider and model first"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Restart",
+      "start": "Start",
+      "status": "Status",
+      "stop": "Stop",
+      "version": "Version"
+    },
+    "git_missing": {
+      "description": "OpenClaw requires Git for installing some dependencies. Please install Git first, then click Install again.",
+      "download_button": "Download Git",
+      "hint": "macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
+      "title": "Git Required"
+    },
+    "install_progress": "Install Progress",
+    "installed_at": "OpenClaw installed at",
+    "model_config": {
+      "auth_token": "Auth Token",
+      "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
+      "auth_token_placeholder": "Enter or generate a token",
+      "generate_token": "Generate",
+      "model": "Model",
+      "provider": "Provider",
+      "select_model": "Select a model",
+      "select_provider": "Select a provider",
+      "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
+      "title": "Model Configuration"
+    },
+    "not_installed": {
+      "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
+      "install_button": "Install OpenClaw",
+      "install_guide_title": "Installation Guide",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Refresh",
+      "step2_hint": "After installation, click the Refresh button above to detect OpenClaw",
+      "step2_title": "Step 2: Verify installation",
+      "title": "OpenClaw Not Installed",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "quick_actions": {
+      "open_dashboard": "Open Dashboard",
+      "title": "Quick Actions",
+      "uninstall": "Uninstall",
+      "view_docs": "View Documentation"
+    },
+    "status": {
+      "error": "Error",
+      "running": "Running",
+      "starting": "Starting",
+      "stopped": "Stopped"
+    },
+    "tips": {
+      "permissions": "OpenClaw has elevated system permissions. Use only in trusted environments",
+      "title": "Tips",
+      "token_usage": "AI agent mode may consume more tokens. Please monitor your usage"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Are you sure you want to uninstall OpenClaw? Press OK to confirm.",
+    "uninstall_progress": "Uninstall Progress",
+    "uninstalled": {
+      "description": "OpenClaw has been successfully uninstalled.",
+      "title": "Uninstall Complete"
+    },
+    "uninstalling": {
+      "description": "Please wait while OpenClaw is being uninstalled...",
+      "title": "Uninstalling OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Install",
@@ -2443,14 +2679,42 @@
       }
     },
     "custom_size": "Custom Size",
+    "dmxapi": {
+      "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "style": ", Style: ",
+      "style_types": {
+        "25d_animation": "2.5D Animation",
+        "3d_cartoon": "3D Cartoon",
+        "american_retro": "American Retro",
+        "baroque": "Baroque",
+        "cartoon_illustration": "Cartoon Illustration",
+        "chinese_gongbi": "Chinese Gongbi",
+        "clay": "Clay",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Felt",
+        "flat": "Flat",
+        "fresh_anime": "Fresh Anime",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Japanese Anime",
+        "little_people_book": "Little People Book",
+        "monet_garden": "Monet Garden",
+        "oil_painting": "Oil Painting",
+        "pixar": "Pixar",
+        "pixel_art": "Pixel Art",
+        "poetic_ancient": "Poetic Ancient",
+        "psychedelic": "Psychedelic",
+        "sketch": "Sketch",
+        "street_art": "Street Art",
+        "texture": "Texture",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Watercolor",
+        "wood_carving": "Wood Carving",
+        "yarn_doll": "Yarn Doll"
+      }
+    },
     "edit": {
-      "image_file": "Edited Image",
-      "magic_prompt_option_tip": "Intelligently enhances editing prompts",
-      "model_tip": "V3 and V2 versions supported",
-      "number_images_tip": "Number of edited results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Controls editing randomness",
-      "style_type_tip": "Style for edited image, only for V_2 and above"
+      "image_file": "Input Image",
+      "image_required": "Please upload an image to edit first"
     },
     "generate": {
       "height": "Height",
@@ -2467,6 +2731,7 @@
       "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
+    "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
@@ -2477,6 +2742,7 @@
     "image_file_required": "Please upload an image first",
     "image_file_retry": "Please re-upload an image first",
     "image_handle_required": "Please upload an image first.",
+    "image_mix_failed": "Failed to mix images",
     "image_placeholder": "No image available",
     "image_retry": "Retry",
     "image_size_options": {
@@ -2486,6 +2752,7 @@
     "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
+    "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
     "magic_prompt_option": "Magic Prompt",
     "mode": {
@@ -2507,6 +2774,7 @@
     "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate (1-4)",
+    "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
@@ -2514,6 +2782,16 @@
       "allow_adult": "Allow adult",
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
+    },
+    "ppio": {
+      "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
+      "mask_image": "Mask Image",
+      "mask_image_tip": "Used to indicate the area to be erased. Areas to erase should be white, areas to keep should be black",
+      "output_format": "Output Format",
+      "resolution": "Target Resolution",
+      "seed_tip": "Random seed, same seed and parameters can produce similar images, -1 means random",
+      "use_pre_llm_tip": "Enable text expansion to optimize the prompt. Recommended for short prompts, disable for long ones",
+      "watermark_tip": "Whether to add watermark to generated images, disabled by default"
     },
     "pricing": "Pricing",
     "prompt_enhancement": "Prompt Enhancement",
@@ -2557,6 +2835,7 @@
     "required_field": "Required field",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
+    "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
     "style_type": "Style",
@@ -2582,6 +2861,27 @@
       "resemblance": "Similarity",
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
+    },
+    "watermark": "Add Watermark",
+    "zhipu": {
+      "custom_size_divisible": "Custom size must be divisible by 16",
+      "custom_size_hint": "Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
+      "custom_size_pixels": "Total pixels of custom size cannot exceed 2,097,152",
+      "custom_size_range": "Custom size must be between 512px-2048px",
+      "custom_size_required": "Please set custom width and height",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Default)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Default)"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2892,21 @@
     "category": "Category",
     "commands": "Commands",
     "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "confirm_uninstall_package": "Are you sure you want to uninstall the package {{name}} and all its components?",
+    "content_saved": "Plugin content saved successfully",
+    "detail": {
+      "allowed_tools": "Allowed Tools",
+      "author": "Author",
+      "content": "Content",
+      "description": "Description",
+      "file": "File",
+      "installed": "Installed",
+      "metadata": "Metadata",
+      "size": "Size",
+      "source": "Source",
+      "tags": "Tags",
+      "tools": "Tools"
+    },
     "install": "Install",
     "install_plugins_from_browser": "Browse available plugins to get started",
     "installing": "Installing...",
@@ -2604,10 +2919,22 @@
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",
     "showing_results_plural": "Showing {{count}} plugins",
+    "showing_results_skills": "Showing {{count}} skill",
+    "showing_results_skills_one": "Showing {{count}} skill",
+    "showing_results_skills_other": "Showing {{count}} skills",
+    "showing_results_skills_plural": "Showing {{count}} skills",
     "skills": "Skills",
+    "sort": {
+      "downloads": "Downloads",
+      "label": "Sort",
+      "relevance": "Relevance",
+      "stars": "Stars"
+    },
+    "standalone_plugins": "Standalone Plugins",
     "try_different_search": "Try adjusting your search or category filters",
     "type": "Type",
     "uninstall": "Uninstall",
+    "uninstall_package": "Uninstall Package",
     "uninstalling": "Uninstalling..."
   },
   "preview": {
@@ -2941,6 +3268,11 @@
         "search": "Search",
         "summary": "Summarize",
         "translate": "Translate"
+      },
+      "prompt": {
+        "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
+        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
         "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
@@ -4035,6 +4367,10 @@
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
       "jsonSaveError": "Failed to save JSON configuration.",
       "jsonSaveSuccess": "JSON configuration has been saved.",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "Logo URL",
       "logs": "Logs",
       "longRunning": "Long Running Mode",
@@ -4131,6 +4467,14 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
+        "providerDescriptions": {
+          "302ai": "302.AI Platform MCP Service",
+          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
+          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
+          "mcprouter": "MCP Router Platform MCP Service",
+          "modelscope": "ModelScope Platform MCP Service",
+          "tokenflux": "TokenFlux Platform MCP Service"
+        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",
@@ -4550,6 +4894,7 @@
           "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the v1 version"
         }
       },
+      "balance": "Balance",
       "basic_auth": {
         "label": "HTTP authentication",
         "password": {
@@ -4608,6 +4953,9 @@
         "title": "Delete Provider"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Enterprise)",
+        "platform_international": "www.DMXAPI.com (International)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Select the platform"
       },
       "docs_check": "Check",
@@ -4622,10 +4970,29 @@
         "title": "Model Notes"
       },
       "oauth": {
+        "balance": "Balance",
         "button": "Login with {{provider}}",
+        "cherryIn": {
+          "description": "Login to CherryIN using OAuth 2.0",
+          "logged_in": "Logged in via OAuth",
+          "login_button": "Login with OAuth",
+          "logout_button": "Logout",
+          "title": "OAuth Login"
+        },
+        "connect": "Connect {{provider}}",
         "description": "This service is provided by <website>{{provider}}</website>",
         "error": "Authentication failed",
-        "official_website": "Official Website"
+        "logged_in": "Logged in",
+        "logout": "Logout",
+        "logout_confirm": "Are you sure you want to logout?",
+        "logout_success": "Successfully logged out",
+        "logout_warning": "Logged out locally, but server token revocation may have failed",
+        "official_website": "Official Website",
+        "provided_by": "Provided by",
+        "provided_by_suffix": "",
+        "requests": "Requests",
+        "topup": "Top Up",
+        "usage_title": "Usage"
       },
       "openai": {
         "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
@@ -4767,10 +5134,8 @@
         "image_provider": "OCR service provider",
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
-          "aistudio_url_label": "AI Studio Community",
           "api_url": "API URL",
-          "serving_doc_url_label": "PaddleOCR Serving Documentation",
-          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+          "api_url_label": "Obtain Access Token and API URL"
         },
         "system": {
           "win": {
@@ -4783,6 +5148,12 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Access token of AI Studio Community",
+          "api_url": "API URL",
+          "api_url_label": "Obtain Access Token and API URL",
+          "paddleocr_url_label": "PaddleOCR Official Website"
+        },
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",
         "title": "Document Processing",
@@ -4969,6 +5340,7 @@
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
     "notes": "Notes",
+    "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",
@@ -5031,6 +5403,8 @@
     "detected": {
       "language": "Auto Detect"
     },
+    "detected_source": "Detected",
+    "detecting": "Detecting...",
     "empty": "Translation content is empty",
     "error": {
       "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
@@ -5083,6 +5457,7 @@
       "not_pair": "Source language is different from the set language",
       "same": "Source and target languages are the same"
     },
+    "language_settings": "Language Settings",
     "menu": {
       "description": "Translate the content of the current input box"
     },
@@ -5092,6 +5467,7 @@
     "output": {
       "placeholder": "Translation"
     },
+    "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",
     "settings": {
       "autoCopy": "Copy after translation ",

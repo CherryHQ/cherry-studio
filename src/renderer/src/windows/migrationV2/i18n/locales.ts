@@ -12,18 +12,26 @@ export const zhCN = {
       migration: '迁移',
       completed: '完成'
     },
+    steps: {
+      start: '开始',
+      backup: '备份',
+      migrate: '迁移',
+      complete: '完成'
+    },
     buttons: {
       cancel: '取消',
       next: '下一步',
       create_backup: '创建备份',
+      backup_completed: '已完成备份',
       confirm_backup: '我已备份，开始迁移',
       start_migration: '开始迁移',
       confirm: '确定',
       restart: '重启应用',
-      retry: '重新尝试',
+      retry: '重试',
+      exit: '退出',
       close: '关闭应用',
       backing_up: '正在备份...',
-      migrating: '迁移进行中...'
+      migrating: '迁移中...'
     },
     status: {
       pending: '等待中',
@@ -52,6 +60,11 @@ export const zhCN = {
     migration: {
       title: '正在迁移数据...'
     },
+    progress: {
+      processing: '正在处理{{name}}...',
+      migrated_chats: '已迁移 {{processed}}/{{total}} 个对话，{{messages}} 条消息',
+      migrated_preferences: '已迁移 {{processed}}/{{total}} 条配置'
+    },
     migration_completed: {
       title: '数据迁移完成！',
       description: '所有数据已成功迁移到新架构，请点击确定继续。'
@@ -77,15 +90,23 @@ export const enUS = {
       migration: 'Migration',
       completed: 'Completed'
     },
+    steps: {
+      start: 'Start',
+      backup: 'Backup',
+      migrate: 'Migrate',
+      complete: 'Complete'
+    },
     buttons: {
       cancel: 'Cancel',
       next: 'Next',
       create_backup: 'Create Backup',
+      backup_completed: 'Backup Completed',
       confirm_backup: 'I Have Backup, Start Migration',
       start_migration: 'Start Migration',
       confirm: 'OK',
       restart: 'Restart App',
       retry: 'Retry',
+      exit: 'Exit',
       close: 'Close App',
       backing_up: 'Backing up...',
       migrating: 'Migrating...'
@@ -119,6 +140,11 @@ export const enUS = {
     },
     migration: {
       title: 'Migrating Data...'
+    },
+    progress: {
+      processing: 'Processing {{name}}...',
+      migrated_chats: 'Migrated {{processed}}/{{total}} conversations, {{messages}} messages',
+      migrated_preferences: 'Migrated {{processed}}/{{total}} preferences'
     },
     migration_completed: {
       title: 'Data Migration Completed!',

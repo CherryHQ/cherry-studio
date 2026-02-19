@@ -1,0 +1,84 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+      - develop
+      - v2
+    types: [ready_for_review, synchronize, opened, edited]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false  || github.head_ref == 'v2'
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Lint Check
+        run: pnpm test:lint
+
+      - name: Format Check
+        run: pnpm format:check
+
+      - name: Type Check
+        run: pnpm typecheck
+
+      - name: i18n Check
+        run: pnpm i18n:check
+
+      - name: Hardcoded Strings Check
+        run: pnpm i18n:hardcoded:strict
+
+      - name: Test
+        run: pnpm test
+
+      - name: Send failure notification to Feishu
+        if: always() && failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          DESCRIPTION=$(printf "**分支:** main\n\n**提交:** %.7s\n\n**信息:** %s\n\n**工作流:** [查看详情](%s)" "$COMMIT_SHA" "$COMMIT_MSG" "$RUN_URL")
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "Main 分支 CI 失败" \
+            -d "$DESCRIPTION" \
+            -c "red"

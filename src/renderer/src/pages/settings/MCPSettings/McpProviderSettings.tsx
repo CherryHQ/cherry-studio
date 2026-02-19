@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle } from '..'
-import type { ProviderConfig } from './providers/config'
+import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -123,7 +123,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     <DetailContainer>
       <ProviderHeader>
         <Flex className="items-center">
-          <ProviderName>{provider.name}</ProviderName>
+          <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
           {provider.discoverUrl && (
             <Link target="_blank" href={provider.discoverUrl} style={{ display: 'flex' }}>
               <Button type="text" size="small">

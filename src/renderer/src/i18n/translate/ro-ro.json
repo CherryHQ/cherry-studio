@@ -14,6 +14,18 @@
         "placeholder": "Selectează un tip de agent"
       }
     },
+    "askUserQuestion": {
+      "answered": "răspuns",
+      "customPlaceholder": "Introdu răspunsul tău...",
+      "loading": "Se încarcă întrebările...",
+      "multiSelect": "Selecție multiplă",
+      "next": "Următorul",
+      "noQuestions": "Nu sunt disponibile întrebări",
+      "other": "Altele",
+      "previous": "Anterior",
+      "submit": "Trimite",
+      "title": "Întrebări de la Agent"
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -154,24 +166,43 @@
         "error": {
           "install": "Nu s-a putut instala pluginul",
           "load": "Nu s-au putut încărca pluginurile",
+          "load_more": "Nu s-au putut încărca mai multe pluginuri",
           "uninstall": "Nu s-a putut dezinstala pluginul"
         },
         "filter": {
           "all": "Toate categoriile"
         },
-        "install": "Instalează",
+        "install": {
+          "button": "Instalare",
+          "title": "Instalați pluginuri"
+        },
         "installed": {
           "empty": "Niciun plugin instalat încă. Răsfoiește pluginurile disponibile pentru a începe.",
-          "title": "Pluginuri instalate"
+          "title": "Plugin-uri instalate"
         },
         "installing": "Se instalează...",
+        "plugin_upload": {
+          "all_failed": "Toate componentele {{failed}} nu au putut fi instalate",
+          "error": "Instalarea a eșuat",
+          "format_hint": "Acceptă pachete de pluginuri (.claude-plugin/plugin.json)",
+          "hint": "Trageți și plasați aici arhiva ZIP a pluginului sau faceți clic pentru a selecta",
+          "invalid_format": "Vă rugăm să încărcați un fișier ZIP",
+          "partial_success": "Pluginul \"{{name}}\" instalat parțial: {{installed}} instalat, {{failed}} eșuat",
+          "select_folder": "Selectați dosarul",
+          "select_folder_title": "Selectați dosarul pluginului",
+          "success": "Plugin-ul \"{{name}}\" a fost instalat cu succes ({{count}} componente)",
+          "success_multi": "Instalate {{count}} componente din {{packages}} pachete",
+          "uploading": "Se încarcă și se instalează..."
+        },
         "results": "{{count}} plugin(uri) găsit(e)",
         "search": {
           "placeholder": "Caută pluginuri..."
         },
+        "standalone_plugins": "Plugin-uri autonome",
         "success": {
           "install": "Plugin instalat cu succes",
-          "uninstall": "Plugin dezinstalat cu succes"
+          "uninstall": "Plugin dezinstalat cu succes",
+          "uninstall_package": "Pachetul „{{name}}” a fost dezinstalat cu succes"
         },
         "tab": "Pluginuri",
         "type": {
@@ -183,6 +214,8 @@
           "skills": "Abilități"
         },
         "uninstall": "Dezinstalează",
+        "uninstall_package": "Dezinstalează Pachetul",
+        "uninstall_package_confirm": "Sigur dorești să dezinstalezi întregul pachet „{{name}}”? Aceasta va elimina {{count}} component(e).",
         "uninstalling": "Se dezinstalează..."
       },
       "prompt": "Setări prompt",
@@ -269,8 +302,19 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} sarcini finalizate"
+      },
+      "status": {
+        "completed": "Finalizat",
+        "in_progress": "În desfășurare",
+        "pending": "În așteptare"
+      }
+    },
     "toolPermission": {
       "aria": {
+        "allowAllRequest": "Permiteți întotdeauna acest instrument",
         "allowRequest": "Permite cererea instrumentului",
         "denyRequest": "Refuză cererea instrumentului",
         "hideDetails": "Ascunde detaliile instrumentului",
@@ -278,6 +322,7 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
+        "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
         "run": "Rulează"
       },
@@ -667,6 +712,10 @@
         "title": "Subiect nou"
       }
     },
+    "alerts": {
+      "create_session": "Creează o sesiune",
+      "select_agent": "Selectați un agent"
+    },
     "artifacts": {
       "button": {
         "download": "Descarcă",
@@ -705,15 +754,6 @@
       "view_full_content": "Vezi conținutul complet"
     },
     "input": {
-      "activity_directory": {
-        "description": "Selectează fișierul din directorul de activitate",
-        "loading": "Se încarcă fișierele...",
-        "no_file_found": {
-          "description": "Nu există fișiere disponibile în directoarele accesibile",
-          "label": "Nu a fost găsit niciun fișier"
-        },
-        "title": "Director de activitate"
-      },
       "auto_resize": "Redimensionare automată înălțime",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
@@ -743,6 +783,24 @@
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
+      "resource_panel": {
+        "categories": {
+          "agents": "Agenți",
+          "files": "Fișiere",
+          "skills": "Abilități"
+        },
+        "description": "Selectați din fișiere, agenți sau competențe",
+        "loading": "Se încarcă...",
+        "no_file_found": {
+          "description": "Nicio fișier disponibil în directoare accesibile",
+          "label": "Niciun fișier găsit"
+        },
+        "no_items_found": {
+          "description": "Niciun fișier, agent sau abilitate disponibilă",
+          "label": "Niciun element găsit"
+        },
+        "title": "Resurse"
+      },
       "send": "Trimite",
       "settings": "Setări",
       "slash_commands": {
@@ -1200,6 +1258,8 @@
     "cancel": "Anulează",
     "chat": "Chat",
     "clear": "Golește",
+    "clear_all": "Șterge tot",
+    "click_to_replace": "Faceți clic pentru a înlocui",
     "close": "Închide",
     "collapse": "Restrânge",
     "completed": "Finalizat",
@@ -1228,15 +1288,24 @@
       "validation": "Validarea a eșuat"
     },
     "expand": "Extinde",
+    "export": {
+      "excel": "[to be translated]:Export to Excel"
+    },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
     },
     "footnote": "Conținut de referință",
     "footnotes": "Referințe",
     "fullscreen": "S-a intrat în modul ecran complet. Apasă F11 pentru a ieși",
+    "generate_random_seed": "Generează sămânță aleatoare",
+    "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
+    "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
+    "image_preview": "Previzualizare imagine",
+    "image_url": "URL imagine",
+    "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
     "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
@@ -1246,6 +1315,7 @@
     "models": "Modele",
     "more": "Mai mult",
     "name": "Nume",
+    "next_match": "Următorul meci",
     "no_results": "Niciun rezultat",
     "none": "Nimic",
     "off": "Oprit",
@@ -1257,14 +1327,19 @@
         "model": "Selectează un model"
       }
     },
+    "powered_by": "Cu tehnologia",
     "preview": "Previzualizare",
+    "previous_match": "Meciul anterior",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "refresh": "Reîmprospătează",
     "regenerate": "Regenerează",
+    "remove_image": "Elimină imaginea",
     "rename": "Redenumește",
+    "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
+    "retry": "Reîncercare",
     "save": "Salvează",
     "saved": "Salvat",
     "search": "Caută",
@@ -1286,13 +1361,28 @@
     "success": "Succes",
     "swap": "Schimbă",
     "topics": "Subiecte",
+    "translate_text": "Traduceți textul",
     "unknown": "Necunoscut",
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
     "update_success": "Actualizat cu succes",
     "upload_files": "Încarcă fișier",
+    "upload_image": "Încarcă fișier imagine",
+    "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
     "you": "Tu"
+  },
+  "dialog": {
+    "all_files": "Toate fișierele",
+    "html_files": "Fișiere HTML",
+    "open_file": "Deschide fișier",
+    "pdf_files": "Fișiere PDF",
+    "png_image": "Imagine PNG",
+    "save_as_html": "Salvează ca HTML",
+    "save_as_pdf": "Salvează ca PDF",
+    "save_file": "Salvează fișier",
+    "select_folder": "Selectează folderul",
+    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentație"
@@ -1374,6 +1464,7 @@
     "provider_disabled": "Furnizorul modelului nu este activat",
     "reason": "Motiv",
     "render": {
+      "block": "Acest bloc de conținut nu a putut fi redat",
       "description": "Nu s-a putut randa conținutul mesajului. Te rugăm să verifici dacă formatul conținutului mesajului este corect",
       "title": "Eroare de randare"
     },
@@ -1599,9 +1690,6 @@
     "notes": "Note",
     "notes_placeholder": "Introdu informații suplimentare sau context pentru această bază de cunoștințe...",
     "provider_not_found": "Furnizorul nu a fost găsit",
-    "quota": "Cotă rămasă {{name}}: {{quota}}",
-    "quota_empty": "Cota de astăzi pentru {{name}} este epuizată, te rugăm să aplici pe site-ul oficial",
-    "quota_infinity": "Cotă {{name}}: Nelimitat",
     "rename": "Redenumește",
     "search": "Caută în baza de cunoștințe",
     "search_placeholder": "Introdu text pentru căutare",
@@ -1858,6 +1946,9 @@
         "model": "Te rugăm să selectezi mai întâi un model",
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
+      "excel": {
+        "export": "[to be translated]:Failed to export Excel"
+      },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
       "invalid": {
@@ -1896,6 +1987,9 @@
       "siyuan": {
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
+      },
+      "table": {
+        "invalid": "[to be translated]:Unable to retrieve valid table data"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -1983,6 +2077,9 @@
     },
     "searching": "Se caută...",
     "success": {
+      "excel": {
+        "export": "[to be translated]:Excel exported successfully"
+      },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
       },
@@ -2015,10 +2112,68 @@
       "cancelled": "Anulat",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
+      "groupHeader": "{{count}} apeluri de instrumente",
       "invoking": "Se invocă",
+      "labels": {
+        "bash": "Bash",
+        "edit": "Editare",
+        "exitPlanMode": "ExitPlanMode",
+        "glob": "Glob",
+        "grep": "Grep",
+        "mcpServerTool": "Instrument Server MCP",
+        "multiEdit": "MultiEdit",
+        "notebookEdit": "NotebookEdit",
+        "readFile": "Citește fișier",
+        "search": "Căutare",
+        "skill": "Abilitate",
+        "task": "Sarcină",
+        "todoWrite": "Totul Scrie",
+        "tool": "Unelte",
+        "webFetch": "Preluare web",
+        "webSearch": "Căutare pe web",
+        "write": "Scrie"
+      },
+      "noData": "Nu sunt disponibile date pentru acest instrument",
       "pending": "În așteptare",
       "preview": "Previzualizare",
-      "raw": "Brut"
+      "raw": "Brut",
+      "runningCount": "{{count}} instrumente în execuție",
+      "sections": {
+        "args": "Argumente",
+        "command": "Comandă",
+        "content": "Conținut",
+        "exitCode": "Cod de ieșire",
+        "input": "Intrare",
+        "output": "Ieșire",
+        "prompt": "Punct",
+        "searchQuery": "Interogare de căutare",
+        "searchResults": "Rezultatele căutării",
+        "stderr": "stderr",
+        "stdout": "stdout"
+      },
+      "status": {
+        "done": "Gata",
+        "error": "Eroare",
+        "failed": "Eșuat",
+        "running": "Alergare",
+        "success": "Succes"
+      },
+      "streaming": "Streaming",
+      "truncated": "Ieșire trunchiată (original: {{size}})",
+      "units": {
+        "done_one": "{{count}} Finalizat",
+        "done_other": "{{count}} Finalizat",
+        "file_one": "{{count}} fișier",
+        "file_other": "{{count}} fișiere",
+        "item_one": "{{count}} articol",
+        "item_other": "{{count}} articole",
+        "line_one": "{{count}} linie",
+        "line_other": "{{count}} linii",
+        "plan_one": "{{count}} plan",
+        "plan_other": "{{count}} planuri",
+        "result_one": "{{count}} rezultat",
+        "result_other": "{{count}} rezultate"
+      }
     },
     "topic": {
       "added": "Subiect nou adăugat"
@@ -2151,6 +2306,7 @@
     },
     "function_calling": "Apelare funcții",
     "invalid_model": "Model invalid",
+    "json_parse_error": "Format JSON invalid",
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",
     "parameter_type": {
@@ -2363,6 +2519,86 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "Verificare instalare OpenClaw...",
+    "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
+    "error": {
+      "select_provider_model": "Vă rugăm să selectați mai întâi un furnizor și un model"
+    },
+    "gateway": {
+      "port": "Port",
+      "restart": "Repornire",
+      "start": "Pornește Gateway",
+      "status": "Stare",
+      "stop": "Oprește",
+      "version": "Versiune"
+    },
+    "git_missing": {
+      "description": "OpenClaw necesită Git pentru a instala unele dependențe. Te rugăm să instalezi mai întâi Git, apoi apasă din nou pe Instalare.",
+      "download_button": "Descarcă Git",
+      "hint": "macOS: brew install git | Windows: Descarcă de pe git-scm.com (asigură-te că adaugi Git la PATH în timpul instalării)",
+      "title": "Git Necesar"
+    },
+    "install_progress": "Progresul instalării",
+    "installed_at": "OpenClaw instalat la",
+    "model_config": {
+      "auth_token": "Token de autentificare",
+      "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
+      "auth_token_placeholder": "Introduceți sau generați un token",
+      "generate_token": "Generează",
+      "model": "Model",
+      "provider": "Furnizor",
+      "select_model": "Selectați un model",
+      "select_provider": "Selectați un furnizor",
+      "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
+      "title": "Configurare model"
+    },
+    "not_installed": {
+      "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
+      "install_button": "Instalează OpenClaw",
+      "install_guide_title": "Ghid de instalare",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "Reîmprospătare",
+      "step2_hint": "După instalare, faceți clic pe butonul „Reîmprospătare” de mai sus pentru a detecta OpenClaw",
+      "step2_title": "Pasul 2: Verifică instalarea",
+      "title": "OpenClaw Nu Este Instalat",
+      "windows_title": "Windows"
+    },
+    "npm_missing": {
+      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
+      "download_button": "Descarcă Node.js",
+      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
+      "title": "Node.js necesar"
+    },
+    "quick_actions": {
+      "open_dashboard": "Deschide Tabloul de Bord",
+      "title": "Acțiuni rapide",
+      "uninstall": "Dezinstalare",
+      "view_docs": "Vizualizați documentația"
+    },
+    "status": {
+      "error": "Eroare",
+      "running": "Alergare",
+      "starting": "Pornind",
+      "stopped": "Oprit"
+    },
+    "tips": {
+      "permissions": "OpenClaw are permisiuni de sistem ridicate. Utilizați doar în medii de încredere",
+      "title": "Sfaturi",
+      "token_usage": "Modul agent AI poate consuma mai multe tokenuri. Vă rugăm să monitorizați utilizarea"
+    },
+    "title": "OpenClaw",
+    "uninstall_confirm": "Sigur doriți să dezinstalați OpenClaw? Apăsați OK pentru a confirma.",
+    "uninstall_progress": "Progresul dezinstalării",
+    "uninstalled": {
+      "description": "OpenClaw a fost dezinstalat cu succes.",
+      "title": "Dezinstalare completă"
+    },
+    "uninstalling": {
+      "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
+      "title": "Dezinstalarea OpenClaw"
+    }
+  },
   "ovms": {
     "action": {
       "install": "Instalează",
@@ -2443,14 +2679,42 @@
       }
     },
     "custom_size": "Dimensiune personalizată",
+    "dmxapi": {
+      "generating_tip": "Generarea cu modelul oficial, timpul estimat de așteptare este de 2-5 minute pentru cele mai bune rezultate. Te rugăm să verifici logurile backend DMXAPI pentru costul acestei operațiuni.",
+      "style": ", Stil:",
+      "style_types": {
+        "25d_animation": "Animație 2.5D",
+        "3d_cartoon": "Desen animat 3D",
+        "american_retro": "Retro American",
+        "baroque": "Baroc",
+        "cartoon_illustration": "Ilustrație de desen animat",
+        "chinese_gongbi": "Gongbi chinezesc",
+        "clay": "Argilă",
+        "cyberpunk": "Cyberpunk",
+        "felt": "Filț",
+        "flat": "Plat",
+        "fresh_anime": "Anime Proaspăt",
+        "ghibli": "Ghibli",
+        "japanese_anime": "Anime japonez",
+        "little_people_book": "Cartea Oamenilor Mici",
+        "monet_garden": "Grădina Monet",
+        "oil_painting": "Pictură în ulei",
+        "pixar": "Pixar",
+        "pixel_art": "Artă pixelată",
+        "poetic_ancient": "Poetic Antic",
+        "psychedelic": "Psichedelic",
+        "sketch": "Schiță",
+        "street_art": "Artă stradală",
+        "texture": "Textură",
+        "ukiyo_e": "Ukiyo-e",
+        "watercolor": "Acuarelă",
+        "wood_carving": "Sculptură în lemn",
+        "yarn_doll": "Păpușă din fire de lână"
+      }
+    },
     "edit": {
       "image_file": "Imagine editată",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de editare",
-      "model_tip": "Versiunile V3 și V2 acceptate",
-      "number_images_tip": "Numărul de rezultate editate de generat",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "seed_tip": "Controlează aleatoriul editării",
-      "style_type_tip": "Stil pentru imaginea editată, doar pentru V_2 și versiuni ulterioare"
+      "image_required": "Vă rugăm să încărcați mai întâi o imagine pentru editare"
     },
     "generate": {
       "height": "Înălțime",
@@ -2467,6 +2731,7 @@
       "style_type_tip": "Stil generare imagine pentru V_2 și versiuni ulterioare",
       "width": "Lățime"
     },
+    "generate_failed": "Nu s-a putut genera imaginea",
     "generated_image": "Imagine generată",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
@@ -2477,6 +2742,7 @@
     "image_file_required": "Te rugăm să încarci mai întâi o imagine",
     "image_file_retry": "Te rugăm să reîncarci mai întâi o imagine",
     "image_handle_required": "Te rugăm să încarci mai întâi o imagine.",
+    "image_mix_failed": "Nu s-au putut combina imaginile",
     "image_placeholder": "Nicio imagine disponibilă",
     "image_retry": "Reîncearcă",
     "image_size_options": {
@@ -2486,6 +2752,7 @@
     "inference_steps_tip": "Numărul de pași de inferență de efectuat. Mai mulți pași produc o calitate mai mare, dar durează mai mult",
     "input_image": "Imagine de intrare",
     "input_parameters": "Parametri de intrare",
+    "invalid_image_url": "Formatul URL-ului imaginii este invalid",
     "learn_more": "Află mai multe",
     "magic_prompt_option": "Prompt magic",
     "mode": {
@@ -2507,6 +2774,7 @@
     "no_image_generation_model": "Niciun model de generare imagini disponibil, te rugăm să adaugi un model și să setezi tipul endpoint-ului la {{endpoint_type}}",
     "number_images": "Număr imagini",
     "number_images_tip": "Numărul de imagini de generat (1-4)",
+    "operation_failed": "Operațiunea a eșuat, vă rugăm să încercați din nou mai târziu",
     "paint_course": "tutorial",
     "per_image": "pe imagine",
     "per_images": "pe imagini",
@@ -2514,6 +2782,16 @@
       "allow_adult": "Permite adulți",
       "allow_all": "Permite tot",
       "allow_none": "Nepermis"
+    },
+    "ppio": {
+      "edit_prompt_tip": "Specifică obiectul sau zona de eliminat din imagine, ex: 'câine' sau 'pălărie'",
+      "mask_image": "Imagine mască",
+      "mask_image_tip": "Indică zona de șters. Zonele de șters trebuie să fie albe, zonele de păstrat negre",
+      "output_format": "Format ieșire",
+      "resolution": "Rezoluție țintă",
+      "seed_tip": "Sămânță aleatorie, aceeași sămânță și parametri produc imagini similare, -1 înseamnă aleatoriu",
+      "use_pre_llm_tip": "Activează expansiunea textului pentru optimizarea promptului. Recomandat pentru prompturi scurte, dezactivați pentru cele lungi",
+      "watermark_tip": "Dacă se adaugă filigran la imaginile generate, dezactivat implicit"
     },
     "pricing": "Prețuri",
     "prompt_enhancement": "Îmbunătățire prompt",
@@ -2557,6 +2835,7 @@
     "required_field": "Câmp obligatoriu",
     "seed": "Seed",
     "seed_desc_tip": "Același seed și prompt pot genera imagini similare; setarea -1 va genera rezultate diferite de fiecare dată",
+    "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
     "style_type": "Stil",
@@ -2582,6 +2861,27 @@
       "resemblance": "Similaritate",
       "resemblance_tip": "Controlează similaritatea cu imaginea originală",
       "seed_tip": "Controlează aleatoriul scalării"
+    },
+    "watermark": "Adaugă filigran",
+    "zhipu": {
+      "custom_size_divisible": "Dimensiunea personalizată trebuie să fie divizibilă cu 16",
+      "custom_size_hint": "Lățimea și înălțimea trebuie să fie între 512px-2048px, divizibile cu 16, iar numărul total de pixeli nu poate depăși 2^21px",
+      "custom_size_pixels": "Numărul total de pixeli ai dimensiunii personalizate nu poate depăși 2.097.152",
+      "custom_size_range": "Dimensiunea personalizată trebuie să fie între 512px și 2048px.",
+      "custom_size_required": "Vă rugăm să setați lățimea și înălțimea personalizate",
+      "image_sizes": {
+        "1024x1024_default": "1024x1024 (Implicit)",
+        "1152x864": "1152x864",
+        "1344x768": "1344x768",
+        "1440x720": "1440x720",
+        "720x1440": "720x1440",
+        "768x1344": "768x1344",
+        "864x1152": "864x1152"
+      },
+      "quality_options": {
+        "hd": "HD",
+        "standard_default": "Standard (Implicit)"
+      }
     }
   },
   "plugins": {
@@ -2592,6 +2892,21 @@
     "category": "Categorie",
     "commands": "Comenzi",
     "confirm_uninstall": "Ești sigur că vrei să dezinstalezi {{name}}?",
+    "confirm_uninstall_package": "Sigur doriți să dezinstalați pachetul {{name}} și toate componentele sale?",
+    "content_saved": "Conținutul plugin-ului a fost salvat cu succes",
+    "detail": {
+      "allowed_tools": "Unelte Permise",
+      "author": "Autor",
+      "content": "Conținut",
+      "description": "Descriere",
+      "file": "Fișier",
+      "installed": "Instalat",
+      "metadata": "Metadate",
+      "size": "Dimensiune",
+      "source": "Sursă",
+      "tags": "Etichete",
+      "tools": "Unelte"
+    },
     "install": "Instalează",
     "install_plugins_from_browser": "Răsfoiește pluginurile disponibile pentru a începe",
     "installing": "Se instalează...",
@@ -2604,10 +2919,22 @@
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
+    "showing_results_skills": "Afișare {{count}} abilitate",
+    "showing_results_skills_one": "Afișare {{count}} abilitate",
+    "showing_results_skills_other": "Afișare {{count}} competențe",
+    "showing_results_skills_plural": "Afișare {{count}} competențe",
     "skills": "Abilități",
+    "sort": {
+      "downloads": "Descărcări",
+      "label": "Sortare",
+      "relevance": "Relevanță",
+      "stars": "Stele"
+    },
+    "standalone_plugins": "Plugin-uri independente",
     "try_different_search": "Încearcă să ajustezi căutarea sau filtrele de categorie",
     "type": "Tip",
     "uninstall": "Dezinstalează",
+    "uninstall_package": "Dezinstalează pachetul",
     "uninstalling": "Se dezinstalează..."
   },
   "preview": {
@@ -2941,6 +3268,11 @@
         "search": "Caută",
         "summary": "Rezumat",
         "translate": "Tradu"
+      },
+      "prompt": {
+        "explain": "Te rog să explici următorul conținut. Cerințe: Răspunde în {{language}}; nu include nicio explicație a acestui prompt, oferă direct răspunsul:",
+        "refine": "Te rugăm să optimizezi sau să îmbunătățești conținutul introdus de utilizator, cuprins în eticheta XML <INPUT>, păstrând sensul și integritatea textului original. Cerințe: rezultatul tău trebuie să fie în aceeași limbă cu cel introdus de utilizator; nu include nicio explicație referitoare la acest prompt, oferă direct răspunsul; nu afișa etichetele XML, ci doar conținutul optimizat.",
+        "summary": "Vă rog să rezumați următorul conținut. Cerințe: Răspundeți în {{language}}; nu includeți nicio explicație a acestui prompt, oferiți direct răspunsul:"
       },
       "translate": {
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
@@ -4035,6 +4367,10 @@
       "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
       "jsonSaveError": "Nu s-a putut salva configurația JSON.",
       "jsonSaveSuccess": "Configurația JSON a fost salvată.",
+      "lanyun": {
+        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "name": "Lanyun Technology"
+      },
       "logoUrl": "URL logo",
       "logs": "Jurnale",
       "longRunning": "Mod rulare lungă",
@@ -4131,6 +4467,14 @@
         "getToken": "Obține token API",
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
+        "providerDescriptions": {
+          "302ai": "Serviciul MCP al Platformei 302.AI",
+          "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
+          "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
+          "mcprouter": "Platformă Router MCP Serviciu MCP",
+          "modelscope": "Serviciul MCP al Platformei ModelScope",
+          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
+        },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
@@ -4550,6 +4894,7 @@
           "tip": "Versiunea API a Azure OpenAI, dacă dorești să folosești API-ul de Răspuns, te rugăm să introduci versiunea v1"
         }
       },
+      "balance": "Echilibru",
       "basic_auth": {
         "label": "Autentificare HTTP",
         "password": {
@@ -4608,6 +4953,9 @@
         "title": "Șterge furnizor"
       },
       "dmxapi": {
+        "platform_enterprise": "ssvip.DMXAPI.com (Întreprindere)",
+        "platform_international": "www.DMXAPI.com (Internațional)",
+        "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Selectează platforma"
       },
       "docs_check": "Verifică",
@@ -4622,10 +4970,29 @@
         "title": "Note model"
       },
       "oauth": {
+        "balance": "Sold",
         "button": "Conectare cu {{provider}}",
+        "cherryIn": {
+          "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
+          "logged_in": "Conectat prin OAuth",
+          "login_button": "Conectare cu OAuth",
+          "logout_button": "Deconectare",
+          "title": "Autentificare OAuth"
+        },
+        "connect": "Conectează {{provider}}",
         "description": "Acest serviciu este furnizat de <website>{{provider}}</website>",
         "error": "Autentificare eșuată",
-        "official_website": "Site oficial"
+        "logged_in": "Conectat",
+        "logout": "Deconectare",
+        "logout_confirm": "Ești sigur că vrei să te deconectezi?",
+        "logout_success": "Delogare reușită",
+        "logout_warning": "Deconectat local, dar revocarea token-ului de pe server ar fi putut eșua",
+        "official_website": "Site oficial",
+        "provided_by": "Furnizat de",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Romanian.",
+        "requests": "Cereri",
+        "topup": "Reîncărcare",
+        "usage_title": "Utilizare"
       },
       "openai": {
         "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."
@@ -4767,10 +5134,8 @@
         "image_provider": "Furnizor serviciu OCR",
         "paddleocr": {
           "aistudio_access_token": "Token de acces Comunitatea AI Studio",
-          "aistudio_url_label": "Comunitatea AI Studio",
           "api_url": "URL API",
-          "serving_doc_url_label": "Documentație servire PaddleOCR",
-          "tip": "Poți consulta documentația oficială PaddleOCR pentru a implementa un serviciu local sau poți implementa un serviciu cloud pe Comunitatea PaddlePaddle AI Studio. Pentru ultimul caz, te rugăm să furnizezi tokenul de acces al Comunității AI Studio."
+          "api_url_label": "Obțineți token-ul de acces și URL-ul API"
         },
         "system": {
           "win": {
@@ -4783,6 +5148,12 @@
         "title": "Serviciu OCR"
       },
       "preprocess": {
+        "paddleocr": {
+          "aistudio_access_token": "Token de acces al Comunității AI Studio",
+          "api_url": "URL API",
+          "api_url_label": "Obțineți token-ul de acces și URL-ul API",
+          "paddleocr_url_label": "Site-ul oficial PaddleOCR"
+        },
         "provider": "Furnizor procesare documente",
         "provider_placeholder": "Alege un furnizor de procesare documente",
         "title": "Procesare documente",
@@ -4966,6 +5337,7 @@
     "mcp-servers": "Servere MCP",
     "memories": "Amintiri",
     "notes": "Notițe",
+    "openclaw": "OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
     "store": "Bibliotecă asistenți",
@@ -5028,6 +5400,8 @@
     "detected": {
       "language": "Detectare automată"
     },
+    "detected_source": "Detectat",
+    "detecting": "Se detectează...",
     "empty": "Conținutul traducerii este gol",
     "error": {
       "chat_qwen_mt": "Modelul Qwen MT nu poate fi folosit în chat. Te rugăm să mergi la pagina de traducere.",
@@ -5080,6 +5454,7 @@
       "not_pair": "Limba sursă este diferită de limba setată",
       "same": "Limbile sursă și țintă sunt aceleași"
     },
+    "language_settings": "Setări limbă",
     "menu": {
       "description": "Tradu conținutul casetei de intrare curente"
     },
@@ -5089,6 +5464,7 @@
     "output": {
       "placeholder": "Traducere"
     },
+    "preferred_target": "Țintă Preferată",
     "processing": "Traducere în curs...",
     "settings": {
       "autoCopy": "Copiază după traducere ",

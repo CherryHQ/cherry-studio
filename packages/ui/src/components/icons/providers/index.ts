@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (Color default), <Icon.Color />, <Icon.Mono />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-02-19T07:52:48.761Z
+ * Generated at: 2026-02-19T08:03:09.897Z
  * Total icons: 153
  */
 export { MinTop3Icon as MinTop3 } from './3minTop'

@@ -27,7 +27,6 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
-import { fetchAllActiveServerTools } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
@@ -248,8 +247,7 @@ export async function buildStreamTextParams(
   let systemPrompt = assistant.prompt ? await replacePromptVariables(assistant.prompt, model.name) : ''
 
   if (getEffectiveMcpMode(assistant) === 'auto') {
-    const allActiveTools = await fetchAllActiveServerTools()
-    const autoModePrompt = getHubModeSystemPrompt(allActiveTools)
+    const autoModePrompt = getHubModeSystemPrompt()
     if (autoModePrompt) {
       systemPrompt = systemPrompt ? `${systemPrompt}\n\n${autoModePrompt}` : autoModePrompt
     }

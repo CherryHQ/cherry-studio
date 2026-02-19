@@ -18,6 +18,7 @@ import {
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isInterleavedThinkingModel,
+  isKimiReasoningModel,
   isLingReasoningModel,
   isMiniMaxReasoningModel,
   isPerplexityReasoningModel,
@@ -29,6 +30,7 @@ import {
   isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenKimiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
@@ -341,6 +343,7 @@ describe('Claude & regional providers', () => {
   })
 
   it('covers zhipu/minimax/step specific classifiers', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.5' }))).toBe(true)
     expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'glm-4.6-pro' }))).toBe(true)
     expect(isZhipuReasoningModel(createModel({ id: 'glm-z1' }))).toBe(true)
     expect(isStepReasoningModel(createModel({ id: 'step-r1-v-mini' }))).toBe(true)
@@ -367,21 +370,8 @@ describe('DeepSeek & Thinking Tokens', () => {
     const allowed = createModel({ id: 'deepseek-v3.1', provider: 'doubao' })
     expect(isSupportedThinkingTokenModel(allowed)).toBe(true)
 
-    const disallowed = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
-    expect(isSupportedThinkingTokenModel(disallowed)).toBe(false)
-  })
-
-  it('supports DeepSeek v3.1+ models from newly added providers', () => {
-    // Test newly added providers for DeepSeek thinking token support
-    const newProviders = ['deepseek', 'cherryin', 'new-api', 'aihubmix', 'sophnet', 'dmxapi']
-
-    newProviders.forEach((provider) => {
-      const model = createModel({ id: 'deepseek-v3.1', provider })
-      expect(
-        isSupportedThinkingTokenModel(model),
-        `Provider ${provider} should support thinking tokens for deepseek-v3.1`
-      ).toBe(true)
-    })
+    const anyProvider = createModel({ id: 'deepseek-v3.1', provider: 'unknown' })
+    expect(isSupportedThinkingTokenModel(anyProvider)).toBe(true)
   })
 
   it('tests various prefix patterns for isDeepSeekHybridInferenceModel', () => {
@@ -422,12 +412,15 @@ describe('Qwen & Gemini thinking coverage', () => {
     expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(true)
   })
 
-  it.each(['qwen3-thinking', 'qwen3-instruct', 'qwen3-max', 'qwen3-vl-thinking'])(
-    'blocks thinking tokens for %s',
-    (id) => {
-      expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
-    }
-  )
+  it.each(['qwen3-thinking', 'qwen3-instruct', 'qwen3-vl-thinking'])('blocks thinking tokens for %s', (id) => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id }))).toBe(false)
+  })
+
+  it('supports thinking tokens for qwen3-max, qwen3-max-preview and qwen3-max-2026-01-23', () => {
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max' }))).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-preview' }))).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe(true)
+  })
 
   it.each(['qwen3-thinking', 'qwen3-vl-235b-thinking'])('always thinks for %s', (id) => {
     expect(isQwenAlwaysThinkModel(createModel({ id }))).toBe(true)
@@ -724,6 +717,9 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'qwen-turbo' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen-flash' }))).toBe('qwen')
       expect(getThinkModelType(createModel({ id: 'qwen3-8b' }))).toBe('qwen')
+      // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
+      expect(getThinkModelType(createModel({ id: 'qwen3-max' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen3-max-2026-01-23' }))).toBe('qwen')
     })
 
     it('should return default for always-thinking Qwen models (not controllable)', () => {
@@ -1369,6 +1365,10 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
+    // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
+    { modelId: 'qwen3-max', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-2026-01-23', expected: { min: 0, max: 81_920 } },
+    { modelId: 'qwen3-max-preview', expected: { min: 0, max: 81_920 } },
     { modelId: 'Baichuan-M2', expected: { min: 0, max: 30_000 } },
     { modelId: 'baichuan-m2', expected: { min: 0, max: 30_000 } },
     { modelId: 'Baichuan-M3', expected: { min: 0, max: 30_000 } },
@@ -1992,6 +1992,21 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'medium',
         'high'
       ])
+      // qwen3-max is now a reasoning model with same options as qwen3-max-2026-01-23
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'qwen3-max-2026-01-23' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high'
+      ])
     })
 
     it('should return undefined for always-thinking Qwen models', () => {
@@ -2282,5 +2297,205 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'gemini-pro' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
     })
+  })
+})
+
+describe('Claude Models', () => {
+  describe('getThinkModelType for Opus 4.6', () => {
+    it('should return opus46 for Opus 4.6 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('opus46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('opus46')
+    })
+  })
+
+  describe('MODEL_SUPPORTED_OPTIONS for Opus 4.6', () => {
+    it('should have correct options for opus46', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
+    })
+  })
+
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Opus 4.6', () => {
+    it('should have correct effort levels for opus46', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.opus46).toEqual(['low', 'medium', 'high', 'xhigh'])
+    })
+  })
+
+  describe('getModelSupportedReasoningEffortOptions for Opus 4.6', () => {
+    it('should return correct options for Opus 4.6 models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high',
+        'xhigh'
+      ])
+    })
+  })
+
+  describe('findTokenLimit for Opus 4.6', () => {
+    it('should return 128K max tokens for Opus 4.6 models', () => {
+      expect(findTokenLimit('claude-opus-4-6')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4.6')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('anthropic.claude-opus-4-6-v1')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-6@20251201')).toEqual({ min: 1024, max: 128_000 })
+    })
+
+    it('should distinguish Opus 4.6 from other Claude models', () => {
+      // Opus 4.5 should have 64K
+      expect(findTokenLimit('claude-opus-4-5')).toEqual({ min: 1024, max: 64_000 })
+      // Opus 4.0 should have 32K
+      expect(findTokenLimit('claude-opus-4')).toEqual({ min: 1024, max: 32_000 })
+      // Opus 4.1 should have 32K
+      expect(findTokenLimit('claude-opus-4-1')).toEqual({ min: 1024, max: 32_000 })
+    })
+  })
+})
+
+describe('Kimi Models', () => {
+  describe('isKimiReasoningModel', () => {
+    describe('should return true for Kimi reasoning models', () => {
+      it('should recognize kimi-k2-thinking', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+      })
+
+      it('should recognize kimi-k2-thinking-turbo', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(true)
+      })
+
+      it('should recognize kimi-k2.5', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle model IDs with slashes', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle case insensitivity', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'KIMI-K2-THINKING' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+      })
+    })
+
+    describe('should return false for non-reasoning models', () => {
+      it('should reject kimi-chat', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-chat' }))).toBe(false)
+      })
+
+      it('should reject kimi-k1', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k1' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2 (without thinking suffix)', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2' }))).toBe(false)
+      })
+
+      it('should reject other Kimi models', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-preview' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-turbo' }))).toBe(false)
+      })
+
+      it('should reject models from other providers', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'gpt-4' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isKimiReasoningModel(createModel({ id: 'deepseek-chat' }))).toBe(false)
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should return false for undefined', () => {
+        expect(isKimiReasoningModel(undefined)).toBe(false)
+      })
+
+      it('should handle model IDs with paths', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'providers/kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'openrouter/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should correctly match model name variants', () => {
+        // kimi-k2-thinking but not kimi-k2-thinking-something
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2-thinking-extra' }))).toBe(false)
+      })
+    })
+  })
+
+  describe('isSupportedThinkingTokenKimiModel', () => {
+    describe('should return true for Kimi models with thinking token support', () => {
+      it('should recognize kimi-k2.5', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle model IDs with provider prefixes', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'openrouter/kimi-k2.5' }))).toBe(true)
+      })
+
+      it('should handle case insensitivity', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'KIMI-K2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+      })
+    })
+
+    describe('should return false for Kimi models without thinking token support', () => {
+      it('should reject kimi-k2-thinking', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2-thinking-turbo', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(false)
+      })
+
+      it('should reject other Kimi models', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-chat' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k1' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2' }))).toBe(false)
+      })
+
+      it('should reject models from other providers', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'gpt-4' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'deepseek-chat' }))).toBe(false)
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle model IDs with paths', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'providers/kimi-k2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'api/kimi-k2.5-preview' }))).toBe(true)
+      })
+
+      it('should match models containing kimi-k2.5', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-preview' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-turbo' }))).toBe(true)
+      })
+    })
+  })
+})
+
+describe('Fireworks provider model name normalization', () => {
+  it('should detect DeepSeek hybrid inference models from Fireworks', () => {
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p1' }))).toBe(true)
+  })
+
+  it('should detect Kimi reasoning models from Fireworks', () => {
+    expect(isKimiReasoningModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
+  })
+
+  it('should detect Zhipu thinking models from Fireworks', () => {
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isSupportedThinkingTokenZhipuModel(createModel({ id: 'accounts/fireworks/models/glm-4p5' }))).toBe(true)
+  })
+
+  it('should detect MiniMax reasoning models from Fireworks', () => {
+    expect(isMiniMaxReasoningModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+  })
+
+  it('should detect interleaved thinking models from Fireworks', () => {
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/minimax-m2p1' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/glm-4p7' }))).toBe(true)
+    expect(isInterleavedThinkingModel(createModel({ id: 'accounts/fireworks/models/kimi-k2p5' }))).toBe(true)
   })
 })
