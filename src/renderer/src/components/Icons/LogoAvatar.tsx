@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
+import { Avatar, AvatarImage } from '@cherrystudio/ui'
 import type { FC } from 'react'
 
 interface Props {
@@ -21,7 +21,11 @@ const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className }
     return <Icon.Avatar size={size} shape={shape} className={className} />
   }
 
-  return <Avatar src={logo} className={className} style={{ width: size, height: size }} />
+  return (
+    <Avatar className={className} style={{ width: size, height: size }}>
+      <AvatarImage src={logo} />
+    </Avatar>
+  )
 }
 
 export default LogoAvatar

@@ -1,16 +1,16 @@
 import { cn } from '../../../../lib/utils'
-import { Avatar } from '../../../primitives/Avatar'
+import { Avatar, AvatarFallback } from '../../../primitives/avatar'
 import { type IconAvatarProps } from '../../types'
 import { Codegeex } from './color'
 
 export function CodegeexAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
-      showFallback
-      icon={<Codegeex style={{ width: size, height: size }} />}
-      radius={shape === 'circle' ? 'full' : 'none'}
-      className={cn('overflow-hidden', shape !== 'circle' && 'rounded-[20%]', className)}
-      style={{ width: size, height: size }}
-    />
+      className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
+      style={{ width: size, height: size }}>
+      <AvatarFallback className="text-foreground">
+        <Codegeex style={{ width: size, height: size }} />
+      </AvatarFallback>
+    </Avatar>
   )
 }

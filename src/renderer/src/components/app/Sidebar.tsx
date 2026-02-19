@@ -1,4 +1,4 @@
-import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
@@ -78,7 +78,9 @@ const Sidebar: FC = () => {
           {avatar}
         </EmojiAvatar>
       ) : (
-        <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
+        <AvatarImg className="nodrag" onClick={onEditUser}>
+          <AvatarImage src={avatar || UserAvatar} draggable={false} />
+        </AvatarImg>
       )}
       <MainMenusContainer>
         <Menus onClick={hideMinappPopup}>

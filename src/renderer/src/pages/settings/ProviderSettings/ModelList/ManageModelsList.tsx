@@ -1,4 +1,4 @@
-import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -199,7 +199,13 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
         fileInfo={{
           icon: (() => {
             const Icon = getModelLogo(model)
-            return Icon ? <Icon.Avatar size={28} /> : <Avatar size="sm">{model?.name?.[0]?.toUpperCase()}</Avatar>
+            return Icon ? (
+              <Icon.Avatar size={28} />
+            ) : (
+              <Avatar size="sm">
+                <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
+            )
           })(),
           name: <ModelIdWithTags model={model} />,
           extra: model.description && <ExpandableText text={model.description} />,

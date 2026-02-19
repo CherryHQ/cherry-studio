@@ -1,16 +1,16 @@
 import { cn } from '../../../../lib/utils'
-import { Avatar } from '../../../primitives/Avatar'
+import { Avatar, AvatarFallback } from '../../../primitives/avatar'
 import { type IconAvatarProps } from '../../types'
 import { Gpt5Mini } from './color'
 
 export function Gpt5MiniAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
-      showFallback
-      icon={<Gpt5Mini style={{ width: size, height: size }} />}
-      radius={shape === 'circle' ? 'full' : 'none'}
-      className={cn('overflow-hidden', shape !== 'circle' && 'rounded-[20%]', className)}
-      style={{ width: size, height: size }}
-    />
+      className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
+      style={{ width: size, height: size }}>
+      <AvatarFallback className="text-foreground">
+        <Gpt5Mini style={{ width: size, height: size }} />
+      </AvatarFallback>
+    </Avatar>
   )
 }

@@ -1,4 +1,4 @@
-import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
@@ -229,14 +229,14 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                   <ModelIcon.Avatar size={size} />
                 ) : (
                   <MessageItemAvatar
-                    src={isLocalAi ? AppLogo : undefined}
                     style={{
                       width: size,
                       height: size,
                       border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
                       filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                    }}
-                  />
+                    }}>
+                    {isLocalAi && <AvatarImage src={AppLogo} />}
+                  </MessageItemAvatar>
                 )
               ) : (
                 <>
@@ -251,7 +251,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                       {avatar}
                     </EmojiAvatar>
                   ) : (
-                    <MessageItemAvatar src={avatar} style={{ width: size, height: size }} />
+                    <MessageItemAvatar style={{ width: size, height: size }}>
+                      <AvatarImage src={avatar} />
+                    </MessageItemAvatar>
                   )}
                 </>
               )}

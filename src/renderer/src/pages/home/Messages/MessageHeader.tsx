@@ -1,5 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -102,16 +102,18 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           </div>
         ) : (
           <Avatar
-            src={isLocalAi ? AppLogo : undefined}
-            className="h-[35px] w-[35px]"
+            className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
             style={{
-              borderRadius: '25%',
               cursor: showMinappIcon ? 'pointer' : 'default',
               border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}
             onClick={showMiniApp}>
-            {avatarName}
+            {isLocalAi ? (
+              <AvatarImage src={AppLogo} />
+            ) : (
+              <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
+            )}
           </Avatar>
         )
       ) : (
@@ -121,12 +123,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               {avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar
-              src={avatar}
-              className="h-[35px] w-[35px]"
-              style={{ borderRadius: '25%', cursor: 'pointer' }}
-              onClick={() => UserPopup.show()}
-            />
+            <Avatar className="h-[35px] w-[35px] cursor-pointer rounded-[25%]" onClick={() => UserPopup.show()}>
+              <AvatarImage src={avatar} />
+            </Avatar>
           )}
         </>
       )}

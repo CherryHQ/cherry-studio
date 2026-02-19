@@ -1,6 +1,5 @@
 import '@renderer/assets/styles/selection-toolbar.css'
 
-import { Avatar } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
@@ -354,7 +353,7 @@ const LogoWrapper = styled.div<{ $draggable: boolean }>`
   ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'};
 `
 
-const Logo = styled(Avatar)`
+const Logo = styled.img`
   height: var(--selection-toolbar-logo-size);
   width: var(--selection-toolbar-logo-size);
   &.animate {

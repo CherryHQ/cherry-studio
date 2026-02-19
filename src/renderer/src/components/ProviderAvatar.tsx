@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { getProviderLogo } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
@@ -46,13 +46,9 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // If logo source is a string URL, render image avatar
   if (typeof resolvedLogo === 'string') {
     return (
-      <Avatar
-        src={resolvedLogo}
-        radius="full"
-        className={className}
-        style={{ width: size, height: size, ...style }}
-        imgProps={{ draggable: false }}
-      />
+      <Avatar className={className} style={{ width: size, height: size, ...style }}>
+        <AvatarImage src={resolvedLogo} draggable={false} />
+      </Avatar>
     )
   }
 
@@ -62,18 +58,14 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
 
   return (
     <Avatar
-      radius="full"
       className={className}
       style={{
         width: size,
         height: size,
-        backgroundColor,
-        color,
         ...style
-      }}
-      getInitials={getFirstCharacter}
-      name={providerName}
-    />
+      }}>
+      <AvatarFallback style={{ backgroundColor, color }}>{getFirstCharacter(providerName)}</AvatarFallback>
+    </Avatar>
   )
 }
 

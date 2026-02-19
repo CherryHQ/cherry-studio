@@ -105,8 +105,8 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '../../../primitives/Avatar',
-    namedImports: ['Avatar']
+    moduleSpecifier: '../../../primitives/avatar',
+    namedImports: ['Avatar', 'AvatarFallback']
   })
 
   sf.addImportDeclaration({
@@ -120,7 +120,7 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   })
 
   const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.75'
-  const extraClasses = variant === 'padded' ? ' bg-background' : ''
+  const fallbackClasses = ['text-foreground', variant === 'padded' ? 'bg-background' : ''].filter(Boolean).join(' ')
 
   sf.addFunction({
     isExported: true,
@@ -133,16 +133,17 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
     ],
     statements: `return (
     <Avatar
-      showFallback
-      icon={<${colorName} style={{ width: ${iconSize}, height: ${iconSize} }} />}
-      radius={shape === 'circle' ? 'full' : 'none'}
       className={cn(
-        'overflow-hidden${extraClasses}',
-        shape !== 'circle' && 'rounded-[20%]',
+        'overflow-hidden',
+        shape === 'circle' ? 'rounded-full' : 'rounded-[20%]',
         className
       )}
       style={{ width: size, height: size }}
-    />
+    >
+      <AvatarFallback${fallbackClasses ? ` className="${fallbackClasses}"` : ''}>
+        <${colorName} style={{ width: ${iconSize}, height: ${iconSize} }} />
+      </AvatarFallback>
+    </Avatar>
   )`
   })
 
