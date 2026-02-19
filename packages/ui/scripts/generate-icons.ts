@@ -145,6 +145,17 @@ async function svgrTransform(svgCode: string, componentName: string, extraSvgoPl
       plugins: ['@svgr/plugin-svgo', '@svgr/plugin-jsx', '@svgr/plugin-prettier'],
       icon: true,
       typescript: true,
+      prettier: true,
+      prettierConfig: {
+        singleQuote: true,
+        semi: false,
+        printWidth: 120,
+        tabWidth: 2,
+        useTabs: false,
+        endOfLine: 'lf',
+        bracketSameLine: false,
+        bracketSpacing: true
+      },
       jsxRuntime: 'automatic',
       svgoConfig: {
         plugins: [
@@ -184,8 +195,8 @@ async function svgrTransform(svgCode: string, componentName: string, extraSvgoPl
 
   // Add named export
   jsCode = jsCode.replace(
-    `export default ${componentName};`,
-    `export { ${componentName} };\nexport default ${componentName};`
+    `export default ${componentName}`,
+    `export { ${componentName} }\nexport default ${componentName}`
   )
 
   return jsCode
@@ -275,8 +286,8 @@ async function generateLogoDir(
   }
 
   jsCode = jsCode.replace(
-    `import type { SVGProps } from "react";`,
-    `import type { SVGProps } from "react";\nimport type { IconComponent } from '../../types'`
+    `import type { SVGProps } from 'react'`,
+    `import type { SVGProps } from 'react'\n\nimport type { IconComponent } from '../../types'`
   )
   jsCode = jsCode.replace(`const ${componentName} =`, `const ${componentName}: IconComponent =`)
   await fs.writeFile(path.join(logoDir, 'color.tsx'), jsCode, 'utf-8')

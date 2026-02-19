@@ -8,10 +8,29 @@
  *   - generateBarrelIndex — barrel index.ts (re-exports)
  */
 
+import { execSync } from 'child_process'
 import * as fs from 'fs'
-import { Project, VariableDeclarationKind } from 'ts-morph'
+import { IndentationText, NewLineKind, Project, QuoteKind, VariableDeclarationKind } from 'ts-morph'
 
-const project = new Project({ useInMemoryFileSystem: true })
+const project = new Project({
+  useInMemoryFileSystem: true,
+  manipulationSettings: {
+    quoteKind: QuoteKind.Single,
+    useTrailingCommas: false,
+    newLineKind: NewLineKind.LineFeed,
+    indentationText: IndentationText.TwoSpaces
+  }
+})
+
+/** Write file and format it with biome to match project conventions (no semicolons, single quotes, etc.) */
+function writeAndFormat(filePath: string, content: string): void {
+  fs.writeFileSync(filePath, content)
+  try {
+    execSync(`npx biome format --write ${filePath}`, { stdio: 'ignore' })
+  } catch {
+    // biome format is best-effort; file is still written
+  }
+}
 
 // ---------------------------------------------------------------------------
 // generateIconIndex
@@ -36,6 +55,13 @@ export function generateIconIndex(opts: {
     namedImports: [{ name: 'CompoundIcon', isTypeOnly: true }]
   })
 
+  if (hasAvatar) {
+    sf.addImportDeclaration({
+      moduleSpecifier: './avatar',
+      namedImports: [avatarName]
+    })
+  }
+
   sf.addImportDeclaration({
     moduleSpecifier: './color',
     namedImports: [colorName]
@@ -45,13 +71,6 @@ export function generateIconIndex(opts: {
     sf.addImportDeclaration({
       moduleSpecifier: './mono',
       namedImports: [monoName]
-    })
-  }
-
-  if (hasAvatar) {
-    sf.addImportDeclaration({
-      moduleSpecifier: './avatar',
-      namedImports: [avatarName]
     })
   }
 
@@ -78,7 +97,7 @@ export function generateIconIndex(opts: {
     expression: `${colorName}Icon`
   })
 
-  fs.writeFileSync(outPath, sf.getFullText())
+  writeAndFormat(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +116,11 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   })
 
   sf.addImportDeclaration({
+    moduleSpecifier: '../../../primitives/Avatar',
+    namedImports: ['Avatar']
+  })
+
+  sf.addImportDeclaration({
     moduleSpecifier: '../../types',
     namedImports: [{ name: 'IconAvatarProps', isTypeOnly: true }]
   })
@@ -104,11 +128,6 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   sf.addImportDeclaration({
     moduleSpecifier: './color',
     namedImports: [colorName]
-  })
-
-  sf.addImportDeclaration({
-    moduleSpecifier: '../../../primitives/Avatar',
-    namedImports: ['Avatar']
   })
 
   const iconSize = variant === 'full-bleed' ? 'size' : 'size * 0.75'
@@ -138,7 +157,7 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   )`
   })
 
-  fs.writeFileSync(outPath, sf.getFullText())
+  writeAndFormat(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +195,7 @@ export function generateMeta(opts: {
     ]
   })
 
-  fs.writeFileSync(outPath, sf.getFullText())
+  writeAndFormat(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +228,7 @@ export function generateBarrelIndex(opts: {
     })
   }
 
-  fs.writeFileSync(outPath, sf.getFullText())
+  writeAndFormat(outPath, sf.getFullText())
 }
 
 // ---------------------------------------------------------------------------
@@ -287,5 +306,5 @@ export function generateCatalog(opts: {
     writer.writeLine(`export type ${keyTypeName} = keyof typeof ${catalogName}`)
   })
 
-  fs.writeFileSync(outPath, sf.getFullText())
+  writeAndFormat(outPath, sf.getFullText())
 }

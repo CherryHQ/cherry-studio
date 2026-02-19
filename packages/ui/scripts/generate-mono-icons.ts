@@ -63,6 +63,17 @@ async function generateMono(svgPath: string, monoName: string): Promise<string |
       plugins: ['@svgr/plugin-svgo', '@svgr/plugin-jsx', '@svgr/plugin-prettier'],
       icon: true,
       typescript: true,
+      prettier: true,
+      prettierConfig: {
+        singleQuote: true,
+        semi: false,
+        printWidth: 120,
+        tabWidth: 2,
+        useTabs: false,
+        endOfLine: 'lf',
+        bracketSameLine: false,
+        bracketSpacing: true
+      },
       jsxRuntime: 'automatic',
       svgoConfig: {
         plugins: [
@@ -97,11 +108,11 @@ async function generateMono(svgPath: string, monoName: string): Promise<string |
 
   // Add IconComponent type + named/default exports
   jsCode = jsCode.replace(
-    `import type { SVGProps } from "react";`,
-    `import type { SVGProps } from "react";\nimport type { IconComponent } from '../../types'`
+    `import type { SVGProps } from 'react'`,
+    `import type { SVGProps } from 'react'\n\nimport type { IconComponent } from '../../types'`
   )
   jsCode = jsCode.replace(`const ${monoName} =`, `const ${monoName}: IconComponent =`)
-  jsCode = jsCode.replace(`export default ${monoName};`, `export { ${monoName} };\nexport default ${monoName};`)
+  jsCode = jsCode.replace(`export default ${monoName}`, `export { ${monoName} }\nexport default ${monoName}`)
 
   return jsCode
 }
