@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MCPToolResponse } from '@renderer/types'
@@ -9,7 +10,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 
 const logger = loggerService.withContext('useMcpToolApproval')
 
