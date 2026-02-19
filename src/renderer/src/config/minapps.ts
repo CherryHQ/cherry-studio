@@ -1,4 +1,4 @@
-import { PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui'
+import { MODEL_ICON_CATALOG, PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import type { MinAppType } from '@renderer/types'
@@ -44,7 +44,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
-    logo: resolveProviderIcon('gemini')
+    logo: MODEL_ICON_CATALOG.gemini
   },
   {
     id: 'silicon',
