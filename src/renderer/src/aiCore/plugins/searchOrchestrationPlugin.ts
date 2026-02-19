@@ -8,11 +8,6 @@
  */
 import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import {
-  isFixedReasoningModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel
-} from '@renderer/config/models'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
   SEARCH_SUMMARY_PROMPT,
@@ -33,7 +28,6 @@ import { MemoryProcessor } from '../../services/MemoryProcessor'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
-import { buildProviderOptions } from '../utils/options'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
@@ -129,16 +123,6 @@ async function analyzeSearchIntent(
     return getFallbackResult()
   }
   try {
-    const enableReasoning =
-      ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-        assistant.settings?.reasoning_effort !== undefined) ||
-      isFixedReasoningModel(model)
-    const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
-      enableReasoning,
-      enableWebSearch: false,
-      enableGenerateImage: false
-    })
-
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
       topicId: options.topicId,
@@ -149,9 +133,7 @@ async function analyzeSearchIntent(
 
     const { text: result } = await generateText({
       model: context.model as LanguageModel,
-      prompt: formattedPrompt,
-      providerOptions,
-      ...standardParams
+      prompt: formattedPrompt
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
