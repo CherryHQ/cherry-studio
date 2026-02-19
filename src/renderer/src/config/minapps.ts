@@ -99,7 +99,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'doubao',
     name: i18n.t('minapps.doubao'),
     url: 'https://www.doubao.com/chat/',
-    logo: resolveProviderIcon('doubao')
+    logo: PROVIDER_ICON_CATALOG.doubao
   },
   {
     id: 'cici',
