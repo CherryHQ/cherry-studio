@@ -247,14 +247,18 @@ class OpenClawService {
     // Keep the command string for logging and sudo retry
     const npmCommand = `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
-    logger.info(`Installing OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
+    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
+    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
+    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
+
+    logger.info(`Installing OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
+    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
 
     const spawnEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        const installProcess = crossPlatformSpawn(npmPath, npmArgs, { env: spawnEnv })
+        const installProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: spawnEnv })
 
         let stderr = ''
 
@@ -346,14 +350,18 @@ class OpenClawService {
     // Keep the command string for logging and sudo retry
     const npmCommand = `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
 
-    logger.info(`Uninstalling OpenClaw with command: ${npmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${npmPath} ${npmArgs.join(' ')}`)
+    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
+    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
+    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
+
+    logger.info(`Uninstalling OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
+    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        const uninstallProcess = crossPlatformSpawn(npmPath, npmArgs, { env: shellEnv })
+        const uninstallProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: shellEnv })
 
         let stderr = ''
 
