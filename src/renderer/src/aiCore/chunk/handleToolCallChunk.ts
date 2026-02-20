@@ -61,6 +61,13 @@ export class ToolCallChunkHandler {
   }
 
   /**
+   * 清除所有全局活跃的工具调用（用于流结束/中止时的资源清理）
+   */
+  public static clearAll(): void {
+    ToolCallChunkHandler.globalActiveToolCalls.clear()
+  }
+
+  /**
    * 静态方法：添加活跃工具调用（外部访问）
    */
   public static addActiveToolCall(toolCallId: string, map: ToolcallsMap): boolean {

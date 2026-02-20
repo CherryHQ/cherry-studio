@@ -34,7 +34,7 @@ import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { addAbortController } from '@renderer/utils/abortController'
+import { addAbortController, cleanupAbortController } from '@renderer/utils/abortController'
 import {
   buildAgentSessionTopicId,
   extractAgentSessionIdFromTopicId,
@@ -57,7 +57,7 @@ import { mutate } from 'swr'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
+import { MAX_CACHED_TOPICS, newMessagesActions, selectMessagesForTopic } from '../newMessage'
 // import {
 //   bulkAddBlocksV2,
 //   clearMessagesFromDBV2,
@@ -698,6 +698,7 @@ const fetchAndProcessAgentResponseImpl = async (
       logger.error('Error in agent onError callback:', callbackError as Error)
     }
   } finally {
+    cleanupAbortController(userMessageId)
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   }
 }
@@ -857,6 +858,10 @@ const fetchAndProcessAssistantResponseImpl = async (
     } finally {
       // 确保无论如何都设置 loading 为 false（onError 回调中已设置，这里是保险）
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    }
+  } finally {
+    if (assistantMessage.askId) {
+      cleanupAbortController(assistantMessage.askId)
     }
   }
 }
@@ -1786,6 +1791,30 @@ export const loadTopicMessagesThunk =
         dispatch(upsertManyBlocks(blocks))
       }
       dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
+
+      // Evict stale topic caches to free memory
+      const stateAfterLoad = getState()
+      const cachedTopicIds = Object.keys(stateAfterLoad.messages.messageIdsByTopic)
+      if (cachedTopicIds.length > MAX_CACHED_TOPICS) {
+        const topicsToEvict = cachedTopicIds
+          .filter((id) => id !== topicId)
+          .slice(0, cachedTopicIds.length - MAX_CACHED_TOPICS)
+        for (const evictId of topicsToEvict) {
+          // Collect block IDs from messages being evicted
+          const evictMessageIds = stateAfterLoad.messages.messageIdsByTopic[evictId] || []
+          const blockIdsToEvict: string[] = []
+          for (const msgId of evictMessageIds) {
+            const msg = stateAfterLoad.messages.entities[msgId]
+            if (msg?.blocks) {
+              blockIdsToEvict.push(...msg.blocks)
+            }
+          }
+          dispatch(newMessagesActions.evictTopicCache(evictId))
+          if (blockIdsToEvict.length > 0) {
+            dispatch(removeManyBlocks(blockIdsToEvict))
+          }
+        }
+      }
     } catch (error) {
       logger.error(`Failed to load messages for topic ${topicId}:`, error as Error)
       // Could dispatch an error action here if needed

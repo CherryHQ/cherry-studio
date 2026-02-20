@@ -20,6 +20,10 @@ export const removeAbortController = (id: string, abortFn: () => void) => {
   }
 }
 
+export const cleanupAbortController = (id: string) => {
+  abortMap.delete(id)
+}
+
 export const abortCompletion = (id: string) => {
   const abortFns = abortMap.get(id)
   if (abortFns?.length) {
