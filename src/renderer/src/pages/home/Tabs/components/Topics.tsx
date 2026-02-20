@@ -23,7 +23,6 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
-import { getErrorMessage } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -33,7 +32,6 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { getBriefInfo } from '@renderer/utils/naming'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
@@ -263,16 +261,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           if (messages.length >= 2) {
             startTopicRenaming(topic.id)
             try {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              const { text: summaryText, error } = await fetchMessagesSummary({ messages, assistant })
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
-              } else {
-                window.toast?.error(t('message.error.fetchTopicName'))
+              } else if (error) {
+                window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
               }
-            } catch (error) {
-              const errorMsg = getErrorMessage(error)
-              window.toast?.error(`${t('message.error.fetchTopicName')}: ${getBriefInfo(errorMsg, 100)}`)
             } finally {
               finishTopicRenaming(topic.id)
             }

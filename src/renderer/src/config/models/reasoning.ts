@@ -448,7 +448,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-flash-2025-07-28',
     'qwen3-max', // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
     'qwen3-max-2026-01-23',
-    'qwen3-max-preview'
+    'qwen3-max-preview',
+    'qwen3.5-plus',
+    'qwen3.5-plus-2026-02-15',
+    'qwen3.5-397b-a17b'
   ].includes(modelId)
 }
 
@@ -467,7 +470,7 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?)(?:-[\w-]+)*/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-][68](?:-flash)?(?!-(?:thinking)(?:-|$))|seed-code(?:-preview)?(?:-\d+)?|seed-2[.-]0(?:-[\w-]+)?)(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 // Auto thinking is no longer supported after version 251015, see https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seed-1-6
@@ -480,9 +483,8 @@ export function isDoubaoThinkingAutoModel(model: Model): boolean {
 }
 
 export function isDoubaoSeedAfter251015(model: Model): boolean {
-  const pattern = new RegExp(/doubao-seed-1-6-(?:lite-)?251015/i)
-  const result = pattern.test(model.id)
-  return result
+  const pattern = /doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]0/i
+  return pattern.test(model.id) || pattern.test(model.name)
 }
 
 export function isDoubaoSeed18Model(model: Model): boolean {
@@ -568,7 +570,7 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
 
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
+  return ['glm-5', 'glm-4.5', 'glm-4.6', 'glm-4.7'].some((id) => modelId.includes(id))
 }
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
@@ -755,6 +757,9 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
+  // Qwen3.5 series (max thinking budget: 81920)
+  'qwen3\\.5-plus.*$': { min: 0, max: 81_920 },
+  'qwen3\\.5-397b-a17b$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
@@ -804,7 +809,7 @@ export const isFixedReasoningModel = (model: Model) =>
 // https://docs.z.ai/guides/capabilities/thinking-mode
 // https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
 const INTERLEAVED_THINKING_MODEL_REGEX =
-  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
 
 /**
  * Determines whether the given model supports interleaved thinking.

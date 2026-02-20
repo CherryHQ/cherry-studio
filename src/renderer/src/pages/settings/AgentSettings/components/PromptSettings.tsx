@@ -1,11 +1,9 @@
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import type { AgentEntity, AgentSessionEntity, UpdateAgentBaseForm } from '@renderer/types'
+import type { UpdateAgentBaseForm } from '@renderer/types'
 import { Button, Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import type { FC } from 'react'
@@ -14,19 +12,9 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
-import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
 
-type AgentPromptSettingsProps =
-  | {
-      agentBase: AgentEntity | undefined | null
-      update: ReturnType<typeof useUpdateAgent>['updateAgent']
-    }
-  | {
-      agentBase: AgentSessionEntity | undefined | null
-      update: ReturnType<typeof useUpdateSession>['updateSession']
-    }
-
-const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => {
+const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [instructions, setInstructions] = useState<string>(agentBase?.instructions ?? '')
   const [showPreview, setShowPreview] = useState<boolean>(!!agentBase?.instructions?.length)
@@ -57,8 +45,8 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
   if (!agentBase) return null
 
   return (
-    <SettingsContainer>
-      <SettingsItem divider={false} className="flex-1">
+    <SettingsContainer className="flex h-full flex-col overflow-hidden">
+      <SettingsItem divider={false} className="flex min-h-0 flex-1 flex-col">
         <SettingsTitle>
           {t('common.prompt')}
           <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
@@ -120,6 +108,9 @@ const TextAreaContainer = styled.div`
   position: relative;
   width: 100%;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 5px;
 `
 
 const TokenCount = styled.div`

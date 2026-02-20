@@ -14,6 +14,18 @@
         "placeholder": "Selecionar tipo de Agente"
       }
     },
+    "askUserQuestion": {
+      "answered": "respondido",
+      "customPlaceholder": "Digite sua resposta...",
+      "loading": "Carregando perguntas...",
+      "multiSelect": "Seleção múltipla",
+      "next": "Próximo",
+      "noQuestions": "Nenhuma pergunta disponível",
+      "other": "Outro",
+      "previous": "Anterior",
+      "submit": "Enviar",
+      "title": "Perguntas do Agente"
+    },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
       "error": {
@@ -141,6 +153,10 @@
         "title": "Configurações avançadas"
       },
       "essential": "Configurações Essenciais",
+      "permissionMode": {
+        "tab": "Modo de Permissão",
+        "title": "Modo de Permissão"
+      },
       "plugins": {
         "available": {
           "title": "Plugins disponíveis"
@@ -211,17 +227,16 @@
         "mcp": {
           "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",
           "empty": "Nenhum servidor MCP detectado. Adicione um na página de configurações do MCP.",
+          "inactiveTooltip": "Este servidor MCP não está ativo. Por favor, inicie-o primeiro.",
           "manageHint": "Precisa de configuração avançada? Visite Configurações → Servidores MCP.",
           "toggle": "Alternar {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pré-aplica ferramentas confiáveis do sistema de arquivos para que as edições sejam executadas imediatamente.",
             "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
             "title": "Aceitar automaticamente edições de arquivos"
           },
           "bypassPermissions": {
-            "behavior": "Cada ferramenta é pré-aprovada automaticamente.",
             "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
             "title": "Ignorar verificações de permissão",
             "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
@@ -231,14 +246,12 @@
             "title": "Alterar modo de permissão?"
           },
           "default": {
-            "behavior": "Nenhuma ferramenta é pré-aprovada automaticamente.",
             "description": "Verificações normais de permissão aplicam-se.",
             "title": "Padrão (perguntar antes de continuar)"
           },
           "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
           "placeholder": "Selecionar modo de permissões",
           "plan": {
-            "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
             "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
             "title": "Modo de planejamento (em breve)"
           },
@@ -247,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Adicionado por modo",
           "autoDescription": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual.",
+          "autoDisabledTooltip": "Aprovado automaticamente por \"{{mode}}\" e não pode ser desativado.",
           "empty": "Nenhuma ferramenta corresponde aos seus filtros.",
           "mcpBadge": "Ferramenta MCP",
           "requiresApproval": "Requer aprovação quando desativado",
           "search": "Ferramentas de pesquisa",
-          "toggle": "Alternar {{name}}",
-          "warning": {
-            "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
-            "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizado: {{count}}",
-          "helper": "As alterações são salvas automaticamente. Ajuste as etapas acima a qualquer momento para refinar as permissões.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modo: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Servidores MCP"
-          },
-          "permissionMode": {
-            "title": "Passo 1 · Modo de permissão"
-          },
-          "preapproved": {
-            "title": "Passo 2 · Ferramentas pré-aprovadas"
-          },
-          "review": {
-            "title": "Passo 3 · Revisão"
-          }
-        },
-        "tab": "Ferramentas e permissões"
+          "toggle": "Alternar {{name}}"
+        }
       },
       "tools": {
         "approved": "aprovado",
@@ -286,8 +274,17 @@
         "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
         "requiresPermission": "Requer permissão quando não pré-aprovado.",
         "tab": "Ferramentas pré-aprovadas",
-        "title": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "Servidores MCP"
+        },
+        "tab": "Ferramentas",
+        "tools": {
+          "title": "Ferramentas"
+        }
       }
     },
     "todo": {
@@ -336,6 +333,49 @@
       },
       "toolPendingFallback": "Ferramenta",
       "waiting": "Aguardando decisão de permissão da ferramenta..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Executa comandos shell no seu ambiente"
+        },
+        "Edit": {
+          "description": "Faz edições direcionadas em arquivos específicos"
+        },
+        "Glob": {
+          "description": "Encontra arquivos com base na correspondência de padrões"
+        },
+        "Grep": {
+          "description": "Procura por padrões no conteúdo dos arquivos"
+        },
+        "MultiEdit": {
+          "description": "Realiza várias edições em um único arquivo de forma atômica"
+        },
+        "NotebookEdit": {
+          "description": "Modifica células do Jupyter notebook"
+        },
+        "NotebookRead": {
+          "description": "Lê e exibe o conteúdo de notebooks Jupyter"
+        },
+        "Read": {
+          "description": "Lê o conteúdo dos arquivos"
+        },
+        "Task": {
+          "description": "Executa um sub-agente para lidar com tarefas complexas de várias etapas"
+        },
+        "TodoWrite": {
+          "description": "Cria e gere listas de tarefas estruturadas"
+        },
+        "WebFetch": {
+          "description": "Busca conteúdo de um URL especificado"
+        },
+        "WebSearch": {
+          "description": "Realiza pesquisas na web com filtragem de domínio"
+        },
+        "Write": {
+          "description": "Cria ou sobrescreve arquivos"
+        }
+      }
     },
     "type": {
       "label": "Tipo de Agente",
@@ -1277,7 +1317,7 @@
     },
     "expand": "Expandir",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exportar para Excel"
     },
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
@@ -1452,6 +1492,7 @@
     "provider_disabled": "O provedor de modelos está desativado",
     "reason": "causa",
     "render": {
+      "block": "Este bloco de conteúdo não foi renderizado",
       "description": "Falha ao renderizar a fórmula, por favor verifique se o formato da fórmula está correto",
       "title": "Erro de Renderização"
     },
@@ -1541,8 +1582,16 @@
       "message": "Localizar mensagem"
     },
     "search": {
+      "match": {
+        "substring": "Contém",
+        "whole_word": "Palavra inteira"
+      },
       "messages": "Procurar todas as mensagens",
       "placeholder": "Procurar tópico ou mensagem...",
+      "sort": {
+        "newest": "Mais recentes primeiro",
+        "oldest": "Mais antigos primeiro"
+      },
       "topics": {
         "empty": "Nenhum tópico relacionado encontrado, clique em Enter para procurar todas as mensagens"
       }
@@ -1934,7 +1983,7 @@
         "name": "Insira o nome da base de conhecimento"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Falha ao exportar Excel"
       },
       "fetchTopicName": "Falha ao nomear o tópico",
       "get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
@@ -1976,7 +2025,7 @@
         "no_config": "Endereço da API ou token do Siyuan não configurado"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Incapaz de recuperar dados de tabela válidos"
       },
       "unknown": "Erro desconhecido",
       "yuque": {
@@ -2051,7 +2100,8 @@
           "content": "Todos os seus dados serão perdidos, se não houver backup, eles não poderão ser recuperados, tem certeza de que deseja continuar?",
           "title": "Perda de dados!!!"
         }
-      }
+      },
+      "success": "Redefinição de dados bem-sucedida"
     },
     "restore": {
       "failed": "Restauração falhou",
@@ -2065,7 +2115,7 @@
     "searching": "Pesquisando na internet...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel exportado com sucesso"
       },
       "joplin": {
         "export": "Exportado com sucesso para Joplin"
@@ -2520,6 +2570,12 @@
       "stop": "Parar",
       "version": "Versão"
     },
+    "git_missing": {
+      "description": "OpenClaw requer o Git para instalar algumas dependências. Por favor, instale o Git primeiro e depois clique em Instalar novamente.",
+      "download_button": "Baixar Git",
+      "hint": "macOS: brew install git | Windows: Baixe em git-scm.com (certifique-se de adicionar o Git ao PATH durante a instalação)",
+      "title": "Git Necessário"
+    },
     "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
     "model_config": {
@@ -2534,6 +2590,17 @@
       "sync_hint": "O provedor e o modelo selecionados serão sincronizados com o arquivo de configuração do OpenClaw",
       "title": "Configuração do Modelo"
     },
+    "node_missing": {
+      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
+      "download_button": "Baixar Node.js",
+      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
+      "title": "Node.js Necessário"
+    },
+    "node_version_low": {
+      "description": "O OpenClaw requer Node.js 22.0 ou superior. Sua versão atual é v{{version}}. Por favor, atualize o Node.js primeiro.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Versão do Node.js Muito Baixa"
+    },
     "not_installed": {
       "description": "OpenClaw não está instalado no seu sistema. Por favor, instale-o primeiro para usar este recurso.",
       "install_button": "Instalar o OpenClaw",
@@ -2544,12 +2611,6 @@
       "step2_title": "Passo 2: Verificar a instalação",
       "title": "OpenClaw Não Instalado",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "O OpenClaw requer Node.js/npm. Por favor, instale o Node.js primeiro e, em seguida, reinicie o Cherry Studio.",
-      "download_button": "Baixar Node.js",
-      "hint": "macOS: brew install node | Windows: Baixe a versão LTS em nodejs.org",
-      "title": "Node.js Necessário"
     },
     "quick_actions": {
       "open_dashboard": "Abrir Painel",
@@ -2695,12 +2756,7 @@
     },
     "edit": {
       "image_file": "Imagem editada",
-      "magic_prompt_option_tip": "Otimização inteligente da palavra-chave de edição",
-      "model_tip": "Edição localizada apenas suporta as versões V_2 e V_2_TURBO",
-      "number_images_tip": "Número de resultados da edição gerados",
-      "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
-      "seed_tip": "Controla a aleatoriedade do resultado da edição",
-      "style_type_tip": "Estilo da imagem editada, disponível apenas para a versão V_2 ou superior"
+      "image_required": "Por favor, carregue primeiro uma imagem para editar"
     },
     "generate": {
       "height": "Altura",
@@ -2769,6 +2825,16 @@
       "allow_all": "Permitir todos",
       "allow_none": "Não permitir"
     },
+    "ppio": {
+      "edit_prompt_tip": "Especifica o objeto ou área a remover da imagem, ex: 'cão' ou 'chapéu'",
+      "mask_image": "Imagem de máscara",
+      "mask_image_tip": "Indica a área a apagar. Áreas a apagar devem ser brancas, áreas a manter devem ser pretas",
+      "output_format": "Formato de saída",
+      "resolution": "Resolução alvo",
+      "seed_tip": "Semente aleatória, mesma semente e parâmetros produzem imagens semelhantes, -1 significa aleatório",
+      "use_pre_llm_tip": "Ativa expansão de texto para otimizar o prompt. Recomendado para prompts curtos, desativar para longos",
+      "watermark_tip": "Se adicionar marca d'água às imagens geradas, desativado por padrão"
+    },
     "pricing": "Preços",
     "prompt_enhancement": "Aumento do Prompt",
     "prompt_enhancement_tip": "Ao ativar, o prompt será reescrito para uma versão detalhada e adequada ao modelo",
@@ -2811,6 +2877,7 @@
     "required_field": "Campo obrigatório",
     "seed": "Semente Aleatória",
     "seed_desc_tip": "A mesma semente e prompt geram imagens semelhantes. Defina como -1 para gerar imagens diferentes a cada vez",
+    "seed_random": "Aleatório",
     "seed_tip": "A mesma semente e palavra-chave podem gerar imagens semelhantes",
     "select_model": "Selecionar modelo",
     "style_type": "Estilo",
@@ -2837,6 +2904,7 @@
       "resemblance_tip": "Controla o nível de semelhança entre o resultado ampliado e a imagem original",
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
     },
+    "watermark": "Adicionar marca d'água",
     "zhipu": {
       "custom_size_divisible": "Tamanho personalizado deve ser divisível por 16",
       "custom_size_hint": "Largura e altura devem estar entre 512px e 2048px, ser divisíveis por 16, e o total de pixels não pode exceder 2^21px.",

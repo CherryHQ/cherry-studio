@@ -58,6 +58,10 @@ describe('Qwen Model Detection', () => {
     expect(isQwenReasoningModel({ id: 'qwq-32b' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen-plus' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-coder' } as Model)).toBe(false)
+    // Qwen 3.5 series
+    expect(isQwenReasoningModel({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isQwenReasoningModel({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    expect(isQwenReasoningModel({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
   })
 
   test('isSupportedThinkingTokenQwenModel', () => {
@@ -69,6 +73,12 @@ describe('Qwen Model Detection', () => {
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-plus' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwq-32b' } as Model)).toBe(false)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3-coder' } as Model)).toBe(false)
+    // Qwen 3.5 series
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-plus' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-plus-2026-02-15' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-397b-a17b' } as Model)).toBe(true)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-thinking' } as Model)).toBe(false)
+    expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-instruct' } as Model)).toBe(false)
   })
 
   test('isVisionModel', () => {

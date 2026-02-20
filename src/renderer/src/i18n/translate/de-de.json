@@ -14,6 +14,18 @@
         "placeholder": "Agent-Typ auswählen"
       }
     },
+    "askUserQuestion": {
+      "answered": "beantwortet",
+      "customPlaceholder": "Gib deine Antwort ein...",
+      "loading": "Fragen werden geladen...",
+      "multiSelect": "Mehrfachauswahl",
+      "next": "Weiter",
+      "noQuestions": "Keine Fragen verfügbar",
+      "other": "Andere",
+      "previous": "Vorherige",
+      "submit": "Einreichen",
+      "title": "Fragen vom Agenten"
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
@@ -141,6 +153,10 @@
         "title": "Erweiterte Einstellungen"
       },
       "essential": "Grundeinstellungen",
+      "permissionMode": {
+        "tab": "Berechtigungsmodus",
+        "title": "Berechtigungsmodus"
+      },
       "plugins": {
         "available": {
           "title": "Verfügbare Plugins"
@@ -211,17 +227,16 @@
         "mcp": {
           "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
           "empty": "Keine MCP-Server erkannt. Bitte fügen Sie welche auf der MCP-Einstellungsseite hinzu.",
+          "inactiveTooltip": "Dieser MCP-Server ist nicht aktiv. Bitte starten Sie ihn zuerst.",
           "manageHint": "Benötigen Sie weitere Konfigurationen? Gehen Sie zu Einstellungen → MCP-Server.",
           "toggle": "{{name}} umschalten"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Vertrauenswürdige Dateisystem-Tools werden vorab autorisiert und können sofort ausgeführt werden.",
             "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
             "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "bypassPermissions": {
-            "behavior": "Alle Tools werden automatisch vorab autorisiert.",
             "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
             "title": "Alle Berechtigungsprüfungen überspringen",
             "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
@@ -231,14 +246,12 @@
             "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "behavior": "Nur-Lese-Tools werden automatisch vorab autorisiert.",
             "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
             "title": "Standard (vor Fortsetzung fragen)"
           },
           "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
           "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "behavior": "Standard-Nur-Lese-Tools werden automatisch vorab autorisiert, aber die Ausführung bleibt deaktiviert.",
             "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
             "title": "Planungsmodus"
           },
@@ -247,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Automatisch vom Modus hinzugefügt",
           "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
+          "autoDisabledTooltip": "Automatisch genehmigt durch „{{mode}}“ und kann nicht deaktiviert werden.",
           "empty": "Keine Tools entsprechen den Filterkriterien.",
           "mcpBadge": "MCP-Tool",
           "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
           "search": "Tools suchen",
-          "toggle": "{{name}} umschalten",
-          "warning": {
-            "description": "Aktivieren Sie nur Tools, denen Sie vertrauen. Modusstandardwerte werden automatisch gekennzeichnet.",
-            "title": "Vorab autorisierte Tools werden ohne manuelle Überprüfung ausgeführt."
-          }
-        },
-        "review": {
-          "autoTools": "Automatisch: {{count}}",
-          "customTools": "Benutzerdefiniert: {{count}}",
-          "helper": "Einstellungen werden automatisch gespeichert. Sie können jederzeit zu den obigen Schritten zurückkehren und Anpassungen vornehmen.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Modus: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP-Server"
-          },
-          "permissionMode": {
-            "title": "Schritt 1 · Berechtigungsmodus"
-          },
-          "preapproved": {
-            "title": "Schritt 2 · Vorab autorisierte Tools"
-          },
-          "review": {
-            "title": "Schritt 3 · Übersicht"
-          }
-        },
-        "tab": "Tools & Berechtigungen"
+          "toggle": "{{name}} umschalten"
+        }
       },
       "tools": {
         "approved": "Autorisiert",
@@ -288,6 +276,15 @@
         "tab": "Vorab autorisierte Tools",
         "title": "Vorab autorisierte Tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP-Server"
+        },
+        "tab": "Tools",
+        "tools": {
+          "title": "Werkzeuge"
+        }
       }
     },
     "todo": {
@@ -336,6 +333,49 @@
       },
       "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Führt Shell-Befehle in deiner Umgebung aus"
+        },
+        "Edit": {
+          "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch"
+        },
+        "Glob": {
+          "description": "Findet Dateien anhand von Mustererkennung"
+        },
+        "Grep": {
+          "description": "Sucht nach Mustern im Dateiinhalt"
+        },
+        "MultiEdit": {
+          "description": "Führt mehrere Bearbeitungen an einer einzelnen Datei atomisch aus"
+        },
+        "NotebookEdit": {
+          "description": "Modifiziert Jupyter-Notebook-Zellen"
+        },
+        "NotebookRead": {
+          "description": "Liest und zeigt den Inhalt von Jupyter-Notebooks an"
+        },
+        "Read": {
+          "description": "Liest die Inhalte von Dateien"
+        },
+        "Task": {
+          "description": "Führt einen Unter-Agenten aus, um komplexe, mehrstufige Aufgaben zu bearbeiten"
+        },
+        "TodoWrite": {
+          "description": "Erstellt und verwaltet strukturierte Aufgabenlisten"
+        },
+        "WebFetch": {
+          "description": "Ruft Inhalte von einer angegebenen URL ab"
+        },
+        "WebSearch": {
+          "description": "Führt Websuchen mit Domainfilterung durch"
+        },
+        "Write": {
+          "description": "Erstellt oder überschreibt Dateien"
+        }
+      }
     },
     "type": {
       "label": "Agent-Typ",
@@ -1277,7 +1317,7 @@
     },
     "expand": "Ausklappen",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Nach Excel exportieren"
     },
     "file": {
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
@@ -1452,6 +1492,7 @@
     "provider_disabled": "Modellanbieter nicht aktiviert",
     "reason": "Grund",
     "render": {
+      "block": "Dieser Inhaltsblock konnte nicht gerendert werden",
       "description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
       "title": "Rendering-Fehler"
     },
@@ -1541,8 +1582,16 @@
       "message": "Zu Nachricht navigieren"
     },
     "search": {
+      "match": {
+        "substring": "Enthält",
+        "whole_word": "Ganzes Wort"
+      },
       "messages": "Alle Nachrichten durchsuchen",
       "placeholder": "Themen oder Nachrichten suchen...",
+      "sort": {
+        "newest": "Neueste zuerst",
+        "oldest": "Älteste zuerst"
+      },
       "topics": {
         "empty": "Keine passenden Themen gefunden. Drücken Sie Enter, um alle Nachrichten zu durchsuchen"
       }
@@ -1934,7 +1983,7 @@
         "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Excel-Export fehlgeschlagen"
       },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
@@ -1976,7 +2025,7 @@
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
       "unknown": "Unbekannter Fehler",
       "yuque": {
@@ -2051,7 +2100,8 @@
           "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
           "title": "Datenverlust!!!"
         }
-      }
+      },
+      "success": "Daten-Reset erfolgreich"
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
@@ -2065,7 +2115,7 @@
     "searching": "Wird gesucht...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel erfolgreich exportiert"
       },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
@@ -2520,6 +2570,12 @@
       "stop": "Halt",
       "version": "Version"
     },
+    "git_missing": {
+      "description": "OpenClaw benötigt Git zur Installation einiger Abhängigkeiten. Bitte installieren Sie zuerst Git und klicken Sie dann erneut auf Installieren.",
+      "download_button": "Git herunterladen",
+      "hint": "macOS: brew install git | Windows: Von git-scm.com herunterladen (stelle sicher, dass Git während der Installation zum PATH hinzugefügt wird)",
+      "title": "Git erforderlich"
+    },
     "install_progress": "Installationsfortschritt",
     "installed_at": "OpenClaw installiert unter",
     "model_config": {
@@ -2534,6 +2590,17 @@
       "sync_hint": "Ausgewählter Anbieter und Modell werden in die OpenClaw-Konfigurationsdatei synchronisiert",
       "title": "Modellkonfiguration"
     },
+    "node_missing": {
+      "description": "OpenClaw benötigt Node.js 22+. Bitte installiere zuerst Node.js und klicke dann erneut auf Installieren.",
+      "download_button": "Node.js herunterladen",
+      "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
+      "title": "Node.js erforderlich"
+    },
+    "node_version_low": {
+      "description": "OpenClaw erfordert Node.js 22.0 oder höher. Deine aktuelle Version ist v{{version}}. Bitte aktualisiere Node.js zuerst.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js-Version zu niedrig"
+    },
     "not_installed": {
       "description": "OpenClaw ist nicht auf Ihrem System installiert. Bitte installieren Sie es zuerst, um diese Funktion nutzen zu können.",
       "install_button": "Installiere OpenClaw",
@@ -2544,12 +2611,6 @@
       "step2_title": "Schritt 2: Installation überprüfen",
       "title": "OpenClaw nicht installiert",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw benötigt Node.js/npm. Bitte installieren Sie zunächst Node.js und starten Sie Cherry Studio anschließend neu.",
-      "download_button": "Node.js herunterladen",
-      "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
-      "title": "Node.js erforderlich"
     },
     "quick_actions": {
       "open_dashboard": "Dashboard öffnen",
@@ -2695,12 +2756,7 @@
     },
     "edit": {
       "image_file": "Zu bearbeitendes Bild",
-      "magic_prompt_option_tip": "Intelligente Optimierung des Bearbeitungs-Prompts",
-      "model_tip": "Unterstützt V3 und V2 Versionen",
-      "number_images_tip": "Anzahl der generierten Bearbeitungsergebnisse",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "seed_tip": "Kontrolle der Zufälligkeit des Bearbeitungsergebnisses",
-      "style_type_tip": "Stil des bearbeiteten Bildes, nur für V_2 und höher"
+      "image_required": "Bitte laden Sie zuerst ein Bild zum Bearbeiten hoch"
     },
     "generate": {
       "height": "Höhe",
@@ -2769,6 +2825,16 @@
       "allow_all": "Alle erlauben",
       "allow_none": "Keine erlauben"
     },
+    "ppio": {
+      "edit_prompt_tip": "Gibt das zu entfernende Objekt oder den Bereich an, z.B. 'Hund' oder 'Hut'",
+      "mask_image": "Maskenbild",
+      "mask_image_tip": "Zeigt den zu löschenden Bereich an. Zu löschende Bereiche sollten weiß sein, zu behaltende schwarz",
+      "output_format": "Ausgabeformat",
+      "resolution": "Zielauflösung",
+      "seed_tip": "Zufallswert, gleicher Wert und Parameter erzeugen ähnliche Bilder, -1 bedeutet zufällig",
+      "use_pre_llm_tip": "Aktiviert Texterweiterung zur Prompt-Optimierung. Für kurze Prompts empfohlen, für lange deaktivieren",
+      "watermark_tip": "Ob dem generierten Bild ein Wasserzeichen hinzugefügt werden soll, standardmäßig deaktiviert"
+    },
     "pricing": "Preise",
     "prompt_enhancement": "Prompt-Verbesserung",
     "prompt_enhancement_tip": "Nach Aktivierung wird der Prompt in eine detaillierte, modellgerechte Version umgeschrieben",
@@ -2811,6 +2877,7 @@
     "required_field": "Pflichtfeld",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
+    "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
     "style_type": "Stil",
@@ -2837,6 +2904,7 @@
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     },
+    "watermark": "Wasserzeichen hinzufügen",
     "zhipu": {
       "custom_size_divisible": "Benutzerdefinierte Größe muss durch 16 teilbar sein",
       "custom_size_hint": "Breite und Höhe müssen zwischen 512 px und 2048 px liegen, durch 16 teilbar sein, und die Gesamtzahl der Pixel darf 2^21 px nicht überschreiten.",

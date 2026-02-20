@@ -14,6 +14,18 @@
         "placeholder": "选择 Agent 类型"
       }
     },
+    "askUserQuestion": {
+      "answered": "已回答",
+      "customPlaceholder": "输入您的回答...",
+      "loading": "正在加载问题...",
+      "multiSelect": "多选",
+      "next": "下一个",
+      "noQuestions": "暂无问题",
+      "other": "其他",
+      "previous": "上一个",
+      "submit": "提交",
+      "title": "来自 Agent 的问题"
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
@@ -141,6 +153,10 @@
         "title": "高级设置"
       },
       "essential": "基础设置",
+      "permissionMode": {
+        "tab": "权限模式",
+        "title": "权限模式"
+      },
       "plugins": {
         "available": {
           "title": "可用插件"
@@ -211,19 +227,18 @@
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
           "empty": "未检测到 MCP 服务器，请前往 MCP 设置页添加。",
+          "inactiveTooltip": "该 MCP 服务器未激活，请先启动它。",
           "manageHint": "需要更多配置？前往 设置 → MCP 服务器。",
           "toggle": "切换 {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "预先授权受信任的文件系统工具，允许即时执行。",
-            "description": "文件编辑和文件系统操作将自动通过审批。",
-            "title": "自动接受文件编辑"
+            "description": "可自由读取和编辑文件，执行命令前会询问。",
+            "title": "自动编辑模式"
           },
           "bypassPermissions": {
-            "behavior": "所有工具都会被自动预先授权。",
-            "description": "所有权限提示都会被跳过，请谨慎使用。",
-            "title": "跳过所有权限检查",
+            "description": "可执行任何操作，无需询问。请谨慎使用。",
+            "title": "全自动模式",
             "warning": "危险：所有工具都会在无审批情况下执行。"
           },
           "confirmChange": {
@@ -231,54 +246,27 @@
             "title": "确认切换权限模式？"
           },
           "default": {
-            "behavior": "只读工具会自动预先授权。",
-            "description": "只读工具会自动预先授权，其它操作仍需权限。",
-            "title": "默认（继续前询问）"
+            "description": "可自由读取文件，编辑或执行命令前会询问。",
+            "title": "普通模式"
           },
           "helper": "指定智能体如何处理工具使用授权",
           "placeholder": "选择权限模式",
           "plan": {
-            "behavior": "默认的只读工具会自动预先授权，但执行仍被禁用。",
-            "description": "继承默认的只读工具集，并会在执行前先呈现计划。",
-            "title": "规划模式"
+            "description": "只能读取文件和制定计划，不能编辑文件或执行命令。",
+            "title": "计划模式"
           },
           "title": "权限模式"
         },
         "preapproved": {
           "autoBadge": "模式自动添加",
           "autoDescription": "该工具由当前权限模式自动预先授权。",
+          "autoDisabledTooltip": "由「{{mode}}」自动授权，无法禁用。",
           "empty": "没有符合筛选条件的工具。",
           "mcpBadge": "MCP 工具",
           "requiresApproval": "禁用时需要人工审批",
           "search": "搜索工具",
-          "toggle": "切换 {{name}}",
-          "warning": {
-            "description": "仅启用你信任的工具。模式默认值会自动标注。",
-            "title": "预先授权的工具将在无人工审核时运行。"
-          }
-        },
-        "review": {
-          "autoTools": "自动：{{count}}",
-          "customTools": "自定义：{{count}}",
-          "helper": "设置会自动保存，可随时返回上方步骤进行调整。",
-          "mcp": "MCP：{{count}}",
-          "mode": "模式：{{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP 服务器"
-          },
-          "permissionMode": {
-            "title": "步骤 1 · 权限模式"
-          },
-          "preapproved": {
-            "title": "步骤 2 · 预先授权工具"
-          },
-          "review": {
-            "title": "步骤 3 · 总览"
-          }
-        },
-        "tab": "工具与权限"
+          "toggle": "切换 {{name}}"
+        }
       },
       "tools": {
         "approved": "已授权",
@@ -288,6 +276,15 @@
         "tab": "预先授权工具",
         "title": "预先授权工具",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP 服务器"
+        },
+        "tab": "工具",
+        "tools": {
+          "title": "工具"
+        }
       }
     },
     "todo": {
@@ -336,6 +333,49 @@
       },
       "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "在你的环境中执行 Shell 命令"
+        },
+        "Edit": {
+          "description": "对特定文件进行精确编辑"
+        },
+        "Glob": {
+          "description": "根据模式匹配查找文件"
+        },
+        "Grep": {
+          "description": "在文件内容中搜索模式"
+        },
+        "MultiEdit": {
+          "description": "在单个文件上原子性地执行多次编辑"
+        },
+        "NotebookEdit": {
+          "description": "修改 Jupyter notebook 单元格"
+        },
+        "NotebookRead": {
+          "description": "读取并显示 Jupyter notebook 内容"
+        },
+        "Read": {
+          "description": "读取文件内容"
+        },
+        "Task": {
+          "description": "运行子代理来处理复杂的多步骤任务"
+        },
+        "TodoWrite": {
+          "description": "创建和管理结构化任务列表"
+        },
+        "WebFetch": {
+          "description": "从指定 URL 获取内容"
+        },
+        "WebSearch": {
+          "description": "执行带有域名过滤的网络搜索"
+        },
+        "Write": {
+          "description": "创建或覆盖文件"
+        }
+      }
     },
     "type": {
       "label": "智能体类型",
@@ -1452,6 +1492,7 @@
     "provider_disabled": "模型提供商未启用",
     "reason": "原因",
     "render": {
+      "block": "此内容块渲染失败",
       "description": "消息内容渲染失败，请检查消息内容格式是否正确",
       "title": "渲染错误"
     },
@@ -1541,8 +1582,16 @@
       "message": "定位到消息"
     },
     "search": {
+      "match": {
+        "substring": "包含",
+        "whole_word": "整词"
+      },
       "messages": "搜索所有消息",
       "placeholder": "搜索话题或消息...",
+      "sort": {
+        "newest": "最新优先",
+        "oldest": "最早优先"
+      },
       "topics": {
         "empty": "没有找到相关话题，点击回车键搜索所有消息"
       }
@@ -2051,7 +2100,8 @@
           "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
           "title": "数据丢失！！！"
         }
-      }
+      },
+      "success": "数据重置成功"
     },
     "restore": {
       "failed": "恢复失败",
@@ -2520,6 +2570,12 @@
       "stop": "停止",
       "version": "版本"
     },
+    "git_missing": {
+      "description": "OpenClaw 的部分依赖需要 Git 来安装。请先安装 Git，然后再次点击安装。",
+      "download_button": "下载 Git",
+      "hint": "macOS: brew install git | Windows: 从 git-scm.com 下载（安装时请确保勾选将 Git 添加到 PATH）",
+      "title": "需要安装 Git"
+    },
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "model_config": {
@@ -2534,6 +2590,17 @@
       "sync_hint": "选择的服务商和模型将同步到 OpenClaw 配置文件",
       "title": "模型配置"
     },
+    "node_missing": {
+      "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",
+      "download_button": "下载 Node.js",
+      "hint": "macOS: brew install node | Windows: 从 nodejs.org 下载 LTS 版本",
+      "title": "需要安装 Node.js"
+    },
+    "node_version_low": {
+      "description": "OpenClaw 需要 Node.js 22.0 或以上版本。当前版本为 v{{version}}，请先升级 Node.js。",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js 版本过低"
+    },
     "not_installed": {
       "description": "OpenClaw 尚未安装在您的系统上。请先安装它以使用此功能。",
       "install_button": "安装 OpenClaw",
@@ -2544,12 +2611,6 @@
       "step2_title": "第二步：验证安装",
       "title": "OpenClaw 未安装",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw 需要 Node.js/npm。请先安装 Node.js，然后再次点击安装。",
-      "download_button": "下载 Node.js",
-      "hint": "macOS: brew install node | Windows: 从 nodejs.org 下载 LTS 版本",
-      "title": "需要安装 Node.js"
     },
     "quick_actions": {
       "open_dashboard": "打开控制面板",
@@ -2694,13 +2755,8 @@
       }
     },
     "edit": {
-      "image_file": "编辑的图像",
-      "magic_prompt_option_tip": "智能优化编辑提示词",
-      "model_tip": "支持 V3 和 V2 版本",
-      "number_images_tip": "生成的编辑结果数量",
-      "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
-      "seed_tip": "控制编辑结果的随机性",
-      "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本"
+      "image_file": "输入图片",
+      "image_required": "请先上传需要编辑的图片"
     },
     "generate": {
       "height": "高度",
@@ -2769,6 +2825,16 @@
       "allow_all": "允许所有",
       "allow_none": "不允许"
     },
+    "ppio": {
+      "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'",
+      "mask_image": "遮罩图像",
+      "mask_image_tip": "用于指示要擦除的区域。要擦除的区域应为白色，要保留的区域应为黑色",
+      "output_format": "输出格式",
+      "resolution": "目标分辨率",
+      "seed_tip": "随机种子，相同的种子和参数可以生成相似的图片，-1 表示随机",
+      "use_pre_llm_tip": "开启文本扩写，会针对输入提示词进行扩写优化。提示词较短建议开启，较长建议关闭",
+      "watermark_tip": "是否在生成的图片上添加水印，默认不添加"
+    },
     "pricing": "定价",
     "prompt_enhancement": "提示词增强",
     "prompt_enhancement_tip": "开启后将提示重写为详细的、适合模型的版本",
@@ -2811,6 +2877,7 @@
     "required_field": "必填项",
     "seed": "随机种子",
     "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
+    "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
     "style_type": "风格",
@@ -2837,6 +2904,7 @@
       "resemblance_tip": "控制放大结果与原图的相似程度",
       "seed_tip": "控制放大结果的随机性"
     },
+    "watermark": "添加水印",
     "zhipu": {
       "custom_size_divisible": "自定义尺寸必须能被16整除",
       "custom_size_hint": "长宽均需满足512px-2048px之间，需被16整除，并保证最大像素数不超过2^21px",

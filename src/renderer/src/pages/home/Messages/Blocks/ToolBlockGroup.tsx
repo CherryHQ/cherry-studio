@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
 import type { MCPToolResponseStatus } from '@renderer/types'
@@ -15,6 +16,7 @@ import { getEffectiveStatus, type ToolStatus } from '../Tools/MessageAgentTools/
 import MessageTools from '../Tools/MessageTools'
 import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
 import ToolHeader from '../Tools/ToolHeader'
+import BlockErrorFallback from './BlockErrorFallback'
 
 // ============ Styled Components ============
 
@@ -249,7 +251,9 @@ const ToolListContent = React.memo(({ blocks, scrollRef }: ToolListContentProps)
       const isCompleted = isCompletedStatus(status)
       return (
         <ToolItem key={block.id} data-block-id={block.id} $isCompleted={isCompleted}>
-          <MessageTools block={block} />
+          <ErrorBoundary fallbackComponent={BlockErrorFallback}>
+            <MessageTools block={block} />
+          </ErrorBoundary>
         </ToolItem>
       )
     })}

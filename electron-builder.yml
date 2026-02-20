@@ -140,28 +140,28 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.17 - New Features & Bug Fixes
-
-    ✨ New Features
-    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
-    - [Tools] Add OpenCode CLI tool support
+    Cherry Studio 1.7.19 - Bug Fixes & Improvements
 
     🐛 Bug Fixes
-    - [Agent] Fix tool output display showing blank content during streaming
-    - [Models] Fix Kimi K2.5 model parameter error
-    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
-    - [macOS] Fix npm detection when app launched from Dock/Finder
+    - [Settings] Fixed provider name input removing spaces during typing
+    - [Data] Fixed factory reset not clearing agents, memories, knowledge base and notes data
+    - [Data] Fixed backup restore failure on Windows (EBUSY error)
+    - [MCP] Fixed MCP tools returning images exceeding API message size limits
+
+    💄 Improvements
+    - [Agent] Improved settings popup UI with better permission mode selection
+    - [Models] Updated MiniMax models to the latest M2.x series
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.17 - 新功能与问题修复
-
-    ✨ 新功能
-    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
-    - [工具] 新增 OpenCode CLI 工具支持
+    Cherry Studio 1.7.19 - 问题修复与改进
 
     🐛 问题修复
-    - [智能体] 修复工具流式输出时内容显示为空的问题
-    - [模型] 修复 Kimi K2.5 模型参数错误
-    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
-    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
+    - [设置] 修复服务商名称输入时空格被立即移除的问题
+    - [数据] 修复重置数据时未清除智能体、记忆、知识库和笔记数据的问题
+    - [数据] 修复 Windows 上恢复备份失败的问题（EBUSY 错误）
+    - [MCP] 修复 MCP 工具返回图片时超出 API 消息大小限制的问题
+
+    💄 改进
+    - [智能体] 优化设置弹窗界面，改进权限模式选择体验
+    - [模型] 更新 MiniMax 模型至最新的 M2.x 系列
     <!--LANG:END-->

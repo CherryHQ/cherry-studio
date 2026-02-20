@@ -20,18 +20,30 @@ on:
   push:
     tags:
       - v*.*.*
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # Only run for tag push, workflow_dispatch, or PR from release branches
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/v'))
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: ${{ fromJSON(
           github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event_name == 'pull_request' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
           github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
@@ -52,6 +64,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
+            BRANCH="${{ github.head_ref }}"
+            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
           else
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi

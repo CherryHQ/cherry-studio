@@ -230,6 +230,10 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   overflow: hidden;
+
+  [navbar-position='top'] & {
+    max-width: calc(100vw - 12px);
+  }
 `
 
 export default HomePage

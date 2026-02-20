@@ -276,12 +276,12 @@ const Container = styled.div`
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   flex: 1;
+  overflow: hidden;
   [navbar-position='top'] & {
     height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
-    overflow: hidden;
   }
 `
 
