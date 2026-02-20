@@ -826,11 +826,32 @@ const fetchAndProcessAssistantResponseImpl = async (
     logger.silly('Add Abort Controller', { id: userMessageId })
     addAbortController(userMessageId!, () => abortController.abort())
 
+    // Fetch agent allowed_tools for MCP auto-approval
+    let allowedTools: string[] | undefined
+    const activeAgentId = getState().runtime.chat.activeAgentId
+    const apiServer = getState().settings.apiServer
+    if (activeAgentId && apiServer?.apiKey) {
+      try {
+        const baseURL = buildAgentBaseURL(apiServer)
+        const agentClient = new AgentApiClient({
+          baseURL,
+          headers: {
+            Authorization: `Bearer ${apiServer.apiKey}`
+          }
+        })
+        const agentData = await agentClient.getAgent(activeAgentId)
+        allowedTools = agentData?.allowed_tools
+      } catch {
+        // Agent fetch failed — proceed without allowedTools
+      }
+    }
+
     await transformMessagesAndFetch(
       {
         messages: messagesForContext,
         assistant,
         topicId,
+        allowedTools,
         blockManager,
         assistantMsgId,
         callbacks,

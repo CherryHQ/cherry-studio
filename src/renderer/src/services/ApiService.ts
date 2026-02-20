@@ -145,6 +145,7 @@ export async function transformMessagesAndFetch(
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
     topicId?: string // 添加 topicId 用于 trace
+    allowedTools?: string[]
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -175,6 +176,7 @@ export async function transformMessagesAndFetch(
       messages: modelMessages,
       assistant: assistant,
       topicId: request.topicId,
+      allowedTools: request.allowedTools,
       requestOptions: request.options,
       uiMessages,
       onChunkReceived
@@ -191,7 +193,8 @@ export async function fetchChatCompletion({
   requestOptions,
   onChunkReceived,
   topicId,
-  uiMessages
+  uiMessages,
+  allowedTools
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
@@ -238,6 +241,7 @@ export async function fetchChatCompletion({
     webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
+    allowedTools,
     webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
