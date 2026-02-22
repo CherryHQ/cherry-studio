@@ -3012,6 +3012,7 @@
     "checking_installation": "Vérification de l'installation d'OpenClaw...",
     "description": "Intégrer les fournisseurs Cherry Studio avec la passerelle OpenClaw pour permettre aux agents de codage IA comme Claude Code, Qwen-Coder, et bien d'autres.",
     "error": {
+      "auth_token_required": "[to be translated]:Please set an auth token first",
       "select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle"
     },
     "gateway": {
@@ -3607,6 +3608,10 @@
       "columns": {
         "description": "créer une disposition en colonnes",
         "title": "colonnes"
+      },
+      "compareBlock": {
+        "description": "[to be translated]:Insert a collapsible compare area",
+        "title": "[to be translated]:Compare Block"
       },
       "date": {
         "description": "insérer la date actuelle",
@@ -5523,6 +5528,10 @@
       "misc": "autre",
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
       "not_checked": "Non vérifié",
+      "note": {
+        "label": "[to be translated]:Note",
+        "placeholder": "[to be translated]:Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Область предварительного просмотра",
         "placeholder": "Введите содержимое в формате Markdown...",
@@ -5558,6 +5567,13 @@
       },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",
+      "restore_builtins": {
+        "button": "[to be translated]:Restore Built-in Providers",
+        "content": "[to be translated]:This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "[to be translated]:All built-in providers already exist",
+        "success": "[to be translated]:Restored {{count}} built-in providers",
+        "title": "[to be translated]:Restore Built-in Providers"
+      },
       "search": "Rechercher une plateforme de modèles...",
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "title": "Services de modèles",

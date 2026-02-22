@@ -130,6 +130,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const fancyProviderName = getFancyProviderName(provider)
 
   const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
+  const [localNotes, setLocalNotes] = useState<string>(provider.notes ?? '')
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     status: HealthStatus.NOT_CHECKED,
     checking: false
@@ -174,6 +175,11 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED })
   }, [provider.apiKey, debouncedUpdateApiKey])
 
+  // 同步 provider.notes 到 localNotes
+  useEffect(() => {
+    setLocalNotes(provider.notes ?? '')
+  }, [provider.notes])
+
   // Sync localApiKey to provider.apiKey (debounced)
   // Only trigger on user input, not on external updates
   useEffect(() => {
@@ -192,6 +198,11 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       debouncedUpdateApiKey.flush()
     }
   }, [debouncedUpdateApiKey])
+
+  const onUpdateNotes = useCallback(() => {
+    if ((provider.notes ?? '') === localNotes) return
+    updateProvider({ notes: localNotes })
+  }, [localNotes, provider.notes, updateProvider])
 
   const isApiKeyConnectable = useMemo(() => {
     return apiKeyConnectivity.status === 'success'
@@ -636,6 +647,16 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
               )}
             </>
           )}
+          <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.note.label')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input
+              value={localNotes}
+              placeholder={t('settings.provider.note.placeholder')}
+              onChange={(e) => setLocalNotes(e.target.value)}
+              onBlur={onUpdateNotes}
+              spellCheck={false}
+            />
+          </Space.Compact>
         </>
       )}
       {isAzureOpenAI && (

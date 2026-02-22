@@ -3012,6 +3012,7 @@
     "checking_installation": "Verificare instalare OpenClaw...",
     "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
     "error": {
+      "auth_token_required": "[to be translated]:Please set an auth token first",
       "select_provider_model": "Vă rugăm să selectați mai întâi un furnizor și un model"
     },
     "gateway": {
@@ -3607,6 +3608,10 @@
       "columns": {
         "description": "Creează aspect pe coloane",
         "title": "Coloane"
+      },
+      "compareBlock": {
+        "description": "[to be translated]:Insert a collapsible compare area",
+        "title": "[to be translated]:Compare Block"
       },
       "date": {
         "description": "Inserează data curentă",
@@ -5523,6 +5528,10 @@
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
       "not_checked": "Neverificat",
+      "note": {
+        "label": "[to be translated]:Note",
+        "placeholder": "[to be translated]:Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Zonă previzualizare",
         "placeholder": "Introdu conținut Markdown...",
@@ -5558,6 +5567,13 @@
       },
       "remove_duplicate_keys": "Elimină cheile duplicate",
       "remove_invalid_keys": "Elimină cheile invalide",
+      "restore_builtins": {
+        "button": "[to be translated]:Restore Built-in Providers",
+        "content": "[to be translated]:This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "[to be translated]:All built-in providers already exist",
+        "success": "[to be translated]:Restored {{count}} built-in providers",
+        "title": "[to be translated]:Restore Built-in Providers"
+      },
       "search": "Caută furnizori...",
       "search_placeholder": "Caută id sau nume model",
       "title": "Furnizor model",

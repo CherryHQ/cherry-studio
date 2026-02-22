@@ -3012,6 +3012,7 @@
     "checking_installation": "Überprüfe OpenClaw-Installation...",
     "description": "Integriere Cherry Studio-Anbieter mit OpenClaw Gateway, um KI-Coding-Agenten wie Claude Code, Qwen-Coder und weitere zu ermöglichen.",
     "error": {
+      "auth_token_required": "[to be translated]:Please set an auth token first",
       "select_provider_model": "Bitte wählen Sie zuerst einen Anbieter und ein Modell aus."
     },
     "gateway": {
@@ -3607,6 +3608,10 @@
       "columns": {
         "description": "Mehrspaltiges Layout erstellen",
         "title": "Spalten"
+      },
+      "compareBlock": {
+        "description": "[to be translated]:Insert a collapsible compare area",
+        "title": "[to be translated]:Compare Block"
       },
       "date": {
         "description": "Aktuelles Datum einfügen",
@@ -5523,6 +5528,10 @@
       "misc": "Sonstige",
       "no_models_for_check": "Keine testbaren Modelle (z.B. Chat-Modelle)",
       "not_checked": "Nicht getestet",
+      "note": {
+        "label": "[to be translated]:Note",
+        "placeholder": "[to be translated]:Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Vorschau-Bereich",
         "placeholder": "Bitte Markdown-Format-Inhalt eingeben...",
@@ -5558,6 +5567,13 @@
       },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
+      "restore_builtins": {
+        "button": "[to be translated]:Restore Built-in Providers",
+        "content": "[to be translated]:This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "[to be translated]:All built-in providers already exist",
+        "success": "[to be translated]:Restored {{count}} built-in providers",
+        "title": "[to be translated]:Restore Built-in Providers"
+      },
       "search": "Modellplattform suchen...",
       "search_placeholder": "Modell-ID oder Name suchen",
       "title": "Modelldienst",

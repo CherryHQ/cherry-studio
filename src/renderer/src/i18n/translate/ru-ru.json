@@ -3012,6 +3012,7 @@
     "checking_installation": "Проверка установки OpenClaw...",
     "description": "Интегрируйте провайдеров Cherry Studio с шлюзом OpenClaw, чтобы включить агентов кодирования ИИ, таких как Claude Code, Qwen-Coder и другие.",
     "error": {
+      "auth_token_required": "[to be translated]:Please set an auth token first",
       "select_provider_model": "Пожалуйста, сначала выберите поставщика и модель"
     },
     "gateway": {
@@ -3607,6 +3608,10 @@
       "columns": {
         "description": "Создать макет колонны",
         "title": "Раздел столбцы"
+      },
+      "compareBlock": {
+        "description": "[to be translated]:Insert a collapsible compare area",
+        "title": "[to be translated]:Compare Block"
       },
       "date": {
         "description": "Вставьте текущую дату",
@@ -5523,6 +5528,10 @@
       "misc": "другие",
       "no_models_for_check": "Нет моделей для проверки (например, диалоговые модели)",
       "not_checked": "Не проверено",
+      "note": {
+        "label": "[to be translated]:Note",
+        "placeholder": "[to be translated]:Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Область предварительного просмотра",
         "placeholder": "Введите содержимое в формате Markdown...",
@@ -5558,6 +5567,13 @@
       },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
+      "restore_builtins": {
+        "button": "[to be translated]:Restore Built-in Providers",
+        "content": "[to be translated]:This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "[to be translated]:All built-in providers already exist",
+        "success": "[to be translated]:Restored {{count}} built-in providers",
+        "title": "[to be translated]:Restore Built-in Providers"
+      },
       "search": "Поиск поставщиков...",
       "search_placeholder": "Поиск по ID или имени модели",
       "title": "Провайдеры моделей",

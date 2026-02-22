@@ -5528,6 +5528,10 @@
       "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
       "not_checked": "未檢查",
+      "note": {
+        "label": "筆記",
+        "placeholder": "可填寫任意內容（備註/說明）"
+      },
       "notes": {
         "markdown_editor_default_value": "預覽區域",
         "placeholder": "輸入 Markdown 格式內容...",

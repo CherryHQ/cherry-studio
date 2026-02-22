@@ -5528,6 +5528,10 @@
       "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
       "not_checked": "未检测",
+      "note": {
+        "label": "笔记",
+        "placeholder": "可填写任意内容（备注/说明）"
+      },
       "notes": {
         "markdown_editor_default_value": "预览区域",
         "placeholder": "请输入 Markdown 格式内容...",

@@ -5528,6 +5528,10 @@
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
+      "note": {
+        "label": "Note",
+        "placeholder": "Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Preview area",
         "placeholder": "Enter Markdown content...",

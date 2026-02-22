@@ -3012,6 +3012,7 @@
     "checking_installation": "Έλεγχος εγκατάστασης του OpenClaw...",
     "description": "Ενσωματώστε τους παρόχους Cherry Studio με την πύλη OpenClaw για να ενεργοποιήσετε πράκτορες κωδικοποίησης AI όπως το Claude Code, το Qwen-Coder και άλλοι.",
     "error": {
+      "auth_token_required": "[to be translated]:Please set an auth token first",
       "select_provider_model": "Παρακαλώ επιλέξτε πρώτα έναν πάροχο και ένα μοντέλο"
     },
     "gateway": {
@@ -3607,6 +3608,10 @@
       "columns": {
         "description": "Δημιουργία διάταξης με στήλες",
         "title": "στήλες"
+      },
+      "compareBlock": {
+        "description": "[to be translated]:Insert a collapsible compare area",
+        "title": "[to be translated]:Compare Block"
       },
       "date": {
         "description": "εισάγετε την τρέχουσα ημερομηνία",
@@ -5523,6 +5528,10 @@
       "misc": "Άλλο",
       "no_models_for_check": "Δεν υπάρχουν μοντέλα για έλεγχο (π.χ. μοντέλα συνομιλίας)",
       "not_checked": "Δεν ελέγχεται",
+      "note": {
+        "label": "[to be translated]:Note",
+        "placeholder": "[to be translated]:Anything you want (notes/description)"
+      },
       "notes": {
         "markdown_editor_default_value": "Περιοχή Προεπισκόπησης",
         "placeholder": "Εισάγετε περιεχόμενο σε μορφή Markdown...",
@@ -5558,6 +5567,13 @@
       },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
+      "restore_builtins": {
+        "button": "[to be translated]:Restore Built-in Providers",
+        "content": "[to be translated]:This will re-add missing built-in providers (without overwriting existing settings). Total: {{count}}. Continue?",
+        "none": "[to be translated]:All built-in providers already exist",
+        "success": "[to be translated]:Restored {{count}} built-in providers",
+        "title": "[to be translated]:Restore Built-in Providers"
+      },
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
       "title": "Υπηρεσία μονάδων",
