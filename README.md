@@ -79,6 +79,80 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 - Tab 入口与记忆：Tab 下拉入口改为应用页面编辑/管理；每个 Tab 记录 chatState 用于切换恢复，但仍会随切换同步，未完全隔离；记住 tab side 偏好。
 - 导出/导入能力：新增小程序导出（WebView 脚本通道），整合 ChatGPT/Gemini 导出脚本与统一导出→导入流程，新增 Gemini 导入器；UI 增加导出按钮、加载态与完成提示。
 - 稳定性与兼容性：补齐 i18n/工具测试 mock，修复 tooltip 等细节，降低 ApiServer 状态查询刷屏；兼容 Node 20+ 依赖。
+- 思考块（Thinking）体验：按 reasoning_effort 展示“思考程度/耗时”，记录到 metadata 以确保回放一致；补充徽标与相关单测/i18n。
+- macOS 体验：修复 macOS 字体列表获取（优先 atsutil），并加固自定义 CSS 覆盖主字体等问题；同时优化启动期行为避免干扰 macOS AltTab。
+- 笔记能力增强：支持折叠留白与排版修复；支持恢复到选中版本；笔记页集成 Git；修复 IPC 结构化克隆相关问题。
+- 备份能力：引入增量备份与默认清理策略（trim defaults）。
+- 提供商与设置：恢复内置 providers 并调整更紧凑的控制；绘图支持 New API 自定义图片尺寸；OpenClaw 支持 dashboard 鉴权令牌持久化；服务商设置页新增“笔记”输入框（复用 `provider.notes`）。
+- 工程与开发：更新 CI workflows；修复构建与 lint 相关问题（例如 commander 类型签名变更、格式检查）；更新部分测试快照与超时配置。
+
+<details>
+  <summary>atoz03 非合并提交清单（54 条）</summary>
+
+说明：
+- 本清单已排除合并提交（多为同步上游 CherryHQ/main）。
+- 生成命令：`git log --author="atoz03" --no-merges --pretty=format:"%ad %h %s" --date=short`
+- 截至：`16f62ca49`（2026-02-22）
+
+```text
+2026-02-22 16f62ca49 feat(settings): add provider note field
+2026-02-14 543ce334d feat(openclaw): 支持 dashboard 鉴权令牌持久化
+2026-02-05 aa57090c5 feat(paintings): 支持 New API 自定义图片尺寸
+2026-01-26 f48c64f16 fix(providers): restore built-in providers and compact controls
+2026-01-19 307359737 fix:CSC_LINK 配错
+2026-01-19 c7814c3a2 fix：通过 IPC 改为发送原始参数并清理旧订阅 避免 An object could not be cloned 继续触发
+2026-01-19 ab9af5e3b fix：memo 笔记
+2026-01-18 a0a4f6577 feat: incremental backup and trim defaults
+2026-01-17 7077904ef fix:笔记留白 md 排版
+2026-01-17 29825c566 fix:进行了 action 的增删 feat：笔记支持折叠留白
+2026-01-17 dac9fa691 feat(notes): restore file to selected version
+2026-01-17 866c03490 feat:在笔记页面加入git 功能的集成
+2026-01-15 c5c34b114 fix:已修复构建失败点并完成验证 - 修复 TS2554：将 scripts/feishu-notify.ts:421 的 program.parse() 改为 program.parse(process.argv)（不改变运行行为，仅满足当前 commander@14 类型签名）。 - 修复 pnpm lint 的 format:check 失败：为 .ace-tool/index.json 补上文件末尾换行。
+2025-12-12 ea430db3a update workflows
+2026-01-06 ce7ab1e3e docs: update flow for pnpm
+2026-01-06 242cc1644 test(renderer): update snapshots
+2026-01-06 321e95ac9 feat(main): 禁用启动期预加载置顶/全工作区窗口，避免干扰 macOS AltTab
+2025-12-12 51d7c06e5 update workflows
+2026-01-04 3aa6246c6 chore: 线性化对齐 tests/renderer.setup.ts
+2025-12-26 f140d8384 test(renderer): 提升 assistants.test hook 超时
+2025-12-26 e6e4e52bc fix(chat): 思考中显示为"{{effort}}中"
+2025-12-26 1777d5a9a fix(chat): 思考中展示思考程度
+2025-12-26 97e0a86b4 feat(chat): 思考块标题按思考程度展示   - 在 thinking block 的 metadata 记录 reasoning_effort（仅 minimal/low/medium/high/xhigh），确保回放一致   - 完成态优先展示“已{{effort}}（用时 {{seconds}} 秒）”，default/auto/none 回退“已深度思考”   - 覆盖主窗口/mini 窗口/划词窗口的 thinking block 创建逻辑   - i18n 新增 chat.thought_done 并同步各语言文件   - 补充 ThinkingBlock 单测
+2025-12-25 1d9b86507 fix:autoswitch   - 修复点：src/renderer/src/pages/home/HomePage.tsx:121 在切换助手时兜底 dispatch(setActiveTopicOrSessionAction('topic')) + EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)，并让 preferTopicTab 覆盖     clickAssistantToShowTopic。   - 新增可测纯函数与单测：src/renderer/src/pages/home/utils/topicAutoSwitch.ts:1、src/renderer/src/pages/home/utils/__tests__/topicAutoSwitch.test.ts:1   - 已验证：yarn format、yarn lint、yarn test 全部通过。
+2025-12-25 0d86c1a53 feat:重启后恢复上次多标签页（含当前激活标签）
+2025-12-25 0f28c3181 fix:macO系统中文字体列表问题已修复自定义 CSS 覆盖主字体问题已加固2
+2025-12-25 6a0b0f6b0 fix:macO系统中文字体列表问题已修复自定义 CSS 覆盖主字体问题已加固 App_GetSystemFonts 在 mac 上改为优先用 atsutil fonts -list 的 System Families（能拿到 PingFang SC / Songti SC 等），失败再回退原来的 font-list：src/main/ipc.ts:292、src/main/utils/fonts.ts:42
+2025-12-24 1cec532cd feat:ChatGPT小程序导出扩展为个人空间/团队空间   - 实现位置：src/renderer/src/services/export/scripts/chatgpt-export.ts:22       - 导出时会在 WebView 内弹出选择框：个人空间 / 团队空间（自动检测 Workspace ID，也可手动粘贴）       - 团队空间导出使用请求头 ChatGPT-Account-Id: <workspaceId>，并额外拉取项目(Project/Gizmo)内对话   - 单测：src/renderer/src/services/export/scripts/__tests__/chatgpt-export.test.ts:1   - 质量检查：已通过 yarn format、yarn lint、yarn test
+2025-12-19 3f221ca18 feat: improve tab drag handling and add close tab shortcut
+2025-12-19 7df7aab7a feat：已完成拖拽到顶部标签栏创建/切换标签页的实现，遵循“不允许重复、直接切换、无需强隔离”的约束。   - 新增拖拽候选上下文，统一记录助手/话题拖拽目标并负责导航到已有或新建标签页：src/renderer/src/context/TabDragContext.tsx   - 顶部标签栏增加拖拽悬停高亮与指针跟随判定：src/renderer/src/components/Tab/TabContainer.tsx   - 助手列表与标签分组列表在拖拽开始/结束时设置候选并触发切换：src/renderer/src/pages/home/Tabs/components/UnifiedList.tsx、src/renderer/src/pages/home/Tabs/components/UnifiedTagGroups.tsx   - 话题列表拖拽同样接入候选与切换：src/renderer/src/pages/home/Tabs/components/Topics.tsx   - Router 注入拖拽上下文提供器：src/renderer/src/Router.tsx
+2025-12-19 31e8ff0bd fix: prevent api server status check spam
+2025-12-18 9c5d96da5 fix: remember tab side preference per tab
+2025-12-17 de57919c8 fix: prefer topic tab on launchpad navigation
+2025-12-17 0866e4f8f fix: respect auto topic switch on new tabs
+2025-12-17 de1c0fdb0 fix: sync launchpad selection before navigation
+2025-12-17 264a9fd96 chore: fix home page format
+2025-12-17 303005f83 fix: isolate tab chat state
+2025-12-17 1ac0cf094 feat:按标签页隔离：   - 给 tabs 的 Tab 结构新增 chatState，用于记录每个标签页自己的 assistantId/topicId：src/renderer/src/store/tabs.ts   - 移除 useTopic.ts 里模块级 _activeTopic/_setActiveTopic（这俩会跨标签页串状态）：src/renderer/src/hooks/useTopic.ts   - HomePage 改为：       - 读取当前 activeTabId 对应 tab 的 chatState 作为初始助手/话题       - 在本标签页内切换助手/话题时，写回当前 tab 的 chatState       - 路由是 /chat/assistant/:id 时，不再强制把话题重置为第一个，而是优先恢复该 tab 记录的话题         文件：src/renderer/src/pages/home/HomePage.tsx
+2025-12-17 868ae2906 feat(ui): 启动台加入助手/话题快捷选择并持久化；移动话题支持去重；修复话题右键多选
+2025-12-17 678bf8f5d feat：Tab 新建入口：   - src/renderer/src/components/Tab/TabContainer.tsx 添加下拉菜单，可新建助手标签页（跳转 /chat/assistant/:assistantId）、话题标签页（跳转 /chat/topic/:topicId）、应用标签页（原 launchpad）。Tab 图标/标题支持     assistant:、topic: 前缀解析。   - 路由与默认选中：src/renderer/src/Router.tsx 新增 /chat/assistant/:assistantId、/chat/topic/:topicId 路由；src/renderer/src/pages/home/HomePage.tsx 根据路由参数自动选中对应助手/话题。   - 清理合并遗留：删除 Topics 多选旧逻辑的未用函数/导入；TopicManageMode 只保留单一 AssistantAvatar 引入；TabContainer 修复 lint 格式。
+2025-12-16 237ef5cc9 fix: 话题列表置顶优先排序
+2025-12-12 b233667e8 update workflows
+2025-12-12 bb320a98b feat(ui): crown badge for xhigh reasoning_effort
+2025-12-12 bdd492260 test: mock TopicManager to avoid import timeout
+2025-12-12 9a6f52c1b fix: ignore xhigh for xai reasoning params
+2025-12-12 312b93f2c feat: support xhigh reasoning_effort for gpt-5.2
+2025-12-11 2dd1b21b0 修复了gemini的导出，仍然有问题
+2025-12-11 8f068d16b feat:新增小程序导出功能   - 新增 WebView 执行脚本通道（IpcChannel、main handler、preload API），支持在 WebView 内执行导出脚本。   - 实现 ChatGPT/Gemini 导出脚本与 MinAppExportService，统一导出→导入流程；新增 GeminiImporter 并注册，支持 Gemini 数据导入。   - 侧边栏/顶部导航 UI 增加导出按钮与加载态，导出完成后提示创建的助手与对话数；补充 zh-CN/en-us/zh-tw 文案。   - ESLint/Biome 配置新增忽略项以跳过 *.user.js 外部脚本检查。
+2025-12-11 2e3abebbd n18n更新
+2025-12-11 ba3a73f9b feat:增加排序开关，具体是在多选的时候上方增加一个按钮，有下拉菜单提供“按更新时间倒序 / 按创建时间倒序 / 手动排序（启用拖拽并记忆顺序）”。选择“手动排序”时关闭自动时间排序，按用户拖拽顺序展示。
+2025-12-11 bca4c9921 补充md文档的部分
+2025-12-11 192100ddb fix：修复了上次的lint问题
+2025-12-11 5fe0481b2 feat: 新增了多选模式和导出json选项 - 在 src/renderer/src/pages/home/Tabs/components/Topics.tsx 增加多选模式（右键入口、全选/清空、列表禁拖拽），列表顶部出现操作条，可批量移动/删除/导出 ChatGPT JSON，选中状态、复选框与样式支持。批量移动按目标助手最新时间排序，移动/删除后处理激活话题及默认话题补位，导出生成符合 ChatGPT importer 的线性 mapping JSON。 - 右键菜单加入多选相关项（开启/退出、选中/取消、全选/清空），多选时点击行仅切换选中，双击重命名在多选时禁用。 - 新增 i18n 文案（多选相关）于 zh-cn.json, en-us.json, zh-tw.json。
+2025-12-04 5178be7c4 feat(assistant): add move all topics between assistants functionality
+2025-12-21 9a435b8ab feat(history-search): show keyword-adjacent snippets and align matching text (#12034)
+```
+
+</details>
 
 # 🌠 Screenshot
 
