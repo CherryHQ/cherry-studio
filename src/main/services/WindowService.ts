@@ -95,6 +95,15 @@ export class WindowService {
       }
     })
 
+    if (is.dev && configManager.getEnableDeveloperMode()) {
+      const devTitle = `${app.getName()} [DEV]`
+      this.mainWindow.setTitle(devTitle)
+      this.mainWindow.on('page-title-updated', (event) => {
+        event.preventDefault()
+        this.mainWindow?.setTitle(devTitle)
+      })
+    }
+
     this.setupMainWindow(this.mainWindow, mainWindowState)
 
     //preload miniWindow to resolve series of issues about miniWindow in Mac

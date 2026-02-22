@@ -1,4 +1,5 @@
-import { isLinux, isWin } from '@renderer/config/constant'
+import { isDev, isLinux, isWin } from '@renderer/config/constant'
+import { useEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
@@ -6,7 +7,7 @@ import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ControlButton, WindowControlsContainer } from './WindowControls.styled'
+import { ControlButton, DevBadge, WindowControlsContainer } from './WindowControls.styled'
 
 interface WindowRestoreIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number
@@ -51,6 +52,7 @@ const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
   const { useSystemTitleBar } = useSettings()
+  const { enableDeveloperMode } = useEnableDeveloperMode()
 
   useEffect(() => {
     // Check initial maximized state
@@ -92,6 +94,7 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
+      {isDev && enableDeveloperMode && <DevBadge>DEV</DevBadge>}
       <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMinimize} aria-label={t('navbar.window.minimize')}>
           <Minus size={14} />

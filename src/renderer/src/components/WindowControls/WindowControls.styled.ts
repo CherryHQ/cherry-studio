@@ -9,6 +9,22 @@ export const WindowControlsContainer = styled.div`
   z-index: 9999;
 `
 
+export const DevBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 0 6px;
+  margin-right: 8px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  -webkit-app-region: no-drag;
+`
+
 export const ControlButton = styled.button<{ $isClose?: boolean }>`
   display: flex;
   align-items: center;
