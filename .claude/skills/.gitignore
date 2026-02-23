@@ -3,6 +3,8 @@
 *
 !.gitignore
 !README*.md
+!create-skill/
+!create-skill/**
 !gh-create-pr/
 !gh-create-pr/**
 !prepare-release/
