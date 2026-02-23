@@ -1234,11 +1234,11 @@ importers:
         specifier: 2.0.0
         version: 2.0.0(patch_hash=8485d66a36f6f8fc2640cd0a3da860a01fb7b7b94f9ef7847f7e14fa333f8ea8)(zod@4.3.6)
       '@ai-sdk/provider':
-        specifier: ^3.0.5
-        version: 3.0.5
+        specifier: ^3.0.8
+        version: 3.0.8
       '@ai-sdk/provider-utils':
-        specifier: ^4.0.10
-        version: 4.0.10(zod@4.3.6)
+        specifier: ^4.0.15
+        version: 4.0.15(zod@4.3.6)
       ai:
         specifier: ^6.0.26
         version: 6.0.59(zod@4.3.6)
@@ -12460,6 +12460,13 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
       zod: 4.3.4
+
+  '@ai-sdk/provider-utils@4.0.15(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 4.3.6
 
   '@ai-sdk/provider@2.0.0':
     dependencies:
