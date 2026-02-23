@@ -1,5 +1,8 @@
 import { definePlugin } from '@cherrystudio/ai-core'
+import { loggerService } from '@logger'
 import type { LanguageModelMiddleware } from 'ai'
+
+const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
 /**
  * skip Gemini Thought Signature Middleware
