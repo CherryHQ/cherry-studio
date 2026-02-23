@@ -145,5 +145,5 @@ export function addImageFileToContents(messages: Message[]) {
 }
 
 export function formatQuotedText(text: string) {
-  return '<quote>\n' + text + '\n</quote>'
+  return '<quote>\n\n' + text + '\n\n</quote>\n'
 }
