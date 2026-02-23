@@ -764,7 +764,7 @@ export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
 export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
 export const WebSearchResponseSchema = z.object({
-  // It's a way too complicated to define a schema for WebSearchResults,
+  // It's way too complicated to define a schema for WebSearchResults,
   // so use z.custom to bypass validation
   results: z.custom<WebSearchResults>(),
   source: WebSearchSourceSchema
