@@ -27,6 +27,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import { closeAllDataConnections } from '../utils/lifecycle'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -408,6 +409,10 @@ class BackupManager {
         // 获取源目录总大小
         const totalSize = await this.getDirSize(sourcePath)
         let copiedSize = 0
+
+        // Close all database connections and file watchers before removing Data directory.
+        // On Windows, open file handles prevent deletion (EBUSY).
+        await closeAllDataConnections()
 
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)

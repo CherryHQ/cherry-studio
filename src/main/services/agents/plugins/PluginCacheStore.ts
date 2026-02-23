@@ -1,7 +1,13 @@
 import { loggerService } from '@logger'
-import { findAllSkillDirectories, parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
-import type { CachedPluginsData, InstalledPlugin, PluginError, PluginMetadata, PluginType } from '@types'
-import { CachedPluginsDataSchema } from '@types'
+import { directoryExists, fileExists, isPathInside, pathExists, writeWithLock } from '@main/utils/file'
+import {
+  findAllSkillDirectories,
+  findSkillMdPath,
+  parsePluginMetadata,
+  parseSkillMetadata
+} from '@main/utils/markdownParser'
+import type { CachedPluginsData, InstalledPlugin, PluginManifest, PluginType } from '@types'
+import { CachedPluginsDataSchema, PluginManifestSchema } from '@types'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -12,215 +18,10 @@ interface PluginCacheStoreDeps {
   getPluginDirectoryName: (type: PluginType) => 'agents' | 'commands' | 'skills'
   getClaudeBasePath: (workdir: string) => string
   getClaudePluginDirectory: (workdir: string, type: PluginType) => string
-  getPluginsBasePath: () => string
 }
 
 export class PluginCacheStore {
   constructor(private readonly deps: PluginCacheStoreDeps) {}
-
-  async listAvailableFilePlugins(type: 'agent' | 'command'): Promise<PluginMetadata[]> {
-    const basePath = this.deps.getPluginsBasePath()
-    const directory = path.join(basePath, this.deps.getPluginDirectoryName(type))
-
-    try {
-      await fs.promises.access(directory, fs.constants.R_OK)
-    } catch (error) {
-      logger.warn(`Plugin directory not accessible: ${directory}`, {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return []
-    }
-
-    const plugins: PluginMetadata[] = []
-    const categories = await fs.promises.readdir(directory, { withFileTypes: true })
-
-    for (const categoryEntry of categories) {
-      if (!categoryEntry.isDirectory()) {
-        continue
-      }
-
-      const category = categoryEntry.name
-      const categoryPath = path.join(directory, category)
-      const files = await fs.promises.readdir(categoryPath, { withFileTypes: true })
-
-      for (const file of files) {
-        if (!file.isFile()) {
-          continue
-        }
-
-        const ext = path.extname(file.name).toLowerCase()
-        if (!this.deps.allowedExtensions.includes(ext)) {
-          continue
-        }
-
-        try {
-          const filePath = path.join(categoryPath, file.name)
-          const sourcePath = path.join(this.deps.getPluginDirectoryName(type), category, file.name)
-          const metadata = await parsePluginMetadata(filePath, sourcePath, category, type)
-          plugins.push(metadata)
-        } catch (error) {
-          logger.warn(`Failed to parse plugin: ${file.name}`, {
-            category,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-    }
-
-    return plugins
-  }
-
-  async listAvailableSkills(): Promise<PluginMetadata[]> {
-    const basePath = this.deps.getPluginsBasePath()
-    const skillsPath = path.join(basePath, this.deps.getPluginDirectoryName('skill'))
-    const skills: PluginMetadata[] = []
-
-    try {
-      await fs.promises.access(skillsPath)
-    } catch {
-      logger.warn('Skills directory not found', { skillsPath })
-      return []
-    }
-
-    try {
-      const skillDirectories = await findAllSkillDirectories(skillsPath, basePath)
-      logger.info(`Found ${skillDirectories.length} skill directories`, { skillsPath })
-
-      for (const { folderPath, sourcePath } of skillDirectories) {
-        try {
-          const metadata = await parseSkillMetadata(folderPath, sourcePath, 'skills')
-          skills.push(metadata)
-        } catch (error) {
-          logger.warn(`Failed to parse skill folder: ${sourcePath}`, {
-            folderPath,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-    } catch (error) {
-      logger.error('Failed to scan skill directory', {
-        skillsPath,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-
-    return skills
-  }
-
-  async readSourceContent(sourcePath: string): Promise<string> {
-    const absolutePath = this.resolveSourcePath(sourcePath)
-
-    try {
-      await fs.promises.access(absolutePath, fs.constants.R_OK)
-    } catch {
-      throw {
-        type: 'FILE_NOT_FOUND',
-        path: sourcePath
-      } as PluginError
-    }
-
-    try {
-      return await fs.promises.readFile(absolutePath, 'utf-8')
-    } catch (error) {
-      throw {
-        type: 'READ_FAILED',
-        path: sourcePath,
-        reason: error instanceof Error ? error.message : String(error)
-      } as PluginError
-    }
-  }
-
-  resolveSourcePath(sourcePath: string): string {
-    const normalized = path.normalize(sourcePath)
-
-    if (normalized.includes('..')) {
-      throw {
-        type: 'PATH_TRAVERSAL',
-        message: 'Path traversal detected',
-        path: sourcePath
-      } as PluginError
-    }
-
-    const basePath = this.deps.getPluginsBasePath()
-    const absolutePath = path.join(basePath, normalized)
-    const resolvedPath = path.resolve(absolutePath)
-
-    if (!resolvedPath.startsWith(path.resolve(basePath))) {
-      throw {
-        type: 'PATH_TRAVERSAL',
-        message: 'Path outside plugins directory',
-        path: sourcePath
-      } as PluginError
-    }
-
-    return resolvedPath
-  }
-
-  async ensureSkillSourceDirectory(sourceAbsolutePath: string, sourcePath: string): Promise<void> {
-    let stats: fs.Stats
-    try {
-      stats = await fs.promises.stat(sourceAbsolutePath)
-    } catch {
-      throw {
-        type: 'FILE_NOT_FOUND',
-        path: sourceAbsolutePath
-      } as PluginError
-    }
-
-    if (!stats.isDirectory()) {
-      throw {
-        type: 'INVALID_METADATA',
-        reason: 'Skill source is not a directory',
-        path: sourcePath
-      } as PluginError
-    }
-  }
-
-  async validatePluginFile(filePath: string, maxFileSize: number): Promise<void> {
-    let stats: fs.Stats
-    try {
-      stats = await fs.promises.stat(filePath)
-    } catch {
-      throw {
-        type: 'FILE_NOT_FOUND',
-        path: filePath
-      } as PluginError
-    }
-
-    if (stats.size > maxFileSize) {
-      throw {
-        type: 'FILE_TOO_LARGE',
-        size: stats.size,
-        max: maxFileSize
-      } as PluginError
-    }
-
-    const ext = path.extname(filePath).toLowerCase()
-    if (!this.deps.allowedExtensions.includes(ext)) {
-      throw {
-        type: 'INVALID_FILE_TYPE',
-        extension: ext
-      } as PluginError
-    }
-
-    try {
-      const basePath = this.deps.getPluginsBasePath()
-      const relativeSourcePath = path.relative(basePath, filePath)
-      const segments = relativeSourcePath.split(path.sep)
-      const rootDir = segments[0]
-      const agentDir = this.deps.getPluginDirectoryName('agent')
-      const type: 'agent' | 'command' = rootDir === agentDir ? 'agent' : 'command'
-      const category = path.basename(path.dirname(filePath))
-
-      await parsePluginMetadata(filePath, relativeSourcePath, category, type)
-    } catch (error) {
-      throw {
-        type: 'INVALID_METADATA',
-        reason: 'Failed to parse frontmatter',
-        path: filePath
-      } as PluginError
-    }
-  }
 
   async listInstalled(workdir: string): Promise<InstalledPlugin[]> {
     const claudePath = this.deps.getClaudeBasePath(workdir)
@@ -235,19 +36,27 @@ export class PluginCacheStore {
     return await this.rebuild(workdir)
   }
 
-  async upsert(workdir: string, plugin: InstalledPlugin): Promise<void> {
+  /**
+   * Ensure cache data exists, rebuilding from filesystem if necessary
+   */
+  private async ensureCacheData(workdir: string): Promise<{ cacheData: CachedPluginsData; claudePath: string }> {
     const claudePath = this.deps.getClaudeBasePath(workdir)
-    let cacheData = await this.readCacheFile(claudePath)
-    let plugins = cacheData?.plugins
+    const existingCache = await this.readCacheFile(claudePath)
 
-    if (!plugins) {
-      plugins = await this.rebuild(workdir)
-      cacheData = {
-        version: 1,
-        lastUpdated: Date.now(),
-        plugins
-      }
+    if (existingCache) {
+      return { cacheData: existingCache, claudePath }
     }
+
+    const plugins = await this.rebuild(workdir)
+    return {
+      cacheData: { version: 1, lastUpdated: Date.now(), plugins },
+      claudePath
+    }
+  }
+
+  async upsert(workdir: string, plugin: InstalledPlugin): Promise<void> {
+    const { cacheData, claudePath } = await this.ensureCacheData(workdir)
+    const plugins = cacheData.plugins
 
     const updatedPlugin: InstalledPlugin = {
       ...plugin,
@@ -265,7 +74,7 @@ export class PluginCacheStore {
     }
 
     const data: CachedPluginsData = {
-      version: cacheData?.version ?? 1,
+      version: cacheData.version,
       lastUpdated: Date.now(),
       plugins
     }
@@ -275,23 +84,11 @@ export class PluginCacheStore {
   }
 
   async remove(workdir: string, filename: string, type: PluginType): Promise<void> {
-    const claudePath = this.deps.getClaudeBasePath(workdir)
-    let cacheData = await this.readCacheFile(claudePath)
-    let plugins = cacheData?.plugins
-
-    if (!plugins) {
-      plugins = await this.rebuild(workdir)
-      cacheData = {
-        version: 1,
-        lastUpdated: Date.now(),
-        plugins
-      }
-    }
-
-    const filtered = plugins.filter((p) => !(p.filename === filename && p.type === type))
+    const { cacheData, claudePath } = await this.ensureCacheData(workdir)
+    const filtered = cacheData.plugins.filter((p) => !(p.filename === filename && p.type === type))
 
     const data: CachedPluginsData = {
-      version: cacheData?.version ?? 1,
+      version: cacheData.version,
       lastUpdated: Date.now(),
       plugins: filtered
     }
@@ -317,7 +114,8 @@ export class PluginCacheStore {
     await Promise.all([
       this.collectFilePlugins(workdir, 'agent', plugins),
       this.collectFilePlugins(workdir, 'command', plugins),
-      this.collectSkillPlugins(workdir, plugins)
+      this.collectSkillPlugins(workdir, plugins),
+      this.collectPackagePlugins(workdir, plugins)
     ])
 
     try {
@@ -401,6 +199,147 @@ export class PluginCacheStore {
     }
   }
 
+  private async collectPackagePlugins(workdir: string, plugins: InstalledPlugin[]): Promise<void> {
+    const claudePath = this.deps.getClaudeBasePath(workdir)
+    const pluginsPath = path.join(claudePath, 'plugins')
+
+    if (!(await directoryExists(pluginsPath))) {
+      return
+    }
+
+    const entries = await fs.promises.readdir(pluginsPath, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) {
+        continue
+      }
+
+      const pluginDir = path.join(pluginsPath, entry.name)
+      const manifestPath = path.join(pluginDir, '.claude-plugin', 'plugin.json')
+
+      if (!(await fileExists(manifestPath))) {
+        logger.debug('Plugin manifest not found while rebuilding cache', { pluginDir })
+        continue
+      }
+
+      let manifest: PluginManifest
+      try {
+        const content = await fs.promises.readFile(manifestPath, 'utf-8')
+        const json = JSON.parse(content)
+        manifest = PluginManifestSchema.parse(json)
+      } catch (error) {
+        logger.warn('Failed to parse plugin manifest while rebuilding cache', {
+          manifestPath,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        continue
+      }
+
+      const packageInfo = { packageName: manifest.name, packageVersion: manifest.version }
+
+      await Promise.all([
+        this.collectPackageComponentPaths(pluginDir, 'skills', manifest.skills, 'skill', plugins, packageInfo),
+        this.collectPackageComponentPaths(pluginDir, 'agents', manifest.agents, 'agent', plugins, packageInfo),
+        this.collectPackageComponentPaths(pluginDir, 'commands', manifest.commands, 'command', plugins, packageInfo)
+      ])
+    }
+  }
+
+  private async collectPackageComponentPaths(
+    pluginDir: string,
+    defaultSubDir: string,
+    customPaths: string | string[] | undefined,
+    type: PluginType,
+    plugins: InstalledPlugin[],
+    packageInfo: { packageName: string; packageVersion?: string }
+  ): Promise<void> {
+    const scannedPaths = new Set<string>()
+
+    const defaultPath = path.join(pluginDir, defaultSubDir)
+    if (await directoryExists(defaultPath)) {
+      scannedPaths.add(defaultPath)
+      await this.scanAndCollectComponents(defaultPath, type, plugins, packageInfo)
+    }
+
+    if (customPaths) {
+      const pathArray = Array.isArray(customPaths) ? customPaths : [customPaths]
+      for (const customPath of pathArray) {
+        const fullPath = path.resolve(pluginDir, customPath)
+        if (!isPathInside(fullPath, pluginDir)) {
+          logger.warn('Skipping custom path with path traversal while rebuilding cache', {
+            customPath,
+            pluginDir
+          })
+          continue
+        }
+
+        if (!scannedPaths.has(fullPath) && (await pathExists(fullPath))) {
+          scannedPaths.add(fullPath)
+          await this.scanAndCollectComponents(fullPath, type, plugins, packageInfo)
+        }
+      }
+    }
+  }
+
+  private async scanAndCollectComponents(
+    dirPath: string,
+    type: PluginType,
+    plugins: InstalledPlugin[],
+    packageInfo: { packageName: string; packageVersion?: string }
+  ): Promise<void> {
+    try {
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry.name)
+
+        try {
+          if (type === 'skill' && entry.isDirectory()) {
+            const skillMdPath = await findSkillMdPath(entryPath)
+            if (skillMdPath) {
+              const metadata = await parseSkillMetadata(entryPath, entry.name, 'plugins')
+              plugins.push({
+                filename: metadata.filename,
+                type: 'skill',
+                metadata: {
+                  ...metadata,
+                  packageName: packageInfo.packageName,
+                  packageVersion: packageInfo.packageVersion
+                }
+              })
+            }
+          } else if ((type === 'agent' || type === 'command') && entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase()
+            if (!this.deps.allowedExtensions.includes(ext)) {
+              continue
+            }
+            const metadata = await parsePluginMetadata(entryPath, entry.name, 'plugins', type)
+            plugins.push({
+              filename: metadata.filename,
+              type,
+              metadata: {
+                ...metadata,
+                packageName: packageInfo.packageName,
+                packageVersion: packageInfo.packageVersion
+              }
+            })
+          }
+        } catch (error) {
+          logger.warn('Failed to parse plugin component while rebuilding cache', {
+            path: entryPath,
+            type,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to scan plugin package directory while rebuilding cache', {
+        dirPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
   private async readCacheFile(claudePath: string): Promise<CachedPluginsData | null> {
     const cachePath = path.join(claudePath, 'plugins.json')
     try {
@@ -417,10 +356,7 @@ export class PluginCacheStore {
 
   private async writeCacheFile(claudePath: string, data: CachedPluginsData): Promise<void> {
     const cachePath = path.join(claudePath, 'plugins.json')
-    const tempPath = `${cachePath}.tmp`
-
     const content = JSON.stringify(data, null, 2)
-    await fs.promises.writeFile(tempPath, content, 'utf-8')
-    await fs.promises.rename(tempPath, cachePath)
+    await writeWithLock(cachePath, content, { atomic: true, encoding: 'utf-8' })
   }
 }

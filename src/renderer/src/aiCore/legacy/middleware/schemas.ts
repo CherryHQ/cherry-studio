@@ -2,6 +2,7 @@ import type { Assistant, MCPTool } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import type { SdkRawChunk, SdkRawOutput } from '@renderer/types/sdk'
+import type { LanguageModelUsage } from 'ai'
 
 import type { ProcessingState } from './types'
 
@@ -69,6 +70,7 @@ export interface CompletionsResult {
   rawOutput?: SdkRawOutput
   stream?: ReadableStream<SdkRawChunk> | ReadableStream<Chunk> | AsyncIterable<Chunk>
   controller?: AbortController
+  usage?: LanguageModelUsage
 
   getText: () => string
 }

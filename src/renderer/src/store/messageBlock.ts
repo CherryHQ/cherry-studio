@@ -18,9 +18,16 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { AISDKWebSearchResult, Citation, WebSearchProviderResponse } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
-import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
+import type { TodoItem, TodoWriteToolInput } from '@renderer/pages/home/Messages/Tools/MessageAgentTools/types'
+import type {
+  AISDKWebSearchResult,
+  BaseTool,
+  Citation,
+  NormalToolResponse,
+  WebSearchProviderResponse
+} from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { CitationMessageBlock, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
@@ -113,7 +120,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
   // 1. Handle Web Search Responses
   if (block.response) {
     switch (block.response.source) {
-      case WebSearchSource.GEMINI: {
+      case WEB_SEARCH_SOURCE.GEMINI: {
         const groundingMetadata = block.response.results as GroundingMetadata
         formattedCitations =
           groundingMetadata?.groundingChunks?.map((chunk, index) => ({
@@ -126,7 +133,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
           })) || []
         break
       }
-      case WebSearchSource.OPENAI_RESPONSE:
+      case WEB_SEARCH_SOURCE.OPENAI_RESPONSE:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
             let hostname: string | undefined
@@ -145,7 +152,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.OPENAI:
+      case WEB_SEARCH_SOURCE.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
@@ -165,7 +172,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.ANTHROPIC:
+      case WEB_SEARCH_SOURCE.ANTHROPIC:
         formattedCitations =
           (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
             const { url } = result
@@ -185,7 +192,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.PERPLEXITY: {
+      case WEB_SEARCH_SOURCE.PERPLEXITY: {
         formattedCitations =
           (block.response.results as any[])?.map((result, index) => ({
             number: index + 1,
@@ -196,8 +203,8 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
           })) || []
         break
       }
-      case WebSearchSource.GROK:
-      case WebSearchSource.OPENROUTER:
+      case WEB_SEARCH_SOURCE.GROK:
+      case WEB_SEARCH_SOURCE.OPENROUTER:
         formattedCitations =
           (block.response.results as AISDKWebSearchResult[])?.map((result, index) => {
             const url = result.url
@@ -223,8 +230,8 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             }
           }) || []
         break
-      case WebSearchSource.ZHIPU:
-      case WebSearchSource.HUNYUAN:
+      case WEB_SEARCH_SOURCE.ZHIPU:
+      case WEB_SEARCH_SOURCE.HUNYUAN:
         formattedCitations =
           (block.response.results as any[])?.map((result, index) => ({
             number: index + 1,
@@ -234,7 +241,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.WEBSEARCH:
+      case WEB_SEARCH_SOURCE.WEBSEARCH:
         formattedCitations =
           (block.response.results as WebSearchProviderResponse)?.results?.map((result, index) => ({
             number: index + 1,
@@ -245,7 +252,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.AISDK:
+      case WEB_SEARCH_SOURCE.AISDK:
         formattedCitations =
           (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({
             number: index + 1,
@@ -324,6 +331,104 @@ export const selectFormattedCitationsByBlockId = createSelector([selectBlockEnti
   }
   return []
 })
+
+// --- Active TodoWrite Block Selector ---
+interface TodoWriteNormalToolResponse extends Omit<NormalToolResponse, 'tool' | 'arguments'> {
+  tool: BaseTool & { name: 'TodoWrite' }
+  arguments: TodoWriteToolInput
+}
+
+interface TodoWriteToolMessageBlock extends Omit<ToolMessageBlock, 'metadata'> {
+  metadata: NonNullable<ToolMessageBlock['metadata']> & {
+    rawMcpToolResponse: TodoWriteNormalToolResponse
+  }
+}
+
+/**
+ * Check if todos have any incomplete items
+ */
+const hasIncompleteTodos = (todos: TodoItem[]): boolean =>
+  todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
+
+/**
+ * Check if a block is a TodoWrite tool block
+ */
+const isTodoWriteBlock = (block: MessageBlock | undefined): block is TodoWriteToolMessageBlock => {
+  if (!block || block.type !== MessageBlockType.TOOL) return false
+  const toolResponse = (block as ToolMessageBlock).metadata?.rawMcpToolResponse
+  if (toolResponse?.tool?.name !== 'TodoWrite') return false
+  // Defensive: validate todos is actually an array to prevent dirty data from crashing selectors (#12804)
+  const args = toolResponse.arguments
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return false
+  return Array.isArray((args as Record<string, unknown>).todos)
+}
+
+/**
+ * Information about active todos for PinnedTodoPanel
+ */
+export interface ActiveTodoInfo {
+  /** All todos from the latest block with incomplete items */
+  todos: TodoItem[]
+  /** Current active todo (in_progress or first pending) */
+  activeTodo: TodoItem | undefined
+  /** Number of completed todos */
+  completedCount: number
+  /** Total number of todos */
+  totalCount: number
+  /** All TodoWrite blocks grouped by messageId (for batch deletion) */
+  blockIdsByMessage: Record<string, string[]>
+}
+
+/**
+ * Select active todo info for a topic in a single pass.
+ * Returns undefined if no TodoWrite block with incomplete todos exists.
+ *
+ * Used by PinnedTodoPanel to display current task progress above the inputbar.
+ */
+export const selectActiveTodoInfo = createSelector(
+  [
+    (state: RootState) => state.messages.entities,
+    (state: RootState) => state.messageBlocks.entities,
+    (state: RootState) => state.messages.messageIdsByTopic,
+    (_state: RootState, topicId: string) => topicId
+  ],
+  (messageEntities, blockEntities, messageIdsByTopic, topicId): ActiveTodoInfo | undefined => {
+    const topicMessageIds = messageIdsByTopic[topicId]
+    if (!topicMessageIds?.length) return undefined
+
+    const blockIdsByMessage: Record<string, string[]> = {}
+    let latestBlock: TodoWriteToolMessageBlock | undefined
+
+    for (const messageId of topicMessageIds) {
+      const message = messageEntities[messageId]
+      if (!message?.blocks?.length) continue
+
+      for (const blockId of message.blocks) {
+        const block = blockEntities[blockId]
+        if (isTodoWriteBlock(block)) {
+          const ids = (blockIdsByMessage[messageId] ??= [])
+          ids.push(blockId)
+          const todos = block.metadata.rawMcpToolResponse?.arguments?.todos
+          if (todos && hasIncompleteTodos(todos)) {
+            latestBlock = block
+          }
+        }
+      }
+    }
+    if (!latestBlock) return undefined
+    const todos = latestBlock.metadata.rawMcpToolResponse?.arguments?.todos
+    if (!todos) return undefined
+    const activeTodo =
+      todos.find((todo) => todo.status === 'in_progress') ?? todos.find((todo) => todo.status === 'pending')
+    return {
+      todos,
+      activeTodo,
+      completedCount: todos.filter((todo) => todo.status === 'completed').length,
+      totalCount: todos.length,
+      blockIdsByMessage
+    }
+  }
+)
 
 // --- Selector Integration --- END
 

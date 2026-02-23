@@ -38,6 +38,17 @@ const ApiResponseSchema = z.looseObject({
           })
         )
         .min(1, 'At least one layout parsing result required')
+        .optional(),
+      ocrResults: z
+        .array(
+          z.looseObject({
+            prunedResult: z.looseObject({
+              rec_texts: z.array(z.string())
+            })
+          })
+        )
+        .min(1, 'At least one ocr result required')
+        .optional()
     })
     .optional(),
   errorCode: z.number().optional(),
@@ -84,13 +95,10 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
    * 解析文件并通过 PaddleOCR 进行预处理（当前仅支持 PDF 文件）
    * @param sourceId - 源任务ID，用于进度更新/日志追踪
    * @param file - 待处理的文件元数据（仅支持 ext 为 .pdf 的文件）
-   * @returns {Promise<{processedFile: FileMetadata; quota: number}>} 处理后的文件元数据 + 配额消耗（当前 PaddleOCR 配额为 0）
+   * @returns {Promise<{processedFile: FileMetadata}>} 处理后的文件元数据
    * @throws {Error} 若传入非 PDF 文件、文件大小超限、页数超限等会抛出异常
    */
-  public async parseFile(
-    sourceId: string,
-    file: FileMetadata
-  ): Promise<{ processedFile: FileMetadata; quota: number }> {
+  public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`PaddleOCR preprocess processing started: ${filePath}`)
@@ -128,18 +136,12 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
 
       // 5. 创建处理后数据
       return {
-        processedFile,
-        quota: 0
+        processedFile
       }
     } catch (error: unknown) {
       logger.error(`PaddleOCR preprocess processing failed for:`, error as Error)
       throw new Error(getErrorMessage(error))
     }
-  }
-
-  public async checkQuota(): Promise<number> {
-    // PaddleOCR doesn't have quota checking, return 0
-    return 0
   }
 
   private getMarkdownFileName(file: FileMetadata): string {
@@ -169,22 +171,23 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     try {
       doc = await this.readPdf(pdfBuffer)
     } catch (error: unknown) {
-      // PDF 解析失败：抛异常，跳过页数校验
+      // PDF 解析失败：跳过页数校验，继续交由 PaddleOCR API 处理
       const errorMsg = getErrorMessage(error)
-      logger.error(
+      logger.warn(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
           `Skipping page count validation. Will attempt to process with PaddleOCR API. ` +
           `Error details: ${errorMsg}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
-      throw error
     }
 
-    if (doc?.numPages > PDF_PAGE_LIMIT) {
+    if (doc?.numPages && doc.numPages > PDF_PAGE_LIMIT) {
       throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of ${PDF_PAGE_LIMIT} pages`)
     }
 
-    logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+    if (doc) {
+      logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
+    }
 
     return pdfBuffer
   }
@@ -270,11 +273,26 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       throw new Error(errorMsg)
     }
 
-    // Zod 保证：result 存在时，layoutParsingResults 必是非空数组
-    const markdownText = result.layoutParsingResults
-      .filter((layoutResult) => layoutResult?.markdown?.text)
-      .map((layoutResult) => layoutResult.markdown.text)
-      .join('\n\n')
+    // Extract text from layoutParsingResults (PP-StructureV3) or ocrResults (PP-OCRv5)
+    let markdownText: string
+
+    if (result.layoutParsingResults && result.layoutParsingResults.length > 0) {
+      markdownText = result.layoutParsingResults
+        .filter((layoutResult) => layoutResult?.markdown?.text)
+        .map((layoutResult) => layoutResult.markdown.text)
+        .join('\n\n')
+    } else if (result.ocrResults && result.ocrResults.length > 0) {
+      markdownText = result.ocrResults
+        .filter((ocrResult) => ocrResult?.prunedResult?.rec_texts)
+        .map((ocrResult) => ocrResult.prunedResult.rec_texts.join('\n'))
+        .join('\n\n')
+    } else {
+      throw new Error(`No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`)
+    }
+
+    if (!markdownText.trim()) {
+      throw new Error(`PaddleOCR returned empty text content for file [ID: ${file.id}]`)
+    }
 
     // 直接构造目标文件名
     const finalMdFileName = this.getMarkdownFileName(file)

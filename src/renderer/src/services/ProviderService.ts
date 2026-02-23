@@ -28,8 +28,8 @@ export function getProviderByModel(model?: Model) {
 
   if (provider?.id === 'cherryai') {
     const map = {
-      'glm-4.5-flash': 'zhipu',
-      'Qwen/Qwen3-8B': 'silicon'
+      'Qwen/Qwen3-8B': 'cherryin',
+      'Qwen/Qwen3-Next-80B-A3B-Instruct': 'cherryin'
     }
 
     const providerId = map[model?.id as keyof typeof map]
