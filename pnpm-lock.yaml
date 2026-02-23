@@ -22,8 +22,6 @@ overrides:
   '@img/sharp-linux-x64': 0.34.3
   '@img/sharp-win32-x64': 0.34.3
   '@langchain/core': 1.0.2
-  '@ai-sdk/openai-compatible@1.0.27': 1.0.28
-  '@ai-sdk/openai-compatible@1.0.30': 1.0.28
 
 patchedDependencies:
   '@ai-sdk/google@3.0.30':
