@@ -1,6 +1,6 @@
 import type { Message, Model } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types/file'
-import { FileTypes } from '@renderer/types/file'
+import { FILE_TYPE } from '@renderer/types/file'
 import {
   AssistantMessageStatus,
   type FileMessageBlock,
@@ -87,7 +87,7 @@ const createFileBlock = (
       path: file?.path ?? '/tmp/document.txt',
       size: file?.size ?? 1024,
       ext: file?.ext ?? '.txt',
-      type: file?.type ?? FileTypes.TEXT,
+      type: file?.type ?? FILE_TYPE.TEXT,
       created_at: file?.created_at ?? timestamp,
       count: file?.count ?? 1,
       ...file
@@ -252,12 +252,57 @@ describe('messageConverter', () => {
 
       const result = await convertMessageToSdkParam(message, false, model)
 
+      // Reasoning blocks must come before text blocks (required by AWS Bedrock for Claude extended thinking)
       expect(result).toEqual({
         role: 'assistant',
         content: [
-          { type: 'text', text: 'Here is my answer' },
-          { type: 'reasoning', text: 'Let me think...' }
+          { type: 'reasoning', text: 'Let me think...' },
+          { type: 'text', text: 'Here is my answer' }
         ]
+      })
+    })
+
+    it('excludes empty content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Empty content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('excludes whitespace-only content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '   \n\t  '
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Whitespace-only content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('trims content in assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '  Trimmed answer  \n'
+      message.__mockThinkingBlocks = []
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Trimmed answer' }]
       })
     })
   })
@@ -301,7 +346,7 @@ describe('messageConverter', () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const fileUser = createMessage('user')
       fileUser.__mockContent = 'Use this document as inspiration'
-      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FileTypes.DOCUMENT } })]
+      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FILE_TYPE.DOCUMENT } })]
       convertFileBlockToFilePartMock.mockResolvedValueOnce({
         type: 'file',
         filename: 'reference.pdf',

@@ -8,6 +8,7 @@
  */
 
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { LanguageModelUsage } from 'ai'
 
 import type { AppProviderSettingsMap, AppRuntimeConfig } from './merged'
 
@@ -36,4 +37,5 @@ export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './mer
  */
 export type CompletionsResult = {
   getText: () => string
+  usage: LanguageModelUsage
 }

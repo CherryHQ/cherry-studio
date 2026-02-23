@@ -299,9 +299,11 @@ export default class ModernAiProvider {
       await streamResult?.consumeStream()
 
       const finalText = await streamResult.text
+      const usage = await streamResult.totalUsage
 
       return {
-        getText: () => finalText
+        getText: () => finalText,
+        usage
       }
     }
   }

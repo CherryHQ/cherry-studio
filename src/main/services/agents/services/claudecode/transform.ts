@@ -72,10 +72,7 @@ const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
  * Removes any local command stdout/stderr XML wrappers that should never surface to the UI.
  */
 export const stripLocalCommandTags = (text: string): string => {
-  return text
-    .replace(/<local-command-(stdout|stderr)>(.*?)<\/local-command-\1>/gs, '$2')
-    .replace('(no content)', '')
-    .trim()
+  return text.replace(/<local-command-(stdout|stderr)>(.*?)<\/local-command-\1>/gs, '$2').replace('(no content)', '')
 }
 
 /**
@@ -85,7 +82,7 @@ export const stripLocalCommandTags = (text: string): string => {
  */
 const filterCommandTags = (text: string): string => {
   const withoutLocalCommandTags = stripLocalCommandTags(text)
-  return withoutLocalCommandTags.replace(/<command-[^>]+>.*?<\/command-[^>]+>/gs, '').trim()
+  return withoutLocalCommandTags.replace(/<command-[^>]+>.*?<\/command-[^>]+>/gs, '')
 }
 
 /**
@@ -136,6 +133,9 @@ function handleAssistantMessage(
   message: Extract<SDKMessage, { type: 'assistant' }>,
   state: ClaudeStreamState
 ): AgentStreamPart[] {
+  // Clear skill content expectation when assistant starts responding
+  state.consumeExpectingSkillContent()
+
   const chunks: AgentStreamPart[] = []
   const providerMetadata = sdkMessageToProviderMetadata(message)
   const content = message.message.content
@@ -326,6 +326,13 @@ function handleUserMessage(
   const hasToolResults = contentArray.some((block: any) => block.type === 'tool_result')
 
   if (hasToolResults || message.tool_use_result || message.parent_tool_use_id) {
+    // Detect if this is a Skill tool result - the next user message will contain
+    // skill content that should be suppressed from the UI
+    const toolUseResult = message.tool_use_result as { commandName?: string } | undefined
+    if (toolUseResult?.commandName) {
+      state.setExpectingSkillContent(true)
+    }
+
     if (!Array.isArray(content)) {
       return chunks
     }
@@ -355,6 +362,13 @@ function handleUserMessage(
         }
       }
     }
+    return chunks
+  }
+
+  // Check if this user message is skill content that should be suppressed
+  // (follows immediately after a Skill tool result)
+  if (state.consumeExpectingSkillContent()) {
+    logger.silly('Suppressing skill content user message')
     return chunks
   }
 
@@ -428,6 +442,9 @@ function handleStreamEvent(
   message: Extract<SDKMessage, { type: 'stream_event' }>,
   state: ClaudeStreamState
 ): AgentStreamPart[] {
+  // Clear skill content expectation when streaming starts
+  state.consumeExpectingSkillContent()
+
   const chunks: AgentStreamPart[] = []
   const providerMetadata = sdkMessageToProviderMetadata(message)
   const { event } = message

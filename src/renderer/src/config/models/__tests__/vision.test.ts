@@ -319,4 +319,66 @@ describe('isVisionModel', () => {
       expect(isVisionModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
     })
   })
+
+  describe('Qwen Models', () => {
+    it('should return true for Qwen vision models', () => {
+      expect(isVisionModel(createModel({ id: 'qwen-vl-max' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3-vl' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-plus' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-plus-2026-02-15' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'qwen3.5-397b-a17b' }))).toBe(true)
+    })
+  })
+})
+
+describe('Doubao Seed 2.0 Models', () => {
+  it('should identify doubao-seed-2-0-pro-260215 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-pro-260215',
+      name: 'doubao-seed-2-0-pro',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2-0-lite-260215 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-lite-260215',
+      name: 'doubao-seed-2-0-lite',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2-0-code-preview-260215 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-code-preview-260215',
+      name: 'doubao-seed-2-0-code-preview',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2-0-mini-260215 as vision model', () => {
+    const model: Model = {
+      id: 'doubao-seed-2-0-mini-260215',
+      name: 'doubao-seed-2-0-mini',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
+
+  it('should identify doubao-seed-2.0 models by provider and name', () => {
+    const model: Model = {
+      id: 'custom-id',
+      name: 'doubao-seed-2.0-pro-260215',
+      provider: 'doubao',
+      group: 'Doubao-Seed-2.0'
+    }
+    expect(isVisionModel(model)).toBe(true)
+  })
 })

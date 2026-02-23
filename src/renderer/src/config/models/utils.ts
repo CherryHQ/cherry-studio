@@ -21,6 +21,14 @@ import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './visio
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
+export const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+  const modelWithNameAsId = { ...model, id: model.name }
+  return {
+    idResult: fn(model),
+    nameResult: fn(modelWithNameAsId)
+  }
+}
+
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
     return false
@@ -73,6 +81,11 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
     return false
   }
 
+  // Kimi K2.5 doesn't support custom temperature
+  if (isKimi25Model(model)) {
+    return false
+  }
+
   return true
 }
 
@@ -101,6 +114,11 @@ export function isSupportTopPModel(model: Model | undefined | null, assistant?: 
 
   // Qwen MT models don't support top_p
   if (isQwenMTModel(model)) {
+    return false
+  }
+
+  // Kimi K2.5 only accepts top_p=0.95
+  if (isKimi25Model(model)) {
     return false
   }
 
@@ -135,6 +153,14 @@ export function isZhipuModel(model: Model): boolean {
 export function isMoonshotModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
+}
+
+export function isKimi25Model(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('kimi-k2.5')
 }
 
 /**
@@ -306,4 +332,26 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
   }
   // Check for gemini-3-pro with optional suffixes, excluding image variants
   return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is Claude Opus 4.6
+ * Supports various formats including:
+ * - Direct API: claude-opus-4-6
+ * - AWS Bedrock: anthropic.claude-opus-4-6-v1
+ * - GCP Vertex AI: claude-opus-4-6
+ * @param model - The model to check
+ * @returns true if the model is Claude Opus 4.6
+ */
+export function isOpus46Model(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Supports various formats:
+  // - Direct API: claude-opus-4-6, claude-opus-4.6
+  // - AWS Bedrock: anthropic.claude-opus-4-6-v1
+  // - GCP Vertex AI: claude-opus-4-6
+  const regex = /(?:anthropic\.)?claude-opus-4[.-]6(?:[@\-:][\w\-:]+)?$/i
+  return regex.test(modelId)
 }

@@ -73,11 +73,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
 
-# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-extraResources:
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -145,60 +140,28 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.14 - New Features & Improvements
-
-    ✨ New Features
-    - [Notes] Add export to Word document functionality
-    - [Code Tools] Add Kimi CLI support with auto-configuration
-    - [Code Tools] Support custom providers
-    - [Settings] Support viewing detailed error messages when model detection fails
-    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
-    - [Linux] Add system title bar setting option
-    - [Models] Add Baichuan m3/m3-plus models
-    - [Models] Add Qwen text-embedding models
-
-    🎨 Improvements
-    - [Translate] Simplify translation with single target language selector
-    - [Topics] Unpinned topics now move to top with auto-scroll
-    - [Minapps] Add locale-based filtering support
-    - [i18n] Update Romanian localization
+    Cherry Studio 1.7.19 - Bug Fixes & Improvements
 
     🐛 Bug Fixes
-    - [Linux] Fix icon display and deb/rpm installation issues
-    - [Linux] Fix window not coming to front when clicking tray
-    - [Linux] Add Alpine Linux (musl) support
-    - [Code Tools] Fix Windows Terminal issues
-    - [Azure] Fix API preview link for completion mode
-    - [Images] Fix trailing slashes in API URLs for image generation
-    - [OpenRouter] Fix MCP tools support
-    - [Chat] Fix image enhancement model conversation history
+    - [Settings] Fixed provider name input removing spaces during typing
+    - [Data] Fixed factory reset not clearing agents, memories, knowledge base and notes data
+    - [Data] Fixed backup restore failure on Windows (EBUSY error)
+    - [MCP] Fixed MCP tools returning images exceeding API message size limits
+
+    💄 Improvements
+    - [Agent] Improved settings popup UI with better permission mode selection
+    - [Models] Updated MiniMax models to the latest M2.x series
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.14 - 新功能与改进
-
-    ✨ 新功能
-    - [笔记] 支持导出为 Word 文档
-    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
-    - [代码工具] 支持自定义服务商
-    - [设置] 模型检测失败时可查看详细错误信息
-    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
-    - [Linux] 新增系统标题栏设置选项
-    - [模型] 新增百川 m3/m3-plus 模型
-    - [模型] 新增通义 Embedding 模型
-
-    🎨 改进
-    - [翻译] 简化翻译操作，使用单一目标语言选择
-    - [话题] 取消置顶的话题移动到顶部并自动滚动
-    - [小程序] 支持按语言筛选小程序
-    - [国际化] 更新罗马尼亚语翻译
+    Cherry Studio 1.7.19 - 问题修复与改进
 
     🐛 问题修复
-    - [Linux] 修复图标显示和 deb/rpm 安装问题
-    - [Linux] 修复点击托盘后窗口无法置顶的问题
-    - [Linux] 新增 Alpine Linux (musl) 支持
-    - [代码工具] 修复 Windows 终端问题
-    - [Azure] 修复完成模式下 API 预览链接
-    - [图片生成] 修复 API 地址结尾斜杠问题
-    - [OpenRouter] 修复 MCP 工具支持
-    - [对话] 修复图片增强模型对话历史丢失问题
+    - [设置] 修复服务商名称输入时空格被立即移除的问题
+    - [数据] 修复重置数据时未清除智能体、记忆、知识库和笔记数据的问题
+    - [数据] 修复 Windows 上恢复备份失败的问题（EBUSY 错误）
+    - [MCP] 修复 MCP 工具返回图片时超出 API 消息大小限制的问题
+
+    💄 改进
+    - [智能体] 优化设置弹窗界面，改进权限模式选择体验
+    - [模型] 更新 MiniMax 模型至最新的 M2.x 系列
     <!--LANG:END-->

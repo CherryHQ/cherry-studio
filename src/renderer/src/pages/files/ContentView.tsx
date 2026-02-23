@@ -1,20 +1,20 @@
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileMetadata, FileType } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin, Table } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
 interface ContentViewProps {
-  id: FileTypes | 'all' | string
+  id: FileType | 'all' | string
   files?: FileMetadata[]
   dataSource?: any[]
   columns: any[]
 }
 
 const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, columns }) => {
-  if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
+  if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
     return (
       <Image.PreviewGroup>
         <Row gutter={[16, 16]}>
