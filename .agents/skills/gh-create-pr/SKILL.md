@@ -9,13 +9,17 @@ description: Create or update GitHub pull requests using the repository-required
 
 1. Read `.github/pull_request_template.md` before drafting the PR body.
 2. Collect PR context from the current branch (base/head, scope, linked issues, testing status, breaking changes, release note content).
-3. Draft the PR body using the template structure exactly:
-   - Keep section order and headings.
-   - Keep checkbox and code block formatting.
-   - Fill every section; if not applicable, write `N/A` or `None`.
-4. Present the full Markdown PR body in chat for review. Ask for explicit confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
-5. After confirmation, create the PR with `gh pr create --body-file` using a unique temp file path.
-6. Report the created PR URL and summarize title/base/head and any required follow-up.
+3. Create a temp file and write the PR body:
+   - Use `pr_body_file="$(mktemp /tmp/gh-pr-body-XXXXXX).md"`
+   - Fill content using the template structure exactly (keep section order, headings, checkbox formatting).
+   - If not applicable, write `N/A` or `None`.
+4. Preview the temp file content. **Show the file path** (e.g., `/tmp/gh-pr-body-XXXXXX.md`) and ask for explicit confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
+5. After confirmation, create the PR:
+   ```bash
+   gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
+   ```
+6. Clean up the temp file: `rm -f "$pr_body_file"`
+7. Report the created PR URL and summarize title/base/head and any required follow-up.
 
 ## Constraints
 

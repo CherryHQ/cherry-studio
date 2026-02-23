@@ -30,14 +30,15 @@ Based on the selected template, ask the user for required information only. Foll
 
 ### Step 4: Build and Preview Issue Content
 
-Construct issue content according to the template format:
+Create a temp file and write the issue content:
+- Use `issue_body_file="$(mktemp /tmp/gh-issue-body-XXXXXX).md"`
 - Use the exact title prefix from the selected template.
 - Fill content following the template body structure and section order.
 - Apply labels exactly as defined by the template.
 - Keep all labels when there are multiple labels.
 - If template has no labels, do not add custom labels.
 
-Show the preview to the user and ask for confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
+Preview the temp file content. **Show the file path** (e.g., `/tmp/gh-issue-body-XXXXXX.md`) and ask for confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
 
 ### Step 5: Create Issue
 
