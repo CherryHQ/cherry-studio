@@ -222,6 +222,44 @@ describe('promptToolUsePlugin', () => {
       expect(context.originalParams).toBeDefined()
       expect(context.originalParams.system).toBeDefined()
     })
+
+    it('should NOT rebuild system prompt on recursive call', async () => {
+      const plugin = createPromptToolUsePlugin()
+      const context = createMockContext()
+      const params = createMockStreamParams({
+        system: 'User system prompt',
+        tools: {
+          test_tool: createMockTool('test_tool', 'A test tool')
+        }
+      })
+
+      // First call: build the system prompt with tools
+      const firstResult = await Promise.resolve(plugin.transformParams!(params, context))
+      const firstSystemPrompt = firstResult.system as string
+
+      // Verify first call includes tool definitions
+      expect(firstSystemPrompt).toContain('test_tool')
+
+      // Simulate recursive call: isRecursiveCall is true
+      context.isRecursiveCall = true
+
+      const recursiveParams = createMockStreamParams({
+        system: firstSystemPrompt,
+        tools: {
+          test_tool: createMockTool('test_tool', 'A test tool')
+        }
+      })
+
+      const recursiveResult = await Promise.resolve(plugin.transformParams!(recursiveParams, context))
+
+      // System prompt should NOT be rebuilt - it should remain the same
+      expect(recursiveResult.system).toBe(firstSystemPrompt)
+
+      // Count occurrences of tool definition to ensure no duplication
+      const toolOccurrences = (recursiveResult.system as string).split('test_tool').length - 1
+      const firstToolOccurrences = firstSystemPrompt.split('test_tool').length - 1
+      expect(toolOccurrences).toBe(firstToolOccurrences)
+    })
   })
 
   describe('transformStream', () => {

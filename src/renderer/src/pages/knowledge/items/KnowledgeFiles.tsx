@@ -6,9 +6,9 @@ import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { isKnowledgeFileItem } from '@renderer/types'
-import { formatFileSize, uuid } from '@renderer/utils'
+import { formatFileSize, mime2type, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
@@ -111,7 +111,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             ext: extFromPath.toLowerCase(),
             count: 1,
             origin_name: file.name, // 保存 File 对象中原始的文件名
-            type: file.type as FileTypes,
+            type: mime2type(file.type),
             created_at: new Date().toISOString()
           }
         })

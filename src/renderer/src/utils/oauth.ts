@@ -193,6 +193,111 @@ export const oauthWithAiOnly = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
+export interface NewApiOAuthConfig {
+  oauthServer: string
+  apiHost?: string
+}
+
+/**
+ * CherryIN OAuth flow using Authorization Code with PKCE
+ * PKCE generation and token exchange happen in the main process for security
+ * @param setKey - Callback to set the API key
+ * @param config - OAuth configuration (oauthServer, apiHost)
+ */
+export const oauthWithCherryIn = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
+  const { oauthServer, apiHost } = config
+
+  // Start OAuth flow in main process (generates PKCE params and returns auth URL)
+  const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
+
+  logger.debug('Opening authorization URL')
+
+  // Open in popup window
+  window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  return new Promise<string>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const removeListener = window.api.protocol.onReceiveData(async (data) => {
+      try {
+        const url = new URL(data.url)
+
+        // Only handle our OAuth callback
+        if (url.hostname !== 'oauth' || url.pathname !== '/callback') {
+          return
+        }
+
+        const params = new URLSearchParams(url.search)
+        const code = params.get('code')
+        const returnedState = params.get('state')
+        const error = params.get('error')
+
+        // Handle OAuth errors
+        if (error) {
+          const errorDesc = params.get('error_description') || error
+          logger.error(`Error: ${errorDesc}`)
+          reject(new Error(`OAuth error: ${errorDesc}`))
+          cleanup()
+          return
+        }
+
+        if (!code) {
+          reject(new Error('No authorization code received'))
+          cleanup()
+          return
+        }
+
+        // Verify state matches (CSRF protection)
+        if (returnedState !== state) {
+          logger.debug('State mismatch, ignoring callback')
+          return
+        }
+
+        logger.debug('Exchanging code for token via main process')
+
+        // Exchange code for tokens in main process (has PKCE code_verifier)
+        const { apiKeys } = await window.api.cherryin.exchangeToken(code, state)
+
+        if (apiKeys) {
+          logger.debug('Successfully obtained API keys')
+          setKey(apiKeys)
+          resolve(apiKeys)
+        } else {
+          reject(new Error('No API keys received'))
+        }
+
+        cleanup()
+      } catch (error) {
+        logger.error('Error processing callback:', error as Error)
+        reject(error)
+        cleanup()
+      }
+    })
+
+    function cleanup(): void {
+      removeListener()
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+    }
+
+    // Timeout after 10 minutes
+    timeoutId = setTimeout(
+      () => {
+        logger.warn('Flow timed out')
+        cleanup()
+        reject(new Error('OAuth flow timed out'))
+      },
+      10 * 60 * 1000
+    )
+  })
+}
+
 export const providerCharge = async (provider: string) => {
   const chargeUrlMap = {
     silicon: {

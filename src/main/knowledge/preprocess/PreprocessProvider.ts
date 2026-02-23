@@ -8,15 +8,8 @@ export default class PreprocessProvider {
   constructor(provider: Provider, userId?: string) {
     this.sdk = PreprocessProviderFactory.create(provider, userId)
   }
-  public async parseFile(
-    sourceId: string,
-    file: FileMetadata
-  ): Promise<{ processedFile: FileMetadata; quota?: number }> {
+  public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     return this.sdk.parseFile(sourceId, file)
-  }
-
-  public async checkQuota(): Promise<number> {
-    return this.sdk.checkQuota()
   }
 
   /**

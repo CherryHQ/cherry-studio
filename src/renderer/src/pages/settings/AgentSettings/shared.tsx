@@ -1,7 +1,21 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import type { ScrollbarProps } from '@renderer/components/Scrollbar'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type {
+  AgentConfiguration,
+  AgentEntity,
+  AgentSessionEntity,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  PermissionMode,
+  Tool,
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
 import type { ReactNode } from 'react'
 import React from 'react'
@@ -9,13 +23,57 @@ import styled from 'styled-components'
 
 import { SettingDivider } from '..'
 
+// Shared types and constants for agent settings
+export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
+export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+
+/**
+ * Unified props type for settings components that work with both Agent and Session
+ */
+export type AgentOrSessionSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: UpdateAgentFunction
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: UpdateAgentSessionFunction
+    }
+
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ */
+export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
+  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
+  switch (mode) {
+    case 'acceptEdits':
+      return [
+        ...defaultToolIds,
+        'Edit',
+        'MultiEdit',
+        'NotebookEdit',
+        'Write',
+        'Bash(mkdir:*)',
+        'Bash(touch:*)',
+        'Bash(rm:*)',
+        'Bash(mv:*)',
+        'Bash(cp:*)'
+      ]
+    case 'bypassPermissions':
+      return tools.map((tool) => tool.id)
+    case 'default':
+    case 'plan':
+      return defaultToolIds
+  }
+}
+
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
   contentAfter?: ReactNode
 }
 
 export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, contentAfter }) => {
   return (
-    <div className={cn(contentAfter ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
+    <div className="mb-1 flex items-center gap-2">
       <span className="flex items-center gap-1 font-bold">{children}</span>
       {contentAfter !== undefined && contentAfter}
     </div>
@@ -85,11 +143,15 @@ export const SettingsItem: React.FC<SettingsItemProps> = ({
   )
 }
 
-export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = ({ children, className, ...props }) => {
+export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & ScrollbarProps> = ({
+  children,
+  className,
+  ...props
+}) => {
   return (
-    <div className={cn('flex flex-1 flex-col overflow-y-auto overflow-x-hidden pr-2', className)} {...props}>
+    <Scrollbar className={cn('p-[16px]', className)} {...props}>
       {children}
-    </div>
+    </Scrollbar>
   )
 }
 
@@ -102,7 +164,8 @@ export const Settings = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 16px 16px;
+  min-height: 0;
+  overflow: hidden;
 `
 
 export const StyledModal = styled(Modal)`
@@ -147,3 +210,28 @@ export const StyledMenu = styled(Menu)`
     margin-bottom: 7px;
   }
 `
+
+/**
+ * Shared modal styles configuration for settings popups
+ */
+export const settingsModalStyles: ModalProps['styles'] = {
+  content: {
+    padding: 0,
+    overflow: 'hidden',
+    height: '80vh',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  header: {
+    padding: '10px 15px',
+    paddingRight: '32px',
+    borderBottom: '0.5px solid var(--color-border)',
+    margin: 0,
+    borderRadius: 0
+  },
+  body: {
+    padding: 0,
+    display: 'flex',
+    flex: 1
+  }
+}

@@ -4,10 +4,17 @@ import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { selectTopicsMap } from '@renderer/store/assistants'
 import type { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { List, Spin, Typography } from 'antd'
+import {
+  buildKeywordRegexes,
+  buildKeywordUnionRegex,
+  type KeywordMatchMode,
+  splitKeywordsToTerms
+} from '@renderer/utils/keywordSearch'
+import { List, Segmented, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
@@ -32,6 +39,8 @@ const SEARCH_SNIPPET_MAX_LINE_LENGTH = 160
 const SEARCH_SNIPPET_LINE_FRAGMENT_RADIUS = 40
 const SEARCH_SNIPPET_MAX_LINE_FRAGMENTS = 3
 
+type ResultSortOrder = 'newest' | 'oldest'
+
 const stripMarkdownFormatting = (text: string) => {
   return text
     .replace(/```(?:[^\n]*\n)?([\s\S]*?)```/g, '$1')
@@ -45,8 +54,6 @@ const stripMarkdownFormatting = (text: string) => {
 }
 
 const normalizeText = (text: string) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const mergeRanges = (ranges: Array<[number, number]>) => {
   const sorted = ranges.slice().sort((a, b) => a[0] - b[0])
@@ -110,7 +117,7 @@ const buildLineSnippet = (line: string, regexes: RegExp[]) => {
   return result
 }
 
-const buildSearchSnippet = (text: string, terms: string[]) => {
+const buildSearchSnippet = (text: string, terms: string[], matchMode: KeywordMatchMode) => {
   const normalized = normalizeText(stripMarkdownFormatting(text))
   const lines = normalized.split('\n')
   if (lines.length === 0) {
@@ -118,7 +125,7 @@ const buildSearchSnippet = (text: string, terms: string[]) => {
   }
 
   const nonEmptyTerms = terms.filter((term) => term.length > 0)
-  const regexes = nonEmptyTerms.map((term) => new RegExp(escapeRegex(term), 'gi'))
+  const regexes = buildKeywordRegexes(nonEmptyTerms, { matchMode, flags: 'gi' })
   const matchedLineIndexes: number[] = []
 
   if (regexes.length > 0) {
@@ -179,15 +186,13 @@ const buildSearchSnippet = (text: string, terms: string[]) => {
 }
 
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
+  const { t } = useTranslation()
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
   const observerRef = useRef<MutationObserver | null>(null)
 
-  const [searchTerms, setSearchTerms] = useState<string[]>(
-    keywords
-      .toLowerCase()
-      .split(' ')
-      .filter((term) => term.length > 0)
-  )
+  const [matchMode, setMatchMode] = useState<KeywordMatchMode>('whole-word')
+  const [sortOrder, setSortOrder] = useState<ResultSortOrder>('newest')
+  const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
   // FIXME: db 中没有 topic.name 等信息，只能从 store 获取
@@ -209,11 +214,8 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     }
 
     const startTime = performance.now()
-    const newSearchTerms = keywords
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((term) => term.length > 0)
-    const searchRegexes = newSearchTerms.map((term) => new RegExp(escapeRegex(term), 'i'))
+    const newSearchTerms = splitKeywordsToTerms(keywords)
+    const searchRegexes = buildKeywordRegexes(newSearchTerms, { matchMode, flags: 'i' })
 
     const blocks = (await db.message_blocks.toArray())
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
@@ -234,7 +236,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
               message,
               topic,
               content: block.content,
-              snippet: buildSearchSnippet(block.content, newSearchTerms)
+              snippet: buildSearchSnippet(block.content, newSearchTerms, matchMode)
             }
           }
         }
@@ -250,20 +252,27 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     })
     setSearchTerms(newSearchTerms)
     setIsLoading(false)
-  }, [keywords, storeTopicsMap, topics])
+  }, [keywords, matchMode, storeTopicsMap, topics])
+
+  const sortedSearchResults = useMemo(() => {
+    const results = [...searchResults]
+    results.sort((a, b) => {
+      const timeA = Date.parse(a.message.createdAt) || 0
+      const timeB = Date.parse(b.message.createdAt) || 0
+      if (timeA !== timeB) {
+        return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
+      }
+      return a.message.id.localeCompare(b.message.id)
+    })
+    return results
+  }, [searchResults, sortOrder])
 
   const highlightText = (text: string) => {
-    const uniqueTerms = Array.from(new Set(searchTerms.filter((term) => term.length > 0)))
-    if (uniqueTerms.length === 0) {
+    const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode, flags: 'gi' })
+    if (!highlightRegex) {
       return <span dangerouslySetInnerHTML={{ __html: text }} />
     }
-
-    const pattern = uniqueTerms
-      .sort((a, b) => b.length - a.length)
-      .map((term) => escapeRegex(term))
-      .join('|')
-    const regex = new RegExp(pattern, 'gi')
-    const highlightedText = text.replace(regex, (match) => `<mark>${match}</mark>`)
+    const highlightedText = text.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
     return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
   }
 
@@ -289,14 +298,36 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   return (
     <Container ref={containerRef} {...props} onScroll={handleScroll}>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-        {searchResults.length > 0 && (
+        <SearchToolbar>
+          <Segmented
+            shape="round"
+            size="small"
+            value={sortOrder}
+            onChange={(value) => setSortOrder(value as ResultSortOrder)}
+            options={[
+              { label: t('history.search.sort.newest'), value: 'newest' },
+              { label: t('history.search.sort.oldest'), value: 'oldest' }
+            ]}
+          />
+          <Segmented
+            shape="round"
+            size="small"
+            value={matchMode}
+            onChange={(value) => setMatchMode(value as KeywordMatchMode)}
+            options={[
+              { label: t('history.search.match.whole_word'), value: 'whole-word' },
+              { label: t('history.search.match.substring'), value: 'substring' }
+            ]}
+          />
+        </SearchToolbar>
+        {sortedSearchResults.length > 0 && (
           <SearchStats>
             Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
           </SearchStats>
         )}
         <List
           itemLayout="vertical"
-          dataSource={searchResults}
+          dataSource={sortedSearchResults}
           pagination={{
             pageSize: 10,
             hideOnSinglePage: true
@@ -337,6 +368,16 @@ const Container = styled.div`
 const SearchStats = styled.div`
   font-size: 13px;
   color: var(--color-text-3);
+`
+
+const SearchToolbar = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
 `
 
 const SearchResultTime = styled.div`

@@ -6,7 +6,7 @@ import type { AppDispatch } from '@renderer/store'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
 import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -41,67 +41,82 @@ const createMockCallbacks = (
   })
 
 // Mock external dependencies
-vi.mock('@renderer/config/models', () => ({
-  SYSTEM_MODELS: {
-    defaultModel: [{}, {}, {}],
-    silicon: [],
-    aihubmix: [],
-    ocoolai: [],
-    deepseek: [],
-    ppio: [],
-    alayanew: [],
-    qiniu: [],
-    dmxapi: [],
-    burncloud: [],
-    tokenflux: [],
-    '302ai': [],
-    cephalon: [],
-    lanyun: [],
-    ph8: [],
-    openrouter: [],
-    ollama: [],
-    'new-api': [],
-    lmstudio: [],
-    anthropic: [],
-    openai: [],
-    'azure-openai': [],
-    gemini: [],
-    vertexai: [],
-    github: [],
-    copilot: [],
-    zhipu: [],
-    yi: [],
-    moonshot: [],
-    baichuan: [],
-    dashscope: [],
-    stepfun: [],
-    doubao: [],
-    infini: [],
-    minimax: [],
-    groq: [],
-    together: [],
-    fireworks: [],
-    nvidia: [],
-    grok: [],
-    hyperbolic: [],
-    mistral: [],
-    jina: [],
-    perplexity: [],
-    modelscope: [],
-    xirang: [],
-    hunyuan: [],
-    'tencent-cloud-ti': [],
-    'baidu-cloud': [],
-    gpustack: [],
-    voyageai: []
-  },
-  getModelLogo: vi.fn(),
-  isVisionModel: vi.fn(() => false),
-  isFunctionCallingModel: vi.fn(() => false),
-  isEmbeddingModel: vi.fn(() => false),
-  isReasoningModel: vi.fn(() => false)
-  // ... 其他需要用到的函数也可以在这里 mock
-}))
+vi.mock('@renderer/config/models', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    glm45FlashModel: {
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'cherryai',
+      group: 'GLM-4.5'
+    },
+    qwen38bModel: {
+      id: 'Qwen/Qwen3-8B',
+      name: 'Qwen3-8B',
+      provider: 'cherryai',
+      group: 'Qwen'
+    },
+    SYSTEM_MODELS: {
+      defaultModel: [{}, {}, {}],
+      silicon: [],
+      aihubmix: [],
+      ocoolai: [],
+      deepseek: [],
+      ppio: [],
+      alayanew: [],
+      qiniu: [],
+      dmxapi: [],
+      burncloud: [],
+      tokenflux: [],
+      '302ai': [],
+      cephalon: [],
+      lanyun: [],
+      ph8: [],
+      openrouter: [],
+      ollama: [],
+      'new-api': [],
+      lmstudio: [],
+      anthropic: [],
+      openai: [],
+      'azure-openai': [],
+      gemini: [],
+      vertexai: [],
+      github: [],
+      copilot: [],
+      zhipu: [],
+      yi: [],
+      moonshot: [],
+      baichuan: [],
+      dashscope: [],
+      stepfun: [],
+      doubao: [],
+      infini: [],
+      minimax: [],
+      groq: [],
+      together: [],
+      fireworks: [],
+      nvidia: [],
+      grok: [],
+      hyperbolic: [],
+      mistral: [],
+      jina: [],
+      perplexity: [],
+      modelscope: [],
+      xirang: [],
+      hunyuan: [],
+      'tencent-cloud-ti': [],
+      'baidu-cloud': [],
+      gpustack: [],
+      voyageai: []
+    },
+    getModelLogo: vi.fn(),
+    isVisionModel: vi.fn(() => false),
+    isFunctionCallingModel: vi.fn(() => false),
+    isEmbeddingModel: vi.fn(() => false),
+    isReasoningModel: vi.fn(() => false)
+  }
+})
 
 vi.mock('@renderer/databases', () => ({
   default: {
@@ -161,10 +176,12 @@ vi.mock('@renderer/services/NotificationService', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn()
   },
   EVENT_NAMES: {
-    MESSAGE_COMPLETE: 'MESSAGE_COMPLETE'
+    MESSAGE_COMPLETE: 'MESSAGE_COMPLETE',
+    SEND_MESSAGE: 'SEND_MESSAGE'
   }
 }))
 
@@ -252,7 +269,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 vi.mock('@renderer/utils', () => ({
   default: {},
-  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).substr(2, 9))
+  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).slice(2, 11))
 }))
 
 interface MockTopicsState {
@@ -546,7 +563,7 @@ describe('streamCallback Integration Tests', () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant, dispatch, getState)
 
     const mockWebSearchResult = {
-      source: WebSearchSource.WEBSEARCH,
+      source: WEB_SEARCH_SOURCE.WEBSEARCH,
       results: [{ title: 'Test Result', url: 'http://example.com', snippet: 'Test snippet' }]
     }
 
@@ -705,7 +722,7 @@ describe('streamCallback Integration Tests', () => {
 
     const mockExternalToolResult: ExternalToolResult = {
       webSearch: {
-        source: WebSearchSource.WEBSEARCH,
+        source: WEB_SEARCH_SOURCE.WEBSEARCH,
         results: [{ title: 'External Result', url: 'http://external.com', snippet: 'External snippet' }]
       },
       knowledge: [

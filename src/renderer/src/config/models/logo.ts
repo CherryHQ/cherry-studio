@@ -112,8 +112,8 @@ import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
 import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
-import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
-import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
+import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.webp'
+import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot.webp'
 import {
   default as NousResearchModelLogo,
   default as NousResearchModelLogoDark
@@ -177,6 +177,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
+    'm2-her': isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     veo: isLight ? GeminiModelLogo : GeminiModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,

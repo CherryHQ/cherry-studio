@@ -14,6 +14,18 @@
         "placeholder": "エージェントタイプを選択"
       }
     },
+    "askUserQuestion": {
+      "answered": "回答済み",
+      "customPlaceholder": "答えを入力してください...",
+      "loading": "質問を読み込んでいます…",
+      "multiSelect": "複数選択",
+      "next": "次",
+      "noQuestions": "利用可能な質問はありません",
+      "other": "その他",
+      "previous": "前",
+      "submit": "送信",
+      "title": "エージェントからの質問"
+    },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
       "error": {
@@ -141,6 +153,10 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "permissionMode": {
+        "tab": "パーミッションモード",
+        "title": "パーミッションモード"
+      },
       "plugins": {
         "available": {
           "title": "利用可能なプラグイン"
@@ -154,24 +170,43 @@
         "error": {
           "install": "プラグインのインストールに失敗しました",
           "load": "プラグインの読み込みに失敗しました",
+          "load_more": "さらに多くのプラグインを読み込めませんでした",
           "uninstall": "プラグインのアンインストールに失敗しました"
         },
         "filter": {
           "all": "すべてのカテゴリー"
         },
-        "install": "インストール",
+        "install": {
+          "button": "インストール",
+          "title": "プラグインをインストール"
+        },
         "installed": {
           "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
           "title": "インストール済みプラグイン"
         },
         "installing": "インストール中...",
+        "plugin_upload": {
+          "all_failed": "すべての{{failed}}コンポーネントのインストールに失敗しました",
+          "error": "インストールに失敗しました",
+          "format_hint": "プラグインパッケージ（.claude-plugin/plugin.json）をサポート",
+          "hint": "プラグインのZIPファイルをここにドラッグ＆ドロップするか、クリックして選択してください",
+          "invalid_format": "ZIPファイルをアップロードしてください",
+          "partial_success": "プラグイン「{{name}}」は部分的にインストールされました：{{installed}}個がインストールされ、{{failed}}個が失敗しました",
+          "select_folder": "フォルダを選択",
+          "select_folder_title": "プラグインフォルダを選択",
+          "success": "プラグイン「{{name}}」が正常にインストールされました（{{count}} コンポーネント）",
+          "success_multi": "{{packages}}個のパッケージから{{count}}個のコンポーネントをインストールしました",
+          "uploading": "アップロードとインストール中..."
+        },
         "results": "{{count}} 個のプラグインが見つかりました",
         "search": {
           "placeholder": "検索プラグイン..."
         },
+        "standalone_plugins": "スタンドアロンプラグイン",
         "success": {
           "install": "プラグインのインストールが成功しました",
-          "uninstall": "プラグインのアンインストールが成功しました"
+          "uninstall": "プラグインのアンインストールが成功しました",
+          "uninstall_package": "パッケージ「{{name}}」が正常にアンインストールされました"
         },
         "tab": "プラグイン",
         "type": {
@@ -183,6 +218,8 @@
           "skills": "技能"
         },
         "uninstall": "アンインストール",
+        "uninstall_package": "パッケージをアンインストール",
+        "uninstall_package_confirm": "「{{name}}」パッケージ全体をアンインストールしてもよろしいですか？これにより{{count}}個のコンポーネントが削除されます。",
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
@@ -190,17 +227,16 @@
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
           "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "inactiveTooltip": "このMCPサーバーはアクティブではありません。まず起動してください。",
           "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
           "toggle": "{{name}}を切り替え"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
             "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
             "title": "ファイル編集を自動承認"
           },
           "bypassPermissions": {
-            "behavior": "すべてのツールは自動的に事前承認されます。",
             "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
             "title": "権限チェックをバイパス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
@@ -210,14 +246,12 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "behavior": "ツールは自動的に事前承認されません。",
             "description": "通常の権限チェックが適用されます。",
             "title": "デフォルト（続行する前に確認）"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "behavior": "読み取り専用ツールのみ。実行は無効です。",
             "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
             "title": "計画モード（近日公開）"
           },
@@ -226,38 +260,13 @@
         "preapproved": {
           "autoBadge": "モードによって追加されました",
           "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "autoDisabledTooltip": "「{{mode}}」によって自動承認されており、無効化できません。",
           "empty": "フィルターに一致するツールはありません。",
           "mcpBadge": "MCPツール",
           "requiresApproval": "無効にするには承認が必要",
           "search": "検索ツール",
-          "toggle": "{{name}}を切り替える",
-          "warning": {
-            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
-            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
-          }
-        },
-        "review": {
-          "autoTools": "自動: {{count}}",
-          "customTools": "カスタム: {{count}}",
-          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
-          "mcp": "MCP: {{count}}",
-          "mode": "モード: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCPサーバー"
-          },
-          "permissionMode": {
-            "title": "ステップ1・権限モード"
-          },
-          "preapproved": {
-            "title": "ステップ2・事前承認済みツール"
-          },
-          "review": {
-            "title": "ステップ3・レビュー"
-          }
-        },
-        "tab": "ツールと権限"
+          "toggle": "{{name}}を切り替える"
+        }
       },
       "tools": {
         "approved": "承認済み",
@@ -265,8 +274,27 @@
         "description": "人による承認なしで実行できるツールを選択します。",
         "requiresPermission": "事前承認されていない場合は承認が必要です。",
         "tab": "事前承認済みツール",
-        "title": "事前承認済みツール",
+        "title": "ツール",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCPサーバー"
+        },
+        "tab": "ツール",
+        "tools": {
+          "title": "ツール"
+        }
+      }
+    },
+    "todo": {
+      "panel": {
+        "title": "{{completed}}/{{total}} タスク完了"
+      },
+      "status": {
+        "completed": "完了",
+        "in_progress": "進行中",
+        "pending": "保留中"
       }
     },
     "toolPermission": {
@@ -305,6 +333,49 @@
       },
       "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "環境でシェルコマンドを実行します"
+        },
+        "Edit": {
+          "description": "特定のファイルに対してターゲットを絞った編集を行う"
+        },
+        "Glob": {
+          "description": "パターンマッチングに基づいてファイルを検索する"
+        },
+        "Grep": {
+          "description": "ファイルの内容内でパターンを検索します"
+        },
+        "MultiEdit": {
+          "description": "単一のファイルに対して複数の編集をアトミックに実行します"
+        },
+        "NotebookEdit": {
+          "description": "Jupyterノートブックのセルを変更します"
+        },
+        "NotebookRead": {
+          "description": "Jupyterノートブックの内容を読み取って表示します"
+        },
+        "Read": {
+          "description": "ファイルの内容を読み取ります"
+        },
+        "Task": {
+          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
+        },
+        "TodoWrite": {
+          "description": "構造化されたタスクリストを作成し、管理します"
+        },
+        "WebFetch": {
+          "description": "指定されたURLからコンテンツを取得します"
+        },
+        "WebSearch": {
+          "description": "ドメインフィルタリング付きのウェブ検索を実行します"
+        },
+        "Write": {
+          "description": "ファイルを作成または上書きします"
+        }
+      }
     },
     "type": {
       "label": "エージェントタイプ",
@@ -711,15 +782,6 @@
       "view_full_content": "完全な内容を表示"
     },
     "input": {
-      "activity_directory": {
-        "description": "アクティビティディレクトリからファイルを選択",
-        "loading": "ファイルを読み込んでいます...",
-        "no_file_found": {
-          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
-          "label": "ファイルが見つかりません"
-        },
-        "title": "アクティビティディレクトリ"
-      },
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -749,6 +811,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "resource_panel": {
+        "categories": {
+          "agents": "エージェント",
+          "files": "ファイル",
+          "skills": "スキル"
+        },
+        "description": "ファイル、エージェント、またはスキルから選択",
+        "loading": "読み込み中...",
+        "no_file_found": {
+          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
+          "label": "ファイルが見つかりません"
+        },
+        "no_items_found": {
+          "description": "ファイル、エージェント、スキルは利用できません",
+          "label": "アイテムが見つかりません"
+        },
+        "title": "リソース"
+      },
       "send": "送信",
       "settings": "設定",
       "slash_commands": {
@@ -1236,6 +1316,9 @@
       "validation": "検証に失敗しました"
     },
     "expand": "展開",
+    "export": {
+      "excel": "Excelにエクスポート"
+    },
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
     },
@@ -1284,6 +1367,7 @@
     "rename": "名前を変更",
     "required_field": "必須項目",
     "reset": "リセット",
+    "retry": "リトライ",
     "save": "保存",
     "saved": "保存されました",
     "search": "検索",
@@ -1408,6 +1492,7 @@
     "provider_disabled": "モデルプロバイダーが有効になっていません",
     "reason": "原因",
     "render": {
+      "block": "このコンテンツブロックはレンダリングに失敗しました",
       "description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
       "title": "レンダリングエラー"
     },
@@ -1497,8 +1582,16 @@
       "message": "メッセージを探す"
     },
     "search": {
+      "match": {
+        "substring": "含む",
+        "whole_word": "単語全体"
+      },
       "messages": "すべてのメッセージを検索",
       "placeholder": "トピックまたはメッセージを検索...",
+      "sort": {
+        "newest": "最新のものから",
+        "oldest": "古いものから"
+      },
       "topics": {
         "empty": "トピックが見つかりませんでした。Enterキーを押してすべてのメッセージを検索"
       }
@@ -1633,9 +1726,6 @@
     "notes": "ノート",
     "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
     "provider_not_found": "プロバイダーが見つかりません",
-    "quota": "{{name}} 残りクォータ: {{quota}}",
-    "quota_empty": "本日の{{name}}クォータが不足しています。公式サイトで申請してください",
-    "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
     "search": "ナレッジベースを検索",
     "search_placeholder": "検索するテキストを入力",
@@ -1892,6 +1982,9 @@
         "model": "モデルを選択してください",
         "name": "ナレッジベース名を入力してください"
       },
+      "excel": {
+        "export": "Excelのエクスポートに失敗しました"
+      },
       "fetchTopicName": "トピック名の取得に失敗しました",
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "invalid": {
@@ -1930,6 +2023,9 @@
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
+      },
+      "table": {
+        "invalid": "有効なテーブルデータを取得できません"
       },
       "unknown": "未知のエラー",
       "yuque": {
@@ -2004,7 +2100,8 @@
           "content": "すべてのデータが失われます。続行しますか？",
           "title": "データが失われます！！！"
         }
-      }
+      },
+      "success": "データリセット成功"
     },
     "restore": {
       "failed": "復元に失敗しました",
@@ -2017,6 +2114,9 @@
     },
     "searching": "検索中...",
     "success": {
+      "excel": {
+        "export": "Excelのエクスポートが正常に完了しました"
+      },
       "joplin": {
         "export": "Joplin へのエクスポートに成功しました"
       },
@@ -2076,7 +2176,9 @@
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
       "sections": {
+        "args": "議論",
         "command": "コマンド",
+        "content": "コンテンツ",
         "exitCode": "終了コード",
         "input": "入力",
         "output": "出力",
@@ -2093,6 +2195,7 @@
         "running": "走っている",
         "success": "成功"
       },
+      "streaming": "ストリーミング",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
         "done_one": "{{count}} 完了",
@@ -2240,6 +2343,7 @@
     },
     "function_calling": "関数呼び出し",
     "invalid_model": "無効なモデル",
+    "json_parse_error": "無効なJSON形式",
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
     "parameter_type": {
@@ -2452,6 +2556,91 @@
     },
     "title": "Ollama"
   },
+  "openclaw": {
+    "checking_installation": "OpenClawのインストールを確認しています...",
+    "description": "Cherry Studio プロバイダーを OpenClaw Gateway と統合し、Claude Code、Qwen-Coder などの AI コーディングエージェントを有効にします。",
+    "error": {
+      "select_provider_model": "プロバイダーとモデルをまず選択してください"
+    },
+    "gateway": {
+      "port": "ポート",
+      "restart": "再起動",
+      "start": "スタートゲートウェイ",
+      "status": "ステータス",
+      "stop": "止まれ",
+      "version": "バージョン"
+    },
+    "git_missing": {
+      "description": "OpenClawは一部の依存関係をインストールするためにGitが必要です。まずGitをインストールしてから、もう一度「インストール」をクリックしてください。",
+      "download_button": "Gitをダウンロード",
+      "hint": "macOS: brew install git | Windows: git-scm.com からダウンロード（インストール時に Git を PATH に追加するよう設定してください）",
+      "title": "Gitが必要"
+    },
+    "install_progress": "インストール進行状況",
+    "installed_at": "OpenClawのインストール先",
+    "model_config": {
+      "auth_token": "認証トークン",
+      "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
+      "auth_token_placeholder": "トークンを入力または生成してください",
+      "generate_token": "生成",
+      "model": "モデル",
+      "provider": "プロバイダー",
+      "select_model": "モデルを選択",
+      "select_provider": "プロバイダーを選択",
+      "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
+      "title": "モデル設定"
+    },
+    "node_missing": {
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
+    },
+    "node_version_low": {
+      "description": "OpenClawにはNode.js 22.0以上が必要です。現在のバージョンはv{{version}}です。まずNode.jsをアップグレードしてください。",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.jsのバージョンが低すぎます"
+    },
+    "not_installed": {
+      "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
+      "install_button": "OpenClawをインストール",
+      "install_guide_title": "インストールガイド",
+      "macos_linux_title": "macOS / Linux",
+      "refresh": "更新",
+      "step2_hint": "インストール後、上の「更新」ボタンをクリックしてOpenClawを検出してください。",
+      "step2_title": "ステップ2: インストールを確認する",
+      "title": "OpenClaw がインストールされていません",
+      "windows_title": "Windows"
+    },
+    "quick_actions": {
+      "open_dashboard": "ダッシュボードを開く",
+      "title": "クイックアクション",
+      "uninstall": "アンインストール",
+      "view_docs": "ドキュメントを表示"
+    },
+    "status": {
+      "error": "エラー",
+      "running": "走っている",
+      "starting": "開始",
+      "stopped": "停止しました"
+    },
+    "tips": {
+      "permissions": "OpenClawは高いシステム権限を持っています。信頼できる環境でのみ使用してください",
+      "title": "ヒント",
+      "token_usage": "AIエージェントモードはより多くのトークンを消費する可能性があります。使用量にご注意ください"
+    },
+    "title": "オープンクロー",
+    "uninstall_confirm": "OpenClawをアンインストールしてもよろしいですか？確認するにはOKを押してください。",
+    "uninstall_progress": "アンインストールの進行状況",
+    "uninstalled": {
+      "description": "OpenClawは正常にアンインストールされました。",
+      "title": "アンインストール完了"
+    },
+    "uninstalling": {
+      "description": "OpenClawがアンインストールされるまでお待ちください...",
+      "title": "OpenClawのアンインストール"
+    }
+  },
   "ovms": {
     "action": {
       "install": "インストール",
@@ -2567,12 +2756,7 @@
     },
     "edit": {
       "image_file": "編集画像",
-      "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
-      "model_tip": "部分編集は V_2 と V_2_TURBO のバージョンのみサポートします",
-      "number_images_tip": "生成される編集結果の数",
-      "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
-      "seed_tip": "編集結果のランダム性を制御します",
-      "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用"
+      "image_required": "編集する画像を先にアップロードしてください"
     },
     "generate": {
       "height": "高さ",
@@ -2641,6 +2825,16 @@
       "allow_all": "許可する",
       "allow_none": "許可しない"
     },
+    "ppio": {
+      "edit_prompt_tip": "画像から削除するオブジェクトまたは領域を指定します。例：'犬' または '帽子'",
+      "mask_image": "マスク画像",
+      "mask_image_tip": "消去する領域を示します。消去する領域は白、保持する領域は黒にしてください",
+      "output_format": "出力形式",
+      "resolution": "目標解像度",
+      "seed_tip": "ランダムシード、同じシードとパラメータで類似の画像を生成、-1はランダム",
+      "use_pre_llm_tip": "テキスト拡張を有効にしてプロンプトを最適化。短いプロンプトには推奨、長いプロンプトには無効化を推奨",
+      "watermark_tip": "生成画像に透かしを追加するかどうか、デフォルトは無効"
+    },
     "pricing": "料金",
     "prompt_enhancement": "プロンプト強化",
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
@@ -2683,6 +2877,7 @@
     "required_field": "必須項目",
     "seed": "シード",
     "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
+    "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
     "style_type": "スタイル",
@@ -2709,6 +2904,7 @@
       "resemblance_tip": "拡大結果と原画像の類似度を制御します",
       "seed_tip": "拡大結果のランダム性を制御します"
     },
+    "watermark": "透かしを追加",
     "zhipu": {
       "custom_size_divisible": "カスタムサイズは16で割り切れる必要があります",
       "custom_size_hint": "幅と高さは512px～2048pxの間で16で割り切れ、総ピクセル数は2^21pxを超えてはなりません",
@@ -2738,6 +2934,7 @@
     "category": "カテゴリー",
     "commands": "命令",
     "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "confirm_uninstall_package": "パッケージ「{{name}}」とそのすべてのコンポーネントをアンインストールしてもよろしいですか？",
     "content_saved": "プラグインコンテンツが正常に保存されました",
     "detail": {
       "allowed_tools": "許可されたツール",
@@ -2764,10 +2961,22 @@
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
     "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "showing_results_skills": "{{count}}スキルを表示",
+    "showing_results_skills_one": "{{count}}件のスキルを表示",
+    "showing_results_skills_other": "{{count}}件のスキルを表示",
+    "showing_results_skills_plural": "{{count}}件のスキルを表示中",
     "skills": "スキル",
+    "sort": {
+      "downloads": "ダウンロード",
+      "label": "並び替え",
+      "relevance": "関連性",
+      "stars": "スター"
+    },
+    "standalone_plugins": "スタンドアロンプラグイン",
     "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
     "type": "タイプ",
     "uninstall": "アンインストール",
+    "uninstall_package": "パッケージをアンインストール",
     "uninstalling": "アンインストール中..."
   },
   "preview": {
@@ -4727,6 +4936,7 @@
           "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、v1バージョンを入力してください"
         }
       },
+      "balance": "バランス",
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -4802,10 +5012,29 @@
         "title": "モデルノート"
       },
       "oauth": {
+        "balance": "残高",
         "button": "{{provider}} アカウントでログイン",
+        "cherryIn": {
+          "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
+          "logged_in": "OAuth経由でログインしました",
+          "login_button": "OAuthでログイン",
+          "logout_button": "ログアウト",
+          "title": "OAuthログイン"
+        },
+        "connect": "{{provider}}に接続",
         "description": "本サービスは<website>{{provider}}</website>によって提供されます",
         "error": "認証失敗",
-        "official_website": "公式サイト"
+        "logged_in": "ログインしました",
+        "logout": "ログアウト",
+        "logout_confirm": "本当にログアウトしますか？",
+        "logout_success": "正常にログアウトしました",
+        "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
+        "official_website": "公式サイト",
+        "provided_by": "提供",
+        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
+        "requests": "リクエスト",
+        "topup": "チャージ",
+        "usage_title": "使用"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
@@ -5150,6 +5379,7 @@
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
     "notes": "ノート",
+    "openclaw": "オープンクロー",
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",
