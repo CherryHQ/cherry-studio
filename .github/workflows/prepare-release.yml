@@ -39,7 +39,7 @@ jobs:
 
             Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
 
-            Since this is running in CI (non-interactive), skip all interactive confirmation steps. For PR creation, do NOT use the gh-create-pr skill; instead read .github/pull_request_template.md, fill every section, and run gh pr create --body-file directly.
+            Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
             Configure git before making commits:
             git config user.name "github-actions[bot]"
