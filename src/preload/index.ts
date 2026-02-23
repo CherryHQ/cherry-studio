@@ -490,6 +490,14 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
     setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable),
+    setPartitionProxy: (
+      partition: string,
+      proxyConfig: {
+        mode: 'system' | 'fixed_servers' | 'direct'
+        proxyRules?: string
+        proxyBypassRules?: string
+      }
+    ) => ipcRenderer.invoke(IpcChannel.Webview_SetPartitionProxy, partition, proxyConfig),
     printToPDF: (webviewId: number) => ipcRenderer.invoke(IpcChannel.Webview_PrintToPDF, webviewId),
     saveAsHTML: (webviewId: number) => ipcRenderer.invoke(IpcChannel.Webview_SaveAsHTML, webviewId),
     onFindShortcut: (callback: (payload: WebviewKeyEvent) => void) => {

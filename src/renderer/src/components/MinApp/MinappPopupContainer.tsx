@@ -509,8 +509,7 @@ const MinappPopupContainer: React.FC = () => {
     return combinedApps.map((app) => (
       <WebviewContainer
         key={app.id}
-        appid={app.id}
-        url={app.url}
+        app={app}
         onSetRefCallback={handleWebviewSetRef}
         onLoadedCallback={handleWebviewLoaded}
         onNavigateCallback={handleWebviewNavigate}

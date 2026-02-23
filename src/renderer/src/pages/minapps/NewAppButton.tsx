@@ -1,6 +1,6 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
+import { ORIGIN_DEFAULT_MIN_APPS, reloadAllMinApps, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
 import { Button, Form, Input, Modal, Radio, Upload } from 'antd'
@@ -59,7 +59,7 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
       setIsModalVisible(false)
       form.resetFields()
       setFileList([])
-      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      const reloadedApps = await reloadAllMinApps()
       updateAllMinApps(reloadedApps)
       updateMinapps([...minapps, newApp])
     } catch (error) {

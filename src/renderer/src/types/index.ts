@@ -517,6 +517,12 @@ export type MinAppType = {
   style?: CSSProperties
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
+  /** per-minapp proxy mode. inherit means use global app proxy settings. */
+  proxyMode?: 'inherit' | 'custom' | 'system' | 'direct'
+  /** proxy url, e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080 */
+  proxyUrl?: string
+  /** bypass rules in Chromium format */
+  proxyBypassRules?: string
 }
 
 export enum ThemeMode {
