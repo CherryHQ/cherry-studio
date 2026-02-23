@@ -277,6 +277,131 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     _fetch = createDeveloperToSystemFetch(fetch)
   }
 
+  // Filter out extra fields from response (e.g., ping/cost from some proxies)
+  // This handles cases where API gateways return {"type":"ping","cost":"0.00263375"} instead of valid responses
+  const originalFetch = _fetch ?? fetch
+  _fetch = async (input: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
+    const response = await originalFetch(input, options)
+
+    if (!response.ok || !response.body) {
+      return response
+    }
+
+    // Only filter chat/completion responses
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('application/json') && !contentType.includes('text/event-stream')) {
+      return response
+    }
+
+    // Create a filtered response body that removes extra fields like type: "ping", cost, etc.
+    const originalBody = response.body
+    const decoder = new TextDecoder()
+    const encoder = new TextEncoder()
+    let buffer = ''
+
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        if (!chunk) return
+
+        const decoded = decoder.decode(chunk, { stream: true })
+        if (!decoded) return
+
+        buffer += decoded
+
+        // Try to parse complete JSON objects
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          // Keep empty lines (vital for SSE events)
+          if (!line.trim()) {
+            controller.enqueue(encoder.encode(line + '\n'))
+            continue
+          }
+
+          let jsonToParse = line
+          let prefix = ''
+
+          // Handle SSE 'data: ' prefix
+          if (line.startsWith('data: ')) {
+            prefix = 'data: '
+            jsonToParse = line.slice(6)
+          }
+
+          if (jsonToParse.trim() === '[DONE]') {
+            controller.enqueue(encoder.encode(line + '\n'))
+            continue
+          }
+
+          try {
+            const parsed = JSON.parse(jsonToParse)
+
+            // Filter out non-standard response objects (ping, cost, etc. Specially for Zen models)
+            // Keep standard OpenAI responses with choices or error
+            if (
+              parsed.type === 'ping' ||
+              parsed.type === 'pong' ||
+              parsed.type === 'heartbeat' ||
+              typeof parsed.cost === 'string' ||
+              typeof parsed.latency === 'number'
+            ) {
+              // Skip these non-standard messages
+              continue
+            }
+
+            controller.enqueue(encoder.encode(prefix + JSON.stringify(parsed) + '\n'))
+          } catch {
+            // Not JSON, pass through
+            controller.enqueue(encoder.encode(line + '\n'))
+          }
+        }
+      },
+      flush(controller) {
+        if (buffer) {
+          if (!buffer.trim()) {
+            controller.enqueue(encoder.encode(buffer))
+            return
+          }
+
+          let jsonToParse = buffer
+          let prefix = ''
+
+          if (buffer.startsWith('data: ')) {
+            prefix = 'data: '
+            jsonToParse = buffer.slice(6)
+          }
+
+          if (jsonToParse.trim() === '[DONE]') {
+            controller.enqueue(encoder.encode(buffer))
+            return
+          }
+
+          try {
+            const parsed = JSON.parse(jsonToParse)
+            if (
+              parsed.type === 'ping' ||
+              parsed.type === 'pong' ||
+              parsed.type === 'heartbeat' ||
+              typeof parsed.cost === 'string' ||
+              typeof parsed.latency === 'number'
+            ) {
+              return
+            }
+            controller.enqueue(encoder.encode(prefix + JSON.stringify(parsed)))
+          } catch {
+            controller.enqueue(encoder.encode(buffer))
+          }
+        }
+      }
+    })
+
+    return new Response(originalBody.pipeThrough(transformStream), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    })
+  }
+
   const baseExtraOptions = {
     fetch: _fetch,
     endpoint,
