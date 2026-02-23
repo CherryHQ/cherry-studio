@@ -81,7 +81,7 @@ Present the user with:
 - Validation result
 - Next steps (how to use the skill)
 
-## Naming Rules (from README.md)
+## Naming Rules
 
 - Use lowercase letters, digits, and hyphens only
 - Prefer short, action-oriented names (e.g., `gh-create-pr`)
