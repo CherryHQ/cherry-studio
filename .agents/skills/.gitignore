@@ -6,6 +6,8 @@
 !public-skills.txt
 !create-skill/
 !create-skill/**
+!gh-create-issue/
+!gh-create-issue/**
 !gh-create-pr/
 !gh-create-pr/**
 !prepare-release/
