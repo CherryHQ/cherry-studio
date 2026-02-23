@@ -174,7 +174,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opentelemetry/sdk-trace-web": "^2.0.0",
-    "@opeoginni/github-copilot-openai-compatible": "^0.1.21",
+    "@opeoginni/github-copilot-openai-compatible": "^1.0.0",
     "@playwright/test": "^1.55.1",
     "@radix-ui/react-context-menu": "^2.2.16",
     "@reduxjs/toolkit": "^2.2.5",
@@ -441,15 +441,11 @@
       "@img/sharp-linux-arm64": "0.34.3",
       "@img/sharp-linux-x64": "0.34.3",
       "@img/sharp-win32-x64": "0.34.3",
-      "@langchain/core": "1.0.2",
-      "@ai-sdk/openai-compatible@1.0.27": "1.0.28",
-      "@ai-sdk/openai-compatible@1.0.30": "1.0.28"
+      "@langchain/core": "1.0.2"
     },
     "patchedDependencies": {
       "@napi-rs/system-ocr@1.0.2": "patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
       "tesseract.js@6.0.1": "patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
-      "@ai-sdk/google@3.0.0": "patches/@ai-sdk-google-npm-3.0.0-ef668576ff.patch",
-      "@ai-sdk/openai@3.0.0": "patches/@ai-sdk-openai-npm-3.0.0-0b1bba0aab.patch",
       "@anthropic-ai/vertex-sdk@0.11.4": "patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch",
       "@google/genai@1.0.1": "patches/@google-genai-npm-1.0.1-e26f0f9af7.patch",
       "@langchain/core@1.0.2": "patches/@langchain-core-npm-1.0.2-183ef83fe4.patch",
@@ -464,7 +460,8 @@
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch",
-      "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch"
+      "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch",
+      "@ai-sdk/google@3.0.30": "patches/@ai-sdk__google@3.0.30.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

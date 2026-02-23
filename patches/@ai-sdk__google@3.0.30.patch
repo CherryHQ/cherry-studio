@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 8ba8ec4fe78573068683801b75b92cdbe7132b01..cea5346f36296e38ac4fbdf7cf46b330c26fa4f9 100644
+index ba480048f147f1620b70c6fcfa5357ade4599beb..3d05ae3a2dfc8fdb1b745a2d206b062dd68630e1 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -536,7 +536,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
@@ -12,7 +12,7 @@ index 8ba8ec4fe78573068683801b75b92cdbe7132b01..cea5346f36296e38ac4fbdf7cf46b330
  
  // src/google-generative-ai-options.ts
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 0e96cc445379e63fb3c08a3a6238f1c55878d8b5..7e76a0ed624844b5aa8cfc25b61b901572b48a83 100644
+index 9e7d7585047db2796a4a783644d78016ae27a520..c40fb884482a40d5342bc2cfe6b766e2718aea91 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -542,7 +542,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
@@ -24,7 +24,7 @@ index 0e96cc445379e63fb3c08a3a6238f1c55878d8b5..7e76a0ed624844b5aa8cfc25b61b9015
  }
  
  // src/google-generative-ai-options.ts
-@@ -1998,8 +1998,7 @@ function createGoogleGenerativeAI(options = {}) {
+@@ -2404,8 +2404,7 @@ function createGoogleGenerativeAI(options = {}) {
  }
  var google = createGoogleGenerativeAI();
  export {
@@ -34,4 +34,3 @@ index 0e96cc445379e63fb3c08a3a6238f1c55878d8b5..7e76a0ed624844b5aa8cfc25b61b9015
 +  google, VERSION
  };
  //# sourceMappingURL=index.mjs.map
-\ No newline at end of file
