@@ -10,7 +10,7 @@ import {
   type KeywordMatchMode,
   splitKeywordsToTerms
 } from '@renderer/utils/keywordSearch'
-import { List, Spin, Typography } from 'antd'
+import { List, Segmented, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
