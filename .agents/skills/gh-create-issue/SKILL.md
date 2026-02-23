@@ -37,7 +37,7 @@ Construct issue content according to the template format:
 - Keep all labels when there are multiple labels.
 - If template has no labels, do not add custom labels.
 
-Show the preview to the user and ask for confirmation before creating. **Skip this step if the user explicitly indicates no preview is needed** (for example, automation workflows).
+Show the preview to the user and ask for confirmation before creating. **Skip this step if the user explicitly indicates no preview/confirmation is needed** (for example, automation workflows).
 
 ### Step 5: Create Issue
 
