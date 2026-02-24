@@ -28,10 +28,10 @@ interface ShowcaseProps {
 }
 
 const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
-  <div className="flex flex-wrap gap-4 p-2">
+  <div className="flex flex-wrap gap-8 p-2">
     {icons.map(({ Component, name }) => (
-      <div key={name} className="flex flex-col items-center justify-center">
-        <div className="border-gray-200 border-1 rounded-md p-2 w-min" style={{ fontSize }}>
+      <div key={name} className="flex flex-col items-center justify-center min-w-12">
+        <div className="border-gray-200 border rounded-md p-2 w-min" style={{ fontSize }}>
           <Component />
         </div>
         <p className="text-sm text-center mt-2">{name}</p>
@@ -42,7 +42,7 @@ const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number })
 
 const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
         <IconGrid icons={providerIcons} fontSize={fontSize} />
@@ -94,7 +94,7 @@ const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
       const AvatarComponent = (Component as any).Avatar
       if (!AvatarComponent) return null
       return (
-        <div key={name} className="flex flex-col items-center gap-1">
+        <div key={name} className="flex flex-col items-center gap-1 w-24">
           <div className="flex gap-2">
             <AvatarComponent size={size} shape="circle" />
             <AvatarComponent size={size} shape="rounded" />
@@ -112,7 +112,7 @@ const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
 
 const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
         <AvatarGrid icons={providerIcons} size={fontSize} />
@@ -127,7 +127,7 @@ const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
 
 const ColorVsMonoShowcase = ({ fontSize = 32, monoColor }: ShowcaseProps) => {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 p-4">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers</h2>
         <ColorVsMonoGrid icons={providerIcons} fontSize={fontSize} monoColor={monoColor} />
