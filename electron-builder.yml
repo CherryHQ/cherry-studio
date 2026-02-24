@@ -140,28 +140,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.19 - Bug Fixes & Improvements
+    Cherry Studio 1.7.20 - New Features & Improvements
+
+    ✨ New Features
+    - [Chat] Added Cmd+Shift+M keyboard shortcut to open the model selector
+    - [Models] Added Claude Sonnet 4.6 model support to Anthropic provider with reasoning effort configuration
+    - [Selection] Updated Quote behavior to use XML `<quote>` tags
+    - [Models] Added support for Qwen 3.5 series models
+    - [Models] Added support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-0905-Preview, etc.)
+    - [Models] Added Zhipu GLM-5 model support with thinking tokens, interleaved thinking, and function calling
+    - [Models] Added Doubao Seed 2.0 models support with function-calling capabilities
+    - [Search] Improved topic search with keyword-based matching functionality
+    - [Workflow] Optimized PR workflow with on-demand skill loading and project-level skills management
 
     🐛 Bug Fixes
-    - [Settings] Fixed provider name input removing spaces during typing
-    - [Data] Fixed factory reset not clearing agents, memories, knowledge base and notes data
-    - [Data] Fixed backup restore failure on Windows (EBUSY error)
-    - [MCP] Fixed MCP tools returning images exceeding API message size limits
-
-    💄 Improvements
-    - [Agent] Improved settings popup UI with better permission mode selection
-    - [Models] Updated MiniMax models to the latest M2.x series
+    - [Plugin] Fixed i18n text in PluginCard not updating when language is switched
+    - [OpenClaw] Fixed installation failure on Windows when npm path contains spaces
+    - [Rephraser] Fixed question rephraser not applying custom parameters set for assistant
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.19 - 问题修复与改进
+    Cherry Studio 1.7.20 - 新功能与改进
+
+    ✨ 新功能
+    - [聊天] 新增 Cmd+Shift+M 快捷键打开模型选择器
+    - [模型] Anthropic 提供商新增 Claude Sonnet 4.6 模型支持及推理强度配置
+    - [选择] 引用行为更新为使用 XML `<quote>` 标签
+    - [模型] 新增 Qwen 3.5 系列模型支持
+    - [模型] 新增 Moonshot Kimi K2.5 系列模型支持 (kimi-k2.5, kimi-k2-0905-Preview 等)
+    - [模型] 新增智谱 GLM-5 模型支持，支持思考 token、交叉思考和函数调用
+    - [模型] 新增豆包 Seed 2.0 模型支持及函数调用能力
+    - [搜索] 话题搜索新增关键词匹配功能
+    - [工作流] 优化 PR 工作流，引入按需加载技能和项目级技能管理
 
     🐛 问题修复
-    - [设置] 修复服务商名称输入时空格被立即移除的问题
-    - [数据] 修复重置数据时未清除智能体、记忆、知识库和笔记数据的问题
-    - [数据] 修复 Windows 上恢复备份失败的问题（EBUSY 错误）
-    - [MCP] 修复 MCP 工具返回图片时超出 API 消息大小限制的问题
-
-    💄 改进
-    - [智能体] 优化设置弹窗界面，改进权限模式选择体验
-    - [模型] 更新 MiniMax 模型至最新的 M2.x 系列
+    - [插件] 修复切换语言时 PluginCard 的 i18n 文本不更新的问题
+    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时安装失败的问题
+    - [重述器] 修复问题重述器未应用助手自定义参数的问题
     <!--LANG:END-->
