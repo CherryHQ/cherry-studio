@@ -380,6 +380,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'Claude 4.6'
     },
     {
+      id: 'claude-sonnet-4-6',
+      provider: 'anthropic',
+      name: 'Claude Sonnet 4.6',
+      group: 'Claude 4.6'
+    },
+    {
       id: 'claude-sonnet-4-5',
       provider: 'anthropic',
       name: 'Claude Sonnet 4.5',
