@@ -5,9 +5,13 @@
  * 逻辑：每 SYNC_INTERVAL 毫秒轮询一次，对比 Topic 快照（ID + updatedAt），
  *        将新增/更新/删除的 Topic 推送到同步服务器。
  *
- * 配置方式：在 Cherry Studio 的 DevTools Console 中执行：
- *   localStorage.setItem('cherry-sync-server', 'http://your-server:3456')
- *   localStorage.setItem('cherry-sync-token', 'your-token')
+ * 配置方式（优先级从高到低）：
+ *   1. localStorage（运行时覆盖，DevTools Console 中设置）：
+ *      localStorage.setItem('cherry-sync-server', 'http://your-server:3456')
+ *      localStorage.setItem('cherry-sync-token', 'your-token')
+ *   2. .env 文件（项目根目录，参考 .env.sync 模板）：
+ *      RENDERER_VITE_SYNC_SERVER=http://your-server:3456
+ *      RENDERER_VITE_SYNC_TOKEN=your-token
  */
 import db from '@renderer/databases'
 
@@ -18,8 +22,10 @@ const BATCH_SIZE = 20 // 批量上传时每批最大数量
 const INIT_DELAY = 8_000 // 初始化延迟（等 Dexie + Redux persist 准备好）
 
 function getConfig() {
-  const server = localStorage.getItem('cherry-sync-server') || ''
-  const token = localStorage.getItem('cherry-sync-token') || ''
+  const server =
+    localStorage.getItem('cherry-sync-server') || import.meta.env.RENDERER_VITE_SYNC_SERVER || ''
+  const token =
+    localStorage.getItem('cherry-sync-token') || import.meta.env.RENDERER_VITE_SYNC_TOKEN || ''
   return { server: server.replace(/\/+$/, ''), token }
 }
 
@@ -294,7 +300,7 @@ async function syncOnce(): Promise<void> {
 function start() {
   const { server } = getConfig()
   if (!server) {
-    console.log('[TopicSync] No sync server configured. Set localStorage "cherry-sync-server" to enable.')
+    console.log('[TopicSync] No sync server configured. Set .env RENDERER_VITE_SYNC_SERVER or localStorage "cherry-sync-server".')
     return
   }
 
