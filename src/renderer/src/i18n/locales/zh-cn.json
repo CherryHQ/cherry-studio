@@ -5137,6 +5137,10 @@
       "toggle_new_context": "清除上下文",
       "toggle_show_assistants": "切换助手显示",
       "toggle_show_topics": "切换话题显示",
+      "switch_next_assistant": "切换下一个助手",
+      "switch_prev_assistant": "切换上一个助手",
+      "switch_next_topic": "切换下一个话题",
+      "switch_prev_topic": "切换上一个话题",
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"

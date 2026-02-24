@@ -5137,6 +5137,10 @@
       "toggle_new_context": "Clear Context",
       "toggle_show_assistants": "Toggle Assistants",
       "toggle_show_topics": "Toggle Topics",
+      "switch_next_assistant": "Switch Next Assistant",
+      "switch_prev_assistant": "Switch Previous Assistant",
+      "switch_next_topic": "Switch Next Topic",
+      "switch_prev_topic": "Switch Previous Topic",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"
