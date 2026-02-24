@@ -1969,6 +1969,7 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-pro-latest' }))).toEqual([
         'default',
         'low',
+        'medium',
         'high'
       ])
     })
