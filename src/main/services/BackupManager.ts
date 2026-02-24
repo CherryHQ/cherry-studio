@@ -1067,19 +1067,21 @@ class BackupManager {
    * Creates a lightweight backup (skipBackupFile=true) in the temp directory
    * Returns the path to the created ZIP file
    */
-  async createLegacyBackup(_: Electron.IpcMainInvokeEvent, data: string): Promise<string> {
+  async createLegacyBackup(_: Electron.IpcMainInvokeEvent, data: string, destinationPath?: string): Promise<string> {
     const timestamp = new Date()
       .toISOString()
       .replace(/[-:T.Z]/g, '')
       .slice(0, 12)
     const fileName = `cherry-studio.${timestamp}.zip`
-    const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
 
-    // Ensure temp directory exists
-    await fs.ensureDir(tempPath)
+    // Use provided destination path or default to temp directory
+    const targetPath = destinationPath || path.join(app.getPath('temp'), 'cherry-studio', 'temp-backup')
+
+    // Ensure target directory exists
+    await fs.ensureDir(targetPath)
 
     // Create backup with skipBackupFile=true (no Data folder)
-    const backupedFilePath = await this.backupLegacy(_, fileName, data, tempPath, true)
+    const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)
 
     logger.info(`[BackupManager] Created legacy backup at: ${backupedFilePath}`)
     return backupedFilePath
@@ -1091,7 +1093,7 @@ class BackupManager {
   async deleteTempBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
     try {
       // Security check: only allow deletion within temp directory
-      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer'))
+      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'temp-backup'))
       const resolvedPath = path.normalize(path.resolve(filePath))
 
       // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)

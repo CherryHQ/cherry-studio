@@ -13,7 +13,7 @@ import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Tooltip, Typography } from 'antd'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -461,7 +461,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
+            <Button onClick={() => BackupPopup.show()} icon={<SaveIcon size={14} />}>
               {t('settings.general.backup.button')}
             </Button>
             <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
@@ -486,6 +486,15 @@ const BasicDataSettings: React.FC = () => {
           <HStack gap="5px" justifyContent="space-between">
             <Button onClick={LanTransferPopup.show} icon={<WifiOutlined size={14} />}>
               {t('settings.data.export_to_phone.lan.button')}
+            </Button>
+          </HStack>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
+          <HStack gap="5px" justifyContent="space-between">
+            <Button onClick={() => BackupPopup.show('legacy')} icon={<FolderInput size={14} />}>
+              {t('settings.data.export_to_phone.file.button')}
             </Button>
           </HStack>
         </SettingRow>

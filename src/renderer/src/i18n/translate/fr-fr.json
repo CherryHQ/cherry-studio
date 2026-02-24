@@ -3638,6 +3638,13 @@
           "button": "Sélectionner le fichier de sauvegarde"
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "file": {
+          "button": "Exporter vers un fichier",
+          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
+          "export_failed": "L'exportation a échoué",
+          "export_success": "Exportation réussie",
+          "title": "Exporter en tant que fichier"
+        },
         "lan": {
           "button": "Démarrer le transfert",
           "connected": "Connecté",

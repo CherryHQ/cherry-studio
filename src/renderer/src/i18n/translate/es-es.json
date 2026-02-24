@@ -3638,6 +3638,13 @@
           "button": "Seleccionar archivo de copia de seguridad"
         },
         "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
+        "file": {
+          "button": "Exportar a archivo",
+          "content": "Exportar datos como archivo de respaldo que puede ser importado en el móvil a través de un archivo.",
+          "export_failed": "Exportación fallida",
+          "export_success": "Exportación exitosa",
+          "title": "Exportar como archivo"
+        },
         "lan": {
           "button": "Iniciar transferencia",
           "connected": "Conectado",

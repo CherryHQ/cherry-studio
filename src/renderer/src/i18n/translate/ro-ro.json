@@ -3638,6 +3638,13 @@
           "button": "Selectează fișierul de backup"
         },
         "content": "Exportă unele date, inclusiv jurnalele de chat și setările. Te rugăm să reții că procesul de backup poate dura ceva timp. Îți mulțumim pentru răbdare.",
+        "file": {
+          "button": "Exportă în fișier",
+          "content": "Exportă datele ca fișier de rezervă care poate fi importat pe mobil prin fișier.",
+          "export_failed": "Exportul a eșuat",
+          "export_success": "Export reușit",
+          "title": "Exportă ca fișier"
+        },
         "lan": {
           "button": "Începe transferul",
           "connected": "Conectat",

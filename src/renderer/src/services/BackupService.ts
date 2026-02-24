@@ -72,6 +72,20 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
+export async function backupLegacy() {
+  // Let user select save location first
+  const savePath = await window.api.file.selectFolder()
+  if (!savePath) {
+    return
+  }
+
+  // Create backup directly in the selected location
+  const backupData = await getBackupData()
+  await window.api.backup.createLegacyBackup(backupData, savePath)
+
+  window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
+}
+
 export async function restore() {
   const notificationService = NotificationService.getInstance()
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
