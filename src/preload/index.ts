@@ -173,11 +173,11 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (filename: string, content: string, path: string, skipBackupFile: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, filename, content, path, skipBackupFile),
     restore: (path: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, path),
-    backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
+    // Direct backup methods (copy IndexedDB/LocalStorage directories directly)
+    backup: (fileName: string, destinationPath: string, skipBackupFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, destinationPath, skipBackupFile),
+    backupToWebdav: (webdavConfig: WebDavConfig) => ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, webdavConfig),
     restoreFromWebdav: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
@@ -188,11 +188,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
     deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig),
-    backupToLocalDir: (
-      data: string,
-      fileName: string,
-      localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-    ) => ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, data, fileName, localConfig),
+    backupToLocalDir: (fileName: string, localConfig: { localBackupDir?: string; skipBackupFile?: boolean }) =>
+      ipcRenderer.invoke(IpcChannel.Backup_BackupToLocalDir, fileName, localConfig),
     restoreFromLocalBackup: (fileName: string, localBackupDir?: string) =>
       ipcRenderer.invoke(IpcChannel.Backup_RestoreFromLocalBackup, fileName, localBackupDir),
     listLocalBackupFiles: (localBackupDir?: string) =>
@@ -201,8 +198,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLocalBackupFile, fileName, localBackupDir),
     checkWebdavConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
-
-    backupToS3: (data: string, s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, data, s3Config),
+    backupToS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_BackupToS3, s3Config),
     restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
