@@ -341,9 +341,9 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
  * - AWS Bedrock: anthropic.claude-opus-4-6-v1
  * - GCP Vertex AI: claude-opus-4-6
  * @param model - The model to check
- * @returns true if the model is Claude Opus 4.6
+ * @returns true if the model is Claude 4.6 series model
  */
-export function isOpus46Model(model: Model | undefined | null): boolean {
+export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
@@ -352,6 +352,6 @@ export function isOpus46Model(model: Model | undefined | null): boolean {
   // - Direct API: claude-opus-4-6, claude-opus-4.6
   // - AWS Bedrock: anthropic.claude-opus-4-6-v1
   // - GCP Vertex AI: claude-opus-4-6
-  const regex = /(?:anthropic\.)?claude-opus-4[.-]6(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }

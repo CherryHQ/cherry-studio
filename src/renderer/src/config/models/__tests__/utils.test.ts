@@ -20,6 +20,7 @@ import {
   getModelSupportedVerbosity,
   groupQwenModels,
   isAnthropicModel,
+  isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGeminiModel,
@@ -28,7 +29,6 @@ import {
   isMaxTemperatureOneModel,
   isNotSupportSystemMessageModel,
   isNotSupportTextDeltaModel,
-  isOpus46Model,
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportFlexServiceTierModel,
@@ -674,58 +674,78 @@ describe('model utils', () => {
     })
   })
 
-  describe('Opus 4.6 Model Detection', () => {
-    describe('isOpus46Model', () => {
+  describe('Claude 4.6 Models Detection', () => {
+    describe('isClaude46SeriesModel', () => {
       it('detects Opus 4.6 in direct API format', () => {
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-6' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6' }))).toBe(true)
       })
 
       it('detects Opus 4.6 with version suffixes', () => {
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-6-20251201' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4.6-20251201' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-6-preview' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-preview' }))).toBe(true)
       })
 
       it('detects Opus 4.6 in AWS Bedrock format', () => {
-        expect(isOpus46Model(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'anthropic.claude-opus-4-6-v2:0' }))).toBe(true)
-      })
-
-      it('detects Opus 4.6 in GCP Vertex AI format', () => {
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-6@20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v2:0' }))).toBe(true)
       })
 
       it('detects Opus 4.6 with provider prefix', () => {
-        expect(isOpus46Model(createModel({ id: 'anthropic/claude-opus-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-opus-4-6' }))).toBe(true)
       })
 
       it('handles case insensitivity', () => {
-        expect(isOpus46Model(createModel({ id: 'CLAUDE-OPUS-4-6' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'Claude-Opus-4.6' }))).toBe(true)
-        expect(isOpus46Model(createModel({ id: 'Anthropic.Claude-Opus-4-6-V1' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Opus-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Opus-4-6-V1' }))).toBe(true)
       })
 
       it('returns false for other Claude models', () => {
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4.5' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-0' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-sonnet-4-6' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-3-opus' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-0' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+      })
+
+      it('detects Sonnet 4.6 in direct API format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with version suffixes', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-preview' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 in AWS Bedrock format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with provider prefix', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('handles case insensitivity for Sonnet', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-SONNET-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Sonnet-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Sonnet-4-6-V1' }))).toBe(true)
       })
 
       it('returns false for non-Claude models', () => {
-        expect(isOpus46Model(createModel({ id: 'gpt-4o' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'gemini-pro' }))).toBe(false)
-        expect(isOpus46Model(createModel({ id: 'qwen-max' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'qwen-max' }))).toBe(false)
       })
 
       it('returns false for undefined and null', () => {
-        expect(isOpus46Model(undefined as unknown as Model)).toBe(false)
-        expect(isOpus46Model(null as unknown as Model)).toBe(false)
+        expect(isClaude46SeriesModel(undefined as unknown as Model)).toBe(false)
+        expect(isClaude46SeriesModel(null as unknown as Model)).toBe(false)
       })
     })
   })
