@@ -58,8 +58,30 @@ interface TopicFullData {
 
 // ── 状态 ──────────────────────────────────────────────────────────────
 
-let previousSnapshot: Map<string, string> = new Map() // topicId → updatedAt
-let initialized = false
+const SNAPSHOT_KEY = 'cherry-sync-snapshot' // localStorage key for persisted snapshot
+
+/** 从 localStorage 恢复上次的快照（App 重启后不丢失） */
+function loadPersistedSnapshot(): Map<string, string> {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY)
+    if (!raw) return new Map()
+    const entries: [string, string][] = JSON.parse(raw)
+    return new Map(entries)
+  } catch {
+    return new Map()
+  }
+}
+
+/** 将快照持久化到 localStorage */
+function savePersistedSnapshot(snapshot: Map<string, string>) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify([...snapshot.entries()]))
+  } catch {
+    // localStorage 满了之类的极端情况，忽略
+  }
+}
+
+let previousSnapshot: Map<string, string> | null = null // null = 尚未初始化
 
 // ── 工具函数 ──────────────────────────────────────────────────────────
 
@@ -227,12 +249,16 @@ async function syncOnce(): Promise<void> {
   try {
     const currentSnapshot = getTopicSnapshotFromStore()
 
-    if (!initialized) {
-      // 首次运行：建立基线快照，不触发同步
-      previousSnapshot = currentSnapshot
-      initialized = true
-      console.log(`[TopicSync] Initialized with ${currentSnapshot.size} topics`)
-      return
+    // 首次运行：从 localStorage 恢复快照（可能为空）
+    if (previousSnapshot === null) {
+      previousSnapshot = loadPersistedSnapshot()
+      console.log(
+        `[TopicSync] Initialized: ${currentSnapshot.size} local topics, ` +
+          `${previousSnapshot.size} in last synced snapshot`
+      )
+      // 不 return —— 继续往下 diff，这样：
+      // - 全新安装（空快照）→ 所有 Topic 视为"新增" → 全量推送
+      // - 重启（有快照）→ 只推送变更的 Topic
     }
 
     // 计算 diff
@@ -288,8 +314,9 @@ async function syncOnce(): Promise<void> {
       await apiDelete(`/api/topics/${id}`)
     }
 
-    // 更新快照
+    // 更新快照（内存 + 持久化）
     previousSnapshot = currentSnapshot
+    savePersistedSnapshot(currentSnapshot)
   } catch (e) {
     console.error('[TopicSync] Sync loop error:', e)
   }
