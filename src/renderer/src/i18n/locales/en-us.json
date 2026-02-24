@@ -3639,6 +3639,7 @@
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
         "lan": {
+          "button": "Start Transfer",
           "connected": "Connected",
           "connection_failed": "Connection failed",
           "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
