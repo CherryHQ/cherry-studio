@@ -135,12 +135,4 @@ db.version(10).stores({
   message_blocks: 'id, messageId, file.id'
 })
 
-/**
- * Get current Dexie database version number.
- * Used for backup metadata compatibility checking.
- */
-export function getDexieVersion(): number {
-  return 10
-}
-
 export default db

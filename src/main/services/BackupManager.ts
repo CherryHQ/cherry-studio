@@ -93,7 +93,6 @@ class BackupManager {
     appVersion: string
     platform: string
     arch: string
-    dexieVersion: number
   } {
     return {
       version: 6,
@@ -101,8 +100,7 @@ class BackupManager {
       timestamp: Date.now(),
       appVersion: app.getVersion(),
       platform: process.platform,
-      arch: process.arch,
-      dexieVersion: 10 // Current Dexie database version
+      arch: process.arch
     }
   }
 
@@ -248,14 +246,6 @@ class BackupManager {
 
       if (metadata.backupType !== 'direct') {
         throw new Error('Invalid backup type: expected "direct"')
-      }
-
-      // Check Dexie version compatibility
-      const currentDexieVersion = 10
-      if (metadata.dexieVersion && metadata.dexieVersion > currentDexieVersion) {
-        throw new Error(
-          `Backup is from a newer version (Dexie v${metadata.dexieVersion}) and cannot be restored on this version (Dexie v${currentDexieVersion})`
-        )
       }
 
       // Warn about cross-platform restore
