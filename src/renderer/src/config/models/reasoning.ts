@@ -22,10 +22,10 @@ import {
 } from './openai'
 import {
   GEMINI_FLASH_MODEL_REGEX,
+  isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isKimi25Model,
-  isOpus46Model,
   withModelIdAndNameAsId
 } from './utils'
 import { isTextToImageModel } from './vision'
@@ -176,7 +176,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
-  } else if (isOpus46Model(model)) {
+  } else if (isClaude46SeriesModel(model)) {
     thinkingModelType = 'opus46'
   }
   return thinkingModelType
