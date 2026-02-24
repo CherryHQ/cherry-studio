@@ -24,6 +24,7 @@ const modelIcons: IconEntry[] = toIconEntries(Models)
 
 interface ShowcaseProps {
   fontSize?: number
+  monoColor?: string
 }
 
 const IconGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
@@ -54,7 +55,13 @@ const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   )
 }
 
-const ColorVsMonoGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: number }) => (
+interface ColorVsMonoGridProps {
+  icons: IconEntry[]
+  fontSize: number
+  monoColor?: string
+}
+
+const ColorVsMonoGrid = ({ icons, fontSize, monoColor }: ColorVsMonoGridProps) => (
   <div className="flex flex-wrap gap-6 p-2">
     {icons.map(({ Component, name }) => {
       const ColorIcon = (Component as any).Color
@@ -66,7 +73,7 @@ const ColorVsMonoGrid = ({ icons, fontSize }: { icons: IconEntry[]; fontSize: nu
             <div className="border-gray-200 border rounded-md p-2">
               <ColorIcon />
             </div>
-            <div className="border-gray-200 border rounded-md p-2">
+            <div className="border-gray-200 border rounded-md p-2" style={{ color: monoColor }}>
               <MonoIcon />
             </div>
           </div>
@@ -118,16 +125,16 @@ const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   )
 }
 
-const ColorVsMonoShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
+const ColorVsMonoShowcase = ({ fontSize = 32, monoColor }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8">
       <div>
         <h2 className="text-lg font-semibold mb-4">Providers</h2>
-        <ColorVsMonoGrid icons={providerIcons} fontSize={fontSize} />
+        <ColorVsMonoGrid icons={providerIcons} fontSize={fontSize} monoColor={monoColor} />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Models</h2>
-        <ColorVsMonoGrid icons={modelIcons} fontSize={fontSize} />
+        <ColorVsMonoGrid icons={modelIcons} fontSize={fontSize} monoColor={monoColor} />
       </div>
     </div>
   )
@@ -145,6 +152,10 @@ const meta: Meta<typeof AllIconsShowcase> = {
       control: { type: 'number', min: 16, max: 64, step: 4 },
       description: 'Logo 大小（通过 fontSize 控制，因为图标使用 1em 单位）',
       defaultValue: 32
+    },
+    monoColor: {
+      control: 'color',
+      description: 'Mono 版本的颜色（使用 currentColor，可以是颜色名称、hex、rgb 等）'
     }
   }
 }
@@ -188,18 +199,20 @@ export const AllLogos: Story = {
  *
  * 每个 Logo 并排展示 Color（彩色）和 Mono（单色）两种变体。
  * Mono 版本使用 `currentColor` 填充，可通过 CSS `color` 属性控制颜色。
+ * 使用 `monoColor` 参数来实时预览不同颜色下的 Mono 效果。
  *
  * ```tsx
  * import { Anthropic } from '@cherrystudio/ui/icons'
  *
  * <Anthropic.Color />  // 彩色
- * <Anthropic.Mono />   // 单色
+ * <Anthropic.Mono className="text-red-500" />   // 单色自定义颜色
  * ```
  */
 export const ColorVsMono: StoryObj<typeof ColorVsMonoShowcase> = {
   render: (args) => <ColorVsMonoShowcase {...args} />,
   args: {
-    fontSize: 32
+    fontSize: 32,
+    monoColor: undefined
   }
 }
 
