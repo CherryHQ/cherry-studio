@@ -204,8 +204,8 @@ const api = {
     deleteS3File: (fileName: string, s3Config: S3Config) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
     checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config),
-    createLanTransferBackup: (data: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data),
+    createLegacyBackup: (data: string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_CreateLegacyBackup, data),
     deleteTempBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteTempBackup, filePath)
   },

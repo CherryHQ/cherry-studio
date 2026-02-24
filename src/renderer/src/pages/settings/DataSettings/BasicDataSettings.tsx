@@ -18,15 +18,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import {
-  SettingContainer,
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingRow,
-  SettingRowTitle,
-  SettingTitle
-} from '..'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -462,7 +454,7 @@ const BasicDataSettings: React.FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
+    <>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
@@ -554,7 +546,7 @@ const BasicDataSettings: React.FC = () => {
           </HStack>
         </SettingRow>
       </SettingGroup>
-    </SettingContainer>
+    </>
   )
 }
 
