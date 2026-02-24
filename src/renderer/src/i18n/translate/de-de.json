@@ -3520,6 +3520,9 @@
         "title": "Feedback"
       },
       "label": "Über uns",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Anzeigen",
         "title": "Changelog"

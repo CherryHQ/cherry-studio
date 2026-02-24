@@ -16,12 +16,14 @@
  */
 import type { UpgradeChannel } from '@shared/config/constant'
 import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import type { LogLevel } from '@shared/config/logger'
 import type { LanguageVarious, Shortcut } from '@types'
 import { ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
 import { v4 as uuidv4 } from 'uuid'
 
+import { isDev } from '../constant'
 import { locales } from '../utils/locales'
 
 export enum ConfigKeys {
@@ -50,7 +52,8 @@ export enum ConfigKeys {
   EnableDeveloperMode = 'enableDeveloperMode',
   ClientId = 'clientId',
   GitBashPath = 'gitBashPath',
-  GitBashPathSource = 'gitBashPathSource' // 'manual' | 'auto' | null
+  GitBashPathSource = 'gitBashPathSource', // 'manual' | 'auto' | null
+  LogLevel = 'logLevel'
 }
 
 export class ConfigManager {
@@ -281,6 +284,14 @@ export class ConfigManager {
     }
 
     return clientId
+  }
+
+  getLogLevel(): LogLevel {
+    return this.get<LogLevel>(ConfigKeys.LogLevel, isDev ? 'silly' : 'info')
+  }
+
+  setLogLevel(level: LogLevel) {
+    this.set(ConfigKeys.LogLevel, level)
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

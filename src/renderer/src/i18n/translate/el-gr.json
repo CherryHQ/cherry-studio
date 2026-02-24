@@ -3520,6 +3520,9 @@
         "title": "Αποστολή σχολίων"
       },
       "label": "Περί μας",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Προβολή",
         "title": "Ημερολόγιο Ενημερώσεων"

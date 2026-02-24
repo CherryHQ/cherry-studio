@@ -3520,6 +3520,9 @@
         "title": "Обратная связь"
       },
       "label": "О программе и обратная связь",
+      "logLevel": {
+        "title": "[to be translated]:Log Level"
+      },
       "releases": {
         "button": "Релизы",
         "title": "Заметки о релизах"

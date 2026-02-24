@@ -13,9 +13,10 @@ import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
+import type { LogLevel } from '@shared/config/logger'
+import { Avatar, Button, Progress, Radio, Row, Select, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
-import { Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Briefcase, Bug, Building2, FileText, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -30,7 +31,16 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
+  const {
+    autoCheckUpdate,
+    setAutoCheckUpdate,
+    testPlan,
+    setTestPlan,
+    testChannel,
+    setTestChannel,
+    logLevel,
+    setLogLevel
+  } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -343,6 +353,26 @@ const AboutSettings: FC = () => {
             {t('settings.about.debug.title')}
           </SettingRowTitle>
           <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <FileText size={18} />
+            {t('settings.about.logLevel.title')}
+          </SettingRowTitle>
+          <Select
+            value={logLevel}
+            onChange={(value) => setLogLevel(value as LogLevel)}
+            style={{ width: 120 }}
+            options={[
+              { value: 'error', label: 'Error' },
+              { value: 'warn', label: 'Warn' },
+              { value: 'info', label: 'Info' },
+              { value: 'debug', label: 'Debug' },
+              { value: 'verbose', label: 'Verbose' },
+              { value: 'silly', label: 'Silly' }
+            ]}
+          />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>
