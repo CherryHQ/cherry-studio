@@ -88,16 +88,16 @@ class BackupManager {
    */
   private createDirectBackupMetadata(): {
     version: number
-    backupType: string
     timestamp: number
+    appName: string
     appVersion: string
     platform: string
     arch: string
   } {
     return {
       version: 6,
-      backupType: 'direct',
       timestamp: Date.now(),
+      appName: 'Cherry Studio',
       appVersion: app.getVersion(),
       platform: process.platform,
       arch: process.arch
@@ -243,10 +243,6 @@ class BackupManager {
       // Step 2: Read and validate metadata
       const metadataPath = path.join(this.tempDir, 'metadata.json')
       const metadata = await fs.readJson(metadataPath)
-
-      if (metadata.backupType !== 'direct') {
-        throw new Error('Invalid backup type: expected "direct"')
-      }
 
       // Warn about cross-platform restore
       if (metadata.platform && metadata.platform !== process.platform) {
