@@ -15,7 +15,7 @@ interface Props {
   resolve: (data: any) => void
 }
 
-type ProgressStageType = 'reading_data' | 'preparing' | 'extracting' | 'extracted' | 'copying_files' | 'completed'
+type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
 
 interface ProgressData {
   stage: ProgressStageType

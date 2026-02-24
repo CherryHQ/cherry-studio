@@ -120,7 +120,7 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      const logStages = ['preparing', 'closing_db', 'copying_indexeddb', 'copying_localstorage', 'completed']
+      const logStages = ['preparing', 'copying_database', 'copying_files', 'compressing', 'completed']
       if (logStages.includes(processData.stage) || processData.progress === 100) {
         logger.debug('backupDirect progress', processData)
       }
@@ -133,38 +133,35 @@ class BackupManager {
       const userDataPath = app.getPath('userData')
       let currentProgress = 10
 
-      // Step 2: Copy IndexedDB directory
+      // Step 2: Copy IndexedDB and Local Storage directories
+      onProgress({ stage: 'copying_database', progress: 15, total: 100 })
+      logger.debug('[backupDirect] Copying database directories...')
+
       const indexedDBSource = path.join(userDataPath, 'IndexedDB')
       const indexedDBDest = path.join(this.tempDir, 'IndexedDB')
       if (await fs.pathExists(indexedDBSource)) {
-        onProgress({ stage: 'copying_indexeddb', progress: 15, total: 100 })
-        logger.debug('[backupDirect] Copying IndexedDB directory...')
         await fs.copy(indexedDBSource, indexedDBDest)
-        currentProgress = 35
       } else {
         logger.debug('[backupDirect] IndexedDB directory not found, skipping')
       }
-      onProgress({ stage: 'copying_indexeddb', progress: currentProgress, total: 100 })
 
-      // Step 3: Copy Local Storage directory
       const localStorageSource = path.join(userDataPath, 'Local Storage')
       const localStorageDest = path.join(this.tempDir, 'Local Storage')
       if (await fs.pathExists(localStorageSource)) {
-        onProgress({ stage: 'copying_localstorage', progress: 40, total: 100 })
-        logger.debug('[backupDirect] Copying Local Storage directory...')
         await fs.copy(localStorageSource, localStorageDest)
-        currentProgress = 50
       } else {
         logger.debug('[backupDirect] Local Storage directory not found, skipping')
       }
-      onProgress({ stage: 'copying_localstorage', progress: currentProgress, total: 100 })
 
-      // Step 4: Write metadata.json
+      currentProgress = 50
+      onProgress({ stage: 'copying_database', progress: currentProgress, total: 100 })
+
+      // Step 3: Write metadata.json
       const metadata = this.createDirectBackupMetadata()
       await fs.writeJson(path.join(this.tempDir, 'metadata.json'), metadata, { spaces: 2 })
-      onProgress({ stage: 'writing_metadata', progress: 52, total: 100 })
+      onProgress({ stage: 'copying_database', progress: 52, total: 100 })
 
-      // Step 5: Copy Data directory (if not skipped)
+      // Step 4: Copy Data directory (if not skipped)
       if (!skipBackupFile) {
         const sourcePath = path.join(userDataPath, 'Data')
         const tempDataDir = path.join(this.tempDir, 'Data')
@@ -185,13 +182,13 @@ class BackupManager {
         logger.debug('[backupDirect] Skip the backup of the file')
         await fs.promises.mkdir(path.join(this.tempDir, 'Data'))
       }
-      onProgress({ stage: 'preparing_compression', progress: 80, total: 100 })
+      onProgress({ stage: 'compressing', progress: 80, total: 100 })
 
-      // Step 6: Create ZIP archive
+      // Step 5: Create ZIP archive
       const backupedFilePath = path.join(destinationPath, fileName)
       const output = fs.createWriteStream(backupedFilePath)
       const archive = archiver('zip', {
-        zlib: { level: 1 },
+        zlib: { level: 0 }, // No compression - data is already compressed by LevelDB
         zip64: true
       })
 
@@ -273,33 +270,32 @@ class BackupManager {
       // Step 3: Close all connections
       logger.debug('[restoreDirect] Closing all data connections...')
       await closeAllDataConnections()
-      onProgress({ stage: 'closing_connections', progress: 30, total: 100 })
+      onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
 
       const userDataPath = app.getPath('userData')
 
-      // Step 4: Restore IndexedDB
+      // Step 4: Restore IndexedDB and Local Storage
+      logger.debug('[restoreDirect] Restoring database directories...')
+
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
       const indexedDBDest = path.join(userDataPath, 'IndexedDB')
       if (await fs.pathExists(indexedDBSource)) {
-        logger.debug('[restoreDirect] Restoring IndexedDB...')
         await this.setWritableRecursive(indexedDBDest).catch(() => {})
         await fs.remove(indexedDBDest).catch(() => {})
         await fs.copy(indexedDBSource, indexedDBDest)
       }
-      onProgress({ stage: 'restoring_indexeddb', progress: 50, total: 100 })
 
-      // Step 5: Restore Local Storage
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
       const localStorageDest = path.join(userDataPath, 'Local Storage')
       if (await fs.pathExists(localStorageSource)) {
-        logger.debug('[restoreDirect] Restoring Local Storage...')
         await this.setWritableRecursive(localStorageDest).catch(() => {})
         await fs.remove(localStorageDest).catch(() => {})
         await fs.copy(localStorageSource, localStorageDest)
       }
-      onProgress({ stage: 'restoring_localstorage', progress: 65, total: 100 })
 
-      // Step 6: Restore Data directory
+      onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
+
+      // Step 5: Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
       const dataDest = getDataPath()
       const dataExists = await fs.pathExists(dataSource)
@@ -322,7 +318,7 @@ class BackupManager {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
 
-      // Step 7: Clean up
+      // Step 6: Clean up
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })

@@ -704,6 +704,7 @@
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
+      "copying_database": "复制数据库...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
       "preparing_compression": "准备压缩...",
@@ -3081,7 +3082,10 @@
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
       "reading_data": "读取数据...",
-      "title": "恢复进度"
+      "restoring_data": "恢复文件...",
+      "restoring_database": "恢复数据库...",
+      "title": "恢复进度",
+      "validating": "验证备份..."
     },
     "title": "数据恢复"
   },

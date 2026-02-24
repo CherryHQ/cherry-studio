@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Copia de seguridad completada",
       "compressing": "Comprimiendo archivos...",
+      "copying_database": "Copiando base de datos...",
       "copying_files": "Copiando archivos... {{progress}}%",
       "preparing": "Preparando copia de seguridad...",
       "preparing_compression": "Preparando compresión...",
@@ -3081,7 +3082,10 @@
       "extracting": "Descomprimiendo la copia de seguridad...",
       "preparing": "Preparando la restauración...",
       "reading_data": "Leyendo datos...",
-      "title": "Progreso de Restauración"
+      "restoring_data": "Restaurando archivos...",
+      "restoring_database": "Restaurando base de datos...",
+      "title": "Progreso de Restauración",
+      "validating": "Validando copia de seguridad..."
     },
     "title": "Restauración de Datos"
   },

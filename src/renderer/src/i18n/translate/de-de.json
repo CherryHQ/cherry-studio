@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
+      "copying_database": "Datenbank wird kopiert...",
       "copying_files": "Dateien werden kopiert... {{progress}}%",
       "preparing": "Backup wird vorbereitet...",
       "preparing_compression": "Komprimierung wird vorbereitet...",
@@ -3081,7 +3082,10 @@
       "extracting": "Backup wird entpackt...",
       "preparing": "Wiederherstellung wird vorbereitet...",
       "reading_data": "Daten werden gelesen...",
-      "title": "Wiederherstellungsfortschritt"
+      "restoring_data": "Dateien werden wiederhergestellt...",
+      "restoring_database": "Datenbank wird wiederhergestellt...",
+      "title": "Wiederherstellungsfortschritt",
+      "validating": "Backup wird überprüft..."
     },
     "title": "Datenwiederherstellung"
   },
