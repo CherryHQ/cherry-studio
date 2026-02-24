@@ -1,6 +1,5 @@
 import type { PluginMetadata } from '@renderer/types/plugin'
 import { Button, Card, Spin, Tag } from 'antd'
-import { t } from 'i18next'
 import { Download, Star, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,12 +15,6 @@ export interface PluginCardProps {
   onUninstall: () => void
   loading: boolean
   onClick: () => void
-}
-
-const labelMap = {
-  skill: t('plugins.skills'),
-  agent: t('plugins.agents'),
-  command: t('plugins.commands')
 }
 
 export const PluginCard: FC<PluginCardProps> = ({
@@ -46,6 +39,12 @@ export const PluginCard: FC<PluginCardProps> = ({
     if (plugin.type === 'agent') return 'blue'
     if (plugin.type === 'skill') return 'green'
     return 'default'
+  }
+
+  const labelMap = {
+    skill: t('plugins.skills'),
+    agent: t('plugins.agents'),
+    command: t('plugins.commands')
   }
 
   const getTypeLabel = () => {
