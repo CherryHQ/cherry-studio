@@ -33,7 +33,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--allowed-tools Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep'
+          claude_args: '--allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
 
