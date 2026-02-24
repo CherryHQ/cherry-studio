@@ -719,7 +719,13 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
     it('should return gemini3_pro for Gemini 3 Pro models', () => {
       expect(getThinkModelType(createModel({ id: 'gemini-3-pro-preview' }))).toBe('gemini3_pro')
-      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_pro')
+    })
+    it('should return gemini3_pro for Gemini 3.1 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe('gemini3_pro')
+    })
+    it('should return gemini3_1_pro for Gemini 3.1 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe('gemini3_1_pro')
+      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_1_pro')
     })
   })
 
