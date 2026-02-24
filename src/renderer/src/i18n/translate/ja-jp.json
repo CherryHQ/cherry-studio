@@ -704,6 +704,7 @@
     "progress": {
       "completed": "バックアップ完了",
       "compressing": "圧縮中...",
+      "copying_database": "データベースをコピー中...",
       "copying_files": "ファイルコピー中... {{progress}}%",
       "preparing": "バックアップ準備中...",
       "preparing_compression": "圧縮準備中...",
@@ -3081,7 +3082,10 @@
       "extracting": "バックアップ解凍中...",
       "preparing": "復元準備中...",
       "reading_data": "データ読み込み中...",
-      "title": "復元進捗"
+      "restoring_data": "ファイルを復元中...",
+      "restoring_database": "データベースを復元中...",
+      "title": "復元進捗",
+      "validating": "バックアップを検証中..."
     },
     "title": "データ復元"
   },

@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Backup finalizat",
       "compressing": "Se comprimă fișierele...",
+      "copying_database": "Se copiază baza de date...",
       "copying_files": "Se copiază fișierele... {{progress}}%",
       "preparing": "Se pregătește backup-ul...",
       "preparing_compression": "Se pregătește compresia...",
@@ -3081,7 +3082,10 @@
       "extracting": "Se extrage backup-ul...",
       "preparing": "Se pregătește restaurarea...",
       "reading_data": "Se citesc datele...",
-      "title": "Progres restaurare"
+      "restoring_data": "Restaurare fișiere...",
+      "restoring_database": "Restaurare bază de date...",
+      "title": "Progres restaurare",
+      "validating": "Se validează copia de rezervă..."
     },
     "title": "Restaurare date"
   },
