@@ -345,11 +345,11 @@ export const isGemini31ProModel = (model: Model | undefined | null): boolean => 
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  // Check for gemini-pro-latest alias (currently points to gemini-3-pro, may change in future)
+  // Check for gemini-pro-latest alias (currently points to gemini-3.1-pro, may change in future)
   if (modelId === 'gemini-pro-latest') {
     return true
   }
-  // Check for gemini-3-pro with optional suffixes, excluding image variants
+  // Check for gemini-3.1-pro with optional suffixes, excluding image variants
   return /gemini-3.1-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
 }
 
