@@ -3244,6 +3244,15 @@ const migrateConfig = {
       logger.error('migrate 198 error', error as Error)
       return state
     }
+  },
+  '199': (state: RootState) => {
+    try {
+      addShortcuts(state, ['select_model'], 'toggle_new_context')
+      return state
+    } catch (error) {
+      logger.error('migrate 199 error', error as Error)
+      return state
+    }
   }
 }
 

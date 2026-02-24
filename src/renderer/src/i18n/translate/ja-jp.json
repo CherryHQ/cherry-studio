@@ -5129,6 +5129,7 @@
       "reset_to_default": "デフォルトにリセット",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
       "show_app": "アプリを表示/非表示",

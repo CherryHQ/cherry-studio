@@ -5129,6 +5129,7 @@
       "reset_to_default": "重置为默认",
       "search_message": "搜索消息",
       "search_message_in_chat": "在当前对话中搜索消息",
+      "select_model": "选择模型",
       "selection_assistant_select_text": "划词助手：取词",
       "selection_assistant_toggle": "开关划词助手",
       "show_app": "显示 / 隐藏应用",
