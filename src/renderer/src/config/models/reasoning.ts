@@ -24,6 +24,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   isGemini3FlashModel,
   isGemini3ProModel,
+  isGemini31ProModel,
   isKimi25Model,
   isOpus46Model,
   withModelIdAndNameAsId
@@ -146,6 +147,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'
+    } else if (isGemini31ProModel(model)) {
+      thinkingModelType = 'gemini3_1_pro'
     } else if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       thinkingModelType = 'gemini2_flash'
     } else {
