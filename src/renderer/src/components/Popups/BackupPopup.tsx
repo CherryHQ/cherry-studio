@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
-import { backup } from '@renderer/services/BackupService'
+import { backup, backupLegacy } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
@@ -13,6 +13,7 @@ const logger = loggerService.withContext('BackupPopup')
 
 interface Props {
   resolve: (data: any) => void
+  backupType?: 'direct' | 'legacy'
 }
 
 type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
@@ -23,7 +24,7 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
+const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
@@ -40,8 +41,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    logger.debug(`skipBackupFile: ${skipBackupFile}`)
-    await backup(skipBackupFile)
+    logger.debug(`skipBackupFile: ${skipBackupFile}, backupType: ${backupType}`)
+
+    if (backupType === 'legacy') {
+      await backupLegacy()
+    } else {
+      await backup(skipBackupFile)
+    }
     setOpen(false)
   }
 
@@ -67,21 +73,26 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   BackupPopup.hide = onCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
+  const isLegacyMode = backupType === 'legacy'
+
+  const title = isLegacyMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
+  const okText = isLegacyMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
+  const content = isLegacyMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
 
   return (
     <Modal
-      title={t('backup.title')}
+      title={title}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
       okButtonProps={{ disabled: isDisabled }}
       cancelButtonProps={{ disabled: isDisabled }}
-      okText={t('backup.confirm.button')}
+      okText={okText}
       maskClosable={false}
       transitionName="animation-move-down"
       centered>
-      {!progressData && <div>{t('backup.content')}</div>}
+      {!progressData && <div>{content}</div>}
       {progressData && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />
@@ -99,10 +110,11 @@ export default class BackupPopup {
   static hide() {
     TopView.hide(TopViewKey)
   }
-  static show() {
+  static show(backupType: 'direct' | 'legacy' = 'direct') {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer
+          backupType={backupType}
           resolve={(v) => {
             resolve(v)
             TopView.hide(TopViewKey)

@@ -3638,6 +3638,13 @@
           "button": "Selecionar arquivo de backup"
         },
         "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
+        "file": {
+          "button": "Exportar para arquivo",
+          "content": "Exportar dados como arquivo de backup que pode ser importado no celular via arquivo.",
+          "export_failed": "Falha na exportação",
+          "export_success": "Exportação bem-sucedida",
+          "title": "Exportar como arquivo"
+        },
         "lan": {
           "button": "Iniciar transferência",
           "connected": "Conectado",

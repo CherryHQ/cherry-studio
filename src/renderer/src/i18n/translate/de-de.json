@@ -3638,6 +3638,13 @@
           "button": "Sicherungsdatei auswählen"
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "file": {
+          "button": "In Datei exportieren",
+          "content": "Exportiere Daten als Sicherungsdatei, die per Datei auf dem Mobilgerät importiert werden kann.",
+          "export_failed": "Export fehlgeschlagen",
+          "export_success": "Export erfolgreich",
+          "title": "Als Datei exportieren"
+        },
         "lan": {
           "button": "Übertragung starten",
           "connected": "Verbunden",
