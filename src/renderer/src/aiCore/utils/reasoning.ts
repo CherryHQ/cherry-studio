@@ -589,7 +589,7 @@ export function getAnthropicReasoningParams(
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
     // Claude 4.6 uses adaptive thinking + effort parameters
-    // Map reasoningEffort to Opus 4.6 supported effort values
+    // Map reasoningEffort to Claude 4.6 supported effort values
     if (isClaude46SeriesModel(model)) {
       // Claude 4.6 supports: low, medium, high, max
       // Mapping rules: default/none -> no effort (uses default high)

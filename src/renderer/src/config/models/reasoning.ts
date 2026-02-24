@@ -66,8 +66,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
-  // Opus 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
-  opus46: ['low', 'medium', 'high', 'xhigh'] as const
+  // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
+  claude46: ['low', 'medium', 'high', 'xhigh'] as const
 } as const satisfies ReasoningEffortConfig
 
 // Model type to supported options mapping
@@ -101,7 +101,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
-  opus46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.opus46] as const
+  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
 } as const
 
 // TODO: add ut
@@ -177,7 +177,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
   } else if (isClaude46SeriesModel(model)) {
-    thinkingModelType = 'opus46'
+    thinkingModelType = 'claude46'
   }
   return thinkingModelType
 }

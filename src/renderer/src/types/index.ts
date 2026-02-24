@@ -123,7 +123,7 @@ const ThinkModelTypes = [
   'perplexity',
   'deepseek_hybrid',
   'kimi_k2_5',
-  'opus46'
+  'claude46'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.

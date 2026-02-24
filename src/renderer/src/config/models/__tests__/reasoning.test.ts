@@ -2379,22 +2379,23 @@ describe('isInterleavedThinkingModel', () => {
 })
 
 describe('Claude Models', () => {
-  describe('getThinkModelType for Opus 4.6', () => {
-    it('should return opus46 for Opus 4.6 models', () => {
-      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('opus46')
-      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('opus46')
+  describe('getThinkModelType for Claude 4.6 series models', () => {
+    it('should return claude46 for Claude 4.6 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-6' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
   })
 
-  describe('MODEL_SUPPORTED_OPTIONS for Opus 4.6', () => {
-    it('should have correct options for opus46', () => {
-      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
+  describe('MODEL_SUPPORTED_OPTIONS for Claude 4.6', () => {
+    it('should have correct options for claude46', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.claude46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('MODEL_SUPPORTED_REASONING_EFFORT for Opus 4.6', () => {
-    it('should have correct effort levels for opus46', () => {
-      expect(MODEL_SUPPORTED_REASONING_EFFORT.opus46).toEqual(['low', 'medium', 'high', 'xhigh'])
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude 4.6', () => {
+    it('should have correct effort levels for claude46', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.claude46).toEqual(['low', 'medium', 'high', 'xhigh'])
     })
   })
 
