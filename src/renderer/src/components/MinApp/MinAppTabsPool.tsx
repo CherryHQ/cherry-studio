@@ -4,7 +4,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -41,6 +41,18 @@ const MinAppTabsPool: React.FC = () => {
   // 组合当前需要渲染的列表（保持顺序即可）
   const apps = openedKeepAliveMinapps
 
+  /** visible apps for split view (>=5 fallback to only current) */
+  const visibleApps = useMemo(() => {
+    if (apps.length === 0) return []
+    if (apps.length >= 5) {
+      const current = apps.find((item) => item.id === currentMinappId)
+      return current ? [current] : [apps[0]]
+    }
+    return apps
+  }, [apps, currentMinappId])
+
+  const visibleAppIds = useMemo(() => new Set(visibleApps.map((app) => app.id)), [visibleApps])
+
   /** 设置 ref 回调 */
   const handleSetRef = (appid: string, el: WebviewTag | null) => {
     if (el) {
@@ -61,15 +73,6 @@ const MinAppTabsPool: React.FC = () => {
     logger.debug(`TabPool webview navigate: ${appid} -> ${url}`)
   }
 
-  /** 切换显示状态：仅当前 active 的显示，其余隐藏 */
-  useEffect(() => {
-    webviewRefs.current.forEach((ref, id) => {
-      if (!ref) return
-      const active = id === currentMinappId && shouldShow
-      ref.style.display = active ? 'inline-flex' : 'none'
-    })
-  }, [currentMinappId, shouldShow, apps.length])
-
   /** 当某个已在 Map 里但不再属于 openedKeepAlive 时，移除引用（React 自身会卸载元素） */
   useEffect(() => {
     const existing = Array.from(webviewRefs.current.keys())
@@ -89,6 +92,7 @@ const MinAppTabsPool: React.FC = () => {
 
   return (
     <PoolContainer
+      $count={visibleApps.length}
       style={
         shouldShow
           ? {
@@ -101,7 +105,7 @@ const MinAppTabsPool: React.FC = () => {
       data-minapp-tabs-pool
       aria-hidden={!shouldShow}>
       {apps.map((app) => (
-        <WebviewWrapper key={app.id} $active={app.id === currentMinappId}>
+        <WebviewWrapper key={app.id} $visible={visibleAppIds.has(app.id)}>
           <WebviewContainer
             appid={app.id}
             url={app.url}
@@ -115,7 +119,7 @@ const MinAppTabsPool: React.FC = () => {
   )
 }
 
-const PoolContainer = styled.div`
+const PoolContainer = styled.div<{ $count: number }>`
   position: absolute;
   left: 0;
   right: 0;
@@ -126,18 +130,33 @@ const PoolContainer = styled.div`
   border-radius: 0 0 8px 8px;
   z-index: 1;
   pointer-events: none;
+  display: grid;
+  grid-template-columns: ${(props) => {
+    const count = props.$count
+    if (count === 2) return '1fr 1fr'
+    if (count === 3) return '1fr 1fr 1fr'
+    if (count >= 4) return '1fr 1fr'
+    return '1fr'
+  }};
+  grid-template-rows: ${(props) => {
+    const count = props.$count
+    if (count >= 4) return '1fr 1fr'
+    return '1fr'
+  }};
   & webview {
     pointer-events: auto;
   }
 `
 
-const WebviewWrapper = styled.div<{ $active: boolean }>`
-  position: absolute;
-  inset: 0;
+const WebviewWrapper = styled.div<{ $visible: boolean }>`
+  position: relative;
   width: 100%;
   height: 100%;
-  /* display 控制在内部 webview 元素上做，这里保持结构稳定 */
-  pointer-events: ${(props) => (props.$active ? 'auto' : 'none')};
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: ${(props) => (props.$visible ? 'block' : 'none')};
+  pointer-events: ${(props) => (props.$visible ? 'auto' : 'none')};
 `
 
 export default MinAppTabsPool
