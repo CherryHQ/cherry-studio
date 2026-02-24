@@ -1,4 +1,4 @@
-import { Avatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model, Provider } from '@renderer/types'
@@ -108,7 +108,11 @@ const ModelSelector = ({
       } else {
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {showAvatar && <Avatar className="h-[18px] w-[18px]" />}
+            {showAvatar && (
+              <Avatar className="h-[18px] w-[18px]">
+                <AvatarFallback />
+              </Avatar>
+            )}
             <span>{t('knowledge.error.model_invalid')}</span>
           </div>
         )

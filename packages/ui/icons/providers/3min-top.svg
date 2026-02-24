@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 552 552" width="32" height="32">
+  <!-- Yellow rounded background -->
+  <rect width="552" height="552" rx="131" ry="131" fill="#FFF0A0"/>
+  <!-- Lightning bolt (Lucide zap) scaled from 24x24 to 400x400, centered -->
+  <g transform="translate(76, 76) scale(16.6667)">
+    <polygon
+      points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
+      fill="#ffffff"
+      fill-opacity="0.9"
+      stroke="#222222"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

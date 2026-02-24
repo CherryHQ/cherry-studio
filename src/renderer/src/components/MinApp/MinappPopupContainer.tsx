@@ -10,9 +10,10 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { LogoAvatar } from '@renderer/components/Icons'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
@@ -543,11 +544,7 @@ const MinappPopupContainer: React.FC = () => {
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
         <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
-          <Avatar
-            src={currentAppInfo?.logo}
-            className="h-20 w-20"
-            style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
-          />
+          <LogoAvatar logo={currentAppInfo?.logo} size={80} />
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}

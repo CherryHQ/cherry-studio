@@ -1,16 +1,8 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
-import BingLogo from '@renderer/assets/images/search/bing.svg'
-import BochaLogo from '@renderer/assets/images/search/bocha.webp'
-import ExaLogo from '@renderer/assets/images/search/exa.png'
-import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
-import TavilyLogo from '@renderer/assets/images/search/tavily.png'
-import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -139,30 +131,6 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
   }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
 
-  const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
-    switch (providerId) {
-      case 'zhipu':
-        return ZhipuLogo
-      case 'tavily':
-        return TavilyLogo
-      case 'searxng':
-        return SearxngLogo
-      case 'exa':
-      case 'exa-mcp':
-        return ExaLogo
-      case 'bocha':
-        return BochaLogo
-      case 'local-google':
-        return GoogleLogo
-      case 'local-bing':
-        return BingLogo
-      case 'local-baidu':
-        return BaiduLogo
-      default:
-        return undefined
-    }
-  }
-
   const isLocalProvider = provider.id.startsWith('local')
 
   const openLocalProviderSettings = async () => {
@@ -172,7 +140,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const providerLogo = getWebSearchProviderLogo(provider.id)
+  const providerLogo = getWebSearchProviderLogo(providerId)
 
   // Check if this provider is already the default
   const isDefault = defaultProvider?.id === provider.id
@@ -194,7 +162,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
         <Flex className="items-center justify-between" style={{ width: '100%' }}>
           <Flex className="items-center gap-2">
             {providerLogo ? (
-              <img src={providerLogo} alt={provider.name} className="h-5 w-5 object-contain" />
+              <providerLogo.Avatar size={20} shape="rounded" />
             ) : (
               <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
             )}

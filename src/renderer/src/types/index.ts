@@ -521,7 +521,7 @@ export type MinAppType = {
   nameKey?: string
   /** Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW']) */
   locales?: LanguageVarious[]
-  logo?: string
+  logo?: string | object
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean

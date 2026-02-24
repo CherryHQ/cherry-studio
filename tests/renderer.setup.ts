@@ -187,8 +187,14 @@ vi.mock('@cherrystudio/ui', () => {
         checked: isSelected,
         onChange: (e) => onValueChange?.(e.target.checked),
         'data-testid': 'switch'
-      })
-    // Add any other components that are commonly imported
+      }),
+    // Icon registry stubs
+    PROVIDER_ICON_CATALOG: {},
+    MODEL_ICON_CATALOG: {},
+    resolveProviderIcon: () => undefined,
+    resolveModelIcon: () => undefined,
+    resolveModelToProviderIcon: () => undefined,
+    resolveIcon: () => undefined
   }
 })
 

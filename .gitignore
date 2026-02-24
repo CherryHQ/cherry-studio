@@ -66,6 +66,9 @@ vitest.config.*.timestamp-*
 # TypeScript incremental build
 .tsbuildinfo
 
+# Icon generation cache
+.icons-hash.json
+
 # playwright
 playwright-report
 test-results
