@@ -765,9 +765,13 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
   // Opus 4.6 supports 128K output tokens
   '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
-  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  // Sonnet 4.6, and Haiku is assumed to be also 64k
+  '(?:anthropic\\.)?claude-(:?sonnet|haiku)-4[.-]6.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  // 4.5 series
   '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  // Opus 4.1
   '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
+  // 4.0 series
   '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
     min: 1024,
     max: 64_000
@@ -776,6 +780,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
     min: 1024,
     max: 32_000
   },
+  // 3.7
+  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },

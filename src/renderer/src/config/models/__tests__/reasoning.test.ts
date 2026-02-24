@@ -2399,7 +2399,7 @@ describe('Claude Models', () => {
     })
   })
 
-  describe('getModelSupportedReasoningEffortOptions for Opus 4.6', () => {
+  describe('getModelSupportedReasoningEffortOptions for Claude 4.6', () => {
     it('should return correct options for Opus 4.6 models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
         'default',
@@ -2410,14 +2410,30 @@ describe('Claude Models', () => {
         'xhigh'
       ])
     })
+    it('should return correct options for Sonnet 4.6 models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high',
+        'xhigh'
+      ])
+    })
   })
 
-  describe('findTokenLimit for Opus 4.6', () => {
+  describe('findTokenLimit for Claude 4.6', () => {
     it('should return 128K max tokens for Opus 4.6 models', () => {
       expect(findTokenLimit('claude-opus-4-6')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4.6')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('anthropic.claude-opus-4-6-v1')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4-6@20251201')).toEqual({ min: 1024, max: 128_000 })
+    })
+
+    it('should return 64K max tokens for Sonnet 4.6 models', () => {
+      expect(findTokenLimit('claude-sonnet-4-6')).toEqual({ min: 1024, max: 64_000 })
+      expect(findTokenLimit('claude-sonnet-4.6')).toEqual({ min: 1024, max: 64_000 })
+      expect(findTokenLimit('anthropic.claude-sonnet-4-6')).toEqual({ min: 1024, max: 64_000 })
     })
 
     it('should distinguish Opus 4.6 from other Claude models', () => {
