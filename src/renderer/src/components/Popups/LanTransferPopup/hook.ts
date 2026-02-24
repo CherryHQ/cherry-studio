@@ -203,7 +203,7 @@ export function useLanTransfer(): UseLanTransferReturn {
         // Step 1: Create temporary backup
         logger.info('Creating temporary backup for LAN transfer...')
         const backupData = await getBackupData()
-        backupPath = await window.api.backup.createLanTransferBackup(backupData)
+        backupPath = await window.api.backup.createLegacyBackup(backupData)
         dispatch({ type: 'SET_TEMP_BACKUP_PATH', payload: backupPath })
 
         // Extract filename from path

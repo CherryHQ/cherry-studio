@@ -1067,7 +1067,7 @@ class BackupManager {
    * Creates a lightweight backup (skipBackupFile=true) in the temp directory
    * Returns the path to the created ZIP file
    */
-  async createLanTransferBackup(_: Electron.IpcMainInvokeEvent, data: string): Promise<string> {
+  async createLegacyBackup(_: Electron.IpcMainInvokeEvent, data: string): Promise<string> {
     const timestamp = new Date()
       .toISOString()
       .replace(/[-:T.Z]/g, '')
@@ -1081,7 +1081,7 @@ class BackupManager {
     // Create backup with skipBackupFile=true (no Data folder)
     const backupedFilePath = await this.backupLegacy(_, fileName, data, tempPath, true)
 
-    logger.info(`[BackupManager] Created LAN transfer backup at: ${backupedFilePath}`)
+    logger.info(`[BackupManager] Created legacy backup at: ${backupedFilePath}`)
     return backupedFilePath
   }
 
