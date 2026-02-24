@@ -318,7 +318,7 @@ export const searchOrchestrationPlugin = (
 
         // 确保 tools 对象存在
         if (!params.tools) {
-          return { tools: {} }
+          params.tools = {}
         }
 
         // 🌐 网络搜索工具配置
