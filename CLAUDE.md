@@ -18,6 +18,11 @@ This file provides guidance to AI coding assistants when working with code in th
 When creating a Pull Request, you MUST use the `gh-create-pr` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
 
+## Issue Workflow
+
+When creating an Issue, you MUST use the `gh-create-issue` skill.
+If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
+
 ## Development Commands
 
 - **Install**: `pnpm install` - Install all project dependencies

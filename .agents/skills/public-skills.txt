@@ -2,3 +2,5 @@
 # One skill name per line.
 gh-create-pr
 prepare-release
+create-skill
+gh-create-issue
