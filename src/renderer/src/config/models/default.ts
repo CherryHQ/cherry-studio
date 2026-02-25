@@ -370,6 +370,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'gemini',
       name: 'Gemini 3 Pro Preview',
       group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      provider: 'gemini',
+      name: 'Gemini 3.1 Pro Preview',
+      group: 'Gemini 3'
     }
   ],
   anthropic: [
