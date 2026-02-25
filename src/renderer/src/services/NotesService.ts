@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import store from '@renderer/store'
+import { setNotesPath } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 
@@ -49,11 +51,75 @@ export async function addNote(
   content: string = '',
   parentPath: string
 ): Promise<{ path: string; name: string }> {
-  const basePath = normalizePath(parentPath)
+  const resolved = await resolveNotesPath(parentPath)
+  const basePath = resolved.path
+  if (resolved.isFallback) {
+    store.dispatch(setNotesPath(basePath))
+  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
   return { path: notePath, name: safeName }
+}
+
+export interface ResolvedNotesPath {
+  path: string // 有效路径
+  isFallback: boolean // 是否为默认路径
+}
+/**
+ * 验证路径是否有效（处理跨平台恢复场景）
+ * 抽取 NotesPage 中的 initialize 方法里的逻辑，避免重复代码
+ * @param parentPath
+ * @returns {ResolvedNotesPath} 返回有效路径和是否为默认路径
+ */
+export async function resolveNotesPath(parentPath: string): Promise<ResolvedNotesPath> {
+  const basePath = normalizePath(parentPath || '')
+  const appInfo = await window.api.getAppInfo()
+  const defaultNotesPath = normalizePath(appInfo.notesPath)
+
+  if (!basePath) {
+    return {
+      path: defaultNotesPath,
+      isFallback: true
+    }
+  }
+
+  if (basePath === defaultNotesPath) {
+    return {
+      path: basePath,
+      isFallback: false
+    }
+  }
+
+  try {
+    const isValid = await window.api.file.validateNotesDirectory(basePath)
+    if (isValid) {
+      return {
+        path: basePath,
+        isFallback: false
+      }
+    }
+  } catch (error) {
+    logger.warn('Failed to validate notes directory, fallback to default', {
+      basePath,
+      error: (error as Error).message
+    })
+
+    return {
+      path: defaultNotesPath,
+      isFallback: true
+    }
+  }
+
+  logger.warn('Invalid notes path, fallback to default', {
+    invalidPath: basePath,
+    defaultNotesPath
+  })
+
+  return {
+    path: defaultNotesPath,
+    isFallback: true
+  }
 }
 
 export async function delNode(node: NotesTreeNode): Promise<void> {
