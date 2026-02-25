@@ -48,13 +48,6 @@ async function getConfig() {
   return { server: server.replace(/\/+$/, ''), token }
 }
 
-// ── 类型 ──────────────────────────────────────────────────────────────
-
-interface TopicSnapshot {
-  id: string
-  updatedAt: string
-}
-
 interface TopicFullData {
   topicId: string
   name: string
@@ -338,8 +331,8 @@ async function syncOnce(): Promise<void> {
 
 // ── 启动 ──────────────────────────────────────────────────────────────
 
-function start() {
-  const { server } = getConfig()
+async function start() {
+  const { server } = await getConfig()
   if (!server) {
     console.log('[TopicSync] No sync server configured. Set .env RENDERER_VITE_SYNC_SERVER or localStorage "cherry-sync-server".')
     return
