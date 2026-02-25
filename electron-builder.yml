@@ -140,28 +140,37 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.19 - Bug Fixes & Improvements
+    Cherry Studio 1.7.20 - New Models & Features
+
+    ✨ New Features
+    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
+    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
+    - [Models] Add support for Qwen 3.5 series models
+    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
+    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
+    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
+    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
+    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
+    - [Search] Add keyword-based topic search with whole-word matching and result sorting
 
     🐛 Bug Fixes
-    - [Settings] Fixed provider name input removing spaces during typing
-    - [Data] Fixed factory reset not clearing agents, memories, knowledge base and notes data
-    - [Data] Fixed backup restore failure on Windows (EBUSY error)
-    - [MCP] Fixed MCP tools returning images exceeding API message size limits
-
-    💄 Improvements
-    - [Agent] Improved settings popup UI with better permission mode selection
-    - [Models] Updated MiniMax models to the latest M2.x series
-
+    - [i18n] Fix PluginCard translation not updating when language is switched
+    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.19 - 问题修复与改进
+    Cherry Studio 1.7.20 - 新模型与功能
+
+    ✨ 新功能
+    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
+    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
+    - [模型] 添加 Qwen 3.5 系列模型支持
+    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
+    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
+    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
+    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
+    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
+    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
 
     🐛 问题修复
-    - [设置] 修复服务商名称输入时空格被立即移除的问题
-    - [数据] 修复重置数据时未清除智能体、记忆、知识库和笔记数据的问题
-    - [数据] 修复 Windows 上恢复备份失败的问题（EBUSY 错误）
-    - [MCP] 修复 MCP 工具返回图片时超出 API 消息大小限制的问题
-
-    💄 改进
-    - [智能体] 优化设置弹窗界面，改进权限模式选择体验
-    - [模型] 更新 MiniMax 模型至最新的 M2.x 系列
+    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
+    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
     <!--LANG:END-->
