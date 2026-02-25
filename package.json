@@ -72,7 +72,7 @@
     "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.1.76",
+    "@anthropic-ai/claude-agent-sdk": "0.2.56",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
@@ -463,8 +463,8 @@
       "libsql@0.4.7": "patches/libsql-npm-0.4.7-444e260fb1.patch",
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@ai-sdk/openai-compatible@1.0.28": "patches/@ai-sdk__openai-compatible@1.0.28.patch",
-      "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch",
-      "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch"
+      "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
+      "@anthropic-ai/claude-agent-sdk": "patches/@anthropic-ai__claude-agent-sdk.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
