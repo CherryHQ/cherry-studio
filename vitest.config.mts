@@ -47,7 +47,7 @@ export default defineConfig({
       },
       // aiCore 包单元测试配置
       {
-        extends: 'packages/aiCore/vitest.config.ts',
+        extends: 'packages/aiCore/vitest.config.mts',
         test: {
           name: 'aiCore',
           environment: 'node',
