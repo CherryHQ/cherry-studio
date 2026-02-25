@@ -1,0 +1,174 @@
+name: PR Description Check
+
+permissions:
+  pull-requests: write
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - v2
+    types: [opened, edited, synchronize, ready_for_review]
+
+jobs:
+  check-description:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Check PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const errors = [];
+
+            // Check "What this PR does" section
+            const beforeMatch = body.match(/Before this PR:\s*\n+([\s\S]*?)(?=\n\s*After this PR:)/);
+            const afterMatch = body.match(/After this PR:\s*\n+([\s\S]*?)(?=\n\s*(?:<!--|Fixes\s*#|###))/);
+
+            const beforeContent = beforeMatch ? beforeMatch[1].trim() : '';
+            const afterContent = afterMatch ? afterMatch[1].trim() : '';
+
+            if (!beforeContent) {
+              errors.push('`Before this PR:` is empty — please describe the current behavior.');
+            }
+            if (!afterContent) {
+              errors.push('`After this PR:` is empty — please describe the new behavior.');
+            }
+
+            // Check "Why we need it" section
+            const whyMatch = body.match(/### Why we need it.*?\n([\s\S]*?)(?=\n###\s)/);
+            if (whyMatch) {
+              const whyContent = whyMatch[1]
+                .replace(/The following tradeoffs were made:/g, '')
+                .replace(/The following alternatives were considered:/g, '')
+                .replace(/Links to places where the discussion took place:[\s\S]*?(?=\n|$)/g, '')
+                .replace(/<!--[\s\S]*?-->/g, '')
+                .trim();
+              if (!whyContent) {
+                errors.push('`### Why we need it` section has only template defaults — please explain the motivation.');
+              }
+            } else {
+              errors.push('`### Why we need it` section is missing.');
+            }
+
+            // Check release-note block
+            const releaseNoteMatch = body.match(/```release-note\s*\n([\s\S]*?)```/);
+            if (!releaseNoteMatch || !releaseNoteMatch[1].trim()) {
+              errors.push('`release-note` block is empty — please add a release note or write `NONE`.');
+            }
+
+            // Find and manage previous bot comment
+            const marker = '<!-- pr-description-check -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (errors.length > 0) {
+              const commentBody = [
+                marker,
+                '## ⚠️ PR Description Check Failed',
+                '',
+                'The following required sections are incomplete:',
+                '',
+                ...errors.map(e => `- ${e}`),
+                '',
+                'Please edit your PR description to fill in the missing information.',
+              ].join('\n');
+
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: commentBody,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: commentBody,
+                });
+              }
+
+              core.setFailed('PR description is incomplete. See the comment on the PR for details.');
+            } else {
+              // Clean up old failure comment if it exists
+              if (botComment) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                });
+              }
+
+              core.info('PR description check passed.');
+            }
+
+  notify-sync:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'synchronize' && github.event.pull_request.draft == false
+    steps:
+      - name: Remind to review description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- pr-sync-reminder -->';
+
+            // Fetch all commits via automatic pagination, then take the last 3
+            const allCommits = await github.paginate(
+              github.rest.pulls.listCommits,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                per_page: 100,
+              }
+            );
+            const latestCommits = allCommits.slice(-3).reverse();
+            const commitList = latestCommits
+              .map(c => `- \`${c.sha.substring(0, 7)}\` ${c.commit.message.split('\n')[0]}`)
+              .join('\n');
+
+            const commentBody = [
+              marker,
+              '## ⚠️ New commits pushed',
+              '',
+              'Please review your PR description to ensure it still accurately reflects the changes.',
+              '',
+              '**Latest commits:**',
+              commitList,
+            ].join('\n');
+
+            // Find and update or create the sync reminder comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }
