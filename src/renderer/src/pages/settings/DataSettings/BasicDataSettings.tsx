@@ -493,7 +493,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
           <HStack gap="5px" justifyContent="space-between">
-            <Button onClick={() => BackupPopup.show('legacy')} icon={<FolderInput size={14} />}>
+            <Button onClick={() => BackupPopup.show('lan-transfer')} icon={<FolderInput size={14} />}>
               {t('settings.data.export_to_phone.file.button')}
             </Button>
           </HStack>

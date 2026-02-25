@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
-import { backup, backupLegacy } from '@renderer/services/BackupService'
+import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
@@ -13,7 +13,7 @@ const logger = loggerService.withContext('BackupPopup')
 
 interface Props {
   resolve: (data: any) => void
-  backupType?: 'direct' | 'legacy'
+  backupType?: 'direct' | 'lan-transfer'
 }
 
 type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
@@ -43,8 +43,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   const onOk = async () => {
     logger.debug(`skipBackupFile: ${skipBackupFile}, backupType: ${backupType}`)
 
-    if (backupType === 'legacy') {
-      await backupLegacy()
+    if (backupType === 'lan-transfer') {
+      await backupToLanTransfer()
     } else {
       await backup(skipBackupFile)
     }
@@ -73,11 +73,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   BackupPopup.hide = onCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
-  const isLegacyMode = backupType === 'legacy'
+  const isLanTransfterMode = backupType === 'lan-transfer'
 
-  const title = isLegacyMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
-  const okText = isLegacyMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
-  const content = isLegacyMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
+  const title = isLanTransfterMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
+  const okText = isLanTransfterMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
+  const content = isLanTransfterMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
 
   return (
     <Modal
@@ -110,7 +110,7 @@ export default class BackupPopup {
   static hide() {
     TopView.hide(TopViewKey)
   }
-  static show(backupType: 'direct' | 'legacy' = 'direct') {
+  static show(backupType: 'direct' | 'lan-transfer' = 'direct') {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer

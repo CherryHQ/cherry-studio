@@ -38,6 +38,47 @@ class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
+  // Cached instance to avoid recreating
+  private s3Storage: S3Storage | null = null
+  private webdavInstance: WebDav | null = null
+
+  // Cached core connection config, used to detect if connection config has changed
+  private cachedS3ConnectionConfig: {
+    endpoint: string
+    region: string
+    bucket: string
+    accessKeyId: string
+    secretAccessKey: string
+    root?: string
+  } | null = null
+
+  private cachedWebdavConnectionConfig: {
+    webdavHost: string
+    webdavUser?: string
+    webdavPass?: string
+    webdavPath?: string
+  } | null = null
+
+  constructor() {
+    this.checkConnection = this.checkConnection.bind(this)
+    this.backupLegacy = this.backupLegacy.bind(this)
+    this.backup = this.backup.bind(this)
+    this.restore = this.restore.bind(this)
+    this.backupToWebdav = this.backupToWebdav.bind(this)
+    this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
+    this.listWebdavFiles = this.listWebdavFiles.bind(this)
+    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
+    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
+    this.backupToLocalDir = this.backupToLocalDir.bind(this)
+    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
+    this.backupToS3 = this.backupToS3.bind(this)
+    this.restoreFromS3 = this.restoreFromS3.bind(this)
+    this.listS3Files = this.listS3Files.bind(this)
+    this.deleteS3File = this.deleteS3File.bind(this)
+    this.checkS3Connection = this.checkS3Connection.bind(this)
+  }
+
   /**
    * Handle backup restoration on app startup
    * Called after window is created but before renderer is loaded
@@ -90,51 +131,6 @@ class BackupManager {
     }
   }
 
-  // 缓存实例，避免重复创建
-  private s3Storage: S3Storage | null = null
-  private webdavInstance: WebDav | null = null
-
-  // 缓存核心连接配置，用于检测连接配置是否变更
-  private cachedS3ConnectionConfig: {
-    endpoint: string
-    region: string
-    bucket: string
-    accessKeyId: string
-    secretAccessKey: string
-    root?: string
-  } | null = null
-
-  private cachedWebdavConnectionConfig: {
-    webdavHost: string
-    webdavUser?: string
-    webdavPass?: string
-    webdavPath?: string
-  } | null = null
-
-  constructor() {
-    this.checkConnection = this.checkConnection.bind(this)
-    this.backupLegacy = this.backupLegacy.bind(this)
-    this.backup = this.backup.bind(this)
-    this.restore = this.restore.bind(this)
-    this.backupToWebdav = this.backupToWebdav.bind(this)
-    this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
-    this.listWebdavFiles = this.listWebdavFiles.bind(this)
-    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
-    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
-    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
-    this.backupToLocalDir = this.backupToLocalDir.bind(this)
-    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
-    this.backupToS3 = this.backupToS3.bind(this)
-    this.restoreFromS3 = this.restoreFromS3.bind(this)
-    this.listS3Files = this.listS3Files.bind(this)
-    this.deleteS3File = this.deleteS3File.bind(this)
-    this.checkS3Connection = this.checkS3Connection.bind(this)
-  }
-
-  // ==================== Direct Backup Methods ====================
-  // These methods copy IndexedDB and Local Storage directories directly,
-  // avoiding JSON serialization for better performance.
-
   /**
    * Backup metadata for direct backup format (version 6+)
    */
@@ -159,6 +155,11 @@ class BackupManager {
   /**
    * Direct backup method - copies IndexedDB and Local Storage directories directly.
    * No JSON serialization, better performance for large databases.
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the backup file
+   * @param destinationPath - Path to save the backup (defaults to this.backupDir)
+   * @param skipBackupFile - Whether to skip backing up the Data directory
+   * @returns Path to the created backup file
    */
   async backup(
     _: Electron.IpcMainInvokeEvent,
@@ -270,8 +271,326 @@ class BackupManager {
   }
 
   /**
+   * Legacy backup method (JSON format, used by LanTransfer)
+   * Creates a backup in the old format with data.json and optional Data directory.
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the backup file
+   * @param data - JSON string data to backup
+   * @param destinationPath - Path to save the backup (defaults to this.backupDir)
+   * @param skipBackupFile - Whether to skip backing up the Data directory
+   * @returns Path to the created backup file
+   */
+  async backupLegacy(
+    _: Electron.IpcMainInvokeEvent,
+    fileName: string,
+    data: string,
+    destinationPath: string = this.backupDir,
+    skipBackupFile: boolean = false
+  ): Promise<string> {
+    const mainWindow = windowService.getMainWindow()
+
+    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
+      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
+      // Only log at key stages: start, end, and major stage transitions
+      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        logger.debug('backup progress', processData)
+      }
+    }
+
+    try {
+      await fs.ensureDir(this.tempDir)
+      onProgress({ stage: 'preparing', progress: 0, total: 100 })
+
+      // Write data.json using streaming
+      const tempDataPath = path.join(this.tempDir, 'data.json')
+
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempDataPath)
+        writeStream.write(data)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      onProgress({ stage: 'writing_data', progress: 20, total: 100 })
+
+      logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
+
+      if (!skipBackupFile) {
+        // Copy Data directory to temp directory
+        const sourcePath = path.join(app.getPath('userData'), 'Data')
+        const tempDataDir = path.join(this.tempDir, 'Data')
+
+        // Get total size of source directory
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
+
+        // Use streaming copy
+        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
+          copiedSize += size
+          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+
+        await this.setWritableRecursive(tempDataDir)
+        onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
+      } else {
+        logger.debug('Skip the backup of the file')
+        await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // Creating empty Data dir is required, otherwise restore will fail
+      }
+
+      // Create output file stream
+      const backupedFilePath = path.join(destinationPath, fileName)
+      const output = fs.createWriteStream(backupedFilePath)
+
+      // Create archiver instance, enable ZIP64 support
+      const archive = archiver('zip', {
+        zlib: { level: 1 }, // Use lowest compression level for speed
+        zip64: true // Enable ZIP64 support for large files
+      })
+
+      let lastProgress = 50
+      let totalEntries = 0
+      let processedEntries = 0
+      let totalBytes = 0
+      let processedBytes = 0
+
+      // First calculate total files and size, but don't log details
+      const calculateTotals = async (dirPath: string) => {
+        try {
+          const items = await fs.readdir(dirPath, { withFileTypes: true })
+          for (const item of items) {
+            const fullPath = path.join(dirPath, item.name)
+            if (item.isDirectory()) {
+              await calculateTotals(fullPath)
+            } else {
+              totalEntries++
+              const stats = await fs.stat(fullPath)
+              totalBytes += stats.size
+            }
+          }
+        } catch (error) {
+          // Only log on error
+          logger.error('[BackupManager] Error calculating totals:', error as Error)
+        }
+      }
+
+      await calculateTotals(this.tempDir)
+
+      // Listen for file entry events
+      archive.on('entry', () => {
+        processedEntries++
+        if (totalEntries > 0) {
+          const progressPercent = Math.min(55, 50 + Math.floor((processedEntries / totalEntries) * 5))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // Listen for data write events
+      archive.on('data', (chunk) => {
+        processedBytes += chunk.length
+        if (totalBytes > 0) {
+          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
+          if (progressPercent > lastProgress) {
+            lastProgress = progressPercent
+            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
+          }
+        }
+      })
+
+      // Use Promise to wait for compression to complete
+      await new Promise<void>((resolve, reject) => {
+        output.on('close', () => {
+          onProgress({ stage: 'compressing', progress: 100, total: 100 })
+          resolve()
+        })
+        archive.on('error', reject)
+        archive.on('warning', (err: any) => {
+          if (err.code !== 'ENOENT') {
+            logger.warn('[BackupManager] Archive warning:', err)
+          }
+        })
+
+        // Pipe output stream to archiver
+        archive.pipe(output)
+
+        // Add entire temp directory to archive
+        archive.directory(this.tempDir, false)
+
+        // Finalize compression
+        archive.finalize()
+      })
+
+      // Clean up temp directory
+      await fs.remove(this.tempDir)
+      onProgress({ stage: 'completed', progress: 100, total: 100 })
+
+      logger.debug('Backup completed successfully')
+      return backupedFilePath
+    } catch (error) {
+      logger.error('[BackupManager] Backup failed:', error as Error)
+      // Ensure temp directory is cleaned up
+      await fs.remove(this.tempDir).catch(() => {})
+      throw error
+    }
+  }
+
+  /**
+   * Direct backup to local directory
+   * Creates a backup and saves it to a local directory.
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the backup file
+   * @param localConfig - Local backup configuration (directory path and options)
+   * @returns Path to the created backup file
+   */
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    fileName: string,
+    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
+  ) {
+    try {
+      const backupDir = localConfig.localBackupDir || this.backupDir
+      await fs.ensureDir(backupDir)
+      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
+    } catch (error) {
+      logger.error('[backupToLocalDir] Local backup failed:', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Direct backup to WebDAV
+   * Creates a backup and uploads it to a WebDAV server.
+   * @param _ - Electron IPC event
+   * @param webdavConfig - WebDAV configuration including server URL, credentials, and options
+   * @returns Result from WebDAV upload operation
+   */
+  async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
+    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
+    const webdavClient = this.getWebDavInstance(webdavConfig)
+    try {
+      let result
+      if (webdavConfig.disableStream) {
+        const fileContent = await fs.readFile(backupedFilePath)
+        result = await webdavClient.putFileContents(filename, fileContent, { overwrite: true })
+      } else {
+        const contentLength = (await fs.stat(backupedFilePath)).size
+        result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
+          overwrite: true,
+          contentLength
+        })
+      }
+      await fs.remove(backupedFilePath)
+      return result
+    } catch (error) {
+      await fs.remove(backupedFilePath).catch(() => {})
+      throw error
+    }
+  }
+
+  /**
+   * Direct backup to S3
+   * Creates a backup and uploads it to an S3-compatible storage.
+   * @param _ - Electron IPC event
+   * @param s3Config - S3 configuration including endpoint, bucket, credentials, and options
+   * @returns Result from S3 upload operation
+   */
+  async backupToS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const os = require('os')
+    const deviceName = os.hostname ? os.hostname() : 'device'
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 14)
+    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+
+    logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
+
+    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
+    const s3Client = this.getS3Storage(s3Config)
+    try {
+      const fileBuffer = await fs.promises.readFile(backupedFilePath)
+      const result = await s3Client.putFileContents(filename, fileBuffer)
+      await fs.remove(backupedFilePath)
+      logger.debug(`[backupToS3] S3 backup completed: ${filename}`)
+      return result
+    } catch (error) {
+      logger.error('[backupToS3] S3 backup failed:', error as Error)
+      await fs.remove(backupedFilePath)
+      throw error
+    }
+  }
+
+  /**
+   * Restore from a backup file
+   * Automatically detects backup format (direct v6+ or legacy) and restores accordingly.
+   * For direct backup: replaces IndexedDB and Local Storage directories, then relaunches app.
+   * For legacy backup: restores data from data.json and Data directory.
+   * @param _ - Electron IPC event
+   * @param backupPath - Path to the backup ZIP file
+   * @returns For legacy backup: the data string from data.json. For direct backup: void (app will relaunch)
+   */
+  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string | void> {
+    const mainWindow = windowService.getMainWindow()
+
+    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
+      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
+      // Only log at key stages
+      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        logger.debug('restore progress', processData)
+      }
+    }
+
+    try {
+      // Create temp directory
+      await fs.ensureDir(this.tempDir)
+      onProgress({ stage: 'preparing', progress: 0, total: 100 })
+
+      logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
+
+      const zip = new StreamZip.async({ file: backupPath })
+      onProgress({ stage: 'extracting', progress: 15, total: 100 })
+      await zip.extract(null, this.tempDir)
+      onProgress({ stage: 'extracted', progress: 20, total: 100 })
+
+      // Check for backup type: direct (version 6+) or legacy (version <= 5)
+      const metadataPath = path.join(this.tempDir, 'metadata.json')
+      const isDirectBackup = await fs.pathExists(metadataPath)
+
+      if (isDirectBackup) {
+        // Direct backup format (version 6+)
+        logger.debug('Detected direct backup format (version 6+)')
+        await fs.remove(this.tempDir).catch(() => {}) // Clean up before restoreDirect creates its own temp
+        await this.restoreDirect(backupPath)
+        // Direct restore doesn't return data - app needs to relaunch
+        return
+      }
+
+      // Legacy backup format (version <= 5)
+      logger.debug('Detected legacy backup format (version <= 5)')
+
+      const data = await this.restoreLegacy(onProgress)
+
+      return data
+    } catch (error) {
+      logger.error('Restore failed:', error as Error)
+      await fs.remove(this.tempDir).catch(() => {})
+      throw error
+    }
+  }
+
+  /**
    * Restore from direct backup format (version 6+)
    * Directly replaces IndexedDB and Local Storage directories.
+   * On Windows, uses .restore suffix to avoid file lock issues - handled on next startup.
+   * @param backupPath - Path to the backup ZIP file
    */
   private async restoreDirect(backupPath: string): Promise<void> {
     const mainWindow = windowService.getMainWindow()
@@ -387,20 +706,22 @@ class BackupManager {
 
   /**
    * Restore from legacy backup format (version <= 5)
-   * Restores data from data.json and Data directory
+   * Restores data from data.json and Data directory.
+   * @param onProgress - Callback function to report restore progress
+   * @returns The data string read from data.json
    */
   private async restoreLegacy(
     onProgress: (processData: { stage: string; progress: number; total: number }) => void
   ): Promise<string> {
     try {
       logger.debug('step 2: read data.json')
-      // 读取 data.json
+      // Read data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       logger.debug('step 3: restore Data directory')
-      // 恢复 Data 目录
+      // Restore Data directory
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = getDataPath()
 
@@ -408,7 +729,7 @@ class BackupManager {
       const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
 
       if (dataExists && dataFiles.length > 0) {
-        // 获取源目录总大小
+        // Get total size of source directory
         const totalSize = await this.getDirSize(sourcePath)
         let copiedSize = 0
 
@@ -419,7 +740,7 @@ class BackupManager {
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)
 
-        // 使用流式复制
+        // Use streaming copy
         await this.copyDirWithProgress(sourcePath, destPath, (size) => {
           copiedSize += size
           const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
@@ -430,7 +751,7 @@ class BackupManager {
       }
 
       logger.debug('step 4: clean up temp directory')
-      // 清理临时目录
+      // Clean up temp directory
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
@@ -446,565 +767,12 @@ class BackupManager {
   }
 
   /**
-   * Direct backup to WebDAV
+   * Restore from a local backup file
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the backup file
+   * @param localBackupDir - Directory where the backup file is located
+   * @returns Result from restore operation
    */
-  async backupToWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, undefined, webdavConfig.skipBackupFile)
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    try {
-      let result
-      if (webdavConfig.disableStream) {
-        const fileContent = await fs.readFile(backupedFilePath)
-        result = await webdavClient.putFileContents(filename, fileContent, { overwrite: true })
-      } else {
-        const contentLength = (await fs.stat(backupedFilePath)).size
-        result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
-          overwrite: true,
-          contentLength
-        })
-      }
-      await fs.remove(backupedFilePath)
-      return result
-    } catch (error) {
-      await fs.remove(backupedFilePath).catch(() => {})
-      throw error
-    }
-  }
-
-  /**
-   * Direct backup to local directory
-   */
-  async backupToLocalDir(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    localConfig: { localBackupDir?: string; skipBackupFile?: boolean }
-  ) {
-    try {
-      const backupDir = localConfig.localBackupDir || this.backupDir
-      await fs.ensureDir(backupDir)
-      return await this.backup(_, fileName, backupDir, localConfig.skipBackupFile)
-    } catch (error) {
-      logger.error('[backupToLocalDir] Local backup failed:', error as Error)
-      throw error
-    }
-  }
-
-  /**
-   * Direct backup to S3
-   */
-  async backupToS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const os = require('os')
-    const deviceName = os.hostname ? os.hostname() : 'device'
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:T.Z]/g, '')
-      .slice(0, 14)
-    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
-
-    logger.debug(`[backupToS3] Starting S3 backup to ${filename}`)
-
-    const backupedFilePath = await this.backup(_, filename, undefined, s3Config.skipBackupFile)
-    const s3Client = this.getS3Storage(s3Config)
-    try {
-      const fileBuffer = await fs.promises.readFile(backupedFilePath)
-      const result = await s3Client.putFileContents(filename, fileBuffer)
-      await fs.remove(backupedFilePath)
-      logger.debug(`[backupToS3] S3 backup completed: ${filename}`)
-      return result
-    } catch (error) {
-      logger.error('[backupToS3] S3 backup failed:', error as Error)
-      await fs.remove(backupedFilePath)
-      throw error
-    }
-  }
-
-  // ==================== Legacy Backup Methods ====================
-
-  private async setWritableRecursive(dirPath: string): Promise<void> {
-    try {
-      const items = await fs.readdir(dirPath, { withFileTypes: true })
-
-      for (const item of items) {
-        const fullPath = path.join(dirPath, item.name)
-
-        // 先处理子目录
-        if (item.isDirectory()) {
-          await this.setWritableRecursive(fullPath)
-        }
-
-        // 统一设置权限（Windows需要特殊处理）
-        await this.forceSetWritable(fullPath)
-      }
-
-      // 确保根目录权限
-      await this.forceSetWritable(dirPath)
-    } catch (error) {
-      logger.error(`权限设置失败：${dirPath}`, error as Error)
-      throw error
-    }
-  }
-
-  // 新增跨平台权限设置方法
-  private async forceSetWritable(targetPath: string): Promise<void> {
-    try {
-      // Windows系统需要先取消只读属性
-      if (process.platform === 'win32') {
-        await fs.chmod(targetPath, 0o666) // Windows会忽略权限位但能移除只读
-      } else {
-        const stats = await fs.stat(targetPath)
-        const mode = stats.isDirectory() ? 0o777 : 0o666
-        await fs.chmod(targetPath, mode)
-      }
-
-      // 双重保险：使用文件属性命令（Windows专用）
-      if (process.platform === 'win32') {
-        await exec(`attrib -R "${targetPath}" /L /D`)
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn(`权限设置警告：${targetPath}`, error as Error)
-      }
-    }
-  }
-
-  /**
-   * 比较两个配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
-   */
-  private isS3ConfigEqual(cachedConfig: typeof this.cachedS3ConnectionConfig, config: S3Config): boolean {
-    if (!cachedConfig) return false
-
-    return (
-      cachedConfig.endpoint === config.endpoint &&
-      cachedConfig.region === config.region &&
-      cachedConfig.bucket === config.bucket &&
-      cachedConfig.accessKeyId === config.accessKeyId &&
-      cachedConfig.secretAccessKey === config.secretAccessKey &&
-      cachedConfig.root === config.root
-    )
-  }
-
-  /**
-   * 深度比较两个 WebDAV 配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
-   */
-  private isWebDavConfigEqual(cachedConfig: typeof this.cachedWebdavConnectionConfig, config: WebDavConfig): boolean {
-    if (!cachedConfig) return false
-
-    return (
-      cachedConfig.webdavHost === config.webdavHost &&
-      cachedConfig.webdavUser === config.webdavUser &&
-      cachedConfig.webdavPass === config.webdavPass &&
-      cachedConfig.webdavPath === config.webdavPath
-    )
-  }
-
-  /**
-   * 获取 S3Storage 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
-   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
-   */
-  private getS3Storage(config: S3Config): S3Storage {
-    // 检查核心连接配置是否变更
-    const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
-
-    if (configChanged || !this.s3Storage) {
-      this.s3Storage = new S3Storage(config)
-      // 只缓存连接相关的配置字段
-      this.cachedS3ConnectionConfig = {
-        endpoint: config.endpoint,
-        region: config.region,
-        bucket: config.bucket,
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-        root: config.root
-      }
-      logger.debug('[BackupManager] Created new S3Storage instance')
-    } else {
-      logger.debug('[BackupManager] Reusing existing S3Storage instance')
-    }
-
-    return this.s3Storage
-  }
-
-  /**
-   * 获取 WebDav 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
-   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
-   */
-  private getWebDavInstance(config: WebDavConfig): WebDav {
-    // 检查核心连接配置是否变更
-    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConnectionConfig, config)
-
-    if (configChanged || !this.webdavInstance) {
-      this.webdavInstance = new WebDav(config)
-      // 只缓存连接相关的配置字段
-      this.cachedWebdavConnectionConfig = {
-        webdavHost: config.webdavHost,
-        webdavUser: config.webdavUser,
-        webdavPass: config.webdavPass,
-        webdavPath: config.webdavPath
-      }
-      logger.debug('[BackupManager] Created new WebDav instance')
-    } else {
-      logger.debug('[BackupManager] Reusing existing WebDav instance')
-    }
-
-    return this.webdavInstance
-  }
-
-  // Legacy backup method (JSON format, used by LanTransfer)
-  async backupLegacy(
-    _: Electron.IpcMainInvokeEvent,
-    fileName: string,
-    data: string,
-    destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false
-  ): Promise<string> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      // 只在关键阶段记录日志：开始、结束和主要阶段转换点
-      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
-      if (logStages.includes(processData.stage) || processData.progress === 100) {
-        logger.debug('backup progress', processData)
-      }
-    }
-
-    try {
-      await fs.ensureDir(this.tempDir)
-      onProgress({ stage: 'preparing', progress: 0, total: 100 })
-
-      // 使用流的方式写入 data.json
-      const tempDataPath = path.join(this.tempDir, 'data.json')
-
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(tempDataPath)
-        writeStream.write(data)
-        writeStream.end()
-
-        writeStream.on('finish', () => resolve())
-        writeStream.on('error', (error) => reject(error))
-      })
-
-      onProgress({ stage: 'writing_data', progress: 20, total: 100 })
-
-      logger.debug(`BackupManager IPC, skipBackupFile: ${skipBackupFile}`)
-
-      if (!skipBackupFile) {
-        // 复制 Data 目录到临时目录
-        const sourcePath = path.join(app.getPath('userData'), 'Data')
-        const tempDataDir = path.join(this.tempDir, 'Data')
-
-        // 获取源目录总大小
-        const totalSize = await this.getDirSize(sourcePath)
-        let copiedSize = 0
-
-        // 使用流式复制
-        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-          copiedSize += size
-          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
-
-        await this.setWritableRecursive(tempDataDir)
-        onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
-      } else {
-        logger.debug('Skip the backup of the file')
-        await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // 不创建空 Data 目录会导致 restore 失败
-      }
-
-      // 创建输出文件流
-      const backupedFilePath = path.join(destinationPath, fileName)
-      const output = fs.createWriteStream(backupedFilePath)
-
-      // 创建 archiver 实例，启用 ZIP64 支持
-      const archive = archiver('zip', {
-        zlib: { level: 1 }, // 使用最低压缩级别以提高速度
-        zip64: true // 启用 ZIP64 支持以处理大文件
-      })
-
-      let lastProgress = 50
-      let totalEntries = 0
-      let processedEntries = 0
-      let totalBytes = 0
-      let processedBytes = 0
-
-      // 首先计算总文件数和总大小，但不记录详细日志
-      const calculateTotals = async (dirPath: string) => {
-        try {
-          const items = await fs.readdir(dirPath, { withFileTypes: true })
-          for (const item of items) {
-            const fullPath = path.join(dirPath, item.name)
-            if (item.isDirectory()) {
-              await calculateTotals(fullPath)
-            } else {
-              totalEntries++
-              const stats = await fs.stat(fullPath)
-              totalBytes += stats.size
-            }
-          }
-        } catch (error) {
-          // 仅在出错时记录日志
-          logger.error('[BackupManager] Error calculating totals:', error as Error)
-        }
-      }
-
-      await calculateTotals(this.tempDir)
-
-      // 监听文件添加事件
-      archive.on('entry', () => {
-        processedEntries++
-        if (totalEntries > 0) {
-          const progressPercent = Math.min(55, 50 + Math.floor((processedEntries / totalEntries) * 5))
-          if (progressPercent > lastProgress) {
-            lastProgress = progressPercent
-            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
-          }
-        }
-      })
-
-      // 监听数据写入事件
-      archive.on('data', (chunk) => {
-        processedBytes += chunk.length
-        if (totalBytes > 0) {
-          const progressPercent = Math.min(99, 55 + Math.floor((processedBytes / totalBytes) * 44))
-          if (progressPercent > lastProgress) {
-            lastProgress = progressPercent
-            onProgress({ stage: 'compressing', progress: progressPercent, total: 100 })
-          }
-        }
-      })
-
-      // 使用 Promise 等待压缩完成
-      await new Promise<void>((resolve, reject) => {
-        output.on('close', () => {
-          onProgress({ stage: 'compressing', progress: 100, total: 100 })
-          resolve()
-        })
-        archive.on('error', reject)
-        archive.on('warning', (err: any) => {
-          if (err.code !== 'ENOENT') {
-            logger.warn('[BackupManager] Archive warning:', err)
-          }
-        })
-
-        // 将输出流连接到压缩器
-        archive.pipe(output)
-
-        // 添加整个临时目录到压缩文件
-        archive.directory(this.tempDir, false)
-
-        // 完成压缩
-        archive.finalize()
-      })
-
-      // 清理临时目录
-      await fs.remove(this.tempDir)
-      onProgress({ stage: 'completed', progress: 100, total: 100 })
-
-      logger.debug('Backup completed successfully')
-      return backupedFilePath
-    } catch (error) {
-      logger.error('[BackupManager] Backup failed:', error as Error)
-      // 确保清理临时目录
-      await fs.remove(this.tempDir).catch(() => {})
-      throw error
-    }
-  }
-
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string | void> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      // 只在关键阶段记录日志
-      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
-      if (logStages.includes(processData.stage) || processData.progress === 100) {
-        logger.debug('restore progress', processData)
-      }
-    }
-
-    try {
-      // 创建临时目录
-      await fs.ensureDir(this.tempDir)
-      onProgress({ stage: 'preparing', progress: 0, total: 100 })
-
-      logger.debug(`step 1: unzip backup file: ${this.tempDir}`)
-
-      const zip = new StreamZip.async({ file: backupPath })
-      onProgress({ stage: 'extracting', progress: 15, total: 100 })
-      await zip.extract(null, this.tempDir)
-      onProgress({ stage: 'extracted', progress: 20, total: 100 })
-
-      // Check for backup type: direct (version 6+) or legacy (version <= 5)
-      const metadataPath = path.join(this.tempDir, 'metadata.json')
-      const isDirectBackup = await fs.pathExists(metadataPath)
-
-      if (isDirectBackup) {
-        // Direct backup format (version 6+)
-        logger.debug('Detected direct backup format (version 6+)')
-        await fs.remove(this.tempDir).catch(() => {}) // Clean up before restoreDirect creates its own temp
-        await this.restoreDirect(backupPath)
-        // Direct restore doesn't return data - app needs to relaunch
-        return
-      }
-
-      // Legacy backup format (version <= 5)
-      logger.debug('Detected legacy backup format (version <= 5)')
-
-      const data = await this.restoreLegacy(onProgress)
-
-      return data
-    } catch (error) {
-      logger.error('Restore failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
-      throw error
-    }
-  }
-
-  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    try {
-      const retrievedFile = await webdavClient.getFileContents(filename)
-      const backupedFilePath = path.join(this.backupDir, filename)
-
-      if (!fs.existsSync(this.backupDir)) {
-        fs.mkdirSync(this.backupDir, { recursive: true })
-      }
-
-      // 使用流的方式写入文件
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(backupedFilePath)
-        writeStream.write(retrievedFile as Buffer)
-        writeStream.end()
-
-        writeStream.on('finish', () => resolve())
-        writeStream.on('error', (error) => reject(error))
-      })
-
-      return await this.restore(_, backupedFilePath)
-    } catch (error: any) {
-      logger.error('Failed to restore from WebDAV:', error)
-      throw new Error(error.message || 'Failed to restore backup file')
-    }
-  }
-
-  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
-    try {
-      const client = this.getWebDavInstance(config)
-      const response = await client.getDirectoryContents()
-      const files = Array.isArray(response) ? response : response.data
-
-      return files
-        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
-        .map((file: FileStat) => ({
-          fileName: file.basename,
-          modifiedTime: file.lastmod,
-          size: file.size
-        }))
-        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
-    } catch (error: any) {
-      logger.error('Failed to list WebDAV files:', error)
-      throw new Error(error.message || 'Failed to list backup files')
-    }
-  }
-
-  private async getDirSize(dirPath: string): Promise<number> {
-    let size = 0
-    const items = await fs.readdir(dirPath, { withFileTypes: true })
-
-    for (const item of items) {
-      const fullPath = path.join(dirPath, item.name)
-      if (item.isDirectory()) {
-        size += await this.getDirSize(fullPath)
-      } else {
-        const stats = await fs.stat(fullPath)
-        size += stats.size
-      }
-    }
-    return size
-  }
-
-  private async copyDirWithProgress(
-    source: string,
-    destination: string,
-    onProgress: (size: number) => void
-  ): Promise<void> {
-    // 先统计总文件数
-    let totalFiles = 0
-    let processedFiles = 0
-    let lastProgressReported = 0
-
-    // 计算总文件数
-    const countFiles = async (dir: string): Promise<number> => {
-      let count = 0
-      const items = await fs.readdir(dir, { withFileTypes: true })
-      for (const item of items) {
-        if (item.isDirectory()) {
-          count += await countFiles(path.join(dir, item.name))
-        } else {
-          count++
-        }
-      }
-      return count
-    }
-
-    totalFiles = await countFiles(source)
-
-    // 复制文件并更新进度
-    const copyDir = async (src: string, dest: string): Promise<void> => {
-      const items = await fs.readdir(src, { withFileTypes: true })
-
-      for (const item of items) {
-        const sourcePath = path.join(src, item.name)
-        const destPath = path.join(dest, item.name)
-
-        if (item.isDirectory()) {
-          await fs.ensureDir(destPath)
-          await copyDir(sourcePath, destPath)
-        } else {
-          const stats = await fs.stat(sourcePath)
-          await fs.copy(sourcePath, destPath)
-          processedFiles++
-
-          // 只在进度变化超过5%时报告进度
-          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
-          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
-            lastProgressReported = currentProgress
-            onProgress(stats.size)
-          }
-        }
-      }
-    }
-
-    await copyDir(source, destination)
-  }
-
-  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    return await webdavClient.checkConnection()
-  }
-
-  async createDirectory(
-    _: Electron.IpcMainInvokeEvent,
-    webdavConfig: WebDavConfig,
-    path: string,
-    options?: CreateDirectoryOptions
-  ) {
-    const webdavClient = this.getWebDavInstance(webdavConfig)
-    return await webdavClient.createDirectory(path, options)
-  }
-
-  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
-    try {
-      const webdavClient = this.getWebDavInstance(webdavConfig)
-      return await webdavClient.deleteFile(fileName)
-    } catch (error: any) {
-      logger.error('Failed to delete WebDAV file:', error)
-      throw new Error(error.message || 'Failed to delete backup file')
-    }
-  }
-
   async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
       const backupDir = localBackupDir
@@ -1021,48 +789,48 @@ class BackupManager {
     }
   }
 
-  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
+  /**
+   * Restore from a WebDAV backup
+   * Downloads the backup file from WebDAV server and restores it.
+   * @param _ - Electron IPC event
+   * @param webdavConfig - WebDAV configuration including server URL, credentials, and file name
+   * @returns Result from restore operation
+   */
+  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
+    const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
-      const files = await fs.readdir(localBackupDir)
-      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+      const retrievedFile = await webdavClient.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
 
-      for (const file of files) {
-        const filePath = path.join(localBackupDir, file)
-        const stat = await fs.stat(filePath)
-
-        if (stat.isFile() && file.endsWith('.zip')) {
-          result.push({
-            fileName: file,
-            modifiedTime: stat.mtime.toISOString(),
-            size: stat.size
-          })
-        }
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
       }
 
-      // Sort by modified time, newest first
-      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
-    } catch (error) {
-      logger.error('[BackupManager] List local backup files failed:', error as Error)
-      throw error
+      // Write file using streaming
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      logger.error('Failed to restore from WebDAV:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
     }
   }
 
-  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
-    try {
-      const filePath = path.join(localBackupDir, fileName)
-
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`Backup file not found: ${filePath}`)
-      }
-
-      await fs.remove(filePath)
-      return true
-    } catch (error) {
-      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
-      throw error
-    }
-  }
-
+  /**
+   * Restore from an S3 backup
+   * Downloads the backup file from S3 storage and restores it.
+   * @param _ - Electron IPC event
+   * @param s3Config - S3 configuration including bucket, credentials, and file name
+   * @returns Result from restore operation
+   */
   async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
     const filename = s3Config.fileName || 'cherry-studio.backup.zip'
 
@@ -1091,6 +859,463 @@ class BackupManager {
     }
   }
 
+  // ==================== File Utility Methods ====================
+  // These are helper methods for file operations like size calculation,
+  // directory copying with progress, and permission management.
+  /**
+   * Calculate total size of a directory recursively
+   * @param dirPath - Directory path to calculate size
+   * @returns Total size in bytes
+   */
+  private async getDirSize(dirPath: string): Promise<number> {
+    let size = 0
+    const items = await fs.readdir(dirPath, { withFileTypes: true })
+
+    for (const item of items) {
+      const fullPath = path.join(dirPath, item.name)
+      if (item.isDirectory()) {
+        size += await this.getDirSize(fullPath)
+      } else {
+        const stats = await fs.stat(fullPath)
+        size += stats.size
+      }
+    }
+    return size
+  }
+
+  /**
+   * Recursively set all files and directories in a path to writable
+   * Used to ensure we have permission to delete/modify files during restore
+   * @param dirPath - Directory path to make writable
+   */
+  private async setWritableRecursive(dirPath: string): Promise<void> {
+    try {
+      const items = await fs.readdir(dirPath, { withFileTypes: true })
+
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item.name)
+
+        // First process subdirectories
+        if (item.isDirectory()) {
+          await this.setWritableRecursive(fullPath)
+        }
+
+        // Set permission uniformly (requires special handling on Windows)
+        await this.forceSetWritable(fullPath)
+      }
+
+      // Ensure root directory permissions
+      await this.forceSetWritable(dirPath)
+    } catch (error) {
+      logger.error(`Failed to set permissions: ${dirPath}`, error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Cross-platform permission setting method
+   * Forces a file or directory to be writable
+   * @param targetPath - Path to make writable
+   */
+  private async forceSetWritable(targetPath: string): Promise<void> {
+    try {
+      // Windows needs to remove read-only attribute first
+      if (process.platform === 'win32') {
+        await fs.chmod(targetPath, 0o666) // Windows ignores permission bits but can remove read-only
+      } else {
+        const stats = await fs.stat(targetPath)
+        const mode = stats.isDirectory() ? 0o777 : 0o666
+        await fs.chmod(targetPath, mode)
+      }
+
+      // Double insurance: use file attribute command (Windows-specific)
+      if (process.platform === 'win32') {
+        await exec(`attrib -R "${targetPath}" /L /D`)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.warn(`Permission setting warning: ${targetPath}`, error as Error)
+      }
+    }
+  }
+
+  // ==================== Configuration Comparison Methods ====================
+  // These methods compare connection configurations to determine if instances
+  // need to be recreated.
+
+  /**
+   * Deep compare two WebDAV config objects for equality
+   * Only compares core fields that affect client connection, ignores volatile fields like fileName
+   * @param cachedConfig - The cached WebDAV configuration
+   * @param config - The new WebDAV configuration to compare
+   * @returns True if the configs are equal (connection-related fields only)
+   */
+  private isWebDavConfigEqual(cachedConfig: typeof this.cachedWebdavConnectionConfig, config: WebDavConfig): boolean {
+    if (!cachedConfig) return false
+
+    return (
+      cachedConfig.webdavHost === config.webdavHost &&
+      cachedConfig.webdavUser === config.webdavUser &&
+      cachedConfig.webdavPass === config.webdavPass &&
+      cachedConfig.webdavPath === config.webdavPath
+    )
+  }
+
+  /**
+   * Get WebDav instance, reuses existing instance if connection config hasn't changed
+   * Note: Only connection-related config changes will recreate the instance
+   * Other config changes don't affect instance reuse
+   * @param config - WebDAV configuration
+   * @returns WebDav instance
+   */
+  private getWebDavInstance(config: WebDavConfig): WebDav {
+    // Check if core connection config has changed
+    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConnectionConfig, config)
+
+    if (configChanged || !this.webdavInstance) {
+      this.webdavInstance = new WebDav(config)
+      // Only cache connection-related config fields
+      this.cachedWebdavConnectionConfig = {
+        webdavHost: config.webdavHost,
+        webdavUser: config.webdavUser,
+        webdavPass: config.webdavPass,
+        webdavPath: config.webdavPath
+      }
+      logger.debug('[BackupManager] Created new WebDav instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing WebDav instance')
+    }
+
+    return this.webdavInstance
+  }
+
+  // ==================== WebDAV Methods ====================
+  // These methods handle backup operations with WebDAV servers.
+
+  /**
+   * List backup files on WebDAV server
+   * @param _ - Electron IPC event
+   * @param config - WebDAV configuration
+   * @returns Array of backup file info (name, modified time, size), sorted by newest first
+   */
+  listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
+    try {
+      const client = this.getWebDavInstance(config)
+      const response = await client.getDirectoryContents()
+      const files = Array.isArray(response) ? response : response.data
+
+      return files
+        .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
+        .map((file: FileStat) => ({
+          fileName: file.basename,
+          modifiedTime: file.lastmod,
+          size: file.size
+        }))
+        .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      logger.error('Failed to list WebDAV files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
+  }
+
+  /**
+   * Copy directory with progress reporting
+   * Recursively copies files from source to destination while reporting progress
+   * @param source - Source directory path
+   * @param destination - Destination directory path
+   * @param onProgress - Callback function called with size of each copied file
+   */
+  private async copyDirWithProgress(
+    source: string,
+    destination: string,
+    onProgress: (size: number) => void
+  ): Promise<void> {
+    // First count total files
+    let totalFiles = 0
+    let processedFiles = 0
+    let lastProgressReported = 0
+
+    // Calculate total file count
+    const countFiles = async (dir: string): Promise<number> => {
+      let count = 0
+      const items = await fs.readdir(dir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isDirectory()) {
+          count += await countFiles(path.join(dir, item.name))
+        } else {
+          count++
+        }
+      }
+      return count
+    }
+
+    totalFiles = await countFiles(source)
+
+    // Copy files and update progress
+    const copyDir = async (src: string, dest: string): Promise<void> => {
+      const items = await fs.readdir(src, { withFileTypes: true })
+
+      for (const item of items) {
+        const sourcePath = path.join(src, item.name)
+        const destPath = path.join(dest, item.name)
+
+        if (item.isDirectory()) {
+          await fs.ensureDir(destPath)
+          await copyDir(sourcePath, destPath)
+        } else {
+          const stats = await fs.stat(sourcePath)
+          await fs.copy(sourcePath, destPath)
+          processedFiles++
+
+          // Only report progress when change exceeds 5%
+          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
+          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
+            lastProgressReported = currentProgress
+            onProgress(stats.size)
+          }
+        }
+      }
+    }
+
+    await copyDir(source, destination)
+  }
+
+  /**
+   * Check WebDAV connection
+   * @param _ - Electron IPC event
+   * @param webdavConfig - WebDAV configuration to test
+   * @returns True if connection is successful
+   */
+  async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+    const webdavClient = this.getWebDavInstance(webdavConfig)
+    return await webdavClient.checkConnection()
+  }
+
+  /**
+   * Create a directory on WebDAV server
+   * @param _ - Electron IPC event
+   * @param webdavConfig - WebDAV configuration
+   * @param path - Directory path to create
+   * @param options - Optional directory creation options
+   * @returns Result from WebDAV operation
+   */
+  async createDirectory(
+    _: Electron.IpcMainInvokeEvent,
+    webdavConfig: WebDavConfig,
+    path: string,
+    options?: CreateDirectoryOptions
+  ) {
+    const webdavClient = this.getWebDavInstance(webdavConfig)
+    return await webdavClient.createDirectory(path, options)
+  }
+
+  /**
+   * Delete a backup file from WebDAV server
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the file to delete
+   * @param webdavConfig - WebDAV configuration
+   * @returns Result from WebDAV operation
+   */
+  async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = this.getWebDavInstance(webdavConfig)
+      return await webdavClient.deleteFile(fileName)
+    } catch (error: any) {
+      logger.error('Failed to delete WebDAV file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
+  }
+
+  // ==================== Local Backup Methods ====================
+  // These methods handle backup operations with local directories.
+
+  /**
+   * List backup files in a local directory
+   * @param _ - Electron IPC event
+   * @param localBackupDir - Directory to list backup files from
+   * @returns Array of backup file info (name, modified time, size), sorted by newest first
+   */
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
+    try {
+      const files = await fs.readdir(localBackupDir)
+      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+
+      for (const file of files) {
+        const filePath = path.join(localBackupDir, file)
+        const stat = await fs.stat(filePath)
+
+        if (stat.isFile() && file.endsWith('.zip')) {
+          result.push({
+            fileName: file,
+            modifiedTime: stat.mtime.toISOString(),
+            size: stat.size
+          })
+        }
+      }
+
+      // Sort by modified time, newest first
+      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error) {
+      logger.error('[BackupManager] List local backup files failed:', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete a local backup file
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the file to delete
+   * @param localBackupDir - Directory where the backup file is located
+   * @returns True if deletion was successful
+   */
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
+    try {
+      const filePath = path.join(localBackupDir, fileName)
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Backup file not found: ${filePath}`)
+      }
+
+      await fs.remove(filePath)
+      return true
+    } catch (error) {
+      logger.error('[BackupManager] Delete local backup file failed:', error as Error)
+      throw error
+    }
+  }
+
+  // ==================== Legacy & Temp Methods ====================
+  // These methods are for legacy backup format and temporary file operations.
+
+  /**
+   * Create a legacy backup
+   * Creates a lightweight backup (skipBackupFile=true) in the temp directory
+   * Returns the path to the created ZIP file
+   * @param data - JSON string data to backup
+   * @param destinationPath - Path to save the backup
+   */
+  async createLanTransferBackup(
+    _: Electron.IpcMainInvokeEvent,
+    data: string,
+    destinationPath?: string
+  ): Promise<string> {
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 12)
+
+    const fileName = `cherry-studio.${timestamp}.zip`
+    const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
+    const targetPath = destinationPath || tempPath
+
+    // Ensure temp directory exists
+    await fs.ensureDir(targetPath)
+
+    // Create backup with skipBackupFile=true (no Data folder)
+    const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)
+
+    logger.info(`[BackupManager] Created LAN transfer backup at: ${backupedFilePath}`)
+
+    return backupedFilePath
+  }
+
+  /**
+   * Delete a temporary backup file after LAN transfer completes
+   */
+  async deleteLanTransferBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
+    try {
+      // Security check: only allow deletion within temp directory
+      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer'))
+      const resolvedPath = path.normalize(path.resolve(filePath))
+
+      // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)
+      if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
+        logger.warn(`[BackupManager] Attempted to delete file outside temp directory: ${filePath}`)
+        return false
+      }
+
+      if (await fs.pathExists(resolvedPath)) {
+        await fs.remove(resolvedPath)
+        logger.info(`[BackupManager] Deleted temp backup: ${resolvedPath}`)
+        return true
+      }
+      return false
+    } catch (error) {
+      logger.error('[BackupManager] Failed to delete temp backup:', error as Error)
+      return false
+    }
+  }
+
+  // ==================== S3 Methods ====================
+  // These methods handle backup operations with S3-compatible storage.
+
+  /**
+   * Get S3Storage instance, reuses existing instance if connection config hasn't changed
+   * Note: Only connection-related config changes will recreate the instance
+   * Other config changes don't affect instance reuse
+   * @param config - S3 configuration
+   * @returns S3Storage instance
+   */
+  private getS3Storage(config: S3Config): S3Storage {
+    // Check if core connection config has changed
+    const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
+
+    if (configChanged || !this.s3Storage) {
+      this.s3Storage = new S3Storage(config)
+      // Only cache connection-related config fields
+      this.cachedS3ConnectionConfig = {
+        endpoint: config.endpoint,
+        region: config.region,
+        bucket: config.bucket,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        root: config.root
+      }
+      logger.debug('[BackupManager] Created new S3Storage instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing S3Storage instance')
+    }
+
+    return this.s3Storage
+  }
+
+  /**
+   * Compare two S3 config objects for equality
+   * Only compares core fields that affect client connection, ignores volatile fields like fileName
+   * @param cachedConfig - The cached S3 configuration
+   * @param config - The new S3 configuration to compare
+   * @returns True if the configs are equal (connection-related fields only)
+   */
+  private isS3ConfigEqual(cachedConfig: typeof this.cachedS3ConnectionConfig, config: S3Config): boolean {
+    if (!cachedConfig) return false
+
+    return (
+      cachedConfig.endpoint === config.endpoint &&
+      cachedConfig.region === config.region &&
+      cachedConfig.bucket === config.bucket &&
+      cachedConfig.accessKeyId === config.accessKeyId &&
+      cachedConfig.secretAccessKey === config.secretAccessKey &&
+      cachedConfig.root === config.root
+    )
+  }
+
+  /**
+   * Check S3 connection
+   * @param _ - Electron IPC event
+   * @param s3Config - S3 configuration to test
+   * @returns True if connection is successful
+   */
+  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const s3Client = this.getS3Storage(s3Config)
+    return await s3Client.checkConnection()
+  }
+
+  /**
+   * List backup files in S3 storage
+   * @param _ - Electron IPC event
+   * @param s3Config - S3 configuration
+   * @returns Array of backup file info (name, modified time, size), sorted by newest first
+   */
   listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
     try {
       const s3Client = this.getS3Storage(s3Config)
@@ -1115,6 +1340,13 @@ class BackupManager {
     }
   }
 
+  /**
+   * Delete a backup file from S3 storage
+   * @param _ - Electron IPC event
+   * @param fileName - Name of the file to delete
+   * @param s3Config - S3 configuration
+   * @returns Result from S3 operation
+   */
   async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
     try {
       const s3Client = this.getS3Storage(s3Config)
@@ -1122,63 +1354,6 @@ class BackupManager {
     } catch (error: any) {
       logger.error('Failed to delete S3 file:', error)
       throw new Error(error.message || 'Failed to delete backup file')
-    }
-  }
-
-  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const s3Client = this.getS3Storage(s3Config)
-    return await s3Client.checkConnection()
-  }
-
-  /**
-   * Create a temporary backup for LAN transfer
-   * Creates a lightweight backup (skipBackupFile=true) in the temp directory
-   * Returns the path to the created ZIP file
-   */
-  async createLegacyBackup(_: Electron.IpcMainInvokeEvent, data: string, destinationPath?: string): Promise<string> {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:T.Z]/g, '')
-      .slice(0, 12)
-    const fileName = `cherry-studio.${timestamp}.zip`
-
-    // Use provided destination path or default to temp directory
-    const targetPath = destinationPath || path.join(app.getPath('temp'), 'cherry-studio', 'temp-backup')
-
-    // Ensure target directory exists
-    await fs.ensureDir(targetPath)
-
-    // Create backup with skipBackupFile=true (no Data folder)
-    const backupedFilePath = await this.backupLegacy(_, fileName, data, targetPath, true)
-
-    logger.info(`[BackupManager] Created legacy backup at: ${backupedFilePath}`)
-    return backupedFilePath
-  }
-
-  /**
-   * Delete a temporary backup file after LAN transfer completes
-   */
-  async deleteTempBackup(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> {
-    try {
-      // Security check: only allow deletion within temp directory
-      const tempBase = path.normalize(path.join(app.getPath('temp'), 'cherry-studio', 'temp-backup'))
-      const resolvedPath = path.normalize(path.resolve(filePath))
-
-      // Use normalized paths with trailing separator to prevent prefix attacks (e.g., /temp-evil)
-      if (!resolvedPath.startsWith(tempBase + path.sep) && resolvedPath !== tempBase) {
-        logger.warn(`[BackupManager] Attempted to delete file outside temp directory: ${filePath}`)
-        return false
-      }
-
-      if (await fs.pathExists(resolvedPath)) {
-        await fs.remove(resolvedPath)
-        logger.info(`[BackupManager] Deleted temp backup: ${resolvedPath}`)
-        return true
-      }
-      return false
-    } catch (error) {
-      logger.error('[BackupManager] Failed to delete temp backup:', error as Error)
-      return false
     }
   }
 }

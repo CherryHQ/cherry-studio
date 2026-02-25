@@ -72,16 +72,17 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
-export async function backupLegacy() {
+export async function backupToLanTransfer() {
   // Let user select save location first
   const savePath = await window.api.file.selectFolder()
+
   if (!savePath) {
     return
   }
 
   // Create backup directly in the selected location
   const backupData = await getBackupData()
-  await window.api.backup.createLegacyBackup(backupData, savePath)
+  await window.api.backup.createLanTransferBackup(backupData, savePath)
 
   window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
 }
