@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review GitHub PR"
+  short_description: "Review PRs with structured inline comments"
+  default_prompt: "Review the pull request and provide inline code review comments with a structured summary."
