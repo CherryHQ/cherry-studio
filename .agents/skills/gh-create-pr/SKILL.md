@@ -38,6 +38,19 @@ description: Create or update GitHub pull requests using the repository-required
 - PR title and body must be written in English.
 - Never create the PR before showing the full final body to the user, unless they explicitly waive the preview or confirmation.
 - Never rely on command permission prompts as PR body preview.
+- **Release note & Documentation checkbox** — both are driven by whether the change is **user-facing**. Use the table below:
+
+  | Change type | Release note | Docs `[x]` |
+  |---|---|---|
+  | New user-facing feature / setting / UI | Describe the change | ✅ |
+  | Bug fix visible to users | Describe the fix | ✅ if behavior changed |
+  | Behavior change / default value change | Describe + `action required` | ✅ |
+  | Security fix in a user-facing dependency | Describe the fix | ✅ if usage changed |
+  | CI / GitHub Actions changes | `NONE` | ❌ |
+  | Internal refactoring (user cannot tell) | `NONE` | ❌ |
+  | Dev / build tooling changes | `NONE` | ❌ |
+  | Dev-only dependency bump | `NONE` | ❌ |
+  | Test-only / code style changes | `NONE` | ❌ |
 
 ## Command Pattern
 
