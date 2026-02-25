@@ -3185,6 +3185,8 @@ const migrateConfig = {
           assistant.defaultModel = qwen3Next80BModel
         }
       })
+      // Initialize mini app region filter setting
+      state.settings.minAppRegion ??= 'auto'
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)

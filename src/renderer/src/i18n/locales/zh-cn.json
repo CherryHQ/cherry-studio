@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
+      "region": {
+        "auto": "自动检测",
+        "cn": "中国",
+        "description": "根据所在地区过滤不支持的小程序",
+        "global": "全球",
+        "title": "小程序区域筛选"
+      },
       "reset_tooltip": "重置为默认值",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",

@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
       },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニアプリをフィルタリングします",
+        "global": "世界中",
+        "title": "ミニアプリ地域絞り込み"
+      },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
       "sidebar_title": "サイドバーのアクティブなミニアプリ表示",

@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
+        "global": "global",
+        "title": "Filtru zonă aplicație miniatură"
+      },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",

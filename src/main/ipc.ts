@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
+import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
   checkGitAvailable,
@@ -305,6 +306,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       logger.error('Failed to get system fonts:', error as Error)
       return []
     }
+  })
+
+  // Get IP Country
+  ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
+    return getIpCountry()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
