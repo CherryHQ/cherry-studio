@@ -64,7 +64,7 @@ export async function addNote(
 
 export interface ResolvedNotesPath {
   path: string // 有效路径
-  isFallback: boolean // 是否为默认路径
+  isFallback: boolean // 是否需要回退到默认笔记路径
 }
 /**
  * 验证路径是否有效（处理跨平台恢复场景）
