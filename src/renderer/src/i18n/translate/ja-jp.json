@@ -5495,7 +5495,8 @@
       "title": "翻訳履歴"
     },
     "info": {
-      "aborted": "翻訳中止"
+      "aborted": "翻訳中止",
+      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "テキスト、テキストファイル、画像（OCR対応）を貼り付けたり、ドラッグして挿入したりできます"

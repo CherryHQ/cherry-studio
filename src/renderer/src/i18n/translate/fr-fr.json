@@ -5495,7 +5495,8 @@
       "title": "Historique des traductions"
     },
     "info": {
-      "aborted": "Traduction annulée"
+      "aborted": "Traduction annulée",
+      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "Peut coller ou glisser du texte, des fichiers texte ou des images (avec prise en charge de l'OCR)"

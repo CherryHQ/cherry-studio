@@ -5495,7 +5495,8 @@
       "title": "Histórico de Tradução"
     },
     "info": {
-      "aborted": "Tradução interrompida"
+      "aborted": "Tradução interrompida",
+      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "Pode colar ou arrastar texto, arquivos de texto ou imagens (com suporte a OCR)"

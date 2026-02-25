@@ -5495,7 +5495,8 @@
       "title": "翻譯歷史"
     },
     "info": {
-      "aborted": "翻譯中止"
+      "aborted": "翻譯中止",
+      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "可貼上或拖曳文字、文字檔案、圖片（支援 OCR）"

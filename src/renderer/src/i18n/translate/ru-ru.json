@@ -5495,7 +5495,8 @@
       "title": "История переводов"
     },
     "info": {
-      "aborted": "Перевод прерван"
+      "aborted": "Перевод прерван",
+      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "Можно вставить или перетащить текст, текстовые файлы, изображения (с поддержкой OCR)"
