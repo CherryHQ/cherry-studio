@@ -164,15 +164,7 @@ class BackupManager {
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      const logStages = ['preparing', 'copying_database', 'copying_files', 'compressing', 'completed']
-      if (logStages.includes(processData.stage) || processData.progress === 100) {
-        logger.debug('backupDirect progress', processData)
-      }
-    }
+    const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
 
     try {
       await fs.ensureDir(this.tempDir)
@@ -257,7 +249,7 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.debug('[backupDirect] Backup completed successfully')
+      logger.info('[backupDirect] Backup completed successfully')
       return backupedFilePath
     } catch (error) {
       logger.error('[backupDirect] Backup failed:', error as Error)
@@ -284,16 +276,7 @@ class BackupManager {
     destinationPath: string = this.backupDir,
     skipBackupFile: boolean = false
   ): Promise<string> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      // Only log at key stages: start, end, and major stage transitions
-      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
-      if (logStages.includes(processData.stage) || processData.progress === 100) {
-        logger.debug('backup progress', processData)
-      }
-    }
+    const onProgress = this.onProgress(IpcChannel.BackupProgress, true)
 
     try {
       await fs.ensureDir(this.tempDir)
@@ -427,7 +410,7 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.debug('Backup completed successfully')
+      logger.info('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
       logger.error('[BackupManager] Backup failed:', error as Error)
@@ -515,7 +498,7 @@ class BackupManager {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
       const result = await s3Client.putFileContents(filename, fileBuffer)
       await fs.remove(backupedFilePath)
-      logger.debug(`[backupToS3] S3 backup completed: ${filename}`)
+      logger.info(`S3 backup completed: ${filename}`)
       return result
     } catch (error) {
       logger.error('[backupToS3] S3 backup failed:', error as Error)
@@ -534,16 +517,7 @@ class BackupManager {
    * @returns For legacy backup: the data string from data.json. For direct backup: void (app will relaunch)
    */
   async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string | void> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      // Only log at key stages
-      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
-      if (logStages.includes(processData.stage) || processData.progress === 100) {
-        logger.debug('restore progress', processData)
-      }
-    }
+    const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
 
     try {
       // Create temp directory
@@ -573,7 +547,7 @@ class BackupManager {
       // Legacy backup format (version <= 5)
       logger.debug('Detected legacy backup format (version <= 5)')
 
-      const data = await this.restoreLegacy(onProgress)
+      const data = await this.restoreLegacy()
 
       return data
     } catch (error) {
@@ -590,12 +564,7 @@ class BackupManager {
    * @param backupPath - Path to the backup ZIP file
    */
   private async restoreDirect(backupPath: string): Promise<void> {
-    const mainWindow = windowService.getMainWindow()
-
-    const onProgress = (processData: { stage: string; progress: number; total: number }) => {
-      mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      logger.debug('restoreDirect progress', processData)
-    }
+    const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
 
     try {
       // Close all data connections before restoring to avoid file lock issues on Windows
@@ -689,7 +658,7 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.debug('[restoreDirect] Restore completed successfully, relaunching app...')
+      logger.info('[restoreDirect] Restore completed successfully, relaunching app...')
 
       // Relaunch app to load restored data
       app.relaunch()
@@ -707,9 +676,9 @@ class BackupManager {
    * @param onProgress - Callback function to report restore progress
    * @returns The data string read from data.json
    */
-  private async restoreLegacy(
-    onProgress: (processData: { stage: string; progress: number; total: number }) => void
-  ): Promise<string> {
+  private async restoreLegacy(): Promise<string> {
+    const onProgress = this.onProgress(IpcChannel.RestoreProgress, false)
+
     try {
       logger.debug('step 2: read data.json')
       // Read data.json
@@ -753,7 +722,7 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.debug('step 5: Restore completed successfully')
+      logger.info('Restore completed successfully')
 
       return data
     } catch (error) {
@@ -848,7 +817,7 @@ class BackupManager {
         writeStream.on('error', (error) => reject(error))
       })
 
-      logger.debug(`S3 restore file downloaded successfully: ${filename}`)
+      logger.info(`S3 restore file downloaded successfully: ${filename}`)
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {
       logger.error('[BackupManager] Failed to restore from S3:', error)
@@ -859,6 +828,22 @@ class BackupManager {
   // ==================== File Utility Methods ====================
   // These are helper methods for file operations like size calculation,
   // directory copying with progress, and permission management.
+
+  /**
+   * Create a progress callback that sends IPC message and optionally logs.
+   * copying_files stage is never logged as it generates too many logs.
+   */
+  private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
+    return (processData: { stage: string; progress: number; total: number }) => {
+      const mainWindow = windowService.getMainWindow()
+      mainWindow?.webContents.send(channel, processData)
+      // Never log copying_files as it generates too many log entries
+      if (shouldLog && processData.stage !== 'copying_files') {
+        logger.info('Backup progress', processData)
+      }
+    }
+  }
+
   /**
    * Calculate total size of a directory recursively
    * @param dirPath - Directory path to calculate size
