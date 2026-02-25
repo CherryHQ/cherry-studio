@@ -282,6 +282,9 @@ class BackupManager {
     }
 
     try {
+      // Close all data connections before restoring to avoid file lock issues on Windows
+      await closeAllDataConnections()
+
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
@@ -377,6 +380,66 @@ class BackupManager {
       app.exit(0)
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
+      await fs.remove(this.tempDir).catch(() => {})
+      throw error
+    }
+  }
+
+  /**
+   * Restore from legacy backup format (version <= 5)
+   * Restores data from data.json and Data directory
+   */
+  private async restoreLegacy(
+    onProgress: (processData: { stage: string; progress: number; total: number }) => void
+  ): Promise<string> {
+    try {
+      logger.debug('step 2: read data.json')
+      // 读取 data.json
+      const dataPath = path.join(this.tempDir, 'data.json')
+      const data = await fs.readFile(dataPath, 'utf-8')
+      onProgress({ stage: 'reading_data', progress: 35, total: 100 })
+
+      logger.debug('step 3: restore Data directory')
+      // 恢复 Data 目录
+      const sourcePath = path.join(this.tempDir, 'Data')
+      const destPath = getDataPath()
+
+      const dataExists = await fs.pathExists(sourcePath)
+      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
+
+      if (dataExists && dataFiles.length > 0) {
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
+
+        // Close all database connections and file watchers before removing Data directory.
+        // On Windows, open file handles prevent deletion (EBUSY).
+        await closeAllDataConnections()
+
+        await this.setWritableRecursive(destPath)
+        await fs.remove(destPath)
+
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+          copiedSize += size
+          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+      } else {
+        logger.debug('skipBackupFile is true, skip restoring Data directory')
+      }
+
+      logger.debug('step 4: clean up temp directory')
+      // 清理临时目录
+      await this.setWritableRecursive(this.tempDir)
+      await fs.remove(this.tempDir)
+      onProgress({ stage: 'completed', progress: 100, total: 100 })
+
+      logger.debug('step 5: Restore completed successfully')
+
+      return data
+    } catch (error) {
+      logger.error('[restoreLegacy] Restore failed:', error as Error)
       await fs.remove(this.tempDir).catch(() => {})
       throw error
     }
@@ -788,49 +851,7 @@ class BackupManager {
       // Legacy backup format (version <= 5)
       logger.debug('Detected legacy backup format (version <= 5)')
 
-      logger.debug('step 2: read data.json')
-      // 读取 data.json
-      const dataPath = path.join(this.tempDir, 'data.json')
-      const data = await fs.readFile(dataPath, 'utf-8')
-      onProgress({ stage: 'reading_data', progress: 35, total: 100 })
-
-      logger.debug('step 3: restore Data directory')
-      // 恢复 Data 目录
-      const sourcePath = path.join(this.tempDir, 'Data')
-      const destPath = getDataPath()
-
-      const dataExists = await fs.pathExists(sourcePath)
-      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
-
-      if (dataExists && dataFiles.length > 0) {
-        // 获取源目录总大小
-        const totalSize = await this.getDirSize(sourcePath)
-        let copiedSize = 0
-
-        // Close all database connections and file watchers before removing Data directory.
-        // On Windows, open file handles prevent deletion (EBUSY).
-        await closeAllDataConnections()
-
-        await this.setWritableRecursive(destPath)
-        await fs.remove(destPath)
-
-        // 使用流式复制
-        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
-          copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
-      } else {
-        logger.debug('skipBackupFile is true, skip restoring Data directory')
-      }
-
-      logger.debug('step 4: clean up temp directory')
-      // 清理临时目录
-      await this.setWritableRecursive(this.tempDir)
-      await fs.remove(this.tempDir)
-      onProgress({ stage: 'completed', progress: 100, total: 100 })
-
-      logger.debug('step 5: Restore completed successfully')
+      const data = await this.restoreLegacy(onProgress)
 
       return data
     } catch (error) {
