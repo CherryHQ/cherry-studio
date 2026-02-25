@@ -15,6 +15,7 @@
  * --------------------------------------------------------------------------
  */
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -84,10 +85,6 @@ class BackupManager {
    * Called after window is created but before renderer is loaded
    */
   static async handleStartupRestore(): Promise<void> {
-    if (process.platform !== 'win32') {
-      return
-    }
-
     const userDataPath = app.getPath('userData')
 
     try {
@@ -634,7 +631,7 @@ class BackupManager {
       // Step 3: Restore IndexedDB and Local Storage
       // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
       // On macOS/Linux, use direct replacement
-      const useRestoreSuffix = process.platform === 'win32'
+      const useRestoreSuffix = isWin
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
       const indexedDBRestore = path.join(userDataPath, `IndexedDB${useRestoreSuffix ? '.restore' : ''}`)
       const indexedDBDest = path.join(userDataPath, 'IndexedDB')
@@ -920,7 +917,7 @@ class BackupManager {
   private async forceSetWritable(targetPath: string): Promise<void> {
     try {
       // Windows needs to remove read-only attribute first
-      if (process.platform === 'win32') {
+      if (isWin) {
         await fs.chmod(targetPath, 0o666) // Windows ignores permission bits but can remove read-only
       } else {
         const stats = await fs.stat(targetPath)
@@ -929,7 +926,7 @@ class BackupManager {
       }
 
       // Double insurance: use file attribute command (Windows-specific)
-      if (process.platform === 'win32') {
+      if (isWin) {
         await exec(`attrib -R "${targetPath}" /L /D`)
       }
     } catch (error) {
