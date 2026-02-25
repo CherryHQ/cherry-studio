@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "根據所在地區篩選不支援的小程式",
+        "global": "全球",
+        "title": "小程式區域篩選"
+      },
       "reset_tooltip": "重設為預設值",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",

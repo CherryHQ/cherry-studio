@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "Abrir enlace en nueva ventana del navegador"
       },
+      "region": {
+        "auto": "Detección automática",
+        "cn": "China",
+        "description": "Los pequeños programas que no son compatibles se filtran según la región.",
+        "global": "global",
+        "title": "Filtro de área de la miniaplicación"
+      },
       "reset_tooltip": "Restablecer a los valores predeterminados",
       "sidebar_description": "Configura si se muestra o no en la barra lateral la miniaplicación activa",
       "sidebar_title": "Visualización de miniaplicaciones activas en la barra lateral",

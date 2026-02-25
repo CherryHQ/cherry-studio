@@ -25,6 +25,7 @@ import {
   isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
+  isGemini31ProModel,
   isKimi25Model,
   withModelIdAndNameAsId
 } from './utils'
@@ -55,6 +56,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gemini2_pro: ['low', 'medium', 'high', 'auto'] as const,
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
+  gemini3_1_pro: ['low', 'medium', 'high'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
@@ -90,6 +92,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gemini2_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini2_pro] as const,
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
   gemini3_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_pro] as const,
+  gemini3_1_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_pro] as const,
   qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
@@ -144,6 +147,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'
+    } else if (isGemini31ProModel(model)) {
+      thinkingModelType = 'gemini3_1_pro'
     } else if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       thinkingModelType = 'gemini2_flash'
     } else {

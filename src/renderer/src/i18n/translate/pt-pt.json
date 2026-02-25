@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "Abrir link em nova janela do navegador"
       },
+      "region": {
+        "auto": "Detecção automática",
+        "cn": "China",
+        "description": "A filtragem de mini programas não suportados com base na região não é suportada",
+        "global": "global",
+        "title": "Filtro de área do mini programa"
+      },
       "reset_tooltip": "Redefinir para os valores padrão",
       "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
       "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",

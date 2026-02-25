@@ -4651,6 +4651,13 @@
       "open_link_external": {
         "title": "Neue Fensterlinks im Browser öffnen"
       },
+      "region": {
+        "auto": "Automatische Erkennung",
+        "cn": "China",
+        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
+        "global": "global",
+        "title": "Bereichsfilterung für Mini-Programme"
+      },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
       "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
