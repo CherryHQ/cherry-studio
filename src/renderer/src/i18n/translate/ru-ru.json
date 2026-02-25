@@ -5553,6 +5553,11 @@
     "saveDataError": "Ошибка сохранения данных, повторите попытку",
     "title": "Обновление"
   },
+  "validation": {
+    "field_required": "[to be translated]:This field is required",
+    "file_name_required": "[to be translated]:File name is required",
+    "name_required": "[to be translated]:Name is required"
+  },
   "warning": {
     "missing_provider": "Поставщик не существует, возвращение к поставщику по умолчанию {{provider}}. Это может привести к проблемам."
   },

@@ -5553,6 +5553,11 @@
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
   },
+  "validation": {
+    "field_required": "[to be translated]:This field is required",
+    "file_name_required": "[to be translated]:File name is required",
+    "name_required": "[to be translated]:Name is required"
+  },
   "warning": {
     "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
   },

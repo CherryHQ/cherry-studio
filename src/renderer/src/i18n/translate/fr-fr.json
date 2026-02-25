@@ -5553,6 +5553,11 @@
     "saveDataError": "Échec de la sauvegarde des données, veuillez réessayer",
     "title": "Mise à jour"
   },
+  "validation": {
+    "field_required": "[to be translated]:This field is required",
+    "file_name_required": "[to be translated]:File name is required",
+    "name_required": "[to be translated]:Name is required"
+  },
   "warning": {
     "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
