@@ -13,7 +13,10 @@
  *      RENDERER_VITE_SYNC_SERVER=http://your-server:3456
  *      RENDERER_VITE_SYNC_TOKEN=your-token
  */
+import { loggerService } from '@logger'
 import db from '@renderer/databases'
+
+const logger = loggerService.withContext('TopicSync')
 
 // ── 配置 ──────────────────────────────────────────────────────────────
 
@@ -115,7 +118,7 @@ function getTopicSnapshotFromStore(): Map<string, string> {
     }
     return snapshot
   } catch (e) {
-    console.error('[TopicSync] Failed to read store snapshot:', e)
+    logger.error('Failed to read store snapshot:', e instanceof Error ? e : new Error(String(e)))
     return new Map()
   }
 }
@@ -198,7 +201,7 @@ async function getTopicFullData(topicId: string): Promise<TopicFullData | null> 
       }))
     }
   } catch (e) {
-    console.error(`[TopicSync] Failed to get topic data for ${topicId}:`, e)
+    logger.error(`Failed to get topic data for ${topicId}`, e instanceof Error ? e : new Error(String(e)))
     return null
   }
 }
@@ -218,12 +221,12 @@ async function apiPost(path: string, body: unknown): Promise<boolean> {
       body: JSON.stringify(body)
     })
     if (!resp.ok) {
-      console.error(`[TopicSync] POST ${path} failed:`, resp.status, await resp.text())
+      logger.error(`POST ${path} failed: ${resp.status} ${await resp.text()}`)
       return false
     }
     return true
   } catch (e) {
-    console.error(`[TopicSync] POST ${path} network error:`, e)
+    logger.error(`POST ${path} network error`, e instanceof Error ? e : new Error(String(e)))
     return false
   }
 }
@@ -237,12 +240,12 @@ async function apiDelete(path: string): Promise<boolean> {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (!resp.ok) {
-      console.error(`[TopicSync] DELETE ${path} failed:`, resp.status)
+      logger.error(`DELETE ${path} failed: ${resp.status}`)
       return false
     }
     return true
   } catch (e) {
-    console.error(`[TopicSync] DELETE ${path} network error:`, e)
+    logger.error(`DELETE ${path} network error`, e instanceof Error ? e : new Error(String(e)))
     return false
   }
 }
@@ -259,8 +262,8 @@ async function syncOnce(): Promise<void> {
     // 首次运行：从 localStorage 恢复快照（可能为空）
     if (previousSnapshot === null) {
       previousSnapshot = loadPersistedSnapshot()
-      console.log(
-        `[TopicSync] Initialized: ${currentSnapshot.size} local topics, ` +
+      logger.info(
+        `Initialized: ${currentSnapshot.size} local topics, ` +
           `${previousSnapshot.size} in last synced snapshot`
       )
       // 不 return —— 继续往下 diff，这样：
@@ -291,8 +294,8 @@ async function syncOnce(): Promise<void> {
       return // 无变更
     }
 
-    console.log(
-      `[TopicSync] Changes: +${added.length} ~${updated.length} -${deleted.length}`
+    logger.info(
+      `Changes: +${added.length} ~${updated.length} -${deleted.length}`
     )
 
     // 处理新增 + 更新：获取完整数据并上传
@@ -325,7 +328,7 @@ async function syncOnce(): Promise<void> {
     previousSnapshot = currentSnapshot
     savePersistedSnapshot(currentSnapshot)
   } catch (e) {
-    console.error('[TopicSync] Sync loop error:', e)
+    logger.error('Sync loop error', e instanceof Error ? e : new Error(String(e)))
   }
 }
 
@@ -334,11 +337,11 @@ async function syncOnce(): Promise<void> {
 async function start() {
   const { server } = await getConfig()
   if (!server) {
-    console.log('[TopicSync] No sync server configured. Set .env RENDERER_VITE_SYNC_SERVER or localStorage "cherry-sync-server".')
+    logger.info('No sync server configured. Set .env RENDERER_VITE_SYNC_SERVER or localStorage "cherry-sync-server".')
     return
   }
 
-  console.log(`[TopicSync] Starting sync to ${server}, interval=${SYNC_INTERVAL}ms`)
+  logger.info(`Starting sync to ${server}, interval=${SYNC_INTERVAL}ms`)
 
   // 立即执行一次（建立基线）
   syncOnce()
