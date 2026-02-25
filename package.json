@@ -8,7 +8,7 @@
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.11.1"
   },
   "scripts": {
     "start": "electron-vite preview",
@@ -226,7 +226,7 @@
     "@types/md5": "^2.3.5",
     "@types/mdast": "4.0.4",
     "@types/mime-types": "^3",
-    "@types/node": "22.17.2",
+    "@types/node": "24.10.4",
     "@types/pako": "^1.0.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

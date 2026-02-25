@@ -261,7 +261,7 @@ describe('file', () => {
 
     it('should read file with auto encoding', async () => {
       const content = '这是一段GB18030编码的测试内容'
-      const buffer = iconv.encode(content, 'GB18030')
+      const buffer = Buffer.from(iconv.encode(content, 'GB18030'))
 
       // 模拟文件读取和编码检测
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
@@ -273,7 +273,7 @@ describe('file', () => {
 
     it('should try to fix bad detected encoding', async () => {
       const content = '这是一段UTF-8编码的测试内容'
-      const buffer = iconv.encode(content, 'UTF-8')
+      const buffer = Buffer.from(iconv.encode(content, 'UTF-8'))
 
       // 模拟文件读取
       vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
