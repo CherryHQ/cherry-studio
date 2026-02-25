@@ -24,8 +24,10 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
+import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames, uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
+import { isAbortError } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -61,7 +63,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useMemo, useState } from 'react'
+import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -110,6 +112,7 @@ type MessageMenubarButtonContext = {
   onEdit: () => void | Promise<void>
   onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
+  abortTranslation: () => void
   onUseful: (e: React.MouseEvent) => void
   removeMessageBlock: MessageOperationsHandlers['removeMessageBlock']
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -139,6 +142,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isTranslating, setIsTranslating] = useState(false)
+  const translateAbortKeyRef = useRef<string | null>(null)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
@@ -220,16 +224,25 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
-      if (isTranslating) return
+      if (isTranslating) {
+        window.toast.warning(t('translate.info.in_progress'))
+        return
+      }
 
       setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
       if (!translationUpdater) return
+
+      const abortKey = uuid()
+      translateAbortKeyRef.current = abortKey
+
       try {
-        await translateText(mainTextContent, language, translationUpdater)
+        await translateText(mainTextContent, language, translationUpdater, abortKey)
       } catch (error) {
-        window.toast.error(t('translate.error.failed'))
+        if (!isAbortError(error)) {
+          window.toast.error(t('translate.error.failed'))
+        }
         // 理应只有一个
         const translationBlocks = findTranslationBlocksById(message.id)
         logger.silly(`there are ${translationBlocks.length} translation blocks`)
@@ -240,10 +253,9 @@ const MessageMenubar: FC<Props> = (props) => {
             dispatch(removeOneBlock(block.id))
           }
         }
-
-        // clearStreamMessage(message.id)
       } finally {
         setIsTranslating(false)
+        translateAbortKeyRef.current = null
       }
     },
     [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
@@ -515,6 +527,13 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
+  const abortTranslation = useCallback(() => {
+    if (translateAbortKeyRef.current) {
+      abortCompletion(translateAbortKeyRef.current)
+      translateAbortKeyRef.current = null
+    }
+  }, [])
+
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
@@ -526,6 +545,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
   const buttonContext: MessageMenubarButtonContext = {
+    abortTranslation,
     assistant,
     blockEntities,
     confirmDeleteMessage,
@@ -745,6 +765,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     hasTranslationBlocks,
     message,
     blockEntities,
+    abortTranslation,
     removeMessageBlock,
     softHoverBg,
     t
@@ -789,6 +810,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
               label: '✖ ' + t('translate.close'),
               key: 'translate-close',
               onClick: () => {
+                abortTranslation()
+
                 const translationBlocks = message.blocks
                   .map((blockId) => blockEntities[blockId])
                   .filter((block) => block?.type === 'translation')

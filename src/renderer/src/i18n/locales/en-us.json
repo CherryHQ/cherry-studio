@@ -5495,7 +5495,8 @@
       "title": "Translation History"
     },
     "info": {
-      "aborted": "Translation aborted"
+      "aborted": "Translation aborted",
+      "in_progress": "Translation in progress. Please close the current translation before switching languages."
     },
     "input": {
       "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
