@@ -32,6 +32,7 @@ jobs:
           filters: |
             code:
               - 'src/**'
+              - 'tests/**'
               - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
