@@ -20,7 +20,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
 import archiver from 'archiver'
-import { exec } from 'child_process'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -28,7 +27,6 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
-import { closeAllDataConnections } from '../utils/lifecycle'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -90,36 +88,35 @@ class BackupManager {
     try {
       const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
       const indexedDBDest = path.join(userDataPath, 'IndexedDB')
+      const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
+
       const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
       const localStorageDest = path.join(userDataPath, 'Local Storage')
-
-      const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
       const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
 
-      if (!hasIndexedDBRestore && !hasLocalStorageRestore) {
-        return
-      }
-
-      logger.info('[handleStartupRestore] Found .restore directories, completing restoration...')
+      const dataRestore = getDataPath() + '.restore'
+      const dataDest = getDataPath()
+      const hasDataRestore = await fs.pathExists(dataRestore)
 
       // Restore IndexedDB
       if (hasIndexedDBRestore) {
-        try {
-          await fs.remove(indexedDBDest)
-        } catch {
-          // Ignore if old directory doesn't exist
-        }
+        logger.info('[handleStartupRestore] Found IndexedDB.restore directories, completing restoration...')
+        await fs.remove(indexedDBDest).catch(() => {})
         await fs.rename(indexedDBRestore, indexedDBDest)
       }
 
       // Restore Local Storage
       if (hasLocalStorageRestore) {
-        try {
-          await fs.remove(localStorageDest)
-        } catch {
-          // Ignore if old directory doesn't exist
-        }
+        logger.info('[handleStartupRestore] Found Local Storage.restore directories, completing restoration...')
+        await fs.remove(localStorageDest).catch(() => {})
         await fs.rename(localStorageRestore, localStorageDest)
+      }
+
+      // Restore Data
+      if (hasDataRestore) {
+        logger.info('[handleStartupRestore] Found Local Data.restore directories, completing restoration...')
+        await fs.remove(dataDest).catch(() => {})
+        await fs.rename(dataRestore, dataDest)
       }
 
       logger.info('[handleStartupRestore] Restoration completed successfully')
@@ -215,8 +212,6 @@ class BackupManager {
             const progress = Math.min(80, 52 + Math.floor((copiedSize / totalSize) * 28))
             onProgress({ stage: 'copying_files', progress, total: 100 })
           })
-
-          await this.setWritableRecursive(tempDataDir)
         }
       } else {
         logger.debug('[backupDirect] Skip the backup of the file')
@@ -314,7 +309,6 @@ class BackupManager {
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
 
-        await this.setWritableRecursive(tempDataDir)
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
         logger.debug('Skip the backup of the file')
@@ -567,9 +561,6 @@ class BackupManager {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
 
     try {
-      // Close all data connections before restoring to avoid file lock issues on Windows
-      await closeAllDataConnections()
-
       await fs.ensureDir(this.tempDir)
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
@@ -600,14 +591,13 @@ class BackupManager {
       // Step 3: Restore IndexedDB and Local Storage
       // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
       // On macOS/Linux, use direct replacement
-      const useRestoreSuffix = isWin
-      const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
-      const indexedDBRestore = path.join(userDataPath, `IndexedDB${useRestoreSuffix ? '.restore' : ''}`)
-      const indexedDBDest = path.join(userDataPath, 'IndexedDB')
+      const restoreSuffix = isWin ? '.restore' : ''
 
+      // IndexedDB & Local Storag Path
+      const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
+      const indexedDBDest = path.join(userDataPath, 'IndexedDB' + restoreSuffix)
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
-      const localStorageRestore = path.join(userDataPath, `Local Storage${useRestoreSuffix ? '.restore' : ''}`)
-      const localStorageDest = path.join(userDataPath, 'Local Storage')
+      const localStorageDest = path.join(userDataPath, 'Local Storage' + restoreSuffix)
 
       logger.debug('[restoreDirect] Restoring database directories...')
 
@@ -615,34 +605,30 @@ class BackupManager {
       // macOS/Linux: copy directly to target directories
       // Always remove target directory first to ensure clean overwrite
       if (await fs.pathExists(indexedDBSource)) {
-        const targetDir = useRestoreSuffix ? indexedDBRestore : indexedDBDest
-        await this.setWritableRecursive(targetDir).catch(() => {})
-        await fs.remove(targetDir).catch(() => {})
-        await fs.copy(indexedDBSource, targetDir)
+        await fs.remove(indexedDBDest).catch(() => {})
+        await fs.copy(indexedDBSource, indexedDBDest)
       }
 
       if (await fs.pathExists(localStorageSource)) {
-        const targetDir = useRestoreSuffix ? localStorageRestore : localStorageDest
-        await this.setWritableRecursive(targetDir).catch(() => {})
-        await fs.remove(targetDir).catch(() => {})
-        await fs.copy(localStorageSource, targetDir)
+        await fs.remove(localStorageDest).catch(() => {})
+        await fs.copy(localStorageSource, localStorageDest)
       }
 
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
 
       // Step 5: Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
-      const dataDest = getDataPath()
+      const dataDest = path.join(getDataPath(), restoreSuffix)
       const dataExists = await fs.pathExists(dataSource)
       const dataFiles = dataExists ? await fs.readdir(dataSource) : []
 
       if (dataExists && dataFiles.length > 0) {
         logger.debug('[restoreDirect] Restoring Data directory...')
-        await this.setWritableRecursive(dataDest)
-        await fs.remove(dataDest)
 
         const totalSize = await this.getDirSize(dataSource)
         let copiedSize = 0
+
+        await fs.remove(dataDest)
 
         await this.copyDirWithProgress(dataSource, dataDest, (size) => {
           copiedSize += size
@@ -681,10 +667,6 @@ class BackupManager {
     try {
       logger.debug('step 2: read data.json')
 
-      // Close all database connections and file watchers before removing Data directory.
-      // On Windows, open file handles prevent deletion (EBUSY).
-      await closeAllDataConnections()
-
       // Read data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
@@ -693,8 +675,9 @@ class BackupManager {
       logger.debug('step 3: restore Data directory')
 
       // Restore Data directory
+      const restoreSuffix = isWin ? '.restore' : ''
       const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = getDataPath()
+      const dataDestPath = path.join(getDataPath(), restoreSuffix)
 
       const dataExists = await fs.pathExists(dataSourcePath)
       const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
@@ -704,7 +687,6 @@ class BackupManager {
         const dataTotalSize = await this.getDirSize(dataSourcePath)
         let copiedSize = 0
 
-        await this.setWritableRecursive(dataDestPath)
         await fs.remove(dataDestPath)
 
         // Use streaming copy
@@ -719,7 +701,6 @@ class BackupManager {
 
       // Clean up temp directory
       logger.debug('step 4: clean up temp directory')
-      await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
 
       onProgress({ stage: 'completed', progress: 100, total: 100 })
@@ -868,64 +849,17 @@ class BackupManager {
   }
 
   /**
-   * Recursively set all files and directories in a path to writable
-   * Used to ensure we have permission to delete/modify files during restore
-   * @param dirPath - Directory path to make writable
+   * Create a empty restore data path, it will be reset after app relaunch
    */
-  private async setWritableRecursive(dirPath: string): Promise<void> {
-    try {
-      const items = await fs.readdir(dirPath, { withFileTypes: true })
-
-      for (const item of items) {
-        const fullPath = path.join(dirPath, item.name)
-
-        // First process subdirectories
-        if (item.isDirectory()) {
-          await this.setWritableRecursive(fullPath)
-        }
-
-        // Set permission uniformly (requires special handling on Windows)
-        await this.forceSetWritable(fullPath)
-      }
-
-      // Ensure root directory permissions
-      await this.forceSetWritable(dirPath)
-    } catch (error) {
-      logger.error(`Failed to set permissions: ${dirPath}`, error as Error)
-      throw error
+  public async resetData() {
+    if (!isWin) {
+      return await fs.remove(getDataPath()).catch(() => {})
     }
+
+    const dataRestorePath = getDataPath() + '.restore'
+    await fs.remove(dataRestorePath).catch(() => {})
+    await fs.ensureDir(dataRestorePath)
   }
-
-  /**
-   * Cross-platform permission setting method
-   * Forces a file or directory to be writable
-   * @param targetPath - Path to make writable
-   */
-  private async forceSetWritable(targetPath: string): Promise<void> {
-    try {
-      // Windows needs to remove read-only attribute first
-      if (isWin) {
-        await fs.chmod(targetPath, 0o666) // Windows ignores permission bits but can remove read-only
-      } else {
-        const stats = await fs.stat(targetPath)
-        const mode = stats.isDirectory() ? 0o777 : 0o666
-        await fs.chmod(targetPath, mode)
-      }
-
-      // Double insurance: use file attribute command (Windows-specific)
-      if (isWin) {
-        await exec(`attrib -R "${targetPath}" /L /D`)
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn(`Permission setting warning: ${targetPath}`, error as Error)
-      }
-    }
-  }
-
-  // ==================== Configuration Comparison Methods ====================
-  // These methods compare connection configurations to determine if instances
-  // need to be recreated.
 
   /**
    * Deep compare two WebDAV config objects for equality
