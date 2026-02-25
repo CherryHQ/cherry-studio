@@ -38,6 +38,58 @@ class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
+  /**
+   * Handle backup restoration on app startup
+   * Called after window is created but before renderer is loaded
+   */
+  static async handleStartupRestore(): Promise<void> {
+    if (process.platform !== 'win32') {
+      return
+    }
+
+    const userDataPath = app.getPath('userData')
+
+    try {
+      const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
+      const indexedDBDest = path.join(userDataPath, 'IndexedDB')
+      const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
+      const localStorageDest = path.join(userDataPath, 'Local Storage')
+
+      const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
+      const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
+
+      if (!hasIndexedDBRestore && !hasLocalStorageRestore) {
+        return
+      }
+
+      logger.info('[handleStartupRestore] Found .restore directories, completing restoration...')
+
+      // Restore IndexedDB
+      if (hasIndexedDBRestore) {
+        try {
+          await fs.remove(indexedDBDest)
+        } catch {
+          // Ignore if old directory doesn't exist
+        }
+        await fs.rename(indexedDBRestore, indexedDBDest)
+      }
+
+      // Restore Local Storage
+      if (hasLocalStorageRestore) {
+        try {
+          await fs.remove(localStorageDest)
+        } catch {
+          // Ignore if old directory doesn't exist
+        }
+        await fs.rename(localStorageRestore, localStorageDest)
+      }
+
+      logger.info('[handleStartupRestore] Restoration completed successfully')
+    } catch (error) {
+      logger.error('[handleStartupRestore] Failed to complete restoration:', error as Error)
+    }
+  }
+
   // 缓存实例，避免重复创建
   private s3Storage: S3Storage | null = null
   private webdavInstance: WebDav | null = null
@@ -253,30 +305,39 @@ class BackupManager {
 
       onProgress({ stage: 'validating', progress: 25, total: 100 })
 
-      // Step 3: Close all connections
-      logger.debug('[restoreDirect] Closing all data connections...')
-      await closeAllDataConnections()
       onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
 
       const userDataPath = app.getPath('userData')
 
-      // Step 4: Restore IndexedDB and Local Storage
-      logger.debug('[restoreDirect] Restoring database directories...')
-
+      // Step 3: Restore IndexedDB and Local Storage
+      // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
+      // On macOS/Linux, use direct replacement
+      const useRestoreSuffix = process.platform === 'win32'
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
+      const indexedDBRestore = path.join(userDataPath, `IndexedDB${useRestoreSuffix ? '.restore' : ''}`)
       const indexedDBDest = path.join(userDataPath, 'IndexedDB')
-      if (await fs.pathExists(indexedDBSource)) {
-        await this.setWritableRecursive(indexedDBDest).catch(() => {})
-        await fs.remove(indexedDBDest).catch(() => {})
-        await fs.copy(indexedDBSource, indexedDBDest)
-      }
 
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
+      const localStorageRestore = path.join(userDataPath, `Local Storage${useRestoreSuffix ? '.restore' : ''}`)
       const localStorageDest = path.join(userDataPath, 'Local Storage')
+
+      logger.debug('[restoreDirect] Restoring database directories...')
+
+      // Windows: copy to .restore suffix directories (swap happens on next startup)
+      // macOS/Linux: copy directly to target directories
+      // Always remove target directory first to ensure clean overwrite
+      if (await fs.pathExists(indexedDBSource)) {
+        const targetDir = useRestoreSuffix ? indexedDBRestore : indexedDBDest
+        await this.setWritableRecursive(targetDir).catch(() => {})
+        await fs.remove(targetDir).catch(() => {})
+        await fs.copy(indexedDBSource, targetDir)
+      }
+
       if (await fs.pathExists(localStorageSource)) {
-        await this.setWritableRecursive(localStorageDest).catch(() => {})
-        await fs.remove(localStorageDest).catch(() => {})
-        await fs.copy(localStorageSource, localStorageDest)
+        const targetDir = useRestoreSuffix ? localStorageRestore : localStorageDest
+        await this.setWritableRecursive(targetDir).catch(() => {})
+        await fs.remove(targetDir).catch(() => {})
+        await fs.copy(localStorageSource, targetDir)
       }
 
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
@@ -1100,5 +1161,7 @@ class BackupManager {
     }
   }
 }
+
+export { BackupManager }
 
 export default BackupManager
