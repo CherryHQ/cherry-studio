@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  repository_dispatch:
+    types: [trigger-custom-release]
   workflow_dispatch:
     inputs:
       tag:
@@ -32,10 +34,11 @@ permissions:
 
 jobs:
   release:
-    # Only run for tag push, workflow_dispatch, or PR from release branches
+    # Only run for tag push, workflow_dispatch, repository_dispatch, or PR from release branches
     if: |
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'repository_dispatch' ||
       (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/v'))
     runs-on: ${{ matrix.os }}
 
@@ -43,6 +46,7 @@ jobs:
       matrix:
         os: ${{ fromJSON(
           github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event_name == 'repository_dispatch' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event_name == 'pull_request' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
@@ -64,6 +68,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "tag=${{ github.event.client_payload.tag }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             # Extract version from branch name (release/v1.0.0 -> v1.0.0)
             BRANCH="${{ github.head_ref }}"

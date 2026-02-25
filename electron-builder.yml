@@ -129,8 +129,9 @@ rpm:
   # https://github.com/electron/forge/issues/3594
   fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
-  provider: generic
-  url: https://releases.cherry-ai.com
+  provider: github
+  owner: ifastcc
+  repo: cherry-studio
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 beforePack: scripts/before-pack.js

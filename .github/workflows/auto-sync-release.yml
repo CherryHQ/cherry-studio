@@ -1,0 +1,73 @@
+name: Sync Upstream & Release
+
+on:
+  schedule:
+    # 每天早晨 6:00 (UTC) / 14:00 (北京时间) 执行一次同步
+    - cron: "0 6 * * *"
+  workflow_dispatch: # 支持手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  sync_and_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add official upstream remote
+        run: |
+          git remote add upstream https://github.com/CherryHQ/cherry-studio.git
+          git fetch upstream --tags
+
+      - name: Get latest upstream release tag
+        id: get_tag
+        run: |
+          # 获取官方的最新 tag (按版本号排序)
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          echo "Latest upstream tag: $LATEST_TAG"
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists in our repo
+        id: check_release
+        run: |
+          if gh release view ${{ steps.get_tag.outputs.tag }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.get_tag.outputs.tag }} already exists in this repo. Skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "New release detected. Will sync and build."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge Upstream Main & Tag
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 提取官方最新主分支
+          git fetch upstream main
+          
+          # 尝试合入到本地 main
+          git checkout main
+          git merge upstream/main --no-edit || true
+          
+          # 同步最新 Tag 到我们名下
+          git update-ref refs/tags/${{ steps.get_tag.outputs.tag }} $(git rev-parse upstream/main)
+          
+          # 推送
+          git push origin main
+          git push origin ${{ steps.get_tag.outputs.tag }}
+
+      - name: Trigger Release Workflow
+        if: steps.check_release.outputs.exists == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: trigger-custom-release
+          client-payload: '{"tag": "${{ steps.get_tag.outputs.tag }}"}'
