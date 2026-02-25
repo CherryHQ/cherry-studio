@@ -21,11 +21,30 @@ const SYNC_INTERVAL = 30_000 // 30 秒
 const BATCH_SIZE = 20 // 批量上传时每批最大数量
 const INIT_DELAY = 8_000 // 初始化延迟（等 Dexie + Redux persist 准备好）
 
-function getConfig() {
-  const server =
-    localStorage.getItem('cherry-sync-server') || import.meta.env.RENDERER_VITE_SYNC_SERVER || ''
-  const token =
-    localStorage.getItem('cherry-sync-token') || import.meta.env.RENDERER_VITE_SYNC_TOKEN || ''
+async function getConfig() {
+  let server = localStorage.getItem('cherry-sync-server') || import.meta.env.RENDERER_VITE_SYNC_SERVER || ''
+  let token = localStorage.getItem('cherry-sync-token') || import.meta.env.RENDERER_VITE_SYNC_TOKEN || ''
+
+  try {
+    // 尝试读取本地配置文件 (支持极低侵入的分发模式)
+    const appInfo = await window.api.getAppInfo()
+    if (appInfo && appInfo.appDataPath) {
+      const configPath = `${appInfo.appDataPath}/cherry-sync.json`
+      const configText = await window.api.fs.readText(configPath).catch(() => null)
+      if (configText) {
+        const configJson = JSON.parse(configText)
+        if (configJson.server && !localStorage.getItem('cherry-sync-server')) {
+          server = configJson.server
+        }
+        if (configJson.token && !localStorage.getItem('cherry-sync-token')) {
+          token = configJson.token
+        }
+      }
+    }
+  } catch (error) {
+    // 忽略读取配置文件失败
+  }
+
   return { server: server.replace(/\/+$/, ''), token }
 }
 
@@ -194,7 +213,7 @@ async function getTopicFullData(topicId: string): Promise<TopicFullData | null> 
 // ── HTTP 工具 ─────────────────────────────────────────────────────────
 
 async function apiPost(path: string, body: unknown): Promise<boolean> {
-  const { server, token } = getConfig()
+  const { server, token } = await getConfig()
   if (!server) return false
   try {
     const resp = await fetch(`${server}${path}`, {
@@ -217,7 +236,7 @@ async function apiPost(path: string, body: unknown): Promise<boolean> {
 }
 
 async function apiDelete(path: string): Promise<boolean> {
-  const { server, token } = getConfig()
+  const { server, token } = await getConfig()
   if (!server) return false
   try {
     const resp = await fetch(`${server}${path}`, {
@@ -238,7 +257,7 @@ async function apiDelete(path: string): Promise<boolean> {
 // ── 同步主循环 ────────────────────────────────────────────────────────
 
 async function syncOnce(): Promise<void> {
-  const { server } = getConfig()
+  const { server } = await getConfig()
   if (!server) return // 未配置同步服务器，静默跳过
 
   try {
