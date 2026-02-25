@@ -513,7 +513,7 @@ class BackupManager {
         // Direct backup format (version 6+)
         logger.debug('Detected direct backup format (version 6+)')
         await fs.remove(this.tempDir).catch(() => {}) // Clean up before restoreDirect creates its own temp
-        await this.restoreDirect(backupPath)
+        await this.restoreDirect()
         // Direct restore doesn't return data - app needs to relaunch
         return
       }
@@ -535,23 +535,12 @@ class BackupManager {
    * Restore from direct backup format (version 6+)
    * Directly replaces IndexedDB and Local Storage directories.
    * On Windows, uses .restore suffix to avoid file lock issues - handled on next startup.
-   * @param backupPath - Path to the backup ZIP file
    */
-  private async restoreDirect(backupPath: string): Promise<void> {
+  private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
 
     try {
-      await fs.ensureDir(this.tempDir)
-      onProgress({ stage: 'preparing', progress: 0, total: 100 })
-
-      // Step 1: Extract ZIP
-      logger.debug('[restoreDirect] Extracting backup file...')
-      const zip = new StreamZip.async({ file: backupPath })
-      onProgress({ stage: 'extracting', progress: 10, total: 100 })
-      await zip.extract(null, this.tempDir)
-      onProgress({ stage: 'extracted', progress: 20, total: 100 })
-
-      // Step 2: Read and validate metadata
+      // Read and validate metadata
       const metadataPath = path.join(this.tempDir, 'metadata.json')
       const metadata = await fs.readJson(metadataPath)
 
@@ -568,12 +557,12 @@ class BackupManager {
 
       const userDataPath = app.getPath('userData')
 
-      // Step 3: Restore IndexedDB and Local Storage
+      // Restore IndexedDB and Local Storage
       // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
       // On macOS/Linux, use direct replacement
       const restoreSuffix = isWin ? '.restore' : ''
 
-      // IndexedDB & Local Storag Path
+      // IndexedDB & Local Storage Path
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
       const indexedDBDest = path.join(userDataPath, 'IndexedDB' + restoreSuffix)
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
@@ -596,7 +585,7 @@ class BackupManager {
 
       onProgress({ stage: 'restoring_database', progress: 65, total: 100 })
 
-      // Step 5: Restore Data directory
+      //  Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
       const dataDest = path.join(getDataPath(), restoreSuffix)
       const dataExists = await fs.pathExists(dataSource)
@@ -619,7 +608,7 @@ class BackupManager {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
 
-      // Step 6: Clean up
+      // Clean up
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
@@ -645,14 +634,14 @@ class BackupManager {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, false)
 
     try {
-      logger.debug('step 2: read data.json')
+      logger.debug('[restoreLegacy] read data.json')
 
       // Read data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
-      logger.debug('step 3: restore Data directory')
+      logger.debug('[restoreLegacy] restore Data directory')
 
       // Restore Data directory
       const restoreSuffix = isWin ? '.restore' : ''
@@ -676,16 +665,16 @@ class BackupManager {
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
       } else {
-        logger.debug('skipBackupFile is true, skip restoring Data directory')
+        logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
       }
 
       // Clean up temp directory
-      logger.debug('step 4: clean up temp directory')
+      logger.debug('[restoreLegacy] clean up temp directory')
       await fs.remove(this.tempDir)
 
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.info('Restore completed successfully')
+      logger.info('[restoreLegacy] Restore completed successfully')
 
       return data
     } catch (error) {

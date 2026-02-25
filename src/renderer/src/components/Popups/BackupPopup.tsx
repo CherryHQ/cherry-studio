@@ -73,11 +73,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   BackupPopup.hide = onCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
-  const isLanTransfterMode = backupType === 'lan-transfer'
+  const isLanTransferMode = backupType === 'lan-transfer'
 
-  const title = isLanTransfterMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
-  const okText = isLanTransfterMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
-  const content = isLanTransfterMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
+  const title = isLanTransferMode ? t('settings.data.export_to_phone.file.title') : t('backup.title')
+  const okText = isLanTransferMode ? t('settings.data.export_to_phone.file.button') : t('backup.confirm.button')
+  const content = isLanTransferMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
 
   return (
     <Modal
