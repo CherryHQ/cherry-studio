@@ -58,26 +58,6 @@ class BackupManager {
     webdavPath?: string
   } | null = null
 
-  constructor() {
-    this.checkConnection = this.checkConnection.bind(this)
-    this.backupLegacy = this.backupLegacy.bind(this)
-    this.backup = this.backup.bind(this)
-    this.restore = this.restore.bind(this)
-    this.backupToWebdav = this.backupToWebdav.bind(this)
-    this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
-    this.listWebdavFiles = this.listWebdavFiles.bind(this)
-    this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
-    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
-    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
-    this.backupToLocalDir = this.backupToLocalDir.bind(this)
-    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
-    this.backupToS3 = this.backupToS3.bind(this)
-    this.restoreFromS3 = this.restoreFromS3.bind(this)
-    this.listS3Files = this.listS3Files.bind(this)
-    this.deleteS3File = this.deleteS3File.bind(this)
-    this.checkS3Connection = this.checkS3Connection.bind(this)
-  }
-
   /**
    * Handle backup restoration on app startup
    * Called after window is created but before renderer is loaded
