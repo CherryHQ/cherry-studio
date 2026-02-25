@@ -122,14 +122,33 @@ jobs:
           script: |
             const marker = '<!-- pr-sync-reminder -->';
 
-            // Get latest commits from the push
-            const { data: commits } = await github.rest.pulls.listCommits({
+            // Get latest commits with pagination to ensure we fetch the last page
+            const commitsResponse = await github.rest.pulls.listCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
+              per_page: 3,
+              page: 1,
             });
 
-            const latestCommits = commits.slice(-3).reverse();
+            // Determine last page from Link header, then fetch it
+            const linkHeader = commitsResponse.headers.link || '';
+            const lastPageMatch = linkHeader.match(/&page=(\d+)>;\s*rel="last"/);
+            let latestCommits;
+            if (lastPageMatch) {
+              const lastPage = parseInt(lastPageMatch[1], 10);
+              const { data: lastPageCommits } = await github.rest.pulls.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                per_page: 3,
+                page: lastPage,
+              });
+              latestCommits = lastPageCommits.reverse();
+            } else {
+              // All commits fit in one page
+              latestCommits = commitsResponse.data.reverse();
+            }
             const commitList = latestCommits
               .map(c => `- \`${c.sha.substring(0, 7)}\` ${c.commit.message.split('\n')[0]}`)
               .join('\n');
