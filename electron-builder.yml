@@ -28,6 +28,12 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!config"
+  - "!patches"
+  - "!app-upgrade-config.json"
+  - "!**/node_modules/**/*.cpp"
+  - "!**/node_modules/node-addon-api/**"
+  - "!**/node_modules/prebuild-install/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -67,11 +73,6 @@ asarUnpack:
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
 
-# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-extraResources:
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -90,6 +91,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
+  differentialPackage: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
@@ -105,8 +107,11 @@ mac:
   target:
     - target: dmg
     - target: zip
+dmg:
+  writeUpdateInfo: false
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
+  executableName: CherryStudio
   target:
     - target: AppImage
     - target: deb
@@ -115,6 +120,7 @@ linux:
   category: Utility
   desktop:
     entry:
+      Name: Cherry Studio
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
@@ -134,54 +140,37 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.4 - New Browser MCP & Model Updates
-
-    This release adds a powerful browser automation MCP server, new web search provider, and model support updates.
+    Cherry Studio 1.7.20 - New Models & Features
 
     ✨ New Features
-    - [MCP] Add @cherry/browser CDP MCP server with session management for browser automation
-    - [Web Search] Add ExaMCP free web search provider (no API key required)
-    - [Model] Support GPT 5.2 series models
-    - [Model] Add capabilities support for Doubao Seed Code models (tool calling, reasoning, vision)
-
-    🔧 Improvements
-    - [Translate] Add reasoning effort option to translate service
-    - [i18n] Improve zh-TW Traditional Chinese locale
-    - [Settings] Update MCP Settings layout and styling
+    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
+    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
+    - [Models] Add support for Qwen 3.5 series models
+    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
+    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
+    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
+    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
+    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
+    - [Search] Add keyword-based topic search with whole-word matching and result sorting
 
     🐛 Bug Fixes
-    - [Chat] Fix line numbers being wrongly copied from code blocks
-    - [Translate] Fix default to first supported reasoning effort when translating
-    - [Chat] Fix preserve thinking block in assistant messages
-    - [Web Search] Fix max search result limit
-    - [Embedding] Fix embedding dimensions retrieval for ModernAiProvider
-    - [Chat] Fix token calculation in prompt tool use plugin
-    - [Model] Fix Ollama provider options for Qwen model support
-    - [UI] Fix Chat component marginRight calculation for improved layout
-
+    - [i18n] Fix PluginCard translation not updating when language is switched
+    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.4 - 新增浏览器 MCP 与模型更新
-
-    本次更新新增强大的浏览器自动化 MCP 服务器、新的网页搜索提供商以及模型支持更新。
+    Cherry Studio 1.7.20 - 新模型与功能
 
     ✨ 新功能
-    - [MCP] 新增 @cherry/browser CDP MCP 服务器，支持会话管理的浏览器自动化
-    - [网页搜索] 新增 ExaMCP 免费网页搜索提供商（无需 API 密钥）
-    - [模型] 支持 GPT 5.2 系列模型
-    - [模型] 为豆包 Seed Code 模型添加能力支持（工具调用、推理、视觉）
-
-    🔧 功能改进
-    - [翻译] 为翻译服务添加推理强度选项
-    - [国际化] 改进繁体中文（zh-TW）本地化
-    - [设置] 优化 MCP 设置布局和样式
+    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
+    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
+    - [模型] 添加 Qwen 3.5 系列模型支持
+    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
+    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
+    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
+    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
+    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
+    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
 
     🐛 问题修复
-    - [聊天] 修复代码块中行号被错误复制的问题
-    - [翻译] 修复翻译时默认使用第一个支持的推理强度
-    - [聊天] 修复助手消息中思考块的保留问题
-    - [网页搜索] 修复最大搜索结果数限制
-    - [嵌入] 修复 ModernAiProvider 嵌入维度获取问题
-    - [聊天] 修复提示词工具使用插件的 token 计算问题
-    - [模型] 修复 Ollama 提供商对 Qwen 模型的支持选项
-    - [界面] 修复聊天组件右边距计算以改善布局
+    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
+    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
     <!--LANG:END-->

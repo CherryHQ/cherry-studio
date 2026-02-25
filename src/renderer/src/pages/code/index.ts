@@ -1,4 +1,12 @@
+import { getAnthropicThinkingBudget } from '@renderer/aiCore/utils/reasoning'
+import {
+  isReasoningModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenClaudeModel
+} from '@renderer/config/models/reasoning'
 import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { formatApiHost } from '@renderer/utils/api'
+import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {
@@ -12,6 +20,10 @@ export interface ToolEnvironmentConfig {
   modelProvider: Provider
   apiKey: string
   baseUrl: string
+  context?: {
+    maxTokens?: number
+    reasoningEffort?: string
+  }
 }
 
 // CLI 工具选项
@@ -21,7 +33,9 @@ export const CLI_TOOLS = [
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
   { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
   { value: codeTools.iFlowCli, label: 'iFlow CLI' },
-  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' }
+  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' },
+  { value: codeTools.kimiCli, label: 'Kimi CLI' },
+  { value: codeTools.openCode, label: 'OpenCode' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
@@ -34,13 +48,16 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   'minimax',
   'longcat',
   SystemProviderIds.qiniu,
-  SystemProviderIds.silicon
+  SystemProviderIds.silicon,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter
 ]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
   'dmxapi',
   'new-api',
   'cherryin',
+  '302ai',
   ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
 ]
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
@@ -53,9 +70,12 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openaiCodex]: (providers) =>
-    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter((p) => p.type === 'openai-response' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.githubCopilotCli]: () => []
+  [codeTools.githubCopilotCli]: () => [],
+  [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeTools.openCode]: (providers) =>
+    providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -94,6 +114,11 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
       anthropic: {
         api_base_url: 'https://api.minimaxi.com/anthropic'
       }
+    },
+    '302ai': {
+      anthropic: {
+        api_base_url: 'https://api.302.ai'
+      }
     }
   }
 
@@ -128,15 +153,21 @@ export const generateToolEnvironment = ({
   model,
   modelProvider,
   apiKey,
-  baseUrl
+  baseUrl,
+  context
 }: {
   tool: codeTools
   model: Model
   modelProvider: Provider
   apiKey: string
   baseUrl: string
-}): Record<string, string> => {
+  context?: {
+    maxTokens?: number
+    reasoningEffort?: string
+  }
+}): { env: Record<string, string> } => {
   const env: Record<string, string> = {}
+  const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
     case codeTools.claudeCode:
@@ -161,28 +192,60 @@ export const generateToolEnvironment = ({
 
     case codeTools.qwenCode:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       break
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
-      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
+      env.OPENAI_MODEL_PROVIDER_NAME = modelProvider.name
       break
 
     case codeTools.iFlowCli:
       env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = baseUrl
+      env.IFLOW_BASE_URL = formattedBaseUrl
       env.IFLOW_MODEL_NAME = model.id
       break
 
     case codeTools.githubCopilotCli:
       env.GITHUB_TOKEN = apiKey || ''
       break
+
+    case codeTools.kimiCli:
+      env.KIMI_API_KEY = apiKey
+      env.KIMI_BASE_URL = formattedBaseUrl
+      env.KIMI_MODEL_NAME = model.id
+      break
+
+    case codeTools.openCode:
+      // Set environment variable with provider-specific suffix for security
+      {
+        env.OPENCODE_BASE_URL = formattedBaseUrl
+        env.OPENCODE_MODEL_NAME = model.name
+        // Calculate OpenCode-specific config internally
+        const isReasoning = isReasoningModel(model)
+        const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
+        const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
+          ? getAnthropicThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
+          : undefined
+        const providerType = modelProvider.type
+        const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))
+        env.OPENCODE_MODEL_IS_REASONING = String(isReasoning)
+        env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT = String(supportsReasoningEffort)
+        if (budgetTokens !== undefined) {
+          env.OPENCODE_MODEL_BUDGET_TOKENS = String(budgetTokens)
+        }
+        env.OPENCODE_PROVIDER_TYPE = providerType
+        env.OPENCODE_PROVIDER_NAME = providerName
+        const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+        env[envVarKey] = apiKey
+      }
+      break
   }
 
-  return env
+  return { env }
 }
 
 export { default } from './CodeToolsPage'

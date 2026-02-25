@@ -1,7 +1,6 @@
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -17,6 +16,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
+import NavbarIcon from '../../components/NavbarIcon'
 import AssistantsDrawer from './components/AssistantsDrawer'
 import UpdateAppButton from './components/UpdateAppButton'
 
@@ -123,11 +123,12 @@ const HeaderNavbar: FC<Props> = ({
           justifyContent: 'flex-end',
           flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '15px',
+          paddingRight: '15px',
           minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
+          <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
@@ -138,7 +139,6 @@ const HeaderNavbar: FC<Props> = ({
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          <UpdateAppButton />
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
               <NavbarIcon onClick={toggleShowTopics}>
@@ -158,40 +158,6 @@ const HeaderNavbar: FC<Props> = ({
     </Navbar>
   )
 }
-
-export const NavbarIcon = styled.div`
-  -webkit-app-region: none;
-  border-radius: 8px;
-  height: 30px;
-  padding: 0 7px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  .iconfont {
-    font-size: 18px;
-    color: var(--color-icon);
-    &.icon-a-addchat {
-      font-size: 20px;
-    }
-    &.icon-a-darkmode {
-      font-size: 20px;
-    }
-    &.icon-appstore {
-      font-size: 20px;
-    }
-  }
-  .anticon {
-    color: var(--color-icon);
-    font-size: 16px;
-  }
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-icon-white);
-  }
-`
 
 const NarrowIcon = styled(NavbarIcon)`
   @media (max-width: 1000px) {

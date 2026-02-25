@@ -9,10 +9,11 @@ import type {
   TranslateLanguage,
   TranslateLanguageCode
 } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { BlockCompleteChunk, Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { readyToAbort } from '@renderer/utils/abortController'
+import { trackTokenUsage } from '@renderer/utils/analytics'
 import { isAbortError } from '@renderer/utils/error'
 import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
@@ -42,7 +43,7 @@ export const translateText = async (
   abortKey?: string,
   options?: TranslateOptions
 ) => {
-  let abortError
+  let error
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
@@ -52,14 +53,18 @@ export const translateText = async (
 
   let translatedText = ''
   let completed = false
+  const model = assistant.model
   const onChunk = (chunk: Chunk) => {
     if (chunk.type === ChunkType.TEXT_DELTA) {
       translatedText = chunk.text
     } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
       completed = true
+    } else if (chunk.type === ChunkType.BLOCK_COMPLETE) {
+      const usage = (chunk as BlockCompleteChunk).response?.usage
+      trackTokenUsage({ usage, model })
     } else if (chunk.type === ChunkType.ERROR) {
+      error = chunk.error
       if (isAbortError(chunk.error)) {
-        abortError = chunk.error
         completed = true
       }
     }
@@ -84,8 +89,8 @@ export const translateText = async (
     }
   }
 
-  if (abortError) {
-    throw abortError
+  if (error !== undefined && !isAbortError(error)) {
+    throw error
   }
 
   const trimmedText = translatedText.trim()

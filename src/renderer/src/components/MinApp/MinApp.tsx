@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -34,6 +34,8 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
+  // Pinned apps should always be visible regardless of region/locale filtering
+  const shouldShow = isVisible || isPinned
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
@@ -93,7 +95,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
                 window.toast.success(t('settings.miniapps.custom.remove_success'))
                 const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-                updateDefaultMinApps(reloadedApps)
+                updateAllMinApps(reloadedApps)
                 updateMinapps(minapps.filter((item) => item.id !== app.id))
                 updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
@@ -107,7 +109,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       : [])
   ]
 
-  if (!isVisible) {
+  if (!shouldShow) {
     return null
   }
 
@@ -122,7 +124,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.name}</AppTitle>
+        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name}</AppTitle>
       </Container>
     </Dropdown>
   )

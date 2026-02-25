@@ -9,15 +9,20 @@ import type {
   McpHttpServerConfig,
   Options,
   PreToolUseHookInput,
-  SDKMessage
+  SDKMessage,
+  SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
-import { ConfigKeys, configManager } from '@main/services/ConfigManager'
-import { validateGitBashPath } from '@main/utils/process'
+import { isWin } from '@main/constant'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
+import { configManager } from '@main/services/ConfigManager'
+import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { languageEnglishNameMap } from '@shared/config/languages'
+import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -32,6 +37,15 @@ const logger = loggerService.withContext('ClaudeCodeService')
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+
+const getLanguageInstruction = () => {
+  const lang = configManager.getLanguage()
+  return `
+  IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
+  (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
+  ${lang === 'en-US' ? '' : 'Never use English unless the content is code, file paths, or technical identifiers.'}
+  `
+}
 
 type UserInputMessage = {
   type: 'user'
@@ -109,17 +123,27 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
-    const customGitBashPath = validateGitBashPath(configManager.get(ConfigKeys.GitBashPath) as string | undefined)
+    // Auto-discover Git Bash path on Windows (already logs internally)
+    const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+
+    // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
+    // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
+    // by stripping any trailing API version (e.g. `/v1`).
+    const anthropicBaseUrl = withoutTrailingApiVersion(
+      modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
+    )
 
     const env = {
       ...loginShellEnvWithoutProxies,
+      // prevent claude agent sdk using bedrock api
+      CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
       // ANTHROPIC_API_KEY: apiConfig.apiKey,
       // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
       // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
-      ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
+      ANTHROPIC_BASE_URL: anthropicBaseUrl,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
@@ -139,6 +163,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
+
+    let plugins: SdkPluginConfig[] | undefined
+    try {
+      const pluginPaths = await pluginService.listInstalledPluginPackagePaths(session.agent_id)
+      if (pluginPaths.length > 0) {
+        plugins = pluginPaths.map((pluginPath) => ({ type: 'local', path: pluginPath }))
+      }
+    } catch (error) {
+      logger.warn('Failed to load plugin packages for Claude Code', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       logger.info('Handling tool permission check', {
@@ -246,14 +283,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         ? {
             type: 'preset',
             preset: 'claude_code',
-            append: session.instructions
+            append: `${session.instructions}\n\n${getLanguageInstruction()}`
           }
-        : { type: 'preset', preset: 'claude_code' },
-      settingSources: ['project'],
+        : {
+            type: 'preset',
+            preset: 'claude_code',
+            append: getLanguageInstruction()
+          },
+      settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
+      plugins,
       canUseTool,
       hooks: {
         PreToolUse: [

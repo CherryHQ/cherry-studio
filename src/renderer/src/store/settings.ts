@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
@@ -9,6 +25,7 @@ import type {
   CodeStyleVarious,
   LanguageVarious,
   MathEngine,
+  MinAppRegionFilter,
   OpenAIServiceTier,
   PaintingProvider,
   S3Config,
@@ -175,6 +192,8 @@ export interface SettingsState {
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
   minappsOpenLinkExternal: boolean
+  /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
+  minAppRegion: MinAppRegionFilter
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -182,6 +201,8 @@ export interface SettingsState {
   enableQuickPanelTriggers: boolean
   // 硬件加速设置
   disableHardwareAcceleration: boolean
+  // 使用系统标题栏 (仅Linux)
+  useSystemTitleBar: boolean
   exportMenuOptions: {
     image: boolean
     markdown: boolean
@@ -358,6 +379,7 @@ export const initialState: SettingsState = {
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
+  minAppRegion: 'auto',
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
@@ -367,6 +389,8 @@ export const initialState: SettingsState = {
   confirmRegenerateMessage: true,
   // 硬件加速设置
   disableHardwareAcceleration: false,
+  // 使用系统标题栏 (仅Linux)
+  useSystemTitleBar: false,
   exportMenuOptions: {
     image: true,
     markdown: true,
@@ -778,6 +802,9 @@ const settingsSlice = createSlice({
     setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
       state.minappsOpenLinkExternal = action.payload
     },
+    setMinAppRegion: (state, action: PayloadAction<MinAppRegionFilter>) => {
+      state.minAppRegion = action.payload
+    },
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
@@ -801,6 +828,9 @@ const settingsSlice = createSlice({
     },
     setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
       state.disableHardwareAcceleration = action.payload
+    },
+    setUseSystemTitleBar: (state, action: PayloadAction<boolean>) => {
+      state.useSystemTitleBar = action.payload
     },
     setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
@@ -974,6 +1004,7 @@ export const {
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
+  setMinAppRegion,
   setEnableDataCollection,
   setEnableSpellCheck,
   setSpellCheckLanguages,
@@ -982,6 +1013,7 @@ export const {
   setConfirmDeleteMessage,
   setConfirmRegenerateMessage,
   setDisableHardwareAcceleration,
+  setUseSystemTitleBar,
   setOpenAISummaryText,
   setOpenAIVerbosity,
   setOpenAIStreamOptionsIncludeUsage,

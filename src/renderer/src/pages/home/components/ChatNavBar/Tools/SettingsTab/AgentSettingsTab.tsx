@@ -1,0 +1,513 @@
+import { loggerService } from '@logger'
+import EditableNumber from '@renderer/components/EditableNumber'
+import Scrollbar from '@renderer/components/Scrollbar'
+import Selector from '@renderer/components/Selector'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
+import { UNKNOWN } from '@renderer/config/translate'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
+import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
+import { useAppDispatch } from '@renderer/store'
+import type { SendMessageShortcut } from '@renderer/store/settings'
+import {
+  setAutoTranslateWithSpace,
+  setCodeCollapsible,
+  setCodeEditor,
+  setCodeExecution,
+  setCodeFancyBlock,
+  setCodeImageTools,
+  setCodeShowLineNumbers,
+  setCodeViewer,
+  setCodeWrappable,
+  setConfirmDeleteMessage,
+  setConfirmRegenerateMessage,
+  setEnableQuickPanelTriggers,
+  setFontSize,
+  setMathEnableSingleDollar,
+  setMathEngine,
+  setMessageFont,
+  setMessageNavigation,
+  setMessageStyle,
+  setPasteLongTextAsFile,
+  setPasteLongTextThreshold,
+  setRenderInputMessageAsMarkdown,
+  setShowTranslateConfirm,
+  setThoughtAutoCollapse
+} from '@renderer/store/settings'
+import type { CodeStyleVarious, MathEngine } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
+import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { Col, Row, Slider, Switch } from 'antd'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+const logger = loggerService.withContext('AgentSettingsTab')
+
+const AgentSettingsTab = () => {
+  const { chat } = useRuntime()
+
+  const { messageStyle, fontSize, language } = useSettings()
+  const { theme } = useTheme()
+  const { themeNames } = useCodeStyle()
+
+  const [fontSizeValue, setFontSizeValue] = useState(fontSize)
+  const { translateLanguages } = useTranslate()
+
+  const { t } = useTranslation()
+
+  const dispatch = useAppDispatch()
+
+  const {
+    messageFont,
+    sendMessageShortcut,
+    setSendMessageShortcut,
+    targetLanguage,
+    setTargetLanguage,
+    pasteLongTextAsFile,
+    renderInputMessageAsMarkdown,
+    codeShowLineNumbers,
+    codeCollapsible,
+    codeWrappable,
+    codeEditor,
+    codeViewer,
+    codeImageTools,
+    codeExecution,
+    codeFancyBlock,
+    mathEngine,
+    mathEnableSingleDollar,
+    autoTranslateWithSpace,
+    pasteLongTextThreshold,
+    thoughtAutoCollapse,
+    messageNavigation,
+    enableQuickPanelTriggers,
+    showTranslateConfirm,
+    confirmDeleteMessage,
+    confirmRegenerateMessage
+  } = useSettings()
+
+  const codeStyle = useMemo(() => {
+    return codeEditor.enabled
+      ? theme === ThemeMode.light
+        ? codeEditor.themeLight
+        : codeEditor.themeDark
+      : theme === ThemeMode.light
+        ? codeViewer.themeLight
+        : codeViewer.themeDark
+  }, [
+    codeEditor.enabled,
+    codeEditor.themeLight,
+    codeEditor.themeDark,
+    theme,
+    codeViewer.themeLight,
+    codeViewer.themeDark
+  ])
+
+  const onCodeStyleChange = useCallback(
+    (value: CodeStyleVarious) => {
+      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
+      const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
+      dispatch(action({ [field]: value }))
+    },
+    [dispatch, theme, codeEditor.enabled]
+  )
+
+  const isAgentSettings = chat.activeTopicOrSession === 'session'
+  if (!isAgentSettings) {
+    logger.warn('AgentSettingsTab is rendered when not session activated.')
+    return null
+  }
+
+  return (
+    <Container className="settings-tab">
+      <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={messageFont === 'serif'}
+              onChange={(checked) => dispatch(setMessageFont(checked ? 'serif' : 'system'))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.thought_auto_collapse.label')}
+              <HelpTooltip title={t('chat.settings.thought_auto_collapse.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={thoughtAutoCollapse}
+              onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
+            <Selector
+              value={messageStyle}
+              onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
+              options={[
+                { value: 'plain', label: t('message.message.style.plain') },
+                { value: 'bubble', label: t('message.message.style.bubble') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
+            <Selector
+              value={messageNavigation}
+              onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+              options={[
+                { value: 'none', label: t('settings.messages.navigation.none') },
+                { value: 'buttons', label: t('settings.messages.navigation.buttons') },
+                { value: 'anchor', label: t('settings.messages.navigation.anchor') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
+          </SettingRow>
+          <Row align="middle" gutter={10}>
+            <Col span={24}>
+              <Slider
+                value={fontSizeValue}
+                onChange={(value) => setFontSizeValue(value)}
+                onChangeComplete={(value) => dispatch(setFontSize(value))}
+                min={12}
+                max={22}
+                step={1}
+                marks={{
+                  12: <span style={{ fontSize: '12px' }}>A</span>,
+                  14: <span style={{ fontSize: '14px' }}>{t('common.default')}</span>,
+                  22: <span style={{ fontSize: '18px' }}>A</span>
+                }}
+              />
+            </Col>
+          </Row>
+          <SettingDivider />
+        </SettingGroup>
+      </CollapsibleSettingGroup>
+      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={false}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
+            <Selector
+              value={mathEngine}
+              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
+              options={[
+                { value: 'KaTeX', label: 'KaTeX' },
+                { value: 'MathJax', label: 'MathJax' },
+                { value: 'none', label: t('settings.math.engine.none') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.math.single_dollar.label')}
+              <HelpTooltip title={t('settings.math.single_dollar.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={mathEnableSingleDollar}
+              onChange={(checked) => dispatch(setMathEnableSingleDollar(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+        </SettingGroup>
+      </CollapsibleSettingGroup>
+      <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={false}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+            <Selector
+              value={codeStyle}
+              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+              options={themeNames.map((theme) => ({
+                value: theme,
+                label: theme
+              }))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_fancy_block.label')}
+              <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeFancyBlock}
+              onChange={(checked) => dispatch(setCodeFancyBlock(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_execution.title')}
+              <HelpTooltip title={t('chat.settings.code_execution.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeExecution.enabled}
+              onChange={(checked) => dispatch(setCodeExecution({ enabled: checked }))}
+            />
+          </SettingRow>
+          {codeExecution.enabled && (
+            <>
+              <SettingDivider />
+              <SettingRow style={{ paddingLeft: 8 }}>
+                <SettingRowTitleSmall>
+                  {t('chat.settings.code_execution.timeout_minutes.label')}
+                  <HelpTooltip title={t('chat.settings.code_execution.timeout_minutes.tip')} />
+                </SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  min={1}
+                  max={60}
+                  step={1}
+                  value={codeExecution.timeoutMinutes}
+                  onChange={(value) => dispatch(setCodeExecution({ timeoutMinutes: value ?? 1 }))}
+                  style={{ width: 80 }}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeEditor.enabled}
+              onChange={(checked) => dispatch(setCodeEditor({ enabled: checked }))}
+            />
+          </SettingRow>
+          {codeEditor.enabled && (
+            <>
+              <SettingDivider />
+              <SettingRow style={{ paddingLeft: 8 }}>
+                <SettingRowTitleSmall>{t('chat.settings.code_editor.highlight_active_line')}</SettingRowTitleSmall>
+                <Switch
+                  size="small"
+                  checked={codeEditor.highlightActiveLine}
+                  onChange={(checked) => dispatch(setCodeEditor({ highlightActiveLine: checked }))}
+                />
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow style={{ paddingLeft: 8 }}>
+                <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
+                <Switch
+                  size="small"
+                  checked={codeEditor.foldGutter}
+                  onChange={(checked) => dispatch(setCodeEditor({ foldGutter: checked }))}
+                />
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow style={{ paddingLeft: 8 }}>
+                <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
+                <Switch
+                  size="small"
+                  checked={codeEditor.autocompletion}
+                  onChange={(checked) => dispatch(setCodeEditor({ autocompletion: checked }))}
+                />
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow style={{ paddingLeft: 8 }}>
+                <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
+                <Switch
+                  size="small"
+                  checked={codeEditor.keymap}
+                  onChange={(checked) => dispatch(setCodeEditor({ keymap: checked }))}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeShowLineNumbers}
+              onChange={(checked) => dispatch(setCodeShowLineNumbers(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeCollapsible}
+              onChange={(checked) => dispatch(setCodeCollapsible(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+            <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_image_tools.label')}
+              <HelpTooltip title={t('chat.settings.code_image_tools.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeImageTools}
+              onChange={(checked) => dispatch(setCodeImageTools(checked))}
+            />
+          </SettingRow>
+        </SettingGroup>
+        <SettingDivider />
+      </CollapsibleSettingGroup>
+      <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={false}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_as_file')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={pasteLongTextAsFile}
+              onChange={(checked) => dispatch(setPasteLongTextAsFile(checked))}
+            />
+          </SettingRow>
+          {pasteLongTextAsFile && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  min={500}
+                  max={10000}
+                  step={100}
+                  value={pasteLongTextThreshold}
+                  onChange={(value) => dispatch(setPasteLongTextThreshold(value ?? 500))}
+                  style={{ width: 80 }}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.markdown_rendering_input_message')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={renderInputMessageAsMarkdown}
+              onChange={(checked) => dispatch(setRenderInputMessageAsMarkdown(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          {!language.startsWith('en') && (
+            <>
+              <SettingRow>
+                <SettingRowTitleSmall>{t('settings.input.auto_translate_with_space')}</SettingRowTitleSmall>
+                <Switch
+                  size="small"
+                  checked={autoTranslateWithSpace}
+                  onChange={(checked) => dispatch(setAutoTranslateWithSpace(checked))}
+                />
+              </SettingRow>
+              <SettingDivider />
+            </>
+          )}
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.input.show_translate_confirm')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={showTranslateConfirm}
+              onChange={(checked) => dispatch(setShowTranslateConfirm(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={enableQuickPanelTriggers}
+              onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.confirm_delete_message')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={confirmDeleteMessage}
+              onChange={(checked) => dispatch(setConfirmDeleteMessage(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.confirm_regenerate_message')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={confirmRegenerateMessage}
+              onChange={(checked) => dispatch(setConfirmRegenerateMessage(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
+            <Selector
+              value={targetLanguage}
+              onChange={(value) => setTargetLanguage(value)}
+              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
+              options={translateLanguages.map((item) => {
+                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
+              })}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
+            <Selector
+              value={sendMessageShortcut}
+              onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
+              options={[
+                { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
+                { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
+                { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },
+                { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
+                { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
+              ]}
+            />
+          </SettingRow>
+        </SettingGroup>
+      </CollapsibleSettingGroup>
+    </Container>
+  )
+}
+
+const Container = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0 8px;
+  padding-right: 0;
+  padding-top: 2px;
+  padding-bottom: 10px;
+  margin-top: 3px;
+`
+
+const SettingRowTitleSmall = styled(SettingRowTitle)`
+  font-size: 13px;
+  gap: 4px;
+`
+
+const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+  padding: 0 5px;
+  width: 100%;
+  margin-top: 0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+`
+
+export default AgentSettingsTab

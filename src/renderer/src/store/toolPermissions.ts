@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
@@ -23,20 +39,24 @@ export type ToolPermissionResultPayload = {
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
   toolCallId?: string
+  updatedInput?: Record<string, unknown>
 }
 
 export type ToolPermissionStatus = 'pending' | 'submitting-allow' | 'submitting-deny' | 'invoking'
 
 export type ToolPermissionEntry = ToolPermissionRequestPayload & {
   status: ToolPermissionStatus
+  resolvedInput?: Record<string, unknown>
 }
 
 export interface ToolPermissionsState {
   requests: Record<string, ToolPermissionEntry>
+  resolvedInputs: Record<string, Record<string, unknown>>
 }
 
 const initialState: ToolPermissionsState = {
-  requests: {}
+  requests: {},
+  resolvedInputs: {}
 }
 
 const toolPermissionsSlice = createSlice({
@@ -63,13 +83,17 @@ const toolPermissionsSlice = createSlice({
       entry.status = 'pending'
     },
     requestResolved: (state, action: PayloadAction<ToolPermissionResultPayload>) => {
-      const { requestId, behavior } = action.payload
+      const { requestId, behavior, updatedInput } = action.payload
       const entry = state.requests[requestId]
 
       if (!entry) return
 
       if (behavior === 'allow') {
         entry.status = 'invoking'
+        entry.resolvedInput = updatedInput
+        if (updatedInput && entry.toolCallId) {
+          state.resolvedInputs[entry.toolCallId] = updatedInput
+        }
       } else {
         delete state.requests[requestId]
       }
@@ -81,9 +105,11 @@ const toolPermissionsSlice = createSlice({
       if (entryId) {
         delete state.requests[entryId]
       }
+      delete state.resolvedInputs[toolCallId]
     },
     clearAll: (state) => {
       state.requests = {}
+      state.resolvedInputs = {}
     }
   }
 })

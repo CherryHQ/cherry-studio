@@ -6,7 +6,8 @@ import {
   MdiLightbulbOn30,
   MdiLightbulbOn50,
   MdiLightbulbOn80,
-  MdiLightbulbOn90
+  MdiLightbulbOn90,
+  MdiLightbulbQuestion
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
@@ -18,7 +19,6 @@ import {
   MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -88,19 +88,53 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     [updateAssistantSettings, assistant.enableWebSearch, model, t]
   )
 
+  const reasoningEffortOptionLabelMap = {
+    default: t('assistants.settings.reasoning_effort.default'),
+    none: t('assistants.settings.reasoning_effort.off'),
+    minimal: t('assistants.settings.reasoning_effort.minimal'),
+    high: t('assistants.settings.reasoning_effort.high'),
+    low: t('assistants.settings.reasoning_effort.low'),
+    medium: t('assistants.settings.reasoning_effort.medium'),
+    auto: t('assistants.settings.reasoning_effort.auto'),
+    xhigh: t('assistants.settings.reasoning_effort.xhigh')
+  } as const satisfies Record<ThinkingOption, string>
+
+  const reasoningEffortDescriptionMap = {
+    default: t('assistants.settings.reasoning_effort.default_description'),
+    none: t('assistants.settings.reasoning_effort.off_description'),
+    minimal: t('assistants.settings.reasoning_effort.minimal_description'),
+    low: t('assistants.settings.reasoning_effort.low_description'),
+    medium: t('assistants.settings.reasoning_effort.medium_description'),
+    high: t('assistants.settings.reasoning_effort.high_description'),
+    xhigh: t('assistants.settings.reasoning_effort.xhigh_description'),
+    auto: t('assistants.settings.reasoning_effort.auto_description')
+  } as const satisfies Record<ThinkingOption, string>
+
   const panelItems = useMemo(() => {
     // 使用表中定义的选项创建UI选项
     return supportedOptions.map((option) => ({
       level: option,
-      label: getReasoningEffortOptionsLabel(option),
-      description: '',
+      label: reasoningEffortOptionLabelMap[option],
+      description: reasoningEffortDescriptionMap[option],
       icon: ThinkingIcon({ option }),
       isSelected: currentReasoningEffort === option,
       action: () => onThinkingChange(option)
     }))
-  }, [currentReasoningEffort, supportedOptions, onThinkingChange])
+  }, [
+    supportedOptions,
+    reasoningEffortOptionLabelMap,
+    reasoningEffortDescriptionMap,
+    currentReasoningEffort,
+    onThinkingChange
+  ])
 
-  const isThinkingEnabled = currentReasoningEffort !== undefined && currentReasoningEffort !== 'none'
+  const isThinkingEnabled =
+    currentReasoningEffort !== undefined && currentReasoningEffort !== 'none' && currentReasoningEffort !== 'default'
+
+  // Check if model supports multiple thinking levels (more than one of: low, medium, high, xhigh, minimal)
+  const hasMultipleLevels = useMemo(() => {
+    return supportedOptions.filter((opt) => ['low', 'medium', 'high', 'xhigh', 'minimal'].includes(opt)).length > 1
+  }, [supportedOptions])
 
   const disableThinking = useCallback(() => {
     onThinkingChange('none')
@@ -122,12 +156,21 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       return
     }
 
-    if (isThinkingEnabled && supportedOptions.includes('none')) {
+    // If model has only single level (doesn't support multiple levels), directly disable thinking
+    if (isThinkingEnabled && supportedOptions.includes('none') && !hasMultipleLevels) {
       disableThinking()
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking, isFixedReasoning])
+  }, [
+    openQuickPanel,
+    quickPanelHook,
+    isThinkingEnabled,
+    supportedOptions,
+    hasMultipleLevels,
+    disableThinking,
+    isFixedReasoning
+  ])
 
   useEffect(() => {
     if (isFixedReasoning) return
@@ -150,11 +193,15 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     }
   }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
 
+  // Determine tooltip label, consistent with handleOpenQuickPanel behavior:
+  // - Fixed reasoning models: always show "Thinking"
+  // - Multi-level models: always show "Reasoning Effort" (opens panel)
+  // - Single-level models: show "Close" when thinking enabled, otherwise "Reasoning Effort"
   const ariaLabel = isFixedReasoning
     ? t('chat.input.thinking.label')
-    : isThinkingEnabled && supportedOptions.includes('none')
-      ? t('common.close')
-      : t('assistants.settings.reasoning_effort.label')
+    : hasMultipleLevels || !isThinkingEnabled
+      ? t('assistants.settings.reasoning_effort.label')
+      : t('common.close')
 
   return (
     <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
@@ -197,8 +244,9 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
       case 'none':
         IconComponent = MdiLightbulbOffOutline
         break
+      case 'default':
       default:
-        IconComponent = MdiLightbulbOffOutline
+        IconComponent = MdiLightbulbQuestion
         break
     }
   }

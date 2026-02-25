@@ -80,11 +80,11 @@ export default defineConfig([
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
       'no-restricted-syntax': [
-        process.env.PRCI ? 'error' : 'warn',
+        process.env.CI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
         }
       ]
     }

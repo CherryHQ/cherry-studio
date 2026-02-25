@@ -6,6 +6,7 @@ import MCPRouterProviderLogo from '@renderer/assets/images/providers/mcprouter.w
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import DividerWithText from '@renderer/components/DividerWithText'
+import { McpLogo } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -26,7 +27,7 @@ import ProviderDetail from './McpProviderSettings'
 import McpServersList from './McpServersList'
 import McpSettings from './McpSettings'
 import NpxSearch from './NpxSearch'
-import { providers } from './providers/config'
+import { getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
   const { theme } = useTheme()
@@ -85,7 +86,7 @@ const MCPSettings: FC = () => {
             title={t('settings.mcp.servers', 'MCP Servers')}
             active={activeView === 'servers'}
             onClick={() => navigate('/settings/mcp/servers')}
-            icon={<FolderCog size={18} />}
+            icon={<McpLogo width={18} height={18} style={{ opacity: 0.8 }} />}
             titleStyle={{ fontWeight: 500 }}
           />
           <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />
@@ -107,7 +108,7 @@ const MCPSettings: FC = () => {
           {providers.map((provider) => (
             <ListItem
               key={provider.key}
-              title={provider.name}
+              title={getProviderDisplayName(provider, t)}
               active={activeView === provider.key}
               onClick={() => navigate(`/settings/mcp/${provider.key}`)}
               icon={providerIcons[provider.key] || <FolderCog size={16} />}

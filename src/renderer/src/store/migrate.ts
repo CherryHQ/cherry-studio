@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import {
@@ -6,11 +22,12 @@ import {
   DEFAULT_TEMPERATURE,
   isMac
 } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import {
-  glm45FlashModel,
   isFunctionCallingModel,
   isNotSupportTextDeltaModel,
+  qwen3Next80BModel,
+  qwen38bModel,
   SYSTEM_MODELS
 } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
@@ -18,6 +35,7 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -82,7 +100,7 @@ function removeMiniAppFromState(state: RootState, id: string) {
 
 function addMiniApp(state: RootState, id: string) {
   if (state.minapps) {
-    const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+    const app = allMinApps.find((app) => app.id === id)
     if (app) {
       if (!state.minapps.enabled.find((app) => app.id === id)) {
         state.minapps.enabled.push(app)
@@ -1059,7 +1077,7 @@ const migrateConfig = {
 
       if (state.minapps) {
         appIds.forEach((id) => {
-          const app = DEFAULT_MIN_APPS.find((app) => app.id === id)
+          const app = allMinApps.find((app) => app.id === id)
           if (app) {
             state.minapps.enabled.push(app)
           }
@@ -2294,13 +2312,6 @@ const migrateConfig = {
           zhipuProvider.models = SYSTEM_MODELS.zhipu
         }
 
-        // Add GLM-4.5-Flash model if not exists
-        const hasGlm45FlashModel = zhipuProvider?.models.find((m) => m.id === 'glm-4.5-flash')
-
-        if (!hasGlm45FlashModel) {
-          zhipuProvider?.models.push(glm45FlashModel)
-        }
-
         // Update default painting provider to zhipu
         state.settings.defaultPaintingProvider = 'zhipu'
 
@@ -2325,6 +2336,7 @@ const migrateConfig = {
   },
   '140': (state: RootState) => {
     try {
+      // @ts-ignore
       state.paintings = {
         // @ts-ignore paintings
         siliconflow_paintings: state?.paintings?.paintings || [],
@@ -2913,31 +2925,6 @@ const migrateConfig = {
       return state
     }
   },
-  '180': (state: RootState) => {
-    try {
-      if (state.settings.apiServer) {
-        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.summaryText === 'undefined') {
-        state.settings.openAI.summaryText = undefined
-      }
-      // @ts-expect-error
-      if (state.settings.openAI.verbosity === 'undefined') {
-        state.settings.openAI.verbosity = undefined
-      }
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds.ollama) {
-          provider.type = 'ollama'
-        }
-      })
-      logger.info('migrate 180 success')
-      return state
-    } catch (error) {
-      logger.error('migrate 180 error', error as Error)
-      return state
-    }
-  },
   '181': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -3015,6 +3002,257 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 184 error', error as Error)
+      return state
+    }
+  },
+  '185': (state: RootState) => {
+    try {
+      // Reset toolUseMode to function for default assistant
+      if (state.assistants.defaultAssistant.settings?.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'function'
+      }
+      // Reset toolUseMode to function for assistants
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings?.toolUseMode === 'prompt') {
+          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+            assistant.settings.toolUseMode = 'function'
+          }
+        }
+      })
+      logger.info('migrate 185 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 185 error', error as Error)
+      return state
+    }
+  },
+  '186': (state: RootState) => {
+    try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 186 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 186 error', error as Error)
+      return state
+    }
+  },
+  '187': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings && assistant.settings.reasoning_effort === undefined) {
+          assistant.settings.reasoning_effort = 'default'
+        }
+      })
+      addProvider(state, 'mimo')
+      logger.info('migrate 187 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 187 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '188': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.openrouter) {
+          provider.anthropicApiHost = 'https://openrouter.ai/api'
+        }
+      })
+      logger.info('migrate 188 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 188 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.7
+  '189': (state: RootState) => {
+    try {
+      window.api.memory.migrateMemoryDb()
+      // @ts-ignore
+      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
+      // @ts-ignore
+      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+
+      if (memoryLlmApiClient) {
+        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        // @ts-ignore
+        delete state.memory.memoryConfig.llmApiClient
+      }
+
+      if (memoryEmbeddingApiClient) {
+        state.memory.memoryConfig.embeddingModel = getModel(
+          memoryEmbeddingApiClient.model,
+          memoryEmbeddingApiClient.provider
+        )
+        // @ts-ignore
+        delete state.memory.memoryConfig.embedderApiClient
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 189 error', error as Error)
+      return state
+    }
+  },
+  // 1.7.8
+  '190': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 190 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 190 error', error as Error)
+      return state
+    }
+  },
+  '191': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'tokenflux') {
+          provider.apiHost = 'https://api.tokenflux.ai/openai/v1'
+          provider.anthropicApiHost = 'https://api.tokenflux.ai/anthropic'
+        }
+      })
+      logger.info('migrate 191 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 191 error', error as Error)
+      return state
+    }
+  },
+  '192': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === '302ai') {
+          provider.anthropicApiHost = 'https://api.302.ai'
+        }
+      })
+      state.settings.readClipboardAtStartup = false
+      logger.info('migrate 192 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 192 error', error as Error)
+      return state
+    }
+  },
+  '193': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'paddleocr')
+      logger.info('migrate 193 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 193 error', error as Error)
+      return state
+    }
+  },
+  '194': (state: RootState) => {
+    try {
+      const GLM_4_5_FLASH_MODEL = 'glm-4.5-flash'
+      if (state.llm.defaultModel?.provider === 'cherryai' && state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
+        state.llm.defaultModel = qwen3Next80BModel
+      }
+      if (state.llm.quickModel?.provider === 'cherryai' && state.llm.quickModel?.id === GLM_4_5_FLASH_MODEL) {
+        state.llm.quickModel = qwen38bModel
+      }
+      if (state.llm.translateModel?.provider === 'cherryai' && state.llm.translateModel?.id === GLM_4_5_FLASH_MODEL) {
+        state.llm.translateModel = qwen3Next80BModel
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.model?.provider === 'cherryai' && assistant.model?.id === GLM_4_5_FLASH_MODEL) {
+          assistant.model = qwen3Next80BModel
+        }
+        if (assistant.defaultModel?.provider === 'cherryai' && assistant.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
+          assistant.defaultModel = qwen3Next80BModel
+        }
+      })
+      // Initialize mini app region filter setting
+      state.settings.minAppRegion ??= 'auto'
+      return state
+    } catch (error) {
+      logger.error('migrate 194 error', error as Error)
+      return state
+    }
+  },
+  '195': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        // Add 'openclaw' to visible icons if not already present
+        if (!state.settings.sidebarIcons.visible.includes('openclaw')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw']
+        }
+      }
+      logger.info('migrate 195 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 195 error', error as Error)
+      return state
+    }
+  },
+  '196': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.ppio_draw) {
+        state.paintings.ppio_draw = []
+      }
+      if (state.paintings && !state.paintings.ppio_edit) {
+        state.paintings.ppio_edit = []
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 196 error', error as Error)
+      return state
+    }
+  },
+  '197': (state: RootState) => {
+    try {
+      if (state.openclaw.gatewayPort === 18789) {
+        state.openclaw.gatewayPort = 18790
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 197 error', error as Error)
+      return state
+    }
+  },
+  '198': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'minimax') {
+          provider.models = SYSTEM_MODELS['minimax']
+          provider.apiHost = 'https://api.minimaxi.com/v1/'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 198 error', error as Error)
+      return state
+    }
+  },
+  '199': (state: RootState) => {
+    try {
+      addShortcuts(state, ['select_model'], 'toggle_new_context')
+      return state
+    } catch (error) {
+      logger.error('migrate 199 error', error as Error)
       return state
     }
   }

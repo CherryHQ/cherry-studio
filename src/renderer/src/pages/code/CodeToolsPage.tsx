@@ -8,7 +8,7 @@ import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -61,6 +61,15 @@ const CodeToolsPage: FC = () => {
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
 
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = useMemo(() => {
+    if (!defaultAssistant) {
+      return { maxTokens: undefined, reasoning_effort: undefined }
+    }
+    return getAssistantSettings(defaultAssistant)
+  }, [defaultAssistant])
+
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
@@ -86,6 +95,11 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
+        // Check if model belongs to an anthropic type provider (including custom providers)
+        const anthropicProvider = providers.find((p) => p.id === m.provider)
+        if (anthropicProvider?.type === 'anthropic') {
+          return true
+        }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
 
@@ -101,6 +115,11 @@ const CodeToolsPage: FC = () => {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
+        }
+        // Check if model belongs to an openai-response type provider (including custom providers)
+        const openaiProvider = providers.find((p) => p.id === m.provider)
+        if (openaiProvider?.type === 'openai-response') {
+          return true
         }
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
@@ -118,9 +137,20 @@ const CodeToolsPage: FC = () => {
         return true
       }
 
+      if (selectedCliTool === codeTools.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to openai, openai-response, or anthropic type provider
+        const provider = providers.find((p) => p.id === m.provider)
+        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
+      }
+
       return true
     },
-    [selectedCliTool]
+    [selectedCliTool, providers]
   )
 
   const availableProviders = useMemo(() => {
@@ -215,10 +245,12 @@ const CodeToolsPage: FC = () => {
   }
 
   // 准备启动环境
-  const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
+  const prepareLaunchEnvironment = async (): Promise<{
+    env: Record<string, string>
+  } | null> => {
     if (selectedCliTool === codeTools.githubCopilotCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
-      return userEnv
+      return { env: userEnv }
     }
 
     if (!selectedModel) return null
@@ -229,28 +261,31 @@ const CodeToolsPage: FC = () => {
     const apiKey = aiProvider.getApiKey()
 
     // 生成工具特定的环境变量
-    const toolEnv = generateToolEnvironment({
+    const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
       model: selectedModel,
       modelProvider,
       apiKey,
-      baseUrl
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
     // 合并用户自定义的环境变量
     const userEnv = parseEnvironmentVariables(environmentVariables)
 
-    return { ...toolEnv, ...userEnv }
+    return { env: { ...toolEnv, ...userEnv } }
   }
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+    const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    })
+    }
+
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
@@ -291,13 +326,13 @@ const CodeToolsPage: FC = () => {
     setIsLaunching(true)
 
     try {
-      const env = await prepareLaunchEnvironment()
-      if (!env) {
+      const result = await prepareLaunchEnvironment()
+      if (!result) {
         window.toast.error(t('code.model_required'))
         return
       }
 
-      await executeLaunch(env)
+      await executeLaunch(result.env)
     } catch (error) {
       logger.error('start code tools failed:', error as Error)
       window.toast.error(t('code.launch.error'))

@@ -1,6 +1,6 @@
 import type { Message, Model } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types/file'
-import { FileTypes } from '@renderer/types/file'
+import { FILE_TYPE } from '@renderer/types/file'
 import {
   AssistantMessageStatus,
   type FileMessageBlock,
@@ -87,7 +87,7 @@ const createFileBlock = (
       path: file?.path ?? '/tmp/document.txt',
       size: file?.size ?? 1024,
       ext: file?.ext ?? '.txt',
-      type: file?.type ?? FileTypes.TEXT,
+      type: file?.type ?? FILE_TYPE.TEXT,
       created_at: file?.created_at ?? timestamp,
       count: file?.count ?? 1,
       ...file
@@ -252,18 +252,63 @@ describe('messageConverter', () => {
 
       const result = await convertMessageToSdkParam(message, false, model)
 
+      // Reasoning blocks must come before text blocks (required by AWS Bedrock for Claude extended thinking)
       expect(result).toEqual({
         role: 'assistant',
         content: [
-          { type: 'text', text: 'Here is my answer' },
-          { type: 'reasoning', text: 'Let me think...' }
+          { type: 'reasoning', text: 'Let me think...' },
+          { type: 'text', text: 'Here is my answer' }
         ]
+      })
+    })
+
+    it('excludes empty content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Empty content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('excludes whitespace-only content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '   \n\t  '
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Whitespace-only content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('trims content in assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '  Trimmed answer  \n'
+      message.__mockThinkingBlocks = []
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Trimmed answer' }]
       })
     })
   })
 
   describe('convertMessagesToSdkMessages', () => {
-    it('collapses to [system?, user(image)] for image enhancement models', async () => {
+    it('preserves conversation history and merges images for image enhancement models', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const initialUser = createMessage('user')
       initialUser.__mockContent = 'Start editing'
@@ -277,7 +322,16 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([initialUser, assistant, finalUser], model)
 
+      // Preserves all conversation history, only merges images into the last user message
       expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start editing' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Here is the current preview' }]
+        },
         {
           role: 'user',
           content: [
@@ -288,11 +342,11 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('preserves system messages and collapses others for enhancement payloads', async () => {
+    it('preserves system messages and conversation history for enhancement payloads', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const fileUser = createMessage('user')
       fileUser.__mockContent = 'Use this document as inspiration'
-      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FileTypes.DOCUMENT } })]
+      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FILE_TYPE.DOCUMENT } })]
       convertFileBlockToFilePartMock.mockResolvedValueOnce({
         type: 'file',
         filename: 'reference.pdf',
@@ -309,8 +363,17 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([fileUser, assistant, finalUser], model)
 
+      // Preserves system message, conversation history, and merges images into the last user message
       expect(result).toEqual([
         { role: 'system', content: 'fileid://reference' },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Use this document as inspiration' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Generated previews ready' }]
+        },
         {
           role: 'user',
           content: [
@@ -321,7 +384,7 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('handles no previous assistant message with images', async () => {
+    it('returns messages as-is when no previous assistant message with images', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const user1 = createMessage('user')
       user1.__mockContent = 'Start'
@@ -331,7 +394,12 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([user1, user2], model)
 
+      // No images to merge, returns all messages as-is
       expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start' }]
+        },
         {
           role: 'user',
           content: [{ type: 'text', text: 'Continue without images' }]
@@ -339,7 +407,7 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('handles assistant message without images', async () => {
+    it('returns messages as-is when assistant message has no images', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const user1 = createMessage('user')
       user1.__mockContent = 'Start'
@@ -353,7 +421,16 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([user1, assistant, user2], model)
 
+      // No images to merge, returns all messages as-is
       expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Text only response' }]
+        },
         {
           role: 'user',
           content: [{ type: 'text', text: 'Follow up' }]
@@ -361,7 +438,7 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('handles multiple assistant messages by using the most recent one', async () => {
+    it('merges images from the most recent assistant message', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const user1 = createMessage('user')
       user1.__mockContent = 'Start'
@@ -382,7 +459,24 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([user1, assistant1, user2, assistant2, user3], model)
 
+      // Preserves all history, merges only the most recent assistant's images
       expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'First response' }]
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Continue' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Second response' }]
+        },
         {
           role: 'user',
           content: [
@@ -393,7 +487,7 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('handles conversation ending with assistant message', async () => {
+    it('returns messages as-is when conversation ends with assistant message', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const user = createMessage('user')
       user.__mockContent = 'Start'
@@ -406,15 +500,20 @@ describe('messageConverter', () => {
 
       // The user message is the last user message, but since the assistant comes after,
       // there's no "previous" assistant message (search starts from messages.length-2 backwards)
+      // So no images to merge, returns all messages as-is
       expect(result).toEqual([
         {
           role: 'user',
           content: [{ type: 'text', text: 'Start' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Response with image' }]
         }
       ])
     })
 
-    it('handles empty content in last user message', async () => {
+    it('merges images even when last user message has empty content', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const user1 = createMessage('user')
       user1.__mockContent = 'Start'
@@ -428,10 +527,77 @@ describe('messageConverter', () => {
 
       const result = await convertMessagesToSdkMessages([user1, assistant, user2], model)
 
+      // Preserves history, merges images into last user message (even if empty)
       expect(result).toEqual([
         {
           role: 'user',
+          content: [{ type: 'text', text: 'Start' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Here is the preview' }]
+        },
+        {
+          role: 'user',
           content: [{ type: 'image', image: 'https://example.com/preview.png' }]
+        }
+      ])
+    })
+
+    it('allows using LLM conversation context for image generation', async () => {
+      // This test verifies the key use case: switching from LLM to image enhancement model
+      // and using the previous conversation as context for image generation
+      const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
+
+      // Simulate a conversation that started with a regular LLM
+      const user1 = createMessage('user')
+      user1.__mockContent = 'Help me design a futuristic robot with blue lights'
+
+      const assistant1 = createMessage('assistant')
+      assistant1.__mockContent =
+        'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...'
+      assistant1.__mockImageBlocks = [] // LLM response, no images
+
+      const user2 = createMessage('user')
+      user2.__mockContent = 'Yes, and add some chrome accents'
+
+      const assistant2 = createMessage('assistant')
+      assistant2.__mockContent = 'Perfect! Chrome accents would complement the blue lights beautifully...'
+      assistant2.__mockImageBlocks = [] // Still LLM response, no images
+
+      // User switches to image enhancement model and asks for image generation
+      const user3 = createMessage('user')
+      user3.__mockContent = 'Now generate an image based on our discussion'
+
+      const result = await convertMessagesToSdkMessages([user1, assistant1, user2, assistant2, user3], model)
+
+      // All conversation history should be preserved for context
+      // No images to merge since previous assistant had no images
+      expect(result).toEqual([
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Help me design a futuristic robot with blue lights' }]
+        },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'Great idea! The robot could have a sleek metallic body with glowing blue LED strips...'
+            }
+          ]
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Yes, and add some chrome accents' }]
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Perfect! Chrome accents would complement the blue lights beautifully...' }]
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Now generate an image based on our discussion' }]
         }
       ])
     })

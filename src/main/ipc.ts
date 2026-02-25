@@ -2,22 +2,33 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript, validateGitBashPath } from '@main/utils/process'
+import { getIpCountry } from '@main/utils/ipService'
+import {
+  autoDiscoverGitBash,
+  checkGitAvailable,
+  getBinaryPath,
+  getGitBashPathInfo,
+  isBinaryExists,
+  runInstallScript,
+  validateGitBashPath
+} from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { LocalTransferConnectPayload } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { PluginError } from '@types'
 import type {
   AgentPersistedMessage,
   FileMetadata,
   Notification,
   OcrProvider,
+  PluginError,
   Provider,
   Shortcut,
   SupportedOcrFile,
@@ -30,18 +41,23 @@ import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { PluginService } from './services/agents/plugins/PluginService'
+import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
+import CherryINOAuthService from './services/CherryINOAuthService'
 import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
+import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
+import { lanTransferClientService } from './services/lanTransfer'
+import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
@@ -49,7 +65,8 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
-import OvmsManager from './services/OvmsManager'
+import { openClawService } from './services/OpenClawService'
+import { isOvmsSupported } from './services/OvmsManager'
 import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
@@ -73,10 +90,9 @@ import {
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
-import WebSocketService from './services/WebSocketService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
   getCacheDir,
@@ -88,6 +104,8 @@ import {
   untildify
 } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
+import { closeAllDataConnections } from './utils/lifecycle'
+import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -98,7 +116,6 @@ const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
-const ovmsManager = new OvmsManager()
 const pluginService = PluginService.getInstance()
 
 function normalizeError(error: unknown): Error {
@@ -112,7 +129,7 @@ function extractPluginError(error: unknown): PluginError | null {
   return null
 }
 
-export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
@@ -289,6 +306,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       logger.error('Failed to get system fonts:', error as Error)
       return []
     }
+  })
+
+  // Get IP Country
+  ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
+    return getIpCountry()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -472,6 +494,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     app.exit(0)
   })
 
+  // Reset all data (factory reset)
+  // Best-effort: close handles then delete. Failures are logged but not thrown,
+  // because the caller must always proceed to relaunchApp() — process exit
+  // releases any remaining handles, and services auto-recreate on next start.
+  ipcMain.handle(IpcChannel.App_ResetData, async () => {
+    await closeAllDataConnections()
+    await fs.promises.rm(getDataPath(), { recursive: true, force: true }).catch((e) => {
+      logger.warn('Failed to remove Data directory (will be cleaned up on restart)', e as Error)
+    })
+  })
+
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
     return await appUpdater.checkForUpdates()
@@ -490,18 +523,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
 
   // system
-  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
-  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
-  ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
+  ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
+  ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
+  ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
   ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
     if (!isWin) {
       return true // Non-Windows systems don't need Git Bash
     }
 
     try {
-      const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
-      const bashPath = findGitBash(customPath)
-
+      // Use autoDiscoverGitBash to handle auto-discovery and persistence
+      const bashPath = autoDiscoverGitBash()
       if (bashPath) {
         logger.info('Git Bash is available', { path: bashPath })
         return true
@@ -524,13 +556,22 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return customPath ?? null
   })
 
+  // Returns { path, source } where source is 'manual' | 'auto' | null
+  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
+    return getGitBashPathInfo()
+  })
+
   ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
     if (!isWin) {
       return false
     }
 
     if (!newPath) {
+      // Clear manual setting and re-run auto-discovery
       configManager.set(ConfigKeys.GitBashPath, null)
+      configManager.set(ConfigKeys.GitBashPathSource, null)
+      // Re-run auto-discovery to restore auto-discovered path if available
+      autoDiscoverGitBash()
       return true
     }
 
@@ -539,7 +580,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return false
     }
 
+    // Set path with 'manual' source
     configManager.set(ConfigKeys.GitBashPath, validated)
+    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
     return true
   })
 
@@ -566,6 +609,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_CheckS3Connection, backupManager.checkS3Connection.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
+  ipcMain.handle(IpcChannel.Backup_DeleteTempBackup, backupManager.deleteTempBackup.bind(backupManager))
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
@@ -601,6 +646,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, fileManager.listDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
@@ -662,39 +708,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Check_Quota, KnowledgeService.checkQuota.bind(KnowledgeService))
 
   // memory
-  ipcMain.handle(IpcChannel.Memory_Add, async (_, messages, config) => {
-    return await memoryService.add(messages, config)
-  })
-  ipcMain.handle(IpcChannel.Memory_Search, async (_, query, config) => {
-    return await memoryService.search(query, config)
-  })
-  ipcMain.handle(IpcChannel.Memory_List, async (_, config) => {
-    return await memoryService.list(config)
-  })
-  ipcMain.handle(IpcChannel.Memory_Delete, async (_, id) => {
-    return await memoryService.delete(id)
-  })
-  ipcMain.handle(IpcChannel.Memory_Update, async (_, id, memory, metadata) => {
-    return await memoryService.update(id, memory, metadata)
-  })
-  ipcMain.handle(IpcChannel.Memory_Get, async (_, memoryId) => {
-    return await memoryService.get(memoryId)
-  })
-  ipcMain.handle(IpcChannel.Memory_SetConfig, async (_, config) => {
-    memoryService.setConfig(config)
-  })
-  ipcMain.handle(IpcChannel.Memory_DeleteUser, async (_, userId) => {
-    return await memoryService.deleteUser(userId)
-  })
-  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, async (_, userId) => {
-    return await memoryService.deleteAllMemoriesForUser(userId)
-  })
-  ipcMain.handle(IpcChannel.Memory_GetUsersList, async () => {
-    return await memoryService.getUsersList()
-  })
+  ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
+  ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
+  ipcMain.handle(IpcChannel.Memory_List, (_, config) => memoryService.list(config))
+  ipcMain.handle(IpcChannel.Memory_Delete, (_, id) => memoryService.delete(id))
+  ipcMain.handle(IpcChannel.Memory_Update, (_, id, memory, metadata) => memoryService.update(id, memory, metadata))
+  ipcMain.handle(IpcChannel.Memory_Get, (_, memoryId) => memoryService.get(memoryId))
+  ipcMain.handle(IpcChannel.Memory_SetConfig, (_, config) => memoryService.setConfig(config))
+  ipcMain.handle(IpcChannel.Memory_DeleteUser, (_, userId) => memoryService.deleteUser(userId))
+  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, (_, userId) =>
+    memoryService.deleteAllMemoriesForUser(userId)
+  )
+  ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
+  ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
 
   // window
   ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
@@ -837,6 +865,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Copilot_Logout, CopilotService.logout.bind(CopilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, CopilotService.getUser.bind(CopilotService))
 
+  // CherryIN OAuth
+  ipcMain.handle(IpcChannel.CherryIN_SaveToken, CherryINOAuthService.saveToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_HasToken, CherryINOAuthService.hasToken.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_GetBalance, CherryINOAuthService.getBalance.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_Logout, CherryINOAuthService.logout.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, CherryINOAuthService.startOAuthFlow.bind(CherryINOAuthService))
+  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, CherryINOAuthService.exchangeToken.bind(CherryINOAuthService))
+
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {
     return obsidianVaultService.getVaults()
@@ -854,8 +890,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string) => {
-    await searchService.openSearchWindow(uid)
+  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
+    await searchService.openSearchWindow(uid, show)
   })
   ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
     await searchService.closeSearchWindow(uid)
@@ -895,6 +931,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
     configManager.setDisableHardwareAcceleration(isDisable)
+  })
+  ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
+    configManager.setUseSystemTitleBar(isActive)
   })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
   ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
@@ -951,6 +990,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
   ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
 
+  // ExternalApps
+  ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
+
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
   ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
@@ -971,44 +1013,41 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // OVMS
-  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) =>
-    ovmsManager.addModel(modelName, modelId, modelSource, task)
-  )
-  ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
-  ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
-  ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
-  ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
-  ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
-  ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
+  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isOvmsSupported)
+  if (isOvmsSupported) {
+    const { ovmsManager } = await import('./services/OvmsManager')
+    if (ovmsManager) {
+      ipcMain.handle(
+        IpcChannel.Ovms_AddModel,
+        (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+          ovmsManager.addModel(modelName, modelId, modelSource, task)
+      )
+      ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
+      ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
+      ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
+      ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
+      ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
+      ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
+    } else {
+      logger.error('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
+    }
+  } else {
+    const fallback = () => {
+      throw new Error('OVMS is only supported on Windows with intel CPU.')
+    }
+    ipcMain.handle(IpcChannel.Ovms_AddModel, fallback)
+    ipcMain.handle(IpcChannel.Ovms_StopAddModel, fallback)
+    ipcMain.handle(IpcChannel.Ovms_GetModels, fallback)
+    ipcMain.handle(IpcChannel.Ovms_IsRunning, fallback)
+    ipcMain.handle(IpcChannel.Ovms_GetStatus, fallback)
+    ipcMain.handle(IpcChannel.Ovms_RunOVMS, fallback)
+    ipcMain.handle(IpcChannel.Ovms_StopOVMS, fallback)
+  }
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
   // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
-    try {
-      const data = await pluginService.listAvailable()
-      return { success: true, data }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list available plugins', pluginError)
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to list available plugins', err)
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-available',
-          reason: err.message
-        }
-      }
-    }
-  })
-
   ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
     try {
       const data = await pluginService.install(options)
@@ -1029,6 +1068,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
+    try {
+      const data = await pluginService.uninstallPluginPackage(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin package', { options, error })
+      return { success: false, error }
+    }
+  })
+
   ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
     try {
       const data = await pluginService.listInstalled(agentId)
@@ -1036,12 +1085,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     } catch (error) {
       const pluginError = extractPluginError(error)
       if (pluginError) {
-        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        logger.error('Failed to list installed plugins', {
+          agentId,
+          error: pluginError
+        })
         return { success: false, error: pluginError }
       }
 
       const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', { agentId, error: err })
+      logger.error('Failed to list installed plugins', {
+        agentId,
+        error: err
+      })
       return {
         success: false,
         error: {
@@ -1050,40 +1105,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
           reason: err.message
         }
       }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
-    try {
-      pluginService.invalidateCache()
-      return { success: true, data: undefined }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to invalidate plugin cache', pluginError)
-        return { success: false, error: pluginError }
-      }
-
-      const err = normalizeError(error)
-      logger.error('Failed to invalidate plugin cache', err)
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'invalidate-cache',
-          reason: err.message
-        }
-      }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
-    try {
-      const data = await pluginService.readContent(sourcePath)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to read plugin content', { sourcePath, error })
-      return { success: false, error }
     }
   })
 
@@ -1097,14 +1118,61 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // WebSocket
-  ipcMain.handle(IpcChannel.WebSocket_Start, WebSocketService.start)
-  ipcMain.handle(IpcChannel.WebSocket_Stop, WebSocketService.stop)
-  ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
-  ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
-  ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
+    try {
+      const data = await pluginService.installFromZip(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin from ZIP', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
+    try {
+      const data = await pluginService.installFromDirectory(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin from directory', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.LocalTransfer_ListServices, () => localTransferService.getState())
+  ipcMain.handle(IpcChannel.LocalTransfer_StartScan, () => localTransferService.startDiscovery({ resetList: true }))
+  ipcMain.handle(IpcChannel.LocalTransfer_StopScan, () => localTransferService.stopDiscovery())
+  ipcMain.handle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
+    lanTransferClientService.connectAndHandshake(payload)
+  )
+  ipcMain.handle(IpcChannel.LocalTransfer_Disconnect, () => lanTransferClientService.disconnect())
+  ipcMain.handle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
+    lanTransferClientService.sendFile(payload.filePath)
+  )
+  ipcMain.handle(IpcChannel.LocalTransfer_CancelTransfer, () => lanTransferClientService.cancelTransfer())
 
   ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
     mainWindow.webContents.forcefullyCrashRenderer()
   })
+
+  // OpenClaw
+  ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckNodeVersion, openClawService.checkNodeVersion)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckGitAvailable, checkGitAvailable)
+  ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
+  ipcMain.handle(IpcChannel.OpenClaw_GetGitDownloadUrl, openClawService.getGitDownloadUrl)
+  ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
+  ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
+  ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_RestartGateway, openClawService.restartGateway)
+  ipcMain.handle(IpcChannel.OpenClaw_GetStatus, openClawService.getStatus)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckHealth, openClawService.checkHealth)
+  ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
+  ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
+  ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
+
+  // Analytics
+  ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
+    analyticsService.trackTokenUsage(data)
+  )
 }

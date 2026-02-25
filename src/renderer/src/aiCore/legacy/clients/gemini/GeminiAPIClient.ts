@@ -34,7 +34,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
+import { EFFORT_RATIO, FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
@@ -46,7 +46,6 @@ import type {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
-import { getTrailingApiVersion, withoutTrailingApiVersion } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
@@ -56,6 +55,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout, MB } from '@shared/config/constant'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -313,7 +313,7 @@ export class GeminiAPIClient extends BaseApiClient<
     const fileBlocks = findFileBlocks(message)
     for (const fileBlock of fileBlocks) {
       const file = fileBlock.file
-      if (file.type === FileTypes.IMAGE) {
+      if (file.type === FILE_TYPE.IMAGE) {
         const base64Data = await window.api.file.base64Image(file.id + file.ext)
         parts.push({
           inlineData: {
@@ -327,7 +327,7 @@ export class GeminiAPIClient extends BaseApiClient<
         parts.push(await this.handlePdfFile(file))
         continue
       }
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+      if ([FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => file.type === type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext, true)).trim()
         parts.push({
           text: file.origin_name + '\n' + fileContent
@@ -656,7 +656,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
                     results: candidate.groundingMetadata,
-                    source: WebSearchSource.GEMINI
+                    source: WEB_SEARCH_SOURCE.GEMINI
                   }
                 } satisfies LLMWebSearchCompleteChunk)
               }

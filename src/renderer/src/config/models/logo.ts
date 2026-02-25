@@ -103,6 +103,7 @@ import MicrosoftModelLogo from '@renderer/assets/images/models/microsoft.png'
 import MicrosoftModelLogoDark from '@renderer/assets/images/models/microsoft_dark.png'
 import MidjourneyModelLogo from '@renderer/assets/images/models/midjourney.png'
 import MidjourneyModelLogoDark from '@renderer/assets/images/models/midjourney_dark.png'
+import MiMoModelLogo from '@renderer/assets/images/models/mimo.svg'
 import {
   default as MinicpmModelLogo,
   default as MinicpmModelLogoDark
@@ -111,8 +112,8 @@ import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
 import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
-import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
-import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
+import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.webp'
+import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot.webp'
 import {
   default as NousResearchModelLogo,
   default as NousResearchModelLogoDark
@@ -176,6 +177,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
     abab: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     minimax: isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
+    'm2-her': isLight ? MinimaxModelLogo : MinimaxModelLogoDark,
     veo: isLight ? GeminiModelLogo : GeminiModelLogoDark,
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
@@ -301,7 +303,8 @@ export function getModelLogoById(modelId: string): string | undefined {
     bytedance: BytedanceModelLogo,
     ling: LingModelLogo,
     ring: LingModelLogo,
-    '(V_1|V_1_TURBO|V_2|V_2A|V_2_TURBO|DESCRIBE|UPSCALE)': IdeogramModelLogo
+    '(V_1|V_1_TURBO|V_2|V_2A|V_2_TURBO|DESCRIBE|UPSCALE)': IdeogramModelLogo,
+    mimo: MiMoModelLogo
   } as const satisfies Record<string, string>
 
   for (const key in logoMap) {

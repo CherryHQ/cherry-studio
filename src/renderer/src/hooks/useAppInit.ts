@@ -3,12 +3,10 @@ import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
-import i18n from '@renderer/i18n'
+import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
-import { handleSaveData } from '@renderer/store'
+import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import {
@@ -122,7 +120,9 @@ export function useAppInit() {
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    const currentLanguage = language || navigator.language || defaultLanguage
+    i18n.changeLanguage(currentLanguage)
+    setDayjsLocale(currentLanguage)
   }, [language])
 
   useEffect(() => {
@@ -183,16 +183,12 @@ export function useAppInit() {
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })
-      dispatch(toolPermissionsActions.requestReceived(payload))
 
-      // Auto-approve if requested
       if (payload.autoApprove) {
         logger.debug('Auto-approving tool permission request', {
           requestId: payload.requestId,
           toolName: payload.toolName
         })
-
-        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
 
         try {
           const response = await window.api.agentTools.respondToPermission({
@@ -212,9 +208,13 @@ export function useAppInit() {
           })
         } catch (error) {
           logger.error('Failed to send auto-approval response', error as Error)
-          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+          // Fall through to add to store for manual approval
+          dispatch(toolPermissionsActions.requestReceived(payload))
         }
+        return
       }
+
+      dispatch(toolPermissionsActions.requestReceived(payload))
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
@@ -268,9 +268,7 @@ export function useAppInit() {
   // Update memory service configuration when it changes
   useEffect(() => {
     const memoryService = MemoryService.getInstance()
-    memoryService.updateConfig().catch((error) => {
-      logger.error('Failed to update memory config:', error)
-    })
+    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
   }, [memoryConfig])
 
   useEffect(() => {

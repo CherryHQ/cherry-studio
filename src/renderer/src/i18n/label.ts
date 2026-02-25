@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
+import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 
 import i18n from './index'
@@ -88,7 +88,8 @@ const providerKeyMap = {
   huggingface: 'provider.huggingface',
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
-  cerebras: 'provider.cerebras'
+  cerebras: 'provider.cerebras',
+  mimo: 'provider.mimo'
 } as const
 
 /**
@@ -146,7 +147,8 @@ const titleKeyMap = {
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
-  translate: 'title.translate'
+  translate: 'title.translate',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -184,7 +186,8 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title'
+  notes: 'notes.title',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
@@ -210,6 +213,7 @@ const shortcutKeyMap = {
   reset_to_default: 'settings.shortcuts.reset_to_default',
   search_message: 'settings.shortcuts.search_message',
   search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
+  select_model: 'settings.shortcuts.select_model',
   selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
   selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
   show_app: 'settings.shortcuts.show_app',
@@ -285,6 +289,19 @@ export const getMcpTypeLabel = (key: string): string => {
   return getLabel(mcpTypeKeyMap, key)
 }
 
+const mcpProviderDescriptionKeyMap = {
+  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
+  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
+  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
+  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
+  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+} as const
+
+export const getMcpProviderDescriptionLabel = (key: string): string => {
+  return getLabel(mcpProviderDescriptionKeyMap, key)
+}
+
 const miniappsStatusKeyMap = {
   visible: 'settings.miniapps.visible',
   disabled: 'settings.miniapps.disabled'
@@ -310,20 +327,6 @@ export const getHttpMessageLabel = (key: string): string => {
   return getLabel(httpMessageKeyMap, key)
 }
 
-const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
-  none: 'assistants.settings.reasoning_effort.off',
-  minimal: 'assistants.settings.reasoning_effort.minimal',
-  high: 'assistants.settings.reasoning_effort.high',
-  low: 'assistants.settings.reasoning_effort.low',
-  medium: 'assistants.settings.reasoning_effort.medium',
-  auto: 'assistants.settings.reasoning_effort.default',
-  xhigh: 'assistants.settings.reasoning_effort.xhigh'
-} as const
-
-export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return getLabel(reasoningEffortOptionsKeyMap, key)
-}
-
 const fileFieldKeyMap = {
   created_at: 'files.created_at',
   size: 'files.size',
@@ -344,7 +347,9 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
   [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
   [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
-  [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser'
+  [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
+  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
+  [BuiltinMCPServerNames.hub]: 'settings.mcp.builtinServersDescriptions.hub'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

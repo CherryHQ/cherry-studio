@@ -1,22 +1,21 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import type { MCPTool } from '@renderer/types'
+import { isAnthropicModel, isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import type { McpMode, MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
-import { isEmpty } from 'lodash'
 
 import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
+import { anthropicCacheMiddleware } from './anthropicCacheMiddleware'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
 import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
 import { skipGeminiThoughtSignatureMiddleware } from './skipGeminiThoughtSignatureMiddleware'
-import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 
@@ -40,6 +39,7 @@ export interface AiSdkMiddlewareConfig {
   enableWebSearch: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
+  mcpMode?: McpMode
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
   // 内置搜索配置
@@ -136,15 +136,6 @@ export class AiSdkMiddlewareBuilder {
 export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageModelMiddleware[] {
   const builder = new AiSdkMiddlewareBuilder()
 
-  // 0. 知识库强制调用中间件（必须在最前面，确保第一轮强制调用知识库）
-  if (!isEmpty(config.assistant?.knowledge_bases?.map((base) => base.id)) && config.knowledgeRecognition !== 'on') {
-    builder.add({
-      name: 'force-knowledge-first',
-      middleware: toolChoiceMiddleware('builtin_knowledge_search')
-    })
-    logger.debug('Added toolChoice middleware to force knowledge base search on first round')
-  }
-
   // 1. 根据provider添加特定中间件
   if (config.provider) {
     addProviderSpecificMiddlewares(builder, config)
@@ -189,17 +180,21 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
   // 根据不同provider添加特定中间件
   switch (config.provider.type) {
     case 'anthropic':
-      // Anthropic特定中间件
+      if (isAnthropicModel(config.model) && config.provider.anthropicCacheControl?.tokenThreshold) {
+        builder.add({
+          name: 'anthropic-cache',
+          middleware: anthropicCacheMiddleware(config.provider)
+        })
+      }
       break
     case 'openai':
     case 'azure-openai': {
-      if (config.enableReasoning) {
-        const tagName = getReasoningTagName(config.model?.id.toLowerCase())
-        builder.add({
-          name: 'thinking-tag-extraction',
-          middleware: extractReasoningMiddleware({ tagName })
-        })
-      }
+      // 就算这里不传参数也有可能调用推理
+      const tagName = getReasoningTagName(config.model?.id.toLowerCase())
+      builder.add({
+        name: 'thinking-tag-extraction',
+        middleware: extractReasoningMiddleware({ tagName })
+      })
       break
     }
     case 'gemini':

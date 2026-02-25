@@ -20,6 +20,10 @@ import {
   getModelSupportedVerbosity,
   groupQwenModels,
   isAnthropicModel,
+  isClaude46SeriesModel,
+  isGemini3FlashModel,
+  isGemini3ProModel,
+  isGemini31ProModel,
   isGeminiModel,
   isGemmaModel,
   isGenerateImageModels,
@@ -432,6 +436,146 @@ describe('model utils', () => {
       })
     })
 
+    describe('isGemini3FlashModel', () => {
+      it('detects gemini-3-flash model', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash' }))).toBe(true)
+      })
+
+      it('detects gemini-3-flash-preview model', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-preview' }))).toBe(true)
+      })
+
+      it('detects gemini-3-flash with version suffixes', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-latest' }))).toBe(true)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-preview-09-2025' }))).toBe(true)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-exp-1234' }))).toBe(true)
+      })
+
+      it('detects gemini-flash-latest alias', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-flash-latest' }))).toBe(true)
+        expect(isGemini3FlashModel(createModel({ id: 'Gemini-Flash-Latest' }))).toBe(true)
+      })
+
+      it('detects gemini-3-flash with uppercase', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'Gemini-3-Flash' }))).toBe(true)
+        expect(isGemini3FlashModel(createModel({ id: 'GEMINI-3-FLASH-PREVIEW' }))).toBe(true)
+      })
+
+      it('excludes gemini-3-flash-image models', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-image-preview' }))).toBe(false)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash-image' }))).toBe(false)
+      })
+
+      it('returns false for non-flash gemini-3 models', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-pro' }))).toBe(false)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-pro-preview' }))).toBe(false)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-3-pro-image-preview' }))).toBe(false)
+      })
+
+      it('returns false for other gemini models', () => {
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-2-flash' }))).toBe(false)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-2-flash-preview' }))).toBe(false)
+        expect(isGemini3FlashModel(createModel({ id: 'gemini-2.5-flash-preview-09-2025' }))).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isGemini3FlashModel(null)).toBe(false)
+        expect(isGemini3FlashModel(undefined)).toBe(false)
+      })
+    })
+
+    describe('isGemini3ProModel', () => {
+      it('detects gemini-3-pro model', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro' }))).toBe(true)
+      })
+
+      it('detects gemini-3-pro-preview model', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-preview' }))).toBe(true)
+      })
+
+      it('detects gemini-3-pro with version suffixes', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-latest' }))).toBe(true)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-preview-09-2025' }))).toBe(true)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-exp-1234' }))).toBe(true)
+      })
+
+      it('detects gemini-3-pro with uppercase', () => {
+        expect(isGemini3ProModel(createModel({ id: 'Gemini-3-Pro' }))).toBe(true)
+        expect(isGemini3ProModel(createModel({ id: 'GEMINI-3-PRO-PREVIEW' }))).toBe(true)
+      })
+
+      it('excludes gemini-3-pro-image models', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-image-preview' }))).toBe(false)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-image' }))).toBe(false)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-image-latest' }))).toBe(false)
+      })
+
+      it('returns false for non-pro gemini-3 models', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-flash' }))).toBe(false)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-3-flash-preview' }))).toBe(false)
+      })
+
+      it('returns false for other gemini models', () => {
+        expect(isGemini3ProModel(createModel({ id: 'gemini-2-pro' }))).toBe(false)
+        expect(isGemini3ProModel(createModel({ id: 'gemini-2.5-pro-preview-09-2025' }))).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isGemini3ProModel(null)).toBe(false)
+        expect(isGemini3ProModel(undefined)).toBe(false)
+      })
+    })
+
+    describe('isGemini31ProModel', () => {
+      it('detects gemini-3.1-pro model', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro-preview model', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro with version suffixes', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-latest' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-preview-09-2025' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-exp-1234' }))).toBe(true)
+      })
+
+      it('detects gemini-pro-latest alias', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-pro-latest' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'Gemini-Pro-Latest' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro with uppercase', () => {
+        expect(isGemini31ProModel(createModel({ id: 'Gemini-3.1-Pro' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'GEMINI-3.1-PRO-PREVIEW' }))).toBe(true)
+      })
+
+      it('excludes gemini-3.1-pro-image models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image-preview' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image-latest' }))).toBe(false)
+      })
+
+      it('returns false for non-3.1 gemini-3-pro models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro-preview' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro-latest' }))).toBe(false)
+      })
+
+      it('returns false for other gemini models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-2-pro' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-2.5-pro-preview-09-2025' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-flash' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-flash-preview' }))).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isGemini31ProModel(null)).toBe(false)
+        expect(isGemini31ProModel(undefined)).toBe(false)
+      })
+    })
+
     describe('isZhipuModel', () => {
       it('detects Zhipu models by provider', () => {
         expect(isZhipuModel(createModel({ provider: 'zhipu' }))).toBe(true)
@@ -572,6 +716,82 @@ describe('model utils', () => {
         expect(isMaxTemperatureOneModel(createModel({ id: 'gpt-4-turbo' }))).toBe(false)
         expect(isMaxTemperatureOneModel(createModel({ id: 'qwen-max' }))).toBe(false)
         expect(isMaxTemperatureOneModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+      })
+    })
+  })
+
+  describe('Claude 4.6 Models Detection', () => {
+    describe('isClaude46SeriesModel', () => {
+      it('detects Opus 4.6 in direct API format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 with version suffixes', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-preview' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 in AWS Bedrock format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v2:0' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 with provider prefix', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-opus-4-6' }))).toBe(true)
+      })
+
+      it('handles case insensitivity', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Opus-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Opus-4-6-V1' }))).toBe(true)
+      })
+
+      it('returns false for other Claude models', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-0' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+      })
+
+      it('detects Sonnet 4.6 in direct API format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with version suffixes', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-preview' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 in AWS Bedrock format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with provider prefix', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('handles case insensitivity for Sonnet', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-SONNET-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Sonnet-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Sonnet-4-6-V1' }))).toBe(true)
+      })
+
+      it('returns false for non-Claude models', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'qwen-max' }))).toBe(false)
+      })
+
+      it('returns false for undefined and null', () => {
+        expect(isClaude46SeriesModel(undefined as unknown as Model)).toBe(false)
+        expect(isClaude46SeriesModel(null as unknown as Model)).toBe(false)
       })
     })
   })

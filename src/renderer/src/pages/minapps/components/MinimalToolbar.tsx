@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -50,7 +50,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
-  const canPinned = DEFAULT_MIN_APPS.some((item) => item.id === app.id)
+  const canPinned = allMinApps.some((item) => item.id === app.id)
   const isPinned = pinned.some((item) => item.id === app.id)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
 

@@ -1,5 +1,5 @@
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
-import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -11,6 +11,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
+import type { EndpointType } from '@renderer/types'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
 import {
@@ -29,9 +30,11 @@ import {
   isNewApiProvider,
   isOllamaProvider,
   isPerplexityProvider,
+  isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
+import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
@@ -138,6 +141,48 @@ export function adaptProvider({ provider, model }: { provider: Provider; model?:
   return adaptedProvider
 }
 
+interface BaseExtraOptions {
+  fetch?: typeof fetch
+  endpoint: string
+  mode?: 'responses' | 'chat'
+  headers: Record<string, string>
+}
+
+interface AzureOpenAIExtraOptions extends BaseExtraOptions {
+  apiVersion: string
+  useDeploymentBasedUrls: true | undefined
+}
+
+interface BedrockApiKeyExtraOptions extends BaseExtraOptions {
+  region: string
+  apiKey: string
+}
+
+interface BedrockAccessKeyExtraOptions extends BaseExtraOptions {
+  region: string
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+type BedrockExtraOptions = BedrockApiKeyExtraOptions | BedrockAccessKeyExtraOptions
+
+interface VertexExtraOptions extends BaseExtraOptions {
+  project: string
+  location: string
+  googleCredentials: {
+    privateKey: string
+    clientEmail: string
+  }
+}
+
+interface CherryInExtraOptions extends BaseExtraOptions {
+  endpointType?: EndpointType
+  anthropicBaseURL?: string
+  geminiBaseURL?: string
+}
+
+type ExtraOptions = BedrockExtraOptions | AzureOpenAIExtraOptions | VertexExtraOptions | CherryInExtraOptions
+
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
  * 简化版：利用新的别名映射系统
@@ -156,6 +201,8 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     includeUsage = store.getState().settings.openAI?.streamOptions?.includeUsage
   }
 
+  // Specially, some providers which need to early return
+  // Copilot
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
   if (isCopilotProvider) {
     const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
@@ -175,6 +222,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     }
   }
 
+  // Ollama
   if (isOllamaProvider(actualProvider)) {
     return {
       providerId: 'ollama',
@@ -188,94 +236,142 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     }
   }
 
-  // 处理OpenAI模式
-  const extraOptions: any = {}
-  extraOptions.endpoint = endpoint
-  if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
-    extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
-    extraOptions.mode = 'chat'
-  }
+  // Generally, construct extraOptions according to provider & model
+  // Consider as OpenAI like provider
 
-  // 添加额外headers
-  if (actualProvider.extra_headers) {
-    extraOptions.headers = actualProvider.extra_headers
-    // copy from openaiBaseClient/openaiResponseApiClient
-    if (aiSdkProviderId === 'openai') {
-      extraOptions.headers = {
-        ...extraOptions.headers,
-        'HTTP-Referer': 'https://cherry-ai.com',
-        'X-Title': 'Cherry Studio',
-        'X-Api-Key': baseConfig.apiKey
-      }
-    }
-  }
-  // azure
+  // Construct baseExtraOptions first
+  // About mode of azure:
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
   // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  if (aiSdkProviderId === 'azure-responses') {
-    extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'azure') {
-    extraOptions.mode = 'chat'
+  let mode: BaseExtraOptions['mode']
+  if (
+    (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) ||
+    aiSdkProviderId === 'azure-responses'
+  ) {
+    mode = 'responses'
+  } else if (
+    aiSdkProviderId === 'openai' ||
+    (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai') ||
+    aiSdkProviderId === 'azure'
+  ) {
+    mode = 'chat'
   }
 
-  // bedrock
-  if (aiSdkProviderId === 'bedrock') {
-    const authType = getAwsBedrockAuthType()
-    extraOptions.region = getAwsBedrockRegion()
-
-    if (authType === 'apiKey') {
-      extraOptions.apiKey = getAwsBedrockApiKey()
-    } else {
-      extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
-      extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
+  const headers: BaseExtraOptions['headers'] = {
+    ...defaultAppHeaders(),
+    ...actualProvider.extra_headers
+  }
+  if (aiSdkProviderId === 'openai') {
+    if (actualProvider.extra_headers?.['X-Api-Key'] === undefined) {
+      headers['X-Api-Key'] = baseConfig.apiKey
     }
   }
-  // google-vertex
-  if (aiSdkProviderId === 'google-vertex' || aiSdkProviderId === 'google-vertex-anthropic') {
+
+  let _fetch: typeof fetch | undefined
+
+  // Apply developer-to-system role conversion for providers that don't support developer role
+  // bug: https://github.com/vercel/ai/issues/10982
+  // fixPR: https://github.com/vercel/ai/pull/11127
+  // TODO: but the PR don't backport to v5, the code will be removed when upgrading to v6
+  if (!isSupportDeveloperRoleProvider(actualProvider) || !isOpenAIReasoningModel(model)) {
+    _fetch = createDeveloperToSystemFetch(fetch)
+  }
+
+  const baseExtraOptions = {
+    fetch: _fetch,
+    endpoint,
+    mode,
+    headers
+  } as const satisfies BaseExtraOptions
+
+  // Create specifical fields in extraOptions for different provider
+  let extraOptions: ExtraOptions | undefined
+  if (isAzureOpenAIProvider(actualProvider)) {
+    const apiVersion = actualProvider.apiVersion?.trim()
+    let useDeploymentBasedUrls: true | undefined
+    if (apiVersion) {
+      if (!['preview', 'v1'].includes(apiVersion)) {
+        useDeploymentBasedUrls = true
+      }
+    }
+    extraOptions = {
+      ...baseExtraOptions,
+      apiVersion,
+      useDeploymentBasedUrls
+    } satisfies AzureOpenAIExtraOptions
+  } else if (aiSdkProviderId === 'bedrock') {
+    // bedrock
+    const authType = getAwsBedrockAuthType()
+    const region = getAwsBedrockRegion()
+
+    if (authType === 'apiKey') {
+      extraOptions = {
+        ...baseExtraOptions,
+        region,
+        apiKey: getAwsBedrockApiKey()
+      } satisfies BedrockApiKeyExtraOptions
+    } else {
+      extraOptions = {
+        ...baseExtraOptions,
+        region,
+        accessKeyId: getAwsBedrockAccessKeyId(),
+        secretAccessKey: getAwsBedrockSecretAccessKey()
+      } satisfies BedrockAccessKeyExtraOptions
+    }
+  } else if (aiSdkProviderId === 'google-vertex' || aiSdkProviderId === 'google-vertex-anthropic') {
+    // google-vertex
     if (!isVertexAIConfigured()) {
       throw new Error('VertexAI is not configured. Please configure project, location and service account credentials.')
     }
     const { project, location, googleCredentials } = createVertexProvider(actualProvider)
-    extraOptions.project = project
-    extraOptions.location = location
-    extraOptions.googleCredentials = {
-      ...googleCredentials,
-      privateKey: formatPrivateKey(googleCredentials.privateKey)
-    }
+    extraOptions = {
+      ...baseExtraOptions,
+      project,
+      location,
+      googleCredentials: {
+        ...googleCredentials,
+        privateKey: formatPrivateKey(googleCredentials.privateKey)
+      }
+    } satisfies VertexExtraOptions
     baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
-  }
-
-  // cherryin
-  if (aiSdkProviderId === 'cherryin') {
-    if (model.endpoint_type) {
-      extraOptions.endpointType = model.endpoint_type
-    }
+  } else if (aiSdkProviderId === 'cherryin') {
     // CherryIN API Host
     const cherryinProvider = getProviderById(SystemProviderIds.cherryin)
+    const endpointType: EndpointType | undefined = model.endpoint_type
+    let anthropicBaseURL: string | undefined
+    let geminiBaseURL: string | undefined
     if (cherryinProvider) {
-      extraOptions.anthropicBaseURL = cherryinProvider.anthropicApiHost + '/v1'
-      extraOptions.geminiBaseURL = cherryinProvider.apiHost + '/v1beta/models'
+      anthropicBaseURL = cherryinProvider.anthropicApiHost + '/v1'
+      geminiBaseURL = cherryinProvider.apiHost + '/v1beta/models'
     }
+    extraOptions = {
+      ...baseExtraOptions,
+      endpointType,
+      anthropicBaseURL,
+      geminiBaseURL
+    } satisfies CherryInExtraOptions
+  } else {
+    extraOptions = baseExtraOptions
   }
 
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
+    // if the provider has a specific aisdk provider
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
       providerId: aiSdkProviderId,
       options
     }
-  }
-
-  // 否则fallback到openai-compatible
-  const options = ProviderConfigFactory.createOpenAICompatible(baseConfig.baseURL, baseConfig.apiKey)
-  return {
-    providerId: 'openai-compatible',
-    options: {
-      ...options,
-      name: actualProvider.id,
-      ...extraOptions,
-      includeUsage
+  } else {
+    // otherwise, fallback to openai-compatible
+    const options = ProviderConfigFactory.createOpenAICompatible(baseConfig.baseURL, baseConfig.apiKey)
+    return {
+      providerId: 'openai-compatible',
+      options: {
+        ...options,
+        name: actualProvider.id,
+        ...extraOptions,
+        includeUsage
+      }
     }
   }
 }
@@ -295,6 +391,62 @@ export function isModernSdkSupported(provider: Provider): boolean {
 
   // 如果映射到了支持的provider，则支持现代SDK
   return hasProviderConfig(aiSdkProviderId)
+}
+
+/**
+ * Creates a custom fetch wrapper that converts 'developer' role to 'system' role in request body.
+ * This is needed for providers that don't support the 'developer' role (e.g., Azure DeepSeek R1).
+ *
+ * Handles both:
+ * - Responses API format: body.input array
+ * - Chat Completions API format: body.messages array
+ *
+ * @param originalFetch - Optional original fetch function to wrap
+ * @returns A fetch function that transforms the request body
+ */
+function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetch {
+  const baseFetch = originalFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let options = init
+    if (options?.body && typeof options.body === 'string') {
+      try {
+        const body = JSON.parse(options.body)
+        let hasChanges = false
+
+        // Handle Responses API format (body.input)
+        if (body.input && Array.isArray(body.input)) {
+          body.input = body.input.map((msg: { role: string }) => {
+            if (msg.role === 'developer') {
+              hasChanges = true
+              return { ...msg, role: 'system' }
+            }
+            return msg
+          })
+        }
+
+        // Handle Chat Completions API format (body.messages)
+        if (body.messages && Array.isArray(body.messages)) {
+          body.messages = body.messages.map((msg: { role: string }) => {
+            if (msg.role === 'developer') {
+              hasChanges = true
+              return { ...msg, role: 'system' }
+            }
+            return msg
+          })
+        }
+
+        if (hasChanges) {
+          options = {
+            ...options,
+            body: JSON.stringify(body)
+          }
+        }
+      } catch {
+        // If parsing fails, just use original body
+      }
+    }
+    return baseFetch(input, options)
+  }
 }
 
 /**
@@ -355,5 +507,6 @@ export async function prepareSpecialProviderConfig(
       }
     }
   }
+
   return config
 }

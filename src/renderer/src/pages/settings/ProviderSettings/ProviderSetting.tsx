@@ -1,11 +1,12 @@
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
@@ -21,7 +22,7 @@ import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@render
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -31,6 +32,7 @@ import {
   isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
+  isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
@@ -52,6 +54,7 @@ import {
 } from '..'
 import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
+import CherryINOAuth from './CherryINOAuth'
 import CherryINSettings from './CherryINSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -80,7 +83,10 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.minimax,
   SystemProviderIds.silicon,
   SystemProviderIds.qiniu,
-  SystemProviderIds.dmxapi
+  SystemProviderIds.dmxapi,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter,
+  SystemProviderIds.tokenflux
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -125,18 +131,22 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
+  const [showErrorModal, setShowErrorModal] = useState(false)
 
-  const updateWebSearchProviderKey = ({ apiKey }: { apiKey: string }) => {
-    provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
-  }
+  const updateWebSearchProviderKey = useCallback(
+    ({ apiKey }: { apiKey: string }) => {
+      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+    },
+    [dispatch, provider.id]
+  )
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedUpdateApiKey = useCallback(
-    debounce((value) => {
-      updateProvider({ apiKey: formatApiKeys(value) })
-      updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
-    }, 150),
-    []
+  const debouncedUpdateApiKey = useMemo(
+    () =>
+      debounce((value: string) => {
+        updateProvider({ apiKey: formatApiKeys(value) })
+        updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
+      }, 150),
+    [updateProvider, updateWebSearchProviderKey]
   )
 
   // 同步 provider.apiKey 到 localApiKey
@@ -222,7 +232,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
 
-    const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
       window.toast.error({
@@ -256,13 +266,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         },
         3000
       )
-    } catch (error: any) {
+    } catch (error: unknown) {
       window.toast.error({
         timeout: 8000,
         title: i18n.t('message.api.connection.failed')
       })
 
-      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
+      const serializedError = serializeHealthCheckError(error)
+
+      setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: serializedError }))
     } finally {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: false }))
     }
@@ -291,7 +303,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isAzureOpenAIProvider(provider)) {
       const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
-        ? `/v1/chat/completion?apiVersion=v1`
+        ? `/v1/chat/completions?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
       return formattedApiHost + path
     }
@@ -322,9 +334,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <TriangleAlert size={16} color="var(--color-status-warning)" />
-      </Tooltip>
+      <>
+        <Tooltip title={apiKeyConnectivity.error?.message || t('settings.models.check.failed')}>
+          <TriangleAlert
+            size={16}
+            color="var(--color-status-warning)"
+            style={{ cursor: 'pointer' }}
+            onClick={() => setShowErrorModal(true)}
+          />
+        </Tooltip>
+        <ErrorDetailModal
+          open={showErrorModal}
+          onClose={() => setShowErrorModal(false)}
+          error={apiKeyConnectivity.error}
+        />
+      </>
     )
   }
 
@@ -394,7 +418,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
-          {!isSystemProvider(provider) && (
+          {(!isSystemProvider(provider) || isSupportAnthropicPromptCacheProvider(provider)) && (
             <Tooltip title={t('settings.provider.api.options.label')}>
               <Button
                 type="text"
@@ -418,6 +442,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
+      {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
@@ -610,14 +635,6 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
-`
-
-const ErrorOverlay = styled.div`
-  max-height: 200px;
-  overflow-y: auto;
-  max-width: 300px;
-  word-wrap: break-word;
-  user-select: text;
 `
 
 export default ProviderSetting

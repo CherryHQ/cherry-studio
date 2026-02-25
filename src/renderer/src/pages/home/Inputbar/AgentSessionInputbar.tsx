@@ -10,13 +10,14 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { CacheService } from '@renderer/services/CacheService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message, Model, Topic } from '@renderer/types'
-import type { FileType } from '@renderer/types'
+import type { Assistant, Message } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -70,26 +71,17 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
     const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
 
-    const model: Model | undefined = actualModel
-      ? {
-          id: actualModel.id,
-          name: actualModel.name,
-          provider: actualModel.provider,
-          group: actualModel.group
-        }
-      : undefined
-
     return {
       id: session.agent_id ?? agentId,
       name: session.name ?? 'Agent Session',
       prompt: session.instructions ?? '',
-      topics: [] as Topic[],
+      topics: [],
       type: 'agent-session',
-      model,
-      defaultModel: model,
+      model: actualModel,
+      defaultModel: actualModel,
       tags: [],
       enableWebSearch: false
-    } as Assistant
+    } satisfies Assistant
   }, [session, agentId])
 
   // Prepare session data for tools
@@ -108,7 +100,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
-      files: [] as FileType[],
+      files: [] as FileMetadata[],
       isExpanded: false
     }),
     []
@@ -424,13 +416,30 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         })
       )
 
+      // Emit event to trigger scroll to bottom in AgentSessionMessages
+      EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+
       // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
+      // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
+      focusTextarea()
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
     }
-  }, [sendDisabled, agentId, dispatch, assistant, sessionId, sessionTopicId, setText, setTimeoutTimer, text, files])
+  }, [
+    sendDisabled,
+    agentId,
+    dispatch,
+    assistant,
+    sessionId,
+    sessionTopicId,
+    setText,
+    setTimeoutTimer,
+    text,
+    files,
+    focusTextarea
+  ])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {

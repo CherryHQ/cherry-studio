@@ -27,6 +27,8 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 
+export type McpMode = 'disabled' | 'auto' | 'manual'
+
 export type Assistant = {
   id: string
   name: string
@@ -47,6 +49,8 @@ export type Assistant = {
   // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
+  /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
+  mcpMode?: McpMode
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
@@ -55,6 +59,15 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * Legacy assistants without mcpMode default based on mcpServers presence.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  if (assistant.mcpMode) return assistant.mcpMode
+  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
 }
 
 export type TranslateAssistant = Assistant & {
@@ -92,23 +105,45 @@ const ThinkModelTypes = [
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
+  'gpt_oss',
   'grok',
   'grok4_fast',
-  'gemini',
-  'gemini_pro',
-  'gemini3',
+  'gemini2_flash',
+  'gemini2_pro',
+  'gemini3_flash',
+  'gemini3_pro',
+  'gemini3_1_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
   'doubao_no_auto',
   'doubao_after_251015',
+  'mimo',
   'hunyuan',
   'zhipu',
   'perplexity',
-  'deepseek_hybrid'
+  'deepseek_hybrid',
+  'kimi_k2_5',
+  'claude46'
 ] as const
 
-export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+/** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
+ * It's basically based on OpenAI's reasoning effort, but we have adapted it for other models.
+ *
+ * Possible options:
+ * - 'none': Disable reasoning for the model. (inherit from OpenAI)
+ *            It's also used as "off" when the reasoning behavior of the model only could be set to "on" and "off".
+ * - 'minimal': Enable minimal reasoning effort for the model. (inherit from OpenAI, only for few models, such as GPT-5.)
+ * - 'low': Enable low reasoning effort for the model. (inherit from OpenAI)
+ * - 'medium': Enable medium reasoning effort for the model. (inherit from OpenAI)
+ * - 'high': Enable high reasoning effort for the model. (inherit from OpenAI)
+ * - 'xhigh': Enable extra high reasoning effort for the model. (inherit from OpenAI)
+ * - 'auto': Automatically determine the reasoning effort based on the model's capabilities.
+ *            For some providers, it's same with 'default'.
+ *            It's also used as "on" when the reasoning behavior of the model only could be set to "on" and "off".
+ * - 'default': Depend on default behavior. It means we would not set any reasoning related settings when calling API.
+ */
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto' | 'default'
 export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
@@ -120,6 +155,8 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  // 'default' is not expected to be used.
+  default: 0,
   none: 0.01,
   minimal: 0.05,
   low: 0.05,
@@ -140,12 +177,11 @@ export type AssistantSettings = {
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: ReasoningEffortOption
-  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
-   *
-   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
-   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
-   *
+  reasoning_effort: ReasoningEffortOption
+  /**
+   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
+   * and restore it when switching back from a non-thinking or fixed reasoning model.
+   * FIXME: It should be managed by external cache service instead of being stored in the assistant
    */
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
@@ -301,7 +337,7 @@ export type PaintingParams = {
   providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -392,6 +428,7 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
   generationMode?: generationModeType
   priceModel?: string
+  extend_params?: Record<string, unknown>
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -412,8 +449,33 @@ export interface OvmsPainting extends PaintingParams {
   response_format?: 'url' | 'b64_json'
 }
 
+export interface PpioPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  width?: number
+  height?: number
+  ppioSeed?: number // 使用 ppioSeed 避免与其他 Painting 类型的 seed (string) 冲突
+  usePreLlm?: boolean
+  addWatermark?: boolean
+  taskId?: string
+  ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
+  // Edit 模式相关
+  imageFile?: string // 输入图像 URL 或 base64
+  ppioMask?: string // 遮罩图像 URL 或 base64（用于擦除功能）
+  resolution?: string // 高清化分辨率
+  outputFormat?: string // 输出格式
+}
+
 export type PaintingAction = Partial<
-  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting & OvmsPainting
+  GeneratePainting &
+    RemixPainting &
+    EditPainting &
+    ScalePainting &
+    DmxapiPainting &
+    TokenFluxPainting &
+    OvmsPainting &
+    PpioPainting
 > &
   PaintingParams
 
@@ -436,11 +498,18 @@ export interface PaintingsState {
   openai_image_edit: Partial<EditPainting> & PaintingParams[]
   // OVMS
   ovms_paintings: OvmsPainting[]
+  // PPIO
+  ppio_draw: PpioPainting[]
+  ppio_edit: PpioPainting[]
 }
 
 export type MinAppType = {
   id: string
   name: string
+  /** i18n key for translatable names */
+  nameKey?: string
+  /** Regions where this app is available. If includes 'Global', shown to international users. */
+  supportedRegions?: MinAppRegion[]
   logo?: string
   url: string
   // FIXME: It should be `bordered`
@@ -450,6 +519,11 @@ export type MinAppType = {
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
+
+/** Region types for miniapps visibility */
+export type MinAppRegion = 'CN' | 'Global'
+
+export type MinAppRegionFilter = 'auto' | MinAppRegion
 
 export enum ThemeMode {
   light = 'light',
@@ -468,6 +542,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'ja-JP'
   | 'pt-PT'
+  | 'ro-RO'
   | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
@@ -586,6 +661,7 @@ export type SidebarIcon =
   | 'files'
   | 'code_tools'
   | 'notes'
+  | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -650,20 +726,24 @@ export type WebSearchResults =
   | AISDKWebSearchResult[]
   | any[]
 
-export enum WebSearchSource {
-  WEBSEARCH = 'websearch',
-  OPENAI = 'openai',
-  OPENAI_RESPONSE = 'openai-response',
-  OPENROUTER = 'openrouter',
-  ANTHROPIC = 'anthropic',
-  GEMINI = 'gemini',
-  PERPLEXITY = 'perplexity',
-  QWEN = 'qwen',
-  HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu',
-  GROK = 'grok',
-  AISDK = 'ai-sdk'
-}
+export const WEB_SEARCH_SOURCE = {
+  WEBSEARCH: 'websearch',
+  OPENAI: 'openai',
+  OPENAI_RESPONSE: 'openai-response',
+  OPENROUTER: 'openrouter',
+  ANTHROPIC: 'anthropic',
+  GEMINI: 'gemini',
+  PERPLEXITY: 'perplexity',
+  QWEN: 'qwen',
+  HUNYUAN: 'hunyuan',
+  ZHIPU: 'zhipu',
+  GROK: 'grok',
+  AISDK: 'ai-sdk'
+} as const
+
+export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
+
+export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
 export type WebSearchResponse = {
   results?: WebSearchResults
@@ -750,7 +830,9 @@ export const BuiltinMCPServerNames = {
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
   didiMCP: '@cherry/didi-mcp',
-  browser: '@cherry/browser'
+  browser: '@cherry/browser',
+  nowledgeMem: '@cherry/nowledge-mem',
+  hub: '@cherry/hub'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
@@ -795,7 +877,7 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
 
 interface BaseToolResponse {
   id: string // unique id
@@ -803,6 +885,8 @@ interface BaseToolResponse {
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: MCPToolResponseStatus
   response?: any
+  // Streaming arguments support
+  partialArguments?: string // Accumulated partial JSON string during streaming
 }
 
 export interface ToolUseResponse extends BaseToolResponse {
@@ -819,11 +903,13 @@ export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse
   tool: MCPTool
   toolCallId?: string
   toolUseId?: string
+  parentToolUseId?: string
 }
 
 export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   tool: BaseTool
   toolCallId: string
+  parentToolUseId?: string
 }
 
 export interface MCPToolResultContent {
@@ -911,17 +997,11 @@ export * from './tool'
 // Memory Service Types
 // ========================================================================
 export interface MemoryConfig {
-  /**
-   * @deprecated use embedderApiClient instead
-   */
-  embedderModel?: Model
-  embedderDimensions?: number
-  /**
-   * @deprecated use llmApiClient instead
-   */
+  embeddingDimensions?: number
+  embeddingModel?: Model
   llmModel?: Model
-  embedderApiClient?: ApiClient
-  llmApiClient?: ApiClient
+  // Dynamically retrieved, not persistently stored
+  embeddingApiClient?: ApiClient
   customFactExtractionPrompt?: string
   customUpdateMemoryPrompt?: string
   /** Indicates whether embedding dimensions are automatically detected */

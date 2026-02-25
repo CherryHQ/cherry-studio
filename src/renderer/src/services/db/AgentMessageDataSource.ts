@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
@@ -639,10 +655,32 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Additional Methods for Interface Compatibility ============
 
-  // oxlint-disable-next-line no-unused-vars
-  async updateSingleBlock(blockId: string, _updates: Partial<MessageBlock>): Promise<void> {
-    // Agent session blocks are immutable once persisted
-    logger.warn(`updateSingleBlock called for agent session block ${blockId}, operation not supported`)
+  async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
+    const state = store.getState()
+    const existingBlock = state.messageBlocks.entities[blockId]
+
+    if (!existingBlock) {
+      logger.warn(`Block ${blockId} not found in store for updateSingleBlock`)
+      return
+    }
+
+    const mergedBlock = { ...existingBlock, ...updates } as MessageBlock
+    await this.updateBlocks([mergedBlock])
+  }
+
+  /**
+   * Get streaming cache info for a message ID if available.
+   * Used by DbService for routing fallback when message is not in Redux state.
+   */
+  getStreamingCacheInfo(messageId: string): { sessionId: string; message?: Message } | undefined {
+    const cached = streamingMessageCache.get(messageId)
+    if (cached) {
+      return {
+        sessionId: cached.sessionId,
+        message: cached.message
+      }
+    }
+    return undefined
   }
 
   // oxlint-disable-next-line no-unused-vars

@@ -412,7 +412,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       </DynamicVirtualList>
                     </Dropdown>
                     {!isShowStarred && !isShowSearch && (
-                      <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '20px' }}>
+                      <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
                         <TreeNode
                           node={{
                             id: 'hint-node',
@@ -452,6 +452,7 @@ export const SidebarContainer = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  isolation: isolate;
 `
 
 export const NotesTreeContainer = styled.div`

@@ -7,20 +7,49 @@ on:
         description: "Release tag (e.g. v1.0.0)"
         required: true
         default: "v1.0.0"
+      platform:
+        description: "Build platform"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows
+          - mac
+          - linux
   push:
     tags:
       - v*.*.*
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # Only run for tag push, workflow_dispatch, or PR from release branches
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/v'))
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: ${{ fromJSON(
+          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event_name == 'pull_request' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
+          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
+          github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
+          '["macos-latest", "windows-latest", "ubuntu-latest"]'
+          ) }}
       fail-fast: false
 
     steps:
@@ -35,6 +64,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
+            BRANCH="${{ github.head_ref }}"
+            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
           else
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
@@ -56,31 +89,30 @@ jobs:
         run: |
           brew install python-setuptools
 
-      - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - name: Cache yarn dependencies
-        uses: actions/cache@v4
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
         with:
-          path: |
-            ${{ steps.yarn-cache-dir-path.outputs.dir }}
-            node_modules
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-pnpm-
 
       - name: Install Dependencies
-        run: yarn install
+        run: pnpm install
 
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm
-          yarn build:linux
+          pnpm build:linux
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,7 +126,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          yarn build:mac
+          pnpm build:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -111,7 +143,7 @@ jobs:
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
-          yarn build:win
+          pnpm build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
