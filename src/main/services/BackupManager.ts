@@ -654,7 +654,6 @@ class BackupManager {
       }
 
       // Step 6: Clean up
-      await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
@@ -681,45 +680,48 @@ class BackupManager {
 
     try {
       logger.debug('step 2: read data.json')
+
+      // Close all database connections and file watchers before removing Data directory.
+      // On Windows, open file handles prevent deletion (EBUSY).
+      await closeAllDataConnections()
+
       // Read data.json
       const dataPath = path.join(this.tempDir, 'data.json')
       const data = await fs.readFile(dataPath, 'utf-8')
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       logger.debug('step 3: restore Data directory')
-      // Restore Data directory
-      const sourcePath = path.join(this.tempDir, 'Data')
-      const destPath = getDataPath()
 
-      const dataExists = await fs.pathExists(sourcePath)
-      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
+      // Restore Data directory
+      const dataSourcePath = path.join(this.tempDir, 'Data')
+      const dataDestPath = getDataPath()
+
+      const dataExists = await fs.pathExists(dataSourcePath)
+      const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
 
       if (dataExists && dataFiles.length > 0) {
         // Get total size of source directory
-        const totalSize = await this.getDirSize(sourcePath)
+        const dataTotalSize = await this.getDirSize(dataSourcePath)
         let copiedSize = 0
 
-        // Close all database connections and file watchers before removing Data directory.
-        // On Windows, open file handles prevent deletion (EBUSY).
-        await closeAllDataConnections()
-
-        await this.setWritableRecursive(destPath)
-        await fs.remove(destPath)
+        await this.setWritableRecursive(dataDestPath)
+        await fs.remove(dataDestPath)
 
         // Use streaming copy
-        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+        await this.copyDirWithProgress(dataSourcePath, dataDestPath, (size) => {
           copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          const progress = Math.min(85, 35 + Math.floor((copiedSize / dataTotalSize) * 50))
           onProgress({ stage: 'copying_files', progress, total: 100 })
         })
       } else {
         logger.debug('skipBackupFile is true, skip restoring Data directory')
       }
 
-      logger.debug('step 4: clean up temp directory')
       // Clean up temp directory
+      logger.debug('step 4: clean up temp directory')
       await this.setWritableRecursive(this.tempDir)
       await fs.remove(this.tempDir)
+
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       logger.info('Restore completed successfully')
