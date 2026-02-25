@@ -74,6 +74,7 @@ asarUnpack:
   - "node_modules/@img/sharp-libvips-*/**"
 
 win:
+  icon: build/icon.ico
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
@@ -96,6 +97,7 @@ portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
 mac:
+  icon: build/icon.icns
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
