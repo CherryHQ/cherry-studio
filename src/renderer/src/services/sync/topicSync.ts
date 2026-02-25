@@ -83,17 +83,15 @@ function savePersistedSnapshot(snapshot: Map<string, string>) {
 
 let previousSnapshot: Map<string, string> | null = null // null = 尚未初始化
 
+import store from '@renderer/store'
+
 // ── 工具函数 ──────────────────────────────────────────────────────────
 
-/** 从 localStorage 的 redux-persist 数据中提取 Topic 元数据快照 */
+/** 从 Redux Store 提取 Topic 元数据快照（完全消除 localStorage parse 的性能问题） */
 function getTopicSnapshotFromStore(): Map<string, string> {
   try {
-    const persistRaw = localStorage.getItem('persist:cherry-studio')
-    if (!persistRaw) return new Map()
-
-    const persist = JSON.parse(persistRaw)
-    const assistantsData = JSON.parse(persist.assistants || '{}')
-    const assistants = assistantsData.assistants || []
+    const state = store.getState()
+    const assistants = state.assistants?.assistants || []
 
     const snapshot = new Map<string, string>()
     for (const assistant of assistants) {
@@ -110,7 +108,7 @@ function getTopicSnapshotFromStore(): Map<string, string> {
   }
 }
 
-/** 获取 Topic 元数据（名字、assistantId 等），来自 redux-persist */
+/** 获取 Topic 元数据（名字、assistantId 等），来自 Redux Store */
 function getTopicMeta(topicId: string): {
   name: string
   assistantId: string | null
@@ -119,13 +117,10 @@ function getTopicMeta(topicId: string): {
   updatedAt: string | null
 } | null {
   try {
-    const persistRaw = localStorage.getItem('persist:cherry-studio')
-    if (!persistRaw) return null
+    const state = store.getState()
+    const assistants = state.assistants?.assistants || []
 
-    const persist = JSON.parse(persistRaw)
-    const assistantsData = JSON.parse(persist.assistants || '{}')
-
-    for (const assistant of assistantsData.assistants || []) {
+    for (const assistant of assistants) {
       const found = (assistant.topics || []).find((t: { id: string }) => t.id === topicId)
       if (found) {
         return {
