@@ -163,7 +163,7 @@
     "@langchain/openai": "1.0.0",
     "@langchain/textsplitters": "0.1.0",
     "@mistralai/mistralai": "^1.7.5",
-    "@modelcontextprotocol/sdk": "1.23.0",
+    "@modelcontextprotocol/sdk": "1.27.1",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@openrouter/ai-sdk-provider": "^1.2.8",
