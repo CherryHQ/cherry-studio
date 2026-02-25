@@ -152,16 +152,10 @@ releaseInfo:
     - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
     - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
     - [Search] Add keyword-based topic search with whole-word matching and result sorting
-    - [Workflow] Add agent skills for creating GitHub issues and managing skills
 
     🐛 Bug Fixes
     - [i18n] Fix PluginCard translation not updating when language is switched
     - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
-    - [Security] Fix custom parameters not being applied to question rephraser
-
-    💄 Improvements
-    - [Workflow] Optimize PR workflow with on-demand skill loading and project-level skills management
-
     <!--LANG:zh-CN-->
     Cherry Studio 1.7.20 - 新模型与功能
 
@@ -175,13 +169,8 @@ releaseInfo:
     - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
     - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
     - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
-    - [工作流] 添加用于创建 GitHub Issue 和管理技能的智能体技能
 
     🐛 问题修复
     - [国际化] 修复切换语言时插件卡片翻译不更新的问题
     - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
-    - [安全] 修复自定义参数未应用于问题重写器的问题
-
-    💄 改进
-    - [工作流] 通过按需加载技能和项目级技能管理优化 PR 工作流
     <!--LANG:END-->
