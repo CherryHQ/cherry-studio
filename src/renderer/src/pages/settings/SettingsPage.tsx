@@ -2,7 +2,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { Divider as AntDivider } from 'antd'
+import { Divider as AntDivider, Input } from 'antd'
 import {
   Brain,
   Cloud,
@@ -19,7 +19,7 @@ import {
   TextCursorInput,
   Zap
 } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
@@ -35,15 +35,109 @@ import { ProviderList } from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
+import { SettingsSearchProvider, useSettingsSearch } from './SettingsSearchContext'
+import { useHighlightSettings } from './SettingsSearchHighlightHook'
 import ShortcutSettings from './ShortcutSettings'
 import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
 import WebSearchSettings from './WebSearchSettings'
 
-const SettingsPage: FC = () => {
+// Menu item definition
+interface MenuItemDef {
+  path: string
+  icon: ReactNode
+  labelKey: string
+}
+
+// Define all menu items with their routes
+const MENU_ITEMS: MenuItemDef[] = [
+  { path: '/settings/provider', icon: <Cloud size={18} />, labelKey: 'settings.provider.title' },
+  { path: '/settings/model', icon: <Package size={18} />, labelKey: 'settings.model' }
+]
+
+const MENU_ITEMS_GROUP2: MenuItemDef[] = [
+  { path: '/settings/general', icon: <Settings2 size={18} />, labelKey: 'settings.general.label' },
+  { path: '/settings/display', icon: <MonitorCog size={18} />, labelKey: 'settings.display.title' },
+  { path: '/settings/data', icon: <HardDrive size={18} />, labelKey: 'settings.data.title' }
+]
+
+const MENU_ITEMS_GROUP3: MenuItemDef[] = [
+  {
+    path: '/settings/mcp',
+    icon: <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />,
+    labelKey: 'settings.mcp.title'
+  },
+  { path: '/settings/websearch', icon: <Search size={18} />, labelKey: 'settings.tool.websearch.title' },
+  { path: '/settings/memory', icon: <Brain size={18} />, labelKey: 'memory.title' },
+  { path: '/settings/api-server', icon: <Server size={18} />, labelKey: 'apiServer.title' },
+  { path: '/settings/docprocess', icon: <FileCode size={18} />, labelKey: 'settings.tool.preprocess.title' },
+  { path: '/settings/quickphrase', icon: <Zap size={18} />, labelKey: 'settings.quickPhrase.title' },
+  { path: '/settings/shortcut', icon: <Command size={18} />, labelKey: 'settings.shortcuts.title' }
+]
+
+const MENU_ITEMS_GROUP4: MenuItemDef[] = [
+  {
+    path: '/settings/quickAssistant',
+    icon: <PictureInPicture2 size={18} />,
+    labelKey: 'settings.quickAssistant.title'
+  },
+  { path: '/settings/selectionAssistant', icon: <TextCursorInput size={18} />, labelKey: 'selection.name' }
+]
+
+const MENU_ITEMS_GROUP5: MenuItemDef[] = [
+  { path: '/settings/about', icon: <Info size={18} />, labelKey: 'settings.about.label' }
+]
+
+const SettingsSearch = () => {
+  const { t } = useTranslation()
+  const { searchQuery, setSearchQuery } = useSettingsSearch()
+
+  return (
+    <SearchContainer>
+      <Input
+        placeholder={t('chat.assistant.search.placeholder')}
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+        suffix={<Search size={14} color="var(--color-text-2)" />}
+        allowClear
+      />
+    </SearchContainer>
+  )
+}
+
+const SettingsPageContent: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+  const { isSearchActive, matchingRoutes } = useSettingsSearch()
+
+  // Use the new highlight hook
+  useHighlightSettings()
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
+
+  // Filter menu items based on search
+  const filterItems = (items: MenuItemDef[]) => {
+    if (!isSearchActive) return items
+    return items.filter((item) => matchingRoutes.has(item.path))
+  }
+
+  const renderMenuGroup = (items: MenuItemDef[]) => {
+    const filtered = filterItems(items)
+    return filtered.map((item) => (
+      <MenuItemLink key={item.path} to={item.path}>
+        <MenuItem className={isRoute(item.path)}>
+          {item.icon}
+          {t(item.labelKey)}
+        </MenuItem>
+      </MenuItemLink>
+    ))
+  }
+
+  // Check if any items in a group have matches
+  const hasMatchesInGroup = (items: MenuItemDef[]) => {
+    if (!isSearchActive) return true
+    return items.some((item) => matchingRoutes.has(item.path))
+  }
 
   return (
     <Container>
@@ -52,100 +146,17 @@ const SettingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
-              <Cloud size={18} />
-              {t('settings.provider.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
-              <Package size={18} />
-              {t('settings.model')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
-              <Settings2 size={18} />
-              {t('settings.general.label')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
-              <MonitorCog size={18} />
-              {t('settings.display.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
-              <HardDrive size={18} />
-              {t('settings.data.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
-              <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />
-              {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/websearch">
-            <MenuItem className={isRoute('/settings/websearch')}>
-              <Search size={18} />
-              {t('settings.tool.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
-              <Brain size={18} />
-              {t('memory.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/api-server">
-            <MenuItem className={isRoute('/settings/api-server')}>
-              <Server size={18} />
-              {t('apiServer.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/docprocess">
-            <MenuItem className={isRoute('/settings/docprocess')}>
-              <FileCode size={18} />
-              {t('settings.tool.preprocess.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickphrase">
-            <MenuItem className={isRoute('/settings/quickphrase')}>
-              <Zap size={18} />
-              {t('settings.quickPhrase.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
-              <Command size={18} />
-              {t('settings.shortcuts.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <PictureInPicture2 size={18} />
-              {t('settings.quickAssistant.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/selectionAssistant">
-            <MenuItem className={isRoute('/settings/selectionAssistant')}>
-              <TextCursorInput size={18} />
-              {t('selection.name')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
-              <Info size={18} />
-              {t('settings.about.label')}
-            </MenuItem>
-          </MenuItemLink>
+          <SettingsSearch />
+          {renderMenuGroup(MENU_ITEMS)}
+          {hasMatchesInGroup(MENU_ITEMS_GROUP2) && hasMatchesInGroup(MENU_ITEMS) && <Divider />}
+          {renderMenuGroup(MENU_ITEMS_GROUP2)}
+          {hasMatchesInGroup(MENU_ITEMS_GROUP3) &&
+            (hasMatchesInGroup(MENU_ITEMS) || hasMatchesInGroup(MENU_ITEMS_GROUP2)) && <Divider />}
+          {renderMenuGroup(MENU_ITEMS_GROUP3)}
+          {hasMatchesInGroup(MENU_ITEMS_GROUP4) && <Divider />}
+          {renderMenuGroup(MENU_ITEMS_GROUP4)}
+          {hasMatchesInGroup(MENU_ITEMS_GROUP5) && <Divider />}
+          {renderMenuGroup(MENU_ITEMS_GROUP5)}
         </SettingMenus>
         <SettingContent>
           <Routes>
@@ -171,6 +182,14 @@ const SettingsPage: FC = () => {
   )
 }
 
+const SettingsPage: FC = () => {
+  return (
+    <SettingsSearchProvider>
+      <SettingsPageContent />
+    </SettingsSearchProvider>
+  )
+}
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -183,6 +202,7 @@ const ContentContainer = styled.div`
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
   padding: 1px 0;
+  overflow: hidden;
 `
 
 const SettingMenus = styled(Scrollbar)`
@@ -229,10 +249,19 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
+  overflow: hidden;
+  min-width: 0;
 `
 
 const Divider = styled(AntDivider)`
   margin: 3px 0;
+`
+
+const SearchContainer = styled.div`
+  position: relative;
+  border-bottom: 0.5px solid var(--color-border);
+  padding-bottom: 10px;
+  margin-bottom: 5px;
 `
 
 export default SettingsPage
