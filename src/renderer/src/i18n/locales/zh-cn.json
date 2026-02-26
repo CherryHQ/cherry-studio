@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "导出为图片",
+        "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",
         "md": {
           "label": "导出为 Markdown",
