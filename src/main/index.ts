@@ -15,6 +15,7 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
+import { shouldStartApiServerOnLaunch } from './apiServer/autoStart'
 import { agentService } from './services/agents'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
@@ -188,26 +189,26 @@ if (!app.requestSingleInstanceLock()) {
     initSelectionService()
 
     runAsyncFunction(async () => {
-      // Start API server if enabled or if agents exist
+      // Start API server if enabled or if auto-start is enabled and agents exist
       try {
         const config = await apiServerService.getCurrentConfig()
+        const autoStartOnLaunch = configManager.get<boolean>('apiServerAutoStart', true)
         logger.info('API server config:', config)
 
-        // Check if there are any agents
-        let shouldStart = config.enabled
-        if (!shouldStart) {
+        let agentTotal = 0
+        if (!config.enabled && autoStartOnLaunch) {
           try {
             const { total } = await agentService.listAgents({ limit: 1 })
             if (total > 0) {
-              shouldStart = true
               logger.info(`Detected ${total} agent(s), auto-starting API server`)
             }
+            agentTotal = total
           } catch (error: any) {
             logger.warn('Failed to check agent count:', error)
           }
         }
 
-        if (shouldStart) {
+        if (shouldStartApiServerOnLaunch(config.enabled, autoStartOnLaunch, agentTotal)) {
           await apiServerService.start()
         }
       } catch (error: any) {

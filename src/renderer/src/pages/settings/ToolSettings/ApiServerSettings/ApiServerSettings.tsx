@@ -5,9 +5,9 @@ import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
+import { Alert, Button, Input, InputNumber, Switch, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -21,6 +21,8 @@ const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const [autoStartOnLaunch, setAutoStartOnLaunch] = useState(true)
+  const [autoStartOnLaunchLoading, setAutoStartOnLaunchLoading] = useState(true)
 
   // API Server state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
@@ -63,6 +65,39 @@ const ApiServerSettings: FC = () => {
     }
   }
 
+  useEffect(() => {
+    let active = true
+    setAutoStartOnLaunchLoading(true)
+    window.api.config
+      .get('apiServerAutoStart')
+      .then((value) => {
+        if (!active) return
+        setAutoStartOnLaunch(value !== false)
+      })
+      .catch((error) => {
+        window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+        setAutoStartOnLaunch(true)
+      })
+      .finally(() => {
+        if (!active) return
+        setAutoStartOnLaunchLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [t])
+
+  const handleAutoStartChange = async (checked: boolean) => {
+    setAutoStartOnLaunch(checked)
+    try {
+      await window.api.config.set('apiServerAutoStart', checked)
+    } catch (error) {
+      setAutoStartOnLaunch(!checked)
+      window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+    }
+  }
+
   const openApiDocs = () => {
     if (apiServerRunning) {
       const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
@@ -87,10 +122,6 @@ const ApiServerSettings: FC = () => {
           </Button>
         )}
       </HeaderSection>
-
-      {!apiServerRunning && (
-        <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
-      )}
 
       {/* Server Control Panel with integrated configuration */}
       <ServerControlPanel $status={apiServerRunning}>
@@ -150,6 +181,17 @@ const ApiServerSettings: FC = () => {
           </Tooltip>
         </ControlSection>
       </ServerControlPanel>
+
+      <ConfigurationField>
+        <ToggleRow>
+          <ToggleText>
+            <FieldLabel>{t('apiServer.fields.autoStart.label')}</FieldLabel>
+            <FieldDescription>{t('apiServer.fields.autoStart.description')}</FieldDescription>
+          </ToggleText>
+          <Switch checked={autoStartOnLaunch} onChange={handleAutoStartChange} disabled={autoStartOnLaunchLoading} />
+        </ToggleRow>
+        {!apiServerRunning && <Alert type="warning" message={t('agent.warning.enable_server')} showIcon />}
+      </ConfigurationField>
 
       {/* API Key Configuration */}
       <ConfigurationField>
@@ -338,6 +380,19 @@ const ConfigurationField = styled.div`
   background: var(--color-background);
   border-radius: 8px;
   border: 1px solid var(--color-border);
+`
+
+const ToggleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+const ToggleText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `
 
 const FieldLabel = styled.div`

@@ -1,9 +1,13 @@
+import { createRequire } from 'node:module'
+
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
 
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
+const require = createRequire(import.meta.url)
+const webWorkerSetup = require.resolve('@vitest/web-worker')
 
 export default defineConfig({
   test: {
@@ -32,7 +36,7 @@ export default defineConfig({
         test: {
           name: 'renderer',
           environment: 'jsdom',
-          setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
+          setupFiles: [webWorkerSetup, 'tests/renderer.setup.ts'],
           include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}']
         }
       },

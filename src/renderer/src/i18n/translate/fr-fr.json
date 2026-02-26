@@ -417,6 +417,10 @@
         "label": "Clé API",
         "placeholder": "La clé API sera générée automatiquement"
       },
+      "autoStart": {
+        "description": "Démarrer automatiquement le serveur API au lancement de Cherry Studio",
+        "label": "Démarrer au lancement"
+      },
       "port": {
         "description": "Numéro de port TCP pour le serveur HTTP (1000-65535)",
         "helpText": "Arrêtez le serveur pour changer le port",

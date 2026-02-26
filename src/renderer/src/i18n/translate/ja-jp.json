@@ -417,6 +417,10 @@
         "label": "API キー",
         "placeholder": "API キーは自動生成されます"
       },
+      "autoStart": {
+        "description": "Cherry Studio 起動時に API サーバーを自動的に開始します",
+        "label": "起動時に開始"
+      },
       "port": {
         "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
         "helpText": "ポートを変更するにはサーバーを停止してください",

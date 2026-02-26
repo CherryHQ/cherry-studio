@@ -387,7 +387,7 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_server": "API 伺服器停止時，Agent 功能將不可用"
     }
   },
   "apiServer": {
@@ -416,6 +416,10 @@
         "description": "用於 API 存取的安全認證權杖",
         "label": "API 金鑰",
         "placeholder": "API 金鑰會自動產生"
+      },
+      "autoStart": {
+        "description": "當 Cherry Studio 啟動時自動啟動 API 伺服器",
+        "label": "啟動時自動啟動"
       },
       "port": {
         "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",

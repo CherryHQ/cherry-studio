@@ -387,7 +387,7 @@
       }
     },
     "warning": {
-      "enable_server": "Enable API Server to use agents."
+      "enable_server": "Agent functionality is unavailable when the API Server is stopped."
     }
   },
   "apiServer": {
@@ -416,6 +416,10 @@
         "description": "Secure authentication token for API access",
         "label": "API Key",
         "placeholder": "API key will be auto-generated"
+      },
+      "autoStart": {
+        "description": "Automatically start the API Server when Cherry Studio launches",
+        "label": "Start on launch"
       },
       "port": {
         "description": "TCP port number for the HTTP server (1000-65535)",
