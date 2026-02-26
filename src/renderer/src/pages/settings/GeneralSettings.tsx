@@ -4,6 +4,7 @@ import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCherryAiSettings } from '@renderer/hooks/useProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
@@ -69,6 +70,7 @@ const GeneralSettings: FC = () => {
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
+  const { showCherryAiModels, setShowCherryAiModels } = useCherryAiSettings()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
   const { setTimeoutTimer } = useTimer()
 
@@ -352,6 +354,11 @@ const GeneralSettings: FC = () => {
               window.api.config.set('enableDataCollection', v)
             }}
           />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.models.show_cherry_ai_models')}</SettingRowTitle>
+          <Switch checked={showCherryAiModels} onChange={setShowCherryAiModels} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

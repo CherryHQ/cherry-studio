@@ -51,6 +51,7 @@ type LlmSettings = {
     accessToken: string
     refreshToken: string
   }
+  showCherryAiModels: boolean
 }
 
 export interface LlmState {
@@ -99,7 +100,8 @@ export const initialState: LlmState = {
     cherryIn: {
       accessToken: '',
       refreshToken: ''
-    }
+    },
+    showCherryAiModels: true
   }
 }
 
@@ -132,7 +134,8 @@ const getIntegratedInitialState = () => {
       },
       gpustack: {
         keepAliveTime: 3600
-      }
+      },
+      showCherryAiModels: true
     }
   } as LlmState
 }
@@ -258,6 +261,9 @@ const llmSlice = createSlice({
       state.settings.cherryIn.accessToken = ''
       state.settings.cherryIn.refreshToken = ''
     },
+    setShowCherryAiModels: (state, action: PayloadAction<boolean>) => {
+      state.settings.showCherryAiModels = action.payload
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -301,6 +307,7 @@ export const {
   setAwsBedrockRegion,
   setCherryInTokens,
   clearCherryInTokens,
+  setShowCherryAiModels,
   updateModel
 } = llmSlice.actions
 
