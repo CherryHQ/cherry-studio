@@ -502,8 +502,7 @@ class BackupManager {
   listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
     try {
       const client = this.getWebDavInstance(config)
-      const response = await client.getDirectoryContents()
-      const files = Array.isArray(response) ? response : response.data
+      const files = await client.getDirectoryContents()
 
       return files
         .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
