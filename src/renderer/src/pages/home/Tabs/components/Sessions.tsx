@@ -38,7 +38,16 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DynamicVirtualListRef>(null)
 
-  // Throttled scroll handler to avoid excessive calls
+  // Use refs to always read the latest values inside the throttled handler,
+  // avoiding stale closures caused by recreating the throttle on each render.
+  const hasMoreRef = useRef(hasMore)
+  const isLoadingMoreRef = useRef(isLoadingMore)
+  const loadMoreRef = useRef(loadMore)
+  hasMoreRef.current = hasMore
+  isLoadingMoreRef.current = isLoadingMore
+  loadMoreRef.current = loadMore
+
+  // Create the throttle once — refs ensure it always sees fresh state.
   const handleScroll = useMemo(
     () =>
       throttle(() => {
@@ -46,11 +55,15 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         if (!scrollElement) return
 
         const { scrollTop, scrollHeight, clientHeight } = scrollElement
-        if (scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD && hasMore && !isLoadingMore) {
-          loadMore()
+        if (
+          scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD &&
+          hasMoreRef.current &&
+          !isLoadingMoreRef.current
+        ) {
+          loadMoreRef.current()
         }
       }, SCROLL_THROTTLE_DELAY),
-    [hasMore, isLoadingMore, loadMore]
+    []
   )
 
   // Handle scroll to load more
@@ -153,8 +166,8 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         scrollerStyle={{ overflowX: 'hidden' }}
         autoHideScrollbar
         header={
-          <div className="mt-[2px]">
-            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
+          <div className="mt-0.5">
+            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-1 mb-1.5">
               {t('agent.session.add.title')}
             </AddButton>
           </div>

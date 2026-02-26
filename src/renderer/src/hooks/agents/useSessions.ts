@@ -19,7 +19,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
 
   const getKey = (pageIndex: number, previousPageData: ListAgentSessionsResponse | null) => {
     if (!agentId) return null
-    if (previousPageData && previousPageData.data.length === 0) return null
+    if (previousPageData && previousPageData.data.length < pageSize) return null
     return [client.getSessionPaths(agentId).base, pageIndex, pageSize]
   }
 
@@ -40,7 +40,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
 
   const total = useMemo(() => {
     if (!data || data.length === 0) return 0
-    return data.reduce((maxTotal, page) => Math.max(maxTotal, page.total), 0)
+    return data[data.length - 1].total
   }, [data])
   const hasMore = sessions.length < total
   const isLoadingMore = isLoading || (size > 0 && data && typeof data[size - 1] === 'undefined')
@@ -60,14 +60,27 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
       if (!agentId) return null
       try {
         const result = await client.createSession(agentId, form)
-        await mutate()
+        mutate(
+          (prev) => {
+            if (!prev || prev.length === 0) {
+              return [{ data: [result], total: 1, limit: pageSize, offset: 0 }]
+            }
+            const newTotal = prev[0].total + 1
+            return prev.map((page, i) => ({
+              ...page,
+              data: i === 0 ? [result, ...page.data] : page.data,
+              total: newTotal
+            }))
+          },
+          { revalidate: false }
+        )
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [agentId, client, mutate, t]
+    [agentId, client, mutate, pageSize, t]
   )
 
   const getSession = useCallback(
@@ -97,7 +110,18 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
       if (!agentId) return false
       try {
         await client.deleteSession(agentId, id)
-        await mutate()
+        mutate(
+          (prev) => {
+            if (!prev || prev.length === 0) return prev
+            const newTotal = prev[0].total - 1
+            return prev.map((page) => ({
+              ...page,
+              data: page.data.filter((session) => session.id !== id),
+              total: newTotal
+            }))
+          },
+          { revalidate: false }
+        )
         return true
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
