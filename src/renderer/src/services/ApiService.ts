@@ -10,7 +10,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
-import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import type { Assistant, AttachedSkill, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
@@ -41,6 +41,7 @@ import { ConversationService } from './ConversationService'
 import FileManager from './FileManager'
 import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
+import { buildAttachedSkillsSystemMessage } from './SkillsContextService'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
 // import {
@@ -148,6 +149,7 @@ export async function transformMessagesAndFetch(
     callbacks: StreamProcessorCallbacks
     topicId?: string // 添加 topicId 用于 trace
     allowedTools?: string[]
+    attachedSkills?: AttachedSkill[]
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -173,6 +175,11 @@ export async function transformMessagesAndFetch(
         onChunkReceived
       })
       return
+    }
+
+    const skillsSystemMessage = await buildAttachedSkillsSystemMessage(request.attachedSkills)
+    if (skillsSystemMessage) {
+      modelMessages.unshift(skillsSystemMessage)
     }
 
     // inject knowledge search prompt into model messages

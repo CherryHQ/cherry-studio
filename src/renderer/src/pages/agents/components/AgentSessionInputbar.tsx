@@ -103,6 +103,7 @@ const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
+      attachedSkills: [],
       files: [] as FileMetadata[],
       isExpanded: false
     }),

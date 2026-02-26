@@ -54,6 +54,7 @@ import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
+import SkillsInput from './SkillsInput'
 import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
@@ -105,6 +106,7 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
       files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
+      attachedSkills: [],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
@@ -137,8 +139,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
-  const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
+  const { files, mentionedModels, selectedKnowledgeBases, attachedSkills } = useInputbarToolsState()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setAttachedSkills } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
@@ -261,7 +263,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      void dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      void dispatch(_sendMessage(message, blocks, assistant, topic.id, undefined, attachedSkills))
 
       setText('')
       setFiles([])
@@ -279,6 +281,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     text,
     mentionedModels,
     files,
+    attachedSkills,
     dispatch,
     setText,
     setFiles,
@@ -359,6 +362,13 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       focusTextarea()
     },
     [focusTextarea, setExpanded, textareaIsExpanded]
+  )
+
+  const handleRemoveAttachedSkill = useCallback(
+    (skillToRemove: { folderName: string }) => {
+      setAttachedSkills(attachedSkills.filter((s) => s.folderName !== skillToRemove.folderName))
+    },
+    [attachedSkills, setAttachedSkills]
   )
 
   useEffect(() => {
@@ -473,6 +483,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
 
       {mentionedModels.length > 0 && (
         <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
+      )}
+
+      {attachedSkills.length > 0 && (
+        <SkillsInput attachedSkills={attachedSkills} onRemoveSkill={handleRemoveAttachedSkill} />
       )}
     </>
   )

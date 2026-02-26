@@ -5,11 +5,11 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { LibrarySkillEntry } from '@renderer/types'
+import type { AttachedSkill, LibrarySkillEntry } from '@renderer/types'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import type { InstalledSkill } from '@types'
 import { Tooltip } from 'antd'
-import { BookDown, Sparkles, Zap } from 'lucide-react'
+import { BookDown, Pin, Sparkles, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +17,8 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
+  attachedSkills: AttachedSkill[]
+  setAttachedSkills: React.Dispatch<React.SetStateAction<AttachedSkill[]>>
   assistantId: string
 }
 
@@ -44,7 +46,14 @@ const getSkillLabel = (entry: InstalledSkill | LibrarySkillEntry) => {
   return entry.name || entry.folderName
 }
 
-const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
+const SkillsButton = ({
+  quickPanel,
+  setInputValue,
+  resizeTextArea,
+  attachedSkills,
+  setAttachedSkills,
+  assistantId
+}: Props) => {
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
   const { assistant, updateAssistant } = useAssistant(assistantId)
@@ -57,6 +66,7 @@ const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }
 
   const enabledSkills = useMemo(() => assistant.enabledSkills ?? [], [assistant.enabledSkills])
   const enabledSet = useMemo(() => new Set(enabledSkills), [enabledSkills])
+  const attachedSet = useMemo(() => new Set(attachedSkills.map((s) => s.folderName)), [attachedSkills])
 
   const triggerInfoRef = useRef<SkillsTriggerInfo>(undefined)
 
@@ -268,6 +278,48 @@ const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }
     })
   }, [enabledSet, installedSkills, quickPanelHook, t, updateEnabledSkills])
 
+  const openAttachPanel = useCallback(() => {
+    const sorted = sortInstalledSkills(installedSkills, attachedSet)
+    const items: QuickPanelListItem[] = sorted.map((entry) => {
+      const label = getSkillLabel(entry)
+      const description = entry.description || ''
+      const isAttached = attachedSet.has(entry.folderName)
+
+      return {
+        label,
+        description,
+        icon: <Pin size={16} />,
+        isSelected: isAttached,
+        filterText: `${label} ${description} ${entry.folderName}`,
+        action: async () => {
+          setAttachedSkills((prev) => {
+            const next = new Map(prev.map((s) => [s.folderName, s]))
+            if (next.has(entry.folderName)) {
+              next.delete(entry.folderName)
+            } else {
+              next.set(entry.folderName, {
+                folderName: entry.folderName,
+                name: entry.name || entry.folderName,
+                description: entry.description || undefined
+              })
+            }
+            return Array.from(next.values())
+          })
+        }
+      }
+    })
+
+    quickPanelHook.open({
+      title: t('chat.input.skills.attach.title'),
+      list: items,
+      symbol: QuickPanelReservedSymbol.Skills,
+      multiple: true,
+      afterAction({ item }) {
+        item.isSelected = !item.isSelected
+      }
+    })
+  }, [attachedSet, installedSkills, quickPanelHook, setAttachedSkills, t])
+
   const openLibraryPanel = useCallback(async () => {
     const effectivePath = await ensureLibraryPath()
     if (!effectivePath) {
@@ -358,6 +410,16 @@ const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }
         }
       },
       {
+        label: t('chat.input.skills.attach.title'),
+        description: t('chat.input.skills.attach.description', { count: attachedSkills.length }),
+        icon: <Pin size={16} />,
+        isMenu: true,
+        action: ({ context }) => {
+          context.close('select')
+          setTimeout(() => openAttachPanel(), 0)
+        }
+      },
+      {
         label: t('chat.input.skills.enabled.title'),
         description: t('chat.input.skills.enabled.description'),
         icon: <Sparkles size={16} />,
@@ -384,7 +446,16 @@ const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }
       list: items,
       symbol: QuickPanelReservedSymbol.Skills
     })
-  }, [libraryPath, openEnabledPanel, openInsertPanel, openLibraryPanel, quickPanelHook, t])
+  }, [
+    attachedSkills.length,
+    libraryPath,
+    openAttachPanel,
+    openEnabledPanel,
+    openInsertPanel,
+    openLibraryPanel,
+    quickPanelHook,
+    t
+  ])
 
   const handleClick = useCallback(() => {
     if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Skills) {

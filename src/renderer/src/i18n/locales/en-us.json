@@ -1132,6 +1132,10 @@
       "send": "Send",
       "settings": "Settings",
       "skills": {
+        "attach": {
+          "description": "{{count}} skills attached (auto-injected to system context on send)",
+          "title": "Attach Skills"
+        },
         "enabled": {
           "description": "Pin/highlight selected skills",
           "title": "Enable Skills"

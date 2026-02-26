@@ -1,5 +1,5 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
+import type { AttachedSkill, FileMetadata, KnowledgeBase, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -16,6 +16,8 @@ export interface InputbarToolsState {
   mentionedModels: Model[]
   /** Selected knowledge base items */
   selectedKnowledgeBases: KnowledgeBase[]
+  /** Attached skills (auto-injected to system context on send) */
+  attachedSkills: AttachedSkill[]
   /** Whether the inputbar is expanded */
   isExpanded: boolean
 
@@ -78,6 +80,7 @@ export interface InputbarToolsDispatch {
   setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
+  setAttachedSkills: React.Dispatch<React.SetStateAction<AttachedSkill[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
 
   /** Parent component actions */
@@ -146,6 +149,7 @@ interface InputbarToolsProviderProps {
     files: FileMetadata[]
     mentionedModels: Model[]
     selectedKnowledgeBases: KnowledgeBase[]
+    attachedSkills: AttachedSkill[]
     isExpanded: boolean
     couldAddImageFile: boolean
     extensions: string[]
@@ -167,6 +171,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
     initialState?.selectedKnowledgeBases || []
   )
+  const [attachedSkills, setAttachedSkills] = useState<AttachedSkill[]>(initialState?.attachedSkills || [])
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)
 
   // Derived state (internal management)
@@ -248,6 +253,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       files,
       mentionedModels,
       selectedKnowledgeBases,
+      attachedSkills,
       isExpanded,
       couldAddImageFile,
       couldMentionNotVisionModel,
@@ -257,6 +263,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       files,
       mentionedModels,
       selectedKnowledgeBases,
+      attachedSkills,
       isExpanded,
       couldAddImageFile,
       couldMentionNotVisionModel,
@@ -289,6 +296,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       setFiles,
       setMentionedModels,
       setSelectedKnowledgeBases,
+      setAttachedSkills,
       setIsExpanded,
 
       // Stable actions

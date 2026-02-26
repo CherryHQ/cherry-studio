@@ -1132,6 +1132,10 @@
       "send": "发送",
       "settings": "设置",
       "skills": {
+        "attach": {
+          "description": "已附加 {{count}} 个技能（发送时自动注入 system 上下文）",
+          "title": "附加技能"
+        },
         "enabled": {
           "description": "选择要置顶/高亮的技能",
           "title": "启用技能"

@@ -24,3 +24,15 @@ export const LibrarySkillEntrySchema = z.object({
 })
 
 export type LibrarySkillEntry = z.infer<typeof LibrarySkillEntrySchema>
+
+/**
+ * 输入栏“附加技能”标签（用于本次/后续请求的 system 上下文注入）
+ */
+export const AttachedSkillSchema = z.object({
+  folderName: z.string(),
+  /** 展示用名称（优先 metadata.name） */
+  name: z.string().optional(),
+  description: z.string().optional()
+})
+
+export type AttachedSkill = z.infer<typeof AttachedSkillSchema>

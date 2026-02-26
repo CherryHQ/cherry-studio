@@ -1132,6 +1132,10 @@
       "send": "傳送",
       "settings": "設定",
       "skills": {
+        "attach": {
+          "description": "已附加 {{count}} 個技能（傳送時自動注入 system 上下文）",
+          "title": "附加技能"
+        },
         "enabled": {
           "description": "置頂/醒目顯示所選技能",
           "title": "啟用技能"

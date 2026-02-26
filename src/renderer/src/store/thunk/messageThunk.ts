@@ -29,7 +29,14 @@ import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
-import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
+import type {
+  type ApiServerConfig,
+  type Assistant,
+  type AttachedSkill,
+  type FileMetadata,
+  type Model,
+  type Topic
+} from '@renderer/types'
 import type {
   AgentEffort,
   AgentSessionEntity,
@@ -788,7 +795,8 @@ const dispatchMultiModelResponses = async (
   topicId: string,
   triggeringMessage: Message, // userMessage or messageToResend
   assistant: Assistant,
-  mentionedModels: Model[]
+  mentionedModels: Model[],
+  attachedSkills?: AttachedSkill[]
 ) => {
   const assistantMessageStubs: Message[] = []
   const tasksToQueue: { assistantConfig: Assistant; messageStub: Message }[] = []
@@ -823,7 +831,14 @@ const dispatchMultiModelResponses = async (
   const queue = getTopicQueue(topicId)
   for (const task of tasksToQueue) {
     void queue.add(async () => {
-      await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, task.assistantConfig, task.messageStub)
+      await fetchAndProcessAssistantResponseImpl(
+        dispatch,
+        getState,
+        topicId,
+        task.assistantConfig,
+        task.messageStub,
+        attachedSkills
+      )
     })
   }
 }
@@ -835,7 +850,8 @@ const fetchAndProcessAssistantResponseImpl = async (
   getState: () => RootState,
   topicId: string,
   origAssistant: Assistant,
-  assistantMessage: Message // Pass the prepared assistant message (new or reset)
+  assistantMessage: Message, // Pass the prepared assistant message (new or reset)
+  attachedSkills?: AttachedSkill[]
 ) => {
   const topic = origAssistant.topics.find((t) => t.id === topicId)
   const assistant = topic?.prompt
@@ -932,6 +948,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         blockManager,
         assistantMsgId,
         callbacks,
+        attachedSkills,
         options: {
           signal: abortController.signal,
           headers: defaultAppHeaders()
@@ -971,7 +988,8 @@ export const sendMessage =
     userMessageBlocks: MessageBlock[],
     assistant: Assistant,
     topicId: Topic['id'],
-    agentSession?: AgentSessionContext
+    agentSession?: AgentSessionContext,
+    attachedSkills?: AttachedSkill[]
   ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
@@ -1029,7 +1047,15 @@ export const sendMessage =
         const mentionedModels = userMessage.mentions
 
         if (mentionedModels && mentionedModels.length > 0) {
-          await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+          await dispatchMultiModelResponses(
+            dispatch,
+            getState,
+            topicId,
+            userMessage,
+            assistant,
+            mentionedModels,
+            attachedSkills
+          )
         } else {
           const assistantMessage = createAssistantMessage(assistant.id, topicId, {
             askId: userMessage.id,
@@ -1045,7 +1071,14 @@ export const sendMessage =
           )
 
           void queue.add(async () => {
-            await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+            await fetchAndProcessAssistantResponseImpl(
+              dispatch,
+              getState,
+              topicId,
+              assistant,
+              assistantMessage,
+              attachedSkills
+            )
           })
         }
       }

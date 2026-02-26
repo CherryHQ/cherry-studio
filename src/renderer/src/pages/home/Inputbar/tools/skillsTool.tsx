@@ -7,15 +7,18 @@ const skillsTool = defineTool({
   label: (t) => t('chat.input.skills.title'),
   visibleInScopes: [TopicType.Chat, 'mini-window'],
   dependencies: {
-    actions: ['onTextChange', 'resizeTextArea'] as const
+    state: ['attachedSkills'] as const,
+    actions: ['onTextChange', 'resizeTextArea', 'setAttachedSkills'] as const
   },
   render: (context) => {
-    const { assistant, actions, quickPanel } = context
+    const { assistant, actions, quickPanel, state } = context
     return (
       <SkillsButton
         quickPanel={quickPanel}
         setInputValue={actions.onTextChange}
         resizeTextArea={actions.resizeTextArea}
+        attachedSkills={state.attachedSkills}
+        setAttachedSkills={actions.setAttachedSkills}
         assistantId={assistant.id}
       />
     )
