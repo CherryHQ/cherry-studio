@@ -5495,8 +5495,7 @@
       "title": "Historial de traducciones"
     },
     "info": {
-      "aborted": "Traducción cancelada",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Traducción cancelada"
     },
     "input": {
       "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Configuración de sincronización de desplazamiento",
       "title": "Configuración de traducción"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Eliminado correctamente",

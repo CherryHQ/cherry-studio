@@ -5495,8 +5495,7 @@
       "title": "翻译历史"
     },
     "info": {
-      "aborted": "翻译中止",
-      "in_progress": "翻译进行中，请先关闭当前翻译再切换语言"
+      "aborted": "翻译中止"
     },
     "input": {
       "placeholder": "可粘贴或拖入文本、文本文件、图片（支持OCR）"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
     },
+    "stop": "停止翻译",
     "success": {
       "custom": {
         "delete": "删除成功",

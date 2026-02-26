@@ -5495,8 +5495,7 @@
       "title": "Ιστορικό μετάφρασης"
     },
     "info": {
-      "aborted": "Η μετάφραση διακόπηκε",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Η μετάφραση διακόπηκε"
     },
     "input": {
       "placeholder": "Μπορείτε να επικολλήσετε ή να σύρετε κείμενο, αρχεία κειμένου, εικόνες (υποστηρίζεται η OCR)"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
       "title": "Ρυθμίσεις μετάφρασης"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Η διαγραφή ολοκληρώθηκε με επιτυχία",

@@ -5495,8 +5495,7 @@
       "title": "翻訳履歴"
     },
     "info": {
-      "aborted": "翻訳中止",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "翻訳中止"
     },
     "input": {
       "placeholder": "テキスト、テキストファイル、画像（OCR対応）を貼り付けたり、ドラッグして挿入したりできます"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "削除が成功しました",

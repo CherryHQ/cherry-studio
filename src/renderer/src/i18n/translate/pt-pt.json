@@ -5495,8 +5495,7 @@
       "title": "Histórico de Tradução"
     },
     "info": {
-      "aborted": "Tradução interrompida",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Tradução interrompida"
     },
     "input": {
       "placeholder": "Pode colar ou arrastar texto, arquivos de texto ou imagens (com suporte a OCR)"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Eliminação bem-sucedida",

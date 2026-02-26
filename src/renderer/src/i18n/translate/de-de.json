@@ -5495,8 +5495,7 @@
       "title": "Übersetzungsverlauf"
     },
     "info": {
-      "aborted": "Übersetzung abgebrochen",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Übersetzung abgebrochen"
     },
     "input": {
       "placeholder": "Text, Textdatei, Bild (OCR unterstützt) können eingefügt oder gezogen werden"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Erfolgreich gelöscht",

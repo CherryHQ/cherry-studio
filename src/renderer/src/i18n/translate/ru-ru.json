@@ -5495,8 +5495,7 @@
       "title": "История переводов"
     },
     "info": {
-      "aborted": "Перевод прерван",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Перевод прерван"
     },
     "input": {
       "placeholder": "Можно вставить или перетащить текст, текстовые файлы, изображения (с поддержкой OCR)"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Настройки синхронизации прокрутки",
       "title": "Настройки перевода"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Удаление выполнено успешно",

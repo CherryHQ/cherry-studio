@@ -5495,8 +5495,7 @@
       "title": "Istoric traduceri"
     },
     "info": {
-      "aborted": "Traducere anulată",
-      "in_progress": "[to be translated]:Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Traducere anulată"
     },
     "input": {
       "placeholder": "Textul, fișierele text sau imaginile (cu suport OCR) pot fi lipite sau trase aici"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Șters cu succes",

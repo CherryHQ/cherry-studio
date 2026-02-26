@@ -52,6 +52,7 @@ import type { TFunction } from 'i18next'
 import {
   AtSign,
   Check,
+  CirclePause,
   FilePenLine,
   Languages,
   ListChecks,
@@ -105,6 +106,7 @@ type MessageMenubarButtonContext = {
   isBubbleStyle: boolean
   isGrouped?: boolean
   isLastMessage: boolean
+  isTranslating: boolean
   isUserMessage: boolean
   message: Message
   notesPath: string
@@ -224,11 +226,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
-      if (isTranslating) {
-        window.toast.warning(t('translate.info.in_progress'))
-        return
-      }
-
       setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
@@ -562,6 +559,7 @@ const MessageMenubar: FC<Props> = (props) => {
     isBubbleStyle,
     isGrouped,
     isLastMessage,
+    isTranslating,
     isUserMessage,
     message,
     notesPath,
@@ -760,6 +758,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   },
   translate: ({
     isUserMessage,
+    isTranslating,
     translateLanguages,
     handleTranslate,
     hasTranslationBlocks,
@@ -772,6 +771,22 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   }) => {
     if (isUserMessage) {
       return null
+    }
+
+    if (isTranslating) {
+      return (
+        <Tooltip title={t('translate.stop')} mouseEnterDelay={0.8}>
+          <ActionButton
+            className="message-action-button"
+            onClick={(e) => {
+              e.stopPropagation()
+              abortTranslation()
+            }}
+            $softHoverBg={softHoverBg}>
+            <CirclePause size={15} />
+          </ActionButton>
+        </Tooltip>
+      )
     }
 
     const items: MenuProps['items'] = [
@@ -810,8 +825,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
               label: '✖ ' + t('translate.close'),
               key: 'translate-close',
               onClick: () => {
-                abortTranslation()
-
                 const translationBlocks = message.blocks
                   .map((blockId) => blockEntities[blockId])
                   .filter((block) => block?.type === 'translation')

@@ -5495,8 +5495,7 @@
       "title": "Translation History"
     },
     "info": {
-      "aborted": "Translation aborted",
-      "in_progress": "Translation in progress. Please close the current translation before switching languages."
+      "aborted": "Translation aborted"
     },
     "input": {
       "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
@@ -5529,6 +5528,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "stop": "Stop Translation",
     "success": {
       "custom": {
         "delete": "Deleted successfully",
