@@ -73,6 +73,10 @@ import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
 
+const abortTranslation = (messageId: string) => {
+  abortCompletion(createTranslationAbortKey(messageId))
+}
+
 interface Props {
   message: Message
   assistant: Assistant
@@ -116,7 +120,6 @@ type MessageMenubarButtonContext = {
   onEdit: () => void | Promise<void>
   onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
-  abortTranslation: () => void
   onUseful: (e: React.MouseEvent) => void
   removeMessageBlock: MessageOperationsHandlers['removeMessageBlock']
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -529,10 +532,6 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
-  const abortTranslation = useCallback(() => {
-    abortCompletion(translationAbortKey)
-  }, [translationAbortKey])
-
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
@@ -544,7 +543,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
   const buttonContext: MessageMenubarButtonContext = {
-    abortTranslation,
     assistant,
     blockEntities,
     confirmDeleteMessage,
@@ -765,7 +763,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     hasTranslationBlocks,
     message,
     blockEntities,
-    abortTranslation,
     removeMessageBlock,
     softHoverBg,
     t
@@ -787,7 +784,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
             className="message-action-button"
             onClick={(e) => {
               e.stopPropagation()
-              abortTranslation()
+              abortTranslation(message.id)
             }}
             $softHoverBg={softHoverBg}>
             <CirclePause size={15} />
@@ -933,12 +930,17 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
 
+    const handleDeleteMessage = async () => {
+      abortTranslation(message.id)
+      await deleteMessage(message.id, message.traceId, message.model?.name)
+    }
+
     if (confirmDeleteMessage) {
       return (
         <Popconfirm
           title={t('message.message.delete.content')}
           okButtonProps={{ danger: true }}
-          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}
+          onConfirm={async () => await handleDeleteMessage()}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
           <ActionButton
             className="message-action-button"
@@ -953,9 +955,9 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     return (
       <ActionButton
         className="message-action-button"
-        onClick={(e) => {
+        onClick={async (e) => {
           e.stopPropagation()
-          deleteMessage(message.id, message.traceId, message.model?.name)
+          await handleDeleteMessage()
         }}
         $softHoverBg={softHoverBg}>
         {deleteTooltip}
