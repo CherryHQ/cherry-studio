@@ -80,6 +80,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 - 导出/导入能力：新增小程序导出（WebView 脚本通道），整合 ChatGPT/Gemini 导出脚本与统一导出→导入流程，新增 Gemini 导入器；UI 增加导出按钮、加载态与完成提示。
 - 稳定性与兼容性：补齐 i18n/工具测试 mock，修复 tooltip 等细节，降低 ApiServer 状态查询刷屏；兼容 Node 20+ 依赖。
 - 思考块（Thinking）体验：按 reasoning_effort 展示“思考程度/耗时”，记录到 metadata 以确保回放一致；补充徽标与相关单测/i18n。
+- 新增skills面板：聊天输入框新增 Skills(⚡) 按钮：插入技能内容；可标记启用以置顶/高亮输入栏新增附加技能标签，发送时将附加技能 SKILL.md 正文合并为 system message 自动注入。
 - macOS 体验：修复 macOS 字体列表获取（优先 atsutil），并加固自定义 CSS 覆盖主字体等问题；同时优化启动期行为避免干扰 macOS AltTab。
 - 笔记能力增强：支持折叠留白与排版修复；支持恢复到选中版本；笔记页集成 Git；修复 IPC 结构化克隆相关问题。
 - 备份能力：引入增量备份与默认清理策略（trim defaults）。
