@@ -175,8 +175,7 @@ async function getTopicFullData(topicId: string): Promise<TopicFullData | null> 
 
     // 批量获取所有相关的 message blocks
     const allBlockIds = messages.flatMap((m) => (m.blocks || []).map(String))
-    const blocks =
-      allBlockIds.length > 0 ? await db.message_blocks.where('id').anyOf(allBlockIds).toArray() : []
+    const blocks = allBlockIds.length > 0 ? await db.message_blocks.where('id').anyOf(allBlockIds).toArray() : []
 
     const blockMap = new Map(blocks.map((b) => [b.id, b]))
     const meta = getTopicMeta(topicId)
@@ -263,8 +262,7 @@ async function syncOnce(): Promise<void> {
     if (previousSnapshot === null) {
       previousSnapshot = loadPersistedSnapshot()
       logger.info(
-        `Initialized: ${currentSnapshot.size} local topics, ` +
-          `${previousSnapshot.size} in last synced snapshot`
+        `Initialized: ${currentSnapshot.size} local topics, ` + `${previousSnapshot.size} in last synced snapshot`
       )
       // 不 return —— 继续往下 diff，这样：
       // - 全新安装（空快照）→ 所有 Topic 视为"新增" → 全量推送
@@ -294,9 +292,7 @@ async function syncOnce(): Promise<void> {
       return // 无变更
     }
 
-    logger.info(
-      `Changes: +${added.length} ~${updated.length} -${deleted.length}`
-    )
+    logger.info(`Changes: +${added.length} ~${updated.length} -${deleted.length}`)
 
     // 处理新增 + 更新：获取完整数据并上传
     const toUpload = [...added, ...updated]
