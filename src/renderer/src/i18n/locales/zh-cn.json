@@ -4183,6 +4183,14 @@
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
+      "experimental": {
+        "badge": "实验性",
+        "rtl_text_fix": {
+          "description": "改进 RTL（如波斯语/阿拉伯语）与 LTR 文本混排时的显示。代码块和数学公式保持为 LTR。",
+          "title": "RTL/LTR 混合文本渲染修复"
+        },
+        "title": "实验性功能"
+      },
       "font": {
         "code": "代码字体",
         "default": "默认",

@@ -4183,6 +4183,14 @@
           "placeholder": "/* Put custom CSS here */"
         }
       },
+      "experimental": {
+        "badge": "Experimental",
+        "rtl_text_fix": {
+          "description": "Improves RTL (e.g., Persian/Arabic) rendering when mixed with LTR text. Code blocks and math remain LTR.",
+          "title": "RTL/LTR mixed text rendering fix"
+        },
+        "title": "Experimental"
+      },
       "font": {
         "code": "Code Font",
         "default": "Default",

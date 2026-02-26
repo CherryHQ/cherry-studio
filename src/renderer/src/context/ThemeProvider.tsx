@@ -32,7 +32,7 @@ const tailwindThemeChange = (theme: ThemeMode) => {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
-  const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
+  const { theme: settedTheme, setTheme: setSettedTheme, language, experimentalRtlTextFix } = useSettings()
   const [actualTheme, setActualTheme] = useState<ThemeMode>(
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
@@ -76,6 +76,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       setActualTheme(actualTheme)
     })
   }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])
+
+  useEffect(() => {
+    document.body.classList.toggle('experimental-rtl-text-fix', !!experimentalRtlTextFix)
+  }, [experimentalRtlTextFix])
 
   useEffect(() => {
     tailwindThemeChange(actualTheme)
