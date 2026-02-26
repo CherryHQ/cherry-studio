@@ -5011,6 +5011,12 @@
       "docs_check": "Check",
       "docs_more_details": "for more details",
       "get_api_key": "Get API Key",
+      "max_tool_steps": {
+        "description": "Maximum number of tool call steps the AI can perform in a single response.",
+        "help": "Limits how many tool calling iterations the AI can perform. Higher values allow more complex multi-step operations but may increase response time. Default is 20.",
+        "label": "Max Tool Steps",
+        "title": "Tool Steps Limit"
+      },
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
