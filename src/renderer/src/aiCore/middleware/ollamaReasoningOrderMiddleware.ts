@@ -22,6 +22,10 @@ export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
       let isActiveReasoning = false
       let reasoningId: string | undefined
       let bufferedText: LanguageModelV2StreamPart[] = []
+      // Track IDs of text parts whose text-start is still in the buffer and not yet emitted
+      // downstream. text-delta/text-end for these parts must also be buffered to prevent the AI
+      // SDK from receiving a text-delta before the corresponding text-start is registered.
+      const bufferedTextPartIds = new Set<string>()
 
       const flushBufferedText = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>) => {
         if (bufferedText.length === 0) {
@@ -31,6 +35,7 @@ export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
           controller.enqueue(part)
         }
         bufferedText = []
+        bufferedTextPartIds.clear()
       }
 
       const endActiveReasoning = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>) => {
@@ -59,13 +64,13 @@ export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
               if (chunk.type === 'reasoning-delta') {
                 hasReasoning = true
                 controller.enqueue(chunk)
-                flushBufferedText(controller)
                 return
               }
 
               if (chunk.type === 'reasoning-end') {
                 isActiveReasoning = false
                 controller.enqueue(chunk)
+                flushBufferedText(controller)
                 return
               }
 
@@ -73,15 +78,17 @@ export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
               if (chunk.type === 'text-start') {
                 endActiveReasoning(controller)
                 if (!hasReasoning) {
+                  bufferedTextPartIds.add(chunk.id)
                   bufferedText.push(chunk)
                   return
                 }
+                flushBufferedText(controller)
                 controller.enqueue(chunk)
                 return
               }
 
               if (chunk.type === 'text-delta' || chunk.type === 'text-end') {
-                if (!hasReasoning) {
+                if (bufferedTextPartIds.has(chunk.id)) {
                   bufferedText.push(chunk)
                   return
                 }
