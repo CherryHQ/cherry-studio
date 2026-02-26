@@ -10,7 +10,8 @@ import {
   setSessionWaitingAction
 } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert, Spin } from 'antd'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { Alert, Button, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import { throttle } from 'lodash'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -24,9 +25,13 @@ interface SessionsProps {
   agentId: string
 }
 
+const LOAD_MORE_THRESHOLD = 100
+const SCROLL_THROTTLE_DELAY = 150
+
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
+    useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
@@ -41,10 +46,10 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         if (!scrollElement) return
 
         const { scrollTop, scrollHeight, clientHeight } = scrollElement
-        if (scrollHeight - scrollTop - clientHeight < 100 && hasMore && !isLoadingMore) {
+        if (scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD && hasMore && !isLoadingMore) {
           loadMore()
         }
-      }, 150),
+      }, SCROLL_THROTTLE_DELAY),
     [hasMore, isLoadingMore, loadMore]
   )
 
@@ -121,27 +126,40 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   }
 
   if (error) {
-    return <Alert type="error" message={t('agent.session.get.error.failed')} showIcon style={{ margin: 10 }} />
+    return (
+      <Alert
+        type="error"
+        message={t('agent.session.get.error.failed')}
+        description={formatErrorMessage(error)}
+        showIcon
+        style={{ margin: 10 }}
+        action={
+          <Button size="small" onClick={() => void reload()} disabled={isValidating}>
+            {t('common.retry')}
+          </Button>
+        }
+      />
+    )
   }
 
   return (
-    <StyledVirtualList
-      ref={listRef}
-      className="sessions-tab"
-      list={sessions}
-      estimateSize={() => 9 * 4}
-      // FIXME: This component only supports CSSProperties
-      scrollerStyle={{ overflowX: 'hidden' }}
-      autoHideScrollbar
-      header={
-        <div className="mt-[2px]">
-          <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
-            {t('agent.session.add.title')}
-          </AddButton>
-        </div>
-      }>
-      {(session, index) => (
-        <>
+    <div className="flex h-full flex-col">
+      <StyledVirtualList
+        ref={listRef}
+        className="sessions-tab"
+        list={sessions}
+        estimateSize={() => 9 * 4}
+        // FIXME: This component only supports CSSProperties
+        scrollerStyle={{ overflowX: 'hidden' }}
+        autoHideScrollbar
+        header={
+          <div className="mt-[2px]">
+            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
+              {t('agent.session.add.title')}
+            </AddButton>
+          </div>
+        }>
+        {(session) => (
           <SessionItem
             key={session.id}
             session={session}
@@ -149,14 +167,14 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             onDelete={() => handleDeleteSession(session.id)}
             onPress={() => setActiveSessionId(agentId, session.id)}
           />
-          {index === sessions.length - 1 && isLoadingMore && (
-            <div className="flex justify-center py-2">
-              <Spin size="small" />
-            </div>
-          )}
-        </>
+        )}
+      </StyledVirtualList>
+      {isLoadingMore && (
+        <div className="flex justify-center py-2">
+          <Spin size="small" />
+        </div>
       )}
-    </StyledVirtualList>
+    </div>
   )
 }
 
@@ -164,7 +182,8 @@ const StyledVirtualList = styled(DynamicVirtualList)`
   display: flex;
   flex-direction: column;
   padding: 12px 10px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 ` as typeof DynamicVirtualList
 
 export default memo(Sessions)
