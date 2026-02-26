@@ -201,8 +201,8 @@ importers:
         specifier: ^0.0.1
         version: 0.0.1(@types/node@22.17.2)(typescript@5.8.3)
       '@ai-sdk/xai':
-        specifier: 2.0.36
-        version: 2.0.36(zod@4.3.4)
+        specifier: 2.0.56
+        version: 2.0.56(zod@4.3.4)
       '@ant-design/cssinjs':
         specifier: 1.23.0
         version: 1.23.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1274,8 +1274,8 @@ importers:
         specifier: ^3.0.17
         version: 3.0.20(zod@4.3.4)
       '@ai-sdk/xai':
-        specifier: ^2.0.36
-        version: 2.0.43(zod@4.3.4)
+        specifier: ^2.0.56
+        version: 2.0.56(zod@4.3.4)
       '@cherrystudio/ai-sdk-provider':
         specifier: workspace:*
         version: link:../ai-sdk-provider
@@ -1435,6 +1435,12 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/openai-compatible@1.0.32':
+    resolution: {integrity: sha512-YspqqyJPzHjqWrjt4y/Wgc2aJgCcQj5uIJgZpq2Ar/lH30cEVhgE+keePDbjKpetD9UwNggCj7u6kO3unS23OQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/openai@2.0.85':
     resolution: {integrity: sha512-3pzr7qVhsOXwjPAfmvFNZz3sRWCuyMOc3GgLHe7sWY0t8J4hA5mwQ4LISTKYI3iIr8IXzAQn9MUrC8Hiji9RpA==}
     engines: {node: '>=18'}
@@ -1493,14 +1499,8 @@ packages:
     resolution: {integrity: sha512-xq0hWYHKxwlsQDX4QGGrYDr+DRQsvKLZqi611fxsPtK18Hlg1nh8CHPMQIDAkuHs+TVIOV77gqwf4/nLhC+ReA==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/xai@2.0.36':
-    resolution: {integrity: sha512-tQuCDVNK4W4fiom59r2UnU7u9SAz58fpl5yKYoS9IbMOrDRO3fzQGWmj2p8MUvz9LzXf6hiyUkVNFGzzx+uZcw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/xai@2.0.43':
-    resolution: {integrity: sha512-tB99FGKV3n0qT+DS58HVQ7+ZbTJUvaHzb+5c1CW9TdxRVkip09u8j31+JRLY0ol6PN8Z7vIwvRrLmXZx/rHfoQ==}
+  '@ai-sdk/xai@2.0.56':
+    resolution: {integrity: sha512-FGlqwWc3tAYqDHE8r8hQGQLcMiPUwgz90oU2QygUH930OWtCLapFkSu114DgVaIN/qoM1DUX+inv0Ee74Fgp5g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -12381,6 +12381,12 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.18(zod@4.3.6)
       zod: 4.3.6
 
+  '@ai-sdk/openai-compatible@1.0.32(zod@4.3.4)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.1
+      '@ai-sdk/provider-utils': 3.0.20(zod@4.3.4)
+      zod: 4.3.4
+
   '@ai-sdk/openai@2.0.85(patch_hash=f2077f4759520d1de69b164dfd8adca1a9ace9de667e35cb0e55e812ce2ac13b)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -12473,16 +12479,9 @@ snapshots:
       - '@types/node'
       - typescript
 
-  '@ai-sdk/xai@2.0.36(zod@4.3.4)':
+  '@ai-sdk/xai@2.0.56(zod@4.3.4)':
     dependencies:
-      '@ai-sdk/openai-compatible': 1.0.28(patch_hash=237d604cb47e98bb212f2656127eb95233c31afd33c6a402b225d91106d13fda)(zod@4.3.4)
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.17(zod@4.3.4)
-      zod: 4.3.4
-
-  '@ai-sdk/xai@2.0.43(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/openai-compatible': 1.0.28(patch_hash=237d604cb47e98bb212f2656127eb95233c31afd33c6a402b225d91106d13fda)(zod@4.3.4)
+      '@ai-sdk/openai-compatible': 1.0.32(zod@4.3.4)
       '@ai-sdk/provider': 2.0.1
       '@ai-sdk/provider-utils': 3.0.20(zod@4.3.4)
       zod: 4.3.4

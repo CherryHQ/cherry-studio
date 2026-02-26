@@ -114,10 +114,3 @@ export function createGoogleOptions(options: ExtractProviderOptions<'google'>) {
 export function createOpenRouterOptions(options: ExtractProviderOptions<'openrouter'> | Record<string, any>) {
   return createProviderOptions('openrouter', options)
 }
-
-/**
- * 创建XAI供应商选项的便捷函数
- */
-export function createXaiOptions(options: ExtractProviderOptions<'xai'>) {
-  return createProviderOptions('xai', options)
-}

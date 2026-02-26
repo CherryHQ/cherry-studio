@@ -10,7 +10,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV2 } from '@ai-sdk/provider'
-import { createXai } from '@ai-sdk/xai'
+import { createXai, type XaiProviderSettings } from '@ai-sdk/xai'
 import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { Provider } from 'ai'
@@ -102,7 +102,15 @@ export const baseProviders = [
   {
     id: 'xai',
     name: 'xAI (Grok)',
-    creator: createXai,
+    creator: (options: XaiProviderSettings) => {
+      const provider = createXai(options)
+      return customProvider({
+        fallbackProvider: {
+          ...provider,
+          languageModel: (modelId: string) => provider.responses(modelId)
+        }
+      })
+    },
     supportsImageGeneration: true
   },
   {
