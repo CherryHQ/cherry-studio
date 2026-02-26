@@ -1,4 +1,4 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
@@ -24,15 +24,26 @@ import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch, Tooltip } from 'antd'
+import { Button, Flex, Input, Switch, Tooltip } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '.'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
+
+const SKILLS_LIBRARY_CONFIG_KEY = 'skillsLibraryPath'
+const DEFAULT_SKILLS_LIBRARY_PATH = '~/skills'
 
 // Define available spell check languages with display names (only commonly supported languages)
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
@@ -71,6 +82,7 @@ const GeneralSettings: FC = () => {
   const { theme } = useTheme()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
   const { setTimeoutTimer } = useTimer()
+  const [skillsLibraryPath, setSkillsLibraryPath] = useState<string>('')
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -102,6 +114,27 @@ const GeneralSettings: FC = () => {
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+
+  const ensureSkillsLibraryPath = useCallback(async (): Promise<string | null> => {
+    try {
+      const existing = (await window.api.config.get(SKILLS_LIBRARY_CONFIG_KEY)) as string | undefined
+      if (existing && existing.trim()) {
+        setSkillsLibraryPath(existing)
+        return existing
+      }
+
+      const resolved = await window.api.resolvePath(DEFAULT_SKILLS_LIBRARY_PATH)
+      await window.api.config.set(SKILLS_LIBRARY_CONFIG_KEY, resolved)
+      setSkillsLibraryPath(resolved)
+      return resolved
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    ensureSkillsLibraryPath()
+  }, [ensureSkillsLibraryPath])
 
   const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
@@ -190,6 +223,23 @@ const GeneralSettings: FC = () => {
       }
     })
   }
+
+  const handleSelectSkillsLibraryPath = useCallback(async () => {
+    const selected = await window.api.file.selectFolder()
+    if (!selected) return
+    await window.api.config.set(SKILLS_LIBRARY_CONFIG_KEY, selected)
+    setSkillsLibraryPath(selected)
+    window.toast.success(t('settings.skills.library_path.saved'))
+  }, [t])
+
+  const handleOpenSkillsLibraryPath = useCallback(async () => {
+    const effectivePath = skillsLibraryPath || (await ensureSkillsLibraryPath())
+    if (!effectivePath) {
+      window.toast.error(t('settings.skills.library_path.open_failed'))
+      return
+    }
+    await window.api.file.openPath(effectivePath)
+  }, [ensureSkillsLibraryPath, skillsLibraryPath, t])
 
   return (
     <SettingContainer theme={theme}>
@@ -352,6 +402,31 @@ const GeneralSettings: FC = () => {
               void window.api.config.set('enableDataCollection', v)
             }}
           />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.skills.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.skills.library_path.title')}</SettingRowTitle>
+          <HStack alignItems="center" gap="5px" style={{ width: 450 }}>
+            <Input
+              type="text"
+              value={skillsLibraryPath}
+              readOnly
+              style={{ width: 260 }}
+              placeholder={t('settings.skills.library_path.placeholder')}
+            />
+            <Button onClick={handleSelectSkillsLibraryPath} icon={<FolderOpenOutlined />}>
+              {t('settings.skills.library_path.select')}
+            </Button>
+            <Button onClick={handleOpenSkillsLibraryPath} icon={<FolderOpenOutlined />}>
+              {t('settings.skills.library_path.open')}
+            </Button>
+          </HStack>
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.skills.library_path.help')}</SettingHelpText>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

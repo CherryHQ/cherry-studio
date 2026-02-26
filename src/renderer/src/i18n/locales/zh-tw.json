@@ -1131,6 +1131,29 @@
       },
       "send": "傳送",
       "settings": "設定",
+      "skills": {
+        "enabled": {
+          "description": "置頂/醒目顯示所選技能",
+          "title": "啟用技能"
+        },
+        "errors": {
+          "import_failed": "匯入技能失敗",
+          "library_not_set": "無法取得技能庫目錄，請在設定中配置。",
+          "read_failed": "讀取技能內容失敗"
+        },
+        "import": {
+          "success": "已匯入：{{name}}"
+        },
+        "insert": {
+          "description": "將技能內容插入到輸入框",
+          "title": "插入技能"
+        },
+        "library": {
+          "not_set": "未設定",
+          "title": "從技能庫匯入/更新"
+        },
+        "title": "技能"
+      },
       "slash_commands": {
         "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"
@@ -5713,11 +5736,20 @@
       "searchRegistryTitle": "在線搜尋技能登錄檔",
       "searchTitle": "搜尋技能",
       "selectFile": "選擇一個檔案查看",
-      "title": "技能",
       "uninstall": "解除安裝",
       "uninstallSuccess": "技能已解除安裝：{{name}}",
       "viewSource": "查看原始碼",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "library_path": {
+        "help": "用於從技能庫匯入/更新技能。每個技能應為一個包含 SKILL.md 的資料夾。",
+        "open": "開啟目錄",
+        "open_failed": "開啟技能庫目錄失敗",
+        "placeholder": "預設：~/skills",
+        "saved": "技能庫目錄已儲存",
+        "select": "選擇目錄",
+        "title": "技能庫目錄"
+      },
+      "title": "技能"
     },
     "theme": {
       "color_primary": "主題顏色",

@@ -27,9 +27,11 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
+  InstalledSkillEntry,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
+  LibrarySkillEntry,
   MCPServer,
   MemoryConfig,
   MemoryListOptions,
@@ -800,6 +802,18 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId),
     listLocal: (workdir: string): Promise<SkillResult<LocalSkill[]>> =>
       ipcRenderer.invoke(IpcChannel.Skill_ListLocal, workdir)
+  },
+  skills: {
+    listInstalled: (): Promise<PluginResult<InstalledSkillEntry[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skills_ListInstalled),
+    listLibrary: (params: { libraryPath: string; maxDepth?: number }): Promise<PluginResult<LibrarySkillEntry[]>> =>
+      ipcRenderer.invoke(IpcChannel.Skills_ListLibrary, params),
+    importFromLibrary: (params: {
+      libraryPath: string
+      skillFolderPath: string
+    }): Promise<PluginResult<InstalledSkillEntry>> => ipcRenderer.invoke(IpcChannel.Skills_ImportFromLibrary, params),
+    readBody: (params: { folderName: string }): Promise<PluginResult<string>> =>
+      ipcRenderer.invoke(IpcChannel.Skills_ReadBody, params)
   },
   localTransfer: {
     getState: (): Promise<LocalTransferState> => ipcRenderer.invoke(IpcChannel.LocalTransfer_ListServices),

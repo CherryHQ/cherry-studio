@@ -11,6 +11,7 @@ export type InputBarToolType =
   | 'generate_image'
   | 'mention_models'
   | 'quick_phrases'
+  | 'skills'
   | 'clear_topic'
   | 'toggle_expand'
   | 'new_context'

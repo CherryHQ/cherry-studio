@@ -1131,6 +1131,29 @@
       },
       "send": "发送",
       "settings": "设置",
+      "skills": {
+        "enabled": {
+          "description": "选择要置顶/高亮的技能",
+          "title": "启用技能"
+        },
+        "errors": {
+          "import_failed": "导入技能失败",
+          "library_not_set": "无法获取技能库目录，请在设置中配置。",
+          "read_failed": "读取技能内容失败"
+        },
+        "import": {
+          "success": "已导入：{{name}}"
+        },
+        "insert": {
+          "description": "将技能内容插入到输入框",
+          "title": "插入技能"
+        },
+        "library": {
+          "not_set": "未设置",
+          "title": "从技能库导入/更新"
+        },
+        "title": "技能"
+      },
       "slash_commands": {
         "description": "代理会话斜杠命令",
         "title": "斜杠命令"
@@ -5713,11 +5736,20 @@
       "searchRegistryTitle": "在线搜索技能注册表",
       "searchTitle": "搜索技能",
       "selectFile": "选择一个文件查看",
-      "title": "技能",
       "uninstall": "卸载",
       "uninstallSuccess": "技能已卸载：{{name}}",
       "viewSource": "查看源码",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "library_path": {
+        "help": "用于从技能库导入/更新技能。每个技能应为一个包含 SKILL.md 的文件夹。",
+        "open": "打开目录",
+        "open_failed": "打开技能库目录失败",
+        "placeholder": "默认：~/skills",
+        "saved": "技能库目录已保存",
+        "select": "选择目录",
+        "title": "技能库目录"
+      },
+      "title": "技能"
     },
     "theme": {
       "color_primary": "主题颜色",

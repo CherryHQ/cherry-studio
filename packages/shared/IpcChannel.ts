@@ -431,6 +431,12 @@ export enum IpcChannel {
   Skill_ListFiles = 'skill:list-files',
   Skill_ListLocal = 'skill:list-local',
 
+  // Skills (普通聊天技能库/已安装技能)
+  Skills_ListInstalled = 'skills:list-installed',
+  Skills_ListLibrary = 'skills:list-library',
+  Skills_ImportFromLibrary = 'skills:import-from-library',
+  Skills_ReadBody = 'skills:read-body',
+
   // Local Transfer
   LocalTransfer_ListServices = 'local-transfer:list',
   LocalTransfer_StartScan = 'local-transfer:start-scan',

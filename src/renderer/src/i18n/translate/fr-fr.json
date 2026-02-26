@@ -1131,6 +1131,32 @@
       },
       "send": "Envoyer",
       "settings": "Paramètres",
+      "skills": {
+        "enabled": {
+          "description": "[to be translated]:Pin/highlight selected skills",
+          "title": "[to be translated]:Enable Skills"
+        },
+        "errors": {
+          "import_failed": "[to be translated]:Failed to import skill",
+          "library_not_set": "[to be translated]:Skills library path is not set",
+          "read_failed": "[to be translated]:Failed to read skill content"
+        },
+        "import": {
+          "success": "[to be translated]:Imported: {{name}}"
+        },
+        "insert": {
+          "description": "[to be translated]:Insert skill content into the input",
+          "title": "[to be translated]:Insert Skill"
+        },
+        "library": {
+          "not_set": "[to be translated]:Not set",
+          "open_path": "[to be translated]:Open skills library",
+          "path_saved": "[to be translated]:Skills library path saved",
+          "set_path": "[to be translated]:Set skills library path",
+          "title": "[to be translated]:Import/Update from Library"
+        },
+        "title": "[to be translated]:Skills"
+      },
       "slash_commands": {
         "description": "Commandes slash de session d'agent",
         "title": "Commandes Slash"

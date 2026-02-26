@@ -28,6 +28,7 @@ export * from './plugin'
 export * from './provider'
 export * from './serialize'
 export * from './skill'
+export * from './skills'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -54,6 +55,11 @@ export type Assistant = {
   /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
   mcpMode?: McpMode
   mcpServers?: MCPServer[]
+  /**
+   * 普通聊天 Skills：启用的技能列表（用于排序/高亮）。
+   * 注意：当前版本“插入技能”面板仍显示全部已安装技能；启用仅影响置顶与提示。
+   */
+  enabledSkills?: string[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签

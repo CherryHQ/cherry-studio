@@ -75,6 +75,7 @@ import { searchService } from './services/SearchService'
 import { isSafeExternalUrl } from './services/security'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import { skillsService } from './services/skills/SkillsService'
 import {
   addEndMessage,
   addStreamMessage,
@@ -1162,6 +1163,50 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list local plugins', { workdir, error })
+      return { success: false, error }
+    }
+  })
+
+  // Skills（普通聊天技能库/已安装技能）
+  ipcMain.handle(IpcChannel.Skills_ListInstalled, async () => {
+    try {
+      const data = await skillsService.listInstalled()
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list installed skills', { error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skills_ListLibrary, async (_event, params: { libraryPath: string; maxDepth?: number }) => {
+    try {
+      const data = await skillsService.listLibrary(params.libraryPath, { maxDepth: params.maxDepth })
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list skills library', { params, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(
+    IpcChannel.Skills_ImportFromLibrary,
+    async (_event, params: { libraryPath: string; skillFolderPath: string }) => {
+      try {
+        const data = await skillsService.importFromLibrary(params)
+        return { success: true, data }
+      } catch (error) {
+        logger.error('Failed to import skill from library', { params, error })
+        return { success: false, error }
+      }
+    }
+  )
+
+  ipcMain.handle(IpcChannel.Skills_ReadBody, async (_event, params: { folderName: string }) => {
+    try {
+      const data = await skillsService.readBody(params.folderName)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read skill body', { params, error })
       return { success: false, error }
     }
   })

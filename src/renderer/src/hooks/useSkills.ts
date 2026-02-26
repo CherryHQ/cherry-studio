@@ -1,6 +1,10 @@
+import { loggerService } from '@logger'
 import { searchSkills } from '@renderer/services/SkillSearchService'
+import type { LibrarySkillEntry, PluginError } from '@renderer/types'
 import type { InstalledSkill, SkillSearchResult } from '@types'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+const logger = loggerService.withContext('useSkills')
 
 /**
  * Hook to manage globally installed skills.
@@ -21,7 +25,8 @@ export function useInstalledSkills() {
         setError('Failed to load installed skills')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      logger.error('Failed to list installed skills', { err })
+      setError(err instanceof Error ? err.message : 'Unknown error occurred')
     } finally {
       setLoading(false)
     }
@@ -39,7 +44,8 @@ export function useInstalledSkills() {
           await refresh()
         }
         return result.success
-      } catch {
+      } catch (err) {
+        logger.error('Failed to toggle skill', { err, skillId, isEnabled })
         return false
       }
     },
@@ -54,7 +60,8 @@ export function useInstalledSkills() {
           await refresh()
         }
         return result.success
-      } catch {
+      } catch (err) {
+        logger.error('Failed to uninstall skill', { err, skillId })
         return false
       }
     },
@@ -170,4 +177,41 @@ export function useSkillInstall() {
   )
 
   return { installingKey, isInstalling, install, installFromZip, installFromDirectory }
+}
+
+export function useSkillsLibrary(libraryPath: string | undefined, options?: { maxDepth?: number }) {
+  const [skills, setSkills] = useState<LibrarySkillEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    if (!libraryPath) {
+      setSkills([])
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.api.skills.listLibrary({ libraryPath, maxDepth: options?.maxDepth })
+      if (result.success) {
+        setSkills(result.data)
+      } else {
+        setError((result.error as PluginError)?.type ?? 'Failed to list skills library')
+      }
+    } catch (err) {
+      logger.error('Failed to list skills library', { err })
+      setError(err instanceof Error ? err.message : 'Unknown error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }, [libraryPath, options?.maxDepth])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  return { skills, loading, error, refresh }
 }

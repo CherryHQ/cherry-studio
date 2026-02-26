@@ -1131,6 +1131,29 @@
       },
       "send": "Send",
       "settings": "Settings",
+      "skills": {
+        "enabled": {
+          "description": "Pin/highlight selected skills",
+          "title": "Enable Skills"
+        },
+        "errors": {
+          "import_failed": "Failed to import skill",
+          "library_not_set": "Unable to get skills library path. Set it in Settings.",
+          "read_failed": "Failed to read skill content"
+        },
+        "import": {
+          "success": "Imported: {{name}}"
+        },
+        "insert": {
+          "description": "Insert skill content into the input",
+          "title": "Insert Skill"
+        },
+        "library": {
+          "not_set": "Not set",
+          "title": "Import/Update from Library"
+        },
+        "title": "Skills"
+      },
       "slash_commands": {
         "description": "Agent session slash commands",
         "title": "Slash Commands"
@@ -5713,11 +5736,20 @@
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",
       "selectFile": "Select a file to view",
-      "title": "Skills",
       "uninstall": "Uninstall",
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
-      "zip": "ZIP"
+      "zip": "ZIP",
+      "library_path": {
+        "help": "Used for importing/updating skills. Each skill is a folder containing SKILL.md.",
+        "open": "Open",
+        "open_failed": "Failed to open skills library directory",
+        "placeholder": "Default: ~/skills",
+        "saved": "Skills library path saved",
+        "select": "Select",
+        "title": "Skills library directory"
+      },
+      "title": "Skills"
     },
     "theme": {
       "color_primary": "Primary Color",
