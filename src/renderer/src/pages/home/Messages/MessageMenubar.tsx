@@ -148,7 +148,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const [isTranslating, setIsTranslating] = useState(false)
   const translationAbortKey = createTranslationAbortKey(message.id)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
@@ -229,19 +228,20 @@ const MessageMenubar: FC<Props> = (props) => {
     startEditing(message.id)
   }, [message.id, startEditing])
 
+  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
+
+  const isTranslating = useMemo(() => {
+    const block = findTranslationBlocksById(message.id)[0]
+    return block?.status === MessageBlockStatus.STREAMING || block?.status === MessageBlockStatus.PROCESSING
+  }, [message.id, blockEntities])
+
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
-      if (isTranslating) {
-        return
-      }
+      if (isTranslating) return
 
-      setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
-      if (!translationUpdater) {
-        setIsTranslating(false)
-        return
-      }
+      if (!translationUpdater) return
 
       try {
         await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
@@ -249,7 +249,6 @@ const MessageMenubar: FC<Props> = (props) => {
         if (!isAbortError(error)) {
           window.toast.error(t('translate.error.failed'))
         }
-        // 理应只有一个
         const translationBlocks = findTranslationBlocksById(message.id)
         logger.silly(`there are ${translationBlocks.length} translation blocks`)
         if (translationBlocks.length > 0) {
@@ -259,8 +258,6 @@ const MessageMenubar: FC<Props> = (props) => {
             dispatch(removeOneBlock(block.id))
           }
         }
-      } finally {
-        setIsTranslating(false)
       }
     },
     [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, dispatch]
@@ -532,7 +529,6 @@ const MessageMenubar: FC<Props> = (props) => {
     [message.id, onUpdateUseful]
   )
 
-  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
     return translationBlocks.length > 0
@@ -758,6 +754,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   },
   translate: ({
     isUserMessage,
+    isTranslating,
     translateLanguages,
     handleTranslate,
     hasTranslationBlocks,
@@ -770,12 +767,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     if (isUserMessage) {
       return null
     }
-
-    // Assume that up to one translation block
-    const translationBlock = findTranslationBlocksById(message.id)[0]
-    const isTranslating =
-      translationBlock?.status === MessageBlockStatus.STREAMING ||
-      translationBlock?.status === MessageBlockStatus.PROCESSING
 
     if (isTranslating) {
       return (
