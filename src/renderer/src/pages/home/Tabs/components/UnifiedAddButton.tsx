@@ -63,7 +63,13 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setAct
 
   return (
     <div className="-mt-[2px] mb-[6px]">
-      <AddButton onClick={handleAddButtonClick}>{t('chat.add.assistant.title')}</AddButton>
+      <AddButton
+        onClick={handleAddButtonClick}
+        style={{
+          width: '-webkit-fill-available'
+        }}>
+        {t('chat.add.assistant.title')}
+      </AddButton>
     </div>
   )
 }

@@ -8,11 +8,13 @@ import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
+import { getCssVariable } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch } from 'react-redux'
+import { Group, Panel, type PanelImperativeHandle } from 'react-resizable-panels'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -26,7 +28,7 @@ const HomePage: FC = () => {
   const { assistants } = useAssistants()
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
-
+  const collapsibleRef = useRef<PanelImperativeHandle>(null)
   // Initialize agent session hook
   useAgentSessionInitializer()
 
@@ -41,6 +43,7 @@ const HomePage: FC = () => {
   const dispatch = useDispatch()
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat
+  const assistantsWidth = getCssVariable('--assistants-width')
 
   _activeAssistant = activeAssistant
 
@@ -104,34 +107,48 @@ const HomePage: FC = () => {
         />
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
-        <AnimatePresence initial={false}>
+        <Group orientation="horizontal">
           {showAssistants && (
-            <ErrorBoundary>
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <HomeTabs
-                  activeAssistant={activeAssistant}
-                  activeTopic={activeTopic}
-                  setActiveAssistant={setActiveAssistant}
-                  setActiveTopic={setActiveTopic}
-                  position="left"
-                />
-              </motion.div>
-            </ErrorBoundary>
+            <Panel
+              collapsible={false}
+              defaultSize={assistantsWidth}
+              maxSize={'400px'}
+              minSize={'150px'}
+              panelRef={collapsibleRef}>
+              <AnimatePresence initial={false}>
+                {showAssistants && (
+                  <ErrorBoundary>
+                    <motion.div
+                      initial={{ width: assistantsWidth, opacity: 0 }}
+                      animate={{ width: '100%', opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}>
+                      <HomeTabs
+                        activeAssistant={activeAssistant}
+                        activeTopic={activeTopic}
+                        setActiveAssistant={setActiveAssistant}
+                        setActiveTopic={setActiveTopic}
+                        position="left"
+                      />
+                    </motion.div>
+                  </ErrorBoundary>
+                )}
+              </AnimatePresence>
+            </Panel>
           )}
-        </AnimatePresence>
-        <ErrorBoundary>
-          <Chat
-            assistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            setActiveAssistant={setActiveAssistant}
-          />
-        </ErrorBoundary>
+
+          <Panel>
+            <ErrorBoundary>
+              <Chat
+                assistant={activeAssistant}
+                activeTopic={activeTopic}
+                setActiveTopic={setActiveTopic}
+                setActiveAssistant={setActiveAssistant}
+              />
+            </ErrorBoundary>
+          </Panel>
+        </Group>
       </ContentContainer>
     </Container>
   )

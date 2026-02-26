@@ -85,6 +85,7 @@
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
     "os-proxy-config": "1.1.2",
+    "react-resizable-panels": "^4.6.5",
     "selection-hook": "1.0.12",
     "sharp": "0.34.3",
     "swagger-jsdoc": "6.2.8",

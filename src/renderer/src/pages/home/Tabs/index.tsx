@@ -142,7 +142,6 @@ const HomeTabs: FC<Props> = ({
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  width: var(--assistants-width);
   transition: width 0.3s;
   height: calc(100vh - var(--navbar-height));
   position: relative;

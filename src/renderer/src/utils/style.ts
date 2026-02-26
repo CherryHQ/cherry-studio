@@ -208,3 +208,15 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+/**
+ * 获取指定的 CSS 变量值
+ * @param {string} varName - 变量名，如 '--assistants-width'
+ * @param {HTMLElement} [element] - 目标元素，默认为 document.documentElement (即 :root)
+ * @returns {string} - 解析后的字符串值
+ */
+export function getCssVariable(varName, element = document.documentElement) {
+  // 确保变量名以 -- 开头
+  const name = varName.startsWith('--') ? varName : `--${varName}`
+  return getComputedStyle(element).getPropertyValue(name).trim()
+}

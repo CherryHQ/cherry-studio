@@ -575,7 +575,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         itemContainerStyle={{ paddingBottom: '8px' }}
         header={
           <HeaderRow>
-            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ flexGrow: 1 }}>
               {t('chat.add.topic.title')}
             </AddButton>
             <Tooltip title={t('chat.topics.manage.title')} mouseEnterDelay={0.5}>
@@ -733,7 +733,7 @@ const TopicListItem = styled.div`
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+  width: 94%;
 
   .menu {
     opacity: 0;
