@@ -255,7 +255,7 @@ const MessageMenubar: FC<Props> = (props) => {
         translateAbortKeyRef.current = null
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
+    [message, getTranslationUpdater, mainTextContent, t, dispatch]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
