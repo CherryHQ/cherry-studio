@@ -1,4 +1,4 @@
-import { isSerializable } from '@renderer/types/serialize'
+import { isSerializable } from '@types'
 
 /**
  * 安全地序列化一个值为 JSON 字符串。
