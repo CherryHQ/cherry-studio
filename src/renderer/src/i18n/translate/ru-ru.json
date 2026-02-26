@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "Экспорт как изображение",
+        "image_saved": "[to be translated]:Image saved successfully",
         "joplin": "Экспорт в Joplin",
         "md": {
           "label": "Экспорт как markdown",
