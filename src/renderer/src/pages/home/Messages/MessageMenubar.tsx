@@ -64,7 +64,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -158,6 +158,15 @@ const MessageMenubar: FC<Props> = (props) => {
     removeMessageBlock
   } = useMessageOperations(topic)
 
+  // 如果在翻译中离开了页面，或者消息被删除了，应该取消翻译请求
+  useEffect(() => {
+    return () => {
+      if (translateAbortKeyRef.current) {
+        abortCompletion(translateAbortKeyRef.current)
+      }
+    }
+  }, [])
+
   const { isBubbleStyle } = useMessageStyle()
   const { enableDeveloperMode } = useEnableDeveloperMode()
   const { confirmDeleteMessage, confirmRegenerateMessage } = useSettings()
@@ -226,10 +235,17 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
+      if (isTranslating) {
+        return
+      }
+
       setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language.langCode)
-      if (!translationUpdater) return
+      if (!translationUpdater) {
+        setIsTranslating(false)
+        return
+      }
 
       const abortKey = uuid()
       translateAbortKeyRef.current = abortKey
@@ -255,7 +271,7 @@ const MessageMenubar: FC<Props> = (props) => {
         translateAbortKeyRef.current = null
       }
     },
-    [message, getTranslationUpdater, mainTextContent, t, dispatch]
+    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
