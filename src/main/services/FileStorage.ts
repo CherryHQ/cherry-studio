@@ -676,9 +676,10 @@ class FileStorage {
 
       const parseResult = parseDataUrl(base64Data)
       const base64String = parseResult?.data ?? base64Data
+      const ext = parseResult?.mediaType ? this.getExtensionFromMimeType(parseResult.mediaType) : '.png'
+
       const buffer = Buffer.from(base64String, 'base64')
       const uuid = uuidv4()
-      const ext = '.png'
       const destPath = path.join(this.storageDir, uuid + ext)
 
       logger.debug('Saving base64 image:', {
@@ -1563,6 +1564,8 @@ class FileStorage {
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/bmp': '.bmp',
       'application/pdf': '.pdf',
       'text/plain': '.txt',
       'application/msword': '.doc',

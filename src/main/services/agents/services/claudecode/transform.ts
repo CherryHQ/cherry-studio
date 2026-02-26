@@ -21,13 +21,12 @@
  */
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { BetaStopReason } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { loggerService } from '@logger'
-import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart } from 'ai'
+import type { LanguageModelUsage, ProviderMetadata, TextStreamPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import { ClaudeStreamState } from './claude-stream-state'
-import { mapClaudeCodeFinishReason } from './map-claude-code-finish-reason'
+import { convertClaudeCodeUsage, mapClaudeCodeFinishReason, mapClaudeCodeStopReason } from './utils'
 
 const logger = loggerService.withContext('ClaudeCodeTransform')
 
@@ -47,23 +46,19 @@ type ToolResultContent = {
   is_error?: boolean
 }
 
-/**
- * Maps Anthropic stop reasons to the AiSDK equivalents so higher level
- * consumers can treat completion states uniformly across providers.
- */
-const finishReasonMapping: Record<BetaStopReason, FinishReason> = {
-  end_turn: 'stop',
-  max_tokens: 'length',
-  stop_sequence: 'stop',
-  tool_use: 'tool-calls',
-  pause_turn: 'unknown',
-  refusal: 'content-filter'
-}
-
 const emptyUsage: LanguageModelUsage = {
   inputTokens: 0,
   outputTokens: 0,
-  totalTokens: 0
+  totalTokens: 0,
+  inputTokenDetails: {
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: 0
+  },
+  outputTokenDetails: {
+    textTokens: 0,
+    reasoningTokens: 0
+  }
 }
 
 /**
@@ -295,8 +290,7 @@ function finalizeNonStreamingStep(
   state: ClaudeStreamState,
   chunks: AgentStreamPart[]
 ): AgentStreamPart[] {
-  const usage = calculateUsageFromMessage(message)
-  const finishReason = inferFinishReason(message.message.stop_reason)
+  const finishReason = mapClaudeCodeStopReason(message.message.stop_reason)
   chunks.push({
     type: 'finish-step',
     response: {
@@ -304,8 +298,9 @@ function finalizeNonStreamingStep(
       timestamp: new Date(),
       modelId: message.message.model ?? ''
     },
-    usage: usage ?? emptyUsage,
+    usage: convertClaudeCodeUsage(message.message.usage),
     finishReason,
+    rawFinishReason: message.message.stop_reason ?? undefined,
     providerMetadata: sdkMessageToProviderMetadata(message)
   })
   state.resetStep()
@@ -508,10 +503,8 @@ function handleStreamEvent(
     }
 
     case 'message_delta': {
-      const finishReason = event.delta.stop_reason
-        ? mapStopReason(event.delta.stop_reason as BetaStopReason)
-        : undefined
-      const usage = convertUsage(event.usage)
+      const finishReason = mapClaudeCodeStopReason(event.delta.stop_reason)
+      const usage = convertClaudeCodeUsage(event.usage)
       state.setPendingUsage(usage, finishReason)
       break
     }
@@ -529,6 +522,7 @@ function handleStreamEvent(
           modelId: ''
         },
         usage: pending.usage ?? emptyUsage,
+        rawFinishReason: pending.finishReason ?? 'stop',
         finishReason: pending.finishReason ?? 'stop',
         providerMetadata
       })
@@ -712,20 +706,12 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
 function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): AgentStreamPart[] {
   const chunks: AgentStreamPart[] = []
 
-  let usage: LanguageModelUsage | undefined
-  if ('usage' in message) {
-    usage = {
-      inputTokens: message.usage.input_tokens ?? 0,
-      outputTokens: message.usage.output_tokens ?? 0,
-      totalTokens: (message.usage.input_tokens ?? 0) + (message.usage.output_tokens ?? 0)
-    }
-  }
-
   if (message.subtype === 'success') {
     chunks.push({
       type: 'finish',
-      totalUsage: usage ?? emptyUsage,
+      totalUsage: convertClaudeCodeUsage(message.usage),
       finishReason: mapClaudeCodeFinishReason(message.subtype),
+      rawFinishReason: message.subtype,
       providerMetadata: {
         ...sdkMessageToProviderMetadata(message),
         usage: message.usage,
@@ -743,61 +729,6 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
     } as AgentStreamPart)
   }
   return chunks
-}
-
-/**
- * Normalises usage payloads so the caller always receives numeric values even
- * when the provider omits certain fields.
- */
-function convertUsage(
-  usage?: {
-    input_tokens?: number | null
-    output_tokens?: number | null
-  } | null
-): LanguageModelUsage | undefined {
-  if (!usage) {
-    return undefined
-  }
-  const inputTokens = usage.input_tokens ?? 0
-  const outputTokens = usage.output_tokens ?? 0
-  return {
-    inputTokens,
-    outputTokens,
-    totalTokens: inputTokens + outputTokens
-  }
-}
-
-/**
- * Anthropic-only wrapper around {@link finishReasonMapping} that defaults to
- * `unknown` to avoid surprising downstream consumers when new stop reasons are
- * introduced.
- */
-function mapStopReason(reason: BetaStopReason): FinishReason {
-  return finishReasonMapping[reason] ?? 'unknown'
-}
-
-/**
- * Extracts token accounting details from an assistant message, if available.
- */
-function calculateUsageFromMessage(
-  message: Extract<SDKMessage, { type: 'assistant' }>
-): LanguageModelUsage | undefined {
-  const usage = message.message.usage
-  if (!usage) return undefined
-  return {
-    inputTokens: usage.input_tokens ?? 0,
-    outputTokens: usage.output_tokens ?? 0,
-    totalTokens: (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0)
-  }
-}
-
-/**
- * Converts Anthropic stop reasons into AiSDK finish reasons, falling back to a
- * generic `stop` if the provider omits the detail entirely.
- */
-function inferFinishReason(stopReason: BetaStopReason | null | undefined): FinishReason {
-  if (!stopReason) return 'stop'
-  return mapStopReason(stopReason)
 }
 
 export { ClaudeStreamState }

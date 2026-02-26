@@ -1,15 +1,17 @@
-import type { ImageModelV2 } from '@ai-sdk/provider'
-import { experimental_generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
+import type { ImageModelV3 } from '@ai-sdk/provider'
+import { createMockImageModel, createMockProviderV3 } from '@test-utils'
+import { generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type AiPlugin } from '../../plugins'
-import { globalRegistryManagement } from '../../providers/RegistryManagement'
 import { ImageGenerationError, ImageModelResolutionError } from '../errors'
 import { RuntimeExecutor } from '../executor'
 
 // Mock dependencies
 vi.mock('ai', () => ({
   experimental_generateImage: vi.fn(),
+  generateImage: vi.fn(),
+  jsonSchema: vi.fn((schema) => schema),
   NoImageGeneratedError: class NoImageGeneratedError extends Error {
     static isInstance = vi.fn()
     constructor() {
@@ -19,32 +21,32 @@ vi.mock('ai', () => ({
   }
 }))
 
-vi.mock('../../providers/RegistryManagement', () => ({
-  globalRegistryManagement: {
-    imageModel: vi.fn()
-  },
-  DEFAULT_SEPARATOR: '|'
-}))
-
 describe('RuntimeExecutor.generateImage', () => {
-  let executor: RuntimeExecutor<'openai'>
-  let mockImageModel: ImageModelV2
+  let executor: RuntimeExecutor
+  let mockImageModel: ImageModelV3
+  let mockProvider: any
   let mockGenerateImageResult: any
 
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks()
 
-    // Create executor instance
-    executor = RuntimeExecutor.create('openai', {
-      apiKey: 'test-key'
-    })
-
     // Mock image model
-    mockImageModel = {
+    mockImageModel = createMockImageModel({
       modelId: 'dall-e-3',
       provider: 'openai'
-    } as ImageModelV2
+    })
+
+    // Create mock provider with imageModel as a spy
+    mockProvider = createMockProviderV3({
+      provider: 'openai',
+      imageModel: vi.fn(() => mockImageModel)
+    })
+
+    // Create executor instance
+    executor = RuntimeExecutor.create('openai', mockProvider, {
+      apiKey: 'test-key'
+    })
 
     // Mock generateImage result
     mockGenerateImageResult = {
@@ -69,8 +71,6 @@ describe('RuntimeExecutor.generateImage', () => {
       responses: []
     }
 
-    // Setup mocks to avoid "No providers registered" error
-    vi.mocked(globalRegistryManagement.imageModel).mockReturnValue(mockImageModel)
     vi.mocked(aiGenerateImage).mockResolvedValue(mockGenerateImageResult)
   })
 
@@ -78,7 +78,7 @@ describe('RuntimeExecutor.generateImage', () => {
     it('should generate a single image with minimal parameters', async () => {
       const result = await executor.generateImage({ model: 'dall-e-3', prompt: 'A futuristic cityscape at sunset' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('openai|dall-e-3')
+      expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
 
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: mockImageModel,
@@ -94,7 +94,8 @@ describe('RuntimeExecutor.generateImage', () => {
         prompt: 'A beautiful landscape'
       })
 
-      // Note: globalRegistryManagement.imageModel may still be called due to resolveImageModel logic
+      // Pre-created model is used directly, provider.imageModel is not called
+      expect(mockProvider.imageModel).not.toHaveBeenCalled()
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: mockImageModel,
         prompt: 'A beautiful landscape'
@@ -222,6 +223,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       const executorWithPlugin = RuntimeExecutor.create(
         'openai',
+        mockProvider,
         {
           apiKey: 'test-key'
         },
@@ -258,7 +260,7 @@ describe('RuntimeExecutor.generateImage', () => {
       const customImageModel = {
         modelId: 'custom-model',
         provider: 'openai'
-      } as ImageModelV2
+      } as ImageModelV3
 
       const modelResolutionPlugin: AiPlugin = {
         name: 'model-resolver',
@@ -267,6 +269,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       const executorWithPlugin = RuntimeExecutor.create(
         'openai',
+        mockProvider,
         {
           apiKey: 'test-key'
         },
@@ -307,6 +310,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       const executorWithPlugin = RuntimeExecutor.create(
         'openai',
+        mockProvider,
         {
           apiKey: 'test-key'
         },
@@ -323,7 +327,8 @@ describe('RuntimeExecutor.generateImage', () => {
   describe('Error handling', () => {
     it('should handle model creation errors', async () => {
       const modelError = new Error('Failed to get image model')
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      // Since mockProvider.imageModel is already a vi.fn() spy, we can mock it directly
+      mockProvider.imageModel.mockImplementation(() => {
         throw modelError
       })
 
@@ -334,7 +339,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
     it('should handle ImageModelResolutionError correctly', async () => {
       const resolutionError = new ImageModelResolutionError('invalid-model', 'openai', new Error('Model not found'))
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      mockProvider.imageModel.mockImplementation(() => {
         throw resolutionError
       })
 
@@ -351,7 +356,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
     it('should handle ImageModelResolutionError without provider', async () => {
       const resolutionError = new ImageModelResolutionError('unknown-model')
-      vi.mocked(globalRegistryManagement.imageModel).mockImplementation(() => {
+      mockProvider.imageModel.mockImplementation(() => {
         throw resolutionError
       })
 
@@ -396,6 +401,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       const executorWithPlugin = RuntimeExecutor.create(
         'openai',
+        mockProvider,
         {
           apiKey: 'test-key'
         },
@@ -434,23 +440,43 @@ describe('RuntimeExecutor.generateImage', () => {
 
   describe('Multiple providers support', () => {
     it('should work with different providers', async () => {
-      const googleExecutor = RuntimeExecutor.create('google', {
+      const googleImageModel = createMockImageModel({
+        provider: 'google',
+        modelId: 'imagen-3.0-generate-002'
+      })
+
+      const googleProvider = createMockProviderV3({
+        provider: 'google',
+        imageModel: vi.fn(() => googleImageModel)
+      })
+
+      const googleExecutor = RuntimeExecutor.create('google', googleProvider, {
         apiKey: 'google-key'
       })
 
       await googleExecutor.generateImage({ model: 'imagen-3.0-generate-002', prompt: 'A landscape' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('google|imagen-3.0-generate-002')
+      expect(googleProvider.imageModel).toHaveBeenCalledWith('imagen-3.0-generate-002')
     })
 
     it('should support xAI Grok image models', async () => {
-      const xaiExecutor = RuntimeExecutor.create('xai', {
+      const xaiImageModel = createMockImageModel({
+        provider: 'xai',
+        modelId: 'grok-2-image'
+      })
+
+      const xaiProvider = createMockProviderV3({
+        provider: 'xai',
+        imageModel: vi.fn(() => xaiImageModel)
+      })
+
+      const xaiExecutor = RuntimeExecutor.create('xai', xaiProvider, {
         apiKey: 'xai-key'
       })
 
       await xaiExecutor.generateImage({ model: 'grok-2-image', prompt: 'A futuristic robot' })
 
-      expect(globalRegistryManagement.imageModel).toHaveBeenCalledWith('xai|grok-2-image')
+      expect(xaiProvider.imageModel).toHaveBeenCalledWith('grok-2-image')
     })
   })
 

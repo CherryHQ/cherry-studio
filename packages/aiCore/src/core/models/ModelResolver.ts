@@ -1,46 +1,56 @@
 /**
  * 模型解析器 - models模块的核心
  * 负责将modelId解析为AI SDK的LanguageModel实例
- * 支持传统格式和命名空间格式
- * 集成了来自 ModelCreator 的特殊处理逻辑
+ *
+ * 支持两种格式:
+ * 1. 传统格式: 'gpt-4' (直接使用当前provider)
+ * 2. 命名空间格式: 'hub|provider|model' (HubProvider内部路由)
  */
 
-import type { EmbeddingModelV2, ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type {
+  EmbeddingModelV3,
+  ImageModelV3,
+  LanguageModelV3,
+  LanguageModelV3Middleware,
+  ProviderV3
+} from '@ai-sdk/provider'
 
 import { wrapModelWithMiddlewares } from '../middleware/wrapper'
-import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../providers/RegistryManagement'
 
 export class ModelResolver {
+  private provider: ProviderV3
+
   /**
-   * 核心方法：解析任意格式的modelId为语言模型
-   *
-   * @param modelId 模型ID，支持 'gpt-4' 和 'anthropic>claude-3' 两种格式
-   * @param fallbackProviderId 当modelId为传统格式时使用的providerId
-   * @param providerOptions provider配置选项（用于OpenAI模式选择等）
-   * @param middlewares 中间件数组，会应用到最终模型上
+   * 构造函数接受provider实例
+   * Provider可以是普通provider或HubProvider
    */
-  async resolveLanguageModel(
-    modelId: string,
-    fallbackProviderId: string,
-    providerOptions?: any,
-    middlewares?: LanguageModelV2Middleware[]
-  ): Promise<LanguageModelV2> {
-    let finalProviderId = fallbackProviderId
-    let model: LanguageModelV2
-    // 🎯 处理 OpenAI 模式选择逻辑 (从 ModelCreator 迁移)
-    if ((fallbackProviderId === 'openai' || fallbackProviderId === 'azure') && providerOptions?.mode === 'chat') {
-      finalProviderId = `${fallbackProviderId}-chat`
-    }
+  constructor(provider: ProviderV3) {
+    this.provider = provider
+  }
 
-    // 检查是否是命名空间格式
-    if (modelId.includes(DEFAULT_SEPARATOR)) {
-      model = this.resolveNamespacedModel(modelId)
-    } else {
-      // 传统格式：使用处理后的 providerId + modelId
-      model = this.resolveTraditionalModel(finalProviderId, modelId)
-    }
+  /**
+   * 解析语言模型
+   *
+   * @param modelId 模型ID，支持传统格式('gpt-4')或命名空间格式('hub|provider|model')
+   * @param middlewares 可选的中间件数组，会应用到最终模型上
+   * @returns 解析后的语言模型实例
+   *
+   * @example
+   * ```typescript
+   * // 传统格式
+   * const model = await resolver.resolveLanguageModel('gpt-4')
+   *
+   * // 命名空间格式 (需要HubProvider)
+   * const model = await resolver.resolveLanguageModel('hub|openai|gpt-4')
+   * ```
+   */
+  async resolveLanguageModel(modelId: string, middlewares?: LanguageModelV3Middleware[]): Promise<LanguageModelV3> {
+    // 直接将完整的modelId传给provider
+    // - 如果是普通provider，会直接使用modelId
+    // - 如果是HubProvider，会解析命名空间并路由到正确的provider
+    let model = this.provider.languageModel(modelId)
 
-    // 🎯 应用中间件（如果有）
+    // 应用中间件
     if (middlewares && middlewares.length > 0) {
       model = wrapModelWithMiddlewares(model, middlewares)
     }
@@ -50,75 +60,21 @@ export class ModelResolver {
 
   /**
    * 解析文本嵌入模型
+   *
+   * @param modelId 模型ID
+   * @returns 解析后的嵌入模型实例
    */
-  async resolveTextEmbeddingModel(modelId: string, fallbackProviderId: string): Promise<EmbeddingModelV2<string>> {
-    if (modelId.includes(DEFAULT_SEPARATOR)) {
-      return this.resolveNamespacedEmbeddingModel(modelId)
-    }
-
-    return this.resolveTraditionalEmbeddingModel(fallbackProviderId, modelId)
+  async resolveEmbeddingModel(modelId: string): Promise<EmbeddingModelV3> {
+    return this.provider.embeddingModel(modelId)
   }
 
   /**
-   * 解析图像模型
+   * 解析图像生成模型
+   *
+   * @param modelId 模型ID
+   * @returns 解析后的图像模型实例
    */
-  async resolveImageModel(modelId: string, fallbackProviderId: string): Promise<ImageModelV2> {
-    if (modelId.includes(DEFAULT_SEPARATOR)) {
-      return this.resolveNamespacedImageModel(modelId)
-    }
-
-    return this.resolveTraditionalImageModel(fallbackProviderId, modelId)
-  }
-
-  /**
-   * 解析命名空间格式的语言模型
-   * aihubmix:anthropic:claude-3 -> globalRegistryManagement.languageModel('aihubmix:anthropic:claude-3')
-   */
-  private resolveNamespacedModel(modelId: string): LanguageModelV2 {
-    return globalRegistryManagement.languageModel(modelId as any)
-  }
-
-  /**
-   * 解析传统格式的语言模型
-   * providerId: 'openai', modelId: 'gpt-4' -> globalRegistryManagement.languageModel('openai:gpt-4')
-   */
-  private resolveTraditionalModel(providerId: string, modelId: string): LanguageModelV2 {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.languageModel(fullModelId as any)
-  }
-
-  /**
-   * 解析命名空间格式的嵌入模型
-   */
-  private resolveNamespacedEmbeddingModel(modelId: string): EmbeddingModelV2<string> {
-    return globalRegistryManagement.textEmbeddingModel(modelId as any)
-  }
-
-  /**
-   * 解析传统格式的嵌入模型
-   */
-  private resolveTraditionalEmbeddingModel(providerId: string, modelId: string): EmbeddingModelV2<string> {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.textEmbeddingModel(fullModelId as any)
-  }
-
-  /**
-   * 解析命名空间格式的图像模型
-   */
-  private resolveNamespacedImageModel(modelId: string): ImageModelV2 {
-    return globalRegistryManagement.imageModel(modelId as any)
-  }
-
-  /**
-   * 解析传统格式的图像模型
-   */
-  private resolveTraditionalImageModel(providerId: string, modelId: string): ImageModelV2 {
-    const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
-    return globalRegistryManagement.imageModel(fullModelId as any)
+  async resolveImageModel(modelId: string): Promise<ImageModelV3> {
+    return this.provider.imageModel(modelId)
   }
 }
-
-/**
- * 全局模型解析器实例
- */
-export const globalModelResolver = new ModelResolver()

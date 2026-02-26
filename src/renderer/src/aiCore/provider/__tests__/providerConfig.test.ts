@@ -76,6 +76,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
   })
 }))
 
+import type { ProviderConfig } from '@renderer/aiCore/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
@@ -85,6 +86,8 @@ import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesMode
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as any
+
+// ==================== Test Helpers ====================
 
 const createWindowKeyv = () => {
   const store = new Map<string, string>()
@@ -96,6 +99,47 @@ const createWindowKeyv = () => {
   }
 }
 
+/** Setup window mock with optional copilot API */
+const setupWindowMock = (options?: { withCopilotToken?: boolean }) => {
+  const windowMock: any = {
+    ...(globalThis as any).window,
+    keyv: createWindowKeyv()
+  }
+
+  if (options?.withCopilotToken) {
+    windowMock.api = {
+      copilot: {
+        getToken: vi.fn().mockResolvedValue({ token: 'mock-copilot-token' })
+      }
+    }
+  }
+
+  ;(globalThis as any).window = windowMock
+}
+
+/** Setup store state mock with optional includeUsage setting */
+const setupStoreMock = (includeUsage?: boolean) => {
+  mockGetState.mockReturnValue({
+    copilot: { defaultHeaders: {} },
+    settings: {
+      openAI: {
+        streamOptions: {
+          includeUsage
+        }
+      }
+    }
+  })
+}
+
+/** Common beforeEach setup for most tests */
+const setupCommonMocks = (options?: { withCopilotToken?: boolean; includeUsage?: boolean }) => {
+  setupWindowMock(options)
+  setupStoreMock(options?.includeUsage)
+  vi.clearAllMocks()
+}
+
+// ==================== Provider Factories ====================
+
 const createCopilotProvider = (): Provider => ({
   id: 'copilot',
   type: 'openai',
@@ -106,11 +150,14 @@ const createCopilotProvider = (): Provider => ({
   isSystem: true
 })
 
-const createModel = (id: string, name = id, provider = 'copilot'): Model => ({
-  id,
-  name,
-  provider,
-  group: provider
+const createOpenAIProvider = (): Provider => ({
+  id: 'openai-compatible',
+  type: 'openai',
+  name: 'OpenAI',
+  apiKey: 'test-key',
+  apiHost: 'https://api.openai.com',
+  models: [],
+  isSystem: true
 })
 
 const createCherryAIProvider = (): Provider => ({
@@ -144,22 +191,16 @@ const createAzureProvider = (apiVersion: string): Provider => ({
   isSystem: true
 })
 
+const createModel = (id: string, name = id, provider = 'copilot'): Model => ({
+  id,
+  name,
+  provider,
+  group: provider
+})
+
 describe('Copilot responses routing', () => {
   beforeEach(() => {
-    ;(globalThis as any).window = {
-      ...(globalThis as any).window,
-      keyv: createWindowKeyv()
-    }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+    setupCommonMocks({ withCopilotToken: true })
   })
 
   it('detects official GPT-5 Codex identifiers case-insensitively', () => {
@@ -169,43 +210,33 @@ describe('Copilot responses routing', () => {
     expect(isCopilotResponsesModel(createModel('custom-id', 'custom-name'))).toBe(false)
   })
 
-  it('configures gpt-5-codex with the Copilot provider', () => {
+  it('configures gpt-5-codex with the Copilot provider', async () => {
     const provider = createCopilotProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
+    const config = await providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
-    expect(config.options.headers?.['copilot-vision-request']).toBe('true')
+    expect(config.providerSettings.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.providerSettings.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
+    expect(config.providerSettings.headers?.['copilot-vision-request']).toBe('true')
   })
 
-  it('uses the Copilot provider for other models and keeps headers', () => {
+  it('uses the Copilot provider for other models and keeps headers', async () => {
     const provider = createCopilotProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4'))
+    const config = await providerToAiSdkConfig(provider, createModel('gpt-4'))
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
-    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
+    expect(config.providerSettings.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
+    expect(config.providerSettings.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
   })
 })
 
 describe('CherryAI provider configuration', () => {
   beforeEach(() => {
-    ;(globalThis as any).window = {
-      ...(globalThis as any).window,
-      keyv: createWindowKeyv()
-    }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
-    vi.clearAllMocks()
+    setupCommonMocks()
   })
 
   it('formats CherryAI provider apiHost with false parameter', () => {
@@ -272,21 +303,7 @@ describe('CherryAI provider configuration', () => {
 
 describe('Perplexity provider configuration', () => {
   beforeEach(() => {
-    ;(globalThis as any).window = {
-      ...(globalThis as any).window,
-      keyv: createWindowKeyv()
-    }
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
-    vi.clearAllMocks()
+    setupCommonMocks()
   })
 
   it('formats Perplexity provider apiHost with false parameter', () => {
@@ -356,88 +373,48 @@ describe('Perplexity provider configuration', () => {
 
 describe('Stream options includeUsage configuration', () => {
   beforeEach(() => {
-    ;(globalThis as any).window = {
-      ...(globalThis as any).window,
-      keyv: createWindowKeyv()
-    }
+    setupWindowMock()
     vi.clearAllMocks()
   })
 
-  const createOpenAIProvider = (): Provider => ({
-    id: 'openai-compatible',
-    type: 'openai',
-    name: 'OpenAI',
-    apiKey: 'test-key',
-    apiHost: 'https://api.openai.com',
-    models: [],
-    isSystem: true
-  })
-
-  it('uses includeUsage from settings when undefined', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
+  it('uses includeUsage from settings when undefined', async () => {
+    setupStoreMock(undefined)
 
     const provider = createOpenAIProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
+    const config = (await providerToAiSdkConfig(
+      provider,
+      createModel('gpt-4', 'GPT-4', 'openai')
+    )) as ProviderConfig<'openai-compatible'>
 
-    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerSettings.includeUsage).toBeUndefined()
   })
 
-  it('uses includeUsage from settings when set to true', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
+  it('uses includeUsage from settings when set to true', async () => {
+    setupStoreMock(true)
 
     const provider = createOpenAIProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
+    const config = (await providerToAiSdkConfig(
+      provider,
+      createModel('gpt-4', 'GPT-4', 'openai')
+    )) as ProviderConfig<'openai-compatible'>
 
-    expect(config.options.includeUsage).toBe(true)
+    expect(config.providerSettings.includeUsage).toBe(true)
   })
 
-  it('uses includeUsage from settings when set to false', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: false
-          }
-        }
-      }
-    })
+  it('uses includeUsage from settings when set to false', async () => {
+    setupStoreMock(false)
 
     const provider = createOpenAIProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'openai'))
+    const config = (await providerToAiSdkConfig(
+      provider,
+      createModel('gpt-4', 'GPT-4', 'openai')
+    )) as ProviderConfig<'openai-compatible'>
 
-    expect(config.options.includeUsage).toBe(false)
+    expect(config.providerSettings.includeUsage).toBe(false)
   })
 
-  it('respects includeUsage setting for non-supporting providers', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
+  it('respects includeUsage setting for non-supporting providers', async () => {
+    setupStoreMock(true)
 
     const testProvider: Provider = {
       id: 'test',
@@ -452,109 +429,64 @@ describe('Stream options includeUsage configuration', () => {
       }
     }
 
-    const config = providerToAiSdkConfig(testProvider, createModel('gpt-4', 'GPT-4', 'test'))
+    const config = (await providerToAiSdkConfig(
+      testProvider,
+      createModel('gpt-4', 'GPT-4', 'test')
+    )) as ProviderConfig<'openai-compatible'>
 
     // Even though setting is true, provider doesn't support it, so includeUsage should be undefined
-    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerSettings.includeUsage).toBeUndefined()
   })
 
-  it('uses includeUsage from settings for Copilot provider when set to false', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: false
-          }
-        }
-      }
-    })
+  it('Copilot provider does not include includeUsage setting', async () => {
+    setupCommonMocks({ withCopilotToken: true, includeUsage: false })
 
     const provider = createCopilotProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
+    const config = await providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
 
-    expect(config.options.includeUsage).toBe(false)
-    expect(config.providerId).toBe('github-copilot-openai-compatible')
-  })
-
-  it('uses includeUsage from settings for Copilot provider when set to true', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: true
-          }
-        }
-      }
-    })
-
-    const provider = createCopilotProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
-
-    expect(config.options.includeUsage).toBe(true)
-    expect(config.providerId).toBe('github-copilot-openai-compatible')
-  })
-
-  it('uses includeUsage from settings for Copilot provider when undefined', () => {
-    mockGetState.mockReturnValue({
-      copilot: { defaultHeaders: {} },
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
-
-    const provider = createCopilotProvider()
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
-
-    expect(config.options.includeUsage).toBeUndefined()
+    // Copilot provider configuration doesn't include includeUsage
+    expect('includeUsage' in config.providerSettings).toBe(false)
     expect(config.providerId).toBe('github-copilot-openai-compatible')
   })
 })
 
 describe('Azure OpenAI traditional API routing', () => {
   beforeEach(() => {
-    ;(globalThis as any).window = {
-      ...(globalThis as any).window,
-      keyv: createWindowKeyv()
-    }
-    mockGetState.mockReturnValue({
-      settings: {
-        openAI: {
-          streamOptions: {
-            includeUsage: undefined
-          }
-        }
-      }
-    })
-
+    setupCommonMocks()
     vi.mocked(isAzureOpenAIProvider).mockImplementation((provider) => provider.type === 'azure-openai')
   })
 
-  it('uses deployment-based URLs when apiVersion is a date version', () => {
+  it('uses deployment-based URLs when apiVersion is a date version', async () => {
     const provider = createAzureProvider('2024-02-15-preview')
-    const config = providerToAiSdkConfig(provider, createModel('gpt-4o', 'GPT-4o', provider.id))
+    const config = (await providerToAiSdkConfig(
+      provider,
+      createModel('gpt-4o', 'GPT-4o', provider.id)
+    )) as ProviderConfig<'azure'>
 
     expect(config.providerId).toBe('azure')
-    expect(config.options.apiVersion).toBe('2024-02-15-preview')
-    expect(config.options.useDeploymentBasedUrls).toBe(true)
+    expect(config.providerSettings.apiVersion).toBe('2024-02-15-preview')
+    expect(config.providerSettings.useDeploymentBasedUrls).toBe(true)
   })
 
-  it('does not force deployment-based URLs for apiVersion v1/preview', () => {
+  it('does not force deployment-based URLs for apiVersion v1/preview', async () => {
     const v1Provider = createAzureProvider('v1')
-    const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
+    const v1Config = (await providerToAiSdkConfig(
+      v1Provider,
+      createModel('gpt-4o', 'GPT-4o', v1Provider.id)
+    )) as ProviderConfig<'azure-responses'>
+
     expect(v1Config.providerId).toBe('azure-responses')
-    expect(v1Config.options.apiVersion).toBe('v1')
-    expect(v1Config.options.useDeploymentBasedUrls).toBeUndefined()
+    expect(v1Config.providerSettings.apiVersion).toBe('v1')
+    expect(v1Config.providerSettings.useDeploymentBasedUrls).toBeUndefined()
 
     const previewProvider = createAzureProvider('preview')
-    const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
+    const previewConfig = (await providerToAiSdkConfig(
+      previewProvider,
+      createModel('gpt-4o', 'GPT-4o', previewProvider.id)
+    )) as ProviderConfig<'azure-responses'>
+
     expect(previewConfig.providerId).toBe('azure-responses')
-    expect(previewConfig.options.apiVersion).toBe('preview')
-    expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
+    expect(previewConfig.providerSettings.apiVersion).toBe('preview')
+    expect(previewConfig.providerSettings.useDeploymentBasedUrls).toBeUndefined()
   })
 })

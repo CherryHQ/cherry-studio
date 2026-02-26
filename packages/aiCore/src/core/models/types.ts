@@ -1,15 +1,23 @@
 /**
  * Creation 模块类型定义
  */
-import type { LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { JSONObject, LanguageModelV3Middleware } from '@ai-sdk/provider'
 
-import type { ProviderId, ProviderSettingsMap } from '../providers/types'
+import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
 
-export interface ModelConfig<T extends ProviderId = ProviderId> {
+/**
+ * 模型配置
+ *
+ * @typeParam T - Provider ID 类型
+ * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
+ */
+export interface ModelConfig<
+  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
+> {
   providerId: T
   modelId: string
-  providerSettings: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' }
-  middlewares?: LanguageModelV2Middleware[]
-  // 额外模型参数
-  extraModelConfig?: Record<string, any>
+  providerSettings: TSettingsMap[T & keyof TSettingsMap]
+  middlewares?: LanguageModelV3Middleware[]
+  extraModelConfig?: JSONObject
 }

@@ -1,0 +1,106 @@
+diff --git a/dist/index.js b/dist/index.js
+index 5038836c1407e819e83df75195bf320cc1891203..c8d5abdfa14296b9e6c6a9b9a23539ee062d560b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -999,6 +999,21 @@ var OpenAIChatLanguageModel = class {
+               return;
+             }
+             const delta = choice.delta;
++            const reasoningContent = delta.reasoning_content;
++            if (reasoningContent) {
++              if (!isActiveReasoning) {
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: 'reasoning-0',
++                });
++                isActiveReasoning = true;
++              }
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: 'reasoning-0',
++                delta: reasoningContent,
++              });
++            }
+             if (delta.content != null) {
+               if (!isActiveText) {
+                 controller.enqueue({ type: "text-start", id: "0" });
+@@ -1111,6 +1126,9 @@ var OpenAIChatLanguageModel = class {
+             }
+           },
+           flush(controller) {
++            if (isActiveReasoning) {
++              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
++            } 
+             if (isActiveText) {
+               controller.enqueue({ type: "text-end", id: "0" });
+             }
+@@ -1723,6 +1741,7 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       data: import_v48.z.array(
+         import_v48.z.object({
+           b64_json: import_v48.z.string(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -1833,7 +1852,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 2a58125b0f80f9b121c7f1a615737c5a266e822b..a0d47bd8d5d0bbc7c8a146ccc5b80bc317b659b1 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -990,6 +990,21 @@ var OpenAIChatLanguageModel = class {
+               return;
+             }
+             const delta = choice.delta;
++            const reasoningContent = delta.reasoning_content;
++            if (reasoningContent) {
++              if (!isActiveReasoning) {
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: 'reasoning-0',
++                });
++                isActiveReasoning = true;
++              }
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: 'reasoning-0',
++                delta: reasoningContent,
++              });
++            }
+             if (delta.content != null) {
+               if (!isActiveText) {
+                 controller.enqueue({ type: "text-start", id: "0" });
+@@ -1102,6 +1117,9 @@ var OpenAIChatLanguageModel = class {
+             }
+           },
+           flush(controller) {
++            if (isActiveReasoning) {
++              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
++            }
+             if (isActiveText) {
+               controller.enqueue({ type: "text-end", id: "0" });
+             }
+@@ -1738,6 +1756,7 @@ var openaiImageResponseSchema = lazySchema7(
+       data: z8.array(
+         z8.object({
+           b64_json: z8.string(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -1848,7 +1867,7 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.map((item) => item.b64_json ?? item.url),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,

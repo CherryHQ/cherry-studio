@@ -10,7 +10,10 @@
     "packages/ai-sdk-provider/**/*",
     "packages/extension-table-plus/**/*",
     "packages/mcp-trace/**/*",
-    "packages/shared/**/*",
+    "packages/shared/**/*"
+  ],
+  "exclude": [
+    "packages/aiCore/src/**/__tests__/**"
   ],
   "compilerOptions": {
     "composite": true,

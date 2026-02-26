@@ -208,3 +208,20 @@ export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
     isAzureOpenAIProvider(provider)
   )
 }
+
+/**
+ * Providers that do NOT support native image generation API
+ * These providers use chat completions for image generation instead
+ */
+const NOT_SUPPORT_NATIVE_IMAGE_GENERATION_PROVIDER_IDS: readonly SystemProviderId[] = ['openrouter']
+
+/**
+ * Check if a provider supports native image generation API
+ * Providers in blacklist should use chat completions for image generation
+ */
+export function isNativeImageGenerationProvider(provider: Provider): boolean {
+  if (isSystemProvider(provider)) {
+    return !NOT_SUPPORT_NATIVE_IMAGE_GENERATION_PROVIDER_IDS.includes(provider.id)
+  }
+  return true
+}

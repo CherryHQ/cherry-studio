@@ -1,6 +1,6 @@
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
-import type { CompletionsResult } from '@renderer/aiCore/legacy/middleware/schemas'
+import type { CompletionsResult } from '@renderer/aiCore/types'
 import { endSpan } from '@renderer/services/SpanManagerService'
 
 export class CompletionsResultHandler {

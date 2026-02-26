@@ -164,19 +164,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         signal: controller.signal
       }
 
-      // 调用智谱AI绘图API
-      const imageUrls = await aiProvider.generateImage(request)
+      // NOTE: ai sdk内部已经处理成了base64
+      const images = await aiProvider.generateImage(request)
 
       // 下载图片到本地文件
-      if (imageUrls.length > 0) {
+      if (images.length > 0) {
         const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
+          images.map(async (image) => {
             try {
-              if (!url || url.trim() === '') {
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
+              return await window.api.file.saveBase64Image(image)
             } catch (error) {
               if (
                 error instanceof Error &&
@@ -196,7 +192,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 处理响应结果
         const newPainting = {
           ...painting,
-          urls: imageUrls,
           files: validFiles
         }
 
