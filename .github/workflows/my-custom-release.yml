@@ -22,47 +22,29 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Check and Sync
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. 规范化及手动 Tag 介入
+          # 1. 手动指定 Tag
           INPUT_TAG="${{ github.event.inputs.force_tag }}"
           
-          # 如果输入了 tag，确保它以 v 开头 (例如 1.0.0 变成 v1.0.0)
           if [ -n "$INPUT_TAG" ]; then
             if [[ "$INPUT_TAG" != v* ]]; then
                INPUT_TAG="v$INPUT_TAG"
             fi
-            echo "Manual tag input detected: $INPUT_TAG"
-            
-            # 手工触发时，也要保证能拿到官方对应的 tag 以及相关分支提交
-            git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
-            git fetch upstream --tags || true
-            
-            # 确认我们真拿到了这个 tag，如果拿不到就退出
-            if ! git rev-parse "$INPUT_TAG" >/dev/null 2>&1; then
-              echo "Error: Tag $INPUT_TAG not found on upstream!"
-              exit 1
-            fi
-            
-            # 给我们自己的仓库强推这个 tag（让下游的 checkout@v6 能切到它）
-            git push origin "refs/tags/$INPUT_TAG:refs/tags/$INPUT_TAG" || true
-            
+            echo "Manual tag $INPUT_TAG detected."
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "tag=$INPUT_TAG" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # 2. 从官方拉取最新的版本 Tags
-          git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
-          git fetch upstream --tags
+          # 2. 从官方拉取最新的版本 Tags 作为检测探测器
+          git clone --bare https://github.com/CherryHQ/cherry-studio.git upstream_repo
+          LATEST_TAG=$(cd upstream_repo && git tag -l "v*" --sort=-v:refname | head -n 1)
           
-          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
           if [ -z "$LATEST_TAG" ]; then
             echo "No tags found on upstream."
             echo "should_build=false" >> $GITHUB_OUTPUT
@@ -71,28 +53,27 @@ jobs:
           
           echo "Latest upstream tag: $LATEST_TAG"
           
-          # 3. 检查我们这儿是不是已经发过这个版本了
+          # 3. 检查我们当前仓库是不是已经发布过这个版本 Release
           if gh release view "$LATEST_TAG" > /dev/null 2>&1; then
             echo "Release $LATEST_TAG already exists in this repo. Skipping."
             echo "should_build=false" >> $GITHUB_OUTPUT
           else
             echo "New release detected: $LATEST_TAG"
             
+            # 【优雅的同步手段】 - 合并官方主分支最新的代码，但抛弃其 .github/workflows 下的一切更改以免引发权限锁死
+            git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
+            git fetch upstream main || true
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             
-            # 4. 把官方更新代码拉到我们这里，打上 Tag
-            git fetch upstream main
-            git checkout main
-            git merge upstream/main --no-edit || true
+            git merge upstream/main --no-commit --no-ff || true
+            git restore --staged .github/workflows/ || true
+            git checkout HEAD -- .github/workflows/ || true
             
-            git update-ref refs/tags/$LATEST_TAG $(git rev-parse upstream/main)
+            git commit -m "chore: sync upstream main excluding workflows modifications" || true
+            git push origin main || true
             
-            # 推送到你自己的仓库触发持久化更新
-            git push origin main
-            git push origin $LATEST_TAG
-            
-            # 通知后续流程：该投入打包啦！
+            # 不要去推送 tag，让 Release 阶段自动补上空壳关联
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           fi
@@ -107,9 +88,11 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Check out target tag
+      - name: Check out official repository cleanly
         uses: actions/checkout@v6
         with:
+          # 神来之笔：我们直接拉取官方的原版 tag 代码当场编译，拒绝任何中间的 Git Merge 本地混淆
+          repository: CherryHQ/cherry-studio
           ref: ${{ needs.sync_and_prepare.outputs.tag }}
 
       - name: Set package.json version
@@ -196,7 +179,10 @@ jobs:
           draft: false
           allowUpdates: true
           makeLatest: true
+          # 指定创建关联在本库 main 分支的 Release
+          commit: "main" 
           name: "Cherry Studio ${{ needs.sync_and_prepare.outputs.tag }}"
           tag: ${{ needs.sync_and_prepare.outputs.tag }}
           artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap"
           token: ${{ secrets.GITHUB_TOKEN }}
+
