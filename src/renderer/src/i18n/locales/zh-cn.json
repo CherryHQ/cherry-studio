@@ -4918,6 +4918,16 @@
       "api_host_no_valid": "API 地址不合法",
       "api_host_preview": "预览：{{url}}",
       "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
+      "api_identifier": {
+        "error": {
+          "duplicate": "该标识符已被其他提供商使用",
+          "invalid": "仅支持字母、数字、“-”、“_”，且不能包含“:”"
+        },
+        "label": "API 标识符",
+        "placeholder": "例如：my-provider",
+        "preview": "示例：{{model}}",
+        "tip": "用于 API Relay 的模型前缀。留空则使用内部 UUID。"
+      },
       "api_key": {
         "label": "API 密钥",
         "tip": "多个密钥使用逗号分隔"
