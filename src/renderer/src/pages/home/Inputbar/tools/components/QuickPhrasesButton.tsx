@@ -12,7 +12,7 @@ import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
 import { Input, Modal, Radio, Space, Tooltip } from 'antd'
-import { BotMessageSquare, Plus, Zap } from 'lucide-react'
+import { BotMessageSquare, MessageSquareQuote, Plus } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -157,7 +157,12 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
       label: phrase.title,
       description: phrase.content,
-      icon: index < (assistant.regularPhrases?.length || 0) ? <BotMessageSquare /> : <Zap />,
+      icon:
+        index < (assistant.regularPhrases?.length || 0) ? (
+          <BotMessageSquare size={16} />
+        ) : (
+          <MessageSquareQuote size={16} />
+        ),
       action: () => handlePhraseSelect(phrase)
     }))
 
@@ -216,7 +221,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
       {
         label: t('settings.quickPhrase.title'),
         description: '',
-        icon: <Zap />,
+        icon: <MessageSquareQuote size={16} />,
         isMenu: true,
         action: ({ context, searchText }) => {
           const rootTrigger =
@@ -251,7 +256,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
         <ActionIconButton onClick={handleOpenQuickPanel} aria-label={t('settings.quickPhrase.title')}>
-          <Zap size={18} />
+          <MessageSquareQuote size={18} />
         </ActionIconButton>
       </Tooltip>
 
@@ -292,7 +297,10 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
               <Radio value="global">
-                <Zap size={20} style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }} />
+                <MessageSquareQuote
+                  size={20}
+                  style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }}
+                />
                 {t('settings.quickPhrase.global', '全局快速短语')}
               </Radio>
               <Radio value="assistant">
