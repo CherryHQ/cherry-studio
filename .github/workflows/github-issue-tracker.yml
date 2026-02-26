@@ -56,7 +56,7 @@ jobs:
         if: steps.check_time.outputs.should_delay == 'false'
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -148,7 +148,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

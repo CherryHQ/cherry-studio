@@ -30,7 +30,7 @@ jobs:
       - name: 📦 Setting Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: 📦 Install pnpm
         uses: pnpm/action-setup@v4

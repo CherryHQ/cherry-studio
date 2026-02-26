@@ -62,7 +62,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -119,7 +119,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -170,7 +170,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -206,7 +206,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -241,7 +241,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
