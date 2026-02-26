@@ -28,21 +28,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 0. 每天例行公事：先把上游代码同步到我们的 main 分支
-          # 【优雅的同步手段】 - 合并官方主分支最新的代码，但抛弃其 .github/workflows 下的一切更改以免引发权限锁死
-          git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
-          git fetch upstream main || true
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-            
-          git merge upstream/main --no-commit --no-ff || true
-          git restore --staged .github/workflows/ || true
-          git checkout HEAD -- .github/workflows/ || true
-            
-          git commit -m "chore: nightly sync upstream main excluding workflows modifications" || true
-          git push origin main || true
-          echo "Sync upstream completed."
-
           # 1. 手动指定 Tag
           INPUT_TAG="${{ github.event.inputs.force_tag }}"
           
@@ -74,6 +59,19 @@ jobs:
             echo "should_build=false" >> $GITHUB_OUTPUT
           else
             echo "New release detected: $LATEST_TAG"
+            
+            # 【优雅的同步手段】 - 仅在有稳定的 Release 产生时，才签下该稳定版的 commit 与本地合并
+            git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
+            git fetch upstream refs/tags/"$LATEST_TAG":refs/tags/"$LATEST_TAG" || true
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git merge "$LATEST_TAG" --no-commit --no-ff || true
+            git restore --staged .github/workflows/ || true
+            git checkout HEAD -- .github/workflows/ || true
+            
+            git commit -m "chore: sync stable release $LATEST_TAG from upstream excluding workflows modifications" || true
+            git push origin main || true
             
             # 不要去推送 tag，让 Release 阶段自动补上空壳关联
             echo "should_build=true" >> $GITHUB_OUTPUT
