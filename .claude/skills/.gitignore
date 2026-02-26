@@ -3,7 +3,13 @@
 *
 !.gitignore
 !README*.md
+!create-skill/
+!create-skill/**
+!gh-create-issue/
+!gh-create-issue/**
 !gh-create-pr/
 !gh-create-pr/**
+!gh-pr-review/
+!gh-pr-review/**
 !prepare-release/
 !prepare-release/**

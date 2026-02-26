@@ -33,13 +33,13 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          claude_args: '--allowed-tools Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep'
+          claude_args: '--allowed-tools "Bash(git:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(cat:*),Edit,Read,Write,Glob,Grep"'
           prompt: |
             Run the prepare-release skill with version argument: ${{ github.event.inputs.version }}
 
             Read the skill instructions from .agents/skills/prepare-release/SKILL.md and follow them exactly.
 
-            Since this is running in CI (non-interactive), skip all interactive confirmation steps. For PR creation, do NOT use the gh-create-pr skill; instead read .github/pull_request_template.md, fill every section, and run gh pr create --body-file directly.
+            Since this is running in CI (non-interactive), skip all interactive confirmation steps.
 
             Configure git before making commits:
             git config user.name "github-actions[bot]"

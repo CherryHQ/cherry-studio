@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "Экспорт как изображение",
+        "image_saved": "[to be translated]:Image saved successfully",
         "joplin": "Экспорт в Joplin",
         "md": {
           "label": "Экспорт как markdown",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "Открывать новые окна в браузере"
       },
+      "region": {
+        "auto": "Автоматическое определение",
+        "cn": "Китай",
+        "description": "Фильтрация неподдерживаемых мини-программ в зависимости от региона",
+        "global": "Глобально",
+        "title": "Фильтрация по регионам в мини-программе"
+      },
       "reset_tooltip": "Сбросить до значения по умолчанию",
       "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
       "sidebar_title": "Отображение активных мини-приложений в боковой панели",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "Сбросить настройки по умолчанию",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
       "show_app": "Показать/скрыть приложение",
