@@ -693,8 +693,11 @@ class BackupManager {
    */
   async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
-      const backupDir = localBackupDir
-      const backupPath = path.join(backupDir, fileName)
+      const backupPath = path.resolve(localBackupDir, fileName)
+
+      if (!backupPath.startsWith(path.resolve(localBackupDir))) {
+        throw new Error('Invalid file path: path traversal detected')
+      }
 
       if (!fs.existsSync(backupPath)) {
         throw new Error(`Backup file not found: ${backupPath}`)
