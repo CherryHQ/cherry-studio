@@ -700,7 +700,7 @@
       "button": "Select Backup Location",
       "label": "Are you sure you want to backup data?"
     },
-    "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "content": "Back up app data (settings, data files, etc.). Chat history is excluded by default and can be enabled in settings. The backup process may take some time; thank you for your patience.",
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -3596,7 +3596,9 @@
         "label": "App Logs"
       },
       "backup": {
-        "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
+        "include_chat_history_help": "Chat history may contain sensitive information and is excluded by default. Enable it only when you need a full backup.",
+        "include_chat_history_title": "Include Chat History",
+        "skip_file_data_help": "Skip data files such as pictures and knowledge bases to reduce space usage and speed up backups.",
         "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {

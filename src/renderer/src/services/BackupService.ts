@@ -12,6 +12,12 @@ import { NotificationService } from './NotificationService'
 
 const logger = loggerService.withContext('BackupService')
 
+type BackupDataOptions = {
+  includeChatHistory?: boolean
+}
+
+const CHAT_HISTORY_TABLES = new Set(['topics', 'message_blocks'])
+
 // 重试删除S3文件的辅助函数
 async function deleteS3FileWithRetry(fileName: string, s3Config: S3Config, maxRetries = 3) {
   let lastError: Error | null = null
@@ -64,7 +70,8 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
-  const fileContnet = await getBackupData()
+  const { includeChatHistoryInBackup } = store.getState().settings
+  const fileContnet = await getBackupData({ includeChatHistory: includeChatHistoryInBackup })
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
     await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
@@ -169,7 +176,8 @@ export async function backupToWebdav({
     webdavPath,
     webdavMaxBackups,
     webdavSkipBackupFile,
-    webdavDisableStream
+    webdavDisableStream,
+    includeChatHistoryInBackup
   } = store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
@@ -182,7 +190,7 @@ export async function backupToWebdav({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
+  const backupData = await getBackupData({ includeChatHistory: includeChatHistoryInBackup })
 
   // 上传文件
   try {
@@ -344,7 +352,7 @@ export async function backupToS3({
 
   store.dispatch(setS3SyncState({ syncing: true, lastSyncError: null }))
 
-  const s3Config = store.getState().settings.s3
+  const { includeChatHistoryInBackup, s3: s3Config } = store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -356,7 +364,7 @@ export async function backupToS3({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
+  const backupData = await getBackupData({ includeChatHistory: includeChatHistoryInBackup })
 
   try {
     const success = await window.api.backup.backupToS3(backupData, {
@@ -821,12 +829,16 @@ export function stopAutoSync(type?: BackupType) {
   }
 }
 
-export async function getBackupData() {
+export async function getBackupData(options: BackupDataOptions = {}) {
+  const { includeChatHistory = false } = options
   return JSON.stringify({
     time: new Date().getTime(),
     version: 5,
+    backupOptions: {
+      includeChatHistory
+    },
     localStorage,
-    indexedDB: await backupDatabase()
+    indexedDB: await backupDatabase(includeChatHistory)
   })
 }
 
@@ -881,8 +893,8 @@ export async function handleData(data: Record<string, any>) {
   window.toast.error(i18n.t('error.backup.file_format'))
 }
 
-async function backupDatabase() {
-  const tables = db.tables
+async function backupDatabase(includeChatHistory: boolean) {
+  const tables = includeChatHistory ? db.tables : db.tables.filter((table) => !CHAT_HISTORY_TABLES.has(table.name))
   const backup = {}
 
   for (const table of tables) {
@@ -940,7 +952,8 @@ export async function backupToLocal({
   const {
     localBackupDir: localBackupDirSetting,
     localBackupMaxBackups,
-    localBackupSkipBackupFile
+    localBackupSkipBackupFile,
+    includeChatHistoryInBackup
   } = store.getState().settings
   const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
   let deviceType = 'unknown'
@@ -954,7 +967,7 @@ export async function backupToLocal({
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
   const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
-  const backupData = await getBackupData()
+  const backupData = await getBackupData({ includeChatHistory: includeChatHistoryInBackup })
 
   try {
     const result = await window.api.backup.backupToLocalDir(backupData, finalFileName, {
