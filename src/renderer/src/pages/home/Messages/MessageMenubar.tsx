@@ -23,8 +23,8 @@ import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageB
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames, uuid } from '@renderer/utils'
+import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import { isAbortError } from '@renderer/utils/error'
@@ -64,12 +64,14 @@ import {
   Upload
 } from 'lucide-react'
 import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import MessageTokens from './MessageTokens'
+
+const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
 
 interface Props {
   message: Message
@@ -144,7 +146,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isTranslating, setIsTranslating] = useState(false)
-  const translateAbortKeyRef = useRef<string | null>(null)
+  const translationAbortKey = createTranslationAbortKey(message.id)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
@@ -157,15 +159,6 @@ const MessageMenubar: FC<Props> = (props) => {
     appendAssistantResponse,
     removeMessageBlock
   } = useMessageOperations(topic)
-
-  // 如果在翻译中离开了页面，或者消息被删除了，应该取消翻译请求
-  useEffect(() => {
-    return () => {
-      if (translateAbortKeyRef.current) {
-        abortCompletion(translateAbortKeyRef.current)
-      }
-    }
-  }, [])
 
   const { isBubbleStyle } = useMessageStyle()
   const { enableDeveloperMode } = useEnableDeveloperMode()
@@ -247,11 +240,8 @@ const MessageMenubar: FC<Props> = (props) => {
         return
       }
 
-      const abortKey = uuid()
-      translateAbortKeyRef.current = abortKey
-
       try {
-        await translateText(mainTextContent, language, translationUpdater, abortKey)
+        await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
       } catch (error) {
         if (!isAbortError(error)) {
           window.toast.error(t('translate.error.failed'))
@@ -268,10 +258,9 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       } finally {
         setIsTranslating(false)
-        translateAbortKeyRef.current = null
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
+    [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, dispatch]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -541,11 +530,8 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const abortTranslation = useCallback(() => {
-    if (translateAbortKeyRef.current) {
-      abortCompletion(translateAbortKeyRef.current)
-      translateAbortKeyRef.current = null
-    }
-  }, [])
+    abortCompletion(translationAbortKey)
+  }, [translationAbortKey])
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
@@ -774,7 +760,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   },
   translate: ({
     isUserMessage,
-    isTranslating,
     translateLanguages,
     handleTranslate,
     hasTranslationBlocks,
@@ -788,6 +773,12 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     if (isUserMessage) {
       return null
     }
+
+    // Assume that up to one translation block
+    const translationBlock = findTranslationBlocksById(message.id)[0]
+    const isTranslating =
+      translationBlock?.status === MessageBlockStatus.STREAMING ||
+      translationBlock?.status === MessageBlockStatus.PROCESSING
 
     if (isTranslating) {
       return (
