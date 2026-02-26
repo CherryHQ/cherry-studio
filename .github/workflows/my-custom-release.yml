@@ -28,25 +28,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 0. 始终同步官方主分支的最新代码到本仓库
-          echo "Syncing with upstream main branch..."
+          # 0. 每天例行公事：先把上游代码同步到我们的 main 分支
+          # 【优雅的同步手段】 - 合并官方主分支最新的代码，但抛弃其 .github/workflows 下的一切更改以免引发权限锁死
           git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
           git fetch upstream main || true
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 【优雅的同步手段】 - 合并官方主分支最新的代码，但抛弃其 .github/workflows 下的一切更改以免引发权限锁死
+            
           git merge upstream/main --no-commit --no-ff || true
           git restore --staged .github/workflows/ || true
           git checkout HEAD -- .github/workflows/ || true
-          
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: sync upstream main excluding workflows modifications" || true
-            git push origin main || true
-            echo "Sync completed."
-          else
-            echo "Already up to date with upstream/main."
-          fi
+            
+          git commit -m "chore: nightly sync upstream main excluding workflows modifications" || true
+          git push origin main || true
+          echo "Sync upstream completed."
 
           # 1. 手动指定 Tag
           INPUT_TAG="${{ github.event.inputs.force_tag }}"
