@@ -270,10 +270,6 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [ -z "$FEISHU_WEBHOOK_URL" ]; then
-            echo "FEISHU_WEBHOOK_URL is not set. Skipping notification."
-            exit 0
-          fi
           DESCRIPTION=$(printf "**分支:** main\n\n**提交:** %.7s\n\n**信息:** %s\n\n**工作流:** [查看详情](%s)" "$COMMIT_SHA" "$COMMIT_MSG" "$RUN_URL")
           pnpm tsx scripts/feishu-notify.ts send \
             -t "Main 分支 CI 失败" \

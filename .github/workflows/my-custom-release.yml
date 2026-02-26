@@ -1,0 +1,202 @@
+name: My Custom Auto Release
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 每天 14:00 BJ Time 检测一次上游更新
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: "若需手动打包特定 Tag 请在此填写（例如 v1.0.0）。留空则自动检测是否有新版本。"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  sync_and_prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check and Sync
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1. 规范化及手动 Tag 介入
+          INPUT_TAG="${{ github.event.inputs.force_tag }}"
+          
+          # 如果输入了 tag，确保它以 v 开头 (例如 1.0.0 变成 v1.0.0)
+          if [ -n "$INPUT_TAG" ]; then
+            if [[ "$INPUT_TAG" != v* ]]; then
+               INPUT_TAG="v$INPUT_TAG"
+            fi
+            echo "Manual tag input detected: $INPUT_TAG"
+            
+            # 手工触发时，也要保证能拿到官方对应的 tag 以及相关分支提交
+            git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
+            git fetch upstream --tags || true
+            
+            # 确认我们真拿到了这个 tag，如果拿不到就退出
+            if ! git rev-parse "$INPUT_TAG" >/dev/null 2>&1; then
+              echo "Error: Tag $INPUT_TAG not found on upstream!"
+              exit 1
+            fi
+            
+            # 给我们自己的仓库强推这个 tag（让下游的 checkout@v6 能切到它）
+            git push origin "refs/tags/$INPUT_TAG:refs/tags/$INPUT_TAG" || true
+            
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "tag=$INPUT_TAG" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 2. 从官方拉取最新的版本 Tags
+          git remote add upstream https://github.com/CherryHQ/cherry-studio.git || true
+          git fetch upstream --tags
+          
+          LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No tags found on upstream."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Latest upstream tag: $LATEST_TAG"
+          
+          # 3. 检查我们这儿是不是已经发过这个版本了
+          if gh release view "$LATEST_TAG" > /dev/null 2>&1; then
+            echo "Release $LATEST_TAG already exists in this repo. Skipping."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New release detected: $LATEST_TAG"
+            
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # 4. 把官方更新代码拉到我们这里，打上 Tag
+            git fetch upstream main
+            git checkout main
+            git merge upstream/main --no-edit || true
+            
+            git update-ref refs/tags/$LATEST_TAG $(git rev-parse upstream/main)
+            
+            # 推送到你自己的仓库触发持久化更新
+            git push origin main
+            git push origin $LATEST_TAG
+            
+            # 通知后续流程：该投入打包啦！
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          fi
+
+  build_and_release:
+    needs: sync_and_prepare
+    if: needs.sync_and_prepare.outputs.should_build == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+      fail-fast: false
+
+    steps:
+      - name: Check out target tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.sync_and_prepare.outputs.tag }}
+
+      - name: Set package.json version
+        shell: bash
+        run: |
+          TAG="${{ needs.sync_and_prepare.outputs.tag }}"
+          VERSION="${TAG#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y rpm
+          pnpm build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Build Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          sudo -H pip install setuptools || true
+          pnpm build:mac
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: pnpm build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Upload to Github Release
+        uses: ncipollo/release-action@v1
+        with:
+          draft: false
+          allowUpdates: true
+          makeLatest: true
+          name: "Cherry Studio ${{ needs.sync_and_prepare.outputs.tag }}"
+          tag: ${{ needs.sync_and_prepare.outputs.tag }}
+          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap"
+          token: ${{ secrets.GITHUB_TOKEN }}
