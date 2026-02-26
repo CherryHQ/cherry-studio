@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { WebSearchState } from '@renderer/store/websearch'
-import type { WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -28,7 +28,20 @@ interface QueritSearchResponse {
 }
 
 export default class QueritProvider extends BaseWebSearchProvider {
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  constructor(provider: WebSearchProvider) {
+    super(provider)
+    if (!this.apiKey) {
+      throw new Error('API key is required for Querit provider')
+    }
+    if (!this.apiHost) {
+      throw new Error('API host is required for Querit provider')
+    }
+  }
+  public async search(
+    query: string,
+    websearch: WebSearchState,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -52,7 +65,8 @@ export default class QueritProvider extends BaseWebSearchProvider {
         headers: {
           ...this.defaultHeaders(),
           ...headers
-        }
+        },
+        signal: httpOptions?.signal
       })
 
       if (!response.ok) {
