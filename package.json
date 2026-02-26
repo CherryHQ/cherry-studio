@@ -116,9 +116,9 @@
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
     "@anthropic-ai/vertex-sdk": "0.11.4",
-    "@aws-sdk/client-bedrock": "^3.910.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.910.0",
-    "@aws-sdk/client-s3": "^3.910.0",
+    "@aws-sdk/client-bedrock": "^3.998.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.998.0",
+    "@aws-sdk/client-s3": "^3.998.0",
     "@biomejs/biome": "2.2.4",
     "@cherrystudio/ai-core": "workspace:^1.0.9",
     "@cherrystudio/analytics-client": "^1.1.0",
@@ -424,7 +424,6 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-xml-parser": "5.4.1",
       "minimatch@<3.1.3": "3.1.5",
       "minimatch@>=5.0.0 <5.1.7": "5.1.7",
       "minimatch@>=9.0.0 <9.0.6": "9.0.6",
