@@ -24,7 +24,14 @@ const SYNC_INTERVAL = 30_000 // 30 秒
 const BATCH_SIZE = 20 // 批量上传时每批最大数量
 const INIT_DELAY = 8_000 // 初始化延迟（等 Dexie + Redux persist 准备好）
 
+let cachedServer: string | null = null
+let cachedToken: string | null = null
+
 async function getConfig() {
+  if (cachedServer !== null && cachedToken !== null) {
+    return { server: cachedServer, token: cachedToken }
+  }
+
   let server = localStorage.getItem('cherry-sync-server') || import.meta.env.RENDERER_VITE_SYNC_SERVER || ''
   let token = localStorage.getItem('cherry-sync-token') || import.meta.env.RENDERER_VITE_SYNC_TOKEN || ''
 
@@ -48,7 +55,10 @@ async function getConfig() {
     // 忽略读取配置文件失败
   }
 
-  return { server: server.replace(/\/+$/, ''), token }
+  cachedServer = server.replace(/\/+$/, '')
+  cachedToken = token
+
+  return { server: cachedServer, token: cachedToken }
 }
 
 interface TopicFullData {
@@ -249,6 +259,9 @@ async function apiDelete(path: string): Promise<boolean> {
   }
 }
 
+let syncTimeout: ReturnType<typeof setTimeout> | null = null
+let lastAssistantsState: unknown = null
+
 // ── 同步主循环 ────────────────────────────────────────────────────────
 
 async function syncOnce(): Promise<void> {
@@ -337,13 +350,30 @@ async function start() {
     return
   }
 
-  logger.info(`Starting sync to ${server}, interval=${SYNC_INTERVAL}ms`)
+  logger.info(`Starting sync to ${server} via Redux store subscription (debounce=${SYNC_INTERVAL}ms)`)
 
   // 立即执行一次（建立基线）
   syncOnce()
 
-  // 定时同步
-  setInterval(syncOnce, SYNC_INTERVAL)
+  // 监听 Redux Store 变化
+  store.subscribe(() => {
+    const currentState = store.getState()
+    const currentAssistantsState = currentState.assistants?.assistants
+
+    // 只有当 assistants 状态的内存引用发生变化时，才认为可能需要同步
+    if (currentAssistantsState !== lastAssistantsState) {
+      lastAssistantsState = currentAssistantsState
+
+      // 防抖：重置倒计时
+      if (syncTimeout) {
+        clearTimeout(syncTimeout)
+      }
+      syncTimeout = setTimeout(() => {
+        syncOnce()
+      }, SYNC_INTERVAL)
+    }
+  })
 }
 
+// 等待 Redux 持久化恢复后再初始化
 setTimeout(start, INIT_DELAY)
