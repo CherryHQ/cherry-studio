@@ -351,19 +351,31 @@ const SkillsButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }
         label: t('chat.input.skills.insert.title'),
         description: t('chat.input.skills.insert.description'),
         icon: <Zap size={16} />,
-        action: () => openInsertPanel()
+        isMenu: true,
+        action: ({ context }) => {
+          context.close('select')
+          setTimeout(() => openInsertPanel(), 0)
+        }
       },
       {
         label: t('chat.input.skills.enabled.title'),
         description: t('chat.input.skills.enabled.description'),
         icon: <Sparkles size={16} />,
-        action: () => openEnabledPanel()
+        isMenu: true,
+        action: ({ context }) => {
+          context.close('select')
+          setTimeout(() => openEnabledPanel(), 0)
+        }
       },
       {
         label: t('chat.input.skills.library.title'),
         description: libraryPath ?? t('chat.input.skills.library.not_set'),
         icon: <BookDown size={16} />,
-        action: () => openLibraryPanel()
+        isMenu: true,
+        action: ({ context }) => {
+          context.close('select')
+          setTimeout(() => openLibraryPanel(), 0)
+        }
       }
     ]
 
