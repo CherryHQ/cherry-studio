@@ -885,11 +885,7 @@ describe('PluginEngine', () => {
 
       const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
 
-      await engine.executeWithPlugins(
-        'generateText',
-        { model: mockLanguageModel, messages: [] },
-        mockExecutor
-      )
+      await engine.executeWithPlugins('generateText', { model: mockLanguageModel, messages: [] }, mockExecutor)
 
       // Key assertion: middlewares should be applied even for direct model objects
       expect(wrapLanguageModel).toHaveBeenCalledWith({
@@ -970,11 +966,7 @@ describe('PluginEngine', () => {
         })()
       })
 
-      await engine.executeStreamWithPlugins(
-        'streamText',
-        { model: mockLanguageModel, messages: [] },
-        mockExecutor
-      )
+      await engine.executeStreamWithPlugins('streamText', { model: mockLanguageModel, messages: [] }, mockExecutor)
 
       expect(wrapLanguageModel).toHaveBeenCalledWith({
         model: mockLanguageModel,
