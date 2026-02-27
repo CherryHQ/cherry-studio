@@ -304,7 +304,11 @@ export default class ModernAiProvider {
     middlewareConfig: ModernAiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
-    const plugins = buildPlugins(middlewareConfig)
+    const plugins = buildPlugins({
+      provider: this.actualProvider,
+      model: this.model!,
+      config: middlewareConfig
+    })
 
     // 用构建好的插件数组创建executor
     const executor = await createExecutor<AppProviderSettingsMap>(
