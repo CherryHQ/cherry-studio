@@ -55,14 +55,14 @@ export const WebSearchProviderIcon = ({
       return <ZhipuLogo className="icon" width={size} height={size} color={color} />
     case 'searxng':
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
+    case 'querit':
+      return <QueritLogo className="icon" width={size} height={size} color={color} />
     case 'local-baidu':
       return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
     case 'local-bing':
       return <BingLogo className="icon" width={size} height={size} color={color} />
     case 'local-google':
       return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
-    case 'querit':
-      return <QueritLogo className="icon" width={size} height={size} color={color} />
     default:
       return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
   }

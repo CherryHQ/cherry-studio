@@ -28,14 +28,14 @@ export default class WebSearchProviderFactory {
         return new ExaProvider(provider)
       case 'exa-mcp':
         return new ExaMcpProvider(provider)
+      case 'querit':
+        return new QueritProvider(provider)
       case 'local-google':
         return new LocalGoogleProvider(provider)
       case 'local-baidu':
         return new LocalBaiduProvider(provider)
       case 'local-bing':
         return new LocalBingProvider(provider)
-      case 'querit':
-        return new QueritProvider(provider)
       default:
         return new DefaultProvider(provider)
     }

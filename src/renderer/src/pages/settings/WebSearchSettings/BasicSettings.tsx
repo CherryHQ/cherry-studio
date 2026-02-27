@@ -40,14 +40,14 @@ const getProviderLogo = (providerId: WebSearchProviderId): string | undefined =>
       return ExaLogo
     case 'bocha':
       return BochaLogo
+    case 'querit':
+      return QueritLogo
     case 'local-google':
       return GoogleLogo
     case 'local-bing':
       return BingLogo
     case 'local-baidu':
       return BaiduLogo
-    case 'querit':
-      return QueritLogo
     default:
       return undefined
   }

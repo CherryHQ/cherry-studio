@@ -5,6 +5,14 @@ import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/typ
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('QueritProvider')
+interface QueritSearchParams {
+  query: string
+  count: number
+  filters?: {
+    sites?: { exclude: string[] }
+    timeRange?: { date: string }
+  }
+}
 
 interface QueritSearchResult {
   url: string
@@ -14,6 +22,7 @@ interface QueritSearchResult {
   site_name: string
 }
 
+// API Docs: https://www.querit.ai/en/docs/reference/post
 interface QueritSearchResponse {
   took: string
   error_code: number
@@ -52,11 +61,11 @@ export default class QueritProvider extends BaseWebSearchProvider {
         Authorization: `Bearer ${this.apiKey}`
       }
 
-      const params: Record<string, unknown> = {
+      const params: QueritSearchParams = {
         query,
         count: websearch.maxResults
       }
-      const filters: Record<string, unknown> = {}
+      const filters: QueritSearchParams['filters'] = {}
       if (websearch.excludeDomains.length > 0) {
         filters.sites = { exclude: websearch.excludeDomains }
       }
