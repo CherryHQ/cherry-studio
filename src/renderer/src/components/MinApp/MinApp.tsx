@@ -25,6 +25,11 @@ interface Props {
 
 const logger = loggerService.withContext('App')
 
+// MinApp configuration constants
+const MIN_APP_NAME_MAX_LENGTH = 14
+const SCROLL_ANIMATION_DURATION = '8s'
+const APP_TITLE_MAX_WIDTH = '80px'
+
 const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
@@ -42,7 +47,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   // Calculate display name and whether it needs scrolling (length > 14)
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
-  const shouldScroll = displayName.length > 14
+  const shouldScroll = displayName.length > MIN_APP_NAME_MAX_LENGTH
 
   const handleClick = () => {
     if (isTopNavbar) {
@@ -171,7 +176,7 @@ const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
   white-space: nowrap;
   overflow: hidden;
   width: 100%;
-  max-width: 80px;
+  max-width: ${APP_TITLE_MAX_WIDTH};
 
   span {
     display: inline-block;
@@ -181,7 +186,7 @@ const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
         width: max-content;
         display: block;
         text-align: left;
-        animation: scrollText 8s ease-in-out infinite;
+        animation: scrollText ${SCROLL_ANIMATION_DURATION} ease-in-out infinite;
         padding: 0 4px;
       `}
   }
@@ -191,7 +196,7 @@ const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
       transform: translateX(0);
     }
     50%, 70% {
-      transform: translateX(calc(-100% + 80px));
+      transform: translateX(calc(-100% + ${APP_TITLE_MAX_WIDTH}));
     }
     90%, 100% {
       transform: translateX(0);
