@@ -1,7 +1,6 @@
 {
   "name": "@cherrystudio/ai-core",
   "version": "1.0.11",
-  "version": "1.0.11",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -39,9 +38,6 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@ai-sdk/google": "^3.0.33",
-    "@ai-sdk/openai": "^3.0.36",
-    "ai": "^6.0.103"
     "@ai-sdk/google": "^3.0.33",
     "@ai-sdk/openai": "^3.0.36",
     "ai": "^6.0.103"
