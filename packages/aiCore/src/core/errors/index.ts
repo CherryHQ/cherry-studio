@@ -99,6 +99,20 @@ export class PluginExecutionError extends AiCoreError {
 }
 
 /**
+ * Provider configuration error
+ * Thrown when provider settings are invalid or missing
+ */
+export class ProviderConfigError extends AiCoreError {
+  constructor(providerId: string, reason: string) {
+    super('PROVIDER_CONFIG_ERROR', `Provider '${providerId}' configuration error: ${reason}`, {
+      providerId,
+      reason
+    })
+    this.name = 'ProviderConfigError'
+  }
+}
+
+/**
  * Template loading error
  * Thrown when a template cannot be loaded
  */
