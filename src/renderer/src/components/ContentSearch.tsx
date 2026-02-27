@@ -1,6 +1,6 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { scrollElementIntoView } from '@renderer/utils'
+import { findNearestScrollableAncestor, scrollIntoView } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -183,8 +183,45 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             // 获取第一个文本节点的父元素来进行滚动
             const parentElement = currentMatchRange.startContainer.parentElement
             if (shouldScroll && parentElement) {
-              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
-              scrollElementIntoView(parentElement, target)
+              // 尽量滚动到“具体命中位置”（range 对应的行），而不是仅滚动到消息块。
+              // 这能覆盖“只有一条超长消息”的场景：应定位到命中那一行。
+              const rect = currentMatchRange.getClientRects()[0] ?? currentMatchRange.getBoundingClientRect()
+              const scrollBoundary = target instanceof HTMLElement ? target : null
+              const scrollContainer = findNearestScrollableAncestor(parentElement, scrollBoundary)
+
+              if (scrollContainer && rect && Number.isFinite(rect.top)) {
+                const containerRect = scrollContainer.getBoundingClientRect()
+                const containerCenterY = containerRect.top + containerRect.height / 2
+                const rectCenterY = rect.top + (rect.height || 0) / 2
+                const deltaY = rectCenterY - containerCenterY
+
+                if (Number.isFinite(deltaY) && Math.abs(deltaY) >= 1) {
+                  if (typeof (scrollContainer as any).scrollBy === 'function') {
+                    ;(scrollContainer as any).scrollBy({ top: deltaY, behavior: 'smooth' })
+                    return
+                  }
+
+                  if (typeof scrollContainer.scrollTo === 'function') {
+                    scrollContainer.scrollTo({ top: scrollContainer.scrollTop + deltaY, behavior: 'smooth' })
+                    return
+                  }
+
+                  scrollContainer.scrollTop += deltaY
+                  return
+                }
+              }
+
+              // 上述精确滚动不可用时，退回到滚动消息容器，避免完全不滚动。
+              const messageElement = parentElement.closest('.message') as HTMLElement | null
+              const scrollTarget = messageElement ?? parentElement
+
+              // 使用 Chromium-only 的 container: 'nearest'，强制滚动保持在最近滚动容器内（聊天消息列表是反向滚动，手算 scrollTop 容易出错）。
+              scrollIntoView(scrollTarget, {
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'nearest',
+                container: 'nearest'
+              })
             }
           }
         }
