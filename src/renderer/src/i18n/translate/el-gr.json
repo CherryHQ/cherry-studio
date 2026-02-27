@@ -1100,7 +1100,7 @@
       },
       "export": {
         "image": "Εξαγωγή ως εικόνα",
-        "image_saved": "[to be translated]:Image saved successfully",
+        "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
         "md": {
           "label": "Εξαγωγή ως Markdown",

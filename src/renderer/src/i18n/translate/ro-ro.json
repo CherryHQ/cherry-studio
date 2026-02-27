@@ -1100,7 +1100,7 @@
       },
       "export": {
         "image": "Exportă ca imagine",
-        "image_saved": "[to be translated]:Image saved successfully",
+        "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
           "label": "Exportă ca markdown",
