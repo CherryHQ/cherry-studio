@@ -6,8 +6,6 @@ const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
 /**
  * skip Gemini Thought Signature Middleware
- * Due to the complexity of multi-model client requests (which can switch to other models mid-process),
- * it was decided to add a skip for all Gemini3 thinking signatures via middleware.
  *
  * Handles:
  * - Tool-call parts need thought_signature for OpenAI-compatible API
