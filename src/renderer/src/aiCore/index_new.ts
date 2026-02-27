@@ -7,6 +7,7 @@
  * 2. 暂时保持接口兼容性
  */
 
+import type { AiSdkModel } from '@cherrystudio/ai-core'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
@@ -14,16 +15,14 @@ import { normalizeGatewayModels, normalizeSdkModels } from '@renderer/services/m
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { gateway, type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
+import { gateway, type LanguageModel, type Provider as AiSdkProvider } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
 import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
-import type { AiSdkMiddlewareConfig } from './middleware/AiSdkMiddlewareBuilder'
-import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
 import {
@@ -34,6 +33,7 @@ import {
   providerToAiSdkConfig
 } from './provider/providerConfig'
 import type { AiSdkConfig } from './types'
+import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('ModernAiProvider')
 
@@ -144,16 +144,6 @@ export default class ModernAiProvider {
       this.localProvider = await createAiSdkProvider(this.config)
     }
 
-    // 提前构建中间件
-    const middlewares = buildAiSdkMiddlewares({
-      ...providerConfig,
-      provider: this.actualProvider,
-      assistant: providerConfig.assistant
-    })
-    logger.debug('Built middlewares in completions', {
-      middlewareCount: middlewares.length,
-      isImageGeneration: providerConfig.isImageGenerationEndpoint
-    })
     if (!this.localProvider) {
       throw new Error('Local provider not created')
     }
@@ -164,14 +154,20 @@ export default class ModernAiProvider {
       model = this.localProvider.imageModel(modelId)
     } else {
       model = this.localProvider.languageModel(modelId)
-      // 如果有中间件，应用到语言模型上
-      if (middlewares.length > 0 && typeof model === 'object') {
-        model = wrapLanguageModel({ model, middleware: middlewares })
-      }
     }
 
     if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(params.system)
+      // 类型守卫：确保 system 是 string、Array 或 undefined
+      const system = params.system
+      let systemParam: string | Array<any> | undefined
+      if (typeof system === 'string' || Array.isArray(system) || system === undefined) {
+        systemParam = system
+      } else {
+        // SystemModelMessage 类型，转换为 string
+        systemParam = undefined
+      }
+
+      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(systemParam)
       params.system = undefined // 清除原有system，避免重复
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
@@ -545,7 +541,7 @@ export default class ModernAiProvider {
 
     const executor = createExecutor(this.config!.providerId, this.config!.options, [])
     const result = await executor.generateImage({
-      model: this.localProvider?.imageModel(model) as ImageModel,
+      model: model, // 直接使用 model ID 字符串，由 executor 内部解析
       ...aiSdkParams
     })
 

@@ -55,7 +55,13 @@ describe('trackTokenUsage', () => {
 
   it('should track AI SDK format usage', () => {
     mockGetProviderById.mockReturnValue({ id: 'anthropic', isSystem: true } as Provider)
-    const usage: LanguageModelUsage = { inputTokens: 200, outputTokens: 100, totalTokens: 300 }
+    const usage: LanguageModelUsage = {
+      inputTokens: 200,
+      outputTokens: 100,
+      totalTokens: 300,
+      inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+      outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined }
+    }
 
     trackTokenUsage({ usage, model: createModel('anthropic', 'claude-3') })
 

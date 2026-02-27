@@ -1,4 +1,5 @@
-import type { LanguageModelV2StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
 /**
@@ -6,10 +7,10 @@ import type { LanguageModelMiddleware } from 'ai'
  *
  * @returns LanguageModelMiddleware - a middleware filter redacted block
  */
-export function openrouterReasoningMiddleware(): LanguageModelMiddleware {
+function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
   const REDACTED_BLOCK = '[REDACTED]'
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
       const { content, ...rest } = await doGenerate()
       const modifiedContent = content.map((part) => {
@@ -27,10 +28,10 @@ export function openrouterReasoningMiddleware(): LanguageModelMiddleware {
       const { stream, ...rest } = await doStream()
       return {
         stream: stream.pipeThrough(
-          new TransformStream<LanguageModelV2StreamPart, LanguageModelV2StreamPart>({
+          new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
             transform(
-              chunk: LanguageModelV2StreamPart,
-              controller: TransformStreamDefaultController<LanguageModelV2StreamPart>
+              chunk: LanguageModelV3StreamPart,
+              controller: TransformStreamDefaultController<LanguageModelV3StreamPart>
             ) {
               if (chunk.type === 'reasoning-delta' && chunk.delta.includes(REDACTED_BLOCK)) {
                 controller.enqueue({
@@ -48,3 +49,14 @@ export function openrouterReasoningMiddleware(): LanguageModelMiddleware {
     }
   }
 }
+
+export const createOpenrouterReasoningPlugin = () =>
+  definePlugin({
+    name: 'openrouterReasoning',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createOpenrouterReasoningMiddleware())
+    }
+  })

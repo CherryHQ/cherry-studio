@@ -14,15 +14,16 @@ import type { ToolUseResult } from './type'
 export interface ExecutedResult {
   toolCallId: string
   toolName: string
-  result: any
+  result: unknown
   isError?: boolean
 }
 
 /**
  * 流控制器类型（从 AI SDK 提取）
+ * Generic type parameter allows for type-safe chunk enqueuing
  */
-export interface StreamController {
-  enqueue(chunk: any): void
+export interface StreamController<TChunk = unknown> {
+  enqueue(chunk: TChunk): void
 }
 
 /**

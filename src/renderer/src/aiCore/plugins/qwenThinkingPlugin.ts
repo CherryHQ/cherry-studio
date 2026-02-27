@@ -1,3 +1,4 @@
+import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
 /**
@@ -7,11 +8,11 @@ import type { LanguageModelMiddleware } from 'ai'
  * @param enableThinking - Whether thinking mode is enabled (based on reasoning_effort !== undefined)
  * @returns LanguageModelMiddleware
  */
-export function qwenThinkingMiddleware(enableThinking: boolean): LanguageModelMiddleware {
+function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMiddleware {
   const suffix = enableThinking ? ' /think' : ' /no_think'
 
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
@@ -37,3 +38,14 @@ export function qwenThinkingMiddleware(enableThinking: boolean): LanguageModelMi
     }
   }
 }
+
+export const createQwenThinkingPlugin = (enableThinking: boolean) =>
+  definePlugin({
+    name: 'qwenThinking',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createQwenThinkingMiddleware(enableThinking))
+    }
+  })

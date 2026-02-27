@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-core",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsc -w",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -33,19 +34,19 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@ai-sdk/google": "^2.0.36",
-    "@ai-sdk/openai": "^2.0.64",
-    "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "ai": "^5.0.26"
+    "@ai-sdk/google": "^3.0.33",
+    "@ai-sdk/openai": "^3.0.36",
+    "ai": "^6.0.103"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.59",
-    "@ai-sdk/azure": "^2.0.87",
-    "@ai-sdk/deepseek": "^1.0.31",
-    "@ai-sdk/openai-compatible": "1.0.28",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.17",
-    "@ai-sdk/xai": "^2.0.36",
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
+    "@ai-sdk/anthropic": "^3.0.48",
+    "@ai-sdk/azure": "^3.0.37",
+    "@ai-sdk/deepseek": "^2.0.20",
+    "@ai-sdk/openai-compatible": "^2.0.30",
+    "@ai-sdk/provider": "^3.0.8",
+    "@ai-sdk/provider-utils": "^4.0.15",
+    "@ai-sdk/xai": "^3.0.59",
     "zod": "^4.1.5"
   },
   "devDependencies": {

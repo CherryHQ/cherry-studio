@@ -834,3 +834,21 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
     }, {}) || {}
   )
 }
+
+/**
+ * Get reasoning tag name based on model ID
+ * Used for extractReasoningMiddleware configuration
+ */
+export function getReasoningTagName(modelId: string | undefined): string {
+  const tagName = {
+    reasoning: 'reasoning',
+    think: 'think',
+    thought: 'thought',
+    seedThink: 'seed:think'
+  }
+
+  if (modelId?.includes('gpt-oss')) return tagName.reasoning
+  if (modelId?.includes('gemini')) return tagName.thought
+  if (modelId?.includes('seed-oss-36b')) return tagName.seedThink
+  return tagName.think
+}
