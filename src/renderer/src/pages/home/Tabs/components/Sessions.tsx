@@ -1,7 +1,6 @@
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useLoading } from '@renderer/hooks/useLoading'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -27,7 +26,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const { startLoading, finishLoading } = useLoading()
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -43,7 +41,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         window.toast.error(t('agent.session.delete.error.last'))
         return
       }
-      startLoading(id)
       const success = await deleteSession(id)
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
@@ -53,9 +50,8 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           // may clear messages instead of forbidden deletion
         }
       }
-      finishLoading(id)
     },
-    [agentId, deleteSession, dispatch, finishLoading, sessions, startLoading, t]
+    [agentId, deleteSession, dispatch, sessions, t]
   )
 
   const activeSessionId = activeSessionIdMap[agentId]
