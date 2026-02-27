@@ -1,3 +1,4 @@
+import type { MemoryItem, UserPreference } from '@types'
 import * as z from 'zod'
 
 // Define Zod schema for fact retrieval output
@@ -298,4 +299,59 @@ export function parseMessages(messages: string[]): string {
 
 export function removeCodeBlocks(text: string): string {
   return text.replace(/```[^`]*```/g, '')
+}
+
+export const memoryContextPrompt: string = `以下是与用户相关的记忆信息，请在回答时参考：
+
+{{ memoryItems }}
+
+注意事项：
+- 如果记忆与当前问题相关，请利用这些信息提供个性化回答
+- 如果记忆与当前问题无关，请忽略这些信息
+- 不要明确提及"根据记忆"或"我记得"，自然地使用信息即可`
+
+export function getMemoryContextPrompt(memories: MemoryItem[]): string {
+  if (memories.length === 0) {
+    return ''
+  }
+
+  const memoryText = memories.map((m, i) => `${i + 1}. ${m.memory}`).join('\n')
+  return memoryContextPrompt.replace('{{ memoryItems }}', memoryText)
+}
+
+export function getPersonalizationPrompt(preferences: UserPreference[]): string {
+  if (preferences.length === 0) {
+    return ''
+  }
+
+  const techDepth = preferences.find((p) => p.type === 'technical_depth')?.value
+  const language = preferences.find((p) => p.type === 'language')?.value
+  const length = preferences.find((p) => p.type === 'response_length')?.value
+  const codeStyle = preferences.find((p) => p.type === 'code_style')?.value
+
+  let prompt = '请根据以下用户偏好调整你的回答风格：\n'
+
+  if (techDepth === 'beginner') {
+    prompt += '- 使用简单易懂的语言，避免专业术语，必要时解释概念\n'
+  } else if (techDepth === 'expert') {
+    prompt += '- 使用专业术语，可以直接深入技术细节\n'
+  }
+
+  if (length === 'concise') {
+    prompt += '- 回答简洁，直接给出结论和关键信息\n'
+  } else if (length === 'detailed') {
+    prompt += '- 回答详细，提供充分的解释和示例\n'
+  }
+
+  if (codeStyle === 'commented') {
+    prompt += '- 代码示例添加必要的注释\n'
+  } else if (codeStyle === 'minimal') {
+    prompt += '- 代码示例保持简洁，无需过多注释\n'
+  }
+
+  if (language) {
+    prompt += `- 使用 ${language} 回答\n`
+  }
+
+  return prompt
 }

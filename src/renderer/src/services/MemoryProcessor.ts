@@ -8,7 +8,7 @@ import {
   MemoryUpdateSchema,
   updateMemorySystemPrompt
 } from '@renderer/utils/memory-prompts'
-import type { MemoryConfig, MemoryItem } from '@types'
+import type { MemoryConfig, MemoryItem, UserPreference } from '@types'
 import jaison from 'jaison/lib/index.js'
 
 import { fetchGenerate } from './ApiService'
@@ -247,6 +247,49 @@ export class MemoryProcessor {
       logger.error('Error searching memories:', error as Error)
       return []
     }
+  }
+
+  /**
+   * Extract user preferences from memories
+   * @param memories - Array of memory items to analyze
+   * @returns Array of extracted user preferences
+   */
+  extractUserPreferences(memories: MemoryItem[]): UserPreference[] {
+    const preferences: UserPreference[] = []
+
+    for (const memory of memories) {
+      const text = memory.memory.toLowerCase()
+
+      // Technical depth detection
+      if (text.includes('新手') || text.includes('初学者') || text.includes('入门')) {
+        preferences.push({ type: 'technical_depth', value: 'beginner', source: memory.id })
+      } else if (text.includes('专家') || text.includes('资深') || text.includes('高级')) {
+        preferences.push({ type: 'technical_depth', value: 'expert', source: memory.id })
+      }
+
+      // Response length detection
+      if (text.includes('简洁') || text.includes('简短') || text.includes('简单')) {
+        preferences.push({ type: 'response_length', value: 'concise', source: memory.id })
+      } else if (text.includes('详细') || text.includes('完整') || text.includes('全面')) {
+        preferences.push({ type: 'response_length', value: 'detailed', source: memory.id })
+      }
+
+      // Code style detection
+      if (text.includes('注释') || text.includes('解释代码')) {
+        preferences.push({ type: 'code_style', value: 'commented', source: memory.id })
+      } else if (text.includes('简洁代码') || text.includes('无注释')) {
+        preferences.push({ type: 'code_style', value: 'minimal', source: memory.id })
+      }
+
+      // Language detection (Chinese vs English)
+      if (text.includes('中文回答') || text.includes('用中文')) {
+        preferences.push({ type: 'language', value: '中文', source: memory.id })
+      } else if (text.includes('英文回答') || text.includes('用英文')) {
+        preferences.push({ type: 'language', value: 'English', source: memory.id })
+      }
+    }
+
+    return preferences
   }
 
   /**

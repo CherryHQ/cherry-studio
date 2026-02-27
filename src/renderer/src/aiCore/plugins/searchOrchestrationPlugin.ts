@@ -17,14 +17,15 @@ import {
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import type { Assistant } from '@renderer/types'
+import type { Assistant, MemoryConfig, MemoryItem } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
 import type { LanguageModel, ModelMessage } from 'ai'
 import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
-import { MemoryProcessor } from '../../services/MemoryProcessor'
+import { MemoryProcessor, type MemoryProcessorConfig } from '../../services/MemoryProcessor'
+import { getMemoryContextPrompt, getPersonalizationPrompt } from '../../utils/memory-prompts'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
@@ -234,12 +235,51 @@ async function storeConversationMemory(
 }
 
 /**
+ * Auto recall memories and classify by relevance
+ */
+async function autoRecallMemories(
+  userMessage: string,
+  _assistant: Assistant,
+  config: MemoryProcessorConfig,
+  memoryConfig: MemoryConfig
+): Promise<{ highRelevance: MemoryItem[]; lowRelevance: MemoryItem[] }> {
+  // Check if auto recall is enabled
+  if (!memoryConfig.autoRecallEnabled) {
+    return { highRelevance: [], lowRelevance: [] }
+  }
+
+  try {
+    const memoryProcessor = new MemoryProcessor()
+    const memories = await memoryProcessor.searchRelevantMemories(
+      userMessage,
+      config,
+      memoryConfig.autoRecallLimit || 5
+    )
+
+    // Classify by relevance score
+    const threshold = memoryConfig.highRelevanceThreshold || 0.8
+    return {
+      highRelevance: memories.filter((m) => (m.score || 0) >= threshold),
+      lowRelevance: memories.filter((m) => (m.score || 0) < threshold)
+    }
+  } catch (error) {
+    logger.error('Auto recall failed:', error as Error)
+    return { highRelevance: [], lowRelevance: [] }
+  }
+}
+
+/**
  * 🎯 搜索编排插件
  */
 export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
+
+  // NEW: Store classified memories
+  const classifiedMemories: {
+    [requestId: string]: { highRelevance: MemoryItem[]; lowRelevance: MemoryItem[] }
+  } = {}
 
   return definePlugin({
     name: 'search-orchestration',
@@ -271,6 +311,27 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
+
+        // NEW: Auto recall memories if enabled
+        if (shouldMemorySearch) {
+          const memoryConfig = selectMemoryConfig(store.getState())
+          const currentUserId = selectCurrentUserId(store.getState())
+          const processorConfig = MemoryProcessor.getProcessorConfig(
+            memoryConfig,
+            assistant.id,
+            currentUserId,
+            context.requestId
+          )
+
+          const userMessageContent = getMessageContent(lastUserMessage) || ''
+          const classified = await autoRecallMemories(userMessageContent, assistant, processorConfig, memoryConfig)
+          classifiedMemories[context.requestId] = classified
+
+          logger.debug('Auto recalled memories:', {
+            high: classified.highRelevance.length,
+            low: classified.lowRelevance.length
+          })
+        }
 
         // 执行意图分析
         if (shouldWebSearch || shouldKnowledgeSearch) {
@@ -310,6 +371,36 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 确保 tools 对象存在
         if (!params.tools) {
           params.tools = {}
+        }
+
+        // Inject high relevance memories to system prompt
+        const classified = classifiedMemories[context.requestId]
+        if (classified?.highRelevance.length > 0) {
+          // Extract user preferences
+          const memoryProcessor = new MemoryProcessor()
+          const preferences = memoryProcessor.extractUserPreferences(classified.highRelevance)
+          const personalizationPrompt = getPersonalizationPrompt(preferences)
+          const memoryContext = getMemoryContextPrompt(classified.highRelevance)
+
+          // Build combined system prompt
+          let additionalContext = ''
+          if (personalizationPrompt) {
+            additionalContext += personalizationPrompt + '\n\n'
+          }
+          if (memoryContext) {
+            additionalContext += memoryContext
+          }
+
+          if (params.system) {
+            params.system = `${params.system}\n\n${additionalContext}`
+          } else {
+            params.system = additionalContext
+          }
+
+          logger.debug('Injected memories and personalization to system prompt', {
+            memoryCount: classified.highRelevance.length,
+            preferenceCount: preferences.length
+          })
         }
 
         // 🌐 网络搜索工具配置
@@ -355,8 +446,13 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 🧠 记忆搜索工具配置
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (globalMemoryEnabled && assistant.enableMemory) {
-          // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          // Only add tool if there are low relevance memories or if auto recall is disabled
+          const hasLowRelevance = classified?.lowRelevance.length > 0
+          const autoRecallDisabled = !selectMemoryConfig(store.getState()).autoRecallEnabled
+
+          if (hasLowRelevance || autoRecallDisabled) {
+            params.tools['builtin_memory_search'] = memorySearchTool()
+          }
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))
@@ -385,6 +481,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 清理缓存
         delete intentAnalysisResults[context.requestId]
         delete userMessages[context.requestId]
+        delete classifiedMemories[context.requestId]
       } catch (error) {
         logger.error('💾 Memory storage failed:', error as Error)
         // 不抛出错误，避免影响主流程
