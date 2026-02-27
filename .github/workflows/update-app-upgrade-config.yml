@@ -152,7 +152,7 @@ jobs:
         if: steps.check.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Enable corepack
         if: steps.check.outputs.should_run == 'true'
