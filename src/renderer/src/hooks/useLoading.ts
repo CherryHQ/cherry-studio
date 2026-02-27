@@ -32,15 +32,6 @@ export function useLoading(): {
  * if (isLoading) return <Spinner />;
  */
 export function useLoading(id: string): { isLoading: boolean; startLoading: () => void; finishLoading: () => void }
-/**
- * Implementation for useLoading hook with function overloads.
- *
- * @param id - Optional unique identifier. When provided, returns specific loading state;
- *             when undefined, returns full loading map and generic control functions.
- * @returns Loading state object based on whether id is provided
- *
- * @internal
- */
 export function useLoading(id?: string) {
   const loadingMap = useAppSelector((state) => state.runtime.loadingMap)
   const dispatch = useAppDispatch()
