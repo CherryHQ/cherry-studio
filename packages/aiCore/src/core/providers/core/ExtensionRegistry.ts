@@ -52,8 +52,9 @@ export class ExtensionRegistry {
   register(extension: ProviderExtension<any, any, any>): this {
     const { name, aliases, variants } = extension.config
 
+    // Idempotent: skip if already registered (supports HMR / re-import)
     if (this.extensions.has(name)) {
-      throw new Error(`Provider extension "${name}" is already registered`)
+      return this
     }
 
     this.extensions.set(name, extension)

@@ -144,6 +144,7 @@ const OpenAIExtension = ProviderExtension.create({
   /**
    * Provider 变体 - openai-chat
    * 使用 provider.chat() 而不是默认的 languageModel()
+   * 注：openai 默认的 languageModel() 已经是 Responses API，所以 openai-response 只需作为别名
    */
   variants: [
     {
@@ -233,13 +234,8 @@ export const registeredProviderIds: ProviderIdsMap = (() => {
  * 注意：只注册通用的 provider extensions（OpenAI, Anthropic, Google 等）
  * 项目特定的 extensions 应该在应用层单独注册
  */
-;(() => {
-  try {
-    extensionRegistry.registerAll(coreExtensions)
-  } catch (error) {
-    console.warn('[ProviderRegistry] Failed to register core extensions:', error)
-  }
-})()
+// register() is idempotent — safe to call on HMR / re-import
+extensionRegistry.registerAll(coreExtensions)
 
 /**
  * Provider 初始化错误类型

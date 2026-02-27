@@ -120,8 +120,11 @@ export default class ModernAiProvider {
    */
   private async resolveConfig(): Promise<ProviderConfig> {
     if (this.config) return this.config
+    if (!this.model) {
+      throw new Error('Model is required to resolve provider config. Use constructor with model parameter.')
+    }
     if (!this.configPromise) {
-      this.configPromise = Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model!)).then((config) => {
+      this.configPromise = Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model)).then((config) => {
         this.config = config
         this.configPromise = undefined
         return config
