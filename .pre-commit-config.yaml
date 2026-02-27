@@ -1,4 +1,4 @@
-default_install_hook_types: [pre-commit, post-checkout]
+default_install_hook_types: [pre-commit, post-checkout, post-merge]
 
 repos:
   - repo: local
@@ -29,5 +29,13 @@ repos:
         language: system
         entry: bash -c 'if [ "$PRE_COMMIT_FROM_REF" != "$PRE_COMMIT_TO_REF" ] && git diff --name-only "$PRE_COMMIT_FROM_REF" "$PRE_COMMIT_TO_REF" -- "**/package.json" pnpm-lock.yaml | grep -q .; then echo "Dependencies changed, running pnpm install..."; pnpm install; else echo "No dependency changes, skipping pnpm install."; fi'
         stages: [post-checkout]
+        always_run: true
+        pass_filenames: false
+
+      - id: post-merge-install
+        name: pnpm install after merge/pull
+        language: system
+        entry: bash -c 'PREV_HEAD=$(git rev-parse --short HEAD@{1} 2>/dev/null); if [ -n "$PREV_HEAD" ] && git diff --name-only "$PREV_HEAD" HEAD -- "**/package.json" pnpm-lock.yaml | grep -q .; then echo "Dependencies changed, running pnpm install..."; pnpm install; else echo "No dependency changes, skipping pnpm install."; fi'
+        stages: [post-merge]
         always_run: true
         pass_filenames: false
