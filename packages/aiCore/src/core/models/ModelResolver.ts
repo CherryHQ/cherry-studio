@@ -5,9 +5,8 @@
  * 集成了来自 ModelCreator 的特殊处理逻辑
  */
 
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 
-import { wrapModelWithMiddlewares } from '../middleware/wrapper'
 import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../providers/RegistryManagement'
 
 export class ModelResolver {
@@ -17,16 +16,14 @@ export class ModelResolver {
    * @param modelId 模型ID，支持 'gpt-4' 和 'anthropic>claude-3' 两种格式
    * @param fallbackProviderId 当modelId为传统格式时使用的providerId
    * @param providerOptions provider配置选项（用于OpenAI模式选择等）
-   * @param middlewares 中间件数组，会应用到最终模型上
    */
   async resolveLanguageModel(
     modelId: string,
     fallbackProviderId: string,
-    providerOptions?: any,
-    middlewares?: LanguageModelV3Middleware[]
+    providerOptions?: any
   ): Promise<LanguageModelV3> {
     let finalProviderId = fallbackProviderId
-    let model: LanguageModelV3
+
     // 🎯 处理 OpenAI 模式选择逻辑 (从 ModelCreator 迁移)
     if ((fallbackProviderId === 'openai' || fallbackProviderId === 'azure') && providerOptions?.mode === 'chat') {
       finalProviderId = `${fallbackProviderId}-chat`
@@ -34,18 +31,11 @@ export class ModelResolver {
 
     // 检查是否是命名空间格式
     if (modelId.includes(DEFAULT_SEPARATOR)) {
-      model = this.resolveNamespacedModel(modelId)
+      return this.resolveNamespacedModel(modelId)
     } else {
       // 传统格式：使用处理后的 providerId + modelId
-      model = this.resolveTraditionalModel(finalProviderId, modelId)
+      return this.resolveTraditionalModel(finalProviderId, modelId)
     }
-
-    // 🎯 应用中间件（如果有）
-    if (middlewares && middlewares.length > 0) {
-      model = wrapModelWithMiddlewares(model, middlewares)
-    }
-
-    return model
   }
 
   /**

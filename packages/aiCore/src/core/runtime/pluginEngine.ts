@@ -157,8 +157,8 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
         throw new ModelResolutionError(modelId, this.providerId)
       }
 
-      // 2.5 应用 context.middlewares 到模型（当 model 是对象时，resolveModel 不会被调用，需要在这里应用）
-      if (typeof model !== 'string' && context.middlewares && context.middlewares.length > 0) {
+      // 2.5 统一应用 context.middlewares（由各插件在 configureContext 阶段写入）
+      if (context.middlewares && context.middlewares.length > 0) {
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares

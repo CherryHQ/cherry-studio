@@ -7,12 +7,7 @@
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  createMockEmbeddingModel,
-  createMockImageModel,
-  createMockLanguageModel,
-  createMockMiddleware
-} from '../../../__tests__'
+import { createMockEmbeddingModel, createMockImageModel, createMockLanguageModel } from '../../../__tests__'
 import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../../providers/RegistryManagement'
 import { ModelResolver } from '../ModelResolver'
 
@@ -177,38 +172,6 @@ describe('ModelResolver', () => {
 
         // Should use the namespaced ID directly, not apply mode logic
         expect(globalRegistryManagement.languageModel).toHaveBeenCalledWith(namespacedId)
-      })
-    })
-
-    describe('Middleware Application', () => {
-      it('should apply middlewares to resolved model', async () => {
-        const mockMiddleware = createMockMiddleware()
-
-        const result = await resolver.resolveLanguageModel('gpt-4', 'openai', undefined, [mockMiddleware])
-
-        expect(result).toHaveProperty('_wrapped', true)
-      })
-
-      it('should apply multiple middlewares in order', async () => {
-        const middleware1 = createMockMiddleware()
-        const middleware2 = createMockMiddleware()
-
-        const result = await resolver.resolveLanguageModel('gpt-4', 'openai', undefined, [middleware1, middleware2])
-
-        expect(result).toHaveProperty('_wrapped', true)
-      })
-
-      it('should not apply middlewares when none provided', async () => {
-        const result = await resolver.resolveLanguageModel('gpt-4', 'openai')
-
-        expect(result).not.toHaveProperty('_wrapped')
-        expect(result).toBe(mockLanguageModel)
-      })
-
-      it('should not apply middlewares when empty array provided', async () => {
-        const result = await resolver.resolveLanguageModel('gpt-4', 'openai', undefined, [])
-
-        expect(result).not.toHaveProperty('_wrapped')
       })
     })
 

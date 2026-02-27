@@ -2,14 +2,9 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
-import {
-  generateImage as _generateImage,
-  generateText as _generateText,
-  streamText as _streamText,
-  wrapLanguageModel
-} from 'ai'
+import { generateImage as _generateImage, generateText as _generateText, streamText as _streamText } from 'ai'
 
 import { globalModelResolver } from '../models'
 import { type ModelConfig } from '../models/types'
@@ -42,9 +37,9 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
       name: '_internal_resolveModel',
       enforce: 'post',
 
-      resolveModel: async (modelId: string, context: AiRequestContext) => {
-        // 从 context.middlewares 获取中间件（由各插件在 configureContext 阶段写入）
-        return await this.resolveModel(modelId, context.middlewares)
+      resolveModel: async (modelId: string) => {
+        // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
+        return await this.resolveModel(modelId)
       }
     })
   }
@@ -156,35 +151,24 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   // === 辅助方法 ===
 
   /**
-   * 解析模型：如果是字符串则创建模型，如果是模型则直接返回
+   * 解析模型：将字符串 modelId 解析为 model 对象
+   * middleware 的应用由 pluginEngine 统一处理
    */
-  private async resolveModel(
-    modelOrId: LanguageModel,
-    middlewares?: LanguageModelV3Middleware[]
-  ): Promise<LanguageModelV3> {
+  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      // 🎯 字符串modelId，使用新的ModelResolver解析，传递完整参数
       return await globalModelResolver.resolveLanguageModel(
-        modelOrId, // 支持 'gpt-4' 和 'aihubmix:anthropic:claude-3.5-sonnet'
-        this.config.providerId, // fallback provider
-        this.config.providerSettings, // provider options
-        middlewares // 中间件数组
+        modelOrId,
+        this.config.providerId,
+        this.config.providerSettings
       )
     } else {
-      // 已经是模型对象
-      // 所有 provider 都应该返回 V3 模型（通过 wrapProvider 确保）
       if (!isV3Model(modelOrId)) {
         throw new Error(
           `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
             'All providers should be wrapped with wrapProvider to return V3 models.'
         )
       }
-
-      // V3 模型，使用 wrapLanguageModel 应用中间件
-      return wrapLanguageModel({
-        model: modelOrId,
-        middleware: middlewares || []
-      })
+      return modelOrId
     }
   }
 

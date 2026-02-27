@@ -8,12 +8,7 @@ import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import { generateImage, generateText, streamText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  createMockImageModel,
-  createMockLanguageModel,
-  createMockMiddleware,
-  mockProviderConfigs
-} from '../../../__tests__'
+import { createMockImageModel, createMockLanguageModel, mockProviderConfigs } from '../../../__tests__'
 import { globalModelResolver } from '../../models'
 import { ImageModelResolutionError } from '../errors'
 import { RuntimeExecutor } from '../executor'
@@ -103,8 +98,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
         'gpt-4',
         'openai',
-        mockProviderConfigs.openai,
-        undefined
+        mockProviderConfigs.openai
       )
     })
 
@@ -121,15 +115,10 @@ describe('RuntimeExecutor - Model Resolution', () => {
         messages: [{ role: 'user', content: 'Test' }]
       })
 
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
-        'claude-3-5-sonnet',
-        'anthropic',
-        {
-          apiKey: 'sk-test',
-          baseURL: 'https://api.anthropic.com'
-        },
-        undefined
-      )
+      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('claude-3-5-sonnet', 'anthropic', {
+        apiKey: 'sk-test',
+        baseURL: 'https://api.anthropic.com'
+      })
     })
 
     it('should resolve traditional format modelId', async () => {
@@ -138,12 +127,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
         messages: [{ role: 'user', content: 'Test' }]
       })
 
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
-        'gpt-4-turbo',
-        'openai',
-        expect.any(Object),
-        undefined
-      )
+      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4-turbo', 'openai', expect.any(Object))
     })
 
     it('should resolve namespaced format modelId', async () => {
@@ -155,8 +139,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
         'aihubmix|anthropic|claude-3',
         'openai',
-        expect.any(Object),
-        undefined
+        expect.any(Object)
       )
     })
 
@@ -267,101 +250,6 @@ describe('RuntimeExecutor - Model Resolution', () => {
     })
   })
 
-  describe('Middleware Application', () => {
-    it('should apply middlewares to string modelId', async () => {
-      const testMiddleware = createMockMiddleware()
-
-      await executor.generateText(
-        {
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: 'Test' }]
-        },
-        { middlewares: [testMiddleware] }
-      )
-
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object), [
-        testMiddleware
-      ])
-    })
-
-    it('should apply multiple middlewares in order', async () => {
-      const middleware1 = createMockMiddleware()
-      const middleware2 = createMockMiddleware()
-
-      await executor.generateText(
-        {
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: 'Test' }]
-        },
-        { middlewares: [middleware1, middleware2] }
-      )
-
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object), [
-        middleware1,
-        middleware2
-      ])
-    })
-
-    it('should pass middlewares to model resolver for string modelIds', async () => {
-      const testMiddleware = createMockMiddleware()
-
-      await executor.generateText(
-        {
-          model: 'gpt-4', // String model ID
-          messages: [{ role: 'user', content: 'Test' }]
-        },
-        { middlewares: [testMiddleware] }
-      )
-
-      // Middlewares are passed to the resolver for string modelIds
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object), [
-        testMiddleware
-      ])
-    })
-
-    it('should not apply middlewares when none provided', async () => {
-      await executor.generateText({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
-        'gpt-4',
-        'openai',
-        expect.any(Object),
-        undefined
-      )
-    })
-
-    it('should handle empty middleware array', async () => {
-      await executor.generateText(
-        {
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: 'Test' }]
-        },
-        { middlewares: [] }
-      )
-
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object), [])
-    })
-
-    it('should work with middlewares in streamText', async () => {
-      const middleware = createMockMiddleware()
-
-      await executor.streamText(
-        {
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: 'Stream' }]
-        },
-        { middlewares: [middleware] }
-      )
-
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object), [
-        middleware
-      ])
-    })
-  })
-
   describe('Image Model Resolution', () => {
     it('should resolve string image modelId using globalModelResolver', async () => {
       await executor.generateImage({
@@ -456,12 +344,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
         messages: [{ role: 'user', content: 'Test' }]
       })
 
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
-        'gpt-4',
-        'openai',
-        expect.any(Object),
-        undefined
-      )
+      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('gpt-4', 'openai', expect.any(Object))
     })
 
     it('should resolve models for Anthropic provider', async () => {
@@ -475,8 +358,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
         'claude-3-5-sonnet',
         'anthropic',
-        expect.any(Object),
-        undefined
+        expect.any(Object)
       )
     })
 
@@ -491,8 +373,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
         'gemini-2.0-flash',
         'google',
-        expect.any(Object),
-        undefined
+        expect.any(Object)
       )
     })
 
@@ -507,8 +388,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith(
         'custom-model',
         'openai-compatible',
-        expect.any(Object),
-        undefined
+        expect.any(Object)
       )
     })
   })
@@ -530,8 +410,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
         'openai',
         expect.objectContaining({
           mode: 'chat'
-        }),
-        undefined
+        })
       )
     })
 
@@ -551,8 +430,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
         'openai',
         expect.objectContaining({
           mode: 'responses'
-        }),
-        undefined
+        })
       )
     })
   })
@@ -564,7 +442,7 @@ describe('RuntimeExecutor - Model Resolution', () => {
         messages: [{ role: 'user', content: 'Test' }]
       })
 
-      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('', 'openai', expect.any(Object), undefined)
+      expect(globalModelResolver.resolveLanguageModel).toHaveBeenCalledWith('', 'openai', expect.any(Object))
     })
 
     it('should handle model resolution errors gracefully', async () => {
