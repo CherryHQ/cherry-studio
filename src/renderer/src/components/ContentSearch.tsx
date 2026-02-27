@@ -1,6 +1,6 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { findNearestScrollableAncestor, scrollIntoView } from '@renderer/utils'
+import { findNearestScrollableAncestor, scrollIntoView, sortRangesByViewportPosition } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -130,7 +130,8 @@ const findRangesInTarget = (
     }
   }
 
-  return ranges
+  // 让 next/prev 按“视觉上的上下顺序”移动（例如聊天消息列表是 column-reverse）。
+  return sortRangesByViewportPosition(ranges)
 }
 
 // eslint-disable-next-line @eslint-react/no-forward-ref

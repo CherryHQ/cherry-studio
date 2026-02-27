@@ -143,3 +143,43 @@ export function scrollElementIntoView(
 
   scrollContainer.scrollTop += scrollDeltaY
 }
+
+/**
+ * 将一组 Range 按可视位置（从上到下、从左到右）排序。
+ *
+ * 背景：
+ * - DOM 遍历顺序不一定等同于视觉顺序（例如 `flex-direction: column-reverse` 的消息列表）。
+ * - 本地搜索 next/prev 需要遵循用户“屏幕上的上下顺序”。
+ *
+ * 注意：
+ * - 该排序会触发布局读取（getClientRects / getBoundingClientRect），因此对超大量匹配项会跳过排序以避免卡顿。
+ */
+export function sortRangesByViewportPosition(ranges: Range[], maxSortable: number = 500): Range[] {
+  if (ranges.length <= 1) return ranges
+  if (ranges.length > maxSortable) return ranges
+
+  const decorated = ranges.map((range, index) => {
+    let top = Number.POSITIVE_INFINITY
+    let left = Number.POSITIVE_INFINITY
+
+    try {
+      const rects = range.getClientRects?.()
+      const rect = rects && rects.length > 0 ? rects[0] : range.getBoundingClientRect?.()
+
+      if (rect && Number.isFinite(rect.top)) top = rect.top
+      if (rect && Number.isFinite(rect.left)) left = rect.left
+    } catch {
+      // 忽略：保留为 Infinity，放到排序末尾
+    }
+
+    return { range, index, top, left }
+  })
+
+  decorated.sort((a, b) => {
+    if (a.top !== b.top) return a.top - b.top
+    if (a.left !== b.left) return a.left - b.left
+    return a.index - b.index
+  })
+
+  return decorated.map((x) => x.range)
+}

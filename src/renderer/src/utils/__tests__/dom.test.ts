@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { findNearestScrollableAncestor, scrollElementIntoView } from '../dom'
+import { findNearestScrollableAncestor, scrollElementIntoView, sortRangesByViewportPosition } from '../dom'
 
 const setElementSize = (
   el: HTMLElement,
@@ -148,5 +148,32 @@ describe('utils/dom', () => {
 
     expect((inner as any).scrollBy).toHaveBeenCalledOnce()
     document.body.removeChild(outer)
+  })
+
+  it('sortRangesByViewportPosition: 按 top/left 排序并保持稳定', () => {
+    const r1 = document.createRange()
+    const r2 = document.createRange()
+    const r3 = document.createRange()
+
+    // 模拟：r2 和 r3 在同一行，但 r3 更靠左；r1 在更靠下的位置
+    ;(r1 as any).getClientRects = () => [{ top: 200, left: 0 }]
+    ;(r2 as any).getClientRects = () => [{ top: 100, left: 100 }]
+    ;(r3 as any).getClientRects = () => [{ top: 100, left: 50 }]
+
+    const sorted = sortRangesByViewportPosition([r1, r2, r3])
+    expect(sorted[0]).toBe(r3)
+    expect(sorted[1]).toBe(r2)
+    expect(sorted[2]).toBe(r1)
+  })
+
+  it('sortRangesByViewportPosition: 相同坐标时保持原始顺序', () => {
+    const r1 = document.createRange()
+    const r2 = document.createRange()
+    ;(r1 as any).getClientRects = () => [{ top: 100, left: 0 }]
+    ;(r2 as any).getClientRects = () => [{ top: 100, left: 0 }]
+
+    const sorted = sortRangesByViewportPosition([r1, r2])
+    expect(sorted[0]).toBe(r1)
+    expect(sorted[1]).toBe(r2)
   })
 })
