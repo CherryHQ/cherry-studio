@@ -140,7 +140,7 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
      };
    }
  };
-@@ -1260,8 +1264,8 @@ var OllamaStreamProcessor = class {
+@@ -1260,9 +1264,9 @@ var OllamaStreamProcessor = class {
      }
    }
    processDelta(delta, controller) {
@@ -150,6 +150,8 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
      this.processToolCalls(delta, controller);
    }
    processTextContent(delta, controller) {
+-    if ((delta == null ? void 0 : delta.content) != null) {
++    if ((delta == null ? void 0 : delta.content)) {
 diff --git a/dist/index.mjs b/dist/index.mjs
 index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0aee143964 100644
 --- a/dist/index.mjs
@@ -201,7 +203,7 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0a
      };
    }
  };
-@@ -1262,8 +1264,8 @@ var OllamaStreamProcessor = class {
+@@ -1262,9 +1264,9 @@ var OllamaStreamProcessor = class {
      }
    }
    processDelta(delta, controller) {
@@ -211,3 +213,5 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0a
      this.processToolCalls(delta, controller);
    }
    processTextContent(delta, controller) {
+-    if ((delta == null ? void 0 : delta.content) != null) {
++    if ((delta == null ? void 0 : delta.content)) {
