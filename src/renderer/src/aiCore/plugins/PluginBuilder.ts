@@ -50,7 +50,7 @@ export function buildPlugins(
   }
 
   // 0.2 Reasoning extraction for OpenAI/Azure providers
-  if (middlewareConfig.enableReasoning && middlewareConfig.provider) {
+  if (middlewareConfig.provider) {
     const providerType = middlewareConfig.provider.type
     if (providerType === 'openai' || providerType === 'azure-openai') {
       const tagName = getReasoningTagName(middlewareConfig.model?.id.toLowerCase())
