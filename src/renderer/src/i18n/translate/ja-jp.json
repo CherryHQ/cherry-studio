@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "画像としてエクスポート",
+        "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
           "label": "Markdownとしてエクスポート",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
       },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニアプリをフィルタリングします",
+        "global": "世界中",
+        "title": "ミニアプリ地域絞り込み"
+      },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
       "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "デフォルトにリセット",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
       "show_app": "アプリを表示/非表示",

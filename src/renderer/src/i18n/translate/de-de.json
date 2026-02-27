@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "Als Bild exportieren",
+        "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {
           "label": "Als Markdown exportieren",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "Neue Fensterlinks im Browser öffnen"
       },
+      "region": {
+        "auto": "Automatische Erkennung",
+        "cn": "China",
+        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
+        "global": "global",
+        "title": "Bereichsfilterung für Mini-Programme"
+      },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
       "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "Auf Standard zurücksetzen",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
       "show_app": "App anzeigen/ausblenden",

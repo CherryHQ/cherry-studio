@@ -7,15 +7,7 @@
  * 2. 命名空间格式: 'hub|provider|model' (HubProvider内部路由)
  */
 
-import type {
-  EmbeddingModelV3,
-  ImageModelV3,
-  LanguageModelV3,
-  LanguageModelV3Middleware,
-  ProviderV3
-} from '@ai-sdk/provider'
-
-import { wrapModelWithMiddlewares } from '../middleware/wrapper'
+import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 
 export class ModelResolver {
   private provider: ProviderV3
@@ -32,7 +24,6 @@ export class ModelResolver {
    * 解析语言模型
    *
    * @param modelId 模型ID，支持传统格式('gpt-4')或命名空间格式('hub|provider|model')
-   * @param middlewares 可选的中间件数组，会应用到最终模型上
    * @returns 解析后的语言模型实例
    *
    * @example
@@ -44,18 +35,8 @@ export class ModelResolver {
    * const model = await resolver.resolveLanguageModel('hub|openai|gpt-4')
    * ```
    */
-  async resolveLanguageModel(modelId: string, middlewares?: LanguageModelV3Middleware[]): Promise<LanguageModelV3> {
-    // 直接将完整的modelId传给provider
-    // - 如果是普通provider，会直接使用modelId
-    // - 如果是HubProvider，会解析命名空间并路由到正确的provider
-    let model = this.provider.languageModel(modelId)
-
-    // 应用中间件
-    if (middlewares && middlewares.length > 0) {
-      model = wrapModelWithMiddlewares(model, middlewares)
-    }
-
-    return model
+  async resolveLanguageModel(modelId: string): Promise<LanguageModelV3> {
+    return this.provider.languageModel(modelId)
   }
 
   /**

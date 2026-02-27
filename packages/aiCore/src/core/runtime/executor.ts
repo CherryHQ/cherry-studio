@@ -2,14 +2,9 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, LanguageModelV3Middleware, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
-import {
-  generateImage as _generateImage,
-  generateText as _generateText,
-  streamText as _streamText,
-  wrapLanguageModel
-} from 'ai'
+import { generateImage as _generateImage, generateText as _generateText, streamText as _streamText } from 'ai'
 
 import { ModelResolver } from '../models'
 import { isV3Model } from '../models/utils'
@@ -34,14 +29,14 @@ export class RuntimeExecutor<
     this.modelResolver = new ModelResolver(config.provider)
   }
 
-  private createResolveModelPlugin(middlewares?: LanguageModelV3Middleware[]) {
+  private createResolveModelPlugin() {
     return definePlugin({
       name: '_internal_resolveModel',
       enforce: 'post',
 
       resolveModel: async (modelId: string) => {
-        // 注意：extraModelConfig 暂时不支持，已在新架构中移除
-        return await this.resolveModel(modelId, middlewares)
+        // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
+        return await this.resolveModel(modelId)
       }
     })
   }
@@ -71,20 +66,12 @@ export class RuntimeExecutor<
   /**
    * 流式文本生成
    */
-  async streamText(
-    params: streamTextParams,
-    options?: {
-      middlewares?: LanguageModelV3Middleware[]
-    }
-  ): Promise<ReturnType<typeof _streamText>> {
+  async streamText(params: streamTextParams): Promise<ReturnType<typeof _streamText>> {
     const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([
-        this.createResolveModelPlugin(options?.middlewares),
-        this.createConfigureContextPlugin()
-      ])
+      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
     } else {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
@@ -110,20 +97,12 @@ export class RuntimeExecutor<
   /**
    * 生成文本
    */
-  async generateText(
-    params: generateTextParams,
-    options?: {
-      middlewares?: LanguageModelV3Middleware[]
-    }
-  ): Promise<ReturnType<typeof _generateText>> {
+  async generateText(params: generateTextParams): Promise<ReturnType<typeof _generateText>> {
     const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([
-        this.createResolveModelPlugin(options?.middlewares),
-        this.createConfigureContextPlugin()
-      ])
+      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
     } else {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
@@ -169,31 +148,22 @@ export class RuntimeExecutor<
   // === 辅助方法 ===
 
   /**
-   * 解析模型：如果是字符串则创建模型，如果是模型则直接返回
+   * 解析模型：将字符串 modelId 解析为 model 对象
+   * middleware 的应用由 pluginEngine 统一处理
    */
-  private async resolveModel(
-    modelOrId: LanguageModel,
-    middlewares?: LanguageModelV3Middleware[]
-  ): Promise<LanguageModelV3> {
+  private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
       // 字符串modelId，使用 ModelResolver 解析
       // Provider会处理命名空间格式路由（如果是HubProvider）
-      return await this.modelResolver.resolveLanguageModel(modelOrId, middlewares)
+      return await this.modelResolver.resolveLanguageModel(modelOrId)
     } else {
-      // 已经是模型对象
-      // 所有 provider 都应该返回 V3 模型（通过 wrapProvider 确保）
       if (!isV3Model(modelOrId)) {
         throw new Error(
           `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
             'All providers should be wrapped with wrapProvider to return V3 models.'
         )
       }
-
-      // V3 模型，使用 wrapLanguageModel 应用中间件
-      return wrapLanguageModel({
-        model: modelOrId,
-        middleware: middlewares || []
-      })
+      return modelOrId
     }
   }
 

@@ -1,6 +1,7 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import type { generateImage, LanguageModel } from 'ai'
+import { wrapLanguageModel } from 'ai'
 
 import { ModelResolutionError, RecursiveDepthError } from '../errors'
 import {
@@ -153,6 +154,14 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       if (!resolvedModel) {
         throw new ModelResolutionError(modelId, this.providerId)
+      }
+
+      // 2.5 统一应用 context.middlewares（由各插件在 configureContext 阶段写入）
+      if (context.middlewares && context.middlewares.length > 0) {
+        resolvedModel = wrapLanguageModel({
+          model: resolvedModel as LanguageModelV3,
+          middleware: context.middlewares
+        })
       }
 
       // 3. 转换请求参数
@@ -346,6 +355,14 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       if (!resolvedModel) {
         throw new ModelResolutionError(modelId, this.providerId)
+      }
+
+      // 2.5 应用 context.middlewares 到模型
+      if (typeof model !== 'string' && context.middlewares && context.middlewares.length > 0) {
+        resolvedModel = wrapLanguageModel({
+          model: resolvedModel as LanguageModelV3,
+          middleware: context.middlewares
+        })
       }
 
       // 3. 转换请求参数

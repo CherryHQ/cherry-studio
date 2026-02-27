@@ -9,7 +9,6 @@ import {
   createMockEmbeddingModel,
   createMockImageModel,
   createMockLanguageModel,
-  createMockMiddleware,
   createMockProviderV3
 } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,38 +102,6 @@ describe('ModelResolver', () => {
       await resolver.resolveLanguageModel('')
 
       expect(mockProvider.languageModel).toHaveBeenCalledWith('')
-    })
-
-    describe('Middleware Application', () => {
-      it('should apply middlewares to resolved model', async () => {
-        const mockMiddleware = createMockMiddleware()
-
-        const result = await resolver.resolveLanguageModel('gpt-4', [mockMiddleware])
-
-        expect(result).toHaveProperty('_wrapped', true)
-      })
-
-      it('should apply multiple middlewares', async () => {
-        const middleware1 = createMockMiddleware()
-        const middleware2 = createMockMiddleware()
-
-        const result = await resolver.resolveLanguageModel('gpt-4', [middleware1, middleware2])
-
-        expect(result).toHaveProperty('_wrapped', true)
-      })
-
-      it('should not apply middlewares when none provided', async () => {
-        const result = await resolver.resolveLanguageModel('gpt-4')
-
-        expect(result).not.toHaveProperty('_wrapped')
-        expect(result).toBe(mockLanguageModel)
-      })
-
-      it('should not apply middlewares when empty array provided', async () => {
-        const result = await resolver.resolveLanguageModel('gpt-4', [])
-
-        expect(result).not.toHaveProperty('_wrapped')
-      })
     })
 
     it('should throw if provider throws', async () => {

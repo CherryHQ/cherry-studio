@@ -11,8 +11,6 @@ export type { RuntimeConfig } from './types'
 
 // === 便捷工厂函数 ===
 
-import type { LanguageModelV3Middleware } from '@ai-sdk/provider'
-
 import { type AiPlugin } from '../plugins'
 import { extensionRegistry } from '../providers'
 import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
@@ -35,7 +33,7 @@ export async function createExecutor<
 }
 
 /**
- * 直接流式文本生成 - 支持middlewares
+ * 直接流式文本生成
  */
 export async function streamText<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
@@ -44,15 +42,14 @@ export async function streamText<
   providerId: T,
   options: TSettingsMap[T],
   params: Parameters<RuntimeExecutor<TSettingsMap, T>['streamText']>[0],
-  plugins?: AiPlugin[],
-  middlewares?: LanguageModelV3Middleware[]
+  plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['streamText']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
-  return executor.streamText(params, { middlewares })
+  return executor.streamText(params)
 }
 
 /**
- * 直接生成文本 - 支持middlewares
+ * 直接生成文本
  */
 export async function generateText<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
@@ -61,11 +58,10 @@ export async function generateText<
   providerId: T,
   options: TSettingsMap[T],
   params: Parameters<RuntimeExecutor<TSettingsMap, T>['generateText']>[0],
-  plugins?: AiPlugin[],
-  middlewares?: LanguageModelV3Middleware[]
+  plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateText']>> {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
-  return executor.generateText(params, { middlewares })
+  return executor.generateText(params)
 }
 
 /**
