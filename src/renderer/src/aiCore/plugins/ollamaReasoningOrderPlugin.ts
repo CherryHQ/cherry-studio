@@ -1,4 +1,4 @@
-import type { LanguageModelV2StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
@@ -9,7 +9,7 @@ import type { LanguageModelMiddleware } from 'ai'
  */
 function createOllamaReasoningOrderMiddleware(): LanguageModelMiddleware {
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
       const { content, ...rest } = await doGenerate()
       if (!Array.isArray(content)) {
@@ -27,13 +27,13 @@ function createOllamaReasoningOrderMiddleware(): LanguageModelMiddleware {
       let hasReasoning = false
       let isActiveReasoning = false
       let reasoningId: string | undefined
-      let bufferedText: LanguageModelV2StreamPart[] = []
+      let bufferedText: LanguageModelV3StreamPart[] = []
       // Track IDs of text parts whose text-start is still in the buffer and not yet emitted
       // downstream. text-delta/text-end for these parts must also be buffered to prevent the AI
       // SDK from receiving a text-delta before the corresponding text-start is registered.
       const bufferedTextPartIds = new Set<string>()
 
-      const flushBufferedText = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>) => {
+      const flushBufferedText = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) => {
         if (bufferedText.length === 0) {
           return
         }
@@ -44,7 +44,7 @@ function createOllamaReasoningOrderMiddleware(): LanguageModelMiddleware {
         bufferedTextPartIds.clear()
       }
 
-      const endActiveReasoning = (controller: TransformStreamDefaultController<LanguageModelV2StreamPart>) => {
+      const endActiveReasoning = (controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) => {
         if (isActiveReasoning) {
           controller.enqueue({
             type: 'reasoning-end',
@@ -56,7 +56,7 @@ function createOllamaReasoningOrderMiddleware(): LanguageModelMiddleware {
 
       return {
         stream: stream.pipeThrough(
-          new TransformStream<LanguageModelV2StreamPart, LanguageModelV2StreamPart>({
+          new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
             transform(chunk, controller) {
               if (chunk.type === 'reasoning-start') {
                 hasReasoning = true
