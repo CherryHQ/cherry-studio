@@ -30,6 +30,8 @@ export class ToolCallChunkHandler {
   private static globalActiveToolCalls = new Map<string, ToolcallsMap>()
 
   private activeToolCalls = ToolCallChunkHandler.globalActiveToolCalls
+  // Track tool call IDs owned by this instance for scoped cleanup
+  private ownedToolCallIds = new Set<string>()
   constructor(
     private onChunk: (chunk: Chunk) => void,
     private mcpTools: MCPTool[]
@@ -50,7 +52,11 @@ export class ToolCallChunkHandler {
    * 实例方法：添加活跃工具调用
    */
   private addActiveToolCall(toolCallId: string, map: ToolcallsMap): boolean {
-    return ToolCallChunkHandler.addActiveToolCallImpl(toolCallId, map)
+    const added = ToolCallChunkHandler.addActiveToolCallImpl(toolCallId, map)
+    if (added) {
+      this.ownedToolCallIds.add(toolCallId)
+    }
+    return added
   }
 
   /**
@@ -61,10 +67,13 @@ export class ToolCallChunkHandler {
   }
 
   /**
-   * 清除所有全局活跃的工具调用（用于流结束/中止时的资源清理）
+   * Clear only the tool calls owned by this instance (safe for concurrent streams).
    */
-  public static clearAll(): void {
-    ToolCallChunkHandler.globalActiveToolCalls.clear()
+  public clearOwned(): void {
+    for (const id of this.ownedToolCallIds) {
+      ToolCallChunkHandler.globalActiveToolCalls.delete(id)
+    }
+    this.ownedToolCallIds.clear()
   }
 
   /**
@@ -367,6 +376,7 @@ export class ToolCallChunkHandler {
 
     // 从活跃调用中移除（交互结束后整个实例会被丢弃）
     this.activeToolCalls.delete(toolCallId)
+    this.ownedToolCallIds.delete(toolCallId)
 
     // 调用 onChunk
     if (this.onChunk) {
@@ -412,6 +422,7 @@ export class ToolCallChunkHandler {
       toolCallId: toolCallId
     }
     this.activeToolCalls.delete(toolCallId)
+    this.ownedToolCallIds.delete(toolCallId)
     if (this.onChunk) {
       this.onChunk({
         type: ChunkType.MCP_TOOL_COMPLETE,

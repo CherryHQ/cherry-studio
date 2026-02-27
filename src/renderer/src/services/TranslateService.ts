@@ -87,6 +87,8 @@ export const translateText = async (
     if (!NoOutputGeneratedError.isInstance(e)) {
       throw e
     }
+  } finally {
+    signal?.cleanup?.()
   }
 
   if (error !== undefined && !isAbortError(error)) {

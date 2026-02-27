@@ -68,9 +68,10 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
+    const removeListener = window.electron.ipcRenderer.on(IpcChannel.App_SaveData, async () => {
       await handleSaveData()
     })
+    return () => removeListener()
   }, [])
 
   useUpdateHandler()

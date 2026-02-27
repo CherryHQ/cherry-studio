@@ -420,6 +420,7 @@ class WebSearchService {
     // 检查 websearch 和 question 是否有效
     if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
       logger.info('No valid question found in extractResults.websearch')
+      this.requestStates.delete(requestId)
       return { results: [] }
     }
 
@@ -454,6 +455,7 @@ class WebSearchService {
           modelName: webSearchProvider.modelName,
           span
         })
+      this.requestStates.delete(requestId)
       return { query: 'summaries', results: contents }
     }
 
@@ -505,6 +507,7 @@ class WebSearchService {
           span
         })
       }
+      this.requestStates.delete(requestId)
       return {
         query: questions.join(' | '),
         results: []
@@ -558,6 +561,9 @@ class WebSearchService {
         span
       })
     }
+    // Clean up request state on successful completion
+    this.requestStates.delete(requestId)
+
     return {
       query: questions.join(' | '),
       results: finalResults

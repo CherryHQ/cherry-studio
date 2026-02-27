@@ -34,7 +34,7 @@ import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { addAbortController, cleanupAbortController } from '@renderer/utils/abortController'
+import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import {
   buildAgentSessionTopicId,
   extractAgentSessionIdFromTopicId,
@@ -549,6 +549,7 @@ const fetchAndProcessAgentResponseImpl = async (
   { topicId, assistant, assistantMessage, agentSession, userMessageId }: AgentStreamParams
 ) => {
   let callbacks: StreamProcessorCallbacks = {}
+  let agentAbortFn: (() => void) | undefined
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -583,7 +584,8 @@ const fetchAndProcessAgentResponseImpl = async (
     const userContent = userMessageEntity ? getMainTextContent(userMessageEntity) : ''
 
     const abortController = new AbortController()
-    addAbortController(userMessageId, () => abortController.abort())
+    agentAbortFn = () => abortController.abort()
+    addAbortController(userMessageId, agentAbortFn)
 
     const stream = await createAgentMessageStream(
       state.settings.apiServer,
@@ -698,7 +700,9 @@ const fetchAndProcessAgentResponseImpl = async (
       logger.error('Error in agent onError callback:', callbackError as Error)
     }
   } finally {
-    cleanupAbortController(userMessageId)
+    if (agentAbortFn) {
+      removeAbortController(userMessageId, agentAbortFn)
+    }
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   }
 }
@@ -767,6 +771,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     : origAssistant
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
+  let assistantAbortFn: (() => void) | undefined
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -824,8 +829,9 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     const abortController = new AbortController()
+    assistantAbortFn = () => abortController.abort()
     logger.silly('Add Abort Controller', { id: userMessageId })
-    addAbortController(userMessageId!, () => abortController.abort())
+    addAbortController(userMessageId!, assistantAbortFn)
 
     await transformMessagesAndFetch(
       {
@@ -860,8 +866,8 @@ const fetchAndProcessAssistantResponseImpl = async (
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   } finally {
-    if (assistantMessage.askId) {
-      cleanupAbortController(assistantMessage.askId)
+    if (assistantMessage.askId && assistantAbortFn) {
+      removeAbortController(assistantMessage.askId, assistantAbortFn)
     }
   }
 }
