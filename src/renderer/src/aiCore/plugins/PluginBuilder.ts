@@ -13,7 +13,6 @@ import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
-import { createOllamaReasoningOrderPlugin } from './ollamaReasoningOrderPlugin'
 import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
@@ -63,13 +62,7 @@ export function buildPlugins(
     }
   }
 
-  // 0.3 Ollama reasoning order (Issue #12642)
-  if (middlewareConfig.provider?.type === 'ollama' && middlewareConfig.enableReasoning) {
-    plugins.push(createOllamaReasoningOrderPlugin())
-    logger.debug('Added Ollama reasoning order plugin')
-  }
-
-  // 0.4 OpenRouter reasoning redaction
+  // 0.3 OpenRouter reasoning redaction
   if (middlewareConfig.provider?.id === SystemProviderIds.openrouter) {
     plugins.push(createOpenrouterReasoningPlugin())
   }

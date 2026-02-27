@@ -79,7 +79,7 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
 -export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderSettings, createOllama, ollama };
 +export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderOptions, type OllamaProviderSettings, createOllama, ollama };
 diff --git a/dist/index.js b/dist/index.js
-index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..495aed9b85739d1cae6645dbc757890e4861f205 100644
+index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae01101574 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -21,7 +21,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
@@ -140,8 +140,18 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..495aed9b85739d1cae6645dbc757890e
      };
    }
  };
+@@ -1260,8 +1264,8 @@ var OllamaStreamProcessor = class {
+     }
+   }
+   processDelta(delta, controller) {
+-    this.processTextContent(delta, controller);
+     this.processThinking(delta, controller);
++    this.processTextContent(delta, controller);
+     this.processToolCalls(delta, controller);
+   }
+   processTextContent(delta, controller) {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 118d0642681c71c82e90d0cda2d9b79b694445e3..9a14bc79f73c1762ff8d0336ea6cfa8d6f6f07ef 100644
+index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0aee143964 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -213,7 +213,7 @@ var ollamaFailedResponseHandler = createJsonErrorResponseHandler({
@@ -191,3 +201,13 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..9a14bc79f73c1762ff8d0336ea6cfa8d
      };
    }
  };
+@@ -1262,8 +1264,8 @@ var OllamaStreamProcessor = class {
+     }
+   }
+   processDelta(delta, controller) {
+-    this.processTextContent(delta, controller);
+     this.processThinking(delta, controller);
++    this.processTextContent(delta, controller);
+     this.processToolCalls(delta, controller);
+   }
+   processTextContent(delta, controller) {
