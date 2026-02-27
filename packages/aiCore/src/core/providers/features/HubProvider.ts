@@ -123,7 +123,7 @@ function createHubProviderWithProviders(
       )
     }
     if (debug) {
-      console.log(`[HubProvider:${hubId}] Routing to provider: ${providerId}`)
+      console.debug(`[HubProvider:${hubId}] Routing to provider: ${providerId}`)
     }
     return provider
   }
@@ -140,13 +140,31 @@ function createHubProviderWithProviders(
     embeddingModel: (modelId: string): EmbeddingModelV3 => {
       const { provider, actualModelId } = parseHubModelId(modelId)
       const targetProvider = getTargetProvider(provider)
-      return targetProvider.embeddingModel(actualModelId)
+      try {
+        return targetProvider.embeddingModel(actualModelId)
+      } catch (error) {
+        throw new HubProviderError(
+          `Provider "${provider}" failed to create embedding model "${actualModelId}": ${error instanceof Error ? error.message : String(error)}`,
+          hubId,
+          provider,
+          error instanceof Error ? error : undefined
+        )
+      }
     },
 
     imageModel: (modelId: string): ImageModelV3 => {
       const { provider, actualModelId } = parseHubModelId(modelId)
       const targetProvider = getTargetProvider(provider)
-      return targetProvider.imageModel(actualModelId)
+      try {
+        return targetProvider.imageModel(actualModelId)
+      } catch (error) {
+        throw new HubProviderError(
+          `Provider "${provider}" failed to create image model "${actualModelId}": ${error instanceof Error ? error.message : String(error)}`,
+          hubId,
+          provider,
+          error instanceof Error ? error : undefined
+        )
+      }
     },
 
     transcriptionModel: (modelId: string): TranscriptionModelV3 => {

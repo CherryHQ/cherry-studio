@@ -58,7 +58,6 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
  */
 export const AzureAnthropicExtension = ProviderExtension.create({
   name: 'azure-anthropic',
-  aliases: ['azure-anthropic'] as const,
   supportsImageGeneration: false,
   create: createAnthropic
 } as const satisfies ProviderExtensionConfig<
@@ -110,7 +109,6 @@ export const PerplexityExtension = ProviderExtension.create({
  */
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
-  aliases: ['mistral'] as const,
   supportsImageGeneration: false,
   create: createMistral
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ExtensionStorage, ProviderV3, 'mistral'>)

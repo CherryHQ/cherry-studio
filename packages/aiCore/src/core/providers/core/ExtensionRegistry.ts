@@ -110,6 +110,12 @@ export class ExtensionRegistry {
       }
     }
 
+    if (extension.config.variants) {
+      for (const variant of extension.config.variants) {
+        this.aliasMap.delete(`${name}-${variant.suffix}`)
+      }
+    }
+
     return true
   }
 

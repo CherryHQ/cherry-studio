@@ -172,6 +172,9 @@ export class ProviderExtension<
   /** Settings hash 映射表 - 用于验证缓存是否仍然有效 */
   private settingsHashes: Map<string, TSettings | undefined> = new Map()
 
+  /** In-flight promise map - 防止并发创建相同 settings 的 provider */
+  private pendingCreations: Map<string, Promise<TProvider>> = new Map()
+
   constructor(public readonly config: TConfig) {
     if (!config.name) {
       throw new Error('ProviderExtension: name is required')
@@ -308,15 +311,16 @@ export class ProviderExtension<
    * @param variantSuffix - 可选的变体后缀，用于区分不同变体的缓存
    */
   private computeHash(settings?: TSettings, variantSuffix?: string): string {
-    const baseHash = (() => {
+    const baseKey = (() => {
       if (settings === undefined || settings === null) {
         return 'default'
       }
 
-      // 使用 JSON.stringify 进行稳定序列化
-      // 对于对象按键排序以确保一致性
+      // 使用稳定序列化作为缓存 key（按键排序确保一致性）
+      // 直接使用序列化字符串避免哈希冲突（settings 数量有限，无需压缩）
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
+        if (typeof obj === 'function') return '"[function]"'
         if (typeof obj !== 'object') return JSON.stringify(obj)
         if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
@@ -325,21 +329,11 @@ export class ProviderExtension<
         return `{${pairs.join(',')}}`
       }
 
-      const serialized = stableStringify(settings)
-
-      // 使用简单的哈希函数（不需要加密级别的安全性）
-      let hash = 0
-      for (let i = 0; i < serialized.length; i++) {
-        const char = serialized.charCodeAt(i)
-        hash = (hash << 5) - hash + char
-        hash = hash & hash // Convert to 32bit integer
-      }
-
-      return `${Math.abs(hash).toString(36)}`
+      return stableStringify(settings)
     })()
 
-    // 如果有变体后缀，将其附加到 hash 中
-    return variantSuffix ? `${baseHash}:${variantSuffix}` : baseHash
+    // 如果有变体后缀，将其附加到 key 中
+    return variantSuffix ? `${baseKey}:${variantSuffix}` : baseKey
   }
 
   /**
@@ -371,6 +365,27 @@ export class ProviderExtension<
       return cachedInstance
     }
 
+    // Deduplicate concurrent in-flight requests for the same hash
+    const pending = this.pendingCreations.get(hash)
+    if (pending) {
+      return pending
+    }
+
+    const creationPromise = this._doCreateProvider(mergedSettings, variantSuffix, hash)
+    this.pendingCreations.set(hash, creationPromise)
+
+    try {
+      return await creationPromise
+    } finally {
+      this.pendingCreations.delete(hash)
+    }
+  }
+
+  private async _doCreateProvider(
+    mergedSettings: TSettings,
+    variantSuffix: string | undefined,
+    hash: string
+  ): Promise<TProvider> {
     await this.executeHook('onBeforeCreate', mergedSettings)
 
     let baseProvider: ProviderV3
@@ -475,6 +490,7 @@ export class ProviderExtension<
   clearCache(): void {
     this.instances.clear()
     this.settingsHashes.clear()
+    this.pendingCreations.clear()
   }
 
   /**

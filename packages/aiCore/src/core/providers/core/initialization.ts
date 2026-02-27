@@ -236,9 +236,8 @@ export const registeredProviderIds: ProviderIdsMap = (() => {
 ;(() => {
   try {
     extensionRegistry.registerAll(coreExtensions)
-    console.log(`[ProviderRegistry] Registered ${coreExtensions.length} core provider extensions`)
   } catch (error) {
-    console.error('[ProviderRegistry] Failed to register core extensions:', error)
+    console.warn('[ProviderRegistry] Failed to register core extensions:', error)
   }
 })()
 

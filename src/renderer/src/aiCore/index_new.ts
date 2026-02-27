@@ -44,6 +44,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
   private config?: ProviderConfig
+  private configPromise?: Promise<ProviderConfig>
   private actualProvider: Provider
   private model?: Model
 
@@ -113,6 +114,22 @@ export default class ModernAiProvider {
     return this.actualProvider
   }
 
+  /**
+   * Resolve async config with deduplication.
+   * Ensures concurrent callers share the same in-flight promise.
+   */
+  private async resolveConfig(): Promise<ProviderConfig> {
+    if (this.config) return this.config
+    if (!this.configPromise) {
+      this.configPromise = Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model!)).then((config) => {
+        this.config = config
+        this.configPromise = undefined
+        return config
+      })
+    }
+    return this.configPromise
+  }
+
   public async completions(modelId: string, params: StreamTextParams, middlewareConfig: ModernAiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
@@ -121,8 +138,7 @@ export default class ModernAiProvider {
 
     // Config is now set in constructor, ApiService handles key rotation before passing provider
     if (!this.config) {
-      // If config wasn't set in constructor (when provider only), generate it now
-      this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model!))
+      this.config = await this.resolveConfig()
     }
     logger.debug('Using provider config for completions', this.config)
 
@@ -475,7 +491,10 @@ export default class ModernAiProvider {
     // 如果支持新的 AI SDK，使用现代化实现
     if (isModernSdkSupported(this.actualProvider)) {
       try {
-        // 确保 config 已定义
+        // Resolve async config if not yet set (mirrors completions() recovery)
+        if (!this.config && this.model) {
+          this.config = await this.resolveConfig()
+        }
         if (!this.config) {
           throw new Error('Provider config is undefined; cannot proceed with generateImage')
         }
