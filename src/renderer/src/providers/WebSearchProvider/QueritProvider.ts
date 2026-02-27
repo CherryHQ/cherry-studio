@@ -56,6 +56,16 @@ export default class QueritProvider extends BaseWebSearchProvider {
         query,
         count: websearch.maxResults
       }
+      const filters: Record<string, unknown> = {}
+      if (websearch.excludeDomains.length > 0) {
+        filters.sites = { exclude: websearch.excludeDomains }
+      }
+      if (websearch.searchWithTime) {
+        filters.timeRange = { date: 'd1' }
+      }
+      if (Object.keys(filters).length > 0) {
+        params.filters = filters
+      }
 
       const requestUrl = `${this.apiHost}/v1/search`
 
