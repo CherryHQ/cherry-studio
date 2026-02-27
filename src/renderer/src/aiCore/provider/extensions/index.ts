@@ -148,10 +148,7 @@ export const CerebrasExtension = ProviderExtension.create({
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: false,
-  create: (options?: OllamaProviderSettings) => {
-    const provider = createOllama(options) as ProviderV2
-    return wrapProvider({ provider, languageModelMiddleware: [] })
-  }
+  create: (options?: OllamaProviderSettings) => createOllama(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ExtensionStorage, ProviderV3, 'ollama'>)
 
 /**
