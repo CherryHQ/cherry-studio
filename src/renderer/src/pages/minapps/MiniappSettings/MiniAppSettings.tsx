@@ -1,15 +1,19 @@
-import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { InfoCircleOutlined, UndoOutlined } from '@ant-design/icons' // 导入重置图标和Info图标
+import Selector from '@renderer/components/Selector'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setMaxKeepAliveMinapps,
+  setMinAppRegion,
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import type { MinAppRegionFilter } from '@renderer/types'
+import { Button, Flex, message, Slider, Switch, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +23,25 @@ import MiniAppIconsManager from './MiniAppIconsManager'
 
 // 默认小程序缓存数量
 const DEFAULT_MAX_KEEPALIVE = 3
+
+// Region selector component with defensive default value
+const RegionSelector: FC = () => {
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
+  const minAppRegion = useAppSelector((state: RootState) => state.settings.minAppRegion) ?? 'auto'
+
+  const onMinAppRegionChange = (value: MinAppRegionFilter) => {
+    dispatch(setMinAppRegion(value))
+  }
+
+  const minAppRegionOptions: { value: MinAppRegionFilter; label: string }[] = [
+    { value: 'auto', label: t('settings.miniapps.region.auto') },
+    { value: 'CN', label: t('settings.miniapps.region.cn') },
+    { value: 'Global', label: t('settings.miniapps.region.global') }
+  ]
+
+  return <Selector size={14} value={minAppRegion} onChange={onMinAppRegionChange} options={minAppRegionOptions} />
+}
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
@@ -93,6 +116,17 @@ const MiniAppSettings: FC = () => {
           setDisabledMiniApps={setDisabledMiniApps}
         />
       </BorderedContainer>
+      <SettingDivider />
+      {/* 小程序地区设置 */}
+      <SettingRow style={{ height: 40, alignItems: 'center' }}>
+        <Flex align="center" gap={4}>
+          <SettingRowTitle>{t('settings.miniapps.region.title')}</SettingRowTitle>
+          <Tooltip title={t('settings.miniapps.region.description')} placement="right">
+            <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+          </Tooltip>
+        </Flex>
+        <RegionSelector />
+      </SettingRow>
       <SettingDivider />
       <SettingRow style={{ height: 40, alignItems: 'center' }}>
         <SettingLabelGroup>

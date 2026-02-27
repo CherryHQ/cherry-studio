@@ -1,3 +1,4 @@
+import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
 /**
@@ -6,7 +7,7 @@ import type { LanguageModelMiddleware } from 'ai'
  * https://openrouter.ai/docs/features/multimodal/image-generation
  *
  * Remarks:
- * - The middleware declares middlewareVersion as 'v2'.
+ * - The middleware declares specificationVersion as 'v3'.
  * - transformParams asynchronously clones the incoming params and sets
  *   providerOptions.openrouter.modalities = ['image', 'text'], preserving other providerOptions and
  *   openrouter fields when present.
@@ -15,9 +16,9 @@ import type { LanguageModelMiddleware } from 'ai'
  *
  * @returns LanguageModelMiddleware - a middleware that augments providerOptions for OpenRouter to include image and text modalities.
  */
-export function openrouterGenerateImageMiddleware(): LanguageModelMiddleware {
+function createOpenrouterGenerateImageMiddleware(): LanguageModelMiddleware {
   return {
-    middlewareVersion: 'v2',
+    specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
       const transformedParams = { ...params }
@@ -25,9 +26,19 @@ export function openrouterGenerateImageMiddleware(): LanguageModelMiddleware {
         ...transformedParams.providerOptions,
         openrouter: { ...transformedParams.providerOptions?.openrouter, modalities: ['image', 'text'] }
       }
-      transformedParams
 
       return transformedParams
     }
   }
 }
+
+export const createOpenrouterGenerateImagePlugin = () =>
+  definePlugin({
+    name: 'openrouterGenerateImage',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createOpenrouterGenerateImageMiddleware())
+    }
+  })

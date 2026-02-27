@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "导出为图片",
+        "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",
         "md": {
           "label": "导出为 Markdown",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
+      "region": {
+        "auto": "自动检测",
+        "cn": "中国",
+        "description": "根据所在地区过滤不支持的小程序",
+        "global": "全球",
+        "title": "小程序区域筛选"
+      },
       "reset_tooltip": "重置为默认值",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "重置为默认",
       "search_message": "搜索消息",
       "search_message_in_chat": "在当前对话中搜索消息",
+      "select_model": "选择模型",
       "selection_assistant_select_text": "划词助手：取词",
       "selection_assistant_toggle": "开关划词助手",
       "show_app": "显示 / 隐藏应用",
@@ -5520,6 +5529,7 @@
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
     },
+    "stop": "停止翻译",
     "success": {
       "custom": {
         "delete": "删除成功",

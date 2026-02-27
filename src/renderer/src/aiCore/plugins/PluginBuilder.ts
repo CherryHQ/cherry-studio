@@ -1,11 +1,25 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
+import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import type { Assistant } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
+import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
-import type { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
+import { getAiSdkProviderId } from '../provider/factory'
+import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
+import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
+import { getReasoningTagName } from '../utils/reasoning'
+import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createNoThinkPlugin } from './noThinkPlugin'
+import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
+import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
+import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
+import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
+import { createSimulateStreamingPlugin } from './simulateStreamingPlugin'
+import { createSkipGeminiThoughtSignaturePlugin } from './skipGeminiThoughtSignaturePlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
 
 const logger = loggerService.withContext('PluginBuilder')
@@ -15,7 +29,7 @@ const logger = loggerService.withContext('PluginBuilder')
 export function buildPlugins(
   middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
 ): AiPlugin[] {
-  const plugins: AiPlugin[] = []
+  const plugins: AiPlugin<any, any>[] = []
 
   if (middlewareConfig.topicId && getEnableDeveloperMode()) {
     // 0. 添加 telemetry 插件
@@ -26,6 +40,63 @@ export function buildPlugins(
         assistant: middlewareConfig.assistant
       })
     )
+  }
+
+  // === AI SDK Middleware Plugins ===
+
+  // 0.1 Simulate streaming for non-streaming requests
+  if (!middlewareConfig.streamOutput) {
+    plugins.push(createSimulateStreamingPlugin())
+  }
+
+  // 0.2 Reasoning extraction for OpenAI/Azure providers
+  if (middlewareConfig.provider) {
+    const providerType = middlewareConfig.provider.type
+    if (providerType === 'openai' || providerType === 'azure-openai') {
+      const tagName = getReasoningTagName(middlewareConfig.model?.id.toLowerCase())
+      plugins.push(createReasoningExtractionPlugin({ tagName }))
+    }
+
+    if (providerType === 'anthropic' && middlewareConfig.provider.anthropicCacheControl?.tokenThreshold) {
+      plugins.push(createAnthropicCachePlugin())
+    }
+  }
+
+  // 0.3 OpenRouter reasoning redaction
+  if (middlewareConfig.provider?.id === SystemProviderIds.openrouter) {
+    plugins.push(createOpenrouterReasoningPlugin())
+  }
+
+  // 0.4 OVMS no-think for MCP tools
+  if (middlewareConfig.provider?.id === 'ovms' && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
+    plugins.push(createNoThinkPlugin())
+  }
+
+  // 0.5 Qwen thinking control for providers without enable_thinking support
+  if (
+    middlewareConfig.provider &&
+    middlewareConfig.model &&
+    !isOllamaProvider(middlewareConfig.provider) &&
+    isSupportedThinkingTokenQwenModel(middlewareConfig.model) &&
+    !isSupportEnableThinkingProvider(middlewareConfig.provider)
+  ) {
+    const enableThinking = middlewareConfig.assistant?.settings?.reasoning_effort !== undefined
+    plugins.push(createQwenThinkingPlugin(enableThinking))
+  }
+
+  // 0.6 OpenRouter Gemini image generation
+  if (
+    middlewareConfig.model &&
+    middlewareConfig.provider &&
+    isOpenRouterGeminiGenerateImageModel(middlewareConfig.model, middlewareConfig.provider)
+  ) {
+    plugins.push(createOpenrouterGenerateImagePlugin())
+  }
+
+  // 0.7 Skip Gemini3 thought signature
+  if (middlewareConfig.model && middlewareConfig.provider && isGemini3Model(middlewareConfig.model)) {
+    const aiSdkId = getAiSdkProviderId(middlewareConfig.provider)
+    plugins.push(createSkipGeminiThoughtSignaturePlugin(aiSdkId))
   }
 
   // 1. 模型内置搜索
@@ -47,24 +118,7 @@ export function buildPlugins(
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
-        mcpMode: middlewareConfig.mcpMode,
-        createSystemMessage: (systemPrompt, params, context) => {
-          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
-          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
-            if (context.isRecursiveCall) {
-              return null
-            }
-            params.messages = [
-              {
-                role: 'assistant',
-                content: systemPrompt
-              },
-              ...params.messages
-            ]
-            return null
-          }
-          return systemPrompt
-        }
+        mcpMode: middlewareConfig.mcpMode
       })
     )
   }

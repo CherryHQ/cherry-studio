@@ -2,8 +2,9 @@
  * 职责：提供原子化的、无状态的API调用函数
  */
 import { loggerService } from '@logger'
-import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
+import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -251,6 +252,7 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
     model: assistant.model,
+    provider,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
@@ -306,6 +308,7 @@ export async function fetchMessagesSummary({
   }
 
   const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const actualProvider = AI.getActualProvider()
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
@@ -350,9 +353,17 @@ export async function fetchMessagesSummary({
     model
   }
 
+  const { providerOptions, standardParams } = buildProviderOptions(summaryAssistant, model, actualProvider, {
+    enableReasoning: false,
+    enableWebSearch: false,
+    enableGenerateImage: false
+  })
+
   const llmMessages = {
     system: prompt,
-    prompt: conversation
+    prompt: conversation,
+    providerOptions,
+    ...standardParams
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {

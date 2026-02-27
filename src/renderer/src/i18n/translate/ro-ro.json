@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "Exportă ca imagine",
+        "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
           "label": "Exportă ca markdown",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
+        "global": "global",
+        "title": "Filtru zonă aplicație miniatură"
+      },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "Resetează la implicit",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
       "show_app": "Afișează/Ascunde aplicația",
@@ -5520,6 +5529,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Șters cu succes",
