@@ -1268,6 +1268,9 @@ importers:
       '@cherrystudio/ai-sdk-provider':
         specifier: workspace:*
         version: link:../ai-sdk-provider
+      '@openrouter/ai-sdk-provider':
+        specifier: ^2.2.3
+        version: 2.2.3(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^6.0.103
         version: 6.0.103(zod@4.3.4)

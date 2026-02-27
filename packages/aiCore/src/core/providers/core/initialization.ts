@@ -23,7 +23,7 @@ import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/a
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider, wrapProvider } from 'ai'
+import { customProvider } from 'ai'
 
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -165,10 +165,7 @@ const OpenRouterExtension = ProviderExtension.create({
   // TODO: 实现注册后修改拓展配置
   aliases: ['tokenflux'] as const,
   supportsImageGeneration: true,
-  create: (options?: OpenRouterProviderSettings) => {
-    const provider = createOpenRouter(options)
-    return wrapProvider({ provider, languageModelMiddleware: [] })
-  }
+  create: createOpenRouter
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 
 const XaiExtension = ProviderExtension.create({
@@ -211,13 +208,13 @@ export const registeredProviderIds: ProviderIdsMap = (() => {
     const name = config.name
     ;(map as Record<string, CoreProviderId>)[name] = name
 
-    if ('aliases' in config && config.aliases) {
+    if (config.aliases) {
       config.aliases.forEach((alias) => {
         ;(map as Record<string, CoreProviderId>)[alias] = name
       })
     }
 
-    if ('variants' in config && config.variants) {
+    if (config.variants) {
       config.variants.forEach((variant) => {
         ;(map as Record<string, CoreProviderId>)[`${name}-${variant.suffix}`] = name
       })
