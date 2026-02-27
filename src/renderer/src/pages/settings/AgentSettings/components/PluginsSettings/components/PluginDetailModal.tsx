@@ -143,10 +143,12 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
                 {plugin.filename}
               </span>
             </div>
-            <div className="flex justify-between border-default-200 border-b py-2 last:border-0 dark:border-default-700">
-              <span className="text-default-400">{t('plugins.detail.size')}:</span>
-              <span className="text-default-600">{formatSize(plugin.size)}</span>
-            </div>
+            {plugin.size && (
+              <div className="flex justify-between border-default-200 border-b py-2 last:border-0 dark:border-default-700">
+                <span className="text-default-400">{t('plugins.detail.size')}:</span>
+                <span className="text-default-600">{formatSize(plugin.size)}</span>
+              </div>
+            )}
             <div className="flex justify-between border-default-200 border-b py-2 last:border-0 dark:border-default-700">
               <span className="text-default-400">{t('plugins.detail.source')}:</span>
               <span className="max-w-[60%] break-all text-right font-mono text-default-500 text-xs">
