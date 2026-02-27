@@ -98,7 +98,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       scrollerStyle={{ overflowX: 'hidden' }}
       autoHideScrollbar
       header={
-        <div className="mt-[2px]">
+        <div className="mt-0.5">
           <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
             {t('agent.session.add.title')}
           </AddButton>
