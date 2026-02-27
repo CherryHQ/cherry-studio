@@ -6,23 +6,18 @@ const logger = loggerService.withContext('skipGeminiThoughtSignaturePlugin')
 
 /**
  * skip Gemini Thought Signature Middleware
- * 由于多模型客户端请求的复杂性（可以中途切换其他模型），这里选择通过中间件方式添加跳过所有 Gemini3 思考签名
  * Due to the complexity of multi-model client requests (which can switch to other models mid-process),
  * it was decided to add a skip for all Gemini3 thinking signatures via middleware.
  *
- * Handles multiple cases:
- * 1. Parts from a previous Gemini response that already have providerOptions.google.thoughtSignature
- *    -> Replace with magic string to skip validation
- * 2. Reasoning parts from conversation replay (ThinkingMessageBlock -> { type: 'reasoning' })
- *    that have NO providerOptions at all (lost during message serialization/deserialization)
- *    -> Add providerOptions with magic string, or restore from persisted metadata if available
- * 3. Tool-call parts that need thought_signature for OpenAI-compatible API
- *    -> Add providerOptions.openaiCompatible.extra_content.google.thought_signature
+ * Handles:
+ * - Tool-call parts need thought_signature for OpenAI-compatible API
+ *   -> Add providerOptions.openaiCompatible.extra_content.google.thought_signature
  *
- * @param aiSdkId AI SDK Provider ID
+ * Note: Thought signature for text/reasoning parts is now handled in messageConverter.
+ *
  * @returns LanguageModelMiddleware
  */
-function createSkipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageModelMiddleware {
+function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
   const MAGIC_STRING = 'skip_thought_signature_validator'
   return {
     specificationVersion: 'v3',
@@ -34,42 +29,13 @@ function createSkipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageMo
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
           if (typeof message.content !== 'string') {
-            // Extract thought signatures from message's providerMetadata for session replay
-            // This enables restoration of persisted thought signatures
-            const messageProviderMeta = (message as Record<string, unknown>).providerMetadata as
-              | Record<string, Record<string, Record<string, string>>>
-              | undefined
-            const geminiThoughtSignatures = messageProviderMeta?.google?.geminiThoughtSignatures
-            const signatureValues = geminiThoughtSignatures ? Object.values(geminiThoughtSignatures) : []
-            let signatureIndex = 0
-
             for (const part of message.content) {
-              const hasExistingSignature = part?.providerOptions?.[aiSdkId]?.thoughtSignature
-              const isReasoningPart = part.type === 'reasoning'
               const isToolCallPart = part.type === 'tool-call'
-              const isTextPart = part.type === 'text'
 
-              // Restore thoughtSignature from persisted metadata if available
-              // For reasoning parts or text parts without existing signature
-              let restoredSignature: string | undefined
-              if (!hasExistingSignature && (isReasoningPart || isTextPart) && signatureIndex < signatureValues.length) {
-                restoredSignature = signatureValues[signatureIndex]
-                signatureIndex++
-              }
+              // Note: text part and reasoning part do not require thought signature validation
+              // They are handled by messageConverter now
 
-              // Case 1 & 2: Native Gemini path - add thoughtSignature to google providerOptions
-              if (hasExistingSignature || isReasoningPart || restoredSignature) {
-                if (!part.providerOptions) {
-                  part.providerOptions = {}
-                }
-                if (!part.providerOptions[aiSdkId]) {
-                  part.providerOptions[aiSdkId] = {}
-                }
-                // Use restored signature if available, otherwise use magic string to skip validation
-                part.providerOptions[aiSdkId].thoughtSignature = restoredSignature || MAGIC_STRING
-              }
-
-              // Case 3: OpenAI-compatible path - add extra_content for tool-call parts
+              // Case: OpenAI-compatible path - add extra_content for tool-call parts
               // All tool-calls need the signature for Gemini OpenAI-compatible API
               if (isToolCallPart) {
                 if (!part.providerOptions) {
@@ -97,13 +63,13 @@ function createSkipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageMo
   }
 }
 
-export const createSkipGeminiThoughtSignaturePlugin = (aiSdkId: string) =>
+export const createSkipGeminiThoughtSignaturePlugin = () =>
   definePlugin({
     name: 'skipGeminiThoughtSignature',
     enforce: 'pre',
 
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(createSkipGeminiThoughtSignatureMiddleware(aiSdkId))
+      context.middlewares.push(createSkipGeminiThoughtSignatureMiddleware())
     }
   })
