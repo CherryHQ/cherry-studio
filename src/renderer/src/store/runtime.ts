@@ -205,9 +205,13 @@ const runtimeSlice = createSlice({
       }
       state.websearch.activeSearches[requestId] = status
     },
-    setLoadingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
-      const { id, value } = action.payload
-      state.loadingMap[id] = value
+    startLoadingAction: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload
+      state.loadingMap[id] = true
+    },
+    finishLoadingAction: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload
+      delete state.loadingMap[id]
     },
     setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
       state.detectedRegion = action.payload
@@ -238,7 +242,8 @@ export const {
   setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,
-  setLoadingAction,
+  startLoadingAction,
+  finishLoadingAction,
   // WebSearch related actions
   setActiveSearches,
   setWebSearchStatus,

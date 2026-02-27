@@ -1,29 +1,68 @@
-import { useAppDispatch } from '@renderer/store'
-import { setLoadingAction } from '@renderer/store/runtime'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { finishLoadingAction, startLoadingAction } from '@renderer/store/runtime'
 
-import { useRuntime } from './useRuntime'
-
+/**
+ * Hook for managing loading states across the application.
+ *
+ * This hook provides a centralized way to track loading states using a map-based approach,
+ * allowing multiple independent loading operations to be tracked simultaneously.
+ *
+ * @example
+ * // Usage without id - access all loading states
+ * const { loadingMap, startLoading, finishLoading } = useLoading();
+ * startLoading('fetchingUsers');
+ *
+ * @example
+ * // Usage with id - track specific loading state
+ * const { isLoading, startLoading, finishLoading } = useLoading('fetchingUsers');
+ */
 export function useLoading(): {
   loadingMap: Record<string, boolean>
-  setLoading: (params: { id: string; value: boolean }) => void
+  startLoading: (id: string) => void
+  finishLoading: (id: string) => void
 }
-export function useLoading(id: string): { isLoading: boolean; setLoading: (value: boolean) => void }
+/**
+ * Hook for managing loading state for a specific operation.
+ *
+ * @param id - Unique identifier for the loading operation (e.g., 'fetchingUsers', 'savingData')
+ * @returns Object containing loading state and control functions for the specific id
+ *
+ * @example
+ * const { isLoading, startLoading, finishLoading } = useLoading('fetchingUsers');
+ * if (isLoading) return <Spinner />;
+ */
+export function useLoading(id: string): { isLoading: boolean; startLoading: () => void; finishLoading: () => void }
+/**
+ * Implementation for useLoading hook with function overloads.
+ *
+ * @param id - Optional unique identifier. When provided, returns specific loading state;
+ *             when undefined, returns full loading map and generic control functions.
+ * @returns Loading state object based on whether id is provided
+ *
+ * @internal
+ */
 export function useLoading(id?: string) {
-  const { loadingMap } = useRuntime()
+  const loadingMap = useAppSelector((state) => state.runtime.loadingMap)
   const dispatch = useAppDispatch()
 
   if (id) {
     return {
       isLoading: loadingMap[id] ?? false,
-      setLoading: (value: boolean) => {
-        dispatch(setLoadingAction({ id, value }))
+      startLoading: () => {
+        dispatch(startLoadingAction({ id }))
+      },
+      finishLoading: () => {
+        dispatch(finishLoadingAction({ id }))
       }
     }
   } else {
     return {
       loadingMap,
-      setLoading: (params: { id: string; value: boolean }) => {
-        dispatch(setLoadingAction(params))
+      startLoading: (id: string) => {
+        dispatch(startLoadingAction({ id }))
+      },
+      finishLoading: (id: string) => {
+        dispatch(finishLoadingAction({ id }))
       }
     }
   }

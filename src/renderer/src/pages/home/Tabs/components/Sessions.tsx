@@ -1,10 +1,11 @@
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useLoading } from '@renderer/hooks/useLoading'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction, setLoadingAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
@@ -26,6 +27,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+  const { startLoading, finishLoading } = useLoading()
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -41,7 +43,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         window.toast.error(t('agent.session.delete.error.last'))
         return
       }
-      dispatch(setLoadingAction({ id, value: true }))
+      startLoading(id)
       const success = await deleteSession(id)
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
@@ -51,9 +53,9 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           // may clear messages instead of forbidden deletion
         }
       }
-      dispatch(setLoadingAction({ id, value: false }))
+      finishLoading(id)
     },
-    [agentId, deleteSession, dispatch, sessions, t]
+    [agentId, deleteSession, dispatch, finishLoading, sessions, startLoading, t]
   )
 
   const activeSessionId = activeSessionIdMap[agentId]

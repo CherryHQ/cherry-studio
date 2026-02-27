@@ -58,7 +58,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
 
-  const { loadingMap, setLoading } = useLoading()
+  const { loadingMap, startLoading, finishLoading } = useLoading()
 
   // Debounce search query
   const handleSearchChange = useCallback(
@@ -184,11 +184,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
       return
     }
 
-    setLoading({ id: loadingKey, value: true })
+    startLoading(loadingKey)
     try {
       await onInstall(plugin.sourcePath, plugin.type)
     } finally {
-      setLoading({ id: loadingKey, value: false })
+      finishLoading(loadingKey)
     }
   }
 
@@ -199,7 +199,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
       return
     }
 
-    setLoading({ id: loadingKey, value: true })
+    startLoading(loadingKey)
     try {
       // Find the actual installed plugin to get its real filename
       const installed = findInstalledPlugin(plugin)
@@ -207,7 +207,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
         await onUninstall(installed.metadata.filename, installed.type)
       }
     } finally {
-      setLoading({ id: loadingKey, value: false })
+      finishLoading(loadingKey)
     }
   }
 
