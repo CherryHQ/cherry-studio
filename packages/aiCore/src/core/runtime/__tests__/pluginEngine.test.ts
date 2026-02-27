@@ -5,12 +5,25 @@
  */
 
 import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import { wrapLanguageModel } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockImageModel, createMockLanguageModel } from '../../../__tests__'
+import { createMockImageModel, createMockLanguageModel, createMockMiddleware } from '../../../__tests__'
 import { ModelResolutionError, RecursiveDepthError } from '../../errors'
 import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plugins'
 import { PluginEngine } from '../pluginEngine'
+
+vi.mock('ai', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    wrapLanguageModel: vi.fn((config: any) => ({
+      ...config.model,
+      _middlewareApplied: true,
+      _appliedMiddlewares: config.middleware
+    }))
+  }
+})
 
 describe('PluginEngine', () => {
   let engine: PluginEngine<'openai'>
@@ -829,6 +842,144 @@ describe('PluginEngine', () => {
 
       // Should execute in order: pre -> normal -> post
       expect(executionOrder).toEqual(['pre', 'normal', 'post'])
+    })
+  })
+
+  describe('Middleware Application via context.middlewares', () => {
+    it('should apply context.middlewares to model when plugin writes middlewares in configureContext', async () => {
+      const middleware = createMockMiddleware()
+
+      const plugin: AiPlugin = {
+        name: 'middleware-writer',
+        configureContext: vi.fn(async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware)
+        }),
+        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel)
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
+
+      await engine.executeWithPlugins('generateText', { model: 'gpt-4', messages: [] }, mockExecutor)
+
+      expect(wrapLanguageModel).toHaveBeenCalledWith({
+        model: mockLanguageModel,
+        middleware: [middleware]
+      })
+    })
+
+    it('should apply context.middlewares when model is a direct object (not string)', async () => {
+      const middleware = createMockMiddleware()
+
+      const plugin: AiPlugin = {
+        name: 'middleware-writer',
+        configureContext: vi.fn(async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware)
+        })
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
+
+      await engine.executeWithPlugins(
+        'generateText',
+        { model: mockLanguageModel, messages: [] },
+        mockExecutor
+      )
+
+      // Key assertion: middlewares should be applied even for direct model objects
+      expect(wrapLanguageModel).toHaveBeenCalledWith({
+        model: mockLanguageModel,
+        middleware: [middleware]
+      })
+    })
+
+    it('should apply multiple middlewares from different plugins', async () => {
+      const middleware1 = createMockMiddleware()
+      const middleware2 = createMockMiddleware()
+
+      const plugin1: AiPlugin = {
+        name: 'plugin-1',
+        enforce: 'pre',
+        configureContext: vi.fn(async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware1)
+        })
+      }
+
+      const plugin2: AiPlugin = {
+        name: 'plugin-2',
+        configureContext: vi.fn(async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware2)
+        })
+      }
+
+      engine = new PluginEngine('openai', [plugin1, plugin2])
+      engine.usePlugins([{ name: 'resolver', resolveModel: vi.fn().mockResolvedValue(mockLanguageModel) }])
+
+      const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
+
+      await engine.executeWithPlugins('generateText', { model: 'gpt-4', messages: [] }, mockExecutor)
+
+      expect(wrapLanguageModel).toHaveBeenCalledWith({
+        model: mockLanguageModel,
+        middleware: [middleware1, middleware2]
+      })
+    })
+
+    it('should not call wrapLanguageModel when no middlewares are set', async () => {
+      vi.mocked(wrapLanguageModel).mockClear()
+
+      const plugin: AiPlugin = {
+        name: 'no-middleware',
+        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel)
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      await engine.executeWithPlugins(
+        'generateText',
+        { model: 'gpt-4', messages: [] },
+        vi.fn().mockResolvedValue({ text: 'test' })
+      )
+
+      expect(wrapLanguageModel).not.toHaveBeenCalled()
+    })
+
+    it('should apply context.middlewares in streamText path', async () => {
+      const middleware = createMockMiddleware()
+
+      const plugin: AiPlugin = {
+        name: 'stream-middleware',
+        configureContext: vi.fn(async (context) => {
+          context.middlewares = context.middlewares || []
+          context.middlewares.push(middleware)
+        })
+      }
+
+      engine = new PluginEngine('openai', [plugin])
+
+      const mockExecutor = vi.fn().mockResolvedValue({
+        textStream: (async function* () {
+          yield 'test'
+        })()
+      })
+
+      await engine.executeStreamWithPlugins(
+        'streamText',
+        { model: mockLanguageModel, messages: [] },
+        mockExecutor
+      )
+
+      expect(wrapLanguageModel).toHaveBeenCalledWith({
+        model: mockLanguageModel,
+        middleware: [middleware]
+      })
     })
   })
 
