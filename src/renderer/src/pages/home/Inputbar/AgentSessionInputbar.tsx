@@ -179,7 +179,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const quickPanel = useQuickPanel()
 
   const { files } = useInputbarToolsState()
-  const { toolsRegistry, setIsExpanded } = useInputbarToolsDispatch()
+  const { toolsRegistry, setIsExpanded, setFiles } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { setTimeoutTimer } = useTimer()
@@ -419,8 +419,9 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       // Emit event to trigger scroll to bottom in AgentSessionMessages
       EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
-      // Clear text after successful send (draft is cleared automatically via onChange)
+      // Clear text and files after successful send (draft is cleared automatically via onChange)
       setText('')
+      setFiles([])
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
       // Restore focus to textarea after sending to maintain IME state (fcitx5 issue)
       focusTextarea()
@@ -435,6 +436,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     sessionId,
     sessionTopicId,
     setText,
+    setFiles,
     setTimeoutTimer,
     text,
     files,

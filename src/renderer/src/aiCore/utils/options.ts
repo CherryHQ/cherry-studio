@@ -3,14 +3,13 @@ import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
-import { baseProviderIdSchema, customProviderIdSchema, hasProviderConfig } from '@cherrystudio/ai-core/provider'
+import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
-  isInterleavedThinkingModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
@@ -606,26 +605,13 @@ function buildGenericProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
-  const { enableWebSearch, enableReasoning } = capabilities
+  const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
   providerOptions = {
     ...providerOptions,
     ...reasoningParams
-  }
-  if (enableReasoning) {
-    if (isInterleavedThinkingModel(model)) {
-      // sendReasoning is a patch specific to @ai-sdk/openai-compatible
-      // Only apply when provider will actually use openai-compatible SDK
-      // (i.e., no dedicated SDK registered OR explicitly openai-compatible)
-      if (!hasProviderConfig(providerId) || providerId === 'openai-compatible') {
-        providerOptions = {
-          ...providerOptions,
-          sendReasoning: true
-        }
-      }
-    }
   }
 
   if (enableWebSearch) {
@@ -651,10 +637,6 @@ function buildGenericProviderOptions(
     } else {
       throw new Error(t('translate.error.chat_qwen_mt'))
     }
-  }
-
-  if (isOpenAIModel(model)) {
-    providerOptions.strictJsonSchema = false
   }
 
   return {

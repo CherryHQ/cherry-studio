@@ -1100,7 +1100,7 @@
       },
       "export": {
         "image": "Экспорт как изображение",
-        "image_saved": "[to be translated]:Image saved successfully",
+        "image_saved": "Изображение успешно сохранено",
         "joplin": "Экспорт в Joplin",
         "md": {
           "label": "Экспорт как markdown",
@@ -5529,6 +5529,7 @@
       "scroll_sync": "Настройки синхронизации прокрутки",
       "title": "Настройки перевода"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Удаление выполнено успешно",
