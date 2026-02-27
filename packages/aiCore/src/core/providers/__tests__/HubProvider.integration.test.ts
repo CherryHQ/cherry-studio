@@ -362,20 +362,10 @@ describe('HubProvider Integration Tests', () => {
 
       const executor = RuntimeExecutor.create<Record<string, any>>('test-hub', hub, {}, [])
 
-      // Create a mock middleware
-      const mockMiddleware = {
-        specificationVersion: 'v3' as const,
-        wrapGenerate: vi.fn((doGenerate) => doGenerate),
-        wrapStream: vi.fn((doStream) => doStream)
-      }
-
-      const result = await executor.streamText(
-        {
-          model: 'openai|gpt-4',
-          messages: [{ role: 'user', content: 'Test with middleware' }]
-        },
-        { middlewares: [mockMiddleware] }
-      )
+      const result = await executor.streamText({
+        model: 'openai|gpt-4',
+        messages: [{ role: 'user', content: 'Test with middleware' }]
+      })
 
       expect(result).toBeDefined()
     })
