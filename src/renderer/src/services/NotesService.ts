@@ -7,6 +7,7 @@ import { getFileDirectory } from '@renderer/utils'
 const logger = loggerService.withContext('NotesService')
 
 const MARKDOWN_EXT = '.md'
+let defaultNotesPathPromise: Promise<string> | null = null
 
 export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
@@ -39,7 +40,11 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 }
 
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
-  const basePath = normalizePath(parentPath)
+  const resolved = await resolveNotesPath(parentPath)
+  const basePath = resolved.path
+  if (resolved.isFallback) {
+    store.dispatch(setNotesPath(basePath))
+  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
@@ -63,19 +68,32 @@ export async function addNote(
 }
 
 export interface ResolvedNotesPath {
-  path: string // 有效路径
-  isFallback: boolean // 是否需要回退到默认笔记路径
+  path: string // Resolved valid notes path.
+  isFallback: boolean // Whether it falls back to the default notes path.
+}
+
+async function getDefaultNotesPath(): Promise<string> {
+  if (!defaultNotesPathPromise) {
+    defaultNotesPathPromise = window.api
+      .getAppInfo()
+      .then((appInfo) => normalizePath(appInfo.notesPath))
+      .catch((error) => {
+        defaultNotesPathPromise = null
+        throw error
+      })
+  }
+
+  return defaultNotesPathPromise
 }
 /**
- * 验证路径是否有效（处理跨平台恢复场景）
- * 抽取 NotesPage 中的 initialize 方法里的逻辑，避免重复代码
+ * Validate and resolve a notes path, including cross-platform restore scenarios.
+ * This extracts NotesPage initialize logic to avoid duplicated path resolution code.
  * @param parentPath
- * @returns {ResolvedNotesPath} 返回有效路径和是否为默认路径
+ * @returns {ResolvedNotesPath} Resolved path and whether fallback to the default path occurred.
  */
 export async function resolveNotesPath(parentPath: string): Promise<ResolvedNotesPath> {
   const basePath = normalizePath(parentPath || '')
-  const appInfo = await window.api.getAppInfo()
-  const defaultNotesPath = normalizePath(appInfo.notesPath)
+  const defaultNotesPath = await getDefaultNotesPath()
 
   if (!basePath) {
     return {

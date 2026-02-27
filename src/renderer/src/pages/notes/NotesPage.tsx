@@ -257,6 +257,11 @@ const NotesPage: FC = () => {
         }
         const defaultPath = resolved.path
 
+        logger.warn('Invalid notes path detected, resetting to default', {
+          previousPath: notesPath,
+          defaultPath
+        })
+
         // 重置为默认路径
         updateNotesPath(defaultPath)
 
