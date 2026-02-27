@@ -198,7 +198,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'minimax-agent',
-    name: 'Minimax Agent CN',
+    name: 'Minimax Agent',
     nameKey: 'minapps.minimax-agent',
     url: 'https://agent.minimaxi.com/',
     logo: MinimaxAgentLogo,
