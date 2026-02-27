@@ -1,7 +1,13 @@
 import type { LanguageModelV2StreamPart } from '@ai-sdk/provider'
+import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
 
-export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
+/**
+ * Ollama Reasoning Order Middleware
+ * Reorders reasoning chunks to always appear before text chunks (Issue #12642)
+ * @returns LanguageModelMiddleware
+ */
+function createOllamaReasoningOrderMiddleware(): LanguageModelMiddleware {
   return {
     middlewareVersion: 'v2',
     wrapGenerate: async ({ doGenerate }) => {
@@ -120,3 +126,14 @@ export function ollamaReasoningOrderMiddleware(): LanguageModelMiddleware {
     }
   }
 }
+
+export const createOllamaReasoningOrderPlugin = () =>
+  definePlugin({
+    name: 'ollamaReasoningOrder',
+    enforce: 'pre',
+
+    configureContext: (context) => {
+      context.middlewares = context.middlewares || []
+      context.middlewares.push(createOllamaReasoningOrderMiddleware())
+    }
+  })

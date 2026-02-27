@@ -1,0 +1,140 @@
+diff --git a/dist/index.js b/dist/index.js
+index f5902dd4342750bf651a5f454d8d965bf91cf20d..6d906f880de4946cbae375bd3707137cdb50f752 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -570,6 +570,17 @@ var OpenAICompatibleChatLanguageModel = class {
+         text: reasoning
+       });
+     }
++    if (choice.message.images) {
++      for (const image of choice.message.images) {
++        const match1 = image.image_url.url.match(/^data:([^;]+)/);
++        const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++        content.push({
++          type: 'file',
++          mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
++          data: match2 ? match2[1] : image.image_url.url,
++        });
++      }
++    }
+     if (choice.message.tool_calls != null) {
+       for (const toolCall of choice.message.tool_calls) {
+         const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
+@@ -730,6 +741,17 @@ var OpenAICompatibleChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
++            if (delta.images) {
++              for (const image of delta.images) {
++                const match1 = image.image_url.url.match(/^data:([^;]+)/);
++                const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++                controller.enqueue({
++                  type: 'file',
++                  mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
++                  data: match2 ? match2[1] : image.image_url.url,
++                });
++              }
++            }
+             if (delta.tool_calls != null) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
+@@ -926,6 +948,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+               }).nullish()
+             }).nullish()
+           })
++        ).nullish(),
++        images: import_v43.z.array(
++          import_v43.z.object({
++            type: import_v43.z.literal('image_url'),
++            image_url: import_v43.z.object({
++              url: import_v43.z.string(),
++            })
++          })
+         ).nullish()
+       }),
+       finish_reason: import_v43.z.string().nullish()
+@@ -962,6 +992,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
+               }).nullish()
+             }).nullish()
+           })
++        ).nullish(),
++        images: import_v43.z.array(
++          import_v43.z.object({
++            type: import_v43.z.literal('image_url'),
++            image_url: import_v43.z.object({
++              url: import_v43.z.string(),
++            })
++          })
+         ).nullish()
+       }).nullish(),
+       finish_reason: import_v43.z.string().nullish()
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 75d3b9d8fdb57e9eca7d9590a45a85340427fe59..302b7d62fb7291f7028bdf51525ac95759e0fa5f 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -554,6 +554,17 @@ var OpenAICompatibleChatLanguageModel = class {
+         text: reasoning
+       });
+     }
++    if (choice.message.images) {
++      for (const image of choice.message.images) {
++        const match1 = image.image_url.url.match(/^data:([^;]+)/);
++        const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++        content.push({
++          type: 'file',
++          mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
++          data: match2 ? match2[1] : image.image_url.url,
++        });
++      }
++    }
+     if (choice.message.tool_calls != null) {
+       for (const toolCall of choice.message.tool_calls) {
+         const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
+@@ -714,6 +725,17 @@ var OpenAICompatibleChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
++            if (delta.images) {
++              for (const image of delta.images) {
++                const match1 = image.image_url.url.match(/^data:([^;]+)/);
++                const match2 = image.image_url.url.match(/^data:[^;]*;base64,(.+)$/);
++                controller.enqueue({
++                  type: 'file',
++                  mediaType: match1 ? (match1[1] ?? 'image/jpeg') : 'image/jpeg',
++                  data: match2 ? match2[1] : image.image_url.url,
++                });
++              }
++            }
+             if (delta.tool_calls != null) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
+@@ -910,6 +932,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+               }).nullish()
+             }).nullish()
+           })
++        ).nullish(),
++        images: z3.array(
++          z3.object({
++            type: z3.literal('image_url'),
++            image_url: z3.object({
++              url: z3.string(),
++            })
++          })
+         ).nullish()
+       }),
+       finish_reason: z3.string().nullish()
+@@ -946,6 +976,14 @@ var chunkBaseSchema = z3.looseObject({
+               }).nullish()
+             }).nullish()
+           })
++        ).nullish(),
++        images: z3.array(
++          z3.object({
++            type: z3.literal('image_url'),
++            image_url: z3.object({
++              url: z3.string(),
++            })
++          })
+         ).nullish()
+       }).nullish(),
+       finish_reason: z3.string().nullish()

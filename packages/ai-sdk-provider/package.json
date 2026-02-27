@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-sdk-provider",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
   "keywords": [
     "ai-sdk",
@@ -35,15 +35,14 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@ai-sdk/anthropic": "^2.0.59",
-    "@ai-sdk/google": "^2.0.23",
-    "@ai-sdk/openai": "^2.0.64",
-    "ai": "^5.0.26"
+    "@ai-sdk/anthropic": "^3.0.48",
+    "@ai-sdk/google": "^3.0.33",
+    "@ai-sdk/openai": "^3.0.36",
+    "@ai-sdk/openai-compatible": "^2.0.30"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "1.0.28",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.17"
+    "@ai-sdk/provider": "^3.0.8",
+    "@ai-sdk/provider-utils": "^4.0.15"
   },
   "devDependencies": {
     "tsdown": "^0.20.3",
