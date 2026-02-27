@@ -231,9 +231,14 @@ const MessageMenubar: FC<Props> = (props) => {
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
 
   const isTranslating = useMemo(() => {
-    const block = findTranslationBlocksById(message.id)[0]
-    return block?.status === MessageBlockStatus.STREAMING || block?.status === MessageBlockStatus.PROCESSING
-  }, [message.id, blockEntities])
+    const translationBlock = message.blocks
+      .map((blockId) => blockEntities[blockId])
+      .find((block) => block?.type === MessageBlockType.TRANSLATION)
+    return (
+      translationBlock?.status === MessageBlockStatus.STREAMING ||
+      translationBlock?.status === MessageBlockStatus.PROCESSING
+    )
+  }, [message.blocks, blockEntities])
 
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
