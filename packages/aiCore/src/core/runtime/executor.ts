@@ -37,14 +37,14 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
   }
 
-  private createResolveModelPlugin(middlewares?: LanguageModelV3Middleware[]) {
+  private createResolveModelPlugin() {
     return definePlugin({
       name: '_internal_resolveModel',
       enforce: 'post',
 
-      resolveModel: async (modelId: string) => {
-        // 注意：extraModelConfig 暂时不支持，已在新架构中移除
-        return await this.resolveModel(modelId, middlewares)
+      resolveModel: async (modelId: string, context: AiRequestContext) => {
+        // 从 context.middlewares 获取中间件（由各插件在 configureContext 阶段写入）
+        return await this.resolveModel(modelId, context.middlewares)
       }
     })
   }
@@ -74,20 +74,12 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   /**
    * 流式文本生成
    */
-  async streamText(
-    params: streamTextParams,
-    options?: {
-      middlewares?: LanguageModelV3Middleware[]
-    }
-  ): Promise<ReturnType<typeof _streamText>> {
+  async streamText(params: streamTextParams): Promise<ReturnType<typeof _streamText>> {
     const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([
-        this.createResolveModelPlugin(options?.middlewares),
-        this.createConfigureContextPlugin()
-      ])
+      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
     } else {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
@@ -113,20 +105,12 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   /**
    * 生成文本
    */
-  async generateText(
-    params: generateTextParams,
-    options?: {
-      middlewares?: LanguageModelV3Middleware[]
-    }
-  ): Promise<ReturnType<typeof _generateText>> {
+  async generateText(params: generateTextParams): Promise<ReturnType<typeof _generateText>> {
     const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([
-        this.createResolveModelPlugin(options?.middlewares),
-        this.createConfigureContextPlugin()
-      ])
+      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
     } else {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }

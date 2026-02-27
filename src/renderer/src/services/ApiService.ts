@@ -252,6 +252,7 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
     model: assistant.model,
+    provider,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),

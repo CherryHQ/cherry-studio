@@ -11,8 +11,6 @@ export type { RuntimeConfig } from './types'
 
 // === 便捷工厂函数 ===
 
-import type { LanguageModelV3Middleware } from '@ai-sdk/provider'
-
 import { type AiPlugin } from '../plugins'
 import { type ProviderId, type ProviderSettingsMap } from '../providers/types'
 import { RuntimeExecutor } from './executor'
@@ -41,31 +39,29 @@ export function createOpenAICompatibleExecutor(
 // === 直接调用API（无需创建executor实例）===
 
 /**
- * 直接流式文本生成 - 支持middlewares
+ * 直接流式文本生成
  */
 export async function streamText<T extends ProviderId>(
   providerId: T,
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['streamText']>[0],
-  plugins?: AiPlugin[],
-  middlewares?: LanguageModelV3Middleware[]
+  plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<T>['streamText']>> {
   const executor = createExecutor(providerId, options, plugins)
-  return executor.streamText(params, { middlewares })
+  return executor.streamText(params)
 }
 
 /**
- * 直接生成文本 - 支持middlewares
+ * 直接生成文本
  */
 export async function generateText<T extends ProviderId>(
   providerId: T,
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['generateText']>[0],
-  plugins?: AiPlugin[],
-  middlewares?: LanguageModelV3Middleware[]
+  plugins?: AiPlugin[]
 ): Promise<ReturnType<RuntimeExecutor<T>['generateText']>> {
   const executor = createExecutor(providerId, options, plugins)
-  return executor.generateText(params, { middlewares })
+  return executor.generateText(params)
 }
 
 /**
