@@ -84,14 +84,6 @@ export interface ExtensionStorage {
   /** Provider 实例缓存 */
   providerCache?: Map<string, ProviderV3>
 
-  /** 连接状态跟踪 */
-  connectionState?: {
-    isHealthy: boolean
-    lastCallTime?: number
-    errorCount?: number
-    lastError?: Error
-  }
-
   /** 自定义扩展存储 */
   [key: string]: any
 }
