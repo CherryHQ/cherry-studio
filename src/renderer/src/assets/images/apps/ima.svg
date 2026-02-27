@@ -5,7 +5,7 @@
     </clipPath>
   </defs>
   <!-- White background with rounded corners -->
-  <rect x="2" y="2" width="20" height="20" rx="3.33" fill="white"/>
+  <rect x="2" y="2" width="20" height="20" rx="3.33" fill="white" stroke="white" stroke-opacity="0.08" stroke-width="1。5"/>
   <g clip-path="url(#rounded-clip)">
 
     <!-- Green circle (top-left) -->
