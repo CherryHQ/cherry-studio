@@ -343,7 +343,8 @@ const MessageMenubar: FC<Props> = (props) => {
               const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
-                window.api.file.saveImage(title, imageData)
+                const success = await window.api.file.saveImage(title, imageData)
+                if (success) window.toast.success(t('chat.topics.export.image_saved'))
               }
             }
           },

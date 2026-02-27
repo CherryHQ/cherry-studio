@@ -1100,6 +1100,7 @@
       },
       "export": {
         "image": "匯出為圖片",
+        "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {
           "label": "匯出為 Markdown",
@@ -4651,6 +4652,13 @@
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "根據所在地區篩選不支援的小程式",
+        "global": "全球",
+        "title": "小程式區域篩選"
+      },
       "reset_tooltip": "重設為預設值",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",
@@ -5129,6 +5137,7 @@
       "reset_to_default": "重設為預設",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
+      "select_model": "選擇模型",
       "selection_assistant_select_text": "劃詞助手：取詞",
       "selection_assistant_toggle": "開關劃詞助手",
       "show_app": "顯示 / 隱藏應用程式",

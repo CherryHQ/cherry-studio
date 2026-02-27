@@ -146,6 +146,7 @@ const api = {
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
+  getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
   mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.APP_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
@@ -240,7 +241,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
-    saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
+    saveImage: (name: string, data: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
       ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),

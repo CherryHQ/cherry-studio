@@ -9,6 +9,7 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
+  isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDoubaoSeed18Model,
   isDoubaoSeedAfter251015,
@@ -18,7 +19,6 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
-  isOpus46Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -559,7 +559,7 @@ export function getAnthropicThinkingBudget(
  * Extracted from AnthropicAPIClient logic.
  *
  * Returns different parameter shapes depending on the model:
- * - **Opus 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
+ * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
  *   Uses the new adaptive thinking API with effort-based control.
  * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
  *   Uses the classic thinking API with explicit token budget.
@@ -588,10 +588,10 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    // Opus 4.6 uses adaptive thinking + effort parameters
-    // Map reasoningEffort to Opus 4.6 supported effort values
-    if (isOpus46Model(model)) {
-      // Opus 4.6 supports: low, medium, high, max
+    // Claude 4.6 uses adaptive thinking + effort parameters
+    // Map reasoningEffort to Claude 4.6 supported effort values
+    if (isClaude46SeriesModel(model)) {
+      // Claude 4.6 supports: low, medium, high, max
       // Mapping rules: default/none -> no effort (uses default high)
       //                minimal/low -> low
       //                medium -> medium
@@ -772,8 +772,8 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Opus 4.6 uses adaptive thinking + maxReasoningEffort
-  if (isOpus46Model(model)) {
+  // Claude 4.6 uses adaptive thinking + maxReasoningEffort
+  if (isClaude46SeriesModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',
