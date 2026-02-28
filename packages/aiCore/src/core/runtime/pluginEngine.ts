@@ -359,6 +359,9 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
 
       // 2.5 应用 context.middlewares 到模型
       if (context.middlewares && context.middlewares.length > 0) {
+        if (typeof resolvedModel === 'string') {
+          throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
+        }
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares
