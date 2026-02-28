@@ -424,81 +424,134 @@ class WebSearchService {
       return { results: [] }
     }
 
-    // 使用请求特定的signal，如果没有则回退到全局signal
-    const signal = this.getRequestState(requestId).signal || this.signal
+    try {
+      // 使用请求特定的signal，如果没有则回退到全局signal
+      const signal = this.getRequestState(requestId).signal || this.signal
 
-    const span = webSearchProvider.topicId
-      ? addSpan({
-          topicId: webSearchProvider.topicId,
-          name: `WebSearch`,
-          inputs: {
-            question: extractResults.websearch.question,
-            provider: webSearchProvider.id
-          },
-          tag: `Web`,
-          parentSpanId: webSearchProvider.parentSpanId,
-          modelName: webSearchProvider.modelName
+      const span = webSearchProvider.topicId
+        ? addSpan({
+            topicId: webSearchProvider.topicId,
+            name: `WebSearch`,
+            inputs: {
+              question: extractResults.websearch.question,
+              provider: webSearchProvider.id
+            },
+            tag: `Web`,
+            parentSpanId: webSearchProvider.parentSpanId,
+            modelName: webSearchProvider.modelName
+          })
+        : undefined
+      const questions = extractResults.websearch.question
+      const links = extractResults.websearch.links
+
+      // 处理 summarize
+      if (questions[0] === 'summarize' && links && links.length > 0) {
+        const contents = await fetchWebContents(links, undefined, undefined, {
+          signal
         })
-      : undefined
-    const questions = extractResults.websearch.question
-    const links = extractResults.websearch.links
+        webSearchProvider.topicId &&
+          endSpan({
+            topicId: webSearchProvider.topicId,
+            outputs: contents,
+            modelName: webSearchProvider.modelName,
+            span
+          })
+        return { query: 'summaries', results: contents }
+      }
 
-    // 处理 summarize
-    if (questions[0] === 'summarize' && links && links.length > 0) {
-      const contents = await fetchWebContents(links, undefined, undefined, {
-        signal
-      })
-      webSearchProvider.topicId &&
-        endSpan({
-          topicId: webSearchProvider.topicId,
-          outputs: contents,
-          modelName: webSearchProvider.modelName,
-          span
-        })
-      this.requestStates.delete(requestId)
-      return { query: 'summaries', results: contents }
-    }
-
-    const searchPromises = questions.map((q) =>
-      this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
-    )
-    const searchResults = await Promise.allSettled(searchPromises)
-
-    // 统计成功完成的搜索数量
-    const successfulSearchCount = searchResults.filter((result) => result.status === 'fulfilled').length
-    logger.verbose(`Successful search count: ${successfulSearchCount}`)
-    if (successfulSearchCount > 1) {
-      await this.setWebSearchStatus(
-        requestId,
-        {
-          phase: 'fetch_complete',
-          countAfter: successfulSearchCount
-        },
-        1000
+      const searchPromises = questions.map((q) =>
+        this.search(webSearchProvider, q, { signal }, span?.spanContext().spanId)
       )
-    }
+      const searchResults = await Promise.allSettled(searchPromises)
 
-    let finalResults: WebSearchProviderResult[] = []
-    searchResults.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        if (result.value.results) {
-          finalResults.push(...result.value.results)
+      // 统计成功完成的搜索数量
+      const successfulSearchCount = searchResults.filter((result) => result.status === 'fulfilled').length
+      logger.verbose(`Successful search count: ${successfulSearchCount}`)
+      if (successfulSearchCount > 1) {
+        await this.setWebSearchStatus(
+          requestId,
+          {
+            phase: 'fetch_complete',
+            countAfter: successfulSearchCount
+          },
+          1000
+        )
+      }
+
+      let finalResults: WebSearchProviderResult[] = []
+      searchResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.results) {
+            finalResults.push(...result.value.results)
+          }
+        }
+        if (result.status === 'rejected') {
+          throw result.reason
+        }
+      })
+
+      logger.verbose(`FulFilled search result count: ${finalResults.length}`)
+      logger.verbose(
+        'FulFilled search result: ',
+        finalResults.map(({ title, url }) => ({ title, url }))
+      )
+
+      // 如果没有搜索结果，直接返回空结果
+      if (finalResults.length === 0) {
+        await this.setWebSearchStatus(requestId, { phase: 'default' })
+        if (webSearchProvider.topicId) {
+          endSpan({
+            topicId: webSearchProvider.topicId,
+            outputs: finalResults,
+            modelName: webSearchProvider.modelName,
+            span
+          })
+        }
+        return {
+          query: questions.join(' | '),
+          results: []
         }
       }
-      if (result.status === 'rejected') {
-        throw result.reason
+
+      const { compressionConfig } = this.getWebSearchState()
+
+      // RAG压缩处理
+      if (compressionConfig?.method === 'rag' && requestId) {
+        await this.setWebSearchStatus(requestId, { phase: 'rag' }, 500)
+
+        const originalCount = finalResults.length
+
+        try {
+          finalResults = await this.compressWithSearchBase(questions, finalResults, compressionConfig, requestId)
+          await this.setWebSearchStatus(
+            requestId,
+            {
+              phase: 'rag_complete',
+              countBefore: originalCount,
+              countAfter: finalResults.length
+            },
+            1000
+          )
+        } catch (error) {
+          logger.warn('RAG compression failed, will return empty results:', error as Error)
+          window.toast.error({
+            timeout: 10000,
+            title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
+          })
+
+          finalResults = []
+          await this.setWebSearchStatus(requestId, { phase: 'rag_failed' }, 1000)
+        }
       }
-    })
+      // 截断压缩处理
+      else if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
+        await this.setWebSearchStatus(requestId, { phase: 'cutoff' }, 500)
+        finalResults = await this.compressWithCutoff(finalResults, compressionConfig)
+      }
 
-    logger.verbose(`FulFilled search result count: ${finalResults.length}`)
-    logger.verbose(
-      'FulFilled search result: ',
-      finalResults.map(({ title, url }) => ({ title, url }))
-    )
-
-    // 如果没有搜索结果，直接返回空结果
-    if (finalResults.length === 0) {
+      // 重置状态
       await this.setWebSearchStatus(requestId, { phase: 'default' })
+
       if (webSearchProvider.topicId) {
         endSpan({
           topicId: webSearchProvider.topicId,
@@ -507,66 +560,12 @@ class WebSearchService {
           span
         })
       }
-      this.requestStates.delete(requestId)
       return {
         query: questions.join(' | '),
-        results: []
+        results: finalResults
       }
-    }
-
-    const { compressionConfig } = this.getWebSearchState()
-
-    // RAG压缩处理
-    if (compressionConfig?.method === 'rag' && requestId) {
-      await this.setWebSearchStatus(requestId, { phase: 'rag' }, 500)
-
-      const originalCount = finalResults.length
-
-      try {
-        finalResults = await this.compressWithSearchBase(questions, finalResults, compressionConfig, requestId)
-        await this.setWebSearchStatus(
-          requestId,
-          {
-            phase: 'rag_complete',
-            countBefore: originalCount,
-            countAfter: finalResults.length
-          },
-          1000
-        )
-      } catch (error) {
-        logger.warn('RAG compression failed, will return empty results:', error as Error)
-        window.toast.error({
-          timeout: 10000,
-          title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
-        })
-
-        finalResults = []
-        await this.setWebSearchStatus(requestId, { phase: 'rag_failed' }, 1000)
-      }
-    }
-    // 截断压缩处理
-    else if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
-      await this.setWebSearchStatus(requestId, { phase: 'cutoff' }, 500)
-      finalResults = await this.compressWithCutoff(finalResults, compressionConfig)
-    }
-
-    // 重置状态
-    await this.setWebSearchStatus(requestId, { phase: 'default' })
-
-    if (webSearchProvider.topicId) {
-      endSpan({
-        topicId: webSearchProvider.topicId,
-        outputs: finalResults,
-        modelName: webSearchProvider.modelName,
-        span
-      })
-    }
-    // Clean up request state on successful completion
-    this.requestStates.delete(requestId)
-
-    return {
-      query: questions.join(' | '),
-      results: finalResults
+    } finally {
+      this.requestStates.delete(requestId)
     }
   }
 }

@@ -1798,7 +1798,10 @@ export const loadTopicMessagesThunk =
       }
       dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
 
-      // Evict stale topic caches to free memory
+      // Evict stale topic caches to free memory.
+      // Object.keys() preserves insertion order, approximating LRU: the cache guard
+      // above (`if (!forceReload && state.messages.messageIdsByTopic[topicId])`) prevents
+      // already-cached topics from being re-inserted, so older topics stay at the front.
       const stateAfterLoad = getState()
       const cachedTopicIds = Object.keys(stateAfterLoad.messages.messageIdsByTopic)
       if (cachedTopicIds.length > MAX_CACHED_TOPICS) {
