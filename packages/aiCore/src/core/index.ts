@@ -7,8 +7,7 @@
 export type { NamedMiddleware } from './middleware'
 export { createMiddlewares, wrapModelWithMiddlewares } from './middleware'
 
-// 创建管理
-export { ModelResolver } from './models'
+// 模型类型
 export type { ModelConfig as ModelConfigType } from './models/types'
 
 // 执行管理

@@ -1,7 +1,7 @@
 /**
- * ModelResolver Tests
- * Tests model resolution logic for language, embedding, and image models
- * The resolver passes modelId directly to provider - all routing is handled by the provider
+ * ProviderRegistry Model Resolution Tests
+ * Tests model resolution via AI SDK's createProviderRegistry
+ * The registry routes 'providerId:modelId' to the correct provider
  */
 
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
@@ -11,21 +11,11 @@ import {
   createMockLanguageModel,
   createMockProviderV3
 } from '@test-utils'
+import { createProviderRegistry } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelResolver } from '../ModelResolver'
-
-vi.mock('../../middleware/wrapper', () => ({
-  wrapModelWithMiddlewares: vi.fn((model: LanguageModelV3) => {
-    return {
-      ...model,
-      _wrapped: true
-    } as LanguageModelV3
-  })
-}))
-
-describe('ModelResolver', () => {
-  let resolver: ModelResolver
+describe('ProviderRegistry Model Resolution', () => {
+  let registry: ReturnType<typeof createProviderRegistry>
   let mockLanguageModel: LanguageModelV3
   let mockEmbeddingModel: EmbeddingModelV3
   let mockImageModel: ImageModelV3
@@ -34,7 +24,6 @@ describe('ModelResolver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Create properly typed mock models
     mockLanguageModel = createMockLanguageModel({
       provider: 'test-provider',
       modelId: 'test-model'
@@ -50,7 +39,6 @@ describe('ModelResolver', () => {
       modelId: 'test-image'
     })
 
-    // Create mock provider with model methods as spies
     mockProvider = createMockProviderV3({
       provider: 'test-provider',
       languageModel: vi.fn(() => mockLanguageModel),
@@ -58,19 +46,20 @@ describe('ModelResolver', () => {
       imageModel: vi.fn(() => mockImageModel)
     })
 
-    // Create resolver with mock provider
-    resolver = new ModelResolver(mockProvider)
+    registry = createProviderRegistry({
+      'test-provider': mockProvider
+    })
   })
 
-  describe('resolveLanguageModel', () => {
-    it('should resolve modelId by passing it to provider', async () => {
-      const result = await resolver.resolveLanguageModel('gpt-4')
+  describe('languageModel', () => {
+    it('should resolve modelId via provider registry', () => {
+      const result = registry.languageModel('test-provider:gpt-4')
 
       expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(result).toBe(mockLanguageModel)
     })
 
-    it('should pass various modelIds directly to provider', async () => {
+    it('should pass various modelIds to the correct provider', () => {
       const modelIds = [
         'claude-3-5-sonnet',
         'gemini-2.0-flash',
@@ -83,135 +72,131 @@ describe('ModelResolver', () => {
 
       for (const modelId of modelIds) {
         vi.clearAllMocks()
-        await resolver.resolveLanguageModel(modelId)
+        registry.languageModel(`test-provider:${modelId}`)
 
         expect(mockProvider.languageModel).toHaveBeenCalledWith(modelId)
       }
     })
 
-    it('should pass namespaced modelIds directly to provider (provider handles routing)', async () => {
-      // HubProvider handles routing internally - ModelResolver just passes through
-      const namespacedId = 'openai|gpt-4'
-
-      await resolver.resolveLanguageModel(namespacedId)
-
-      expect(mockProvider.languageModel).toHaveBeenCalledWith(namespacedId)
-    })
-
-    it('should handle empty model IDs', async () => {
-      await resolver.resolveLanguageModel('')
-
-      expect(mockProvider.languageModel).toHaveBeenCalledWith('')
-    })
-
-    it('should throw if provider throws', async () => {
+    it('should throw if provider throws', () => {
       const error = new Error('Model not found')
       vi.mocked(mockProvider.languageModel).mockImplementation(() => {
         throw error
       })
 
-      await expect(resolver.resolveLanguageModel('invalid-model')).rejects.toThrow('Model not found')
+      expect(() => registry.languageModel('test-provider:invalid-model')).toThrow('Model not found')
     })
 
-    it('should handle concurrent resolution requests', async () => {
-      const promises = [
-        resolver.resolveLanguageModel('gpt-4'),
-        resolver.resolveLanguageModel('claude-3'),
-        resolver.resolveLanguageModel('gemini-2.0')
+    it('should handle concurrent resolution requests', () => {
+      const results = [
+        registry.languageModel('test-provider:gpt-4'),
+        registry.languageModel('test-provider:claude-3'),
+        registry.languageModel('test-provider:gemini-2.0')
       ]
-
-      const results = await Promise.all(promises)
 
       expect(results).toHaveLength(3)
       expect(mockProvider.languageModel).toHaveBeenCalledTimes(3)
     })
+
+    it('should throw for unknown provider', () => {
+      expect(() => registry.languageModel('unknown:gpt-4' as `${string}:${string}`)).toThrow()
+    })
   })
 
-  describe('resolveEmbeddingModel', () => {
-    it('should resolve embedding model ID', async () => {
-      const result = await resolver.resolveEmbeddingModel('text-embedding-ada-002')
+  describe('embeddingModel', () => {
+    it('should resolve embedding model ID', () => {
+      const result = registry.embeddingModel('test-provider:text-embedding-ada-002')
 
       expect(mockProvider.embeddingModel).toHaveBeenCalledWith('text-embedding-ada-002')
       expect(result).toBe(mockEmbeddingModel)
     })
 
-    it('should resolve different embedding models', async () => {
+    it('should resolve different embedding models', () => {
       const modelIds = ['text-embedding-3-small', 'text-embedding-3-large', 'embed-english-v3.0', 'voyage-2']
 
       for (const modelId of modelIds) {
         vi.clearAllMocks()
-        await resolver.resolveEmbeddingModel(modelId)
+        registry.embeddingModel(`test-provider:${modelId}`)
 
         expect(mockProvider.embeddingModel).toHaveBeenCalledWith(modelId)
       }
     })
-
-    it('should pass namespaced embedding modelIds directly to provider', async () => {
-      const namespacedId = 'openai|text-embedding-3-small'
-
-      await resolver.resolveEmbeddingModel(namespacedId)
-
-      expect(mockProvider.embeddingModel).toHaveBeenCalledWith(namespacedId)
-    })
   })
 
-  describe('resolveImageModel', () => {
-    it('should resolve image model ID', async () => {
-      const result = await resolver.resolveImageModel('dall-e-3')
+  describe('imageModel', () => {
+    it('should resolve image model ID', () => {
+      const result = registry.imageModel('test-provider:dall-e-3')
 
       expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
       expect(result).toBe(mockImageModel)
     })
 
-    it('should resolve different image models', async () => {
+    it('should resolve different image models', () => {
       const modelIds = ['dall-e-2', 'stable-diffusion-xl', 'imagen-2', 'grok-2-image']
 
       for (const modelId of modelIds) {
         vi.clearAllMocks()
-        await resolver.resolveImageModel(modelId)
+        registry.imageModel(`test-provider:${modelId}`)
 
         expect(mockProvider.imageModel).toHaveBeenCalledWith(modelId)
       }
     })
-
-    it('should pass namespaced image modelIds directly to provider', async () => {
-      const namespacedId = 'openai|dall-e-3'
-
-      await resolver.resolveImageModel(namespacedId)
-
-      expect(mockProvider.imageModel).toHaveBeenCalledWith(namespacedId)
-    })
   })
 
   describe('Type Safety', () => {
-    it('should return properly typed LanguageModelV3', async () => {
-      const result = await resolver.resolveLanguageModel('gpt-4')
+    it('should return properly typed LanguageModelV3', () => {
+      const result = registry.languageModel('test-provider:gpt-4')
 
       expect(result.specificationVersion).toBe('v3')
       expect(result).toHaveProperty('doGenerate')
       expect(result).toHaveProperty('doStream')
     })
 
-    it('should return properly typed EmbeddingModelV3', async () => {
-      const result = await resolver.resolveEmbeddingModel('text-embedding-ada-002')
+    it('should return properly typed EmbeddingModelV3', () => {
+      const result = registry.embeddingModel('test-provider:text-embedding-ada-002')
 
       expect(result.specificationVersion).toBe('v3')
       expect(result).toHaveProperty('doEmbed')
     })
 
-    it('should return properly typed ImageModelV3', async () => {
-      const result = await resolver.resolveImageModel('dall-e-3')
+    it('should return properly typed ImageModelV3', () => {
+      const result = registry.imageModel('test-provider:dall-e-3')
 
       expect(result.specificationVersion).toBe('v3')
       expect(result).toHaveProperty('doGenerate')
     })
   })
 
+  describe('Multi-provider registry', () => {
+    it('should route to correct provider in multi-provider registry', () => {
+      const mockProvider2 = createMockProviderV3({
+        provider: 'second-provider',
+        languageModel: vi.fn(() =>
+          createMockLanguageModel({
+            provider: 'second-provider',
+            modelId: 'other-model'
+          })
+        )
+      })
+
+      const multiRegistry = createProviderRegistry({
+        first: mockProvider,
+        second: mockProvider2
+      })
+
+      multiRegistry.languageModel('first:gpt-4')
+      multiRegistry.languageModel('second:other-model')
+
+      expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
+      expect(mockProvider2.languageModel).toHaveBeenCalledWith('other-model')
+    })
+  })
+
   describe('All model types for same provider', () => {
-    it('should handle all model types correctly', async () => {
-      await resolver.resolveLanguageModel('gpt-4')
-      await resolver.resolveEmbeddingModel('text-embedding-3-small')
-      await resolver.resolveImageModel('dall-e-3')
+    it('should handle all model types correctly', () => {
+      registry.languageModel('test-provider:gpt-4')
+      registry.embeddingModel('test-provider:text-embedding-3-small')
+      registry.imageModel('test-provider:dall-e-3')
 
       expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
       expect(mockProvider.embeddingModel).toHaveBeenCalledWith('text-embedding-3-small')

@@ -358,7 +358,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
       }
 
       // 2.5 应用 context.middlewares 到模型
-      if (typeof model !== 'string' && context.middlewares && context.middlewares.length > 0) {
+      if (context.middlewares && context.middlewares.length > 0) {
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares

@@ -4,9 +4,13 @@
  */
 import type { ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
-import { generateImage as _generateImage, generateText as _generateText, streamText as _streamText } from 'ai'
+import {
+  createProviderRegistry,
+  generateImage as _generateImage,
+  generateText as _generateText,
+  streamText as _streamText
+} from 'ai'
 
-import { ModelResolver } from '../models'
 import { isV3Model } from '../models/utils'
 import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
@@ -20,13 +24,15 @@ export class RuntimeExecutor<
 > {
   public pluginEngine: PluginEngine<T>
   private config: RuntimeConfig<TSettingsMap, T>
-  private modelResolver: ModelResolver
+  private registry: ReturnType<typeof createProviderRegistry>
 
   constructor(config: RuntimeConfig<TSettingsMap, T>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
-    this.modelResolver = new ModelResolver(config.provider)
+    this.registry = createProviderRegistry({
+      [config.providerId]: config.provider
+    })
   }
 
   private createResolveModelPlugin() {
@@ -153,9 +159,7 @@ export class RuntimeExecutor<
    */
   private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      // 字符串modelId，使用 ModelResolver 解析
-      // Provider会处理命名空间格式路由（如果是HubProvider）
-      return await this.modelResolver.resolveLanguageModel(modelOrId)
+      return this.registry.languageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
     } else {
       if (!isV3Model(modelOrId)) {
         throw new Error(
@@ -173,11 +177,8 @@ export class RuntimeExecutor<
   private async resolveImageModel(modelOrId: ImageModelV3 | string): Promise<ImageModelV3> {
     try {
       if (typeof modelOrId === 'string') {
-        // 字符串modelId，使用 ModelResolver 解析
-        // Provider会处理命名空间格式路由（如果是HubProvider）
-        return await this.modelResolver.resolveImageModel(modelOrId)
+        return this.registry.imageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
       } else {
-        // 已经是模型，直接返回
         return modelOrId
       }
     } catch (error) {
