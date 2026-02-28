@@ -54,17 +54,22 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   }
 
   // === AI SDK Middleware Plugins ===
+  // 注意：wrapLanguageModel 会 .reverse() middleware 数组，
+  // 数组中靠前的 middleware 反转后变成最外层包装。
+  // extractReasoning 必须在 simulateStreaming 之前推入，
+  // 这样反转后 extractReasoning 在外层，其 wrapStream（状态机）
+  // 能处理 simulateStreaming 生成的模拟流中的未闭合 <think> 标签。
 
-  // 0.1 Simulate streaming for non-streaming requests
-  if (!config.streamOutput) {
-    plugins.push(createSimulateStreamingPlugin())
-  }
-
-  // 0.2 Reasoning extraction for OpenAI/Azure providers
+  // 0.1 Reasoning extraction for OpenAI/Azure providers
   const providerType = provider.type
   if (providerType === 'openai' || providerType === 'azure-openai') {
     const tagName = getReasoningTagName(model.id.toLowerCase())
     plugins.push(createReasoningExtractionPlugin({ tagName }))
+  }
+
+  // 0.2 Simulate streaming for non-streaming requests (must be AFTER reasoning extraction in array)
+  if (!config.streamOutput) {
+    plugins.push(createSimulateStreamingPlugin())
   }
 
   if (providerType === 'anthropic' && provider.anthropicCacheControl?.tokenThreshold) {
