@@ -909,6 +909,26 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     if (!webview) return
     webview.session.setSpellCheckerEnabled(isEnable)
   })
+  ipcMain.handle(
+    IpcChannel.Webview_SetPartitionProxy,
+    async (
+      _,
+      partition: string,
+      proxyConfig: {
+        mode: 'system' | 'fixed_servers' | 'direct'
+        proxyRules?: string
+        proxyBypassRules?: string
+      }
+    ) => {
+      const targetSession = session.fromPartition(partition)
+      const config: ProxyConfig = {
+        mode: proxyConfig.mode,
+        proxyRules: proxyConfig.proxyRules,
+        proxyBypassRules: proxyConfig.proxyBypassRules
+      }
+      await targetSession.setProxy(config)
+    }
+  )
 
   // Webview print and save handlers
   ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
