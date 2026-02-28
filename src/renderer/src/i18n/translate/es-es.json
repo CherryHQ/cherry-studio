@@ -1296,6 +1296,7 @@
     "copied": "Copiado",
     "copy": "Copiar",
     "copy_failed": "Error al copiar",
+    "create": "[to be translated]:Create",
     "current": "Actual",
     "cut": "Cortar",
     "default": "Predeterminado",
@@ -5382,6 +5383,7 @@
     "create": "[to be translated]:Create Task",
     "deleteConfirm": "[to be translated]:Delete Task",
     "deleteConfirmMessage": "[to be translated]:Are you sure you want to delete this task?",
+    "edit": "[to be translated]:Edit Task",
     "execution": {
       "failed": "[to be translated]:Failed",
       "noHistory": "[to be translated]:No execution history",
@@ -5400,15 +5402,60 @@
       "disabled": "[to be translated]:Disabled",
       "enabled": "[to be translated]:Enabled"
     },
+    "form": {
+      "agents": "[to be translated]:Agents",
+      "assistants": "[to be translated]:Assistants",
+      "continue_conversation": "[to be translated]:Continue Conversation",
+      "continue_conversation_help": "[to be translated]:Continue from previous execution context",
+      "cron_expression": "[to be translated]:Cron Expression",
+      "cron_help_title": "[to be translated]:Cron Expression Guide:",
+      "cron_required": "[to be translated]:Please enter Cron Expression",
+      "description": "[to be translated]:Description",
+      "description_placeholder": "[to be translated]:Describe what this task does...",
+      "emoji": "[to be translated]:Icon",
+      "enabled": "[to be translated]:Enable Task",
+      "interval_minutes": "[to be translated]:Interval (minutes)",
+      "interval_required": "[to be translated]:Please enter interval time",
+      "max_execution_time": "[to be translated]:Timeout (seconds)",
+      "message": "[to be translated]:Execution Message",
+      "message_placeholder": "[to be translated]:Message to send to agent/assistant...",
+      "message_required": "[to be translated]:Please enter execution message",
+      "name": "[to be translated]:Task Name",
+      "name_placeholder": "[to be translated]:e.g., Daily Report",
+      "name_required": "[to be translated]:Please enter task name",
+      "notify_on_complete": "[to be translated]:Notify on Complete",
+      "notify_on_complete_help": "[to be translated]:Send notification when task completes",
+      "schedule_description": "[to be translated]:Description",
+      "schedule_description_placeholder": "[to be translated]:e.g., Daily at 09:00",
+      "schedule_type": "[to be translated]:Schedule Type",
+      "section_execution": "[to be translated]:Execution Configuration",
+      "section_schedule": "[to be translated]:Schedule Configuration",
+      "section_targets": "[to be translated]:Targets",
+      "targets": "[to be translated]:Targets",
+      "targets_placeholder": "[to be translated]:Select assistants or agents",
+      "targets_required": "[to be translated]:Please select at least one target"
+    },
+    "run": "[to be translated]:Run Now",
     "schedule": {
       "cronExpression": "[to be translated]:Cron Expression",
       "cronHelp": "[to be translated]:Cron format: * * * * * (minute hour day month weekday)",
+      "daily": "[to be translated]:Daily at 09:00",
       "description": "[to be translated]:Description",
+      "every_6h": "[to be translated]:Every 6 hours",
+      "hourly": "[to be translated]:Hourly",
       "intervalMinutes": "[to be translated]:Interval (minutes)",
+      "manual": "[to be translated]:Manual Trigger",
       "type": {
         "cron": "[to be translated]:Cron Expression",
-        "interval": "[to be translated]:Fixed Interval"
-      }
+        "interval": "[to be translated]:Fixed Interval",
+        "manual": "[to be translated]:Manual Trigger"
+      },
+      "weekly": "[to be translated]:Every Monday at 09:00"
+    },
+    "schedule_type": {
+      "cron": "[to be translated]:Cron Expression",
+      "interval": "[to be translated]:Fixed Interval",
+      "manual": "[to be translated]:Manual Trigger"
     },
     "status": {
       "completed": "[to be translated]:Completed",

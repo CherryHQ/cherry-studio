@@ -12,101 +12,7 @@ export interface TasksState {
 }
 
 const initialState: TasksState = {
-  tasks: [
-    // Demo task
-    {
-      id: 'demo-task-1',
-      name: '每日日报摘要',
-      description: '每天下午6点生成工作日报摘要',
-      emoji: '📋',
-      targets: [
-        {
-          type: 'assistant',
-          id: 'default',
-          name: '默认助手'
-        }
-      ],
-      schedule: {
-        type: 'cron',
-        cronExpression: '0 18 * * *',
-        description: '每天 18:00'
-      },
-      enabled: true,
-      execution: {
-        message: '请帮我生成今天的工作日报摘要',
-        continueConversation: false,
-        maxExecutionTime: 300,
-        notifyOnComplete: true
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      totalRuns: 0,
-      executions: []
-    },
-    {
-      id: 'demo-task-2',
-      name: '代码检查',
-      description: '每周一上午检查代码质量',
-      emoji: '🔍',
-      targets: [
-        {
-          type: 'agent',
-          id: 'claude-code',
-          name: 'Code Reviewer'
-        }
-      ],
-      schedule: {
-        type: 'cron',
-        cronExpression: '0 9 * * 1',
-        description: '每周一 09:00'
-      },
-      enabled: false,
-      execution: {
-        message: '请检查本周代码变更并提供代码质量报告',
-        continueConversation: true,
-        maxExecutionTime: 600,
-        notifyOnComplete: true
-      },
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-      updatedAt: new Date(Date.now() - 86400000).toISOString(),
-      totalRuns: 3,
-      executions: [
-        {
-          id: 'exec-1',
-          taskId: 'demo-task-2',
-          status: 'completed',
-          startedAt: new Date(Date.now() - 604800000).toISOString(),
-          completedAt: new Date(Date.now() - 604740000).toISOString(),
-          result: {
-            success: true,
-            output: '代码检查完成，发现 3 个需要改进的地方...'
-          }
-        },
-        {
-          id: 'exec-2',
-          taskId: 'demo-task-2',
-          status: 'completed',
-          startedAt: new Date(Date.now() - 1209600000).toISOString(),
-          completedAt: new Date(Date.now() - 1209540000).toISOString(),
-          result: {
-            success: true,
-            output: '代码检查完成，代码质量良好'
-          }
-        },
-        {
-          id: 'exec-3',
-          taskId: 'demo-task-2',
-          status: 'failed',
-          startedAt: new Date(Date.now() - 1814400000).toISOString(),
-          completedAt: new Date(Date.now() - 1814380000).toISOString(),
-          result: {
-            success: false,
-            error: 'Agent 服务暂时不可用'
-          }
-        }
-      ]
-    }
-  ],
+  tasks: [],
   selectedTaskId: null,
   filter: 'all'
 }
@@ -115,6 +21,9 @@ const tasksSlice = createSlice({
   name: 'tasks',
   initialState,
   reducers: {
+    addMultipleTasks: (state, action: PayloadAction<PeriodicTask[]>) => {
+      state.tasks = action.payload
+    },
     addTask: (state, action: PayloadAction<CreateTaskForm>) => {
       const newTask: PeriodicTask = {
         ...action.payload,
@@ -200,8 +109,16 @@ const tasksSlice = createSlice({
   }
 })
 
-export const { addTask, updateTask, deleteTask, toggleTaskEnabled, setSelectedTask, setFilter, addExecution } =
-  tasksSlice.actions
+export const {
+  addMultipleTasks,
+  addTask,
+  updateTask,
+  deleteTask,
+  toggleTaskEnabled,
+  setSelectedTask,
+  setFilter,
+  addExecution
+} = tasksSlice.actions
 export const { getAllTasks, getTaskById, getSelectedTask, getFilteredTasks, getTaskListItems } = tasksSlice.selectors
 
 // Type-safe selector for accessing from root state

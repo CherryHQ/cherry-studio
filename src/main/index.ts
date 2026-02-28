@@ -25,6 +25,7 @@ import mcpService from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
+import taskSchedulerService from './services/TaskSchedulerService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -187,6 +188,10 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
+    // Start task scheduler service
+    taskSchedulerService.setMainWindow(mainWindow)
+    taskSchedulerService.start()
+
     runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
@@ -253,6 +258,9 @@ if (!app.requestSingleInstanceLock()) {
     if (selectionService) {
       selectionService.quit()
     }
+
+    // Stop task scheduler service
+    taskSchedulerService.stop()
 
     lanTransferClientService.dispose()
     localTransferService.dispose()

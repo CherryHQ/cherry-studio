@@ -18,7 +18,7 @@ import type {
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Notification } from '@types'
+import type { CreateTaskForm, Notification, TaskExecution, UpdateTaskForm } from '@types'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -698,6 +698,34 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
+  },
+  task: {
+    create: (task: CreateTaskForm) => ipcRenderer.invoke(IpcChannel.Task_Create, task),
+    update: (task: UpdateTaskForm) => ipcRenderer.invoke(IpcChannel.Task_Update, task),
+    delete: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Delete, taskId),
+    get: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Get, taskId),
+    list: () => ipcRenderer.invoke(IpcChannel.Task_List),
+    executeNow: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_ExecuteNow, taskId),
+    pause: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Pause, taskId),
+    resume: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Resume, taskId),
+    getExecutions: (taskId: string, limit?: number) => ipcRenderer.invoke(IpcChannel.Task_GetExecutions, taskId, limit),
+    saveExecution: (taskId: string, execution: TaskExecution) =>
+      ipcRenderer.invoke(IpcChannel.Task_SaveExecution, taskId, execution),
+    onExecutionStarted: (callback: (data: { taskId: string; executionId: string }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: any) => callback(data)
+      ipcRenderer.on(IpcChannel.Task_ExecutionStarted, listener)
+      return () => ipcRenderer.off(IpcChannel.Task_ExecutionStarted, listener)
+    },
+    onExecutionCompleted: (callback: (data: { taskId: string; execution: TaskExecution }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: any) => callback(data)
+      ipcRenderer.on(IpcChannel.Task_ExecutionCompleted, listener)
+      return () => ipcRenderer.off(IpcChannel.Task_ExecutionCompleted, listener)
+    },
+    onExecutionFailed: (callback: (data: { taskId: string; execution: TaskExecution }) => void) => {
+      const listener = (_: Electron.IpcRendererEvent, data: any) => callback(data)
+      ipcRenderer.on(IpcChannel.Task_ExecutionFailed, listener)
+      return () => ipcRenderer.off(IpcChannel.Task_ExecutionFailed, listener)
+    }
   }
 }
 

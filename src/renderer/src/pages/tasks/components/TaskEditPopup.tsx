@@ -3,23 +3,37 @@
  * Allows users to create or edit periodic tasks
  */
 
+import { loggerService } from '@logger'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addTask, getTaskById, updateTask } from '@renderer/store/tasks'
-import type { CreateTaskForm, TaskSchedule } from '@types'
+import { getTaskById } from '@renderer/store/tasks'
+import { createTask, updateTask as updateTaskThunk } from '@renderer/store/tasksThunk'
+import type { Assistant } from '@renderer/types'
+import type { CreateTaskForm, TaskSchedule, TaskTarget } from '@types'
 import { Button, Form, Input, Modal, Select, Switch } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface TaskEditPopupProps {
+  open: boolean
   mode: 'create' | 'edit'
   taskId?: string
+  onClose: () => void
 }
 
-const TaskEditPopupComponent: FC<TaskEditPopupProps> = ({ mode, taskId }) => {
+const logger = loggerService.withContext('TaskEditPopup')
+
+const TaskEditPopup: FC<TaskEditPopupProps> = ({ open, mode, taskId, onClose }) => {
+  const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+
+  const { assistants } = useAssistants()
+  const { agents } = useAgents()
 
   const task = useAppSelector((state) => {
     if (mode === 'edit' && taskId) {
@@ -29,94 +43,111 @@ const TaskEditPopupComponent: FC<TaskEditPopupProps> = ({ mode, taskId }) => {
   })
 
   useEffect(() => {
-    if (task && mode === 'edit') {
-      form.setFieldsValue({
-        name: task.name,
-        description: task.description,
-        emoji: task.emoji,
-        scheduleType: task.schedule.type,
-        cronExpression: task.schedule.cronExpression,
-        intervalMinutes: task.schedule.interval ? Math.floor(task.schedule.interval / 60000) : undefined,
-        scheduleDescription: task.schedule.description,
-        message: task.execution.message,
-        continueConversation: task.execution.continueConversation,
-        maxExecutionTime: task.execution.maxExecutionTime,
-        notifyOnComplete: task.execution.notifyOnComplete,
-        enabled: task.enabled
-      })
-    } else {
-      // Set default values for create mode
-      form.setFieldsValue({
-        scheduleType: 'cron',
-        cronExpression: '0 9 * * *',
-        intervalMinutes: 60,
-        continueConversation: false,
-        maxExecutionTime: 300,
-        notifyOnComplete: true,
-        enabled: true
-      })
+    if (open) {
+      if (task && mode === 'edit') {
+        form.setFieldsValue({
+          name: task.name,
+          description: task.description,
+          emoji: task.emoji,
+          scheduleType: 'manual',
+          scheduleDescription: t('tasks.schedule.manual'),
+          targets: task.targets.map((t) => `${t.type}:${t.id}`),
+          message: task.execution.message,
+          continueConversation: task.execution.continueConversation,
+          maxExecutionTime: task.execution.maxExecutionTime,
+          notifyOnComplete: task.execution.notifyOnComplete,
+          enabled: false
+        })
+      } else {
+        // Set default values for create mode
+        form.setFieldsValue({
+          scheduleType: 'manual',
+          scheduleDescription: t('tasks.schedule.manual'),
+          targets: [],
+          continueConversation: false,
+          maxExecutionTime: 300,
+          notifyOnComplete: true,
+          enabled: false
+        })
+      }
     }
-  }, [task, mode, form])
+  }, [task, mode, form, open])
 
   const handleFinish = async (values: any) => {
     setLoading(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const schedule: TaskSchedule = {
-      type: values.scheduleType,
-      description: values.scheduleDescription,
-      ...(values.scheduleType === 'cron' ? { cronExpression: values.cronExpression } : {}),
-      ...(values.scheduleType === 'interval' ? { interval: (values.intervalMinutes || 60) * 60000 } : {})
-    }
-
-    const taskData: CreateTaskForm = {
-      name: values.name,
-      description: values.description,
-      emoji: values.emoji,
-      targets: [
-        {
-          type: 'assistant',
-          id: 'default',
-          name: '默认助手'
+    try {
+      // Build targets array
+      const targets: TaskTarget[] = (values.targets || []).map((target: string) => {
+        const [type, id] = target.split(':')
+        if (type === 'assistant') {
+          const assistant = assistants.find((a) => a.id === id)
+          return { type: 'assistant', id, name: assistant?.name || 'Unknown Assistant' }
+        } else {
+          const agent = agents.find((a) => a.id === id)
+          return { type: 'agent', id, name: agent?.name || 'Unknown Agent' }
         }
-      ],
-      schedule,
-      enabled: values.enabled,
-      execution: {
-        message: values.message,
-        continueConversation: values.continueConversation,
-        maxExecutionTime: values.maxExecutionTime,
-        notifyOnComplete: values.notifyOnComplete
+      })
+
+      const schedule: TaskSchedule = {
+        type: 'manual',
+        description: values.scheduleDescription || t('tasks.schedule.manual')
       }
-    }
 
-    if (mode === 'create') {
-      dispatch(addTask(taskData))
-    } else if (task) {
-      dispatch(
-        updateTask({
-          ...task,
-          ...taskData
-        })
-      )
-    }
+      const taskData: CreateTaskForm = {
+        name: values.name,
+        description: values.description,
+        emoji: values.emoji,
+        targets:
+          targets.length > 0
+            ? targets
+            : [{ type: 'assistant', id: assistants[0]?.id || 'default', name: assistants[0]?.name || '默认助手' }],
+        schedule,
+        enabled: false,
+        execution: {
+          message: values.message,
+          continueConversation: values.continueConversation,
+          maxExecutionTime: values.maxExecutionTime,
+          notifyOnComplete: values.notifyOnComplete
+        }
+      }
 
-    setLoading(false)
-    TaskEditPopup.hide()
+      if (mode === 'create') {
+        await dispatch(createTask(taskData) as any)
+      } else if (task) {
+        await dispatch(updateTaskThunk({ ...task, ...taskData }) as any)
+      }
+
+      setLoading(false)
+      onClose()
+    } catch (error) {
+      logger.error('保存任务失败：', error as Error)
+      setLoading(false)
+    }
   }
+
+  const targetOptions = [
+    {
+      label: t('tasks.form.assistants'),
+      options: assistants.map((a: Assistant) => ({ label: a.name, value: `assistant:${a.id}` }))
+    },
+    {
+      label: t('tasks.form.agents'),
+      options: agents.map((a) => ({ label: a.name, value: `agent:${a.id}` }))
+    }
+  ]
 
   return (
     <Modal
-      title={mode === 'create' ? '创建周期性任务' : '编辑任务'}
-      open={true}
-      onCancel={() => TaskEditPopup.hide()}
+      title={mode === 'create' ? t('tasks.create') : t('tasks.edit')}
+      open={open}
+      onCancel={onClose}
+      width={600}
       footer={
         <Footer>
-          <Button onClick={() => TaskEditPopup.hide()}>取消</Button>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
           <Button type="primary" loading={loading} onClick={() => form.submit()}>
-            {mode === 'create' ? '创建' : '保存'}
+            {mode === 'create' ? t('common.create') : t('common.save')}
           </Button>
         </Footer>
       }>
@@ -125,106 +156,90 @@ const TaskEditPopupComponent: FC<TaskEditPopupProps> = ({ mode, taskId }) => {
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{
-          scheduleType: 'cron',
-          cronExpression: '0 9 * * *',
-          intervalMinutes: 60,
+          scheduleType: 'manual',
+          scheduleDescription: t('tasks.schedule.manual'),
+          targets: [],
           continueConversation: false,
           maxExecutionTime: 300,
           notifyOnComplete: true,
-          enabled: true
+          enabled: false
         }}>
-        <Form.Item label="任务名称" name="name" rules={[{ required: true, message: '请输入任务名称' }]}>
-          <Input placeholder="例如：每日日报" />
+        <Form.Item
+          label={t('tasks.form.name')}
+          name="name"
+          rules={[{ required: true, message: t('tasks.form.name_required') }]}>
+          <Input placeholder={t('tasks.form.name_placeholder')} />
         </Form.Item>
 
-        <Form.Item label="描述" name="description">
-          <Input.TextArea placeholder="描述这个任务的作用..." rows={2} />
+        <Form.Item label={t('tasks.form.description')} name="description">
+          <Input.TextArea placeholder={t('tasks.form.description_placeholder')} rows={2} />
         </Form.Item>
 
-        <Form.Item label="图标" name="emoji">
+        <Form.Item label={t('tasks.form.emoji')} name="emoji">
           <Input placeholder="📝" />
         </Form.Item>
 
         <Section>
-          <SectionTitle>调度配置</SectionTitle>
+          <SectionTitle>{t('tasks.form.section_schedule')}</SectionTitle>
 
-          <Form.Item label="调度类型" name="scheduleType">
+          <Form.Item label={t('tasks.form.schedule_type')} name="scheduleType">
             <Select
-              onChange={(value) => {
-                // Update default cron when switching to cron
-                if (value === 'cron') {
-                  form.setFieldValue('cronExpression', '0 9 * * *')
-                  form.setFieldValue('scheduleDescription', '每天 09:00')
-                } else if (value === 'interval') {
-                  form.setFieldValue('intervalMinutes', 60)
-                  form.setFieldValue('scheduleDescription', '每小时执行')
-                }
+              disabled
+              value="manual"
+              onChange={() => {
+                form.setFieldValue('scheduleDescription', t('tasks.schedule.manual'))
               }}>
-              <Select.Option value="cron">Cron 表达式</Select.Option>
-              <Select.Option value="interval">固定间隔</Select.Option>
+              <Select.Option value="manual">{t('tasks.schedule_type.manual')}</Select.Option>
             </Select>
           </Form.Item>
 
           <Form.Item
-            noStyle
-            shouldUpdate={(prevValues, currentValues) => prevValues.scheduleType !== currentValues.scheduleType}>
-            {({ getFieldValue }) =>
-              getFieldValue('scheduleType') === 'cron' ? (
-                <Form.Item
-                  label="Cron 表达式"
-                  name="cronExpression"
-                  rules={[{ required: true, message: '请输入 Cron 表达式' }]}>
-                  <Input placeholder="0 9 * * *" />
-                </Form.Item>
-              ) : (
-                <Form.Item
-                  label="间隔（分钟）"
-                  name="intervalMinutes"
-                  rules={[{ required: true, message: '请输入间隔时间' }]}>
-                  <Input type="number" placeholder="60" />
-                </Form.Item>
-              )
-            }
+            label={t('tasks.form.schedule_description')}
+            name="scheduleDescription"
+            rules={[{ required: true }]}>
+            <Input placeholder={t('tasks.form.schedule_description_placeholder')} />
           </Form.Item>
-
-          <Form.Item label="描述" name="scheduleDescription" rules={[{ required: true, message: '请输入调度描述' }]}>
-            <Input placeholder="例如：每天 09:00" />
-          </Form.Item>
-
-          <CronHelp>
-            <strong>Cron 表达式说明：</strong>
-            <br />* * * * * (分 时 日 月 周)
-            <br />0 9 * * * - 每天 9:00
-            <br />0 */6 * * * - 每 6 小时
-            <br />0 9 * * 1 - 每周一 9:00
-          </CronHelp>
         </Section>
 
         <Section>
-          <SectionTitle>执行配置</SectionTitle>
-
-          <Form.Item label="执行消息" name="message" rules={[{ required: true, message: '请输入执行消息' }]}>
-            <Input.TextArea placeholder="发送给智能体/助手的消息..." rows={4} />
-          </Form.Item>
-
-          <Form.Item label="继续对话" name="continueConversation" valuePropName="checked">
-            <Switch />
-            <HelpText>继续上次执行的对话上下文</HelpText>
-          </Form.Item>
-
-          <Form.Item label="超时时间（秒）" name="maxExecutionTime">
-            <Input type="number" placeholder="300" />
-          </Form.Item>
-
-          <Form.Item label="完成通知" name="notifyOnComplete" valuePropName="checked">
-            <Switch />
-            <HelpText>任务完成时发送通知</HelpText>
+          <SectionTitle>{t('tasks.form.section_targets')}</SectionTitle>
+          <Form.Item
+            label={t('tasks.form.targets')}
+            name="targets"
+            rules={[{ required: true, message: t('tasks.form.targets_required') }]}>
+            <Select
+              mode="multiple"
+              placeholder={t('tasks.form.targets_placeholder')}
+              options={targetOptions}
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            />
           </Form.Item>
         </Section>
 
-        <Form.Item label="启用任务" name="enabled" valuePropName="checked">
-          <Switch />
-        </Form.Item>
+        <Section>
+          <SectionTitle>{t('tasks.form.section_execution')}</SectionTitle>
+
+          <Form.Item
+            label={t('tasks.form.message')}
+            name="message"
+            rules={[{ required: true, message: t('tasks.form.message_required') }]}>
+            <Input.TextArea placeholder={t('tasks.form.message_placeholder')} rows={4} />
+          </Form.Item>
+
+          <Form.Item label={t('tasks.form.continue_conversation')} name="continueConversation" valuePropName="checked">
+            <Switch />
+            <HelpText>{t('tasks.form.continue_conversation_help')}</HelpText>
+          </Form.Item>
+
+          <Form.Item label={t('tasks.form.max_execution_time')} name="maxExecutionTime">
+            <Input type="number" placeholder="300" />
+          </Form.Item>
+
+          <Form.Item label={t('tasks.form.notify_on_complete')} name="notifyOnComplete" valuePropName="checked">
+            <Switch />
+            <HelpText>{t('tasks.form.notify_on_complete_help')}</HelpText>
+          </Form.Item>
+        </Section>
       </Form>
     </Modal>
   )
@@ -244,15 +259,6 @@ const SectionTitle = styled.div`
   margin-bottom: 12px;
 `
 
-const CronHelp = styled.div`
-  padding: 12px;
-  background: var(--color-background-soft);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--color-text-2);
-  line-height: 1.6;
-`
-
 const HelpText = styled.div`
   margin-top: 4px;
   font-size: 12px;
@@ -264,18 +270,5 @@ const Footer = styled.div`
   justify-content: flex-end;
   gap: 12px;
 `
-
-// Export singleton instance
-const TaskEditPopup = {
-  show: (props: TaskEditPopupProps) => {
-    window.topView?.push({
-      element: <TaskEditPopupComponent {...props} />,
-      id: `task-edit-${props.mode}-${Date.now()}`
-    })
-  },
-  hide: () => {
-    window.topView?.pop()
-  }
-}
 
 export default TaskEditPopup

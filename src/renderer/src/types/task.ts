@@ -11,7 +11,7 @@ export type TaskStatus = 'idle' | 'running' | 'completed' | 'failed' | 'paused'
 /**
  * Schedule type for periodic tasks
  */
-export type ScheduleType = 'once' | 'interval' | 'cron'
+export type ScheduleType = 'once' | 'interval' | 'cron' | 'manual'
 
 /**
  * Schedule configuration
@@ -62,6 +62,8 @@ export interface TaskExecution {
     success: boolean
     output?: string
     error?: string
+    duration?: number
+    metadata?: Record<string, unknown>
   }
 }
 

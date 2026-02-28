@@ -48,6 +48,7 @@ import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
 import tasks from './tasks'
+import * as tasksThunk from './tasksThunk'
 import toolPermissions from './toolPermissions'
 import translate from './translate'
 import websearch from './websearch'
@@ -157,5 +158,8 @@ export async function handleSaveData() {
   await persistor.flush()
   logger.info('Flushed redux persistor data')
 }
+
+// Re-export tasks thunks for convenience
+export { tasksThunk }
 
 export default store

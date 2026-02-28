@@ -1296,6 +1296,7 @@
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "create": "Create",
     "current": "Current",
     "cut": "Cut",
     "default": "Default",
@@ -5382,6 +5383,7 @@
     "create": "Create Task",
     "deleteConfirm": "Delete Task",
     "deleteConfirmMessage": "Are you sure you want to delete this task?",
+    "edit": "Edit Task",
     "execution": {
       "failed": "Failed",
       "noHistory": "No execution history",
@@ -5400,15 +5402,60 @@
       "disabled": "Disabled",
       "enabled": "Enabled"
     },
+    "form": {
+      "agents": "Agents",
+      "assistants": "Assistants",
+      "continue_conversation": "Continue Conversation",
+      "continue_conversation_help": "Continue from previous execution context",
+      "cron_expression": "Cron Expression",
+      "cron_help_title": "Cron Expression Guide:",
+      "cron_required": "Please enter Cron Expression",
+      "description": "Description",
+      "description_placeholder": "Describe what this task does...",
+      "emoji": "Icon",
+      "enabled": "Enable Task",
+      "interval_minutes": "Interval (minutes)",
+      "interval_required": "Please enter interval time",
+      "max_execution_time": "Timeout (seconds)",
+      "message": "Execution Message",
+      "message_placeholder": "Message to send to agent/assistant...",
+      "message_required": "Please enter execution message",
+      "name": "Task Name",
+      "name_placeholder": "e.g., Daily Report",
+      "name_required": "Please enter task name",
+      "notify_on_complete": "Notify on Complete",
+      "notify_on_complete_help": "Send notification when task completes",
+      "schedule_description": "Description",
+      "schedule_description_placeholder": "e.g., Daily at 09:00",
+      "schedule_type": "Schedule Type",
+      "section_execution": "Execution Configuration",
+      "section_schedule": "Schedule Configuration",
+      "section_targets": "Targets",
+      "targets": "Targets",
+      "targets_placeholder": "Select assistants or agents",
+      "targets_required": "Please select at least one target"
+    },
+    "run": "Run Now",
     "schedule": {
       "cronExpression": "Cron Expression",
       "cronHelp": "Cron format: * * * * * (minute hour day month weekday)",
+      "daily": "Daily at 09:00",
       "description": "Description",
+      "every_6h": "Every 6 hours",
+      "hourly": "Hourly",
       "intervalMinutes": "Interval (minutes)",
+      "manual": "Manual Trigger",
       "type": {
         "cron": "Cron Expression",
-        "interval": "Fixed Interval"
-      }
+        "interval": "Fixed Interval",
+        "manual": "Manual Trigger"
+      },
+      "weekly": "Every Monday at 09:00"
+    },
+    "schedule_type": {
+      "cron": "Cron Expression",
+      "interval": "Fixed Interval",
+      "manual": "Manual Trigger"
     },
     "status": {
       "completed": "Completed",

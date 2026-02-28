@@ -32,6 +32,7 @@ import type {
   Provider,
   Shortcut,
   SupportedOcrFile,
+  TaskExecution,
   ThemeMode
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -88,6 +89,8 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
+import taskSchedulerService from './services/TaskSchedulerService'
+import taskStorageService from './services/TaskStorageService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
@@ -1175,4 +1178,58 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
     analyticsService.trackTokenUsage(data)
   )
+
+  // Tasks
+  ipcMain.handle(IpcChannel.Task_Create, async (_, form) => {
+    const task = await taskStorageService.createTask(form)
+    await taskSchedulerService.upsertTask(task)
+    return task
+  })
+
+  ipcMain.handle(IpcChannel.Task_Update, async (_, form) => {
+    const updated = await taskStorageService.updateTask(form)
+    if (updated) {
+      await taskSchedulerService.upsertTask(updated)
+    }
+    return updated
+  })
+
+  ipcMain.handle(IpcChannel.Task_Delete, async (_, taskId: string) => {
+    taskSchedulerService.removeTask(taskId)
+    return await taskStorageService.deleteTask(taskId)
+  })
+
+  ipcMain.handle(IpcChannel.Task_Get, async (_, taskId: string) => {
+    return await taskStorageService.getTask(taskId)
+  })
+
+  ipcMain.handle(IpcChannel.Task_List, async () => {
+    return await taskStorageService.listTasks()
+  })
+
+  ipcMain.handle(IpcChannel.Task_ExecuteNow, async (_, taskId: string) => {
+    return await taskSchedulerService.executeTaskNow(taskId)
+  })
+
+  ipcMain.handle(IpcChannel.Task_Pause, async (_, taskId: string) => {
+    taskSchedulerService.pauseTask(taskId)
+    return true
+  })
+
+  ipcMain.handle(IpcChannel.Task_Resume, async (_, taskId: string) => {
+    await taskSchedulerService.resumeTask(taskId)
+    return true
+  })
+
+  ipcMain.handle(IpcChannel.Task_GetExecutions, async (_, taskId: string, limit?: number) => {
+    return await taskStorageService.getExecutions(taskId, limit)
+  })
+
+  ipcMain.handle(IpcChannel.Task_SaveExecution, async (_, taskId: string, execution: TaskExecution) => {
+    // Ensure the execution has the correct taskId
+    execution.taskId = taskId
+    return await taskStorageService.addExecution(execution)
+  })
+
+  // Note: Task_ExecuteTarget is handled by the renderer process through the message system
 }

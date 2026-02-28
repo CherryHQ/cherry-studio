@@ -428,5 +428,24 @@ export enum IpcChannel {
   OpenClaw_GetChannels = 'openclaw:get-channels',
 
   // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage'
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // Tasks
+  Task_Create = 'task:create',
+  Task_Update = 'task:update',
+  Task_Delete = 'task:delete',
+  Task_Get = 'task:get',
+  Task_List = 'task:list',
+  Task_ExecuteNow = 'task:execute-now',
+  Task_Pause = 'task:pause',
+  Task_Resume = 'task:resume',
+  Task_GetExecutions = 'task:get-executions',
+  Task_ExecuteTarget = 'task:execute-target',
+  Task_SaveExecution = 'task:save-execution',
+
+  // Task Events
+  Task_ExecutionStarted = 'task:execution-started',
+  Task_ExecutionProgress = 'task:execution-progress',
+  Task_ExecutionCompleted = 'task:execution-completed',
+  Task_ExecutionFailed = 'task:execution-failed'
 }

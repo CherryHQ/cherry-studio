@@ -1296,6 +1296,7 @@
     "copied": "已复制",
     "copy": "复制",
     "copy_failed": "复制失败",
+    "create": "创建",
     "current": "当前",
     "cut": "剪切",
     "default": "默认",
@@ -5379,45 +5380,91 @@
     }
   },
   "tasks": {
-    "create": "[to be translated]:Create Task",
-    "deleteConfirm": "[to be translated]:Delete Task",
-    "deleteConfirmMessage": "[to be translated]:Are you sure you want to delete this task?",
+    "create": "新建任务",
+    "deleteConfirm": "删除任务",
+    "deleteConfirmMessage": "你确认删除该任务吗？",
+    "edit": "编辑任务",
     "execution": {
-      "failed": "[to be translated]:Failed",
-      "noHistory": "[to be translated]:No execution history",
-      "success": "[to be translated]:Success"
+      "failed": "错误",
+      "noHistory": "没有执行历史",
+      "success": "成功"
     },
     "executionConfig": {
-      "continueConversation": "[to be translated]:Continue Conversation",
-      "continueConversationHelp": "[to be translated]:Continue from last conversation context",
-      "maxExecutionTime": "[to be translated]:Timeout (seconds)",
-      "message": "[to be translated]:Execution Message",
-      "notifyOnComplete": "[to be translated]:Notification on Complete",
-      "notifyOnCompleteHelp": "[to be translated]:Send notification when task completes"
+      "continueConversation": "继续对话",
+      "continueConversationHelp": "从上次对话上下文继续",
+      "maxExecutionTime": "超时（秒）",
+      "message": "执行消息",
+      "notifyOnComplete": "任务完成通知",
+      "notifyOnCompleteHelp": "任务完成时发送通知"
     },
     "filter": {
-      "all": "[to be translated]:All",
-      "disabled": "[to be translated]:Disabled",
-      "enabled": "[to be translated]:Enabled"
+      "all": "全部",
+      "disabled": "禁用",
+      "enabled": "启用"
     },
+    "form": {
+      "agents": "智能体",
+      "assistants": "助手",
+      "continue_conversation": "继续对话",
+      "continue_conversation_help": "从上次执行的对话上下文继续",
+      "cron_expression": "Cron 表达式",
+      "cron_help_title": "Cron 表达式说明：",
+      "cron_required": "请输入 Cron 表达式",
+      "description": "描述",
+      "description_placeholder": "描述这个任务的作用...",
+      "emoji": "图标",
+      "enabled": "启用任务",
+      "interval_minutes": "间隔（分钟）",
+      "interval_required": "请输入间隔时间",
+      "max_execution_time": "超时时间（秒）",
+      "message": "执行消息",
+      "message_placeholder": "发送给智能体/助手的消息...",
+      "message_required": "请输入执行消息",
+      "name": "任务名称",
+      "name_placeholder": "例如：每日日报",
+      "name_required": "请输入任务名称",
+      "notify_on_complete": "完成通知",
+      "notify_on_complete_help": "任务完成时发送通知",
+      "schedule_description": "描述",
+      "schedule_description_placeholder": "例如：每天 09:00",
+      "schedule_type": "调度类型",
+      "section_execution": "执行配置",
+      "section_schedule": "调度配置",
+      "section_targets": "执行目标",
+      "targets": "目标",
+      "targets_placeholder": "选择助手或智能体",
+      "targets_required": "请选择至少一个目标"
+    },
+    "run": "立即执行",
     "schedule": {
-      "cronExpression": "[to be translated]:Cron Expression",
-      "cronHelp": "[to be translated]:Cron format: * * * * * (minute hour day month weekday)",
-      "description": "[to be translated]:Description",
-      "intervalMinutes": "[to be translated]:Interval (minutes)",
+      "cronExpression": "Cron 表达式",
+      "cronHelp": "Cron 格式: * * * * * (分钟 小时 日 月 星期)",
+      "daily": "每天 09:00",
+      "description": "描述",
+      "every_6h": "每 6 小时",
+      "hourly": "每小时执行",
+      "intervalMinutes": "间隔 (分钟)",
+      "manual": "手动触发",
       "type": {
-        "cron": "[to be translated]:Cron Expression",
-        "interval": "[to be translated]:Fixed Interval"
-      }
+        "cron": "Cron 表达式",
+        "interval": "固定间隔",
+        "manual": "手动触发"
+      },
+      "weekly": "每周一 9:00"
+    },
+    "schedule_type": {
+      "cron": "Cron 表达式",
+      "interval": "固定间隔",
+      "manual": "手动触发"
     },
     "status": {
-      "completed": "[to be translated]:Completed",
-      "failed": "[to be translated]:Failed",
-      "idle": "[to be translated]:Idle",
-      "paused": "[to be translated]:Paused",
-      "running": "[to be translated]:Running"
+      "completed": "完成",
+      "failed": "错误",
+      "idle": "空闲",
+      "paused": "暂停",
+      "running": "运行中"
     },
-    "title": "[to be translated]:Tasks"
+    "title": "任务"
   },
   "title": {
     "apps": "小程序",

@@ -4,7 +4,7 @@
  */
 
 import type { PeriodicTask, TaskListItem } from '@types'
-import { CheckCircle, Clock, Pause, XCircle } from 'lucide-react'
+import { CheckCircle, Clock, Pause, Play, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
@@ -12,9 +12,10 @@ interface TaskCardProps {
   task: PeriodicTask
   listItem: TaskListItem
   onClick: (taskId: string) => void
+  onRun?: (taskId: string) => void
 }
 
-const TaskCard: FC<TaskCardProps> = ({ task, onClick }) => {
+const TaskCard: FC<TaskCardProps> = ({ task, onClick, onRun }) => {
   const getStatusIcon = () => {
     const lastExecution = task.executions[0]
     if (!lastExecution) {
@@ -34,6 +35,13 @@ const TaskCard: FC<TaskCardProps> = ({ task, onClick }) => {
     }
   }
 
+  const isManualTask = task.schedule.type === 'manual'
+
+  const handleRunClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onRun?.(task.id)
+  }
+
   return (
     <Card onClick={() => onClick(task.id)} $enabled={task.enabled}>
       <CardHeader>
@@ -49,7 +57,14 @@ const TaskCard: FC<TaskCardProps> = ({ task, onClick }) => {
           {getStatusIcon()}
           <RunsText>{task.totalRuns} 次执行</RunsText>
         </RunsInfo>
-        <TargetCount>{task.targets.length} 个目标</TargetCount>
+        <RightSection>
+          <TargetCount>{task.targets.length} 个目标</TargetCount>
+          {isManualTask && onRun && (
+            <RunButton onClick={handleRunClick} title="立即执行">
+              <Play size={12} fill="white" />
+            </RunButton>
+          )}
+        </RightSection>
       </TaskFooter>
     </Card>
   )
@@ -139,12 +154,41 @@ const RunsText = styled.span`
   color: var(--color-text-2);
 `
 
+const RightSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`
+
 const TargetCount = styled.span`
   font-size: 9px;
   color: var(--color-primary);
   background: var(--color-primary-bg);
   padding: 2px 6px;
   border-radius: 4px;
+`
+
+const RunButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    transform: scale(1.1);
+    background: var(--color-primary-hover);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 `
 
 export default TaskCard

@@ -3,24 +3,55 @@
  * Shows detailed information about a task and its execution history
  */
 
-import { useAppSelector } from '@renderer/store'
-import { getTaskById } from '@renderer/store/tasks'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { addExecution, deleteTask, getTaskById } from '@renderer/store/tasks'
 import { Button, Modal } from 'antd'
-import { CheckCircle, Clock, Edit2, Pause, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle, Clock, Edit2, Pause, Play, Trash2, XCircle } from 'lucide-react'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import TaskEditPopup from './TaskEditPopup'
-
 interface TaskDetailPopupProps {
+  open: boolean
   taskId: string
+  onClose: () => void
+  onEdit: () => void
+  onRun?: (taskId: string) => void
 }
 
-const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
+const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEdit, onRun }) => {
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const task = useAppSelector((state) => getTaskById(state)(taskId))
 
   if (!task) {
     return null
+  }
+
+  const handleRun = () => {
+    // Create a new execution record
+    const execution = {
+      id: `exec-${Date.now()}`,
+      taskId,
+      status: 'running' as const,
+      startedAt: new Date().toISOString()
+    }
+    dispatch(addExecution({ taskId, execution }))
+    onRun?.(taskId)
+  }
+
+  const isManualTask = task.schedule.type === 'manual'
+  const isRunning = task.executions[0]?.status === 'running'
+
+  const handleDelete = () => {
+    window.modal.confirm({
+      centered: true,
+      content: '确认删除此任务？',
+      onOk: () => {
+        dispatch(deleteTask(taskId))
+        onClose()
+      }
+    })
   }
 
   return (
@@ -31,34 +62,27 @@ const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
           {task.name}
         </Title>
       }
-      open={true}
-      onCancel={() => TaskDetailPopup.hide()}
+      open={open}
+      onCancel={onClose}
+      width={700}
       footer={
         <Footer>
-          <Button onClick={() => TaskEditPopup.show({ mode: 'edit', taskId })}>
-            <Edit2 size={16} />
-            编辑
+          {isManualTask && onRun && (
+            <Button onClick={handleRun} disabled={isRunning} icon={<Play size={14} />}>
+              {isRunning ? t('tasks.status.running') : t('tasks.run')}
+            </Button>
+          )}
+          <Button onClick={onEdit} icon={<Edit2 size={14} />}>
+            {t('tasks.edit')}
           </Button>
-          <Button
-            danger
-            onClick={() =>
-              window.modal.confirm({
-                centered: true,
-                content: '确认删除此任务？',
-                onOk: () => {
-                  TaskDetailPopup.hide()
-                  // TODO: call delete action
-                }
-              })
-            }>
-            <Trash2 size={16} />
-            删除
+          <Button danger onClick={handleDelete} icon={<Trash2 size={14} />}>
+            {t('common.delete')}
           </Button>
         </Footer>
       }>
       <Content>
         <Section>
-          <SectionTitle>基本信息</SectionTitle>
+          <SectionTitle>{t('tasks.executionConfig.message')}</SectionTitle>
           <InfoRow>
             <InfoLabel>描述：</InfoLabel>
             <InfoValue>{task.description || '无描述'}</InfoValue>
@@ -77,7 +101,11 @@ const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
           <SectionTitle>调度配置</SectionTitle>
           <InfoRow>
             <InfoLabel>类型：</InfoLabel>
-            <InfoValue>{task.schedule.type === 'cron' ? 'Cron 表达式' : '固定间隔'}</InfoValue>
+            <InfoValue>
+              {task.schedule.type === 'cron' && 'Cron 表达式'}
+              {task.schedule.type === 'interval' && '固定间隔'}
+              {task.schedule.type === 'manual' && '手动触发'}
+            </InfoValue>
           </InfoRow>
           <InfoRow>
             <InfoLabel>描述：</InfoLabel>
@@ -125,7 +153,7 @@ const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
 
         <Section>
           <SectionTitle>执行历史</SectionTitle>
-          <ExecutionList>
+          <ExecutionHistory>
             {task.executions.length === 0 ? (
               <EmptyState>暂无执行记录</EmptyState>
             ) : (
@@ -138,7 +166,18 @@ const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
                       {execution.status === 'running' && <Clock size={16} />}
                       {execution.status === 'paused' && <Pause size={16} />}
                     </ExecutionIcon>
-                    <ExecutionTime>{new Date(execution.startedAt).toLocaleString('zh-CN')}</ExecutionTime>
+                    <ExecutionInfo>
+                      <ExecutionTime>{new Date(execution.startedAt).toLocaleString('zh-CN')}</ExecutionTime>
+                      {execution.completedAt && (
+                        <ExecutionDuration>
+                          (
+                          {Math.round(
+                            (new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()) / 1000
+                          )}
+                          s)
+                        </ExecutionDuration>
+                      )}
+                    </ExecutionInfo>
                   </ExecutionHeader>
                   {execution.result && (
                     <ExecutionResult>
@@ -147,10 +186,11 @@ const TaskDetailPopupComponent: FC<TaskDetailPopupProps> = ({ taskId }) => {
                       {execution.result.error && <ErrorText>{execution.result.error}</ErrorText>}
                     </ExecutionResult>
                   )}
+                  {execution.status === 'running' && <RunningStatus>执行中...</RunningStatus>}
                 </ExecutionItem>
               ))
             )}
-          </ExecutionList>
+          </ExecutionHistory>
         </Section>
       </Content>
     </Modal>
@@ -258,7 +298,7 @@ const MessageValue = styled.div`
   white-space: pre-wrap;
 `
 
-const ExecutionList = styled.div`
+const ExecutionHistory = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -305,9 +345,21 @@ const ExecutionIcon = styled.div<{ status: string }>`
   }
 `
 
+const ExecutionInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+`
+
 const ExecutionTime = styled.span`
   font-size: 12px;
   color: var(--color-text-2);
+`
+
+const ExecutionDuration = styled.span`
+  font-size: 11px;
+  color: var(--color-text-3);
 `
 
 const ExecutionResult = styled.div`
@@ -337,23 +389,15 @@ const OutputText = styled.pre`
   padding: 0;
 `
 
+const RunningStatus = styled.div`
+  font-size: 12px;
+  color: var(--color-primary);
+`
+
 const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
 `
-
-// Export singleton instance
-const TaskDetailPopup = {
-  show: (props: TaskDetailPopupProps) => {
-    window.topView?.push({
-      element: <TaskDetailPopupComponent {...props} />,
-      id: `task-detail-${props.taskId}-${Date.now()}`
-    })
-  },
-  hide: () => {
-    window.topView?.pop()
-  }
-}
 
 export default TaskDetailPopup
