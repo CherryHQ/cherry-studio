@@ -4,7 +4,9 @@
  */
 
 import { loggerService } from '@logger'
+import ModernAiProvider from '@renderer/aiCore/index_new'
 import store from '@renderer/store/index'
+import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import type { PeriodicTask, TaskExecution, TaskTarget } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -280,8 +282,7 @@ function aggregateResults(
 
 /**
  * Execute task with an assistant
- * Creates a temporary topic and sends a message
- * TODO: Implement actual AI assistant execution
+ * Uses ModernAiProvider to call AI directly
  */
 async function executeWithAssistant(assistantId: string, message: string): Promise<string> {
   // Get the assistant
@@ -292,25 +293,53 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
     throw new Error(`未找到助手：${assistantId}`)
   }
 
-  logger.info(`正在执行助手任务：${assistant.name}`)
+  if (!assistant.model) {
+    throw new Error(`助手 ${assistant.name} 没有配置模型`)
+  }
 
-  // TODO: 实现实际的助手执行
-  // 需要：
-  // 1. 创建临时主题
-  // 2. 向助手发送消息
-  // 3. 等待响应
-  // 4. 返回响应内容
-  //
-  // 目前返回占位符响应
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  logger.info(`正在执行助手任务：${assistant.name}，模型：${assistant.model.name}`)
 
-  return `[助手执行（占位符）]\n\n助手：${assistant.name}\n消息：${message}\n\n（注：完整的AI执行功能正在开发中 - 需要集成主题/消息基础设施）`
+  try {
+    // Create AI provider instance
+    const aiProvider = new ModernAiProvider(assistant.model)
+
+    // Prepare parameters for completions
+    const params: StreamTextParams = {
+      messages: [
+        {
+          role: 'user',
+          content: message
+        }
+      ]
+    }
+
+    // Call AI completions with proper config
+    const result = await aiProvider.completions(assistant.model.id, params, {
+      assistant,
+      streamOutput: false,
+      enableReasoning: false,
+      isPromptToolUse: false,
+      isSupportedToolUse: false,
+      isImageGenerationEndpoint: false,
+      enableWebSearch: false,
+      enableGenerateImage: false,
+      enableUrlContext: false,
+      callType: 'task_execution',
+      topicId: `task-${uuidv4()}`
+    })
+
+    // Extract text from result using getText() method
+    return result.getText() || '未收到响应'
+  } catch (error) {
+    logger.error(`助手执行失败：`, error as Error)
+    throw new Error(`助手 ${assistant.name} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 /**
  * Execute task with an agent
- * Creates a session and sends a message
  * TODO: Implement actual agent execution
+ * Currently returns placeholder response
  */
 async function executeWithAgent(agentId: string, message: string): Promise<string> {
   logger.info(`正在执行代理任务：${agentId}`)
@@ -331,8 +360,8 @@ async function executeWithAgent(agentId: string, message: string): Promise<strin
 
 /**
  * Execute task with an existing agent session
- * Sends a message to the existing session
  * TODO: Implement actual agent session execution
+ * Currently returns placeholder response
  */
 async function executeWithAgentSession(sessionId: string, message: string): Promise<string> {
   logger.info(`正在执行代理会话任务：${sessionId}`)
