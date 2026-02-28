@@ -5,7 +5,7 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useKnowledgeBases } from '@renderer/data/hooks/useKnowledgeData'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
 import type { FileItemData, KnowledgeBase, KnowledgeItem, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import dayjs from 'dayjs'
@@ -32,8 +32,8 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   couldAddImageFile: boolean
   extensions: string[]
-  files: FileType[]
-  setFiles: Dispatch<SetStateAction<FileType[]>>
+  files: FileMetadata[]
+  setFiles: Dispatch<SetStateAction<FileMetadata[]>>
   disabled?: boolean
 }
 
@@ -92,7 +92,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
 
         const fileItems = fetchedItems
           .filter((item) => item.type === 'file' && !item.parentId)
-          .map((item) => (item.data as FileItemData).file as FileType)
+          .map((item) => (item.data as FileItemData).file as FileMetadata)
 
         quickPanelHook.open({
           title: base.name,

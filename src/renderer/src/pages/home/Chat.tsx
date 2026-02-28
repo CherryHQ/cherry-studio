@@ -5,7 +5,9 @@ import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -14,7 +16,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Flex } from 'antd'
@@ -45,7 +47,7 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant, updateTopic } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistant, updateTopic } = useAssistant(props.assistant.id)
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
@@ -112,6 +114,19 @@ const Chat: FC<Props> = (props) => {
       enableOnFormTags: true
     }
   )
+
+  useShortcut('select_model', async () => {
+    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
+    const selectedModel = await SelectModelPopup.show({ model: assistant?.model, filter: modelFilter })
+    if (selectedModel) {
+      const enabledWebSearch = isWebSearchModel(selectedModel)
+      updateAssistant({
+        ...props.assistant,
+        model: selectedModel,
+        enableWebSearch: enabledWebSearch && props.assistant.enableWebSearch
+      })
+    }
+  })
 
   const contentSearchFilter: NodeFilter = {
     acceptNode(node) {
@@ -279,12 +294,12 @@ const Container = styled.div`
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   flex: 1;
+  overflow: hidden;
   [navbar-position='top'] & {
     height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
-    overflow: hidden;
   }
 `
 

@@ -1,3 +1,12 @@
+// =============================================================================
+// OpenClaw IPC Types
+// =============================================================================
+
+export type NodeCheckResult =
+  | { status: 'not_found' }
+  | { status: 'version_low'; version: string; path: string }
+  | { status: 'ok'; version: string; path: string }
+
 export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'refresh'
 
 export type FileChangeEvent = {

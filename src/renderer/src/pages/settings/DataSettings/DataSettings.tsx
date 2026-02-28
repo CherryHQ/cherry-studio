@@ -605,7 +605,6 @@ const DataSettings: FC = () => {
                   </Button>
                 </RowFlex>
               </SettingRow>
-              <SettingDivider />
             </SettingGroup>
             <SettingGroup theme={theme}>
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>

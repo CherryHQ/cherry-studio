@@ -12,8 +12,8 @@ import {
 import { t } from '@main/utils/language'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, NotesTreeNode } from '@types'
-import { FileTypes } from '@types'
+import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
@@ -245,11 +245,11 @@ class FileStorage {
     return null
   }
 
-  public getFileType = async (filePath: string): Promise<FileTypes> => {
+  public getFileType = async (filePath: string): Promise<FileType> => {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
+    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -1484,7 +1484,7 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
+  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
@@ -1494,10 +1494,12 @@ class FileStorage {
       if (filePath) {
         const parseResult = parseDataUrl(data)
         fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
+        return true
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
+    return false
   }
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {

@@ -8,9 +8,7 @@ import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import MemoryService from '@renderer/services/MemoryService'
-import { useAppDispatch } from '@renderer/store'
-import { useAppSelector } from '@renderer/store'
-import { handleSaveData } from '@renderer/store'
+import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import {
   type ToolPermissionRequestPayload,

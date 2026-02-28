@@ -1,4 +1,5 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
@@ -11,6 +12,7 @@ import type {
   LanHandshakeAckMessage,
   LocalTransferConnectPayload,
   LocalTransferState,
+  NodeCheckResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -142,6 +144,7 @@ const api = {
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
   relaunchApp: (options?: Electron.RelaunchOptions) => ipcRenderer.invoke(IpcChannel.App_RelaunchApp, options),
+  resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
@@ -150,6 +153,7 @@ const api = {
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
+  getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
   mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.APP_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
@@ -244,7 +248,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
-    saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
+    saveImage: (name: string, data: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
       ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
@@ -732,9 +737,11 @@ const api = {
   openclaw: {
     checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    checkNpmAvailable: (): Promise<{ available: boolean; path: string | null }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNpmAvailable),
+    checkNodeVersion: (): Promise<NodeCheckResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
+    checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
+      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
     getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
+    getGitDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetGitDownloadUrl),
     install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
     uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
     startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
@@ -750,6 +757,9 @@ const api = {
     syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
     getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)
+  },
+  analytics: {
+    trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
   }
 }
 

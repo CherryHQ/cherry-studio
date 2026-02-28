@@ -14,6 +14,18 @@
         "placeholder": "Select an agent type"
       }
     },
+    "askUserQuestion": {
+      "answered": "answered",
+      "customPlaceholder": "Enter your answer...",
+      "loading": "Loading questions...",
+      "multiSelect": "Multi-select",
+      "next": "Next",
+      "noQuestions": "No questions available",
+      "other": "Other",
+      "previous": "Previous",
+      "submit": "Submit",
+      "title": "Questions from Agent"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -141,6 +153,10 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "permissionMode": {
+        "tab": "Permission Mode",
+        "title": "Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Available Plugins"
@@ -211,19 +227,18 @@
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
           "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "inactiveTooltip": "This MCP server is not active. Please start it first.",
           "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
           "toggle": "Toggle {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "File edits and filesystem operations are automatically approved.",
-            "title": "Auto-accept file edits"
+            "description": "Can read and edit files freely. Asks before running commands.",
+            "title": "Auto-edit Mode"
           },
           "bypassPermissions": {
-            "behavior": "Every tool is pre-approved automatically.",
-            "description": "All permission prompts are skipped — use with caution.",
-            "title": "Bypass permission checks",
+            "description": "Can do everything without asking. Use with caution.",
+            "title": "Full Auto Mode",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
           "confirmChange": {
@@ -231,54 +246,27 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "behavior": "Read-only tools are pre-approved automatically.",
-            "description": "Read-only tools are pre-approved; everything else still needs permission.",
-            "title": "Default (ask before continuing)"
+            "description": "Can read files freely. Asks before editing or running commands.",
+            "title": "Normal Mode"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
-            "description": "Shares the default read-only tool set but presents a plan before execution.",
-            "title": "Planning mode"
+            "description": "Can only read files and make plans. Cannot edit files or run commands.",
+            "title": "Plan Mode"
           },
           "title": "Permission mode"
         },
         "preapproved": {
           "autoBadge": "Added by mode",
           "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "autoDisabledTooltip": "Auto-approved by \"{{mode}}\" and cannot be disabled.",
           "empty": "No tools match your filters.",
           "mcpBadge": "MCP tool",
           "requiresApproval": "Requires approval when disabled",
           "search": "Search tools",
-          "toggle": "Toggle {{name}}",
-          "warning": {
-            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "Pre-approved tools run without manual review."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Custom: {{count}}",
-          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mode: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP servers"
-          },
-          "permissionMode": {
-            "title": "Step 1 · Permission mode"
-          },
-          "preapproved": {
-            "title": "Step 2 · Pre-approved tools"
-          },
-          "review": {
-            "title": "Step 3 · Review"
-          }
-        },
-        "tab": "Tooling & permissions"
+          "toggle": "Toggle {{name}}"
+        }
       },
       "tools": {
         "approved": "approved",
@@ -288,6 +276,15 @@
         "tab": "Pre-approved tools",
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP Servers"
+        },
+        "tab": "Tools",
+        "tools": {
+          "title": "Tools"
+        }
       }
     },
     "todo": {
@@ -336,6 +333,49 @@
       },
       "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Executes shell commands in your environment"
+        },
+        "Edit": {
+          "description": "Makes targeted edits to specific files"
+        },
+        "Glob": {
+          "description": "Finds files based on pattern matching"
+        },
+        "Grep": {
+          "description": "Searches for patterns in file contents"
+        },
+        "MultiEdit": {
+          "description": "Performs multiple edits on a single file atomically"
+        },
+        "NotebookEdit": {
+          "description": "Modifies Jupyter notebook cells"
+        },
+        "NotebookRead": {
+          "description": "Reads and displays Jupyter notebook contents"
+        },
+        "Read": {
+          "description": "Reads the contents of files"
+        },
+        "Task": {
+          "description": "Runs a sub-agent to handle complex, multi-step tasks"
+        },
+        "TodoWrite": {
+          "description": "Creates and manages structured task lists"
+        },
+        "WebFetch": {
+          "description": "Fetches content from a specified URL"
+        },
+        "WebSearch": {
+          "description": "Performs web searches with domain filtering"
+        },
+        "Write": {
+          "description": "Creates or overwrites files"
+        }
+      }
     },
     "type": {
       "label": "Agent Type",
@@ -1060,6 +1100,7 @@
       },
       "export": {
         "image": "Export as image",
+        "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
           "label": "Export as markdown",
@@ -1452,6 +1493,7 @@
     "provider_disabled": "Model provider is not enabled",
     "reason": "Reason",
     "render": {
+      "block": "This content block failed to render",
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },
@@ -1541,8 +1583,16 @@
       "message": "Locate the message"
     },
     "search": {
+      "match": {
+        "substring": "Contains",
+        "whole_word": "Whole word"
+      },
       "messages": "Search All Messages",
       "placeholder": "Search topics or messages...",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      },
       "topics": {
         "empty": "No topics found, press Enter to search all messages"
       }
@@ -2051,7 +2101,8 @@
           "content": "All data will be lost, do you want to continue?",
           "title": "DATA LOST !!!"
         }
-      }
+      },
+      "success": "Data reset successful"
     },
     "restore": {
       "failed": "Restore failed",
@@ -2520,6 +2571,12 @@
       "stop": "Stop",
       "version": "Version"
     },
+    "git_missing": {
+      "description": "OpenClaw requires Git for installing some dependencies. Please install Git first, then click Install again.",
+      "download_button": "Download Git",
+      "hint": "macOS: brew install git | Windows: Download from git-scm.com (make sure to add Git to PATH during installation)",
+      "title": "Git Required"
+    },
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "model_config": {
@@ -2534,6 +2591,17 @@
       "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
       "title": "Model Configuration"
     },
+    "node_missing": {
+      "description": "OpenClaw requires Node.js 22+. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "node_version_low": {
+      "description": "OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js Version Too Low"
+    },
     "not_installed": {
       "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
       "install_button": "Install OpenClaw",
@@ -2544,12 +2612,6 @@
       "step2_title": "Step 2: Verify installation",
       "title": "OpenClaw Not Installed",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
-      "download_button": "Download Node.js",
-      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "Node.js Required"
     },
     "quick_actions": {
       "open_dashboard": "Open Dashboard",
@@ -2694,13 +2756,8 @@
       }
     },
     "edit": {
-      "image_file": "Edited Image",
-      "magic_prompt_option_tip": "Intelligently enhances editing prompts",
-      "model_tip": "V3 and V2 versions supported",
-      "number_images_tip": "Number of edited results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Controls editing randomness",
-      "style_type_tip": "Style for edited image, only for V_2 and above"
+      "image_file": "Input Image",
+      "image_required": "Please upload an image to edit first"
     },
     "generate": {
       "height": "Height",
@@ -2769,6 +2826,16 @@
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
     },
+    "ppio": {
+      "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
+      "mask_image": "Mask Image",
+      "mask_image_tip": "Used to indicate the area to be erased. Areas to erase should be white, areas to keep should be black",
+      "output_format": "Output Format",
+      "resolution": "Target Resolution",
+      "seed_tip": "Random seed, same seed and parameters can produce similar images, -1 means random",
+      "use_pre_llm_tip": "Enable text expansion to optimize the prompt. Recommended for short prompts, disable for long ones",
+      "watermark_tip": "Whether to add watermark to generated images, disabled by default"
+    },
     "pricing": "Pricing",
     "prompt_enhancement": "Prompt Enhancement",
     "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
@@ -2811,6 +2878,7 @@
     "required_field": "Required field",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
+    "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
     "style_type": "Style",
@@ -2837,6 +2905,7 @@
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
     },
+    "watermark": "Add Watermark",
     "zhipu": {
       "custom_size_divisible": "Custom size must be divisible by 16",
       "custom_size_hint": "Width and height must be between 512px-2048px, divisible by 16, and total pixels cannot exceed 2^21px",
@@ -4583,6 +4652,13 @@
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
+      "region": {
+        "auto": "Auto detect",
+        "cn": "China",
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
+      },
       "reset_tooltip": "Reset to default",
       "sidebar_description": "Show active mini apps in the sidebar",
       "sidebar_title": "Sidebar Active Mini Apps Display",
@@ -5061,6 +5137,7 @@
       "reset_to_default": "Reset to Default",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Selection Assistant: Select Text",
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
@@ -5455,6 +5532,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "stop": "Stop Translation",
     "success": {
       "custom": {
         "delete": "Deleted successfully",

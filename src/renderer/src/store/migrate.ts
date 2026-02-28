@@ -2338,6 +2338,7 @@ const migrateConfig = {
   },
   '140': (state: RootState) => {
     try {
+      // @ts-ignore
       state.paintings = {
         // @ts-ignore paintings
         siliconflow_paintings: state?.paintings?.paintings || [],
@@ -3186,6 +3187,8 @@ const migrateConfig = {
           assistant.defaultModel = qwen3Next80BModel
         }
       })
+      // Initialize mini app region filter setting
+      state.settings.minAppRegion ??= 'auto'
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)
@@ -3204,6 +3207,54 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 195 error', error as Error)
+      return state
+    }
+  },
+  '196': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.ppio_draw) {
+        state.paintings.ppio_draw = []
+      }
+      if (state.paintings && !state.paintings.ppio_edit) {
+        state.paintings.ppio_edit = []
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 196 error', error as Error)
+      return state
+    }
+  },
+  '197': (state: RootState) => {
+    try {
+      if (state.openclaw.gatewayPort === 18789) {
+        state.openclaw.gatewayPort = 18790
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 197 error', error as Error)
+      return state
+    }
+  },
+  '198': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'minimax') {
+          provider.models = SYSTEM_MODELS['minimax']
+          provider.apiHost = 'https://api.minimaxi.com/v1/'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 198 error', error as Error)
+      return state
+    }
+  },
+  '199': (state: RootState) => {
+    try {
+      addShortcuts(state, ['select_model'], 'toggle_new_context')
+      return state
+    } catch (error) {
+      logger.error('migrate 199 error', error as Error)
       return state
     }
   }

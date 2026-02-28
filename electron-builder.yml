@@ -142,28 +142,37 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.17 - New Features & Bug Fixes
+    Cherry Studio 1.7.20 - New Models & Features
 
     ✨ New Features
-    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
-    - [Tools] Add OpenCode CLI tool support
+    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
+    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
+    - [Models] Add support for Qwen 3.5 series models
+    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
+    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
+    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
+    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
+    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
+    - [Search] Add keyword-based topic search with whole-word matching and result sorting
 
     🐛 Bug Fixes
-    - [Agent] Fix tool output display showing blank content during streaming
-    - [Models] Fix Kimi K2.5 model parameter error
-    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
-    - [macOS] Fix npm detection when app launched from Dock/Finder
-
+    - [i18n] Fix PluginCard translation not updating when language is switched
+    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.17 - 新功能与问题修复
+    Cherry Studio 1.7.20 - 新模型与功能
 
     ✨ 新功能
-    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
-    - [工具] 新增 OpenCode CLI 工具支持
+    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
+    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
+    - [模型] 添加 Qwen 3.5 系列模型支持
+    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
+    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
+    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
+    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
+    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
+    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
 
     🐛 问题修复
-    - [智能体] 修复工具流式输出时内容显示为空的问题
-    - [模型] 修复 Kimi K2.5 模型参数错误
-    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
-    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
+    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
+    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
     <!--LANG:END-->
