@@ -7,6 +7,7 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
 import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -156,6 +157,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           }
         }
       }
+
+      // Clean up any pending tool permission requests from this stream
+      dispatch(toolPermissionsActions.clearAll())
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)

@@ -403,7 +403,15 @@ const updateExistingMessageAndBlocksInDB = async (
 const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (throttler, id) => {
+    throttler.cancel()
+    const rafId = blockUpdateRafs.get(id)
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      blockUpdateRafs.delete(id)
+    }
+  }
 })
 
 /**
