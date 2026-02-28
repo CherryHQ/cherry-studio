@@ -763,8 +763,7 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
   // Qwen3.5 series (max thinking budget: 81920)
-  'qwen3\\.5-plus.*$': { min: 0, max: 81_920 },
-  'qwen3\\.5-falsh.*$': { min: 0, max: 81_920 },
+  'qwen3\\.5-(?:plus|flash).*$': { min: 0, max: 81_920 },
   'qwen3\\.5-397b-a17b$': { min: 0, max: 81_920 },
   'qwen3\\.5-122b-a10b$': { min: 0, max: 81_920 },
   'qwen3\\.5-35b-a3b$': { min: 0, max: 81_920 },
