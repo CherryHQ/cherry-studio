@@ -31,6 +31,10 @@ interface VersionInfo {
 }
 
 class CodeToolsService {
+  // Static properties for cleanup management (avoid listener accumulation)
+  private static pendingBatCleanups = new Set<string>()
+  private static exitCleanupRegistered = false
+
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: {
     terminals: TerminalConfig[]
@@ -1025,7 +1029,7 @@ class CodeToolsService {
         }
 
         // Build bat file content, including debug information
-        // Note: Avoid parentheses in if/for statements to handle paths with ()
+        // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
@@ -1037,12 +1041,12 @@ class CodeToolsService {
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
-          ':: Verify directory exists (using single-line format to avoid () parsing issues)',
-          `if not exist "${directory.replace(/%/g, '%%')}" echo ERROR: Directory does not exist & echo Target: ${escapeBatchText(directory)} & pause & exit /b 1`,
+          ':: Verify directory exists',
+          `if not exist "${directory.replace(/%/g, '%%')}" goto :dir_missing`,
           '',
           ':: Change to target directory',
           `pushd "${directory.replace(/%/g, '%%')}"`,
-          'if %ERRORLEVEL% neq 0 echo ERROR: Failed to change directory & pause & exit /b 1',
+          'if errorlevel 1 goto :pushd_failed',
           '',
           ':: Clear screen before running CLI',
           'cls',
@@ -1050,6 +1054,21 @@ class CodeToolsService {
           ':: Execute command',
           command,
           '',
+          'goto :end',
+          '',
+          ':: Error handlers (using labels to ensure entire branch is conditional)',
+          ':dir_missing',
+          'echo ERROR: Directory does not exist',
+          `echo Target: ${escapeBatchText(directory)}`,
+          'pause',
+          'exit /b 1',
+          '',
+          ':pushd_failed',
+          'echo ERROR: Failed to change directory',
+          'pause',
+          'exit /b 1',
+          '',
+          ':end',
           'pause'
         ].join('\r\n')
 
@@ -1082,25 +1101,43 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 60 seconds)
-        // Windows Terminal (UWP app) may take longer to initialize and read the file
+        // Add to cleanup set
+        CodeToolsService.pendingBatCleanups.add(batFilePath)
+
+        // Register exit handler only once (using process.once to avoid accumulation)
+        if (!CodeToolsService.exitCleanupRegistered) {
+          process.once('exit', () => {
+            // Clean up all remaining bat files on process exit
+            for (const filePath of CodeToolsService.pendingBatCleanups) {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath)
+                  logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
+                }
+              } catch (error) {
+                logger.warn(`Failed to cleanup temp bat file: ${error}`)
+              }
+            }
+            CodeToolsService.pendingBatCleanups.clear()
+          })
+          CodeToolsService.exitCleanupRegistered = true
+        }
+
+        // Set timeout for cleanup (normal case - file deleted after 60 seconds)
         const cleanup = () => {
           try {
-            // Clean up bat file
             if (fs.existsSync(batFilePath)) {
               fs.unlinkSync(batFilePath)
               logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
             }
+            // Remove from pending set
+            CodeToolsService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
         }
 
-        // Set timeout for cleanup
-        setTimeout(cleanup, 60 * 1000) // Delete temp file after 60 seconds
-
-        // Ensure cleanup on process exit
-        process.on('exit', cleanup)
+        setTimeout(cleanup, 60 * 1000)
 
         break
       }
