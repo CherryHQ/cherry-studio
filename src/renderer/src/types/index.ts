@@ -511,12 +511,13 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
+  /** Can be an image URL or emoji string */
   logo?: string
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean
   background?: string
-  style?: CSSProperties
+  style?: CSSProperties & { fontSize?: string | number }
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
@@ -1216,6 +1217,9 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
+
+// Periodic Task Manager Types
+export type * from './task'
 
 // More specific than NonNullable
 export type NotUndefined<T> = Exclude<T, undefined>

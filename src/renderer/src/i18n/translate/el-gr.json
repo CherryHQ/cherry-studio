@@ -5378,6 +5378,47 @@
       "title": "Κλίμακα"
     }
   },
+  "tasks": {
+    "create": "[to be translated]:Create Task",
+    "deleteConfirm": "[to be translated]:Delete Task",
+    "deleteConfirmMessage": "[to be translated]:Are you sure you want to delete this task?",
+    "execution": {
+      "failed": "[to be translated]:Failed",
+      "noHistory": "[to be translated]:No execution history",
+      "success": "[to be translated]:Success"
+    },
+    "executionConfig": {
+      "continueConversation": "[to be translated]:Continue Conversation",
+      "continueConversationHelp": "[to be translated]:Continue from last conversation context",
+      "maxExecutionTime": "[to be translated]:Timeout (seconds)",
+      "message": "[to be translated]:Execution Message",
+      "notifyOnComplete": "[to be translated]:Notification on Complete",
+      "notifyOnCompleteHelp": "[to be translated]:Send notification when task completes"
+    },
+    "filter": {
+      "all": "[to be translated]:All",
+      "disabled": "[to be translated]:Disabled",
+      "enabled": "[to be translated]:Enabled"
+    },
+    "schedule": {
+      "cronExpression": "[to be translated]:Cron Expression",
+      "cronHelp": "[to be translated]:Cron format: * * * * * (minute hour day month weekday)",
+      "description": "[to be translated]:Description",
+      "intervalMinutes": "[to be translated]:Interval (minutes)",
+      "type": {
+        "cron": "[to be translated]:Cron Expression",
+        "interval": "[to be translated]:Fixed Interval"
+      }
+    },
+    "status": {
+      "completed": "[to be translated]:Completed",
+      "failed": "[to be translated]:Failed",
+      "idle": "[to be translated]:Idle",
+      "paused": "[to be translated]:Paused",
+      "running": "[to be translated]:Running"
+    },
+    "title": "[to be translated]:Tasks"
+  },
   "title": {
     "apps": "Εφαρμογές",
     "code": "Κώδικας",

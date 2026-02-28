@@ -10,10 +10,8 @@ interface Props {
 }
 
 const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
-  // First try to find in allMinApps for predefined styling
   const _app = allMinApps.find((item) => item.id === app.id)
 
-  // If found in allMinApps, use predefined styling
   if (_app) {
     return (
       <img
@@ -34,7 +32,6 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
     )
   }
 
-  // If not found in allMinApps but app has logo, use it (for temporary apps)
   if (app.logo) {
     return (
       <img

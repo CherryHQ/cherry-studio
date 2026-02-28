@@ -47,6 +47,7 @@ import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
+import tasks from './tasks'
 import toolPermissions from './toolPermissions'
 import translate from './translate'
 import websearch from './websearch'
@@ -57,6 +58,7 @@ const rootReducer = combineReducers({
   assistants,
   backup,
   codeTools,
+  tasks,
   nutstore,
   paintings,
   llm,

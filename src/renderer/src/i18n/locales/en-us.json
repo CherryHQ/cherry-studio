@@ -5378,6 +5378,47 @@
       "title": "Page Zoom"
     }
   },
+  "tasks": {
+    "create": "Create Task",
+    "deleteConfirm": "Delete Task",
+    "deleteConfirmMessage": "Are you sure you want to delete this task?",
+    "execution": {
+      "failed": "Failed",
+      "noHistory": "No execution history",
+      "success": "Success"
+    },
+    "executionConfig": {
+      "continueConversation": "Continue Conversation",
+      "continueConversationHelp": "Continue from last conversation context",
+      "maxExecutionTime": "Timeout (seconds)",
+      "message": "Execution Message",
+      "notifyOnComplete": "Notification on Complete",
+      "notifyOnCompleteHelp": "Send notification when task completes"
+    },
+    "filter": {
+      "all": "All",
+      "disabled": "Disabled",
+      "enabled": "Enabled"
+    },
+    "schedule": {
+      "cronExpression": "Cron Expression",
+      "cronHelp": "Cron format: * * * * * (minute hour day month weekday)",
+      "description": "Description",
+      "intervalMinutes": "Interval (minutes)",
+      "type": {
+        "cron": "Cron Expression",
+        "interval": "Fixed Interval"
+      }
+    },
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "idle": "Idle",
+      "paused": "Paused",
+      "running": "Running"
+    },
+    "title": "Tasks"
+  },
   "title": {
     "apps": "Apps",
     "code": "Code",
