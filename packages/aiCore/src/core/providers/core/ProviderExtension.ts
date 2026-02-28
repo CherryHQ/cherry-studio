@@ -169,9 +169,6 @@ export class ProviderExtension<
   /** Provider 实例缓存 - 按 settings hash 存储，LRU 自动清理 */
   private instances: LRUCache<string, TProvider>
 
-  /** Settings hash 映射表 - 用于验证缓存是否仍然有效 */
-  private settingsHashes: Map<string, TSettings | undefined> = new Map()
-
   /** In-flight promise map - 防止并发创建相同 settings 的 provider */
   private pendingCreations: Map<string, Promise<TProvider>> = new Map()
 
@@ -418,7 +415,6 @@ export class ProviderExtension<
     await this.executeHook('onAfterCreate', mergedSettings, finalProvider)
 
     this.instances.set(hash, finalProvider)
-    this.settingsHashes.set(hash, mergedSettings)
 
     return finalProvider
   }
@@ -489,7 +485,6 @@ export class ProviderExtension<
    */
   clearCache(): void {
     this.instances.clear()
-    this.settingsHashes.clear()
     this.pendingCreations.clear()
   }
 
