@@ -9,6 +9,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
 import type {
+  MessageBlock,
   PlaceholderMessageBlock,
   Response,
   ThinkingMessageBlock,
@@ -131,6 +132,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       // Fix: 更新所有仍处于 STREAMING 状态的 blocks 为 PAUSED/ERROR
       // 这修复了停止回复时思考计时器继续运行的问题
       const currentMessage = getState().messages.entities[assistantMsgId]
+      const updatedBlockIds: string[] = []
       if (currentMessage) {
         const allBlockRefs = findAllBlocks(currentMessage)
         const blockState = getState().messageBlocks
@@ -154,6 +156,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
               changes.thinking_millsec = thinkingInfo.millsec
             }
             dispatch(updateOneBlock({ id: block.id, changes }))
+            updatedBlockIds.push(block.id)
           }
 
           // Fix: 更新所有仍处于非完成状态的 tool blocks 的 rawMcpToolResponse.status
@@ -185,6 +188,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
                   }
                 })
               )
+              updatedBlockIds.push(block.id)
             }
           }
         }
@@ -202,7 +206,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           updates: messageErrorUpdate
         })
       )
-      await saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
+
+      // 从更新后的 state 中获取需要持久化的 blocks
+      const blocksToSave = updatedBlockIds
+        .map((id) => getState().messageBlocks.entities[id])
+        .filter(Boolean) as MessageBlock[]
+      await saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, blocksToSave)
 
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,
