@@ -7,6 +7,7 @@ import enUS from 'antd/locale/en_US'
 import esES from 'antd/locale/es_ES'
 import frFR from 'antd/locale/fr_FR'
 import jaJP from 'antd/locale/ja_JP'
+import koKR from 'antd/locale/ko_KR'
 import ptPT from 'antd/locale/pt_PT'
 import roRO from 'antd/locale/ro_RO'
 import ruRU from 'antd/locale/ru_RU'
@@ -134,6 +135,8 @@ function getAntdLocale(language: LanguageVarious) {
       return ruRU
     case 'ja-JP':
       return jaJP
+    case 'ko-KR':
+      return koKR
     case 'el-GR':
       return elGR
     case 'es-ES':
