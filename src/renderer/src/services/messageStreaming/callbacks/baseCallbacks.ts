@@ -143,7 +143,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
           if (!block) continue
 
           // 更新非 possibleBlockId 的 STREAMING blocks（possibleBlockId 已在上面处理）
-          if (block.id !== possibleBlockId && block.status === MessageBlockStatus.STREAMING) {
+          // 跳过 TOOL 类型 blocks，它们在下面的 tool block 分支中统一处理
+          if (
+            block.id !== possibleBlockId &&
+            block.status === MessageBlockStatus.STREAMING &&
+            block.type !== MessageBlockType.TOOL
+          ) {
             const changes: Partial<ThinkingMessageBlock> = {
               status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
             }
@@ -182,7 +187,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
                       ...toolBlock.metadata,
                       rawMcpToolResponse: {
                         ...toolResponse,
-                        status: isErrorTypeAbort ? ('cancelled' as const) : ('error' as const)
+                        status: isErrorTypeAbort ? 'cancelled' : 'error'
                       }
                     }
                   }
