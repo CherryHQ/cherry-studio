@@ -1,7 +1,7 @@
 # Cherry Studio AI Core 架构文档
 
-> **版本**: v2.2 (StringKeys 工具类型 + 变体自反映射)
-> **更新日期**: 2026-01-02
+> **版本**: v3.0 (移除 ModelResolver/HubProvider，内部插件模型解析)
+> **更新日期**: 2026-02-28
 > **适用范围**: Cherry Studio v1.7.7+
 
 本文档详细描述了 Cherry Studio 从用户交互到 AI SDK 调用的完整数据流和架构设计，是理解应用核心功能的关键文档。
@@ -20,6 +20,7 @@
 8. [Trace 和可观测性](#8-trace-和可观测性)
 9. [错误处理机制](#9-错误处理机制)
 10. [性能优化](#10-性能优化)
+11. [测试架构](#11-测试架构)
 
 ---
 
@@ -252,7 +253,6 @@ User Input (UI)
 │    Step 7.2: RuntimeExecutor.create()                        │
 │    ├─ 创建 RuntimeExecutor 实例                              │
 │    ├─ 注入 provider 引用                                     │
-│    ├─ 初始化 ModelResolver                                   │
 │    └─ 初始化 PluginEngine                                    │
 │                                                               │
 │    返回: RuntimeExecutor<T> 实例 ───────────────────────────► │
@@ -266,13 +266,17 @@ User Input (UI)
 │    Step 8.1: 插件生命周期 - onRequestStart                   │
 │    └─ 执行所有插件的 onRequestStart 钩子                     │
 │                                                               │
-│    Step 8.2: 插件转换 - transformParams                      │
+│    Step 8.2: 内部 _resolveModel 插件                         │
+│    └─ 通过 AI SDK providerRegistry 解析                      │
+│       model string → LanguageModel（无独立 ModelResolver）   │
+│                                                               │
+│    Step 8.3: 插件转换 - transformParams                      │
 │    └─ 链式执行所有插件的参数转换                             │
 │                                                               │
-│    Step 8.3: modelResolver.resolveModel()                    │
-│    └─ 解析 model string → LanguageModel 实例                 │
+│    Step 8.4: 应用 context 中的 middlewares                    │
+│    └─ 使用 wrapLanguageModel 包装收集到的中间件              │
 │                                                               │
-│    Step 8.4: 调用 AI SDK streamText() ──────────────────────►│
+│    Step 8.5: 调用 AI SDK streamText() ──────────────────────►│
 │    └─ 传入解析后的 model 和转换后的 params                   │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -2231,150 +2235,9 @@ async processStream(streamResult: StreamTextResult) {
 
 ---
 
-## 11. 模型解析器 (ModelResolver)
+## 11. 测试架构
 
-### 11.1 简化后的设计
-
-`ModelResolver` 负责将 modelId 字符串解析为 AI SDK 的模型实例。在 v2.1 版本中，我们进行了大幅简化：
-
-**重构前** (176 行):
-- 包含冗余的 `providerId`、`fallbackProviderId` 参数
-- 硬编码了 OpenAI 模式选择逻辑
-- 多个重复的辅助方法
-
-**重构后** (84 行):
-- 简化 API：`resolveLanguageModel(modelId, middlewares?)`
-- 移除所有硬编码逻辑（由 ProviderExtension variants 处理）
-- 清晰的单一职责
-
-```typescript
-export class ModelResolver {
-  private provider: ProviderV3
-
-  constructor(provider: ProviderV3) {
-    this.provider = provider
-  }
-
-  /**
-   * 解析语言模型
-   * @param modelId - 模型ID（如 "gpt-4", "claude-3-5-sonnet"）
-   * @param middlewares - 可选的中间件数组
-   */
-  async resolveLanguageModel(
-    modelId: string,
-    middlewares?: LanguageModelV3Middleware[]
-  ): Promise<LanguageModelV3> {
-    let model = this.provider.languageModel(modelId)
-    if (middlewares && middlewares.length > 0) {
-      model = wrapModelWithMiddlewares(model, middlewares)
-    }
-    return model
-  }
-
-  /**
-   * 解析嵌入模型
-   */
-  async resolveEmbeddingModel(modelId: string): Promise<EmbeddingModelV3> {
-    return this.provider.embeddingModel(modelId)
-  }
-
-  /**
-   * 解析图像模型
-   */
-  async resolveImageModel(modelId: string): Promise<ImageModelV3> {
-    return this.provider.imageModel(modelId)
-  }
-}
-```
-
-### 11.2 模式选择机制
-
-OpenAI、Azure 等 provider 的模式选择（如 `openai-chat`、`azure-responses`）现在完全由 ProviderExtension 的 variants 机制处理：
-
-```typescript
-// ProviderExtension 定义中的 variants
-const OpenAIExtension = ProviderExtension.create({
-  name: 'openai',
-  variants: [
-    {
-      suffix: 'chat',           // 产生 providerId: 'openai-chat'
-      name: 'OpenAI Chat Mode',
-      transform: (baseProvider, settings) => {
-        return customProvider({
-          fallbackProvider: {
-            ...baseProvider,
-            languageModel: (modelId) => baseProvider.chat(modelId)
-          }
-        })
-      }
-    }
-  ],
-  create: (settings) => createOpenAI(settings)
-})
-```
-
----
-
-## 12. HubProvider 系统
-
-### 12.1 多 Provider 路由
-
-`HubProvider` 是一个特殊的 provider，它可以将请求路由到多个不同的底层 provider。使用命名空间格式的 modelId：
-
-```
-hub|provider|modelId
-例如: aihubmix|openai|gpt-4
-     aihubmix|anthropic|claude-3-5-sonnet
-```
-
-### 12.2 类型安全的配置
-
-`HubProviderConfig` 使用 `CoreProviderSettingsMap` 确保类型安全：
-
-```typescript
-export interface HubProviderConfig {
-  hubId?: string
-  debug?: boolean
-  registry: ExtensionRegistry
-  // 类型安全的 provider 设置映射
-  providerSettingsMap: Map<string, CoreProviderSettingsMap[keyof CoreProviderSettingsMap]>
-}
-
-// 使用示例
-const hubProvider = await createHubProviderAsync({
-  hubId: 'aihubmix',
-  registry,
-  providerSettingsMap: new Map([
-    ['openai', { apiKey: 'sk-xxx', baseURL: 'https://...' }],    // OpenAI 设置
-    ['anthropic', { apiKey: 'ant-xxx' }],                        // Anthropic 设置
-    ['google', { apiKey: 'goog-xxx' }]                           // Google 设置
-  ])
-})
-```
-
-### 12.3 输入验证
-
-HubProvider 现在包含严格的输入验证：
-
-```typescript
-function parseHubModelId(modelId: string): { provider: string; actualModelId: string } {
-  const parts = modelId.split(DEFAULT_SEPARATOR)
-  // 验证格式：必须有两部分，且都不为空
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new HubProviderError(
-      `Invalid hub model ID format. Expected "provider|modelId", got: ${modelId}`,
-      'unknown'
-    )
-  }
-  return { provider: parts[0], actualModelId: parts[1] }
-}
-```
-
----
-
-## 13. 测试架构
-
-### 13.1 测试工具 (test-utils)
+### 11.1 测试工具 (test-utils)
 
 `@cherrystudio/ai-core` 提供了完整的测试工具集：
 
@@ -2399,51 +2262,51 @@ export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageMo
 export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>): EmbeddingModelV3
 ```
 
-### 13.2 集成测试
+### 11.2 集成测试
 
-HubProvider 集成测试覆盖以下场景：
+关键集成测试覆盖以下场景：
 
 ```typescript
-// packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts
+// packages/aiCore/src/core/providers/__tests__/ExtensionRegistry.test.ts
 
-describe('HubProvider Integration Tests', () => {
-  // 1. 端到端测试
-  describe('End-to-End with RuntimeExecutor', () => {
-    it('should resolve models through HubProvider using namespace format')
-    it('should handle multiple providers in the same hub')
-    it('should work with direct model objects instead of strings')
+describe('ExtensionRegistry', () => {
+  describe('Provider Creation', () => {
+    it('should create providers through registered extensions')
+    it('should resolve aliases to base provider')
+    it('should resolve variants with correct suffix')
+    it('should leverage LRU cache for identical settings')
   })
 
-  // 2. LRU 缓存测试
-  describe('ProviderExtension LRU Cache Integration', () => {
-    it('should leverage ProviderExtension LRU cache when creating multiple HubProviders')
-    it('should create new providers when settings differ')
+  describe('Error Handling', () => {
+    it('should throw error for unregistered provider')
+    it('should handle concurrent creation requests')
+  })
+})
+
+// packages/aiCore/src/core/providers/__tests__/ProviderExtension.test.ts
+
+describe('ProviderExtension', () => {
+  describe('LRU Cache', () => {
+    it('should cache provider instances by settings hash')
+    it('should create new instances for different settings')
+    it('should deduplicate concurrent creation of same settings')
   })
 
-  // 3. 错误处理测试
-  describe('Error Handling Integration', () => {
-    it('should throw error when using provider not in providerSettingsMap')
-    it('should throw error on invalid model ID format')
-  })
-
-  // 4. 高级场景
-  describe('Advanced Scenarios', () => {
-    it('should support image generation through hub')
-    it('should handle concurrent model resolutions')
-    it('should work with middlewares')
+  describe('Variants', () => {
+    it('should create variant providers with transform')
+    it('should cache variants independently')
   })
 })
 ```
 
-### 13.3 测试覆盖率
+### 11.3 测试覆盖率
 
 当前测试覆盖：
-- **ModelResolver**: 20 个测试用例
-- **HubProvider 单元测试**: 26 个测试用例
-- **HubProvider 集成测试**: 17 个测试用例
-- **ExtensionRegistry**: 68 个测试用例
+- **ExtensionRegistry**: 68+ 个测试用例
+- **ProviderExtension**: 50+ 个测试用例
 - **PluginEngine**: 38 个测试用例
-- **总计**: 376+ 个测试用例
+- **RuntimeExecutor**: 30+ 个测试用例
+- **总计**: 370+ 个测试用例
 
 ---
 
@@ -2465,22 +2328,17 @@ describe('HubProvider Integration Tests', () => {
 - `packages/aiCore/src/core/runtime/index.ts` - createExecutor
 - `packages/aiCore/src/core/providers/core/ProviderExtension.ts` - Extension 基类
 - `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts` - 注册表
-- `packages/aiCore/src/core/models/ModelResolver.ts` - 模型解析
+- `packages/aiCore/src/core/providers/core/initialization.ts` - 核心 Provider 注册
 - `packages/aiCore/src/core/plugins/PluginEngine.ts` - 插件引擎
 
-### Extensions
-- `packages/aiCore/src/core/providers/extensions/openai.ts` - OpenAI Extension
-- `packages/aiCore/src/core/providers/extensions/anthropic.ts` - Anthropic Extension
-- `packages/aiCore/src/core/providers/extensions/google.ts` - Google Extension
-
-### Features
-- `packages/aiCore/src/core/providers/features/HubProvider.ts` - Hub Provider 实现
+### 应用层 Extensions
+- `src/renderer/src/aiCore/provider/extensions/index.ts` - 应用层 Provider Extensions
+- `src/renderer/src/aiCore/types/merged.ts` - 合并类型（核心 + 应用层 extensions）
 
 ### Test Utilities
 - `packages/aiCore/test_utils/helpers/model.ts` - Mock 模型创建工具
 - `packages/aiCore/test_utils/helpers/provider.ts` - Provider 测试辅助
 - `packages/aiCore/test_utils/mocks/providers.ts` - Mock Provider 实例
-- `packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts` - 集成测试
 
 ---
 
@@ -2505,6 +2363,6 @@ describe('HubProvider Integration Tests', () => {
 
 ---
 
-**文档版本**: v2.2
-**最后更新**: 2026-01-02
+**文档版本**: v3.0
+**最后更新**: 2026-02-28
 **维护者**: Cherry Studio Team

@@ -1,7 +1,7 @@
 # Cherry Studio AI Core Architecture Documentation
 
-> **Version**: v2.2 (StringKeys Utility + Variant Self-Mapping)
-> **Updated**: 2026-01-02
+> **Version**: v3.0 (Remove ModelResolver/HubProvider, Internal Plugin Model Resolution)
+> **Updated**: 2026-02-28
 > **Applicable to**: Cherry Studio v1.7.7+
 
 This document describes the complete data flow and architectural design from user interaction to AI SDK calls in Cherry Studio. It serves as the key documentation for understanding the application's core functionality.
@@ -20,9 +20,7 @@ This document describes the complete data flow and architectural design from use
 8. [Tracing and Observability](#8-tracing-and-observability)
 9. [Error Handling](#9-error-handling)
 10. [Performance Optimization](#10-performance-optimization)
-11. [Model Resolver](#11-model-resolver)
-12. [HubProvider System](#12-hubprovider-system)
-13. [Testing Architecture](#13-testing-architecture)
+11. [Testing Architecture](#11-testing-architecture)
 
 ---
 
@@ -255,7 +253,6 @@ User Input (UI)
 │    Step 7.2: RuntimeExecutor.create()                        │
 │    ├─ Create RuntimeExecutor instance                        │
 │    ├─ Inject provider reference                              │
-│    ├─ Initialize ModelResolver                               │
 │    └─ Initialize PluginEngine                                │
 │                                                               │
 │    Return: RuntimeExecutor<T> instance ────────────────────► │
@@ -269,13 +266,17 @@ User Input (UI)
 │    Step 8.1: Plugin lifecycle - onRequestStart               │
 │    └─ Execute all plugins' onRequestStart hooks              │
 │                                                               │
-│    Step 8.2: Plugin transform - transformParams              │
+│    Step 8.2: Internal _resolveModel plugin                   │
+│    └─ Resolve model string → LanguageModel via AI SDK        │
+│       providerRegistry (no separate ModelResolver class)     │
+│                                                               │
+│    Step 8.3: Plugin transform - transformParams              │
 │    └─ Chain execute all plugins' parameter transformations   │
 │                                                               │
-│    Step 8.3: modelResolver.resolveModel()                    │
-│    └─ Parse model string → LanguageModel instance            │
+│    Step 8.4: Apply middlewares from context                   │
+│    └─ wrapLanguageModel with collected middlewares            │
 │                                                               │
-│    Step 8.4: Call AI SDK streamText() ─────────────────────►│
+│    Step 8.5: Call AI SDK streamText() ─────────────────────►│
 │    └─ Pass resolved model and transformed params             │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -1582,150 +1583,9 @@ for await (const textDelta of streamResult.textStream) {
 
 ---
 
-## 11. Model Resolver
+## 11. Testing Architecture
 
-### 11.1 Simplified Design
-
-`ModelResolver` is responsible for parsing modelId strings into AI SDK model instances. In v2.1, we significantly simplified this:
-
-**Before Refactoring** (176 lines):
-- Redundant `providerId`, `fallbackProviderId` parameters
-- Hardcoded OpenAI mode selection logic
-- Multiple duplicate helper methods
-
-**After Refactoring** (84 lines):
-- Simplified API: `resolveLanguageModel(modelId, middlewares?)`
-- Removed all hardcoded logic (handled by ProviderExtension variants)
-- Clear single responsibility
-
-```typescript
-export class ModelResolver {
-  private provider: ProviderV3
-
-  constructor(provider: ProviderV3) {
-    this.provider = provider
-  }
-
-  /**
-   * Resolve language model
-   * @param modelId - Model ID (e.g., "gpt-4", "claude-3-5-sonnet")
-   * @param middlewares - Optional middleware array
-   */
-  async resolveLanguageModel(
-    modelId: string,
-    middlewares?: LanguageModelV3Middleware[]
-  ): Promise<LanguageModelV3> {
-    let model = this.provider.languageModel(modelId)
-    if (middlewares && middlewares.length > 0) {
-      model = wrapModelWithMiddlewares(model, middlewares)
-    }
-    return model
-  }
-
-  /**
-   * Resolve embedding model
-   */
-  async resolveEmbeddingModel(modelId: string): Promise<EmbeddingModelV3> {
-    return this.provider.embeddingModel(modelId)
-  }
-
-  /**
-   * Resolve image model
-   */
-  async resolveImageModel(modelId: string): Promise<ImageModelV3> {
-    return this.provider.imageModel(modelId)
-  }
-}
-```
-
-### 11.2 Mode Selection Mechanism
-
-Mode selection for OpenAI, Azure, etc. (e.g., `openai-chat`, `azure-responses`) is now fully handled by ProviderExtension's variants mechanism:
-
-```typescript
-// Variants in ProviderExtension definition
-const OpenAIExtension = ProviderExtension.create({
-  name: 'openai',
-  variants: [
-    {
-      suffix: 'chat',           // produces providerId: 'openai-chat'
-      name: 'OpenAI Chat Mode',
-      transform: (baseProvider, settings) => {
-        return customProvider({
-          fallbackProvider: {
-            ...baseProvider,
-            languageModel: (modelId) => baseProvider.chat(modelId)
-          }
-        })
-      }
-    }
-  ],
-  create: (settings) => createOpenAI(settings)
-})
-```
-
----
-
-## 12. HubProvider System
-
-### 12.1 Multi-Provider Routing
-
-`HubProvider` is a special provider that routes requests to multiple underlying providers. It uses namespace-format modelIds:
-
-```
-provider|modelId
-e.g.: openai|gpt-4
-      anthropic|claude-3-5-sonnet
-```
-
-### 12.2 Type-Safe Configuration
-
-`HubProviderConfig` uses `CoreProviderSettingsMap` to ensure type safety:
-
-```typescript
-export interface HubProviderConfig {
-  hubId?: string
-  debug?: boolean
-  registry: ExtensionRegistry
-  // Type-safe provider settings map
-  providerSettingsMap: Map<string, CoreProviderSettingsMap[keyof CoreProviderSettingsMap]>
-}
-
-// Usage example
-const hubProvider = await createHubProviderAsync({
-  hubId: 'aihubmix',
-  registry,
-  providerSettingsMap: new Map([
-    ['openai', { apiKey: 'sk-xxx', baseURL: 'https://...' }],    // OpenAI settings
-    ['anthropic', { apiKey: 'ant-xxx' }],                        // Anthropic settings
-    ['google', { apiKey: 'goog-xxx' }]                           // Google settings
-  ])
-})
-```
-
-### 12.3 Input Validation
-
-HubProvider now includes strict input validation:
-
-```typescript
-function parseHubModelId(modelId: string): { provider: string; actualModelId: string } {
-  const parts = modelId.split(DEFAULT_SEPARATOR)
-  // Validate format: must have two parts, both non-empty
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new HubProviderError(
-      `Invalid hub model ID format. Expected "provider|modelId", got: ${modelId}`,
-      'unknown'
-    )
-  }
-  return { provider: parts[0], actualModelId: parts[1] }
-}
-```
-
----
-
-## 13. Testing Architecture
-
-### 13.1 Test Utilities (test-utils)
+### 11.1 Test Utilities (test-utils)
 
 `@cherrystudio/ai-core` provides a complete set of testing utilities:
 
@@ -1750,51 +1610,51 @@ export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageMo
 export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>): EmbeddingModelV3
 ```
 
-### 13.2 Integration Tests
+### 11.2 Integration Tests
 
-HubProvider integration tests cover the following scenarios:
+Key integration tests cover the following scenarios:
 
 ```typescript
-// packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts
+// packages/aiCore/src/core/providers/__tests__/ExtensionRegistry.test.ts
 
-describe('HubProvider Integration Tests', () => {
-  // 1. End-to-end tests
-  describe('End-to-End with RuntimeExecutor', () => {
-    it('should resolve models through HubProvider using namespace format')
-    it('should handle multiple providers in the same hub')
-    it('should work with direct model objects instead of strings')
+describe('ExtensionRegistry', () => {
+  describe('Provider Creation', () => {
+    it('should create providers through registered extensions')
+    it('should resolve aliases to base provider')
+    it('should resolve variants with correct suffix')
+    it('should leverage LRU cache for identical settings')
   })
 
-  // 2. LRU cache tests
-  describe('ProviderExtension LRU Cache Integration', () => {
-    it('should leverage ProviderExtension LRU cache when creating multiple HubProviders')
-    it('should create new providers when settings differ')
+  describe('Error Handling', () => {
+    it('should throw error for unregistered provider')
+    it('should handle concurrent creation requests')
+  })
+})
+
+// packages/aiCore/src/core/providers/__tests__/ProviderExtension.test.ts
+
+describe('ProviderExtension', () => {
+  describe('LRU Cache', () => {
+    it('should cache provider instances by settings hash')
+    it('should create new instances for different settings')
+    it('should deduplicate concurrent creation of same settings')
   })
 
-  // 3. Error handling tests
-  describe('Error Handling Integration', () => {
-    it('should throw error when using provider not in providerSettingsMap')
-    it('should throw error on invalid model ID format')
-  })
-
-  // 4. Advanced scenarios
-  describe('Advanced Scenarios', () => {
-    it('should support image generation through hub')
-    it('should handle concurrent model resolutions')
-    it('should work with middlewares')
+  describe('Variants', () => {
+    it('should create variant providers with transform')
+    it('should cache variants independently')
   })
 })
 ```
 
-### 13.3 Test Coverage
+### 11.3 Test Coverage
 
 Current test coverage:
-- **ModelResolver**: 20 test cases
-- **HubProvider unit tests**: 26 test cases
-- **HubProvider integration tests**: 17 test cases
-- **ExtensionRegistry**: 68 test cases
+- **ExtensionRegistry**: 68+ test cases
+- **ProviderExtension**: 50+ test cases
 - **PluginEngine**: 38 test cases
-- **Total**: 376+ test cases
+- **RuntimeExecutor**: 30+ test cases
+- **Total**: 370+ test cases
 
 ---
 
@@ -1816,22 +1676,17 @@ Current test coverage:
 - `packages/aiCore/src/core/runtime/index.ts` - createExecutor
 - `packages/aiCore/src/core/providers/core/ProviderExtension.ts` - Extension base class
 - `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts` - Registry
-- `packages/aiCore/src/core/models/ModelResolver.ts` - Model resolution
+- `packages/aiCore/src/core/providers/core/initialization.ts` - Core provider registrations
 - `packages/aiCore/src/core/plugins/PluginEngine.ts` - Plugin engine
 
-### Extensions
-- `packages/aiCore/src/core/providers/extensions/openai.ts` - OpenAI Extension
-- `packages/aiCore/src/core/providers/extensions/anthropic.ts` - Anthropic Extension
-- `packages/aiCore/src/core/providers/extensions/google.ts` - Google Extension
-
-### Features
-- `packages/aiCore/src/core/providers/features/HubProvider.ts` - Hub Provider implementation
+### App-Level Extensions
+- `src/renderer/src/aiCore/provider/extensions/index.ts` - App-level provider extensions
+- `src/renderer/src/aiCore/types/merged.ts` - Merged types (core + app extensions)
 
 ### Test Utilities
 - `packages/aiCore/test_utils/helpers/model.ts` - Mock model creation utilities
 - `packages/aiCore/test_utils/helpers/provider.ts` - Provider test helpers
 - `packages/aiCore/test_utils/mocks/providers.ts` - Mock Provider instances
-- `packages/aiCore/src/core/providers/__tests__/HubProvider.integration.test.ts` - Integration tests
 
 ---
 
@@ -1856,6 +1711,6 @@ Current test coverage:
 
 ---
 
-**Document Version**: v2.2
-**Last Updated**: 2026-01-02
+**Document Version**: v3.0
+**Last Updated**: 2026-02-28
 **Maintainer**: Cherry Studio Team
