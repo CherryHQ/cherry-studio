@@ -41,62 +41,30 @@ class ImportServiceClass {
   }
 
   /**
-   * Auto-detect the appropriate importer for the file content
-   */
-  detectImporter(fileContent: string): ConversationImporter | null {
-    for (const importer of this.importers.values()) {
-      if (importer.validate(fileContent)) {
-        logger.info(`Detected importer: ${importer.name}`)
-        return importer
-      }
-    }
-    logger.warn('No matching importer found for file content')
-    return null
-  }
-
-  /**
    * Import conversations from file content
-   * Automatically detects the format and uses the appropriate importer
    */
-  async importConversations(fileContent: string, importerName?: string): Promise<ImportResponse> {
+  async importConversations(fileContent: string, importerName: string): Promise<ImportResponse> {
     try {
       logger.info('Starting import...')
 
-      // Parse JSON first to validate format
-      let importer: ConversationImporter | null = null
-
-      if (importerName) {
-        // Use specified importer
-        const foundImporter = this.getImporter(importerName)
-        if (!foundImporter) {
-          return {
-            success: false,
-            topicsCount: 0,
-            messagesCount: 0,
-            error: `Importer "${importerName}" not found`
-          }
-        }
-        importer = foundImporter
-      } else {
-        // Auto-detect importer
-        importer = this.detectImporter(fileContent)
-        if (!importer) {
-          return {
-            success: false,
-            topicsCount: 0,
-            messagesCount: 0,
-            error: i18n.t('import.error.unsupported_format', { defaultValue: 'Unsupported file format' })
-          }
+      const importer = this.getImporter(importerName)
+      if (!importer) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: `Importer "${importerName}" not found`
         }
       }
 
       // Validate format
       if (!importer.validate(fileContent)) {
+        const importerKey = `import.${importer.name.toLowerCase()}.error.invalid_format`
         return {
           success: false,
           topicsCount: 0,
           messagesCount: 0,
-          error: i18n.t('import.error.invalid_format', {
+          error: i18n.t(importerKey, {
             defaultValue: `Invalid ${importer.name} format`
           })
         }
@@ -120,7 +88,7 @@ class ImportServiceClass {
         }),
         emoji: importer.emoji,
         prompt: '',
-        topics: result.topics,
+        topics: result.topics.map((topic) => ({ ...topic, messages: [] })),
         messages: [],
         type: 'assistant',
         settings: DEFAULT_ASSISTANT_SETTINGS
@@ -137,7 +105,9 @@ class ImportServiceClass {
         success: true,
         assistant,
         topicsCount: result.topics.length,
-        messagesCount: result.messages.length
+        messagesCount: result.messages.length,
+        skippedMessagesCount: result.stats?.skippedMessagesCount ?? 0,
+        skippedTopicsCount: result.stats?.skippedTopicsCount ?? 0
       }
     } catch (error) {
       logger.error('Import failed:', error as Error)
@@ -158,6 +128,14 @@ class ImportServiceClass {
   async importChatGPTConversations(fileContent: string): Promise<ImportResponse> {
     return this.importConversations(fileContent, 'chatgpt')
   }
+
+  /**
+   * Import ChatBox conversations (backward compatibility)
+   * @deprecated Use importConversations() instead
+   */
+  async importChatBoxConversations(fileContent: string): Promise<ImportResponse> {
+    return this.importConversations(fileContent, 'chatbox')
+  }
 }
 
 // Export singleton instance
@@ -165,3 +143,4 @@ export const ImportService = new ImportServiceClass()
 
 // Export for backward compatibility
 export const importChatGPTConversations = (fileContent: string) => ImportService.importChatGPTConversations(fileContent)
+export const importChatBoxConversations = (fileContent: string) => ImportService.importChatBoxConversations(fileContent)
