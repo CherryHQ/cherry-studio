@@ -10,7 +10,7 @@ on:
 
 jobs:
   process-new-issue:
-    if: github.event_name == 'issues'
+    if: github.repository == 'CherryHQ/cherry-studio' && github.event_name == 'issues'
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -134,7 +134,7 @@ jobs:
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
 
   process-pending-issues:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.repository == 'CherryHQ/cherry-studio' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       issues: write

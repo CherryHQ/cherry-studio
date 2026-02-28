@@ -15,6 +15,7 @@ on:
 
 jobs:
   auto-i18n:
+    if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     name: Auto I18N
     permissions:
