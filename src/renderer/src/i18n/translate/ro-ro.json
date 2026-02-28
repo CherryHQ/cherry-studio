@@ -153,6 +153,10 @@
         "title": "Setări avansate"
       },
       "essential": "Setări esențiale",
+      "permissionMode": {
+        "tab": "Mod de permisiune",
+        "title": "Mod de permisiune"
+      },
       "plugins": {
         "available": {
           "title": "Pluginuri disponibile"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "Conectează servere MCP pentru a debloca instrumente suplimentare pe care le poți aproba mai sus.",
           "empty": "Nu au fost detectate servere MCP. Adaugă unul din pagina de setări MCP.",
+          "inactiveTooltip": "Acest server MCP nu este activ. Vă rugăm să-l porniți mai întâi.",
           "manageHint": "Ai nevoie de configurare avansată? Vizitează Setări → Servere MCP.",
           "toggle": "Comută {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pre-aprobă instrumentele de sistem de fișiere de încredere, astfel încât editările să ruleze imediat.",
             "description": "Editările de fișiere și operațiunile sistemului de fișiere sunt aprobate automat.",
             "title": "Acceptă automat editările de fișiere"
           },
           "bypassPermissions": {
-            "behavior": "Fiecare instrument este pre-aprobat automat.",
             "description": "Toate solicitările de permisiune sunt omise — folosește cu precauție.",
             "title": "Omite verificările de permisiune",
             "warning": "Folosește cu precauție — toate instrumentele vor rula fără a cere aprobare."
@@ -243,14 +246,12 @@
             "title": "Schimbi modul de permisiune?"
           },
           "default": {
-            "behavior": "Instrumentele doar-pentru-citire sunt pre-aprobate automat.",
             "description": "Instrumentele doar-pentru-citire sunt pre-aprobate; orice altceva necesită încă permisiune.",
             "title": "Implicit (întreabă înainte de a continua)"
           },
           "helper": "Alege cum gestionează agentul aprobările pentru instrumente.",
           "placeholder": "Selectează modul de permisiune",
           "plan": {
-            "behavior": "Setările implicite doar-pentru-citire sunt pre-aprobate, în timp ce execuția rămâne dezactivată.",
             "description": "Partajează setul implicit de instrumente doar-pentru-citire, dar prezintă un plan înainte de execuție.",
             "title": "Mod de planificare"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "Adăugat de mod",
           "autoDescription": "Acest instrument este aprobat automat de modul de permisiune curent.",
+          "autoDisabledTooltip": "Aprobat automat de „{{mode}}” și nu poate fi dezactivat.",
           "empty": "Niciun instrument nu corespunde filtrelor tale.",
           "mcpBadge": "Instrument MCP",
           "requiresApproval": "Necesită aprobare când este dezactivat",
           "search": "Caută instrumente",
-          "toggle": "Comută {{name}}",
-          "warning": {
-            "description": "Activează doar instrumentele în care ai încredere. Setările implicite ale modului sunt evidențiate automat.",
-            "title": "Instrumentele pre-aprobate rulează fără revizuire manuală."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Personalizat: {{count}}",
-          "helper": "Modificările se salvează automat. Ajustează pașii de mai sus oricând pentru a regla fin permisiunile.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mod: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "Servere MCP"
-          },
-          "permissionMode": {
-            "title": "Pasul 1 · Mod de permisiune"
-          },
-          "preapproved": {
-            "title": "Pasul 2 · Instrumente pre-aprobate"
-          },
-          "review": {
-            "title": "Pasul 3 · Revizuire"
-          }
-        },
-        "tab": "Instrumente și permisiuni"
+          "toggle": "Comută {{name}}"
+        }
       },
       "tools": {
         "approved": "aprobat",
@@ -300,6 +276,15 @@
         "tab": "Instrumente pre-aprobate",
         "title": "Instrumente pre-aprobate",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "Servere MCP"
+        },
+        "tab": "Unelte",
+        "tools": {
+          "title": "Unelte"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "Instrument",
       "waiting": "Se așteaptă decizia privind permisiunea instrumentului..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Execută comenzi shell în mediul tău"
+        },
+        "Edit": {
+          "description": "Efectuează editări țintite asupra fișierelor specifice"
+        },
+        "Glob": {
+          "description": "Găsește fișiere pe baza potrivirii modelelor"
+        },
+        "Grep": {
+          "description": "Caută modele în conținutul fișierelor"
+        },
+        "MultiEdit": {
+          "description": "Efectuează mai multe modificări într-un singur fișier atomic"
+        },
+        "NotebookEdit": {
+          "description": "Modifică celulele din Jupyter notebook"
+        },
+        "NotebookRead": {
+          "description": "Citește și afișează conținutul notebook-urilor Jupyter"
+        },
+        "Read": {
+          "description": "Citește conținutul fișierelor"
+        },
+        "Task": {
+          "description": "Rulează un sub-agent pentru a gestiona sarcini complexe, cu mai mulți pași"
+        },
+        "TodoWrite": {
+          "description": "Creează și gestionează liste de sarcini structurate"
+        },
+        "WebFetch": {
+          "description": "Preia conținutul de la o adresă URL specificată"
+        },
+        "WebSearch": {
+          "description": "Efectuează căutări pe web cu filtrare pe domeniu"
+        },
+        "Write": {
+          "description": "Creează sau suprascrie fișiere"
+        }
+      }
     },
     "type": {
       "label": "Tip agent",
@@ -1072,6 +1100,7 @@
       },
       "export": {
         "image": "Exportă ca imagine",
+        "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
           "label": "Exportă ca markdown",
@@ -1289,7 +1318,7 @@
     },
     "expand": "Extinde",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Exportă în Excel"
     },
     "file": {
       "not_supported": "Tip de fișier neacceptat {{type}}"
@@ -1554,8 +1583,16 @@
       "message": "Localizează mesajul"
     },
     "search": {
+      "match": {
+        "substring": "Conține",
+        "whole_word": "Cuvânt întreg"
+      },
       "messages": "Caută în toate mesajele",
       "placeholder": "Caută subiecte sau mesaje...",
+      "sort": {
+        "newest": "Cele mai noi primele",
+        "oldest": "Cel mai vechi mai întâi"
+      },
       "topics": {
         "empty": "Nu s-au găsit subiecte, apasă Enter pentru a căuta în toate mesajele"
       }
@@ -1947,7 +1984,7 @@
         "name": "Te rugăm să introduci numele bazei de cunoștințe"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Eroare la exportul Excel"
       },
       "fetchTopicName": "Nu s-a putut numi subiectul",
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
@@ -1989,7 +2026,7 @@
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "Imposibil de recuperat date valide din tabel"
       },
       "unknown": "Eroare necunoscută",
       "yuque": {
@@ -2064,7 +2101,8 @@
           "content": "Toate datele vor fi pierdute, vrei să continui?",
           "title": "DATE PIERDUTE !!!"
         }
-      }
+      },
+      "success": "Retelearea datelor a reușit"
     },
     "restore": {
       "failed": "Restaurare eșuată",
@@ -2078,7 +2116,7 @@
     "searching": "Se caută...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excel exportat cu succes"
       },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
@@ -2553,6 +2591,17 @@
       "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
       "title": "Configurare model"
     },
+    "node_missing": {
+      "description": "OpenClaw necesită Node.js 22+. Te rugăm să instalezi mai întâi Node.js, apoi apasă din nou pe Instalare.",
+      "download_button": "Descarcă Node.js",
+      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
+      "title": "Node.js necesar"
+    },
+    "node_version_low": {
+      "description": "OpenClaw necesită Node.js 22.0 sau o versiune superioară. Versiunea ta actuală este v{{version}}. Te rugăm să actualizezi mai întâi Node.js.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Versiunea Node.js este prea mică"
+    },
     "not_installed": {
       "description": "OpenClaw nu este instalat pe sistemul dvs. Vă rugăm să-l instalați mai întâi pentru a utiliza această funcție.",
       "install_button": "Instalează OpenClaw",
@@ -2563,12 +2612,6 @@
       "step2_title": "Pasul 2: Verifică instalarea",
       "title": "OpenClaw Nu Este Instalat",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw necesită Node.js/npm. Te rugăm să instalezi mai întâi Node.js, apoi să repornești Cherry Studio.",
-      "download_button": "Descarcă Node.js",
-      "hint": "macOS: brew install node | Windows: Descarcă versiunea LTS de pe nodejs.org",
-      "title": "Node.js necesar"
     },
     "quick_actions": {
       "open_dashboard": "Deschide Tabloul de Bord",
@@ -4609,6 +4652,13 @@
       "open_link_external": {
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
+        "global": "global",
+        "title": "Filtru zonă aplicație miniatură"
+      },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",
@@ -5087,6 +5137,7 @@
       "reset_to_default": "Resetează la implicit",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
       "show_app": "Afișează/Ascunde aplicația",
@@ -5478,6 +5529,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "Șters cu succes",

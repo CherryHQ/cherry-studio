@@ -153,6 +153,10 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "permissionMode": {
+        "tab": "Permission Mode",
+        "title": "Permission Mode"
+      },
       "plugins": {
         "available": {
           "title": "Available Plugins"
@@ -223,19 +227,18 @@
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
           "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "inactiveTooltip": "This MCP server is not active. Please start it first.",
           "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
           "toggle": "Toggle {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "File edits and filesystem operations are automatically approved.",
-            "title": "Auto-accept file edits"
+            "description": "Can read and edit files freely. Asks before running commands.",
+            "title": "Auto-edit Mode"
           },
           "bypassPermissions": {
-            "behavior": "Every tool is pre-approved automatically.",
-            "description": "All permission prompts are skipped — use with caution.",
-            "title": "Bypass permission checks",
+            "description": "Can do everything without asking. Use with caution.",
+            "title": "Full Auto Mode",
             "warning": "Use with caution — all tools will run without asking for approval."
           },
           "confirmChange": {
@@ -243,54 +246,27 @@
             "title": "Change permission mode?"
           },
           "default": {
-            "behavior": "Read-only tools are pre-approved automatically.",
-            "description": "Read-only tools are pre-approved; everything else still needs permission.",
-            "title": "Default (ask before continuing)"
+            "description": "Can read files freely. Asks before editing or running commands.",
+            "title": "Normal Mode"
           },
           "helper": "Choose how the agent handles tool approvals.",
           "placeholder": "Select permission mode",
           "plan": {
-            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
-            "description": "Shares the default read-only tool set but presents a plan before execution.",
-            "title": "Planning mode"
+            "description": "Can only read files and make plans. Cannot edit files or run commands.",
+            "title": "Plan Mode"
           },
           "title": "Permission mode"
         },
         "preapproved": {
           "autoBadge": "Added by mode",
           "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "autoDisabledTooltip": "Auto-approved by \"{{mode}}\" and cannot be disabled.",
           "empty": "No tools match your filters.",
           "mcpBadge": "MCP tool",
           "requiresApproval": "Requires approval when disabled",
           "search": "Search tools",
-          "toggle": "Toggle {{name}}",
-          "warning": {
-            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "Pre-approved tools run without manual review."
-          }
-        },
-        "review": {
-          "autoTools": "Auto: {{count}}",
-          "customTools": "Custom: {{count}}",
-          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "MCP: {{count}}",
-          "mode": "Mode: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCP servers"
-          },
-          "permissionMode": {
-            "title": "Step 1 · Permission mode"
-          },
-          "preapproved": {
-            "title": "Step 2 · Pre-approved tools"
-          },
-          "review": {
-            "title": "Step 3 · Review"
-          }
-        },
-        "tab": "Tooling & permissions"
+          "toggle": "Toggle {{name}}"
+        }
       },
       "tools": {
         "approved": "approved",
@@ -300,6 +276,15 @@
         "tab": "Pre-approved tools",
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCP Servers"
+        },
+        "tab": "Tools",
+        "tools": {
+          "title": "Tools"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "Executes shell commands in your environment"
+        },
+        "Edit": {
+          "description": "Makes targeted edits to specific files"
+        },
+        "Glob": {
+          "description": "Finds files based on pattern matching"
+        },
+        "Grep": {
+          "description": "Searches for patterns in file contents"
+        },
+        "MultiEdit": {
+          "description": "Performs multiple edits on a single file atomically"
+        },
+        "NotebookEdit": {
+          "description": "Modifies Jupyter notebook cells"
+        },
+        "NotebookRead": {
+          "description": "Reads and displays Jupyter notebook contents"
+        },
+        "Read": {
+          "description": "Reads the contents of files"
+        },
+        "Task": {
+          "description": "Runs a sub-agent to handle complex, multi-step tasks"
+        },
+        "TodoWrite": {
+          "description": "Creates and manages structured task lists"
+        },
+        "WebFetch": {
+          "description": "Fetches content from a specified URL"
+        },
+        "WebSearch": {
+          "description": "Performs web searches with domain filtering"
+        },
+        "Write": {
+          "description": "Creates or overwrites files"
+        }
+      }
     },
     "type": {
       "label": "Agent Type",
@@ -1072,6 +1100,7 @@
       },
       "export": {
         "image": "Export as image",
+        "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
           "label": "Export as markdown",
@@ -1554,8 +1583,16 @@
       "message": "Locate the message"
     },
     "search": {
+      "match": {
+        "substring": "Contains",
+        "whole_word": "Whole word"
+      },
       "messages": "Search All Messages",
       "placeholder": "Search topics or messages...",
+      "sort": {
+        "newest": "Newest first",
+        "oldest": "Oldest first"
+      },
       "topics": {
         "empty": "No topics found, press Enter to search all messages"
       }
@@ -2064,7 +2101,8 @@
           "content": "All data will be lost, do you want to continue?",
           "title": "DATA LOST !!!"
         }
-      }
+      },
+      "success": "Data reset successful"
     },
     "restore": {
       "failed": "Restore failed",
@@ -2553,6 +2591,17 @@
       "sync_hint": "Selected provider and model will be synced to OpenClaw config file",
       "title": "Model Configuration"
     },
+    "node_missing": {
+      "description": "OpenClaw requires Node.js 22+. Please install Node.js first, then click Install again.",
+      "download_button": "Download Node.js",
+      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
+      "title": "Node.js Required"
+    },
+    "node_version_low": {
+      "description": "OpenClaw requires Node.js 22.0 or above. Your current version is v{{version}}. Please upgrade Node.js first.",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.js Version Too Low"
+    },
     "not_installed": {
       "description": "OpenClaw is not installed on your system. Please install it first to use this feature.",
       "install_button": "Install OpenClaw",
@@ -2563,12 +2612,6 @@
       "step2_title": "Step 2: Verify installation",
       "title": "OpenClaw Not Installed",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClaw requires Node.js/npm. Please install Node.js first, then click Install again.",
-      "download_button": "Download Node.js",
-      "hint": "macOS: brew install node | Windows: Download LTS version from nodejs.org",
-      "title": "Node.js Required"
     },
     "quick_actions": {
       "open_dashboard": "Open Dashboard",
@@ -4609,6 +4652,13 @@
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
+      "region": {
+        "auto": "Auto detect",
+        "cn": "China",
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
+      },
       "reset_tooltip": "Reset to default",
       "sidebar_description": "Show active mini apps in the sidebar",
       "sidebar_title": "Sidebar Active Mini Apps Display",
@@ -5087,6 +5137,7 @@
       "reset_to_default": "Reset to Default",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Selection Assistant: Select Text",
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
@@ -5481,6 +5532,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "stop": "Stop Translation",
     "success": {
       "custom": {
         "delete": "Deleted successfully",

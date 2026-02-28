@@ -20,7 +20,7 @@ import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import { isVisionModel } from '@renderer/config/models'
 import type { LlmState } from '@renderer/store/llm'
 import type { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type {
   Chunk,
   LLMResponseCompleteChunk,
@@ -1051,7 +1051,7 @@ const mockOpenaiApiClient = {
         hasBeenCollectedWebSearch = true
         return {
           results: annotations,
-          source: WebSearchSource.OPENAI
+          source: WEB_SEARCH_SOURCE.OPENAI
         }
       }
 
@@ -1062,7 +1062,7 @@ const mockOpenaiApiClient = {
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
-          source: WebSearchSource.GROK
+          source: WEB_SEARCH_SOURCE.GROK
         }
       }
 
@@ -1073,7 +1073,7 @@ const mockOpenaiApiClient = {
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.search_results,
-          source: WebSearchSource.PERPLEXITY
+          source: WEB_SEARCH_SOURCE.PERPLEXITY
         }
       }
 
@@ -1084,7 +1084,7 @@ const mockOpenaiApiClient = {
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
-          source: WebSearchSource.OPENROUTER
+          source: WEB_SEARCH_SOURCE.OPENROUTER
         }
       }
 
@@ -1095,7 +1095,7 @@ const mockOpenaiApiClient = {
         return {
           // @ts-ignore - web_search may not be in standard type definitions
           results: chunk.web_search,
-          source: WebSearchSource.ZHIPU
+          source: WEB_SEARCH_SOURCE.ZHIPU
         }
       }
 
@@ -1106,7 +1106,7 @@ const mockOpenaiApiClient = {
         return {
           // @ts-ignore - search_info may not be in standard type definitions
           results: chunk.search_info.search_results,
-          source: WebSearchSource.HUNYUAN
+          source: WEB_SEARCH_SOURCE.HUNYUAN
         }
       }
       return null
@@ -1419,7 +1419,7 @@ const mockGeminiApiClient = {
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
                     results: candidate.groundingMetadata,
-                    source: WebSearchSource.GEMINI
+                    source: WEB_SEARCH_SOURCE.GEMINI
                   }
                 } as LLMWebSearchCompleteChunk)
               }
@@ -1533,7 +1533,7 @@ const mockAnthropicApiClient = {
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: content.content,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     } as LLMWebSearchCompleteChunk)
                     break
@@ -1586,7 +1586,7 @@ const mockAnthropicApiClient = {
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: contentBlock.content as Array<WebSearchResultBlock>,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     })
                   }

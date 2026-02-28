@@ -30,7 +30,7 @@ export { globalRegistryManagement as providerRegistry }
 // ==================== 便捷访问方法 ====================
 
 export const getLanguageModel = (id: string) => globalRegistryManagement.languageModel(id as any)
-export const getTextEmbeddingModel = (id: string) => globalRegistryManagement.textEmbeddingModel(id as any)
+export const getTextEmbeddingModel = (id: string) => globalRegistryManagement.embeddingModel(id as any)
 export const getImageModel = (id: string) => globalRegistryManagement.imageModel(id as any)
 
 // ==================== 工具函数 ====================

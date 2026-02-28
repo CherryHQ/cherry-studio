@@ -48,7 +48,7 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
 function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
   if (isAnthropicModel(model)) {
@@ -63,9 +63,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   if (isOpenAIModel(model)) {
     return 'openai'
   }
-  logger.warn(
-    `[mapVertexAIGatewayModelToProviderId] Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`
-  )
+  logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
 }
 
@@ -196,17 +194,12 @@ export async function buildStreamTextParams(
       case 'anthropic':
       case 'azure-anthropic':
       case 'google-vertex-anthropic':
-        tools.web_fetch = (
-          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
-            ? anthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-            : vertexAnthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-        ) as ProviderDefinedTool
+        if (['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)) {
+          tools.web_fetch = anthropic.tools.webFetch_20250910({
+            maxUses: webSearchConfig.maxResults,
+            blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+          }) as ProviderDefinedTool
+        }
         break
     }
   }

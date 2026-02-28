@@ -153,6 +153,10 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "permissionMode": {
+        "tab": "パーミッションモード",
+        "title": "パーミッションモード"
+      },
       "plugins": {
         "available": {
           "title": "利用可能なプラグイン"
@@ -223,17 +227,16 @@
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
           "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "inactiveTooltip": "このMCPサーバーはアクティブではありません。まず起動してください。",
           "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
           "toggle": "{{name}}を切り替え"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
             "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
             "title": "ファイル編集を自動承認"
           },
           "bypassPermissions": {
-            "behavior": "すべてのツールは自動的に事前承認されます。",
             "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
             "title": "権限チェックをバイパス",
             "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
@@ -243,14 +246,12 @@
             "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "behavior": "ツールは自動的に事前承認されません。",
             "description": "通常の権限チェックが適用されます。",
             "title": "デフォルト（続行する前に確認）"
           },
           "helper": "エージェントがツール使用の承認を処理する方法を指定",
           "placeholder": "権限モードを選択",
           "plan": {
-            "behavior": "読み取り専用ツールのみ。実行は無効です。",
             "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
             "title": "計画モード（近日公開）"
           },
@@ -259,38 +260,13 @@
         "preapproved": {
           "autoBadge": "モードによって追加されました",
           "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "autoDisabledTooltip": "「{{mode}}」によって自動承認されており、無効化できません。",
           "empty": "フィルターに一致するツールはありません。",
           "mcpBadge": "MCPツール",
           "requiresApproval": "無効にするには承認が必要",
           "search": "検索ツール",
-          "toggle": "{{name}}を切り替える",
-          "warning": {
-            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
-            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
-          }
-        },
-        "review": {
-          "autoTools": "自動: {{count}}",
-          "customTools": "カスタム: {{count}}",
-          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
-          "mcp": "MCP: {{count}}",
-          "mode": "モード: {{mode}}"
-        },
-        "steps": {
-          "mcp": {
-            "title": "MCPサーバー"
-          },
-          "permissionMode": {
-            "title": "ステップ1・権限モード"
-          },
-          "preapproved": {
-            "title": "ステップ2・事前承認済みツール"
-          },
-          "review": {
-            "title": "ステップ3・レビュー"
-          }
-        },
-        "tab": "ツールと権限"
+          "toggle": "{{name}}を切り替える"
+        }
       },
       "tools": {
         "approved": "承認済み",
@@ -298,8 +274,17 @@
         "description": "人による承認なしで実行できるツールを選択します。",
         "requiresPermission": "事前承認されていない場合は承認が必要です。",
         "tab": "事前承認済みツール",
-        "title": "事前承認済みツール",
+        "title": "ツール",
         "toggle": "{{defaultValue}}"
+      },
+      "toolsMcp": {
+        "mcp": {
+          "title": "MCPサーバー"
+        },
+        "tab": "ツール",
+        "tools": {
+          "title": "ツール"
+        }
       }
     },
     "todo": {
@@ -348,6 +333,49 @@
       },
       "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
+    },
+    "tools": {
+      "builtin": {
+        "Bash": {
+          "description": "環境でシェルコマンドを実行します"
+        },
+        "Edit": {
+          "description": "特定のファイルに対してターゲットを絞った編集を行う"
+        },
+        "Glob": {
+          "description": "パターンマッチングに基づいてファイルを検索する"
+        },
+        "Grep": {
+          "description": "ファイルの内容内でパターンを検索します"
+        },
+        "MultiEdit": {
+          "description": "単一のファイルに対して複数の編集をアトミックに実行します"
+        },
+        "NotebookEdit": {
+          "description": "Jupyterノートブックのセルを変更します"
+        },
+        "NotebookRead": {
+          "description": "Jupyterノートブックの内容を読み取って表示します"
+        },
+        "Read": {
+          "description": "ファイルの内容を読み取ります"
+        },
+        "Task": {
+          "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
+        },
+        "TodoWrite": {
+          "description": "構造化されたタスクリストを作成し、管理します"
+        },
+        "WebFetch": {
+          "description": "指定されたURLからコンテンツを取得します"
+        },
+        "WebSearch": {
+          "description": "ドメインフィルタリング付きのウェブ検索を実行します"
+        },
+        "Write": {
+          "description": "ファイルを作成または上書きします"
+        }
+      }
     },
     "type": {
       "label": "エージェントタイプ",
@@ -1072,6 +1100,7 @@
       },
       "export": {
         "image": "画像としてエクスポート",
+        "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
           "label": "Markdownとしてエクスポート",
@@ -1289,7 +1318,7 @@
     },
     "expand": "展開",
     "export": {
-      "excel": "[to be translated]:Export to Excel"
+      "excel": "Excelにエクスポート"
     },
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
@@ -1554,8 +1583,16 @@
       "message": "メッセージを探す"
     },
     "search": {
+      "match": {
+        "substring": "含む",
+        "whole_word": "単語全体"
+      },
       "messages": "すべてのメッセージを検索",
       "placeholder": "トピックまたはメッセージを検索...",
+      "sort": {
+        "newest": "最新のものから",
+        "oldest": "古いものから"
+      },
       "topics": {
         "empty": "トピックが見つかりませんでした。Enterキーを押してすべてのメッセージを検索"
       }
@@ -1947,7 +1984,7 @@
         "name": "ナレッジベース名を入力してください"
       },
       "excel": {
-        "export": "[to be translated]:Failed to export Excel"
+        "export": "Excelのエクスポートに失敗しました"
       },
       "fetchTopicName": "トピック名の取得に失敗しました",
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
@@ -1989,7 +2026,7 @@
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
       },
       "table": {
-        "invalid": "[to be translated]:Unable to retrieve valid table data"
+        "invalid": "有効なテーブルデータを取得できません"
       },
       "unknown": "未知のエラー",
       "yuque": {
@@ -2064,7 +2101,8 @@
           "content": "すべてのデータが失われます。続行しますか？",
           "title": "データが失われます！！！"
         }
-      }
+      },
+      "success": "データリセット成功"
     },
     "restore": {
       "failed": "復元に失敗しました",
@@ -2078,7 +2116,7 @@
     "searching": "検索中...",
     "success": {
       "excel": {
-        "export": "[to be translated]:Excel exported successfully"
+        "export": "Excelのエクスポートが正常に完了しました"
       },
       "joplin": {
         "export": "Joplin へのエクスポートに成功しました"
@@ -2553,6 +2591,17 @@
       "sync_hint": "選択されたプロバイダーとモデルはOpenClaw設定ファイルに同期されます",
       "title": "モデル設定"
     },
+    "node_missing": {
+      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
+      "download_button": "Node.jsをダウンロード",
+      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
+      "title": "Node.jsが必要"
+    },
+    "node_version_low": {
+      "description": "OpenClawにはNode.js 22.0以上が必要です。現在のバージョンはv{{version}}です。まずNode.jsをアップグレードしてください。",
+      "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
+      "title": "Node.jsのバージョンが低すぎます"
+    },
     "not_installed": {
       "description": "お使いのシステムにはOpenClawがインストールされていません。この機能を使用するには、まずOpenClawをインストールしてください。",
       "install_button": "OpenClawをインストール",
@@ -2563,12 +2612,6 @@
       "step2_title": "ステップ2: インストールを確認する",
       "title": "OpenClaw がインストールされていません",
       "windows_title": "Windows"
-    },
-    "npm_missing": {
-      "description": "OpenClawにはNode.js/npmが必要です。まずNode.jsをインストールしてから、Cherry Studioを再起動してください。",
-      "download_button": "Node.jsをダウンロード",
-      "hint": "macOS: brew install node | Windows: nodejs.org から LTS 版をダウンロード",
-      "title": "Node.jsが必要"
     },
     "quick_actions": {
       "open_dashboard": "ダッシュボードを開く",
@@ -4609,6 +4652,13 @@
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
       },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニアプリをフィルタリングします",
+        "global": "世界中",
+        "title": "ミニアプリ地域絞り込み"
+      },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
       "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
@@ -5087,6 +5137,7 @@
       "reset_to_default": "デフォルトにリセット",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
       "show_app": "アプリを表示/非表示",
@@ -5481,6 +5532,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
+    "stop": "[to be translated]:Stop Translation",
     "success": {
       "custom": {
         "delete": "削除が成功しました",

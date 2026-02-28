@@ -12,23 +12,25 @@ export type CherryInProviderSettings = {
 export const createCherryIn = (_options?: CherryInProviderSettings) => ({
   // oxlint-disable-next-line no-unused-vars
   languageModel: (_modelId: string) => ({
-    specificationVersion: 'v1',
+    specificationVersion: 'v3',
     provider: 'cherryin',
     modelId: 'mock-model',
+    supportedUrls: {},
     doGenerate: async () => ({ text: 'mock response' }),
     doStream: async () => ({ stream: (async function* () {})() })
   }),
   // oxlint-disable-next-line no-unused-vars
   chat: (_modelId: string) => ({
-    specificationVersion: 'v1',
+    specificationVersion: 'v3',
     provider: 'cherryin-chat',
     modelId: 'mock-model',
+    supportedUrls: {},
     doGenerate: async () => ({ text: 'mock response' }),
     doStream: async () => ({ stream: (async function* () {})() })
   }),
   // oxlint-disable-next-line no-unused-vars
   textEmbeddingModel: (_modelId: string) => ({
-    specificationVersion: 'v1',
+    specificationVersion: 'v3',
     provider: 'cherryin',
     modelId: 'mock-embedding-model'
   })

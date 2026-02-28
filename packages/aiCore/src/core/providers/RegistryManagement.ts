@@ -4,14 +4,12 @@
  * 基于 AI SDK 原生的 createProviderRegistry
  */
 
-import type { EmbeddingModelV2, ImageModelV2, LanguageModelV2, ProviderV2 } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import { createProviderRegistry, type ProviderRegistryProvider } from 'ai'
 
-type PROVIDERS = Record<string, ProviderV2>
+type PROVIDERS = Record<string, ProviderV3>
 
 export const DEFAULT_SEPARATOR = '|'
-
-// export type MODEL_ID = `${string}${typeof DEFAULT_SEPARATOR}${string}`
 
 export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARATOR> {
   private providers: PROVIDERS = {}
@@ -26,7 +24,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 注册已配置好的 provider 实例
    */
-  registerProvider(id: string, provider: ProviderV2, aliases?: string[]): this {
+  registerProvider(id: string, provider: ProviderV3, aliases?: string[]): this {
     // 注册主provider
     this.providers[id] = provider
 
@@ -45,14 +43,14 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取已注册的provider实例
    */
-  getProvider(id: string): ProviderV2 | undefined {
+  getProvider(id: string): ProviderV3 | undefined {
     return this.providers[id]
   }
 
   /**
    * 批量注册 providers
    */
-  registerProviders(providers: Record<string, ProviderV2>): this {
+  registerProviders(providers: Record<string, ProviderV3>): this {
     Object.assign(this.providers, providers)
     this.rebuildRegistry()
     return this
@@ -106,7 +104,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取语言模型 - AI SDK 原生方法
    */
-  languageModel(id: `${string}${SEPARATOR}${string}`): LanguageModelV2 {
+  languageModel(id: `${string}${SEPARATOR}${string}`): LanguageModelV3 {
     if (!this.registry) {
       throw new Error('No providers registered')
     }
@@ -116,17 +114,17 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取文本嵌入模型 - AI SDK 原生方法
    */
-  textEmbeddingModel(id: `${string}${SEPARATOR}${string}`): EmbeddingModelV2<string> {
+  embeddingModel(id: `${string}${SEPARATOR}${string}`): EmbeddingModelV3 {
     if (!this.registry) {
       throw new Error('No providers registered')
     }
-    return this.registry.textEmbeddingModel(id)
+    return this.registry.embeddingModel(id)
   }
 
   /**
    * 获取图像模型 - AI SDK 原生方法
    */
-  imageModel(id: `${string}${SEPARATOR}${string}`): ImageModelV2 {
+  imageModel(id: `${string}${SEPARATOR}${string}`): ImageModelV3 {
     if (!this.registry) {
       throw new Error('No providers registered')
     }

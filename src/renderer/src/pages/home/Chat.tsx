@@ -5,17 +5,18 @@ import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Flex } from 'antd'
@@ -46,7 +47,7 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant, updateTopic } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistant, updateTopic } = useAssistant(props.assistant.id)
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
@@ -55,7 +56,6 @@ const Chat: FC<Props> = (props) => {
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
-  const chatMaxWidth = useChatMaxWidth()
   const [activeAgentId] = useCache('agent.active_id')
   const [activeTopicOrSession] = useCache('chat.active_view')
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
@@ -114,6 +114,19 @@ const Chat: FC<Props> = (props) => {
       enableOnFormTags: true
     }
   )
+
+  useShortcut('select_model', async () => {
+    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
+    const selectedModel = await SelectModelPopup.show({ model: assistant?.model, filter: modelFilter })
+    if (selectedModel) {
+      const enabledWebSearch = isWebSearchModel(selectedModel)
+      updateAssistant({
+        ...props.assistant,
+        model: selectedModel,
+        enableWebSearch: enabledWebSearch && props.assistant.enableWebSearch
+      })
+    }
+  })
 
   const contentSearchFilter: NodeFilter = {
     acceptNode(node) {
@@ -185,19 +198,16 @@ const Chat: FC<Props> = (props) => {
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <RowFlex>
         <motion.div
-          animate={{
-            marginRight:
-              topicPosition === 'right' && showTopics ? 'calc(var(--assistants-width) + var(--border-width))' : 0
-          }}
+          layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
           <Main
             ref={mainRef}
             id="chat-main"
             vertical
             flex={1}
             justify="space-between"
-            style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
+            style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -257,17 +267,12 @@ const Chat: FC<Props> = (props) => {
           {topicPosition === 'right' && showTopics && (
             <motion.div
               key="right-tabs"
-              initial={{ x: 'var(--assistants-width)' }}
-              animate={{ x: 0 }}
-              exit={{ x: 'var(--assistants-width)' }}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{
-                position: 'absolute',
-                right: 0,
-                top: isTopNavbar ? 0 : 'calc(var(--navbar-height) + 1px)',
-                width: 'var(--assistants-width)',
-                height: '100%',
-                zIndex: 10
+                overflow: 'hidden'
               }}>
               <Tabs
                 activeAssistant={assistant}
@@ -284,31 +289,17 @@ const Chat: FC<Props> = (props) => {
   )
 }
 
-export const useChatMaxWidth = () => {
-  const [showTopics] = usePreference('topic.tab.show')
-  const [topicPosition] = usePreference('topic.position')
-  const [showAssistants] = usePreference('assistant.tab.show')
-
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
-  const showRightTopics = showTopics && topicPosition === 'right'
-  const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-  const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-  const minusBorderWidth = isTopNavbar ? (showTopics ? '- 12px' : '- 6px') : ''
-  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
-  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth} ${minusBorderWidth})`
-}
-
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   flex: 1;
+  overflow: hidden;
   [navbar-position='top'] & {
     height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
-    overflow: hidden;
   }
 `
 

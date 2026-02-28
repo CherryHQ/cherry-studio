@@ -30,6 +30,7 @@ export enum IpcChannel {
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
   App_RelaunchApp = 'app:relaunch-app',
+  App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
@@ -41,6 +42,7 @@ export enum IpcChannel {
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
   App_GetSystemFonts = 'app:get-system-fonts',
+  App_GetIpCountry = 'app:get-ip-country',
   APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
@@ -440,9 +442,10 @@ export enum IpcChannel {
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
-  OpenClaw_CheckNpmAvailable = 'openclaw:check-npm-available',
+  OpenClaw_CheckNodeVersion = 'openclaw:check-node-version',
   OpenClaw_CheckGitAvailable = 'openclaw:check-git-available',
   OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
+  OpenClaw_GetGitDownloadUrl = 'openclaw:get-git-download-url',
   OpenClaw_Install = 'openclaw:install',
   OpenClaw_Uninstall = 'openclaw:uninstall',
   OpenClaw_InstallProgress = 'openclaw:install-progress',
