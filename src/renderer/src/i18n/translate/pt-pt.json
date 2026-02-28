@@ -5529,7 +5529,7 @@
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "Parar Tradução",
     "success": {
       "custom": {
         "delete": "Eliminação bem-sucedida",

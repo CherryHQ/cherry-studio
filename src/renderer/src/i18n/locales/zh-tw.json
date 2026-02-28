@@ -5529,7 +5529,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "停止翻譯",
     "success": {
       "custom": {
         "delete": "刪除成功",

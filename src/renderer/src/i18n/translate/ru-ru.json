@@ -5529,7 +5529,7 @@
       "scroll_sync": "Настройки синхронизации прокрутки",
       "title": "Настройки перевода"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "Остановить перевод",
     "success": {
       "custom": {
         "delete": "Удаление выполнено успешно",
