@@ -35,6 +35,7 @@ import Inputbar from './Inputbar/Inputbar'
 import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
+import NarrowLayout from './Messages/NarrowLayout'
 import Tabs from './Tabs'
 
 const logger = loggerService.withContext('Chat')
@@ -247,7 +248,9 @@ const Chat: FC<Props> = (props) => {
                       <>
                         <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
                         <PinnedTodoPanelWrapper>
-                          <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                          <NarrowLayout>
+                            <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                          </NarrowLayout>
                         </PinnedTodoPanelWrapper>
                       </>
                     )}
