@@ -31,6 +31,10 @@ interface VersionInfo {
 }
 
 class CodeToolsService {
+  // Static properties for cleanup management (avoid listener accumulation)
+  private static pendingBatCleanups = new Set<string>()
+  private static exitCleanupRegistered = false
+
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: {
     terminals: TerminalConfig[]
@@ -1011,42 +1015,68 @@ class CodeToolsService {
           fs.mkdirSync(tempDir, { recursive: true })
         }
 
+        // Escape special characters in paths for Windows batch scripting
+        // Using double quotes for compatibility with CMD
+
+        /**
+         * Escape text for display in batch echo statements
+         * Used for: echo statements, command display, logging
+         * Note: Don't wrap in quotes - echo will display them literally
+         */
+        const escapeBatchText = (text: string) => {
+          // Just escape % characters, no quotes needed for display
+          return text.replace(/%/g, '%%')
+        }
+
         // Build bat file content, including debug information
+        // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
         const batContent = [
           '@echo off',
           'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`, // Set window title in bat file
+          `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${cliTool}`,
-          `echo Directory: ${directory}`,
+          `echo Tool: ${escapeBatchText(cliTool)}`,
+          `echo Directory: ${escapeBatchText(directory)}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
-          ':: Change to target directory',
-          `cd /d "${directory}" || (`,
-          '  echo ERROR: Failed to change directory',
-          `  echo Target directory: ${directory}`,
-          '  pause',
-          '  exit /b 1',
-          ')',
+          ':: Verify directory exists',
+          `if not exist "${directory.replace(/%/g, '%%')}" goto :dir_missing`,
           '',
-          ':: Clear screen',
+          ':: Change to target directory',
+          `pushd "${directory.replace(/%/g, '%%')}"`,
+          'if errorlevel 1 goto :pushd_failed',
+          '',
+          ':: Clear screen before running CLI',
           'cls',
           '',
-          ':: Execute command (without displaying environment variable settings)',
+          ':: Execute command',
           command,
           '',
-          ':: Command execution completed',
-          'echo.',
-          'echo Command execution completed.',
-          'echo Press any key to close this window...',
-          'pause >nul'
+          'goto :end',
+          '',
+          ':: Error handlers (using labels to ensure entire branch is conditional)',
+          ':dir_missing',
+          'echo ERROR: Directory does not exist',
+          `echo Target: ${escapeBatchText(directory)}`,
+          'pause',
+          'exit /b 1',
+          '',
+          ':pushd_failed',
+          'echo ERROR: Failed to change directory',
+          'pause',
+          'exit /b 1',
+          '',
+          ':end',
+          'pause'
         ].join('\r\n')
 
         // Write to bat file
         try {
           fs.writeFileSync(batFilePath, batContent, 'utf8')
+          // Set restrictive permissions for bat file
+          fs.chmodSync(batFilePath, 0o600)
           logger.info(`Created temp bat file: ${batFilePath}`)
         } catch (error) {
           logger.error(`Failed to create bat file: ${error}`)
@@ -1071,15 +1101,43 @@ class CodeToolsService {
           terminalArgs = args
         }
 
-        // Set cleanup task (delete temp file after 60 seconds)
-        // Windows Terminal (UWP app) may take longer to initialize and read the file
-        setTimeout(() => {
+        // Add to cleanup set
+        CodeToolsService.pendingBatCleanups.add(batFilePath)
+
+        // Register exit handler only once (using process.once to avoid accumulation)
+        if (!CodeToolsService.exitCleanupRegistered) {
+          process.once('exit', () => {
+            // Clean up all remaining bat files on process exit
+            for (const filePath of CodeToolsService.pendingBatCleanups) {
+              try {
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath)
+                  logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
+                }
+              } catch (error) {
+                logger.warn(`Failed to cleanup temp bat file: ${error}`)
+              }
+            }
+            CodeToolsService.pendingBatCleanups.clear()
+          })
+          CodeToolsService.exitCleanupRegistered = true
+        }
+
+        // Set timeout for cleanup (normal case - file deleted after 60 seconds)
+        const cleanup = () => {
           try {
-            fs.existsSync(batFilePath) && fs.unlinkSync(batFilePath)
+            if (fs.existsSync(batFilePath)) {
+              fs.unlinkSync(batFilePath)
+              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+            }
+            // Remove from pending set
+            CodeToolsService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
-        }, 60 * 1000) // Delete temp file after 60 seconds
+        }
+
+        setTimeout(cleanup, 60 * 1000)
 
         break
       }
