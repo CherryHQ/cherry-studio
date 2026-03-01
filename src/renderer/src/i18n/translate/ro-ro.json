@@ -1428,7 +1428,10 @@
     "availableProviders": "Furnizori disponibili",
     "availableTools": "Instrumente disponibile",
     "backup": {
-      "file_format": "Eroare format fișier backup"
+      "file_format": "Eroare format fișier backup",
+      "file_locked": "Nu se poate restaura: unele fișiere sunt în uz. Închideți toate bazele de cunoștințe sau reporniți aplicația și încercați din nou.",
+      "file_not_found": "Fișierul de rezervă nu a fost găsit. Este posibil să fi fost mutat sau șters.",
+      "unknown_error": "A apărut o eroare necunoscută la restabilirea copiei de rezervă. Vă rugăm să încercați din nou sau să contactați asistența."
     },
     "base64DataTruncated": "Datele imagine Base64 sunt trunchiate, dimensiunea",
     "boundary": {
@@ -2106,6 +2109,7 @@
     },
     "restore": {
       "failed": "Restaurare eșuată",
+      "restore_success": "Restaurarea backup-ului din {source} a fost realizată cu succes",
       "success": "Restaurat cu succes"
     },
     "save": {

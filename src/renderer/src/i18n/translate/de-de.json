@@ -1428,7 +1428,10 @@
     "availableProviders": "Verfügbare Anbieter",
     "availableTools": "Verfügbare Tools",
     "backup": {
-      "file_format": "Backup-Dateiformat fehlerhaft"
+      "file_format": "Backup-Dateiformat fehlerhaft",
+      "file_locked": "Kann nicht wiederhergestellt: Einige Dateien sind in Gebrauch. Bitte schließen Sie alle Wissensdatenbanken oder starten Sie die App neu und versuchen Sie es erneut.",
+      "file_not_found": "Sicherungsdatei nicht gefunden. Sie wurde möglicherweise verschoben oder gelöscht.",
+      "unknown_error": "Beim Wiederherstellen der Sicherung ist ein unbekannter Fehler aufgetreten. Bitte versuchen Sie es erneut oder wenden Sie sich an den Support."
     },
     "base64DataTruncated": "Base64-Bilddaten abgeschnitten, Größe",
     "boundary": {
@@ -2106,6 +2109,7 @@
     },
     "restore": {
       "failed": "Wiederherstellung fehlgeschlagen",
+      "restore_success": "Wiederherstellung der Sicherung von {source} erfolgreich abgeschlossen",
       "success": "Erfolgreich wiederhergestellt"
     },
     "save": {

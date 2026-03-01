@@ -1428,7 +1428,10 @@
     "availableProviders": "Proveedores disponibles",
     "availableTools": "Herramientas disponibles",
     "backup": {
-      "file_format": "Formato de archivo de copia de seguridad incorrecto"
+      "file_format": "Formato de archivo de copia de seguridad incorrecto",
+      "file_locked": "No se puede restaurar: Algunos archivos están en uso. Por favor cierre todas las bases de conocimiento o reinicie la aplicación e intente de nuevo.",
+      "file_not_found": "Archivo de respaldo no encontrado. Puede haber sido movido o eliminado.",
+      "unknown_error": "Se produjo un error desconocido al restaurar la copia de seguridad. Inténtelo de nuevo o póngase en contacto con el soporte."
     },
     "base64DataTruncated": "Datos de imagen Base64 truncados, tamaño",
     "boundary": {
@@ -2106,6 +2109,7 @@
     },
     "restore": {
       "failed": "Restauración fallida",
+      "restore_success": "Restauración de la copia de seguridad desde {source} realizada con éxito",
       "success": "Restauración exitosa"
     },
     "save": {

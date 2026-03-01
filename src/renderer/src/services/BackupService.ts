@@ -62,6 +62,61 @@ async function deleteWebdavFileWithRetry(fileName: string, webdavConfig: WebDavC
   return false
 }
 
+// Helper function to classify backup errors
+/**
+ * Classifies backup error types based on error code and message
+ * Prioritizes message string matching for cross-process reliability
+ * @param error - The error object from backup operation
+ * @returns Error type: 'file_locked' | 'file_not_found' | 'format' | 'unknown'
+ */
+function classifyBackupError(error: any): 'file_locked' | 'file_not_found' | 'format' | 'unknown' {
+  const errorCode = error.code || ''
+  const errorMessage = String(error.message || '').toLowerCase()
+
+  // Check for file locked errors
+  if (errorCode === 'EBUSY' || errorMessage.includes('ebusy') || errorMessage.includes('locked')) {
+    return 'file_locked'
+  }
+
+  // Check for file not found errors
+  if (errorCode === 'ENOENT' || errorMessage.includes('no such file') || errorMessage.includes('not found')) {
+    return 'file_not_found'
+  }
+
+  // Check for JSON format errors - prioritize message matching for cross-process reliability
+  if (
+    /unexpected token|in json|unexpected end|parse error/i.test(errorMessage) ||
+    (typeof error.constructor === 'function' && /SyntaxError/i.test(error.constructor.name))
+  ) {
+    return 'format'
+  }
+
+  return 'unknown'
+}
+
+// Helper function to show backup error toast messages
+/**
+ * Shows backup error toast messages based on error type
+ * @param error - The error object from backup operation
+ */
+function showBackupError(error: any): void {
+  const errorType = classifyBackupError(error)
+
+  switch (errorType) {
+    case 'file_locked':
+      window.toast.error(i18n.t('error.backup.file_locked'))
+      break
+    case 'file_not_found':
+      window.toast.error(i18n.t('error.backup.file_not_found'))
+      break
+    case 'format':
+      window.toast.error(i18n.t('error.backup.file_format'))
+      break
+    default:
+      window.toast.error(i18n.t('error.backup.unknown_error'))
+  }
+}
+
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const fileContnet = await getBackupData()
@@ -100,9 +155,9 @@ export async function restore() {
         source: 'backup',
         channel: 'system'
       })
-    } catch (error) {
-      logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+    } catch (error: any) {
+      logger.error('restore: Error restoring backup file:', error)
+      showBackupError(error)
     }
   }
 }
@@ -299,25 +354,20 @@ export async function backupToWebdav({
 }
 
 // 从 webdav 恢复
-export async function restoreFromWebdav(fileName?: string) {
+export async function restoreFromWebdav(fileName?: string): Promise<boolean> {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
-  let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
-  } catch (error: any) {
-    logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
-    window.modal.error({
-      title: i18n.t('message.restore.failed'),
-      content: error.message
-    })
-  }
+    const data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+    const parsedData = JSON.parse(data)
+    await handleData(parsedData)
 
-  try {
-    await handleData(JSON.parse(data))
+    window.toast.success(i18n.t('message.restore.restore_success', { source: 'WebDAV' }))
+    return true
   } catch (error) {
-    logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+    logger.error('[Backup] restoreFromWebdav: Error restoring from WebDAV:', error as Error)
+    showBackupError(error)
+    return false
   }
 }
 
@@ -454,7 +504,7 @@ export async function backupToS3({
 }
 
 // 从 S3 恢复
-export async function restoreFromS3(fileName?: string) {
+export async function restoreFromS3(fileName?: string): Promise<boolean> {
   const s3Config = store.getState().settings.s3
 
   if (!fileName) {
@@ -465,13 +515,24 @@ export async function restoreFromS3(fileName?: string) {
   }
 
   if (fileName) {
-    const restoreData = await window.api.backup.restoreFromS3({
-      ...s3Config,
-      fileName
-    })
-    const data = JSON.parse(restoreData)
-    await handleData(data)
+    try {
+      const restoreData = await window.api.backup.restoreFromS3({
+        ...s3Config,
+        fileName
+      })
+      const data = JSON.parse(restoreData)
+      await handleData(data)
+
+      window.toast.success(i18n.t('message.restore.restore_success', { source: 'S3' }))
+      return true
+    } catch (error) {
+      logger.error('[Backup] restoreFromS3: Error restoring backup:', error as Error)
+      showBackupError(error)
+      return false
+    }
   }
+
+  return false
 }
 
 let isManualBackupRunning = false
@@ -1072,9 +1133,9 @@ export async function restoreFromLocal(fileName: string) {
     await handleData(data)
 
     return true
-  } catch (error) {
-    logger.error('[LocalBackup] Restore failed:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+  } catch (error: any) {
+    logger.error('[LocalBackup] Restore failed:', error)
+    showBackupError(error)
     throw error
   }
 }

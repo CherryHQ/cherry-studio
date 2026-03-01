@@ -1428,7 +1428,10 @@
     "availableProviders": "Provedores disponíveis",
     "availableTools": "Ferramentas disponíveis",
     "backup": {
-      "file_format": "Formato do arquivo de backup está incorreto"
+      "file_format": "Formato do arquivo de backup está incorreto",
+      "file_locked": "Não é possível restaurar: Alguns ficheiros estão em uso. Por favor, feche todas as bases de conhecimento ou reinicie a aplicação e tente novamente.",
+      "file_not_found": "Arquivo de backup não encontrado. Ele pode ter sido movido ou excluído.",
+      "unknown_error": "Ocorreu um erro desconhecido ao restaurar o backup. Tente novamente ou entre em contato com o suporte."
     },
     "base64DataTruncated": "Dados da imagem em Base64 truncados, tamanho",
     "boundary": {
@@ -2106,6 +2109,7 @@
     },
     "restore": {
       "failed": "Restauração falhou",
+      "restore_success": "Backup restaurado com sucesso de {source}",
       "success": "Restauração bem-sucedida"
     },
     "save": {
