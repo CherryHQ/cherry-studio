@@ -620,9 +620,14 @@ export function getAnthropicReasoningParams(
         budgetTokens: budgetTokens
       }
     }
+  } else {
+    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    return {
+      thinking: {
+        type: 'enabled'
+      }
+    }
   }
-
-  return {}
 }
 
 type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
