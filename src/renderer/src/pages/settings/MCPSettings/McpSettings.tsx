@@ -827,11 +827,11 @@ const McpSettings: React.FC = () => {
           {logs.length === 0 && <Text type="secondary">{t('settings.mcp.noLogs', 'No logs yet')}</Text>}
           {logs.map((log, idx) => (
             <LogItem key={`${log.timestamp}-${idx}`}>
-              <Flex gap={8} align="baseline">
+              <LogHeader>
                 <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
                 <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
-                <Text>{log.message}</Text>
-              </Flex>
+                <LogMessage>{log.message}</LogMessage>
+              </LogHeader>
               {log.data && (
                 <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
               )}
@@ -877,9 +877,23 @@ const LogItem = styled.div`
   border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
 `
 
+const LogHeader = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+`
+
 const Timestamp = styled.span`
   color: var(--color-text-3, #9aa2b1);
   font-size: 12px;
+  flex-shrink: 0;
+`
+
+const LogMessage = styled.span`
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
 `
 
 const PreBlock = styled.pre`
