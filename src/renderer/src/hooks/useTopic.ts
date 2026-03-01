@@ -1,3 +1,5 @@
+import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -5,7 +7,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
-import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
@@ -14,7 +15,6 @@ import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
-import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic
 let _setActiveTopic: Dispatch<SetStateAction<Topic>>
@@ -83,9 +83,9 @@ export async function getTopicById(topicId: string) {
  * 开始重命名指定话题
  */
 export const startTopicRenaming = (topicId: string) => {
-  const currentIds = store.getState().runtime.chat.renamingTopics
+  const currentIds = cacheService.get('topic.renaming') ?? []
   if (!currentIds.includes(topicId)) {
-    store.dispatch(setRenamingTopics([...currentIds, topicId]))
+    cacheService.set('topic.renaming', [...currentIds, topicId])
   }
 }
 
@@ -93,20 +93,26 @@ export const startTopicRenaming = (topicId: string) => {
  * 完成重命名指定话题
  */
 export const finishTopicRenaming = (topicId: string) => {
-  const state = store.getState()
-
   // 1. 立即从 renamingTopics 移除
-  const currentRenaming = state.runtime.chat.renamingTopics
-  store.dispatch(setRenamingTopics(currentRenaming.filter((id) => id !== topicId)))
+  const renamingTopics = cacheService.get('topic.renaming')
+  if (renamingTopics && renamingTopics.includes(topicId)) {
+    cacheService.set(
+      'topic.renaming',
+      renamingTopics.filter((id) => id !== topicId)
+    )
+  }
 
   // 2. 立即添加到 newlyRenamedTopics
-  const currentNewlyRenamed = state.runtime.chat.newlyRenamedTopics
-  store.dispatch(setNewlyRenamedTopics([...currentNewlyRenamed, topicId]))
+  const currentNewlyRenamed = cacheService.get('topic.newly_renamed') ?? []
+  cacheService.set('topic.newly_renamed', [...currentNewlyRenamed, topicId])
 
   // 3. 延迟从 newlyRenamedTopics 移除
   setTimeout(() => {
-    const current = store.getState().runtime.chat.newlyRenamedTopics
-    store.dispatch(setNewlyRenamedTopics(current.filter((id) => id !== topicId)))
+    const current = cacheService.get('topic.newly_renamed') ?? []
+    cacheService.set(
+      'topic.newly_renamed',
+      current.filter((id) => id !== topicId)
+    )
   }, 700)
 }
 
@@ -121,7 +127,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     topicRenamingLocks.add(topicId)
 
     const topic = await getTopicById(topicId)
-    const enableTopicNaming = getStoreSetting('enableTopicNaming')
+    const enableTopicNaming = await preferenceService.get('topic.naming.enabled')
 
     if (isEmpty(topic.messages)) {
       return

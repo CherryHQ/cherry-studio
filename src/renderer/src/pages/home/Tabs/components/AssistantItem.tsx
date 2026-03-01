@@ -1,16 +1,16 @@
+import { usePreference } from '@data/hooks/usePreference'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import type { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { cn, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import { omit } from 'lodash'
@@ -38,14 +38,14 @@ import AssistantTagsPopup from './AssistantTagsPopup'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
-  sortBy: AssistantsSortType
+  sortBy: AssistantTabSortType
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
-  handleSortByChange?: (sortType: AssistantsSortType) => void
+  handleSortByChange?: (sortType: AssistantTabSortType) => void
   sortByPinyinAsc?: () => void
   sortByPinyinDesc?: () => void
 }
@@ -62,15 +62,17 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortByPinyinAsc: externalSortByPinyinAsc,
   sortByPinyinDesc: externalSortByPinyinDesc
 }) => {
+  const [, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [topicPosition] = usePreference('topic.position')
+
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, setAssistantIconType } = useSettings()
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (isActive) {
@@ -140,8 +142,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-    dispatch(setActiveTopicOrSessionAction('topic'))
-  }, [clickAssistantToShowTopic, onSwitch, assistant, dispatch, topicPosition])
+    cacheService.set('chat.active_view', 'topic')
+  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(

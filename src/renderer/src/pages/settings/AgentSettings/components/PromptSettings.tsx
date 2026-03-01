@@ -1,13 +1,12 @@
+import { Button, SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { UpdateAgentBaseForm } from '@renderer/types'
-import { Button, Popover } from 'antd'
+import { Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
@@ -71,18 +70,15 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
                 onChange={setInstructions}
                 height="100%"
                 expanded={false}
-                style={{
-                  height: '100%'
-                }}
+                className="h-full"
               />
             )}
           </RichEditorContainer>
         </TextAreaContainer>
-        <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+        <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            type="primary"
-            icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
+            variant="default"
             onClick={() => {
               const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
               if (showPreview) {
@@ -96,9 +92,10 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
                 })
               }
             }}>
+            {showPreview ? <Edit size={14} /> : <Save size={14} />}
             {showPreview ? t('common.edit') : t('common.save')}
           </Button>
-        </HSpaceBetweenStack>
+        </SpaceBetweenRowFlex>
       </SettingsItem>
     </SettingsContainer>
   )

@@ -1,3 +1,4 @@
+import { InfoTooltip, Switch } from '@cherrystudio/ui'
 import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
 import BingLogo from '@renderer/assets/images/search/bing.svg'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
@@ -17,11 +18,10 @@ import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Slider, Switch, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -76,7 +76,7 @@ const BasicSettings: FC = () => {
           cancelText: t('common.cancel'),
           centered: true,
           onOk: () => {
-            navigate(`/settings/websearch/provider/${provider.id}`)
+            navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
           }
         })
         return
@@ -138,16 +138,17 @@ const BasicSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
-          <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
+          <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
-              <Tooltip title={t('settings.tool.websearch.search_max_result.tooltip')} placement="top">
-                <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-              </Tooltip>
+              <InfoTooltip
+                content={t('settings.tool.websearch.search_max_result.tooltip')}
+                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+              />
             )}
           </SettingRowTitle>
           <Slider

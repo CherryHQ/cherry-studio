@@ -1,12 +1,13 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
+import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { hubMCPServer } from '@renderer/store/mcp'
@@ -284,7 +285,7 @@ export async function fetchMessagesSummary({
   messages: Message[]
   assistant: Assistant
 }): Promise<{ text: string | null; error?: string }> {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = getQuickModel() || assistant?.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -405,7 +406,7 @@ export async function fetchMessagesSummary({
 }
 
 export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const resolvedAssistant = assistant || getDefaultAssistant()
   const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
 
@@ -609,9 +610,9 @@ function getRotatedApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
   if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+    cacheService.setCasual(keyName, keys[0])
     return keys[0]
   }
 
@@ -627,7 +628,7 @@ function getRotatedApiKey(provider: Provider): string {
 
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.setCasual(keyName, nextKey)
 
   return nextKey
 }

@@ -1,4 +1,7 @@
 // import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -11,13 +14,11 @@ import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useEnableDeveloperMode, useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -46,7 +47,7 @@ import {
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
 import type { MenuProps } from 'antd'
-import { Dropdown, Popconfirm, Tooltip } from 'antd'
+import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
@@ -162,15 +163,30 @@ const MessageMenubar: FC<Props> = (props) => {
     removeMessageBlock
   } = useMessageOperations(topic)
 
-  const { isBubbleStyle } = useMessageStyle()
-  const { enableDeveloperMode } = useEnableDeveloperMode()
-  const { confirmDeleteMessage, confirmRegenerateMessage } = useSettings()
+  const [messageStyle] = usePreference('chat.message.style')
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [confirmDeleteMessage] = usePreference('chat.message.confirm_delete')
+  const [confirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
+
+  const isBubbleStyle = messageStyle === 'bubble'
 
   // const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions] = useMultiplePreferences({
+    image: 'data.export.menus.image',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notion: 'data.export.menus.notion',
+    yuque: 'data.export.menus.yuque',
+    joplin: 'data.export.menus.joplin',
+    obsidian: 'data.export.menus.obsidian',
+    siyuan: 'data.export.menus.siyuan',
+    docx: 'data.export.menus.docx',
+    plain_text: 'data.export.menus.plain_text'
+  })
+
   const dispatch = useAppDispatch()
 
   // const processedMessage = useMemo(() => {
@@ -381,7 +397,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.word'),
             key: 'word',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
+              const markdown = await messageToMarkdown(message)
               const title = await getMessageTitle(message)
               window.api.export.toWord(markdown, title)
             }
@@ -391,7 +407,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'notion',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
+              const markdown = await messageToMarkdown(message)
               exportMessageToNotion(title, markdown, message)
             }
           },
@@ -400,7 +416,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'yuque',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
+              const markdown = await messageToMarkdown(message)
               exportMarkdownToYuque(title, markdown)
             }
           },
@@ -425,7 +441,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'siyuan',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
+              const markdown = await messageToMarkdown(message)
               exportMarkdownToSiyuan(title, markdown)
             }
           }
@@ -662,7 +678,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
           okButtonProps={{ danger: true }}
           onConfirm={() => handleResendUserMessage()}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('common.regenerate')} delay={800}>
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
@@ -675,7 +691,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('common.regenerate')} delay={800}>
         <ActionButton
           className="message-action-button"
           onClick={() => handleResendUserMessage()}
@@ -691,7 +707,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('common.edit')} delay={800}>
         <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
           <EditIcon size={15} />
         </ActionButton>
@@ -699,7 +715,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     )
   },
   copy: ({ onCopy, softHoverBg, copied, t }) => (
-    <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+    <Tooltip content={t('common.copy')} delay={800}>
       <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
         {!copied && <CopyIcon size={15} />}
         {copied && <Check size={15} color="var(--color-primary)" />}
@@ -725,7 +741,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
           okButtonProps={{ danger: true }}
           onConfirm={() => onRegenerate()}
           onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('common.regenerate')} delay={800}>
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
@@ -738,7 +754,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('common.regenerate')} delay={800}>
         <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
           <RefreshIcon size={15} />
         </ActionButton>
@@ -751,7 +767,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('message.mention.title')} delay={800}>
         <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
           <AtSign size={15} />
         </ActionButton>
@@ -776,7 +792,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     if (isTranslating) {
       return (
-        <Tooltip title={t('translate.stop')} mouseEnterDelay={0.8}>
+        <Tooltip title={t('translate.stop')}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => {
@@ -859,7 +875,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
         trigger={['click']}
         placement="top"
         arrow>
-        <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
+        <Tooltip content={t('chat.translate')} delay={1200}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
@@ -876,7 +892,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('chat.message.useful.label')} delay={800}>
         <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
           {message.useful ? (
             <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
@@ -893,13 +909,13 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('notes.save')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('notes.save')} delay={800}>
         <ActionButton
           className="message-action-button"
           onClick={async (e) => {
             e.stopPropagation()
             const title = await getMessageTitle(message)
-            const markdown = messageToMarkdown(message)
+            const markdown = await messageToMarkdown(message)
             exportMessageToNotes(title, markdown, notesPath)
           }}
           $softHoverBg={softHoverBg}>
@@ -918,11 +934,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     t
   }) => {
     const deleteTooltip = (
-      <Tooltip
-        title={t('common.delete')}
-        mouseEnterDelay={1}
-        open={showDeleteTooltip}
-        onOpenChange={setShowDeleteTooltip}>
+      <Tooltip content={t('common.delete')} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
         <DeleteIcon size={15} />
       </Tooltip>
     )
@@ -967,7 +979,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     }
 
     return (
-      <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('trace.label')} delay={800}>
         <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
           <TraceIcon size={16} className={'lucide lucide-trash'} />
         </ActionButton>

@@ -1,9 +1,10 @@
+import { Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import type { CardProps } from 'antd'
-import { Card, Switch, Tag, Tooltip } from 'antd'
+import { Card, Tag, Tooltip } from 'antd'
 import { uniq } from 'lodash'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
@@ -215,8 +216,8 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                           })}
                           checked={isApproved}
                           disabled={isAuto || isUpdatingTools}
-                          size="small"
-                          onChange={(checked) => handleToggleTool(tool.id, checked)}
+                          size="sm"
+                          onCheckedChange={(checked) => handleToggleTool(tool.id, checked)}
                         />
                       </Tooltip>
                     </div>
@@ -278,9 +279,9 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                               name: server.name
                             })}
                             checked={isSelected}
-                            size="small"
+                            size="sm"
                             disabled={!server.isActive || isUpdatingMcp}
-                            onChange={(checked) => handleToggleMcp(server.id, checked)}
+                            onCheckedChange={(checked) => handleToggleMcp(server.id, checked)}
                           />
                         </Tooltip>
                       </div>

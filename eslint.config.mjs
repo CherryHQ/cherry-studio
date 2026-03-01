@@ -67,15 +67,18 @@ export default defineConfig([
       'src/main/integration/cherryai/index.js',
       'src/main/integration/nutstore/sso/lib/**',
       'src/renderer/src/ui/**',
-      'packages/**/dist'
+      'src/renderer/src/routeTree.gen.ts',
+      'packages/**/dist',
+      'v2-refactor-temp/**'
     ]
   },
   // turn off oxlint supported rules.
   ...oxlint.configs['flat/eslint'],
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
+  // Custom rules should be after oxlint to overwrite
+  // LoggerService Custom Rules - only apply to src directory
   {
-    // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
@@ -89,6 +92,7 @@ export default defineConfig([
       ]
     }
   },
+  // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
@@ -136,4 +140,154 @@ export default defineConfig([
       'i18n/no-template-in-t': 'warn'
     }
   },
+  // ui migration
+  {
+    // Component Rules - prevent importing antd components when migration completed
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    ignores: [],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            // {
+            //   name: 'antd',
+            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+            //   message:
+            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            // },
+            {
+              name: 'antd',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            },
+            {
+              name: '@heroui/react',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import the component from heroui directly. It\'s deprecated.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  // Schema key naming convention (cache & preferences)
+  // Supports both fixed keys and template keys:
+  // - Fixed: 'app.user.avatar', 'chat.multi_select_mode'
+  // - Template: 'scroll.position.${topicId}', 'entity.cache.${type}_${id}'
+  // Template keys must follow the same dot-separated pattern as fixed keys.
+  // When ${xxx} placeholders are treated as literal strings, the key must match: xxx.yyy.zzz_www
+  {
+    files: ['packages/shared/data/cache/cacheSchemas.ts', 'packages/shared/data/preference/preferenceSchemas.ts'],
+    plugins: {
+      'data-schema-key': {
+        rules: {
+          'valid-key': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Enforce schema key naming convention: namespace.sub.key_name (template placeholders treated as literal strings)',
+                recommended: true
+              },
+              messages: {
+                invalidKey:
+                  'Schema key "{{key}}" must follow format: namespace.sub.key_name (e.g., app.user.avatar, scroll.position.${id}). Template ${xxx} is treated as a literal string segment.',
+                invalidTemplateVar:
+                  'Template variable in "{{key}}" must be a valid identifier (e.g., ${id}, ${topicId}).'
+              }
+            },
+            create(context) {
+              /**
+               * Validates a schema key for correct naming convention.
+               *
+               * Both fixed keys and template keys must follow the same pattern:
+               * - Lowercase segments separated by dots
+               * - Each segment: starts with letter, contains letters/numbers/underscores
+               * - At least two segments (must have at least one dot)
+               *
+               * Template keys: ${xxx} placeholders are treated as literal string segments.
+               * Example valid: 'scroll.position.${id}', 'entity.cache.${type}_${id}'
+               * Example invalid: 'cache:${type}' (colon not allowed), '${id}' (no dot)
+               *
+               * @param {string} key - The schema key to validate
+               * @returns {{ valid: boolean, error?: 'invalidKey' | 'invalidTemplateVar' }}
+               */
+              function validateKey(key) {
+                // Check if key contains template placeholders
+                const hasTemplate = key.includes('${')
+
+                if (hasTemplate) {
+                  // Validate template variable names first
+                  const templateVarPattern = /\$\{([^}]*)\}/g
+                  let match
+                  while ((match = templateVarPattern.exec(key)) !== null) {
+                    const varName = match[1]
+                    // Variable must be a valid identifier: start with letter, contain only alphanumeric and underscore
+                    if (!varName || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(varName)) {
+                      return { valid: false, error: 'invalidTemplateVar' }
+                    }
+                  }
+
+                  // Replace template placeholders with a valid segment marker
+                  // Use 'x' as placeholder since it's a valid segment character
+                  const keyWithoutTemplates = key.replace(/\$\{[^}]+\}/g, 'x')
+
+                  // Template key must follow the same pattern as fixed keys
+                  // when ${xxx} is treated as a literal string
+                  const fixedKeyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+                  if (!fixedKeyPattern.test(keyWithoutTemplates)) {
+                    return { valid: false, error: 'invalidKey' }
+                  }
+
+                  return { valid: true }
+                } else {
+                  // Fixed key validation: standard dot-separated format
+                  const fixedKeyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+                  if (!fixedKeyPattern.test(key)) {
+                    return { valid: false, error: 'invalidKey' }
+                  }
+                  return { valid: true }
+                }
+              }
+
+              return {
+                TSPropertySignature(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    const result = validateKey(key)
+                    if (!result.valid) {
+                      context.report({
+                        node: node.key,
+                        messageId: result.error,
+                        data: { key }
+                      })
+                    }
+                  }
+                },
+                Property(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    const result = validateKey(key)
+                    if (!result.valid) {
+                      context.report({
+                        node: node.key,
+                        messageId: result.error,
+                        data: { key }
+                      })
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'data-schema-key/valid-key': 'error'
+    }
+  }
 ])

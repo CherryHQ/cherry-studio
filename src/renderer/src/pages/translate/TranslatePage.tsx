@@ -1,4 +1,5 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -18,7 +19,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+// import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import {
@@ -40,7 +41,7 @@ import {
 } from '@renderer/utils/translate'
 import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
+import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
@@ -89,11 +90,13 @@ const TranslatePage: FC = () => {
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
   const [isProcessing, setIsProcessing] = useState(false)
 
+  const [translating, setTranslating] = useState(false)
+  const [abortKey, setTranslateAbortKey] = useState<string>('')
   // redux states
   const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  const translating = useAppSelector((state) => state.runtime.translating)
-  const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
+  // const translating = useAppSelector((state) => state.runtime.translating)
+  // const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -127,12 +130,12 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  const setTranslating = useCallback(
-    (translating: boolean) => {
-      dispatch(setTranslatingAction(translating))
-    },
-    [dispatch]
-  )
+  // const setTranslating = useCallback(
+  //   (translating: boolean) => {
+  //     dispatch(setTranslatingAction(translating))
+  //   },
+  //   [dispatch]
+  // )
 
   // 控制复制行为
   const copy = useCallback(
@@ -171,7 +174,7 @@ const TranslatePage: FC = () => {
 
         let translated: string
         const abortKey = uuid()
-        dispatch(setTranslateAbortKey(abortKey))
+        setTranslateAbortKey(abortKey)
 
         try {
           translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
@@ -208,7 +211,7 @@ const TranslatePage: FC = () => {
         window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.unknown')))
       }
     },
-    [autoCopy, copy, dispatch, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, copy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -338,8 +341,7 @@ const TranslatePage: FC = () => {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    const target = targetLanguage
-    setSourceLanguage(target)
+    setSourceLanguage(targetLanguage)
     setTargetLanguage(source)
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
@@ -448,7 +450,7 @@ const TranslatePage: FC = () => {
     try {
       if (isBidirectional) {
         return (
-          <Flex align="center" style={{ minWidth: 160 }}>
+          <Flex className="min-w-40 items-center">
             <BidirectionalLanguageDisplay>
               {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
             </BidirectionalLanguageDisplay>
@@ -719,12 +721,11 @@ const TranslatePage: FC = () => {
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
             <Button
               className="nodrag"
-              color="default"
-              variant={historyDrawerVisible ? 'filled' : 'text'}
-              type="text"
-              icon={<FolderClock size={18} />}
-              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-            />
+              variant="ghost"
+              size="icon"
+              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}>
+              <FolderClock size={18} />
+            </Button>
             <LanguageSelect
               showSearch
               style={{ width: 200 }}
@@ -744,14 +745,15 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip title={t('translate.exchange.label')} placement="bottom">
+            <Tooltip content={t('translate.exchange.label')} placement="bottom">
               <Button
-                type="text"
-                icon={<SwapOutlined />}
+                variant="ghost"
+                size="icon"
                 style={{ margin: '0 -2px' }}
                 onClick={handleExchange}
-                disabled={!couldExchange}
-              />
+                disabled={!couldExchange}>
+                <SwapOutlined />
+              </Button>
             </Tooltip>
             {getLanguageDisplay()}
             <TranslateButton
@@ -768,7 +770,9 @@ const TranslatePage: FC = () => {
               modelFilter={modelPredicate}
               tooltipProps={{ placement: 'bottom' }}
             />
-            <Button type="text" icon={<Settings2 size={18} />} onClick={() => setSettingsVisible(true)} />
+            <Button variant="ghost" size="icon" onClick={() => setSettingsVisible(true)}>
+              <Settings2 size={18} />
+            </Button>
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
@@ -817,13 +821,13 @@ const TranslatePage: FC = () => {
 
           <OutputContainer>
             <CopyButton
-              type="text"
-              size="small"
+              variant="ghost"
+              size="icon-sm"
               className="copy-button"
               onClick={onCopy}
-              disabled={!translatedContent}
-              icon={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
-            />
+              disabled={!translatedContent}>
+              {copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
+            </CopyButton>
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
                 <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
@@ -1007,10 +1011,9 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-      mouseEnterDelay={0.5}
+      delay={500}
       placement="bottom"
-      styles={{ body: { fontSize: '12px' } }}
-      title={
+      content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}
           <br />
@@ -1018,12 +1021,14 @@ const TranslateButton = ({
         </div>
       }>
       {!translating && (
-        <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
+        <Button onClick={onTranslate} disabled={!couldTranslate}>
+          <SendOutlined />
           {t('translate.button.translate')}
         </Button>
       )}
       {translating && (
-        <Button danger type="primary" onClick={onAbort} icon={<CirclePause size={14} />}>
+        <Button variant="destructive" onClick={onAbort}>
+          <CirclePause size={14} />
           {t('common.stop')}
         </Button>
       )}

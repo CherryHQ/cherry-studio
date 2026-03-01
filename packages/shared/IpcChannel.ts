@@ -2,7 +2,7 @@ export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetLanguage = 'app:set-language',
+  // App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
@@ -14,7 +14,7 @@ export enum IpcChannel {
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
-  App_SetTheme = 'app:set-theme',
+  // App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
@@ -49,8 +49,8 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
-  App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
-  App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
+  // App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
+  // App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -247,6 +247,22 @@ export enum IpcChannel {
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteTempBackup = 'backup:deleteTempBackup',
 
+  // data migration
+  DataMigrate_CheckNeeded = 'data-migrate:check-needed',
+  DataMigrate_GetProgress = 'data-migrate:get-progress',
+  DataMigrate_Cancel = 'data-migrate:cancel',
+  DataMigrate_RequireBackup = 'data-migrate:require-backup',
+  DataMigrate_BackupCompleted = 'data-migrate:backup-completed',
+  DataMigrate_ShowBackupDialog = 'data-migrate:show-backup-dialog',
+  DataMigrate_StartFlow = 'data-migrate:start-flow',
+  DataMigrate_ProceedToBackup = 'data-migrate:proceed-to-backup',
+  DataMigrate_StartMigration = 'data-migrate:start-migration',
+  DataMigrate_RetryMigration = 'data-migrate:retry-migration',
+  DataMigrate_RestartApp = 'data-migrate:restart-app',
+  DataMigrate_CloseWindow = 'data-migrate:close-window',
+  DataMigrate_SendReduxData = 'data-migrate:send-redux-data',
+  DataMigrate_GetReduxData = 'data-migrate:get-redux-data',
+
   // zip
   Zip_Compress = 'zip:compress',
   Zip_Decompress = 'zip:decompress',
@@ -265,7 +281,8 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  ThemeUpdated = 'theme:updated',
+  DataMigrateProgress = 'data-migrate-progress',
+  NativeThemeUpdated = 'native-theme:updated',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',
@@ -303,12 +320,6 @@ export enum IpcChannel {
   Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
   Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
   Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_SetEnabled = 'selection:set-enabled',
-  Selection_SetTriggerMode = 'selection:set-trigger-mode',
-  Selection_SetFilterMode = 'selection:set-filter-mode',
-  Selection_SetFilterList = 'selection:set-filter-list',
-  Selection_SetFollowToolbar = 'selection:set-follow-toolbar',
-  Selection_SetRemeberWinSize = 'selection:set-remeber-win-size',
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
@@ -329,6 +340,26 @@ export enum IpcChannel {
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
   Memory_GetUsersList = 'memory:get-users-list',
   Memory_MigrateMemoryDb = 'memory:migrate-memory-db',
+
+  // Data: Preference
+  Preference_Get = 'preference:get',
+  Preference_Set = 'preference:set',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
+  Preference_SetMultiple = 'preference:set-multiple',
+  Preference_GetAll = 'preference:get-all',
+  Preference_Subscribe = 'preference:subscribe',
+  Preference_Changed = 'preference:changed',
+
+  // Data: Cache
+  Cache_Sync = 'cache:sync',
+  Cache_SyncBatch = 'cache:sync-batch',
+  Cache_GetAllShared = 'cache:get-all-shared',
+
+  // Data: API Channels
+  DataApi_Request = 'data-api:request',
+  DataApi_Subscribe = 'data-api:subscribe',
+  DataApi_Unsubscribe = 'data-api:unsubscribe',
+  DataApi_Stream = 'data-api:stream',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',

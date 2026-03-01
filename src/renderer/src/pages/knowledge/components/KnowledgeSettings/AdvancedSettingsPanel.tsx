@@ -1,5 +1,5 @@
+import { InfoTooltip } from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -76,7 +76,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.chunk_size')}
-          <InfoTooltip title={t('knowledge.chunk_size_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
         <InputNumber
           style={{ width: '100%' }}
@@ -91,7 +91,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.chunk_overlap')}
-          <InfoTooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
         <InputNumber
           style={{ width: '100%' }}
@@ -106,7 +106,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.threshold')}
-          <InfoTooltip title={t('knowledge.threshold_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
         <InputNumber
           style={{ width: '100%' }}

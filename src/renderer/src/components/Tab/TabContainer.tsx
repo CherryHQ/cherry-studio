@@ -1,6 +1,8 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isLinux, isMac } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
@@ -8,7 +10,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
 import tabsService from '@renderer/services/TabsService'
@@ -16,9 +17,9 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
-import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
@@ -38,7 +39,6 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MinAppIcon from '../Icons/MinAppIcon'
@@ -127,9 +127,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
-  const { useSystemTitleBar } = useSettings()
+  // const { useSystemTitleBar } = useSettings()
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const { t } = useTranslation()
-
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
@@ -206,17 +206,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleAddTab = () => {
     hideMinappPopup()
-    navigate('/launchpad')
+    navigate({ to: '/launchpad' })
   }
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    navigate(lastSettingsPath)
+    navigate({ to: lastSettingsPath })
   }
 
   const handleTabClick = (tab: Tab) => {
     hideMinappPopup()
-    navigate(tab.path)
+    navigate({ to: tab.path })
   }
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
@@ -277,9 +277,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         <RightButtonsContainer style={{ paddingRight: isLinux && useSystemTitleBar ? '12px' : undefined }}>
           <UpdateAppButton />
           <Tooltip
-            title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-            mouseEnterDelay={0.8}
-            placement="bottom">
+            placement="bottom"
+            content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+            delay={800}>
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

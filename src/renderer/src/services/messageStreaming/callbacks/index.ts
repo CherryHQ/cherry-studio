@@ -1,3 +1,22 @@
+/**
+ * @fileoverview Callbacks factory for streaming message processing
+ *
+ * This module creates and composes all callback handlers used during
+ * message streaming. Each callback type handles specific aspects:
+ * - Base: session lifecycle, error handling, completion
+ * - Text: main text block processing
+ * - Thinking: thinking/reasoning block processing
+ * - Tool: tool call/result processing
+ * - Image: image generation processing
+ * - Citation: web search/knowledge citations
+ * - Video: video content processing
+ * - Compact: /compact command handling
+ *
+ * ARCHITECTURE NOTE:
+ * These callbacks now use StreamingService for state management instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ */
+
 import type { Assistant } from '@renderer/types'
 
 import type { BlockManager } from '../BlockManager'
@@ -10,18 +29,21 @@ import { createThinkingCallbacks } from './thinkingCallbacks'
 import { createToolCallbacks } from './toolCallbacks'
 import { createVideoCallbacks } from './videoCallbacks'
 
+/**
+ * Dependencies required for creating all callbacks
+ *
+ * NOTE: Simplified from original design - removed dispatch, getState, and saveUpdatesToDB
+ * since StreamingService now handles state management and persistence.
+ */
 interface CallbacksDependencies {
   blockManager: BlockManager
-  dispatch: any
-  getState: any
   topicId: string
   assistantMsgId: string
-  saveUpdatesToDB: any
   assistant: Assistant
 }
 
 export const createCallbacks = (deps: CallbacksDependencies) => {
-  const { blockManager, dispatch, getState, topicId, assistantMsgId, saveUpdatesToDB, assistant } = deps
+  const { blockManager, topicId, assistantMsgId, assistant } = deps
 
   // 首先创建 thinkingCallbacks ，以便传递 getCurrentThinkingInfo 给 baseCallbacks
   const thinkingCallbacks = createThinkingCallbacks({
@@ -29,22 +51,18 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     assistantMsgId
   })
 
-  // 创建基础回调
+  // Create base callbacks (lifecycle, error, complete)
   const baseCallbacks = createBaseCallbacks({
     blockManager,
-    dispatch,
-    getState,
     topicId,
     assistantMsgId,
-    saveUpdatesToDB,
     assistant,
     getCurrentThinkingInfo: thinkingCallbacks.getCurrentThinkingInfo
   })
 
   const toolCallbacks = createToolCallbacks({
     blockManager,
-    assistantMsgId,
-    dispatch
+    assistantMsgId
   })
 
   const imageCallbacks = createImageCallbacks({
@@ -54,8 +72,7 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
 
   const citationCallbacks = createCitationCallbacks({
     blockManager,
-    assistantMsgId,
-    getState
+    assistantMsgId
   })
 
   const videoCallbacks = createVideoCallbacks({ blockManager, assistantMsgId })
@@ -63,23 +80,19 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
   const compactCallbacks = createCompactCallbacks({
     blockManager,
     assistantMsgId,
-    dispatch,
-    getState,
-    topicId,
-    saveUpdatesToDB
+    topicId
   })
 
-  // 创建textCallbacks时传入citationCallbacks的getCitationBlockId方法和compactCallbacks的handleTextComplete方法
+  // Create textCallbacks with citation and compact handlers
   const textCallbacks = createTextCallbacks({
     blockManager,
-    getState,
     assistantMsgId,
     getCitationBlockId: citationCallbacks.getCitationBlockId,
     getCitationBlockIdFromTool: toolCallbacks.getCitationBlockId,
     handleCompactTextComplete: compactCallbacks.handleTextComplete
   })
 
-  // 组合所有回调
+  // Compose all callbacks
   return {
     ...baseCallbacks,
     ...textCallbacks,
@@ -89,10 +102,10 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     ...citationCallbacks,
     ...videoCallbacks,
     ...compactCallbacks,
-    // 清理资源的方法
+    // Cleanup method (throttling is managed by messageThunk)
     cleanup: () => {
-      // 清理由 messageThunk 中的节流函数管理，这里不需要特别处理
-      // 如果需要，可以调用 blockManager 的相关清理方法
+      // Cleanup is managed by messageThunk throttle functions
+      // Add any additional cleanup here if needed
     }
   }
 }

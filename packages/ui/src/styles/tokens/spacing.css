@@ -1,0 +1,23 @@
+/**
+ * Spacing & Sizing
+ * 间距与尺寸
+ */
+
+:root {
+  --cs-size-5xs: 0.25rem; /* 4px */
+  --cs-size-4xs: 0.5rem; /* 8px */
+  --cs-size-3xs: 0.75rem; /* 12px */
+  --cs-size-2xs: 1rem; /* 16px */
+  --cs-size-xs: 1.5rem; /* 24px */
+  --cs-size-sm: 2rem; /* 32px */
+  --cs-size-md: 2.5rem; /* 40px */
+  --cs-size-lg: 3rem; /* 48px */
+  --cs-size-xl: 3.5rem; /* 56px */
+  --cs-size-2xl: 4rem; /* 64px */
+  --cs-size-3xl: 4.5rem; /* 72px */
+  --cs-size-4xl: 5rem; /* 80px */
+  --cs-size-5xl: 5.5rem; /* 88px */
+  --cs-size-6xl: 6rem; /* 96px */
+  --cs-size-7xl: 6.5rem; /* 104px */
+  --cs-size-8xl: 7rem; /* 112px */
+}

@@ -1,26 +1,23 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import FileManager from '@renderer/services/FileManager'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
-import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
+import { Input, InputNumber, Segmented, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { generationModeType } from '../../types'
@@ -58,8 +55,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -563,7 +559,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 设置请求状态
       const controller = new AbortController()
       setAbortController(controller)
-      dispatch(setGenerating(true))
+      setGenerating(true)
 
       // 准备请求配置
       const requestConfig = await prepareRequestConfig(prompt, painting)
@@ -607,7 +603,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     } finally {
       // 清理状态
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -657,7 +653,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -787,7 +783,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight className="justify-end">
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={createNewPainting}>
+            <Button size="sm" className="nodrag" onClick={createNewPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -804,7 +801,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo shape="square" src={getProviderLogo(dmxapiProvider.id)} size={16} className="ml-1" />
+              <ProviderLogo radius="md" src={getProviderLogo(dmxapiProvider.id)} className="ml-1" />
             </div>
           </ProviderTitleContainer>
           <ProviderSelect
@@ -864,9 +861,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               return modelImageSizes.map((size) => {
                 return (
                   <Select.Option key={size.value} value={size.value}>
-                    <HStack className="items-center gap-2">
+                    <RowFlex className="items-center gap-2">
                       <span>{size.label}</span>
-                    </HStack>
+                    </RowFlex>
                   </Select.Option>
                 )
               })
@@ -874,9 +871,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {/* 检查当前模型是否支持自定义尺寸 */}
             {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
               <Select.Option value="custom" key="custom">
-                <HStack className="items-center gap-2">
+                <RowFlex className="items-center gap-2">
                   <span>{t('paintings.custom_size')}</span>
-                </HStack>
+                </RowFlex>
               </Select.Option>
             )}
           </Select>
@@ -884,7 +881,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
             <div className="mt-2.5">
-              <HStack style={{ gap: 8, alignItems: 'center' }}>
+              <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
                   value={customWidth}
@@ -905,7 +902,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ width: 80, flex: 1 }}
                 />
                 <span style={{ color: 'var(--color-text-3)', fontSize: '11px' }}>px</span>
-              </HStack>
+              </RowFlex>
             </div>
           )}
 
@@ -913,9 +910,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               <SettingTitle className="mt-4 mb-1">
                 {t('paintings.seed')}
-                <Tooltip title={t('paintings.seed_desc_tip')}>
-                  <InfoIcon />
-                </Tooltip>
+                <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
               <Input
                 value={painting.seed}
@@ -947,13 +942,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle className="mt-4 mb-1">
             {t('paintings.auto_create_paint')}
-            <Tooltip title={t('paintings.auto_create_paint_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
-          <HStack>
-            <Switch checked={painting.autoCreate} onChange={(checked) => onChangeAutoCreate(checked)} />
-          </HStack>
+          <RowFlex>
+            <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
+          </RowFlex>
         </LeftContainer>
         <MainContainer>
           <ModeSegmentedContainer>
@@ -1086,18 +1079,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const SliderContainer = styled.div`

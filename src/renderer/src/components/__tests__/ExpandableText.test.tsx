@@ -9,6 +9,15 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k })
 }))
 
+// mock @cherrystudio/ui Button component
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onPress, ...props }: any) => (
+    <button type="button" onClick={onPress} {...props}>
+      {children}
+    </button>
+  )
+}))
+
 describe('ExpandableText', () => {
   const TEXT = 'This is a long text for testing.'
 

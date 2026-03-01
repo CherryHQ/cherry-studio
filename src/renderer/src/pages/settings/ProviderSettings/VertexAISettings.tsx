@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
 import { Alert, Input } from 'antd'
@@ -98,11 +98,11 @@ const VertexAISettings = () => {
       />
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack>
+          <RowFlex>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
-          </HStack>
+          </RowFlex>
           <SettingHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</SettingHelpText>
         </SettingHelpTextRow>
       )}

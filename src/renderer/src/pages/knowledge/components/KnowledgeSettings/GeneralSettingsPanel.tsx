@@ -1,6 +1,6 @@
+import { InfoTooltip } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -39,7 +39,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
       <SettingsItem>
         <div className="settings-label">
           {t('models.embedding_model')}
-          <InfoTooltip title={t('models.embedding_model_tooltip')} placement="right" />
+          <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
         </div>
         <ModelSelector
           providers={providers}
@@ -54,7 +54,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.dimensions')}
-          <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
         </div>
         <InputEmbeddingDimension
           value={newBase.dimensions}
@@ -67,7 +67,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.document_count')}
-          <InfoTooltip title={t('knowledge.document_count_help')} placement="right" />
+          <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
           style={{ width: '97%' }}

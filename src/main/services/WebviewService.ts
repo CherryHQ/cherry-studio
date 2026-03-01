@@ -1,9 +1,7 @@
-import { t } from '@main/utils/locales'
+import { getAppLanguage, t } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
-
-import { configManager } from './ConfigManager'
 
 /**
  * init the useragent of the webview session
@@ -16,7 +14,7 @@ export function initSessionUserAgent() {
 
   wvSession.setUserAgent(newUA)
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
-    const language = configManager.getLanguage()
+    const language = getAppLanguage()
     const headers = {
       ...details.requestHeaders,
       'User-Agent': details.url.includes('google.com') ? originUA : newUA,

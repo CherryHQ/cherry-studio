@@ -1,10 +1,10 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
-import { Tooltip } from 'antd'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
@@ -75,12 +75,12 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
     <TableWrapper className="table-wrapper">
       <table>{children}</table>
       <ToolbarWrapper className="table-toolbar">
-        <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('common.copy')} delay={800}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
           </ToolButton>
         </Tooltip>
-        <Tooltip title={t('common.export.excel')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('common.export.excel')} delay={800}>
           <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
             <FileSpreadsheet size={14} />
           </ToolButton>

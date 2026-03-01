@@ -1,5 +1,5 @@
-import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import type { AddAgentForm, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { useApiServer } from '../useApiServer'
-import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
 
 type Result<T> =
@@ -43,9 +42,7 @@ export const useAgents = () => {
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
-  const dispatch = useAppDispatch()
+  const [activeAgentId] = useCache('agent.active_id')
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
@@ -71,14 +68,11 @@ export const useAgents = () => {
     async (id: string) => {
       try {
         await client.deleteAgent(id)
-        dispatch(setActiveSessionIdAction({ agentId: id, sessionId: null }))
+        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+        cacheService.set('agent.session.active_id_map', { ...currentMap, [id]: null })
         if (activeAgentId === id) {
           const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
-          if (newId) {
-            dispatch(setActiveAgentId(newId))
-          } else {
-            dispatch(setActiveAgentId(null))
-          }
+          cacheService.set('agent.active_id', newId ?? null)
         }
         mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
@@ -86,7 +80,7 @@ export const useAgents = () => {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [activeAgentId, client, data, dispatch, mutate, t]
+    [activeAgentId, client, data, mutate, t]
   )
 
   const getAgent = useCallback(

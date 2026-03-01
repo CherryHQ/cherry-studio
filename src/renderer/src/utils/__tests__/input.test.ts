@@ -1,4 +1,4 @@
-import type { SendMessageShortcut } from '@renderer/store/settings'
+import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '../input'

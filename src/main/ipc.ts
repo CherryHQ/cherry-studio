@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
+import { PreferenceService, preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
@@ -19,9 +20,9 @@ import {
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import type { UpgradeChannel } from '@shared/config/constant'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AgentPersistedMessage,
@@ -31,8 +32,7 @@ import type {
   PluginError,
   Provider,
   Shortcut,
-  SupportedOcrFile,
-  ThemeMode
+  SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import type { ProxyConfig } from 'electron'
@@ -88,7 +88,6 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
-import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -189,9 +188,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
 
   // language
-  ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-    configManager.setLanguage(language)
-  })
+  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
+  //   configManager.setLanguage(language)
+  // })
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
@@ -211,7 +210,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    configManager.set('spellCheckLanguages', languages)
+    preferenceService.set('app.spell_check.languages', languages)
   })
 
   // launch on boot
@@ -219,40 +218,38 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  // launch to tray
-  ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-    configManager.setLaunchToTray(isActive)
-  })
+  // // launch to tray
+  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
+  //   configManager.setLaunchToTray(isActive)
+  // })
 
-  // tray
-  ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-    configManager.setTray(isActive)
-  })
+  // // tray
+  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
+  //   configManager.setTray(isActive)
+  // })
 
-  // to tray on close
-  ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-    configManager.setTrayOnClose(isActive)
-  })
+  // // to tray on close
+  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
+  //   configManager.setTrayOnClose(isActive)
+  // })
 
-  // auto update
-  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-    appUpdater.setAutoUpdate(isActive)
-    configManager.setAutoUpdate(isActive)
-  })
+  // // auto update
+  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+  //   appUpdater.setAutoUpdate(isActive)
+  //   configManager.setAutoUpdate(isActive)
+  // })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
     logger.info(`set test plan: ${isActive}`)
-    if (isActive !== configManager.getTestPlan()) {
+    if (isActive !== preferenceService.get('app.dist.test_plan.enabled')) {
       appUpdater.cancelDownload()
-      configManager.setTestPlan(isActive)
     }
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
     logger.info(`set test channel: ${channel}`)
-    if (channel !== configManager.getTestChannel()) {
+    if (channel !== preferenceService.get('app.dist.test_plan.channel')) {
       appUpdater.cancelDownload()
-      configManager.setTestChannel(channel)
     }
   })
 
@@ -313,23 +310,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     return getIpCountry()
   })
 
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
-    configManager.set(key, value, isNotify)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
+    // Legacy config handler - will be deprecated
+    logger.warn(`Legacy Config_Set called for key: ${key}`)
   })
 
-  ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
-    return configManager.get(key)
-  })
-
-  // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
-    themeService.setTheme(theme)
-  })
+  // // theme
+  // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+  //   themeService.setTheme(theme)
+  // })
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)
-    return configManager.getZoomFactor()
+    return preferenceService.get('app.zoom_factor')
   })
 
   // clear cache
@@ -929,12 +923,12 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 
-  ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-    configManager.setDisableHardwareAcceleration(isDisable)
-  })
-  ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
-    configManager.setUseSystemTitleBar(isActive)
-  })
+  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
+  //   configManager.setDisableHardwareAcceleration(isDisable)
+  // })
+  // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
+  //   configManager.setUseSystemTitleBar(isActive)
+  // })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
   ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
     getSpans(topicId, traceId, modelName)
@@ -1153,6 +1147,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
     mainWindow.webContents.forcefullyCrashRenderer()
   })
+
+  // Preference handlers
+  PreferenceService.registerIpcHandler()
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)

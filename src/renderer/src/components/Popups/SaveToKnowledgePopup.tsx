@@ -1,3 +1,4 @@
+import { ColFlex, Flex, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
@@ -13,8 +14,8 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
-import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
-import { Check, CircleHelp } from 'lucide-react'
+import { Form, Modal, Select, Typography } from 'antd'
+import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -361,28 +362,25 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
             )}>
-            <Flex gap={8} style={{ flexDirection: 'column' }}>
+            <ColFlex className="gap-2">
               {contentTypeOptions.map((option) => (
                 <ContentTypeItem
                   key={option.type}
-                  align="center"
-                  justify="space-between"
+                  className="items-center justify-between"
                   onClick={() => handleContentTypeToggle(option.type)}>
-                  <Flex align="center" gap={8}>
+                  <Flex className="items-center gap-2">
                     <CustomTag
                       color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
                       size={12}>
                       {option.count}
                     </CustomTag>
                     <span>{option.label}</span>
-                    <Tooltip title={option.description} mouseLeaveDelay={0}>
-                      <CircleHelp size={16} style={{ cursor: 'help' }} />
-                    </Tooltip>
+                    <HelpTooltip content={option.description} closeDelay={0} />
                   </Flex>
                   {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
                 </ContentTypeItem>
               ))}
-            </Flex>
+            </ColFlex>
           </Form.Item>
         )}
       </Form>

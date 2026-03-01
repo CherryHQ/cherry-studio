@@ -1,7 +1,7 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -81,7 +81,7 @@ class FileManager {
     const file = await db.files.get(id)
 
     if (file) {
-      const filesPath = store.getState().runtime.filesPath
+      const filesPath = cacheService.get('app.path.files') ?? ''
       file.path = filesPath + '/' + file.id + file.ext
     }
 
@@ -89,7 +89,7 @@ class FileManager {
   }
 
   static getFilePath(file: FileMetadata) {
-    const filesPath = store.getState().runtime.filesPath
+    const filesPath = cacheService.get('app.path.files') ?? ''
     return filesPath + '/' + file.id + file.ext
   }
 
@@ -137,7 +137,7 @@ class FileManager {
   }
 
   static getFileUrl(file: FileMetadata) {
-    const filesPath = store.getState().runtime.filesPath
+    const filesPath = cacheService.get('app.path.files') ?? ''
     return 'file://' + filesPath + '/' + file.name
   }
 

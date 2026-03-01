@@ -1,3 +1,5 @@
+import { useCache } from '@data/hooks/useCache'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
@@ -9,17 +11,14 @@ import { isMac } from '@renderer/config/constant'
 import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
-import store from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setGenerating } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
@@ -74,12 +73,17 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
-  const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
+  const [showTopicTime] = usePreference('topic.tab.show_time')
+  const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
+
+  const [, setGenerating] = useCache('chat.generating')
+
+  const [renamingTopics] = useCache('topic.renaming')
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
-  const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
+  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -141,11 +145,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
   }, [])
 
-  const onClearMessages = useCallback((topic: Topic) => {
-    // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-    store.dispatch(setGenerating(false))
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const onClearMessages = useCallback(
+    (topic: Topic) => {
+      // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+      setGenerating(false)
+      EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    },
+    [setGenerating]
+  )
 
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
@@ -242,7 +249,19 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     [setActiveTopic]
   )
 
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notes: 'data.export.menus.notes',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    plain_text: 'data.export.menus.plain_text',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
 
   const [_targetTopic, setTargetTopic] = useState<Topic | null>(null)
   const targetTopic = useDeferredValue(_targetTopic)
@@ -575,7 +594,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         itemContainerStyle={{ paddingBottom: '8px' }}
         header={
           <HeaderRow>
-            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="">
               {t('chat.add.topic.title')}
             </AddButton>
             <Tooltip title={t('chat.topics.manage.title')} mouseEnterDelay={0.5}>

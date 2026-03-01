@@ -1,7 +1,8 @@
 import { CloudServerOutlined, CloudSyncOutlined, LoadingOutlined, WifiOutlined, YuqueOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
@@ -11,12 +12,10 @@ import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { reset } from '@renderer/services/BackupService'
-import store, { useAppDispatch } from '@renderer/store'
-import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Switch, Tooltip, Typography } from 'antd'
+import { Progress, Tooltip, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -45,6 +44,8 @@ import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
+  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
+
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
@@ -52,11 +53,6 @@ const DataSettings: FC = () => {
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
   const { setTimeoutTimer } = useTimer()
-
-  const _skipBackupFile = store.getState().settings.skipBackupFile
-  const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
-
-  const dispatch = useAppDispatch()
 
   //joplin icon needs to be updated into iconfont
   const JoplinIcon = () => (
@@ -288,7 +284,7 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => (shouldCopyData = checked)}
+            onCheckedChange={(checked) => (shouldCopyData = checked)}
             style={{ marginRight: '8px' }}
             title={t('settings.data.app_data.copy_data_option')}
           />
@@ -571,7 +567,6 @@ const DataSettings: FC = () => {
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
-    dispatch(_setSkipBackupFile(value))
   }
 
   return (
@@ -600,19 +595,21 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-                <HStack gap="5px" justifyContent="space-between">
-                  <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
+                <RowFlex className="justify-between gap-[5px]">
+                  <Button onClick={BackupPopup.show}>
+                    <SaveIcon size={14} />
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
+                  <Button onClick={RestorePopup.show}>
+                    <FolderOpen size={14} />
                     {t('settings.general.restore.button')}
                   </Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+                <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -620,11 +617,12 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
-                <HStack gap="5px" justifyContent="space-between">
-                  <Button onClick={LanTransferPopup.show} icon={<WifiOutlined size={14} />}>
+                <RowFlex className="justify-between gap-[5px]">
+                  <Button variant="ghost" size="sm" onClick={LanTransferPopup.show}>
+                    <WifiOutlined />
                     {t('settings.data.export_to_phone.lan.title')}
                   </Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>
@@ -641,11 +639,11 @@ const DataSettings: FC = () => {
                   <Tooltip title={t('settings.data.app_data.select')}>
                     <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
                   </Tooltip>
-                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                  <RowFlex className="ml-2 gap-[5px]">
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.appDataPath)}>
                       {t('settings.data.app_data.open')}
                     </Button>
-                  </HStack>
+                  </RowFlex>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
@@ -655,19 +653,21 @@ const DataSettings: FC = () => {
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
                   </PathText>
-                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                  <RowFlex className="ml-2 gap-[5px]">
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
                     </Button>
-                  </HStack>
+                  </RowFlex>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-                <HStack alignItems="center" gap="5px">
-                  <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
-                </HStack>
+                <RowFlex className="items-center gap-[5px]">
+                  <Button variant="ghost" size="sm" onClick={handleRemoveAllFiles}>
+                    {t('settings.data.app_knowledge.button.delete')}
+                  </Button>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
@@ -675,18 +675,20 @@ const DataSettings: FC = () => {
                   {t('settings.data.clear_cache.title')}
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
-                <HStack gap="5px">
-                  <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
-                </HStack>
+                <RowFlex className="gap-[5px]">
+                  <Button variant="ghost" size="sm" onClick={handleClearCache}>
+                    {t('settings.data.clear_cache.button')}
+                  </Button>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-                <HStack gap="5px">
-                  <Button onClick={reset} danger>
+                <RowFlex className="gap-[5px]">
+                  <Button variant="destructive" size="sm" onClick={reset}>
                     {t('settings.general.reset.title')}
                   </Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
             </SettingGroup>
           </>
@@ -708,7 +710,7 @@ const DataSettings: FC = () => {
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(RowFlex)`
   flex: 1;
 `
 
@@ -753,7 +755,7 @@ const PathText = styled(Typography.Text)`
   cursor: pointer;
 `
 
-const PathRow = styled(HStack)`
+const PathRow = styled(RowFlex)`
   min-width: 0;
   flex: 1;
   width: 0;

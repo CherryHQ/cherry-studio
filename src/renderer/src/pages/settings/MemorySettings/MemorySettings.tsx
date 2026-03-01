@@ -1,27 +1,23 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Button, Flex, RowFlex, Switch } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
 import MemoryService from '@renderer/services/MemoryService'
-import {
-  selectCurrentUserId,
-  selectGlobalMemoryEnabled,
-  selectMemoryConfig,
-  setCurrentUserId,
-  setGlobalMemoryEnabled
-} from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Button, Dropdown, Empty, Flex, Form, Input, Modal, Space, Spin, Switch } from 'antd'
+import { Dropdown, Empty, Form, Input, Modal, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import {
@@ -89,7 +85,7 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
       onOk={() => form.submit()}
       okButtonProps={{ loading: loading }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <PlusIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.add_memory')}</span>
         </Flex>
@@ -147,7 +143,7 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
   return (
     <Modal
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <EditIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.edit_memory')}</span>
         </Flex>
@@ -239,7 +235,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
         }
       }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
         </Flex>
@@ -272,9 +268,8 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
 
 const MemorySettings = () => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
-  const currentUser = useSelector(selectCurrentUserId)
-  const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const [currentUser, setCurrentUserId] = usePreference('feature.memory.current_user_id')
+  const [globalMemoryEnabled, setGlobalMemoryEnabled] = usePreference('feature.memory.enabled')
 
   const [allMemories, setAllMemories] = useState<MemoryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -442,8 +437,8 @@ const MemorySettings = () => {
   const handleUserSwitch = async (userId: string) => {
     logger.verbose(`Switching to user: ${userId}`)
 
-    // First update Redux state
-    dispatch(setCurrentUserId(userId))
+    // First update preference state
+    setCurrentUserId(userId)
 
     // Clear current memories to show loading state immediately
     setAllMemories([])
@@ -487,16 +482,16 @@ const MemorySettings = () => {
   const handleSettingsSubmit = async () => {
     setSettingsModalVisible(false)
     await memoryService.updateConfig()
-    if (window.keyv.get('memory.wait.settings')) {
-      window.keyv.remove('memory.wait.settings')
-      dispatch(setGlobalMemoryEnabled(true))
+    if (cacheService.getCasual<boolean>('memory.wait.settings')) {
+      cacheService.deleteCasual('memory.wait.settings')
+      setGlobalMemoryEnabled(true)
     }
   }
 
   const handleSettingsCancel = () => {
     setSettingsModalVisible(false)
     form.resetFields()
-    window.keyv.remove('memory.wait.settings')
+    cacheService.deleteCasual('memory.wait.settings')
   }
 
   const handleResetMemories = async (userId: string) => {
@@ -562,11 +557,11 @@ const MemorySettings = () => {
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {
     if (enabled && !embeddingModel) {
-      window.keyv.set('memory.wait.settings', true)
+      cacheService.setCasual('memory.wait.settings', true)
       return setSettingsModalVisible(true)
     }
 
-    dispatch(setGlobalMemoryEnabled(enabled))
+    setGlobalMemoryEnabled(enabled)
 
     if (enabled) {
       return window.modal.confirm({
@@ -591,16 +586,18 @@ const MemorySettings = () => {
     <SettingContainer theme={theme}>
       {/* Memory Settings */}
       <SettingGroup style={{ justifyContent: 'space-between', alignItems: 'center' }} theme={theme}>
-        <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <HStack style={{ alignItems: 'center', gap: '2px' }}>
+        <RowFlex className="items-center justify-between">
+          <RowFlex className="items-center gap-0.5">
             <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
             <TextBadge text="Beta" />
-          </HStack>
-          <HStack style={{ alignItems: 'center', gap: 10 }}>
-            <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
-            <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
-          </HStack>
-        </HStack>
+          </RowFlex>
+          <RowFlex className="items-center gap-2.5">
+            <Switch checked={globalMemoryEnabled} onCheckedChange={handleGlobalMemoryToggle} />
+            <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
+              <Settings2 size={16} />
+            </Button>
+          </RowFlex>
+        </RowFlex>
       </SettingGroup>
 
       {/* User Management */}
@@ -633,7 +630,8 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<PlusIcon size={18} />} onClick={() => setAddMemoryModalVisible(true)}>
+            <Button variant="default" onClick={() => setAddMemoryModalVisible(true)}>
+              <PlusIcon size={18} />
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -675,7 +673,10 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
+              <Button>
+                <MenuIcon size={16} />
+                {t('common.more')}
+              </Button>
             </Dropdown>
           </Space>
         </div>
@@ -693,11 +694,8 @@ const MemorySettings = () => {
                   <div style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
                     {t('memory.no_memories_description')}
                   </div>
-                  <Button
-                    type="primary"
-                    icon={<PlusIcon size={18} />}
-                    onClick={() => setAddMemoryModalVisible(true)}
-                    size="large">
+                  <Button variant="default" onClick={() => setAddMemoryModalVisible(true)} size="lg">
+                    <PlusIcon size={18} />
                     {t('memory.add_first_memory')}
                   </Button>
                 </div>
@@ -725,17 +723,12 @@ const MemorySettings = () => {
                           <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                         </div>
                         <Space size="small" className="memory-actions">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditMemory(memory)}>
+                            <EditIcon size={14} />
+                          </Button>
                           <Button
-                            type="text"
-                            size="small"
-                            icon={<EditIcon size={14} />}
-                            onClick={() => handleEditMemory(memory)}
-                          />
-                          <Button
-                            type="text"
-                            size="small"
-                            danger
-                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                            variant="destructive"
+                            size="sm"
                             onClick={() => {
                               window.modal.confirm({
                                 centered: true,
@@ -745,8 +738,9 @@ const MemorySettings = () => {
                                 okText: t('common.confirm'),
                                 cancelText: t('common.cancel')
                               })
-                            }}
-                          />
+                            }}>
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </Space>
                       </div>
                       <div className="memory-content">{memory.memory}</div>

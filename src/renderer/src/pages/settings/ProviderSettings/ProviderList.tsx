@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -13,13 +14,13 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Input, Tag } from 'antd'
+import { Dropdown, Input, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 import useSWRImmutable from 'swr/immutable'
 
@@ -43,7 +44,9 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
 }
 
 const ProviderList: FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const search = useSearch({ strict: false }) as Record<string, string | undefined>
+  const navigate = useNavigate()
+  const location = useLocation()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
@@ -82,8 +85,8 @@ const ProviderList: FC = () => {
   }, [providers])
 
   useEffect(() => {
-    if (searchParams.get('id')) {
-      const providerId = searchParams.get('id')
+    if (search.id) {
+      const providerId = search.id
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
         setSelectedProvider(provider)
@@ -99,10 +102,17 @@ const ProviderList: FC = () => {
       } else {
         setSelectedProvider(providers[0])
       }
-      searchParams.delete('id')
-      setSearchParams(searchParams)
+      // 清除 id 参数
+      navigate({
+        to: location.pathname,
+        search: ({ id, ...rest }) => {
+          void id
+          return rest
+        },
+        replace: true
+      })
     }
-  }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
+  }, [providers, search.id, navigate, location.pathname, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {
@@ -116,7 +126,7 @@ const ProviderList: FC = () => {
       const { id } = data
 
       const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data)
-      window.navigate(`/settings/provider?id=${id}`)
+      navigate({ to: '/settings/provider', search: { id } })
 
       if (!updatedProvider) {
         return
@@ -133,7 +143,7 @@ const ProviderList: FC = () => {
     }
 
     // 检查 URL 参数
-    const addProviderData = searchParams.get('addProviderData')
+    const addProviderData = search.addProviderData
     if (!addProviderData) {
       return
     }
@@ -142,17 +152,17 @@ const ProviderList: FC = () => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        window.navigate('/settings/provider')
+        navigate({ to: '/settings/provider' })
         return
       }
 
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      window.navigate('/settings/provider')
+      navigate({ to: '/settings/provider' })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [search.addProviderData])
 
   const onAddProvider = async () => {
     const { name: providerName, type, logo } = await AddProviderPopup.show()
@@ -385,10 +395,11 @@ const ProviderList: FC = () => {
         </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
+            size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
             onClick={onAddProvider}
             disabled={dragging}>
+            <PlusIcon size={16} />
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

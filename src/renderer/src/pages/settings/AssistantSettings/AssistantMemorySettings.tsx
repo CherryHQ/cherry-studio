@@ -1,11 +1,11 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { Box, Button, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Box } from '@renderer/components/Layout'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import MemoriesSettingsModal from '@renderer/pages/settings/MemorySettings/MemorySettingsModal'
 import MemoryService from '@renderer/services/MemoryService'
-import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
-import { Alert, Button, Card, Space, Switch, Tooltip, Typography } from 'antd'
+import { Alert, Card, Space, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -27,7 +27,7 @@ interface Props {
 const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, onClose }) => {
   const { t } = useTranslation()
   const memoryConfig = useSelector(selectMemoryConfig)
-  const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const [globalMemoryEnabled] = usePreference('feature.memory.enabled')
   const [memoryStats, setMemoryStats] = useState<{ count: number; loading: boolean }>({
     count: 0,
     loading: true
@@ -76,14 +76,17 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <HeaderContainer>
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('memory.title')}
-          <Tooltip title={t('memory.description')}>
-            <InfoIcon />
-          </Tooltip>
+          <InfoTooltip
+            content={t('memory.description')}
+            iconProps={{ className: 'ml-1.5 text-sm text-color-text-2 cursor-help' }}
+          />
         </Box>
         <Space>
-          <Button type="text" icon={<Settings2 size={15} />} onClick={handleNavigateToMemory} />
+          <Button variant="ghost" size="icon" onClick={handleNavigateToMemory}>
+            <Settings2 size={15} />
+          </Button>
           <Tooltip
-            title={
+            content={
               !globalMemoryEnabled
                 ? t('memory.enable_global_memory_first')
                 : !isMemoryConfigured
@@ -92,7 +95,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
             }>
             <Switch
               checked={assistant.enableMemory || false}
-              onChange={handleMemoryToggle}
+              onCheckedChange={handleMemoryToggle}
               disabled={!isMemoryEnabled}
             />
           </Tooltip>
@@ -107,7 +110,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           showIcon
           style={{ marginBottom: 16 }}
           action={
-            <Button size="small" onClick={handleNavigateToMemory}>
+            <Button size="sm" onClick={handleNavigateToMemory}>
               {t('memory.go_to_memory_page')}
             </Button>
           }
@@ -167,13 +170,6 @@ const HeaderContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-`
-
-const InfoIcon = styled(InfoCircleOutlined)`
-  margin-left: 6px;
-  font-size: 14px;
-  color: var(--color-text-2);
-  cursor: help;
 `
 
 export default AssistantMemorySettings

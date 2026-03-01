@@ -10,6 +10,7 @@
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
     "packages/shared/**/*",
+    "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -22,11 +23,13 @@
     ],
     "paths": {
       "@logger": ["./src/main/services/LoggerService"],
+      "@data/*": ["./src/main/data/*"],
       "@main/*": ["./src/main/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
       "@shared/*": ["./packages/shared/*"],
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
-      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
+      "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

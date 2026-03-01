@@ -1,16 +1,16 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Popover } from 'antd'
 import type { ComponentProps } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -31,7 +31,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   // Hooks
   const { editMessage } = useMessageOperations(topic)
-  const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
+  const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
+  const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
   const { isMultiSelectMode } = useChatContext(topic)
   const { setTimeoutTimer } = useTimer()
 

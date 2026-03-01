@@ -1,34 +1,21 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import {
-  setEnableDataCollection,
-  setEnableSpellCheck,
-  setLanguage,
-  setNotificationSettings,
-  setProxyBypassRules as _setProxyBypassRules,
-  setProxyMode,
-  setProxyUrl as _setProxyUrl,
-  setSpellCheckLanguages
-} from '@renderer/store/settings'
-import type { LanguageVarious } from '@renderer/types'
 import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch, Tooltip } from 'antd'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { Input } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -50,26 +37,30 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
 ]
 
 const GeneralSettings: FC = () => {
-  const {
-    language,
-    proxyUrl: storeProxyUrl,
-    proxyBypassRules: storeProxyBypassRules,
-    setLaunch,
-    setTray,
-    launchOnBoot,
-    launchToTray,
-    trayOnClose,
-    tray,
-    proxyMode: storeProxyMode,
-    enableDataCollection,
-    enableSpellCheck,
-    disableHardwareAcceleration,
-    setDisableHardwareAcceleration
-  } = useSettings()
-  const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
-  const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
+  const [language, setLanguage] = usePreference('app.language')
+  const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
+    'app.disable_hardware_acceleration'
+  )
+  const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
+  const [launchToTray, setLaunchToTray] = usePreference('app.tray.on_launch')
+  const [trayOnClose, setTrayOnClose] = usePreference('app.tray.on_close')
+  const [tray, setTray] = usePreference('app.tray.enabled')
+  const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
+  const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
+  const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
+  const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
+  const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
+    assistant: 'app.notification.assistant.enabled',
+    backup: 'app.notification.backup.enabled',
+    knowledge: 'app.notification.knowledge.enabled'
+  })
+
+  const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
+  const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const { theme } = useTheme()
-  const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
   const { setTimeoutTimer } = useTimer()
 
   const updateTray = (isShowTray: boolean) => {
@@ -82,7 +73,7 @@ const GeneralSettings: FC = () => {
   }
 
   const updateTrayOnClose = (isTrayOnClose: boolean) => {
-    setTray(undefined, isTrayOnClose)
+    setTrayOnClose(isTrayOnClose)
     //in case tray is not enabled, enable it
     if (isTrayOnClose && !tray) {
       updateTray(true)
@@ -90,28 +81,29 @@ const GeneralSettings: FC = () => {
   }
 
   const updateLaunchOnBoot = (isLaunchOnBoot: boolean) => {
-    setLaunch(isLaunchOnBoot)
+    setLaunchOnBoot(isLaunchOnBoot)
   }
 
   const updateLaunchToTray = (isLaunchToTray: boolean) => {
-    setLaunch(undefined, isLaunchToTray)
+    setLaunchToTray(isLaunchToTray)
     if (isLaunchToTray && !tray) {
       updateTray(true)
     }
   }
 
-  const dispatch = useAppDispatch()
+  // const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
   const onSelectLanguage = (value: LanguageVarious) => {
-    dispatch(setLanguage(value))
-    localStorage.setItem('language', value)
-    window.api.setLanguage(value)
+    // dispatch(setLanguage(value))
+    // localStorage.setItem('language', value)
+    // window.api.setLanguage(value)
     i18n.changeLanguage(value)
+    setLanguage(value)
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
-    dispatch(setEnableSpellCheck(checked))
+    setEnableSpellCheck(checked)
     window.api.setEnableSpellCheck(checked)
   }
 
@@ -121,11 +113,11 @@ const GeneralSettings: FC = () => {
       return
     }
 
-    dispatch(_setProxyUrl(proxyUrl))
+    _setProxyUrl(proxyUrl)
   }
 
   const onSetProxyBypassRules = () => {
-    dispatch(_setProxyBypassRules(proxyBypassRules))
+    _setProxyBypassRules(proxyBypassRules)
   }
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -135,7 +127,7 @@ const GeneralSettings: FC = () => {
   ]
 
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
-    dispatch(setProxyMode(mode))
+    setProxyMode(mode)
   }
 
   const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
@@ -152,16 +144,12 @@ const GeneralSettings: FC = () => {
     { value: 'ro-RO', label: 'Română', flag: '🇷🇴' }
   ]
 
-  const notificationSettings = useSelector((state: RootState) => state.settings.notification)
-  const spellCheckLanguages = useSelector((state: RootState) => state.settings.spellCheckLanguages)
-
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
-    dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
+    setNotificationSettings({ [type]: value })
   }
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
-    dispatch(setSpellCheckLanguages(selectedLanguages))
-    window.api.setSpellCheckLanguages(selectedLanguages)
+    setSpellCheckLanguages(selectedLanguages)
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
@@ -204,7 +192,7 @@ const GeneralSettings: FC = () => {
             onChange={onSelectLanguage}
             options={languagesOptions.map((lang) => ({
               label: (
-                <Flex align="center" gap={8}>
+                <Flex className="items-center gap-2">
                   <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
@@ -243,9 +231,11 @@ const GeneralSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span>{t('settings.proxy.bypass')}</span>
-                <Tooltip title={t('settings.proxy.tip')} placement="right">
-                  <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-                </Tooltip>
+                <InfoTooltip
+                  content={t('settings.proxy.tip')}
+                  placement="right"
+                  iconProps={{ className: 'cursor-pointer' }}
+                />
               </SettingRowTitle>
               <Input
                 spellCheck={false}
@@ -260,7 +250,7 @@ const GeneralSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
-          <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
+          <RowFlex className="mr-4 flex-1 items-center justify-between">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && !isMac && (
               <Selector<string>
@@ -272,7 +262,7 @@ const GeneralSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex align="center" gap={8}>
+                    <Flex className="items-center gap-2">
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
@@ -282,13 +272,13 @@ const GeneralSettings: FC = () => {
                 }))}
               />
             )}
-          </HStack>
-          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+          </RowFlex>
+          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
-          <Switch checked={disableHardwareAcceleration} onChange={handleHardwareAccelerationChange} />
+          <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -297,21 +287,32 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <Tooltip title={t('notification.tip')} placement="right">
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              content={t('notification.tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
           </SettingRowTitle>
-          <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
+          <Switch
+            checked={notificationSettings.assistant}
+            onCheckedChange={(v) => handleNotificationChange('assistant', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
-          <Switch checked={notificationSettings.backup} onChange={(v) => handleNotificationChange('backup', v)} />
+          <Switch
+            checked={notificationSettings.backup}
+            onCheckedChange={(v) => handleNotificationChange('backup', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
-          <Switch checked={notificationSettings.knowledge} onChange={(v) => handleNotificationChange('knowledge', v)} />
+          <Switch
+            checked={notificationSettings.knowledge}
+            onCheckedChange={(v) => handleNotificationChange('knowledge', v)}
+          />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -319,12 +320,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onChange={(checked) => updateLaunchOnBoot(checked)} />
+          <Switch checked={launchOnBoot} onCheckedChange={(checked) => updateLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} />
+          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -332,12 +333,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
-          <Switch checked={tray} onChange={(checked) => updateTray(checked)} />
+          <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} />
+          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -346,9 +347,9 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
-            value={enableDataCollection}
-            onChange={(v) => {
-              dispatch(setEnableDataCollection(v))
+            checked={enableDataCollection}
+            onCheckedChange={(v) => {
+              setEnableDataCollection(v)
               window.api.config.set('enableDataCollection', v)
             }}
           />
@@ -358,11 +359,11 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip title={t('settings.developer.help')} />
+            <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
-          <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
+          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

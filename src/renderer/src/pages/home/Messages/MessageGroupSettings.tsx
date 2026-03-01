@@ -1,10 +1,8 @@
 import { SettingOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider } from '@renderer/pages/settings'
 import { SettingRow } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
-import { setGridColumns, setGridPopoverTrigger } from '@renderer/store/settings'
 import { Col, Row, Slider } from 'antd'
 import { Popover } from 'antd'
 import type { FC } from 'react'
@@ -12,10 +10,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MessageGroupSettings: FC = () => {
-  const dispatch = useAppDispatch()
+  const [gridPopoverTrigger, setGridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
+  const [gridColumns, setGridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const { t } = useTranslation()
 
-  const { gridColumns, gridPopoverTrigger } = useSettings()
   const [gridColumnsValue, setGridColumnsValue] = useState(gridColumns)
 
   return (
@@ -29,7 +27,7 @@ const MessageGroupSettings: FC = () => {
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}
-              onChange={(value) => dispatch(setGridPopoverTrigger(value as 'hover' | 'click'))}
+              onChange={(value) => setGridPopoverTrigger(value as 'hover' | 'click')}
               options={[
                 { label: t('settings.messages.grid_popover_trigger.hover'), value: 'hover' },
                 { label: t('settings.messages.grid_popover_trigger.click'), value: 'click' }
@@ -46,7 +44,7 @@ const MessageGroupSettings: FC = () => {
                 value={gridColumnsValue}
                 style={{ width: '100%' }}
                 onChange={(value) => setGridColumnsValue(value)}
-                onChangeComplete={(value) => dispatch(setGridColumns(value))}
+                onChangeComplete={(value) => setGridColumns(value)}
                 min={2}
                 max={6}
                 step={1}
