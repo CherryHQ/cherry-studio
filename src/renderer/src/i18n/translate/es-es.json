@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Copia de seguridad completada",
       "compressing": "Comprimiendo archivos...",
+      "copying_database": "Copiando base de datos...",
       "copying_files": "Copiando archivos... {{progress}}%",
       "preparing": "Preparando copia de seguridad...",
       "preparing_compression": "Preparando compresión...",
@@ -3082,7 +3083,10 @@
       "extracting": "Descomprimiendo la copia de seguridad...",
       "preparing": "Preparando la restauración...",
       "reading_data": "Leyendo datos...",
-      "title": "Progreso de Restauración"
+      "restoring_data": "Restaurando archivos...",
+      "restoring_database": "Restaurando base de datos...",
+      "title": "Progreso de Restauración",
+      "validating": "Validando copia de seguridad..."
     },
     "title": "Restauración de Datos"
   },
@@ -3635,7 +3639,15 @@
           "button": "Seleccionar archivo de copia de seguridad"
         },
         "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
+        "file": {
+          "button": "Exportar a archivo",
+          "content": "Exportar datos como archivo de respaldo que puede ser importado en el móvil a través de un archivo.",
+          "export_failed": "Exportación fallida",
+          "export_success": "Exportación exitosa",
+          "title": "Exportar como archivo"
+        },
         "lan": {
+          "button": "Iniciar transferencia",
           "connected": "Conectado",
           "connection_failed": "Conexión fallida",
           "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",

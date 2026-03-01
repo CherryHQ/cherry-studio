@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
+      "copying_database": "Copying database...",
       "copying_files": "Copying files... {{progress}}%",
       "preparing": "Preparing backup...",
       "preparing_compression": "Preparing compression...",
@@ -3082,7 +3083,10 @@
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
       "reading_data": "Reading data...",
-      "title": "Restore Progress"
+      "restoring_data": "Restoring files...",
+      "restoring_database": "Restoring database...",
+      "title": "Restore Progress",
+      "validating": "Validating backup..."
     },
     "title": "Data Restore"
   },
@@ -3635,7 +3639,15 @@
           "button": "Select backup file"
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "file": {
+          "button": "Export to file",
+          "content": "Export data as a backup file that can be imported on mobile via file.",
+          "export_failed": "Export failed",
+          "export_success": "Export successful",
+          "title": "Export as file"
+        },
         "lan": {
+          "button": "Start Transfer",
           "connected": "Connected",
           "connection_failed": "Connection failed",
           "content": "Please ensure your computer and phone are on the same network for LAN transfer.",

@@ -704,6 +704,7 @@
     "progress": {
       "completed": "備份完成",
       "compressing": "壓縮檔案...",
+      "copying_database": "複製資料庫...",
       "copying_files": "複製檔案... {{progress}}%",
       "preparing": "準備備份...",
       "preparing_compression": "準備壓縮...",
@@ -3082,7 +3083,10 @@
       "extracting": "解開備份...",
       "preparing": "準備復原...",
       "reading_data": "讀取資料...",
-      "title": "復原進度"
+      "restoring_data": "復原檔案...",
+      "restoring_database": "復原資料庫...",
+      "title": "復原進度",
+      "validating": "驗證備份..."
     },
     "title": "資料復原"
   },
@@ -3635,7 +3639,15 @@
           "button": "選擇備份檔案"
         },
         "content": "匯出部分資料，包括聊天記錄與設定。請注意，備份過程可能需要一些時間，感謝耐心等候。",
+        "file": {
+          "button": "匯出至檔案",
+          "content": "將資料匯出為備份檔案，可透過檔案在行動裝置上匯入。",
+          "export_failed": "匯出失敗",
+          "export_success": "匯出成功",
+          "title": "匯出為檔案"
+        },
         "lan": {
+          "button": "開始傳輸",
           "connected": "已連線",
           "connection_failed": "連線失敗",
           "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。",

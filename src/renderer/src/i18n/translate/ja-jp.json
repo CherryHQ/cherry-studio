@@ -704,6 +704,7 @@
     "progress": {
       "completed": "バックアップ完了",
       "compressing": "圧縮中...",
+      "copying_database": "データベースをコピー中...",
       "copying_files": "ファイルコピー中... {{progress}}%",
       "preparing": "バックアップ準備中...",
       "preparing_compression": "圧縮準備中...",
@@ -3082,7 +3083,10 @@
       "extracting": "バックアップ解凍中...",
       "preparing": "復元準備中...",
       "reading_data": "データ読み込み中...",
-      "title": "復元進捗"
+      "restoring_data": "ファイルを復元中...",
+      "restoring_database": "データベースを復元中...",
+      "title": "復元進捗",
+      "validating": "バックアップを検証中..."
     },
     "title": "データ復元"
   },
@@ -3635,7 +3639,15 @@
           "button": "バックアップファイルを選択"
         },
         "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
+        "file": {
+          "button": "ファイルにエクスポート",
+          "content": "モバイルでファイル経由でインポートできるバックアップファイルとしてデータをエクスポートします。",
+          "export_failed": "エクスポートに失敗しました",
+          "export_success": "エクスポート成功",
+          "title": "ファイルとしてエクスポート"
+        },
         "lan": {
+          "button": "転送を開始",
           "connected": "接続済み",
           "connection_failed": "接続に失敗しました",
           "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",

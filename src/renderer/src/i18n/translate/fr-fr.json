@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Sauvegarde terminée",
       "compressing": "Compression des fichiers...",
+      "copying_database": "Copie de la base de données...",
       "copying_files": "Copie des fichiers... {{progress}}%",
       "preparing": "Préparation de la sauvegarde...",
       "preparing_compression": "Préparation de la compression...",
@@ -3082,7 +3083,10 @@
       "extracting": "Décompression de la sauvegarde...",
       "preparing": "Préparation de la restauration...",
       "reading_data": "Lecture des données...",
-      "title": "Progression de la restauration"
+      "restoring_data": "Restauration des fichiers...",
+      "restoring_database": "Restauration de la base de données...",
+      "title": "Progression de la restauration",
+      "validating": "Validation de la sauvegarde..."
     },
     "title": "Restauration des données"
   },
@@ -3635,7 +3639,15 @@
           "button": "Sélectionner le fichier de sauvegarde"
         },
         "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "file": {
+          "button": "Exporter vers un fichier",
+          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
+          "export_failed": "L'exportation a échoué",
+          "export_success": "Exportation réussie",
+          "title": "Exporter en tant que fichier"
+        },
         "lan": {
+          "button": "Démarrer le transfert",
           "connected": "Connecté",
           "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",

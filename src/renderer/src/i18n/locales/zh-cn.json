@@ -704,6 +704,7 @@
     "progress": {
       "completed": "备份完成",
       "compressing": "压缩文件...",
+      "copying_database": "复制数据库...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
       "preparing_compression": "准备压缩...",
@@ -3082,7 +3083,10 @@
       "extracting": "解压备份...",
       "preparing": "准备恢复...",
       "reading_data": "读取数据...",
-      "title": "恢复进度"
+      "restoring_data": "恢复文件...",
+      "restoring_database": "恢复数据库...",
+      "title": "恢复进度",
+      "validating": "验证备份..."
     },
     "title": "数据恢复"
   },
@@ -3635,7 +3639,15 @@
           "button": "选择备份文件"
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "file": {
+          "button": "导出到文件",
+          "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
+          "export_failed": "导出失败",
+          "export_success": "导出成功",
+          "title": "导出为文件"
+        },
         "lan": {
+          "button": "开始传输",
           "connected": "连接成功",
           "connection_failed": "连接失败",
           "content": "请确保电脑和手机处于同一网络以使用局域网传输。",

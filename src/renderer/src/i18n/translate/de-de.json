@@ -704,6 +704,7 @@
     "progress": {
       "completed": "Backup abgeschlossen",
       "compressing": "Dateien werden komprimiert...",
+      "copying_database": "Datenbank wird kopiert...",
       "copying_files": "Dateien werden kopiert... {{progress}}%",
       "preparing": "Backup wird vorbereitet...",
       "preparing_compression": "Komprimierung wird vorbereitet...",
@@ -3082,7 +3083,10 @@
       "extracting": "Backup wird entpackt...",
       "preparing": "Wiederherstellung wird vorbereitet...",
       "reading_data": "Daten werden gelesen...",
-      "title": "Wiederherstellungsfortschritt"
+      "restoring_data": "Dateien werden wiederhergestellt...",
+      "restoring_database": "Datenbank wird wiederhergestellt...",
+      "title": "Wiederherstellungsfortschritt",
+      "validating": "Backup wird überprüft..."
     },
     "title": "Datenwiederherstellung"
   },
@@ -3635,7 +3639,15 @@
           "button": "Sicherungsdatei auswählen"
         },
         "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "file": {
+          "button": "In Datei exportieren",
+          "content": "Exportiere Daten als Sicherungsdatei, die per Datei auf dem Mobilgerät importiert werden kann.",
+          "export_failed": "Export fehlgeschlagen",
+          "export_success": "Export erfolgreich",
+          "title": "Als Datei exportieren"
+        },
         "lan": {
+          "button": "Übertragung starten",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
           "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
