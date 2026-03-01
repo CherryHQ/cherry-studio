@@ -27,11 +27,12 @@ import WindowFooter from './WindowFooter'
 interface Props {
   action: ActionItem
   scrollToBottom: () => void
+  onContentReady?: (content: string) => void
 }
 
 const logger = loggerService.withContext('ActionTranslate')
 
-const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
+const ActionTranslate: FC<Props> = ({ action, scrollToBottom, onContentReady }) => {
   const { t } = useTranslation()
   const { language } = useSettings()
   const { getLanguageByLangcode, isLoaded: isLanguagesLoaded } = useTranslate()
@@ -53,7 +54,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
   const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -142,7 +142,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
     const onFinish = (content: string) => {
       setStatus('finished')
-      setContentToCopy(content)
+      onContentReady?.(content)
     }
     const onError = (error: Error) => {
       setStatus('finished')
@@ -184,7 +184,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     assistantRef.current = assistant
     logger.debug('process once')
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized, getLanguageByLangcode])
+  }, [action, targetLanguage, alterLanguage, scrollToBottom, initialized, getLanguageByLangcode, onContentReady])
 
   useEffect(() => {
     fetchResult()
@@ -318,7 +318,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   }
 
   const handleRegenerate = () => {
-    setContentToCopy('')
+    onContentReady?.('')
     fetchResult()
   }
 
@@ -404,12 +404,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} />
     </>
   )
 }

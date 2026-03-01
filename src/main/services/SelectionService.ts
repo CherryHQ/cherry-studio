@@ -1137,6 +1137,7 @@ export class SelectionService {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        webSecurity: false,
         devTools: true
       }
     })

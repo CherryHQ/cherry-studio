@@ -28,15 +28,15 @@ const logger = loggerService.withContext('ActionGeneral')
 interface Props {
   action: ActionItem
   scrollToBottom?: () => void
+  onContentReady?: (content: string) => void
 }
 
-const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
+const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom, onContentReady }) => {
   const { t } = useTranslation()
   const { language } = useSettings()
   const [error, setError] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [status, setStatus] = useState<'preparing' | 'streaming' | 'finished'>('preparing')
-  const [contentToCopy, setContentToCopy] = useState('')
   const initialized = useRef(false)
 
   // Use useRef for values that shouldn't trigger re-renders
@@ -106,7 +106,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
     const onFinish = (content: string) => {
       setStatus('finished')
-      setContentToCopy(content)
+      onContentReady?.(content)
     }
     const onError = (error: Error) => {
       setStatus('finished')
@@ -124,7 +124,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       onFinish,
       onError
     )
-  }, [scrollToBottom])
+  }, [scrollToBottom, onContentReady])
 
   useEffect(() => {
     fetchResult()
@@ -173,7 +173,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   }
 
   const handleRegenerate = () => {
-    setContentToCopy('')
+    onContentReady?.('')
     fetchResult()
   }
 
@@ -209,12 +209,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter
-        loading={isStreaming}
-        onPause={handlePause}
-        onRegenerate={handleRegenerate}
-        content={contentToCopy}
-      />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} />
     </>
   )
 })
