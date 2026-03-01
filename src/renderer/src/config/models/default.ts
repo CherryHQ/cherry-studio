@@ -1084,6 +1084,44 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'M2'
     }
   ],
+  'minimax-global': [
+    {
+      id: 'MiniMax-M2.5',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2',
+      group: 'M2'
+    },
+    {
+      id: 'M2-her',
+      provider: 'minimax-global',
+      name: 'M2-her',
+      group: 'M2'
+    }
+  ],
   hyperbolic: [
     {
       id: 'Qwen/Qwen2-VL-72B-Instruct',
@@ -1959,6 +1997,62 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Mimo V2 Flash',
       provider: 'mimo',
       group: 'Mimo'
+    }
+  ],
+  zai: [
+    {
+      id: 'glm-5',
+      provider: 'zai',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zai',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zai',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.6',
+      provider: 'zai',
+      name: 'GLM-4.6',
+      group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zai',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zai',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.5',
+      provider: 'zai',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zai',
+      name: 'GLM-4.5-Air',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5v',
+      provider: 'zai',
+      name: 'GLM-4.5V',
+      group: 'GLM-4.5V'
     }
   ]
 }
