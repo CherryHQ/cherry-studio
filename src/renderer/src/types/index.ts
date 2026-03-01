@@ -15,7 +15,8 @@ import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
-import type { BaseTool, MCPTool } from './tool'
+import { BaseToolSchema, type MCPTool, MCPToolSchema } from './tool'
+import { objectValues } from './typeUtils'
 
 export * from './agent'
 export * from './apiModels'
@@ -278,7 +279,17 @@ export type User = {
   email: string
 }
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
+export const ModelTypeSchema = z.enum([
+  'text',
+  'vision',
+  'embedding',
+  'reasoning',
+  'function_calling',
+  'web_search',
+  'rerank'
+])
+
+export type ModelType = z.infer<typeof ModelTypeSchema>
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
@@ -293,38 +304,45 @@ export const EndPointTypeSchema = z.enum([
 ])
 export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
-export type ModelPricing = {
-  input_per_million_tokens: number
-  output_per_million_tokens: number
-  currencySymbol?: string
-}
+export const ModelPricingSchema = z.object({
+  input_per_million_tokens: z.number(),
+  output_per_million_tokens: z.number(),
+  currencySymbol: z.string().optional()
+})
 
-export type ModelCapability = {
-  type: ModelType
+export type ModelPricing = z.infer<typeof ModelPricingSchema>
+
+export const ModelCapabilitySchema = z.object({
+  type: ModelTypeSchema,
   /**
    * 是否为用户手动选择，如果为true，则表示用户手动选择了该类型，否则表示用户手动禁止了该模型；如果为undefined，则表示使用默认值
+   *
    * Is it manually selected by the user? If true, it means the user manually selected this type; otherwise, it means the user  * manually disabled the model.
    */
-  isUserSelected?: boolean
-}
+  isUserSelected: z.boolean().optional()
+})
 
-export type Model = {
-  id: string
-  provider: string
-  name: string
-  group: string
-  owned_by?: string
-  description?: string
-  capabilities?: ModelCapability[]
+export type ModelCapability = z.infer<typeof ModelCapabilitySchema>
+
+export const ModelSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  name: z.string(),
+  group: z.string(),
+  owned_by: z.string().optional(),
+  description: z.string().optional(),
+  capabilities: z.array(ModelCapabilitySchema).optional(),
   /**
    * @deprecated
    */
-  type?: ModelType[]
-  pricing?: ModelPricing
-  endpoint_type?: EndpointType
-  supported_endpoint_types?: EndpointType[]
-  supported_text_delta?: boolean
-}
+  type: z.array(ModelTypeSchema).optional(),
+  pricing: ModelPricingSchema.optional(),
+  endpoint_type: EndPointTypeSchema.optional(),
+  supported_endpoint_types: z.array(EndPointTypeSchema).optional(),
+  supported_text_delta: z.boolean().optional()
+})
+
+export type Model = z.infer<typeof ModelSchema>
 
 export type Suggestion = {
   content: string
@@ -605,10 +623,12 @@ export type GenerateImageParams = {
   quality?: string
 }
 
-export type GenerateImageResponse = {
-  type: 'url' | 'base64'
-  images: string[]
-}
+export const GenerateImageResponseSchema = z.object({
+  type: z.enum(['url', 'base64']),
+  images: z.array(z.string())
+})
+
+export type GenerateImageResponse = z.infer<typeof GenerateImageResponseSchema>
 
 // 为了支持自定义语言，设置为string别名
 /** zh-cn, en-us, etc. */
@@ -705,16 +725,20 @@ export type WebSearchProvider = {
   modelName?: string
 }
 
-export type WebSearchProviderResult = {
-  title: string
-  content: string
-  url: string
-}
+const WebSearchProviderResultSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  url: z.string()
+})
 
-export type WebSearchProviderResponse = {
-  query?: string
-  results: WebSearchProviderResult[]
-}
+export type WebSearchProviderResult = z.infer<typeof WebSearchProviderResultSchema>
+
+const WebSearchProviderResponseSchema = z.object({
+  query: z.string().optional(),
+  results: z.array(WebSearchProviderResultSchema)
+})
+
+export type WebSearchProviderResponse = z.infer<typeof WebSearchProviderResponseSchema>
 
 export type AISDKWebSearchResult = Omit<Extract<LanguageModelV3Source, { sourceType: 'url' }>, 'sourceType'>
 
@@ -746,10 +770,14 @@ export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
 
 export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
-export type WebSearchResponse = {
-  results?: WebSearchResults
-  source: WebSearchSource
-}
+export const WebSearchResponseSchema = z.object({
+  // It's way too complicated to define a schema for WebSearchResults,
+  // so use z.custom to bypass validation
+  results: z.custom<WebSearchResults>(),
+  source: WebSearchSourceSchema
+})
+
+export type WebSearchResponse = z.infer<typeof WebSearchResponseSchema>
 
 export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
 
@@ -878,40 +906,61 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
+const MCPToolResponseStatusSchema = z.enum(['pending', 'streaming', 'cancelled', 'invoking', 'done', 'error'])
 
-interface BaseToolResponse {
-  id: string // unique id
-  tool: BaseTool | MCPTool
-  arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
-  status: MCPToolResponseStatus
-  response?: any
+export type MCPToolResponseStatus = z.infer<typeof MCPToolResponseStatusSchema>
+
+const BaseToolResponseSchemaConfig = {
+  /** Unique identifier */
+  id: z.string(),
+  tool: z.union([BaseToolSchema, MCPToolSchema]),
+  arguments: z.union([
+    z.record(z.string(), z.unknown()),
+    z.array(z.record(z.string(), z.unknown())),
+    z.string(),
+    z.undefined()
+  ]),
+  status: MCPToolResponseStatusSchema,
+  response: z.unknown().optional(),
+
   // Streaming arguments support
-  partialArguments?: string // Accumulated partial JSON string during streaming
-}
+  /** Accumulated partial JSON string during streaming */
+  partialArguments: z.string().optional()
+} as const
 
-export interface ToolUseResponse extends BaseToolResponse {
-  toolUseId: string
-}
+const ToolUseResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  toolUseId: z.string()
+})
 
-export interface ToolCallResponse extends BaseToolResponse {
-  // gemini tool call id might be undefined
-  toolCallId?: string
-}
+export type ToolUseResponse = z.infer<typeof ToolUseResponseSchema>
+
+const ToolCallResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  toolCallId: z.string().optional()
+})
+
+export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>
 
 // export type MCPToolResponse = ToolUseResponse | ToolCallResponse
-export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
-  tool: MCPTool
-  toolCallId?: string
-  toolUseId?: string
-  parentToolUseId?: string
-}
+export const MCPToolResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  tool: MCPToolSchema,
+  toolCallId: z.string().optional(),
+  toolUseId: z.string().optional(),
+  parentToolUseId: z.string().optional()
+})
 
-export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
-  tool: BaseTool
-  toolCallId: string
-  parentToolUseId?: string
-}
+export type MCPToolResponse = z.infer<typeof MCPToolResponseSchema>
+
+export const NormalToolResponseSchema = z.object({
+  ...BaseToolResponseSchemaConfig,
+  tool: BaseToolSchema,
+  toolCallId: z.string(),
+  parentToolUseId: z.string().optional()
+})
+
+export type NormalToolResponse = z.infer<typeof NormalToolResponseSchema>
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -994,6 +1043,8 @@ export type S3Config = {
 
 export type { Message } from './newMessage'
 export * from './tool'
+export type { AtLeast, NotNull, NotUndefined, RequireSome } from './typeUtils'
+export { objectEntries, objectEntriesStrict, objectKeys, objectValues, strip } from './typeUtils'
 
 // Memory Service Types
 // ========================================================================
@@ -1009,15 +1060,17 @@ export interface MemoryConfig {
   isAutoDimensions?: boolean
 }
 
-export interface MemoryItem {
-  id: string
-  memory: string
-  hash?: string
-  createdAt?: string
-  updatedAt?: string
-  score?: number
-  metadata?: Record<string, any>
-}
+export const MemoryItemSchema = z.object({
+  id: z.string(),
+  memory: z.string(),
+  hash: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  score: z.number().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+})
+
+export type MemoryItem = z.infer<typeof MemoryItemSchema>
 
 export interface MemorySearchResult {
   results: MemoryItem[]
@@ -1069,115 +1122,6 @@ export interface MemoryDeleteAllOptions extends MemoryEntity {}
 export type EditorView = 'preview' | 'source' | 'read' // 实时,源码,预览
 // ========================================================================
 
-/**
- * 获取对象的所有键名，并保持类型安全
- * @param obj - 要获取键名的对象
- * @returns 对象的所有键名数组，类型为对象键名的联合类型
- * @example
- * ```ts
- * const obj = { foo: 1, bar: 'hello' };
- * const keys = objectKeys(obj); // ['foo', 'bar']
- * ```
- */
-export function objectKeys<T extends object>(obj: T): (keyof T)[] {
-  return Object.keys(obj) as (keyof T)[]
-}
-
-/**
- * 将对象转换为键值对数组，保持类型安全
- * @template T - 对象类型
- * @param obj - 要转换的对象
- * @returns 键值对数组，每个元素是一个包含键和值的元组
- * @example
- * const obj = { name: 'John', age: 30 };
- * const entries = objectEntries(obj); // [['name', 'John'], ['age', 30]]
- */
-export function objectEntries<T extends object>(obj: T): [keyof T, T[keyof T]][] {
-  return Object.entries(obj) as [keyof T, T[keyof T]][]
-}
-
-/**
- * 将对象转换为键值对数组，提供更严格的类型检查
- * @template T - 对象类型，键必须是string、number或symbol，值可以是任意类型
- * @param obj - 要转换的对象
- * @returns 键值对数组，每个元素是一个包含键和值的元组，类型完全对应原对象的键值类型
- * @example
- * const obj = { name: 'John', age: 30 };
- * const entries = objectEntriesStrict(obj); // [['name', string], ['age', number]]
- */
-export function objectEntriesStrict<T extends Record<string | number | symbol, unknown>>(
-  obj: T
-): { [K in keyof T]: [K, T[K]] }[keyof T][] {
-  return Object.entries(obj) as { [K in keyof T]: [K, T[K]] }[keyof T][]
-}
-
-/**
- * 获取对象所有值的类型安全版本
- * @template T - 对象类型
- * @param obj - 要获取值的对象
- * @returns 对象值组成的数组
- * @example
- * const obj = { a: 1, b: 2 } as const;
- * const values = objectValues(obj); // (1 | 2)[]
- */
-export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
-  return Object.values(obj) as T[keyof T][]
-}
-
-/**
- * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
- * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
- * @template T - 必需包含的键的字面量字符串联合类型
- * @template U - 所有键对应值的类型
- * @example
- * type Example = AtLeast<'a' | 'b', number>;
- * // 结果类型允许:
- * const obj1: Example = { a: 1, b: 2 };           // 只包含必需的键
- * const obj2: Example = { a: 1, b: 2, c: 3 };     // 包含额外的键
- */
-export type AtLeast<T extends string, U> = {
-  [K in T]: U
-} & {
-  [key: string]: U
-}
-
-/**
- * 从对象中移除指定的属性键，返回新对象
- * @template T - 源对象类型
- * @template K - 要移除的属性键类型，必须是T的键
- * @param obj - 源对象
- * @param keys - 要移除的属性键列表
- * @returns 移除指定属性后的新对象
- * @example
- * ```ts
- * const obj = { a: 1, b: 2, c: 3 };
- * const result = strip(obj, ['a', 'b']);
- * // result = { c: 3 }
- * ```
- */
-export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
-  const result = { ...obj }
-  for (const key of keys) {
-    delete (result as any)[key] // 类型上 Omit 已保证安全
-  }
-  return result
-}
-
-/**
- * Makes specified properties required while keeping others as is
- * @template T - The object type to modify
- * @template K - Keys of T that should be required
- * @example
- * type User = {
- *   name?: string;
- *   age?: number;
- * }
- *
- * type UserWithName = RequireSome<User, 'name'>
- * // Result: { name: string; age?: number; }
- */
-export type RequireSome<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>
-
 export type HexColor = string
 
 /**
@@ -1216,7 +1160,3 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
-
-// More specific than NonNullable
-export type NotUndefined<T> = Exclude<T, undefined>
-export type NotNull<T> = Exclude<T, null>

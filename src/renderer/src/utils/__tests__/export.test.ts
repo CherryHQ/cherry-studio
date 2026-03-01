@@ -1,6 +1,6 @@
 // Import Message, MessageBlock, and necessary enums
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
@@ -39,17 +39,17 @@ vi.mock('@renderer/i18n', () => ({
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   // Provide type safety for mocked message
   getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
-    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
     return mainTextBlock?.content || '' // Assuming content exists on MainTextBlock
   }),
   getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
-    const thinkingBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.THINKING)
+    const thinkingBlock = message._fullBlocks?.find((b) => b.type === MESSAGE_BLOCK_TYPE.THINKING)
     // Assuming content exists on ThinkingBlock
     // Need to cast block to access content if not on base type
     return (thinkingBlock as any)?.content || ''
   }),
   getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
-    const citationBlocks = message._fullBlocks?.filter((b) => b.type === MessageBlockType.CITATION) || []
+    const citationBlocks = message._fullBlocks?.filter((b) => b.type === MESSAGE_BLOCK_TYPE.CITATION) || []
     // Return empty string if no citation blocks, otherwise mock citation content
     if (citationBlocks.length === 0) return ''
     // Mock citation format: [number] [url](title)
@@ -106,7 +106,7 @@ function createBlock(messageId: string, partialBlock: PartialBlockInput): Messag
     messageId: messageId, // Use the passed messageId
     type: partialBlock.type,
     createdAt: partialBlock.createdAt || '2024-01-01T00:00:00Z',
-    status: partialBlock.status || MessageBlockStatus.SUCCESS
+    status: partialBlock.status || MESSAGE_BLOCK_STATUS.SUCCESS
     // Add other base fields if they become required
   }
 
@@ -250,17 +250,17 @@ describe('export', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
       const userMsg = createMessage({ role: 'user', id: 'u1' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'hello user' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'hello user' }
       ])
       const assistantMsg = createMessage({ role: 'assistant', id: 'a1' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'hi assistant' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'hi assistant' }
       ])
       mockedMessages = [userMsg, assistantMsg]
     })
 
     it('should handle empty content in message blocks', () => {
       const msgWithEmptyContent = createMessage({ role: 'user', id: 'empty_block' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '' }
       ])
       const markdown = messageToMarkdown(msgWithEmptyContent)
       expect(markdown).toContain('## 🧑‍💻 User')
@@ -306,8 +306,8 @@ describe('export', () => {
 
     it('should include citation content when citation blocks exist', () => {
       const msgWithCitation = createMessage({ role: 'assistant', id: 'a_cite' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Main content' },
-        { type: MessageBlockType.CITATION }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Main content' },
+        { type: MESSAGE_BLOCK_TYPE.CITATION }
       ])
       const markdown = messageToMarkdown(msgWithCitation)
       expect(markdown).toContain('## 🤖 Assistant')
@@ -320,20 +320,20 @@ describe('export', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
       const msgWithReasoning = createMessage({ role: 'assistant', id: 'a2' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Main Answer' },
-        { type: MessageBlockType.THINKING, content: 'Detailed thought process' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Main Answer' },
+        { type: MESSAGE_BLOCK_TYPE.THINKING, content: 'Detailed thought process' }
       ])
       const msgWithThinkTag = createMessage({ role: 'assistant', id: 'a3' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Answer B' },
-        { type: MessageBlockType.THINKING, content: '<think>\nLine1\nLine2</think>' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Answer B' },
+        { type: MESSAGE_BLOCK_TYPE.THINKING, content: '<think>\nLine1\nLine2</think>' }
       ])
       const msgWithoutReasoning = createMessage({ role: 'assistant', id: 'a4' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Simple Answer' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Simple Answer' }
       ])
       const msgWithReasoningAndCitation = createMessage({ role: 'assistant', id: 'a5' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Answer with citation' },
-        { type: MessageBlockType.THINKING, content: 'Some thinking' },
-        { type: MessageBlockType.CITATION }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Answer with citation' },
+        { type: MESSAGE_BLOCK_TYPE.THINKING, content: 'Some thinking' },
+        { type: MESSAGE_BLOCK_TYPE.CITATION }
       ])
       mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning, msgWithReasoningAndCitation]
     })
@@ -394,13 +394,13 @@ describe('export', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
       const userMsg = createMessage({ role: 'user', id: 'u3' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'User query A' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'User query A' }
       ])
       const assistantMsg = createMessage({ role: 'assistant', id: 'a5' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Assistant response B' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Assistant response B' }
       ])
       const singleUserMsg = createMessage({ role: 'user', id: 'u4' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Single user query' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Single user query' }
       ])
       mockedMessages = [userMsg, assistantMsg, singleUserMsg]
     })
@@ -442,10 +442,10 @@ describe('export', () => {
 
     it('should format user and assistant messages correctly to plain text with roles', async () => {
       const userMsg = createMessage({ role: 'user', id: 'u_plain_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '# User Content Formatted' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '# User Content Formatted' }
       ])
       const assistantMsg = createMessage({ role: 'assistant', id: 'a_plain_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '*Assistant Content Formatted*' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '*Assistant Content Formatted*' }
       ])
       const testTopic: Topic = {
         id: 't_plain_formatted',
@@ -475,7 +475,7 @@ describe('export', () => {
   describe('messageToPlainText', () => {
     it('should convert a single message content to plain text without role prefix', () => {
       const testMessage = createMessage({ role: 'user', id: 'single_msg_plain' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '### Single Message Content' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '### Single Message Content' }
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
@@ -495,7 +495,7 @@ describe('export', () => {
 
       // Test case 2: Block exists but content is empty
       const testMessageEmptyContent = createMessage({ role: 'user', id: 'empty_content_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '' }
       ])
 
       const result2 = messageToPlainText(testMessageEmptyContent)
@@ -505,7 +505,7 @@ describe('export', () => {
 
     it('should handle special characters in message content', () => {
       const testMessage = createMessage({ role: 'user', id: 'special_chars_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Text with "quotes" & <tags> and &entities;' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Text with "quotes" & <tags> and &entities;' }
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
@@ -516,7 +516,7 @@ describe('export', () => {
 
     it('should handle messages with markdown formatting', () => {
       const testMessage = createMessage({ role: 'user', id: 'markdown_msg' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '# Header\n**Bold** and *italic* text\n- List item' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '# Header\n**Bold** and *italic* text\n- List item' }
       ])
       ;(markdownToPlainText as any).mockImplementation((str: string) =>
         str.replace(/[#*_]/g, '').replace(/^- /gm, '').replace(/\n+/g, '\n').trim()
@@ -543,10 +543,10 @@ describe('export', () => {
 
     it('should join multiple formatted plain text messages with double newlines', async () => {
       const msg1 = createMessage({ role: 'user', id: 'm_plain1_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Msg1 Formatted' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Msg1 Formatted' }
       ])
       const msg2 = createMessage({ role: 'assistant', id: 'm_plain2_formatted' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Msg2 Formatted' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Msg2 Formatted' }
       ])
       const testTopic: Topic = {
         id: 't_multi_plain_formatted',
@@ -582,7 +582,7 @@ describe('export', () => {
 
     it('should handle empty content in topic messages', async () => {
       const msgWithEmpty = createMessage({ role: 'user', id: 'empty_content' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '' }
       ])
       const testTopic: Topic = {
         id: 'topic_empty_content',
@@ -604,7 +604,7 @@ describe('export', () => {
 
     it('should handle special characters in topic content', async () => {
       const msgWithSpecial = createMessage({ role: 'user', id: 'special_chars' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Content with "quotes" & <tags> and &entities;' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: 'Content with "quotes" & <tags> and &entities;' }
       ])
       const testTopic: Topic = {
         id: 'topic_special_chars',
@@ -628,10 +628,10 @@ describe('export', () => {
 
     it('should return plain text for a topic with messages', async () => {
       const msg1 = createMessage({ role: 'user', id: 'tp_u1' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '**Hello**' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '**Hello**' }
       ])
       const msg2 = createMessage({ role: 'assistant', id: 'tp_a1' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '_World_' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '_World_' }
       ])
       const testTopic: Topic = {
         id: 'topic1_plain',
@@ -731,7 +731,7 @@ describe('export', () => {
 
     it('should call messageToPlainText and copy its result to clipboard', async () => {
       const testMessage = createMessage({ role: 'user', id: 'copy_msg_plain' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '**Copy This Plain**' }
+        { type: MESSAGE_BLOCK_TYPE.MAIN_TEXT, content: '**Copy This Plain**' }
       ])
 
       await copyMessageAsPlainText(testMessage)
@@ -1013,10 +1013,10 @@ describe('Citation formatting in Markdown export', () => {
   test('should properly test formatCitationsAsFootnotes through messageToMarkdown', () => {
     const msgWithCitations = createMessage({ role: 'assistant', id: 'test_footnotes' }, [
       {
-        type: MessageBlockType.MAIN_TEXT,
+        type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
         content: 'Content with citations [<sup data-citation="test">1</sup>](url1) and [2].'
       },
-      { type: MessageBlockType.CITATION }
+      { type: MESSAGE_BLOCK_TYPE.CITATION }
     ])
 
     // This tests the complete flow including formatCitationsAsFootnotes

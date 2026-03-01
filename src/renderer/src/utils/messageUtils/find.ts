@@ -11,7 +11,7 @@ import type {
   ThinkingMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 
 export const findAllBlocks = (message: Message): MessageBlock[] => {
   if (!message || !message.blocks || message.blocks.length === 0) {
@@ -41,7 +41,7 @@ export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => 
   const textBlocks: MainTextMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.MAIN_TEXT) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT) {
       textBlocks.push(block as MainTextMessageBlock)
     }
   }
@@ -61,7 +61,7 @@ export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => 
   const thinkingBlocks: ThinkingMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.THINKING) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.THINKING) {
       thinkingBlocks.push(block as ThinkingMessageBlock)
     }
   }
@@ -81,7 +81,7 @@ export const findImageBlocks = (message: Message): ImageMessageBlock[] => {
   const imageBlocks: ImageMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.IMAGE) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.IMAGE) {
       imageBlocks.push(block as ImageMessageBlock)
     }
   }
@@ -101,7 +101,7 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
   const fileBlocks: FileMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.FILE) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.FILE) {
       fileBlocks.push(block as FileMessageBlock)
     }
   }
@@ -175,7 +175,7 @@ export const findCitationBlocks = (message: Message): CitationMessageBlock[] => 
   const citationBlocks: CitationMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.CITATION) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.CITATION) {
       citationBlocks.push(block as CitationMessageBlock)
     }
   }
@@ -195,7 +195,7 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
   const translationBlocks: TranslationMessageBlock[] = []
   for (const blockId of message.blocks) {
     const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.TRANSLATION) {
+    if (block && block.type === MESSAGE_BLOCK_TYPE.TRANSLATION) {
       translationBlocks.push(block as TranslationMessageBlock)
     }
   }
@@ -223,10 +223,10 @@ export function getContentWithTools(message: Message) {
   const blocks = findAllBlocks(message)
   let constructedContent = ''
   for (const block of blocks) {
-    if (block.type === MessageBlockType.MAIN_TEXT || block.type === MessageBlockType.TOOL) {
-      if (block.type === MessageBlockType.MAIN_TEXT) {
+    if (block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT || block.type === MESSAGE_BLOCK_TYPE.TOOL) {
+      if (block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT) {
         constructedContent += block.content
-      } else if (block.type === MessageBlockType.TOOL) {
+      } else if (block.type === MESSAGE_BLOCK_TYPE.TOOL) {
         // 如果是工具调用结果，为其添加文本消息
         let resultString =
           '\n\nAssistant called a tool.\nTool Name:' +

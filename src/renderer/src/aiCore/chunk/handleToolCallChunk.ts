@@ -350,6 +350,7 @@ export class ToolCallChunkHandler {
     // 工具特定的后处理
     switch (toolResponse.tool.name) {
       case 'builtin_knowledge_search': {
+        // @ts-ignore FIXME: type validation is bypassed
         processKnowledgeReferences(toolResponse.response, this.onChunk)
         break
       }

@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import type { AppDispatch, RootState } from '@renderer/store'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import type { MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('BlockManager')
 
@@ -55,7 +55,7 @@ export class BlockManager {
   }
 
   get hasInitialPlaceholder() {
-    return this._activeBlockInfo?.type === MessageBlockType.UNKNOWN
+    return this._activeBlockInfo?.type === MESSAGE_BLOCK_TYPE.UNKNOWN
   }
 
   get initialPlaceholderBlockId() {

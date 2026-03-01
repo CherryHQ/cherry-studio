@@ -18,8 +18,8 @@ import { loggerService } from '@logger'
 import type { EntityState, PayloadAction } from '@reduxjs/toolkit'
 import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
-import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 
 const logger = loggerService.withContext('newMessage')
 
@@ -249,7 +249,7 @@ export const messagesSlice = createSlice({
       // Update Block ID
       const currentBlocks = messageToUpdate.blocks || []
       if (!currentBlocks.includes(blockId)) {
-        if (blockType === MessageBlockType.THINKING) {
+        if (blockType === MESSAGE_BLOCK_TYPE.THINKING) {
           changes.blocks = [blockId, ...currentBlocks]
         } else {
           changes.blocks = [...currentBlocks, blockId]
@@ -259,16 +259,16 @@ export const messagesSlice = createSlice({
       // Update Message Status based on Block Status
       if (status) {
         if (
-          (status === MessageBlockStatus.PROCESSING || status === MessageBlockStatus.STREAMING) &&
+          (status === MESSAGE_BLOCK_STATUS.PROCESSING || status === MESSAGE_BLOCK_STATUS.STREAMING) &&
           messageToUpdate.status !== AssistantMessageStatus.PROCESSING &&
           messageToUpdate.status !== AssistantMessageStatus.SUCCESS &&
           messageToUpdate.status !== AssistantMessageStatus.ERROR
         ) {
           changes.status = AssistantMessageStatus.PROCESSING
-        } else if (status === MessageBlockStatus.ERROR) {
+        } else if (status === MESSAGE_BLOCK_STATUS.ERROR) {
           changes.status = AssistantMessageStatus.ERROR
         } else if (
-          status === MessageBlockStatus.SUCCESS &&
+          status === MESSAGE_BLOCK_STATUS.SUCCESS &&
           messageToUpdate.status === AssistantMessageStatus.PROCESSING
         ) {
           // Tentative success - may need refinement

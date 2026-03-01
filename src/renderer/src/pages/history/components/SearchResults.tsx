@@ -3,7 +3,7 @@ import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { selectTopicsMap } from '@renderer/store/assistants'
 import type { Topic } from '@renderer/types'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import {
   buildKeywordRegexes,
   buildKeywordUnionRegex,
@@ -218,7 +218,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     const searchRegexes = buildKeywordRegexes(newSearchTerms, { matchMode, flags: 'i' })
 
     const blocks = (await db.message_blocks.toArray())
-      .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+      .filter((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
       .filter((block) => {
         const searchableContent = stripMarkdownFormatting(block.content)
         return searchRegexes.some((regex) => regex.test(searchableContent))

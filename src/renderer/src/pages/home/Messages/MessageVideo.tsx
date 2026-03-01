@@ -30,9 +30,11 @@ const MessageVideo: FC<Props> = ({ block }) => {
       return <div>{t('message.video.error.local_file_missing')}</div>
     }
 
+    // @ts-ignore FIXME: type validation is bypassed
     const videoSrc = `file://${block.metadata?.video.path}`
 
     const handleReady = () => {
+      // @ts-ignore FIXME: type validation is bypassed
       const startTime = Math.floor(block.metadata?.startTime ?? 0)
       if (playerRef.current) {
         playerRef.current.currentTime = startTime

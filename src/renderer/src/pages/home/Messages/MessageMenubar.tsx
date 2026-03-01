@@ -23,7 +23,7 @@ import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageB
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -233,10 +233,10 @@ const MessageMenubar: FC<Props> = (props) => {
   const isTranslating = useMemo(() => {
     const translationBlock = message.blocks
       .map((blockId) => blockEntities[blockId])
-      .find((block) => block?.type === MessageBlockType.TRANSLATION)
+      .find((block) => block?.type === MESSAGE_BLOCK_TYPE.TRANSLATION)
     return (
-      translationBlock?.status === MessageBlockStatus.STREAMING ||
-      translationBlock?.status === MessageBlockStatus.PROCESSING
+      translationBlock?.status === MESSAGE_BLOCK_STATUS.STREAMING ||
+      translationBlock?.status === MESSAGE_BLOCK_STATUS.PROCESSING
     )
   }, [message.blocks, blockEntities])
 
@@ -510,7 +510,7 @@ const MessageMenubar: FC<Props> = (props) => {
       return defaultFilter
     }
 
-    if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
+    if (relatedUserMessageBlocks.some((block) => block && block.type === MESSAGE_BLOCK_TYPE.IMAGE)) {
       return (m: Model) => isVisionModel(m) && defaultFilter(m)
     } else {
       return defaultFilter

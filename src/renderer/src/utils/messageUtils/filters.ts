@@ -1,7 +1,7 @@
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage' // Assuming correct Message type import
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 // May need Block types if refactoring to use them
 // import type { MessageBlock, MainTextMessageBlock } from '@renderer/types/newMessageTypes';
 import { remove, takeRight } from 'lodash'
@@ -21,7 +21,7 @@ export const filterMessages = (messages: Message[]) => {
       const state = store.getState()
       const mainTextBlock = message.blocks
         ?.map((blockId) => messageBlocksSelectors.selectById(state, blockId))
-        .find((block) => block?.type === MessageBlockType.MAIN_TEXT)
+        .find((block) => block?.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
       return !isEmpty((mainTextBlock as any)?.content?.trim()) // Type assertion needed
     })
 }
@@ -63,19 +63,19 @@ export function filterEmptyMessages(messages: Message[]): Message[] {
     for (const blockId of message.blocks) {
       const block = messageBlocksSelectors.selectById(state, blockId)
       if (!block) continue
-      if (block.type === MessageBlockType.MAIN_TEXT && !isEmpty((block as any).content?.trim())) {
+      if (block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT && !isEmpty((block as any).content?.trim())) {
         // Type assertion needed
         hasContent = true
         break
       }
       if (
         [
-          MessageBlockType.IMAGE,
-          MessageBlockType.FILE,
-          MessageBlockType.CODE,
-          MessageBlockType.TOOL,
-          MessageBlockType.CITATION
-        ].includes(block.type)
+          MESSAGE_BLOCK_TYPE.IMAGE,
+          MESSAGE_BLOCK_TYPE.FILE,
+          MESSAGE_BLOCK_TYPE.CODE,
+          MESSAGE_BLOCK_TYPE.TOOL,
+          MESSAGE_BLOCK_TYPE.CITATION
+        ].some((type) => type === block.type)
       ) {
         hasContent = true
         break
@@ -169,7 +169,7 @@ export function filterErrorOnlyMessagesWithRelated(messages: Message[]): Message
       const block = messageBlocksSelectors.selectById(state, blockId)
       if (!block) continue
 
-      if (block.type !== MessageBlockType.ERROR) {
+      if (block.type !== MESSAGE_BLOCK_TYPE.ERROR) {
         hasNonErrorBlock = true
         break
       }

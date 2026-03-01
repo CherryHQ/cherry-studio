@@ -1,6 +1,6 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createErrorBlock, createMainTextBlock, createMessage } from '../create'
@@ -124,7 +124,7 @@ describe('Message Filter Utils', () => {
   describe('filterEmptyMessages', () => {
     it('should keep messages with main text content', () => {
       const msgId = 'msg-1'
-      const block = createMainTextBlock(msgId, 'Hello', { status: MessageBlockStatus.SUCCESS })
+      const block = createMainTextBlock(msgId, 'Hello', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const msg = createMessage('user', 'topic-1', 'assistant-1', { id: msgId, blocks: [block.id] })
 
       mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(block))
@@ -136,7 +136,7 @@ describe('Message Filter Utils', () => {
 
     it('should filter out messages with empty text content', () => {
       const msgId = 'msg-1'
-      const block = createMainTextBlock(msgId, '   ', { status: MessageBlockStatus.SUCCESS })
+      const block = createMainTextBlock(msgId, '   ', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const msg = createMessage('user', 'topic-1', 'assistant-1', { id: msgId, blocks: [block.id] })
 
       mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(block))
@@ -157,8 +157,8 @@ describe('Message Filter Utils', () => {
         messageBlocksSlice.actions.upsertOneBlock({
           id: 'image-block-1',
           messageId: msgId,
-          type: MessageBlockType.IMAGE,
-          status: MessageBlockStatus.SUCCESS,
+          type: MESSAGE_BLOCK_TYPE.IMAGE,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           createdAt: new Date().toISOString(),
           file: { id: 'file-1', origin_name: 'image.png' } as any
         })
@@ -180,8 +180,8 @@ describe('Message Filter Utils', () => {
         messageBlocksSlice.actions.upsertOneBlock({
           id: 'file-block-1',
           messageId: msgId,
-          type: MessageBlockType.FILE,
-          status: MessageBlockStatus.SUCCESS,
+          type: MESSAGE_BLOCK_TYPE.FILE,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           createdAt: new Date().toISOString(),
           file: { id: 'file-1', origin_name: 'doc.pdf' } as any
         })
@@ -204,11 +204,11 @@ describe('Message Filter Utils', () => {
   describe('filterUsefulMessages', () => {
     it('should keep the useful message when multiple assistant messages exist for same askId', () => {
       const userId = 'user-1'
-      const userBlock = createMainTextBlock(userId, 'Question', { status: MessageBlockStatus.SUCCESS })
+      const userBlock = createMainTextBlock(userId, 'Question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const userMsg = createMessage('user', 'topic-1', 'assistant-1', { id: userId, blocks: [userBlock.id] })
 
       const assistant1Id = 'assistant-1'
-      const assistant1Block = createMainTextBlock(assistant1Id, 'Answer 1', { status: MessageBlockStatus.SUCCESS })
+      const assistant1Block = createMainTextBlock(assistant1Id, 'Answer 1', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const assistant1 = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: assistant1Id,
         blocks: [assistant1Block.id],
@@ -217,7 +217,7 @@ describe('Message Filter Utils', () => {
       })
 
       const assistant2Id = 'assistant-2'
-      const assistant2Block = createMainTextBlock(assistant2Id, 'Answer 2', { status: MessageBlockStatus.SUCCESS })
+      const assistant2Block = createMainTextBlock(assistant2Id, 'Answer 2', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const assistant2 = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: assistant2Id,
         blocks: [assistant2Block.id],
@@ -336,14 +336,14 @@ describe('Message Filter Utils', () => {
   describe('filterErrorOnlyMessagesWithRelated', () => {
     it('should filter out assistant messages with only ErrorBlocks and their associated user messages', () => {
       const user1Id = 'user-1'
-      const user1Block = createMainTextBlock(user1Id, 'Question 1', { status: MessageBlockStatus.SUCCESS })
+      const user1Block = createMainTextBlock(user1Id, 'Question 1', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user1 = createMessage('user', 'topic-1', 'assistant-1', { id: user1Id, blocks: [user1Block.id] })
 
       const errorAssistantId = 'assistant-error'
       const errorBlock = createErrorBlock(
         errorAssistantId,
         { message: 'Error occurred', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const errorAssistant = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: errorAssistantId,
@@ -352,7 +352,7 @@ describe('Message Filter Utils', () => {
       })
 
       const user2Id = 'user-2'
-      const user2Block = createMainTextBlock(user2Id, 'Question 2', { status: MessageBlockStatus.SUCCESS })
+      const user2Block = createMainTextBlock(user2Id, 'Question 2', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user2 = createMessage('user', 'topic-1', 'assistant-1', { id: user2Id, blocks: [user2Block.id] })
 
       mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Block))
@@ -368,15 +368,15 @@ describe('Message Filter Utils', () => {
 
     it('should NOT filter assistant messages with ErrorBlock AND other blocks', () => {
       const userId = 'user-1'
-      const userBlock = createMainTextBlock(userId, 'Question', { status: MessageBlockStatus.SUCCESS })
+      const userBlock = createMainTextBlock(userId, 'Question', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user = createMessage('user', 'topic-1', 'assistant-1', { id: userId, blocks: [userBlock.id] })
 
       const assistantId = 'assistant-1'
-      const textBlock = createMainTextBlock(assistantId, 'Partial answer', { status: MessageBlockStatus.SUCCESS })
+      const textBlock = createMainTextBlock(assistantId, 'Partial answer', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const errorBlock = createErrorBlock(
         assistantId,
         { message: 'Error occurred', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const assistant = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: assistantId,
@@ -398,14 +398,14 @@ describe('Message Filter Utils', () => {
 
     it('should handle multiple error-only pairs', () => {
       const user1Id = 'user-1'
-      const user1Block = createMainTextBlock(user1Id, 'Q1', { status: MessageBlockStatus.SUCCESS })
+      const user1Block = createMainTextBlock(user1Id, 'Q1', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user1 = createMessage('user', 'topic-1', 'assistant-1', { id: user1Id, blocks: [user1Block.id] })
 
       const error1Id = 'error-1'
       const errorBlock1 = createErrorBlock(
         error1Id,
         { message: 'Error 1', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const error1 = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: error1Id,
@@ -414,14 +414,14 @@ describe('Message Filter Utils', () => {
       })
 
       const user2Id = 'user-2'
-      const user2Block = createMainTextBlock(user2Id, 'Q2', { status: MessageBlockStatus.SUCCESS })
+      const user2Block = createMainTextBlock(user2Id, 'Q2', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user2 = createMessage('user', 'topic-1', 'assistant-1', { id: user2Id, blocks: [user2Block.id] })
 
       const error2Id = 'error-2'
       const errorBlock2 = createErrorBlock(
         error2Id,
         { message: 'Error 2', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const error2 = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: error2Id,
@@ -430,7 +430,7 @@ describe('Message Filter Utils', () => {
       })
 
       const user3Id = 'user-3'
-      const user3Block = createMainTextBlock(user3Id, 'Q3', { status: MessageBlockStatus.SUCCESS })
+      const user3Block = createMainTextBlock(user3Id, 'Q3', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user3 = createMessage('user', 'topic-1', 'assistant-1', { id: user3Id, blocks: [user3Block.id] })
 
       mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Block))
@@ -451,7 +451,7 @@ describe('Message Filter Utils', () => {
       const errorBlock = createErrorBlock(
         assistantId,
         { message: 'Error', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const assistant = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: assistantId,
@@ -486,11 +486,11 @@ describe('Message Filter Utils', () => {
 
     it('should work correctly in complex scenarios', () => {
       const user1Id = 'user-1'
-      const user1Block = createMainTextBlock(user1Id, 'Q1', { status: MessageBlockStatus.SUCCESS })
+      const user1Block = createMainTextBlock(user1Id, 'Q1', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user1 = createMessage('user', 'topic-1', 'assistant-1', { id: user1Id, blocks: [user1Block.id] })
 
       const assistant1Id = 'assistant-1'
-      const assistant1Block = createMainTextBlock(assistant1Id, 'A1', { status: MessageBlockStatus.SUCCESS })
+      const assistant1Block = createMainTextBlock(assistant1Id, 'A1', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const assistant1 = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: assistant1Id,
         blocks: [assistant1Block.id],
@@ -498,14 +498,14 @@ describe('Message Filter Utils', () => {
       })
 
       const user2Id = 'user-2'
-      const user2Block = createMainTextBlock(user2Id, 'Q2', { status: MessageBlockStatus.SUCCESS })
+      const user2Block = createMainTextBlock(user2Id, 'Q2', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user2 = createMessage('user', 'topic-1', 'assistant-1', { id: user2Id, blocks: [user2Block.id] })
 
       const errorAssistantId = 'error-assistant'
       const errorBlock = createErrorBlock(
         errorAssistantId,
         { message: 'Error', name: 'Error', stack: null },
-        { status: MessageBlockStatus.SUCCESS }
+        { status: MESSAGE_BLOCK_STATUS.SUCCESS }
       )
       const errorAssistant = createMessage('assistant', 'topic-1', 'assistant-1', {
         id: errorAssistantId,
@@ -514,7 +514,7 @@ describe('Message Filter Utils', () => {
       })
 
       const user3Id = 'user-3'
-      const user3Block = createMainTextBlock(user3Id, 'Q3', { status: MessageBlockStatus.SUCCESS })
+      const user3Block = createMainTextBlock(user3Id, 'Q3', { status: MESSAGE_BLOCK_STATUS.SUCCESS })
       const user3 = createMessage('user', 'topic-1', 'assistant-1', { id: user3Id, blocks: [user3Block.id] })
 
       mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Block))
