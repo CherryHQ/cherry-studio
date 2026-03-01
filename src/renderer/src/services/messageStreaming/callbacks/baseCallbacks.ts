@@ -247,7 +247,14 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      const messageUpdates = { status, metrics: response?.metrics, usage: response?.usage }
+      const messageUpdates = {
+        status,
+        metrics: response?.metrics,
+        usage: response?.usage,
+        // Store reasoning_details directly on the message for subsequent requests.
+        // When present, this allows models like Claude/Gemini to resume encrypted reasoning.
+        ...(response?.reasoning_details ? { reasoning_details: response.reasoning_details } : {})
+      }
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
