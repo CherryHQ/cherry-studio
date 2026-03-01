@@ -788,6 +788,10 @@
         "label": "Clear {{Command}}",
         "title": "Clear all messages?"
       },
+      "code_editor": {
+        "insert": "Insert",
+        "title": "Code Editor"
+      },
       "collapse": "Collapse",
       "context_count": {
         "tip": "Context / Max Context"

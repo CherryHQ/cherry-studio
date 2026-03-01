@@ -788,6 +788,10 @@
         "label": "Nachrichten leeren {{Command}}",
         "title": "Nachrichten leeren"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Einklappen",
       "context_count": {
         "tip": "Kontextanzahl / Maximale Kontextanzahl"

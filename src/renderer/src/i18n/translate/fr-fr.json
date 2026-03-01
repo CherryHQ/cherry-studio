@@ -788,6 +788,10 @@
         "label": "Effacer le message {{Command}}",
         "title": "Effacer le message"
       },
+      "code_editor": {
+        "insert": "[to be translated]:Insert",
+        "title": "[to be translated]:Code Editor"
+      },
       "collapse": "Récupérer",
       "context_count": {
         "tip": "Nombre de contextes / Nombre maximal de contextes"
