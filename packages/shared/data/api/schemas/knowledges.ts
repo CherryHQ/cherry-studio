@@ -91,6 +91,10 @@ export interface CreateKnowledgeItemsDto {
 export interface KnowledgeSearchRequest {
   /** Search query text */
   search: string
+  /** Similarity score threshold for filtering results */
+  threshold?: number
+  /** Maximum number of documents to return */
+  documentCount?: number
 }
 
 // ============================================================================

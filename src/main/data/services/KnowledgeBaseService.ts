@@ -184,10 +184,24 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation({ search: ['Search query is required'] })
     }
 
-    return await knowledgeServiceV2.search({
+    let results = await knowledgeServiceV2.search({
       search: request.search,
       base
     })
+
+    // Threshold filtering (request param overrides base config)
+    const threshold = request.threshold ?? base.threshold ?? 0
+    if (threshold > 0) {
+      results = results.filter((item) => item.score >= threshold)
+    }
+
+    // Document count limiting (request param overrides base config)
+    const documentCount = request.documentCount ?? base.documentCount
+    if (documentCount && documentCount > 0) {
+      results = results.slice(0, documentCount)
+    }
+
+    return results
   }
 }
 
