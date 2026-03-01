@@ -318,7 +318,12 @@ const SelectionActionApp: FC = () => {
         <ContentWrapper>
           {contentToCopy && (
             <FloatingCopyIcon>
-              <CopyButton textToCopy={contentToCopy} size={14} />
+              <CopyButton
+                textToCopy={contentToCopy}
+                size={14}
+                color="var(--color-text-3)"
+                hoverColor="var(--color-primary)"
+              />
             </FloatingCopyIcon>
           )}
           <Content ref={contentElementRef}>
@@ -472,10 +477,34 @@ const FloatingCopyIcon = styled.div`
   top: 8px;
   right: 8px;
   z-index: 10;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: var(--color-background);
+  border: 0.5px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  .copy-icon {
+    color: var(--color-text-3) !important;
+    transition: color 0.2s ease;
+  }
+
   &:hover {
-    opacity: 1;
+    background-color: var(--color-background-mute);
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+
+    .copy-icon {
+      color: var(--color-primary) !important;
+    }
+  }
+
+  &:active {
+    transform: scale(0.92);
   }
 `
 
