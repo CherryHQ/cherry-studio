@@ -1,20 +1,32 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  InfoTooltip,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isRerankModel } from '@renderer/config/models'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import type { SelectProps } from 'antd'
-import { Alert, InputNumber, Select } from 'antd'
+import type { KnowledgeBase, PreprocessProvider, Provider } from '@renderer/types'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsPanel } from './styles'
+interface SelectOption {
+  value: string
+  label: string
+}
 
 interface AdvancedSettingsPanelProps {
   newBase: KnowledgeBase
+  providers: Provider[]
   selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: SelectProps['options']
+  docPreprocessSelectOptions: SelectOption[]
   handlers: {
     handleChunkSizeChange: (value: number | null) => void
     handleChunkOverlapChange: (value: number | null) => void
@@ -26,12 +38,12 @@ interface AdvancedSettingsPanelProps {
 
 const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
   newBase,
+  providers,
   selectedDocPreprocessProvider,
   docPreprocessSelectOptions,
   handlers
 }) => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
   const {
     handleChunkSizeChange,
     handleChunkOverlapChange,
@@ -41,27 +53,33 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
   } = handlers
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">
+    <FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="kb-preprocess">
           {t('settings.tool.preprocess.title')}
           <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <Select
-          value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
-        />
-      </SettingsItem>
+          value={selectedDocPreprocessProvider?.id || ''}
+          onValueChange={(value) => handleDocPreprocessChange(value)}>
+          <SelectTrigger id="kb-preprocess" className="w-full">
+            <SelectValue placeholder={t('settings.tool.preprocess.provider_placeholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            {docPreprocessSelectOptions?.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel>
           {t('models.rerank_model')}
           <InfoTooltip title={t('models.rerank_model_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <ModelSelector
           providers={providers}
           predicate={isRerankModel}
@@ -71,62 +89,66 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-chunk-size">
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
-        </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        </FieldLabel>
+        <Input
+          id="kb-chunk-size"
+          type="number"
+          className="w-full rounded-2xs"
           min={100}
-          value={newBase.chunkSize}
+          value={newBase.chunkSize?.toString() || ''}
           placeholder={t('knowledge.chunk_size_placeholder')}
-          onChange={handleChunkSizeChange}
+          onChange={(e) => handleChunkSizeChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_size')}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-chunk-overlap">
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
-        </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        </FieldLabel>
+        <Input
+          id="kb-chunk-overlap"
+          type="number"
+          className="w-full rounded-2xs"
           min={0}
-          value={newBase.chunkOverlap}
+          value={newBase.chunkOverlap?.toString() || ''}
           placeholder={t('knowledge.chunk_overlap_placeholder')}
-          onChange={handleChunkOverlapChange}
+          onChange={(e) => handleChunkOverlapChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.chunk_overlap')}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel htmlFor="kb-threshold">
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
-        </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        </FieldLabel>
+        <Input
+          id="kb-threshold"
+          type="number"
+          className="w-full rounded-2xs"
           step={0.1}
           min={0}
           max={1}
-          value={newBase.threshold}
+          value={newBase.threshold?.toString() || ''}
           placeholder={t('knowledge.threshold_placeholder')}
-          onChange={handleThresholdChange}
+          onChange={(e) => handleThresholdChange(e.target.value ? Number(e.target.value) : null)}
           aria-label={t('knowledge.threshold')}
         />
-      </SettingsItem>
+      </Field>
 
-      <Alert
-        message={t('knowledge.chunk_size_change_warning')}
-        type="warning"
-        showIcon
-        icon={<TriangleAlert size={16} className="lucide-custom" />}
-      />
-    </SettingsPanel>
+      <div className="flex h-8 flex-row items-center gap-2 rounded-2xs border border-amber-400/40 bg-amber-400/10 px-2 text-amber-400">
+        <TriangleAlert size={16} className="text-amber-400" />
+        {t('knowledge.chunk_size_change_warning')}
+      </div>
+    </FieldGroup>
   )
 }
 

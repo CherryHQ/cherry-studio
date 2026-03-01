@@ -57,9 +57,15 @@ class FileManager {
   }
 
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
+    const startedAt = Date.now()
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
+    logger.info('uploadFile:done', {
+      originName: file.origin_name,
+      id: uploadFile.id,
+      durationMs: Date.now() - startedAt
+    })
     logger.info('Uploaded file:', uploadFile)
     const fileRecord = await db.files.get(uploadFile.id)
 
@@ -74,7 +80,17 @@ class FileManager {
   }
 
   static async uploadFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
-    return Promise.all(files.map((file) => this.uploadFile(file)))
+    const startedAt = Date.now()
+    logger.info('uploadFiles:start', { count: files.length })
+
+    try {
+      const uploaded = await Promise.all(files.map((file) => this.uploadFile(file)))
+      logger.info('uploadFiles:done', { count: uploaded.length, durationMs: Date.now() - startedAt })
+      return uploaded
+    } catch (error) {
+      logger.error('uploadFiles:failed', error as Error, { durationMs: Date.now() - startedAt })
+      throw error
+    }
   }
 
   static async getFile(id: string): Promise<FileMetadata | undefined> {

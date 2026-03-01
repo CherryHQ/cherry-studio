@@ -12,6 +12,7 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { knowledgeHandlers } from './knowledges'
 import { messageHandlers } from './messages'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'
@@ -26,5 +27,6 @@ import { topicHandlers } from './topics'
 export const apiHandlers: ApiImplementation = {
   ...testHandlers,
   ...topicHandlers,
-  ...messageHandlers
+  ...messageHandlers,
+  ...knowledgeHandlers
 }

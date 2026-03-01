@@ -1,9 +1,17 @@
-import type { ModalProps } from 'antd'
-import { Button, Modal } from 'antd'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export interface PanelConfig {
   key: string
@@ -11,129 +19,96 @@ export interface PanelConfig {
   panel: React.ReactNode
 }
 
-interface KnowledgeBaseFormModalProps extends Omit<ModalProps, 'children' | 'footer'> {
+interface KnowledgeBaseFormModalProps {
+  open?: boolean
+  title?: React.ReactNode
   panels: PanelConfig[]
   onMoreSettings?: () => void
-  defaultExpandAdvanced?: boolean
+  defaultActiveTab?: string
+  confirmLoading?: boolean
+  okText?: string
+  onOk?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onCancel?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  afterClose?: () => void
 }
 
 const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({
+  open,
+  title,
   panels,
   onMoreSettings,
-  defaultExpandAdvanced = false,
+  defaultActiveTab = 'general',
+  confirmLoading,
   okText,
   onOk,
   onCancel,
-  ...rest
+  afterClose
 }) => {
   const { t } = useTranslation()
-  const [showAdvanced, setShowAdvanced] = useState(defaultExpandAdvanced)
-
-  const generalPanel = panels.find((p) => p.key === 'general')
-  const advancedPanel = panels.find((p) => p.key === 'advanced')
-
-  const footer = (
-    <FooterContainer>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {advancedPanel && (
-          <Button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            icon={showAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}>
-            {t('settings.advanced.title')}
-          </Button>
-        )}
-        {onMoreSettings && <Button onClick={onMoreSettings}>{t('settings.moresetting.title')}</Button>}
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <Button onClick={onCancel}>{t('common.cancel')}</Button>
-        <Button type="primary" onClick={onOk}>
-          {okText || t('common.confirm')}
-        </Button>
-      </div>
-    </FooterContainer>
-  )
+  const [activeTab, setActiveTab] = useState(defaultActiveTab)
 
   return (
-    <StyledModal
-      destroyOnHidden
-      maskClosable={false}
-      centered
-      transitionName="animation-move-down"
-      width="min(500px, 60vw)"
-      styles={{
-        body: { padding: '16px 8px', maxHeight: '70vh', overflowY: 'auto' },
-        header: {
-          padding: '12px 20px',
-          borderBottom: '0.5px solid var(--color-border)',
-          margin: 0,
-          borderRadius: 0
-        },
-        content: {
-          padding: 0,
-          overflow: 'hidden'
-        },
-        footer: {
-          padding: '12px 20px',
-          borderTop: '0.5px solid var(--color-border)',
-          margin: 0
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onCancel?.(undefined as any)
+          afterClose?.()
         }
-      }}
-      footer={footer}
-      okText={okText}
-      onOk={onOk}
-      onCancel={onCancel}
-      {...rest}>
-      <ContentContainer>
-        {/* General Settings */}
-        {generalPanel && <div>{generalPanel.panel}</div>}
+      }}>
+      <DialogContent className="flex h-[min(550px,70vh)] flex-col gap-0 overflow-hidden p-2 sm:max-w-[min(700px,70vw)]">
+        <DialogHeader className="border-border border-b p-4">
+          <DialogTitle className="font-medium text-sm">{title}</DialogTitle>
+        </DialogHeader>
 
-        {/* Advanced Settings */}
-        {showAdvanced && advancedPanel && (
-          <AdvancedSettingsContainer>
-            <AdvancedSettingsTitle>{advancedPanel.label}</AdvancedSettingsTitle>
-            <div>{advancedPanel.panel}</div>
-          </AdvancedSettingsContainer>
-        )}
-      </ContentContainer>
-    </StyledModal>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          orientation="vertical"
+          variant="default"
+          className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar */}
+          <TabsList className="flex w-35 flex-col items-center justify-center bg-transparent p-2">
+            {panels.map((panel) => (
+              <TabsTrigger
+                key={panel.key}
+                value={panel.key}
+                className="w-full justify-start rounded-2xs hover:opacity-70 data-[state=active]:bg-foreground/5 data-[state=active]:shadow-none">
+                {panel.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {/* Right Content Area */}
+          <div className="flex-1 overflow-y-auto border-border border-l p-4">
+            {panels.map((panel) => (
+              <TabsContent key={panel.key} value={panel.key} className="m-0 h-full">
+                {panel.panel}
+              </TabsContent>
+            ))}
+          </div>
+        </Tabs>
+
+        <DialogFooter className="flex w-full items-center justify-between border-border border-t p-4">
+          <div className="flex gap-2">
+            {onMoreSettings && (
+              <Button variant="outline" onClick={onMoreSettings}>
+                {t('settings.moresetting.title')}
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={onOk} loading={confirmLoading}>
+              {okText || t('common.confirm')}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const StyledModal = styled(Modal)`
-  .ant-modal-title {
-    font-size: 14px;
-    font-weight: 500;
-  }
-  .ant-modal-close {
-    top: 8px;
-    right: 8px;
-  }
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const FooterContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-`
-
-const AdvancedSettingsContainer = styled.div`
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 0.5px solid var(--color-border);
-`
-
-const AdvancedSettingsTitle = styled.div`
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--color-text-1);
-  margin-bottom: 16px;
-  padding: 0 16px;
-`
 
 export default KnowledgeBaseFormModal

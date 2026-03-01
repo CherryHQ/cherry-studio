@@ -1,18 +1,15 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { Field, FieldGroup, FieldLabel, InfoTooltip, Input, Slider } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel } from '@renderer/config/models'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase } from '@renderer/types'
-import { Input, Slider } from 'antd'
+import type { KnowledgeBase, Provider } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
-
-import { SettingsItem, SettingsPanel } from './styles'
 
 interface GeneralSettingsPanelProps {
   newBase: KnowledgeBase
+  providers: Provider[]
   setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
   handlers: {
     handleEmbeddingModelChange: (value: string) => void
@@ -20,27 +17,28 @@ interface GeneralSettingsPanelProps {
   }
 }
 
-const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, setNewBase, handlers }) => {
+const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, providers, setNewBase, handlers }) => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
   const { handleEmbeddingModelChange, handleDimensionChange } = handlers
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">{t('common.name')}</div>
+    <FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="kb-name">{t('common.name')}</FieldLabel>
         <Input
+          id="kb-name"
+          className="rounded-2xs"
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel>
           {t('models.embedding_model')}
           <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <ModelSelector
           providers={providers}
           predicate={isEmbeddingModel}
@@ -49,37 +47,43 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
           value={getModelUniqId(newBase.model)}
           onChange={handleEmbeddingModelChange}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field>
+        <FieldLabel>
           {t('knowledge.dimensions')}
           <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
-        </div>
+        </FieldLabel>
         <InputEmbeddingDimension
           value={newBase.dimensions}
           onChange={handleDimensionChange}
           model={newBase.model}
           disabled={!newBase.model}
         />
-      </SettingsItem>
+      </Field>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <Field className="gap-4">
+        <FieldLabel htmlFor="kb-document-count">
           {t('knowledge.document_count')}
           <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
-        </div>
+        </FieldLabel>
         <Slider
-          style={{ width: '97%' }}
+          id="kb-document-count"
           min={1}
           max={50}
           step={1}
-          value={newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-          marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30', 50: '50' }}
-          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: value }))}
+          showValueLabel
+          value={[newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT]}
+          marks={[
+            { value: 1, label: '1' },
+            { value: 6, label: t('knowledge.document_count_default') },
+            { value: 30, label: '30' },
+            { value: 50, label: '50' }
+          ]}
+          onValueChange={(values) => setNewBase((prev) => ({ ...prev, documentCount: values[0] }))}
         />
-      </SettingsItem>
-    </SettingsPanel>
+      </Field>
+    </FieldGroup>
   )
 }
 

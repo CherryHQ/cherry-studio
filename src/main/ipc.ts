@@ -27,6 +27,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AgentPersistedMessage,
   FileMetadata,
+  KnowledgeBase,
   Notification,
   OcrProvider,
   PluginError,
@@ -55,7 +56,7 @@ import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/KnowledgeService'
+import { knowledgeMigrateService, knowledgeProcessor, knowledgeServiceV2 } from './services/knowledge'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -695,13 +696,15 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Create, (_, base) => knowledgeServiceV2.create(base))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, (_, base) => knowledgeServiceV2.reset(base))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, (_, id) => knowledgeServiceV2.delete(id))
+  // TODO: [v2-cleanup] Remove after migrating to DataApi - used only by WebSearchService
+  ipcMain.handle(IpcChannel.KnowledgeBase_Add, (_, options) => knowledgeProcessor.processDirect(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, (_, options) => knowledgeServiceV2.remove(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Search, (_, options) => knowledgeServiceV2.search(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, (_, options) => knowledgeServiceV2.rerank(options))
+  ipcMain.handle(IpcChannel.KnowledgeBase_MigrateV2, (_, base: KnowledgeBase) => knowledgeMigrateService.migrate(base))
 
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))

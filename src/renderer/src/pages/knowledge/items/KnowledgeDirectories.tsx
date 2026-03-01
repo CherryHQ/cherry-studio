@@ -1,133 +1,230 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { DeleteIcon } from '@renderer/components/Icons'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import FileItem from '@renderer/pages/files/FileItem'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import dayjs from 'dayjs'
-import { PlusIcon } from 'lucide-react'
+import { Button } from '@cherrystudio/ui'
+import { useKnowledgeDirectories } from '@renderer/hooks/useKnowledges'
+import { formatFileSize } from '@renderer/utils'
+import type {
+  DirectoryContainerData,
+  FileItemData,
+  ItemStatus,
+  KnowledgeItem,
+  KnowledgeItemTreeNode
+} from '@shared/data/types/knowledge'
+import { Book, CheckCircle2, ChevronDown, ChevronRight, Folder, FolderOpen, RotateCw, Trash2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
-  ClickableSpan,
-  FlexAlignCenter,
-  ItemContainer,
-  ItemHeader,
-  KnowledgeEmptyView,
-  RefreshIcon,
-  ResponsiveButton,
-  StatusIconWrapper
-} from '../KnowledgeContent'
+  ItemDeleteAction,
+  ItemRefreshAction,
+  ItemStatusAction,
+  KnowledgeItemActions
+} from '../components/KnowledgeItemActions'
+import { KnowledgeItemRow } from '../components/KnowledgeItemRow'
+import { useKnowledgeBaseCtx } from '../context'
+import { formatKnowledgeTimestamp } from '../utils/time'
 
-const logger = loggerService.withContext('KnowledgeDirectories')
-
-interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-  progressMap: Map<string, number>
+interface DirectoryGroup {
+  directoryId: string
+  directoryPath: string
+  directoryItem: KnowledgeItem
+  items: KnowledgeItem[]
+  aggregateStatus: ItemStatus
+  fileCount: number
+  latestUpdate: string
 }
 
-const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
-  return dayjs(timestamp).format('MM-DD HH:mm')
+const getLatestUpdateTime = (items: KnowledgeItem[]): string => {
+  let latest = 0
+  for (const item of items) {
+    const createdAt = Date.parse(item.createdAt)
+    const updatedAt = Date.parse(item.updatedAt)
+    const timestamp = Math.max(createdAt, updatedAt)
+    if (timestamp > latest) {
+      latest = timestamp
+    }
+  }
+  return formatKnowledgeTimestamp(latest)
 }
 
-const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progressMap }) => {
+const collectFileItems = (node: KnowledgeItemTreeNode): KnowledgeItem[] => {
+  const fileItems: KnowledgeItem[] = []
+
+  const traverse = (current: KnowledgeItemTreeNode) => {
+    for (const child of current.children) {
+      if (child.item.type === 'file') {
+        fileItems.push(child.item)
+      }
+      traverse(child)
+    }
+  }
+
+  traverse(node)
+  return fileItems
+}
+
+const computeAggregateStatus = (items: KnowledgeItem[]): ItemStatus => {
+  const activeItem = items.find((item) => item.status !== 'completed' && item.status !== 'idle')
+  return activeItem?.status ?? 'completed'
+}
+
+interface DirectoryGroupCardProps {
+  group: DirectoryGroup
+  isExpanded: boolean
+  onToggle: () => void
+}
+
+const DirectoryGroupCard: FC<DirectoryGroupCardProps> = ({ group, isExpanded, onToggle }) => {
   const { t } = useTranslation()
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const { deleteItem, refreshItem, deleteGroup, refreshGroup } = useKnowledgeDirectories(selectedBase?.id ?? '')
 
-  const { base, directoryItems, refreshItem, removeItem, getProcessingStatus, addDirectory } = useKnowledge(
-    selectedBase.id || ''
+  return (
+    <div>
+      {/* Header */}
+      <div
+        className="flex cursor-pointer items-center justify-between border-border border-b px-4 py-2"
+        onClick={onToggle}>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {isExpanded ? (
+            <ChevronDown size={16} className="shrink-0 text-foreground" />
+          ) : (
+            <ChevronRight size={16} className="shrink-0 text-foreground" />
+          )}
+          {isExpanded ? (
+            <FolderOpen size={18} className="shrink-0 text-foreground" />
+          ) : (
+            <Folder size={18} className="shrink-0 text-foreground" />
+          )}
+          <span
+            className="min-w-0 flex-1 cursor-pointer truncate"
+            onClick={(e) => {
+              e.stopPropagation()
+              window.api.file.openPath(group.directoryPath)
+            }}>
+            {group.directoryPath}
+          </span>
+          <span className="text-foreground-muted">|</span>
+          <span className="shrink-0 text-foreground-muted">
+            {group.fileCount} {t('knowledge.files')} · {group.latestUpdate}
+          </span>
+        </div>
+        <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+          {!isExpanded && group.aggregateStatus === 'completed' && (
+            <Button size="icon-sm" variant="ghost">
+              <CheckCircle2 size={16} className="text-primary" />
+            </Button>
+          )}
+          {(group.aggregateStatus === 'completed' || group.aggregateStatus === 'failed') && (
+            <Button size="icon-sm" variant="ghost" onClick={() => refreshGroup(group.directoryId)}>
+              <RotateCw size={16} className="text-foreground" />
+            </Button>
+          )}
+          <Button size="icon-sm" variant="ghost" onClick={() => deleteGroup(group.directoryId)}>
+            <Trash2 size={16} className="text-red-600" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Collapsible content */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}>
+            <div className="flex flex-col gap-2 px-4 pb-2 pl-10">
+              {group.items.map((item) => {
+                const file = (item.data as FileItemData).file
+                return (
+                  <KnowledgeItemRow
+                    key={item.id}
+                    icon={<Book size={18} className="text-foreground" />}
+                    content={
+                      <span className="block truncate" onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                        {file.origin_name}
+                      </span>
+                    }
+                    metadata={formatFileSize(file.size)}
+                    actions={
+                      <KnowledgeItemActions>
+                        <ItemStatusAction item={item} />
+                        <ItemRefreshAction item={item} onRefresh={refreshItem} />
+                        <ItemDeleteAction itemId={item.id} onDelete={deleteItem} />
+                      </KnowledgeItemActions>
+                    }
+                  />
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
+}
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
+const KnowledgeDirectories: FC = () => {
+  const { t } = useTranslation()
+  const { selectedBase } = useKnowledgeBaseCtx()
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-  const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
-  const estimateSize = useCallback(() => 75, [])
+  const { treeItems } = useKnowledgeDirectories(selectedBase?.id ?? '')
 
-  if (!base) {
+  const groupedDirectories = useMemo((): DirectoryGroup[] => {
+    return treeItems
+      .filter((node) => node.item.type === 'directory')
+      .map((node) => {
+        const data = node.item.data as DirectoryContainerData
+        const fileItems = collectFileItems(node)
+
+        return {
+          directoryId: node.item.id,
+          directoryPath: data.path,
+          directoryItem: node.item,
+          items: fileItems,
+          aggregateStatus: computeAggregateStatus(fileItems),
+          fileCount: fileItems.length,
+          latestUpdate: getLatestUpdateTime([node.item, ...fileItems])
+        }
+      })
+  }, [treeItems])
+
+  const toggleGroup = (directoryId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(directoryId)) {
+        next.delete(directoryId)
+      } else {
+        next.add(directoryId)
+      }
+      return next
+    })
+  }
+
+  if (!selectedBase) {
     return null
   }
 
-  const handleAddDirectory = async () => {
-    if (disabled) {
-      return
-    }
-
-    const path = await window.api.file.selectFolder()
-    logger.info('Selected directory:', { path })
-    path && addDirectory(path)
-  }
-
   return (
-    <ItemContainer>
-      <ItemHeader>
-        <ResponsiveButton variant="default" onClick={handleAddDirectory} disabled={disabled}>
-          <PlusIcon size={16} />
-          {t('knowledge.add_directory')}
-        </ResponsiveButton>
-      </ItemHeader>
-      <ItemFlexColumn>
-        {directoryItems.length === 0 && <KnowledgeEmptyView />}
-        <DynamicVirtualList
-          list={reversedItems}
-          estimateSize={estimateSize}
-          overscan={2}
-          scrollerStyle={{ paddingRight: 2 }}
-          itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar>
-          {(item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Ellipsis>
-                      <Tooltip content={item.content as string}>{item.content as string}</Tooltip>
-                    </Ellipsis>
-                  </ClickableSpan>
-                ),
-                ext: '.folder',
-                extra: getDisplayTime(item),
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && (
-                      <Button variant="ghost" onClick={() => refreshItem(item)}>
-                        <RefreshIcon />
-                      </Button>
-                    )}
-                    <StatusIconWrapper>
-                      <StatusIcon
-                        sourceId={item.id}
-                        base={base}
-                        getProcessingStatus={getProcessingStatus}
-                        progress={progressMap.get(item.id)}
-                        type="directory"
-                      />
-                    </StatusIconWrapper>
-                    <Button variant="ghost" onClick={() => removeItem(item)}>
-                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-                    </Button>
-                  </FlexAlignCenter>
-                )
-              }}
-            />
-          )}
-        </DynamicVirtualList>
-      </ItemFlexColumn>
-    </ItemContainer>
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        {groupedDirectories.length === 0 && (
+          <div className="text-center text-foreground-muted">{t('common.no_results')}</div>
+        )}
+        {groupedDirectories.map((group) => (
+          <DirectoryGroupCard
+            key={group.directoryId}
+            group={group}
+            isExpanded={expandedGroups.has(group.directoryId)}
+            onToggle={() => toggleGroup(group.directoryId)}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeDirectories
