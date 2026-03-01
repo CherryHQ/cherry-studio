@@ -87,7 +87,7 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} placement="right">
-          <Icon theme={theme} onClick={toggleTheme}>
+          <Icon $themeMode={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
             ) : settedTheme === ThemeMode.light ? (
@@ -103,7 +103,7 @@ const Sidebar: FC = () => {
               hideMinappPopup()
               await to('/settings/provider')
             }}>
-            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon $themeMode={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>
@@ -156,7 +156,7 @@ const MainMenus: FC = () => {
             await modelGenerating()
             navigate(path)
           }}>
-          <Icon theme={theme} className={isActive}>
+          <Icon $themeMode={theme} className={isActive}>
             {iconMap[icon]}
           </Icon>
         </StyledLink>
@@ -208,7 +208,7 @@ const Menus = styled.div`
   gap: 5px;
 `
 
-const Icon = styled.div<{ theme: string }>`
+const Icon = styled.div<{ $themeMode: string }>`
   width: 35px;
   height: 35px;
   display: flex;
@@ -222,7 +222,7 @@ const Icon = styled.div<{ theme: string }>`
     color: var(--color-icon);
   }
   &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: ${({ $themeMode }) => ($themeMode === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     cursor: pointer;
     .icon {
@@ -230,7 +230,7 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
   &.active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: ${({ $themeMode }) => ($themeMode === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
     .icon {
       color: var(--color-primary);
