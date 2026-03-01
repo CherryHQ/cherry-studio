@@ -733,6 +733,8 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       if (!isAbortError(e) && !isAbortError(streamError)) {
         throw streamError ?? e
       }
+    } finally {
+      signal.cleanup?.()
     }
   }
 }

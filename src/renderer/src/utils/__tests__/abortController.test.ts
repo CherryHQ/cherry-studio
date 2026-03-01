@@ -87,7 +87,8 @@ describe('abortController', () => {
       const fn = vi.fn()
       addAbortController('', fn)
       removeAbortController('', fn)
-      expect(abortMap.get('')).toEqual([])
+      // After removing the last callback, the key is deleted entirely
+      expect(abortMap.has('')).toBe(false)
     })
 
     it('should handle non-existent id gracefully', () => {
@@ -109,8 +110,8 @@ describe('abortController', () => {
       // 验证所有函数被调用
       expect(fn1).toHaveBeenCalledTimes(1)
       expect(fn2).toHaveBeenCalledTimes(1)
-      // 验证清理完成 - 数组变为空但条目仍存在
-      expect(abortMap.get('test-id')).toEqual([])
+      // 验证清理完成 - key is deleted when all callbacks are removed
+      expect(abortMap.has('test-id')).toBe(false)
     })
 
     it('should handle non-existent id gracefully', () => {

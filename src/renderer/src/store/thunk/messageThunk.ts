@@ -34,7 +34,7 @@ import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { addAbortController } from '@renderer/utils/abortController'
+import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import {
   buildAgentSessionTopicId,
   extractAgentSessionIdFromTopicId,
@@ -57,7 +57,7 @@ import { mutate } from 'swr'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
+import { MAX_CACHED_TOPICS, newMessagesActions, selectMessagesForTopic } from '../newMessage'
 // import {
 //   bulkAddBlocksV2,
 //   clearMessagesFromDBV2,
@@ -549,6 +549,7 @@ const fetchAndProcessAgentResponseImpl = async (
   { topicId, assistant, assistantMessage, agentSession, userMessageId }: AgentStreamParams
 ) => {
   let callbacks: StreamProcessorCallbacks = {}
+  let agentAbortFn: (() => void) | undefined
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -583,7 +584,8 @@ const fetchAndProcessAgentResponseImpl = async (
     const userContent = userMessageEntity ? getMainTextContent(userMessageEntity) : ''
 
     const abortController = new AbortController()
-    addAbortController(userMessageId, () => abortController.abort())
+    agentAbortFn = () => abortController.abort()
+    addAbortController(userMessageId, agentAbortFn)
 
     const stream = await createAgentMessageStream(
       state.settings.apiServer,
@@ -698,6 +700,9 @@ const fetchAndProcessAgentResponseImpl = async (
       logger.error('Error in agent onError callback:', callbackError as Error)
     }
   } finally {
+    if (agentAbortFn) {
+      removeAbortController(userMessageId, agentAbortFn)
+    }
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   }
 }
@@ -766,6 +771,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     : origAssistant
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
+  let assistantAbortFn: (() => void) | undefined
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -823,8 +829,9 @@ const fetchAndProcessAssistantResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     const abortController = new AbortController()
+    assistantAbortFn = () => abortController.abort()
     logger.silly('Add Abort Controller', { id: userMessageId })
-    addAbortController(userMessageId!, () => abortController.abort())
+    addAbortController(userMessageId!, assistantAbortFn)
 
     await transformMessagesAndFetch(
       {
@@ -857,6 +864,10 @@ const fetchAndProcessAssistantResponseImpl = async (
     } finally {
       // 确保无论如何都设置 loading 为 false（onError 回调中已设置，这里是保险）
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    }
+  } finally {
+    if (assistantMessage.askId && assistantAbortFn) {
+      removeAbortController(assistantMessage.askId, assistantAbortFn)
     }
   }
 }
@@ -1786,6 +1797,33 @@ export const loadTopicMessagesThunk =
         dispatch(upsertManyBlocks(blocks))
       }
       dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
+
+      // Evict stale topic caches to free memory.
+      // Object.keys() preserves insertion order, approximating LRU: the cache guard
+      // above (`if (!forceReload && state.messages.messageIdsByTopic[topicId])`) prevents
+      // already-cached topics from being re-inserted, so older topics stay at the front.
+      const stateAfterLoad = getState()
+      const cachedTopicIds = Object.keys(stateAfterLoad.messages.messageIdsByTopic)
+      if (cachedTopicIds.length > MAX_CACHED_TOPICS) {
+        const topicsToEvict = cachedTopicIds
+          .filter((id) => id !== topicId)
+          .slice(0, cachedTopicIds.length - MAX_CACHED_TOPICS)
+        for (const evictId of topicsToEvict) {
+          // Collect block IDs from messages being evicted
+          const evictMessageIds = stateAfterLoad.messages.messageIdsByTopic[evictId] || []
+          const blockIdsToEvict: string[] = []
+          for (const msgId of evictMessageIds) {
+            const msg = stateAfterLoad.messages.entities[msgId]
+            if (msg?.blocks) {
+              blockIdsToEvict.push(...msg.blocks)
+            }
+          }
+          dispatch(newMessagesActions.evictTopicCache(evictId))
+          if (blockIdsToEvict.length > 0) {
+            dispatch(removeManyBlocks(blockIdsToEvict))
+          }
+        }
+      }
     } catch (error) {
       logger.error(`Failed to load messages for topic ${topicId}:`, error as Error)
       // Could dispatch an error action here if needed
