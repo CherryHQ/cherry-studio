@@ -61,7 +61,6 @@ import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
-import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
@@ -444,7 +443,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {isCherryIN && <CherryINOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
-      {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id === 'anthropic' && (
         <>

@@ -23,7 +23,6 @@ import { configManager } from './services/ConfigManager'
 import { lanTransferClientService } from './services/lanTransfer'
 import mcpService from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
-import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
 import powerMonitorService from './services/PowerMonitorService'
 import {
@@ -39,7 +38,6 @@ import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
-import { isOvmsSupported } from './services/OvmsManager'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -260,18 +258,9 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('will-quit', async () => {
     // 简单的资源清理，不阻塞退出流程
-    if (isOvmsSupported) {
-      const { ovmsManager } = await import('./services/OvmsManager')
-      if (ovmsManager) {
-        await ovmsManager.stopOvms()
-      } else {
-        logger.warn('Unexpected behavior: undefined ovmsManager, but OVMS should be supported.')
-      }
-    }
 
     try {
       await analyticsService.destroy()
-      await openClawService.stopGateway()
       await mcpService.cleanup()
       await apiServerService.stop()
     } catch (error) {

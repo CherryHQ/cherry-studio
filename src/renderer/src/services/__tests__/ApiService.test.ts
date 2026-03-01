@@ -144,10 +144,6 @@ vi.mock('@renderer/store/knowledge', () => ({
   default: (state = { knowledge: [] }) => state
 }))
 
-vi.mock('@renderer/store/paintings', () => ({
-  default: (state = { paintings: [] }) => state
-}))
-
 vi.mock('@renderer/store/runtime', () => ({
   default: (state = { runtime: {} }) => state
 }))

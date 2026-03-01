@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
-import store from '@renderer/store'
 import type { FileMetadata } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
@@ -45,17 +44,6 @@ export function sortFiles(files: FileMetadata[], sortField: SortField, sortOrder
 export async function handleDelete(fileId: string, t: (key: string) => string) {
   const file = await FileManager.getFile(fileId)
   if (!file) return
-
-  const paintings = store.getState().paintings
-  const paintingsFiles = Object.values(paintings)
-    .flat()
-    .filter((painting) => painting?.files?.length > 0)
-    .flatMap((painting) => painting.files)
-
-  if (paintingsFiles.some((p) => p.id === fileId)) {
-    window.modal.warning({ content: t('files.delete.paintings.warning'), centered: true })
-    return
-  }
 
   await FileManager.deleteFile(fileId, true)
 

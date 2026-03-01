@@ -1,6 +1,28 @@
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
 import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
+
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
+  'deepseek',
+  'moonshot',
+  'zhipu',
+  'dashscope',
+  'modelscope',
+  'minimax',
+  'longcat',
+  SystemProviderIds.qiniu,
+  SystemProviderIds.silicon,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter
+]
+
+export const CLAUDE_SUPPORTED_PROVIDERS = [
+  'aihubmix',
+  'dmxapi',
+  'new-api',
+  'cherryin',
+  '302ai',
+  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
+]
 
 export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
   return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'
