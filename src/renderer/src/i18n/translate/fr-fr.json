@@ -3042,6 +3042,7 @@
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
+    "minimax-global": "MiniMax Global",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
     "moonshot": "Face Sombre de la Lune",
@@ -3069,6 +3070,7 @@
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
+    "zai": "Z.ai",
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
   },

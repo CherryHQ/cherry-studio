@@ -3042,6 +3042,7 @@
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
+    "minimax-global": "Μίνιμαξ Γκλόμπαλ",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
     "moonshot": "Σκοτεινή Κορωνίδα της Σελήνης",
@@ -3069,6 +3070,7 @@
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
+    "zai": "Ζ.ai",
     "zhinao": "360 Intelligent Brain",
     "zhipu": "BigModel"
   },

@@ -3042,6 +3042,7 @@
     "longcat": "Meißner Riesenhamster",
     "mimo": "Xiaomi MiMo",
     "minimax": "MiniMax",
+    "minimax-global": "MiniMax Global",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot AI",
@@ -3069,6 +3070,7 @@
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Cloud Xirang",
     "yi": "01.AI",
+    "zai": "Z.ai",
     "zhinao": "360 Zhinao",
     "zhipu": "Zhipu AI"
   },

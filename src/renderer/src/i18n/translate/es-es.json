@@ -3042,6 +3042,7 @@
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
     "minimax": "Minimax",
+    "minimax-global": "MiniMax Global",
     "mistral": "Mistral",
     "modelscope": "ModelScope Módulo",
     "moonshot": "Lanzamiento Lunar",
@@ -3069,6 +3070,7 @@
     "voyageai": "Voyage AI",
     "xirang": "Telecom Nube XiRang",
     "yi": "Cero Uno Todo",
+    "zai": "Z.ai",
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
   },
