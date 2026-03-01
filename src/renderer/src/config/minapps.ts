@@ -23,12 +23,14 @@ import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
+import ImaAppLogo from '@renderer/assets/images/apps/ima.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import LingAppLogo from '@renderer/assets/images/apps/ling.png?url'
 import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
+import MinimaxAgentLogo from '@renderer/assets/images/apps/minimax-agent.svg?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
@@ -46,7 +48,7 @@ import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
-import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.svg?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -186,11 +188,38 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     supportedRegions: ['CN', 'Global']
   },
   {
-    id: 'minimax',
+    id: 'hailuo',
     name: 'Hailuo',
     nameKey: 'minapps.hailuo',
-    url: 'https://chat.minimaxi.com/',
+    url: 'https://hailuoai.com/',
     logo: HailuoModelLogo,
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
+  },
+  {
+    id: 'minimax-agent',
+    name: 'Minimax Agent',
+    nameKey: 'minapps.minimax-agent',
+    url: 'https://agent.minimaxi.com/',
+    logo: MinimaxAgentLogo,
+    bodered: true,
+    supportedRegions: ['CN']
+  },
+  {
+    id: 'minimax-agent-global',
+    name: 'Minimax Agent',
+    nameKey: 'minapps.minimax-global',
+    url: 'https://agent.minimax.io/',
+    logo: MinimaxAgentLogo,
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
+  },
+  {
+    id: 'ima',
+    name: 'ima',
+    nameKey: 'minapps.ima',
+    url: 'https://ima.qq.com/',
+    logo: ImaAppLogo,
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -512,9 +541,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ZaiAppLogo,
     url: `https://chat.z.ai/`,
     bodered: true,
-    style: {
-      padding: 10
-    },
     supportedRegions: ['CN', 'Global']
   },
   {
