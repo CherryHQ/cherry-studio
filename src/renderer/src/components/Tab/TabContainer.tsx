@@ -34,6 +34,7 @@ import {
   Sparkle,
   Sun,
   Terminal,
+  Wand2,
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -93,6 +94,8 @@ const getTabIcon = (
       return <Sparkle size={14} />
     case 'translate':
       return <Languages size={14} />
+    case 'prompt':
+      return <Wand2 size={14} />
     case 'paintings':
       return <Palette size={14} />
     case 'apps':

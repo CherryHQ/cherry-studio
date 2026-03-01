@@ -2997,6 +2997,71 @@
     "zoom_in": "放大",
     "zoom_out": "縮小"
   },
+  "prompt": {
+    "button": {
+      "fix_variables": "修復變數",
+      "generate": "生成",
+      "run_test": "執行測試",
+      "test": "測試"
+    },
+    "error": {
+      "empty_result": "生成結果為空",
+      "empty_task": "請輸入任務描述",
+      "fix_failed": "修復浮動變數失敗",
+      "generate_failed": "生成失敗",
+      "missing_variables": "請為以下變數填寫值：{{variables}}",
+      "no_metaprompt": "Metaprompt 為空，請在設定中配置",
+      "no_model": "請選擇一個模型",
+      "reset_metaprompt_failed": "重設 Metaprompt 失敗",
+      "save_metaprompt_failed": "儲存 Metaprompt 失敗",
+      "test_failed": "測試失敗"
+    },
+    "info": {
+      "aborted": "生成已中止"
+    },
+    "input": {
+      "placeholder": "描述您想要完成的任務...\n例如：幫我寫一封回覆客戶投訴的郵件"
+    },
+    "output": {
+      "placeholder": "生成的結構化提示詞範本將顯示在這裡..."
+    },
+    "settings": {
+      "metaprompt_description": "Metaprompt 是用於生成結構化提示詞範本的系統提示詞。您可以自訂它來調整生成的範本風格。",
+      "metaprompt_label": "Metaprompt (系統提示詞)",
+      "metaprompt_placeholder": "輸入 Metaprompt...",
+      "reset_to_default": "重設為預設",
+      "title": "提示詞設定"
+    },
+    "success": {
+      "fixed": "浮動變數已修復",
+      "generated": "提示詞生成成功",
+      "metaprompt_reset": "已重設為預設 Metaprompt",
+      "metaprompt_saved": "Metaprompt 儲存成功",
+      "tested": "測試完成"
+    },
+    "tab": {
+      "generated": "生成結果",
+      "test": "測試"
+    },
+    "test": {
+      "modal_title": "測試提示詞",
+      "no_variables": "此提示詞範本沒有變數",
+      "result_placeholder": "測試結果將顯示在這裡...",
+      "result_title": "測試結果",
+      "variable_placeholder": "輸入 {{variable}} 的值...",
+      "variables_title": "變數值"
+    },
+    "title": "提示詞",
+    "tooltip": {
+      "fix_floating_variables": "偵測到浮動變數，點選使用AI自動修復",
+      "newline": "換行",
+      "test_prompt": "測試生成的提示詞範本"
+    },
+    "variables": {
+      "floating_warning": "偵測到浮動變數，建議修復",
+      "title": "變數"
+    }
+  },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
     "summarize": "幫我總結一下這段話",
@@ -5390,6 +5455,7 @@
     "notes": "筆記",
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
+    "prompt": "提示詞",
     "settings": "設定",
     "store": "助手庫",
     "translate": "翻譯"

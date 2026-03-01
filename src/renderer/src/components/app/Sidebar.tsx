@@ -26,7 +26,8 @@ import {
   Palette,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  Wand2
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -133,6 +134,7 @@ const MainMenus: FC = () => {
     store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
+    prompt: <Wand2 size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
@@ -146,6 +148,7 @@ const MainMenus: FC = () => {
     store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
+    prompt: '/prompt',
     minapp: '/apps',
     knowledge: '/knowledge',
     files: '/files',

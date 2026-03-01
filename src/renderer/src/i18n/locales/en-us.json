@@ -2997,6 +2997,71 @@
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
   },
+  "prompt": {
+    "button": {
+      "fix_variables": "Fix Variables",
+      "generate": "Generate",
+      "run_test": "Run Test",
+      "test": "Test"
+    },
+    "error": {
+      "empty_result": "Generation result is empty",
+      "empty_task": "Please enter a task description",
+      "fix_failed": "Failed to fix floating variables",
+      "generate_failed": "Generation failed",
+      "missing_variables": "Please fill in values for: {{variables}}",
+      "no_metaprompt": "Metaprompt is empty, please configure it in settings",
+      "no_model": "Please select a model",
+      "reset_metaprompt_failed": "Failed to reset Metaprompt",
+      "save_metaprompt_failed": "Failed to save Metaprompt",
+      "test_failed": "Test failed"
+    },
+    "info": {
+      "aborted": "Generation aborted"
+    },
+    "input": {
+      "placeholder": "Describe the task you want to accomplish...\nFor example: Help me write an email to respond to a customer complaint"
+    },
+    "output": {
+      "placeholder": "The generated structured prompt template will appear here..."
+    },
+    "settings": {
+      "metaprompt_description": "Metaprompt is the system prompt used to generate structured prompt templates. You can customize it to adjust the style of generated templates.",
+      "metaprompt_label": "Metaprompt (System Prompt)",
+      "metaprompt_placeholder": "Enter Metaprompt...",
+      "reset_to_default": "Reset to Default",
+      "title": "Prompt Settings"
+    },
+    "success": {
+      "fixed": "Floating variables fixed",
+      "generated": "Prompt generated successfully",
+      "metaprompt_reset": "Reset to default Metaprompt",
+      "metaprompt_saved": "Metaprompt saved successfully",
+      "tested": "Test completed"
+    },
+    "tab": {
+      "generated": "Generated",
+      "test": "Test"
+    },
+    "test": {
+      "modal_title": "Test Prompt",
+      "no_variables": "This prompt template has no variables",
+      "result_placeholder": "Test results will appear here...",
+      "result_title": "Test Result",
+      "variable_placeholder": "Enter value for {{variable}}...",
+      "variables_title": "Variable Values"
+    },
+    "title": "Prompts",
+    "tooltip": {
+      "fix_floating_variables": "Floating variables detected, click to auto-fix with AI",
+      "newline": "New line",
+      "test_prompt": "Test the generated prompt template"
+    },
+    "variables": {
+      "floating_warning": "Floating variables detected, fix recommended",
+      "title": "Variables"
+    }
+  },
   "prompts": {
     "explanation": "Explain this concept to me",
     "summarize": "Summarize this text",
@@ -5390,6 +5455,7 @@
     "notes": "Notes",
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
+    "prompt": "Prompts",
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
