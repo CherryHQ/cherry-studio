@@ -58,5 +58,9 @@ export function useAssistantsTabSortType() {
 }
 
 export function getStoreProviders() {
-  return store.getState().llm.providers.concat([CHERRYAI_PROVIDER])
+  const state = store.getState()
+  const providers = state.llm.providers
+  const showCherryAiModels = state.llm.settings.showCherryAiModels
+
+  return showCherryAiModels ? providers.concat([CHERRYAI_PROVIDER]) : providers
 }

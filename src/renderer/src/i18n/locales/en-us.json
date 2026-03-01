@@ -4749,6 +4749,8 @@
       "provider_key_no_change": "API key for {{provider}} has not changed",
       "provider_key_overridden": "Successfully updated API key for {{provider}}",
       "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
+      "show_cherry_ai_models": "Show CherryAI Models",
+      "show_cherry_ai_models_description": "Toggle the display of models provided by CherryAI",
       "provider_name": "Provider Name",
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",

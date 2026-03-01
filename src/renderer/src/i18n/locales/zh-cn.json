@@ -4749,6 +4749,8 @@
       "provider_key_no_change": "{{provider}} 的 API 密钥没有变化",
       "provider_key_overridden": "成功更新 {{provider}} 的 API 密钥",
       "provider_key_override_confirm": "{{provider}} 已存在相同 API 密钥，是否覆盖？",
+      "show_cherry_ai_models": "显示 CherryAI 模型",
+      "show_cherry_ai_models_description": "是否在模型列表中显示由 CherryAI 提供的模型",
       "provider_name": "服务商名称",
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
