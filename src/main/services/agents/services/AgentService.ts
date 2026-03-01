@@ -158,6 +158,10 @@ export class AgentService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
+      if (updates.accessible_paths.length === 0) {
+        const defaultPath = path.join(getDataPath(), 'agents', id)
+        updates.accessible_paths = [defaultPath]
+      }
       updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
     }
 

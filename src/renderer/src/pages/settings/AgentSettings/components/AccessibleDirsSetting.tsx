@@ -52,7 +52,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
       const newPaths = base.accessible_paths.filter((p) => p !== path)
       updateAccessiblePaths(newPaths)
     },
-    [base, t, updateAccessiblePaths]
+    [base, updateAccessiblePaths]
   )
 
   if (!base) return null
