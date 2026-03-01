@@ -5,10 +5,10 @@
  */
 
 import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import { createMockImageModel, createMockLanguageModel, createMockMiddleware } from '@test-utils'
 import { wrapLanguageModel } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockImageModel, createMockLanguageModel, createMockMiddleware } from '../../../__tests__'
 import { ModelResolutionError, RecursiveDepthError } from '../../errors'
 import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plugins'
 import { PluginEngine } from '../pluginEngine'

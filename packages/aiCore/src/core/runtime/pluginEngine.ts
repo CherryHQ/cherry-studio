@@ -14,13 +14,13 @@ import {
   type StreamTextParams,
   type StreamTextResult
 } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import type { RegisteredProviderId } from '../providers'
 
 /**
  * 插件增强的 AI 客户端
  * 专注于插件处理，不暴露用户API
  */
-export class PluginEngine<T extends ProviderId = ProviderId> {
+export class PluginEngine<T extends string = RegisteredProviderId> {
   /**
    * Plugin storage with explicit any/any generics
    *
@@ -36,7 +36,6 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
 
   constructor(
     private readonly providerId: T,
-    // private readonly options: ProviderSettingsMap[T],
     plugins: AiPlugin[] = []
   ) {
     this.basePlugins = plugins
@@ -359,7 +358,10 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
       }
 
       // 2.5 应用 context.middlewares 到模型
-      if (typeof model !== 'string' && context.middlewares && context.middlewares.length > 0) {
+      if (context.middlewares && context.middlewares.length > 0) {
+        if (typeof resolvedModel === 'string') {
+          throw new Error(`Model must be resolved before applying middlewares, got string: ${resolvedModel}`)
+        }
         resolvedModel = wrapLanguageModel({
           model: resolvedModel as LanguageModelV3,
           middleware: context.middlewares

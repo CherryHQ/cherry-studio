@@ -12,69 +12,84 @@ export type { RuntimeConfig } from './types'
 // === 便捷工厂函数 ===
 
 import { type AiPlugin } from '../plugins'
-import { type ProviderId, type ProviderSettingsMap } from '../providers/types'
+import { extensionRegistry } from '../providers'
+import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
 import { RuntimeExecutor } from './executor'
 
 /**
  * 创建运行时执行器 - 支持类型安全的已知provider
+ * 自动确保 provider 已初始化
  */
-export function createExecutor<T extends ProviderId>(
-  providerId: T,
-  options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
-  plugins?: AiPlugin[]
-): RuntimeExecutor<T> {
-  return RuntimeExecutor.create(providerId, options, plugins)
-}
+export async function createExecutor<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(providerId: T, options: TSettingsMap[T], plugins?: AiPlugin[]): Promise<RuntimeExecutor<TSettingsMap, T>> {
+  if (!extensionRegistry.has(providerId)) {
+    throw new Error(`Provider extension "${providerId}" not registered`)
+  }
 
-/**
- * 创建OpenAI Compatible执行器
- */
-export function createOpenAICompatibleExecutor(
-  options: ProviderSettingsMap['openai-compatible'] & { mode?: 'chat' | 'responses' },
-  plugins: AiPlugin[] = []
-): RuntimeExecutor<'openai-compatible'> {
-  return RuntimeExecutor.createOpenAICompatible(options, plugins)
+  const provider = await extensionRegistry.createProvider(providerId, options || {})
+  return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins)
 }
-
-// === 直接调用API（无需创建executor实例）===
 
 /**
  * 直接流式文本生成
  */
-export async function streamText<T extends ProviderId>(
+export async function streamText<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(
   providerId: T,
-  options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
-  params: Parameters<RuntimeExecutor<T>['streamText']>[0],
+  options: TSettingsMap[T],
+  params: Parameters<RuntimeExecutor<TSettingsMap, T>['streamText']>[0],
   plugins?: AiPlugin[]
-): Promise<ReturnType<RuntimeExecutor<T>['streamText']>> {
-  const executor = createExecutor(providerId, options, plugins)
+): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['streamText']>> {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
   return executor.streamText(params)
 }
 
 /**
  * 直接生成文本
  */
-export async function generateText<T extends ProviderId>(
+export async function generateText<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(
   providerId: T,
-  options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
-  params: Parameters<RuntimeExecutor<T>['generateText']>[0],
+  options: TSettingsMap[T],
+  params: Parameters<RuntimeExecutor<TSettingsMap, T>['generateText']>[0],
   plugins?: AiPlugin[]
-): Promise<ReturnType<RuntimeExecutor<T>['generateText']>> {
-  const executor = createExecutor(providerId, options, plugins)
+): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateText']>> {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
   return executor.generateText(params)
 }
 
 /**
  * 直接生成图像 - 支持middlewares
  */
-export async function generateImage<T extends ProviderId>(
+export async function generateImage<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(
   providerId: T,
-  options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
-  params: Parameters<RuntimeExecutor<T>['generateImage']>[0],
+  options: TSettingsMap[T],
+  params: Parameters<RuntimeExecutor<TSettingsMap, T>['generateImage']>[0],
   plugins?: AiPlugin[]
-): Promise<ReturnType<RuntimeExecutor<T>['generateImage']>> {
-  const executor = createExecutor(providerId, options, plugins)
+): Promise<ReturnType<RuntimeExecutor<TSettingsMap, T>['generateImage']>> {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
   return executor.generateImage(params)
+}
+
+/**
+ * 创建 OpenAI Compatible 执行器
+ */
+export async function createOpenAICompatibleExecutor(
+  options: CoreProviderSettingsMap['openai-compatible'],
+  plugins?: AiPlugin[]
+): Promise<RuntimeExecutor<CoreProviderSettingsMap, 'openai-compatible'>> {
+  const provider = await extensionRegistry.createProvider('openai-compatible', options)
+
+  return RuntimeExecutor.createOpenAICompatible(provider, options, plugins)
 }
 
 // === Agent 功能预留 ===

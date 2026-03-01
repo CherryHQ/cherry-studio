@@ -3,7 +3,6 @@ import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
-import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
@@ -168,104 +167,63 @@ export function buildProviderOptions(
   let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model)
-  // 根据 provider 类型分离构建逻辑
-  const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
-  if (success) {
-    // 应该覆盖所有类型
-    switch (baseProviderId) {
-      case 'openai':
-      case 'openai-chat':
-      case 'azure':
-      case 'azure-responses':
-        {
-          providerSpecificOptions = buildOpenAIProviderOptions(
-            assistant,
-            model,
-            capabilities,
-            serviceTier,
-            textVerbosity
-          )
-        }
-        break
-      case 'anthropic':
-        providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
-        break
 
-      case 'google':
-        providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
-        break
-
-      case 'xai':
-        providerSpecificOptions = buildXAIProviderOptions(assistant, model, capabilities)
-        break
-      case 'deepseek':
-      case 'openrouter':
-      case 'openai-compatible': {
-        // 对于其他 provider，使用通用的构建逻辑
-        const genericOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
-        providerSpecificOptions = {
-          [rawProviderId]: {
-            ...genericOptions[rawProviderId],
-            serviceTier,
-            textVerbosity
-          }
-        }
-        break
-      }
-      case 'cherryin':
-        providerSpecificOptions = buildCherryInProviderOptions(
-          assistant,
-          model,
-          capabilities,
-          actualProvider,
+  // 根据 provider ID 构建特定选项
+  switch (rawProviderId) {
+    case 'openai':
+    case 'openai-chat':
+    case 'azure':
+    case 'azure-responses':
+    case 'huggingface':
+      providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+      break
+    case 'anthropic':
+    case 'azure-anthropic':
+    case 'google-vertex-anthropic':
+      providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
+      break
+    case 'google':
+    case 'google-vertex':
+      providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
+      break
+    case 'xai':
+      providerSpecificOptions = buildXAIProviderOptions(assistant, model, capabilities)
+      break
+    case 'bedrock':
+      providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
+      break
+    case 'cherryin':
+      providerSpecificOptions = buildCherryInProviderOptions(
+        assistant,
+        model,
+        capabilities,
+        actualProvider,
+        serviceTier,
+        textVerbosity
+      )
+      break
+    case SystemProviderIds.ollama:
+      providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
+      break
+    case SystemProviderIds.gateway:
+      providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+      break
+    case 'deepseek':
+    case 'openrouter':
+    case 'openai-compatible':
+    default:
+      // 对于其他 provider，使用通用的构建逻辑
+      providerSpecificOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
+      // Merge serviceTier and textVerbosity
+      providerSpecificOptions = {
+        ...providerSpecificOptions,
+        [rawProviderId]: {
+          ...providerSpecificOptions[rawProviderId],
           serviceTier,
           textVerbosity
-        )
-        break
-      default:
-        throw new Error(`Unsupported base provider ${baseProviderId}`)
-    }
-  } else {
-    // 处理自定义 provider
-    const { data: providerId, success, error } = customProviderIdSchema.safeParse(rawProviderId)
-    if (success) {
-      switch (providerId) {
-        // 非 base provider 的单独处理逻辑
-        case 'google-vertex':
-          providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
-          break
-        case 'azure-anthropic':
-        case 'google-vertex-anthropic':
-          providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
-          break
-        case 'bedrock':
-          providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
-          break
-        case 'huggingface':
-          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
-          break
-        case SystemProviderIds.ollama:
-          providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
-          break
-        case SystemProviderIds.gateway:
-          providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
-          break
-        default:
-          // 对于其他 provider，使用通用的构建逻辑
-          providerSpecificOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
-          // Merge serviceTier and textVerbosity
-          providerSpecificOptions = {
-            ...providerSpecificOptions,
-            [rawProviderId]: {
-              ...providerSpecificOptions[rawProviderId],
-              serviceTier,
-              textVerbosity
-            }
-          }
+        }
       }
-    } else {
-      throw error
-    }
+      break
   }
   logger.debug('Built providerSpecificOptions', { providerSpecificOptions })
   /**

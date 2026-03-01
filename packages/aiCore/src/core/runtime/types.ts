@@ -1,19 +1,25 @@
 /**
  * Runtime 层类型定义
  */
-import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { generateImage, generateText, streamText } from 'ai'
 
-import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'
-import { type ProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 
 /**
  * 运行时执行器配置
+ *
+ * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
+ * @typeParam T - Provider ID 类型（从 TSettingsMap 的键推断）
  */
-export interface RuntimeConfig<T extends ProviderId = ProviderId> {
+export interface RuntimeConfig<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+> {
   providerId: T
-  providerSettings: ModelConfig<T>['providerSettings'] & { mode?: 'chat' | 'responses' }
+  provider: ProviderV3
+  providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
 }
 
