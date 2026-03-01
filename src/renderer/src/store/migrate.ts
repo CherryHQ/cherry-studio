@@ -3271,6 +3271,9 @@ const migrateConfig = {
       addMiniApp(state, 'minimax-agent')
       addMiniApp(state, 'minimax-agent-global')
       addMiniApp(state, 'ima')
+      // Add new providers: minimax-global and zai
+      addProvider(state, 'minimax-global')
+      addProvider(state, 'zai')
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
