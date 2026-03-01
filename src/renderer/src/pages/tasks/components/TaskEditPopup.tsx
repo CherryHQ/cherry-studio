@@ -227,8 +227,10 @@ const TaskEditPopup: FC<TaskEditPopupProps> = ({ open, mode, taskId, onClose }) 
           </Form.Item>
 
           <Form.Item label={t('tasks.form.continue_conversation')} name="continueConversation" valuePropName="checked">
-            <Switch />
-            <HelpText>{t('tasks.form.continue_conversation_help')}</HelpText>
+            <div>
+              <Switch />
+              <HelpText>{t('tasks.form.continue_conversation_help')}</HelpText>
+            </div>
           </Form.Item>
 
           <Form.Item label={t('tasks.form.max_execution_time')} name="maxExecutionTime">
@@ -236,8 +238,10 @@ const TaskEditPopup: FC<TaskEditPopupProps> = ({ open, mode, taskId, onClose }) 
           </Form.Item>
 
           <Form.Item label={t('tasks.form.notify_on_complete')} name="notifyOnComplete" valuePropName="checked">
-            <Switch />
-            <HelpText>{t('tasks.form.notify_on_complete_help')}</HelpText>
+            <div>
+              <Switch />
+              <HelpText>{t('tasks.form.notify_on_complete_help')}</HelpText>
+            </div>
           </Form.Item>
         </Section>
       </Form>

@@ -1,6 +1,6 @@
 /**
  * Periodic Tasks Manager Page
- * Sidebar + Main Content layout (matching KnowledgePage style)
+ * Sidebar + Main Content + Right Detail Panel layout
  */
 
 import { loggerService } from '@logger'
@@ -18,16 +18,16 @@ import {
   updateTask as updateTaskAction
 } from '@renderer/store/tasks'
 import { executeTask as executeTaskThunk, loadTasksFromStorage, updateTask } from '@renderer/store/tasksThunk'
-import type { PeriodicTask } from '@types'
+import type { PeriodicTask, TaskExecution } from '@types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Empty } from 'antd'
-import { CirclePlus, Play, Settings } from 'lucide-react'
+import { CheckCircle, CirclePlus, Clock, Pause, Play, Settings, X, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import TaskDetailPopup from './components/TaskDetailPopup'
+import TaskDetailPanel from './components/TaskDetailPanel'
 import TaskEditPopup from './components/TaskEditPopup'
 
 const logger = loggerService.withContext('TasksPage')
@@ -38,6 +38,7 @@ const TasksPage: FC = () => {
   const tasksState = useAppSelector(selectTasks)
   const tasks = useAppSelector(getFilteredTasks)
   const [selectedTask, setSelectedTask] = useState<PeriodicTask | undefined>(tasks[0])
+  const [selectedExecution, setSelectedExecution] = useState<TaskExecution | undefined>(undefined)
   const [isDragging] = useState(false)
 
   // Popup states
@@ -47,11 +48,6 @@ const TasksPage: FC = () => {
   const handleCreateTask = useCallback(async () => {
     setEditMode('create')
     setSelectedTask(undefined)
-    setEditPopupOpen(true)
-  }, [])
-
-  const handleEditTask = useCallback(async () => {
-    setEditMode('edit')
     setEditPopupOpen(true)
   }, [])
 
@@ -136,6 +132,7 @@ const TasksPage: FC = () => {
               centered: true,
               onOk: () => {
                 setSelectedTask(undefined)
+                setSelectedExecution(undefined)
                 dispatch(deleteTask(task.id))
               }
             })
@@ -233,16 +230,105 @@ const TasksPage: FC = () => {
           </MainContent>
         ) : selectedTask ? (
           <TaskContent>
-            <TaskDetailPopup
-              open={true}
-              taskId={selectedTask.id}
-              onClose={() => setSelectedTask(undefined)}
-              onEdit={handleEditTask}
-              onRun={handleRunTask}
-              embedded
+            <TaskDetailPanel
+              task={selectedTask}
+              selectedExecution={selectedExecution}
+              onExecutionSelect={setSelectedExecution}
+              onClose={() => setSelectedExecution(undefined)}
             />
           </TaskContent>
         ) : null}
+
+        {/* Right Detail Panel - Fixed width */}
+        {selectedExecution && (
+          <ExecutionDetailPanel>
+            <DetailPanelHeader>
+              <DetailPanelTitle>执行详情</DetailPanelTitle>
+              <CloseDetailButton onClick={() => setSelectedExecution(undefined)}>
+                <X size={16} />
+              </CloseDetailButton>
+            </DetailPanelHeader>
+            <DetailPanelContent>
+              <DetailSection>
+                <DetailLabel>执行 ID</DetailLabel>
+                <DetailValue>{selectedExecution.id}</DetailValue>
+              </DetailSection>
+              <DetailSection>
+                <DetailLabel>开始时间</DetailLabel>
+                <DetailValue>{new Date(selectedExecution.startedAt).toLocaleString('zh-CN')}</DetailValue>
+              </DetailSection>
+              {selectedExecution.completedAt && (
+                <DetailSection>
+                  <DetailLabel>完成时间</DetailLabel>
+                  <DetailValue>{new Date(selectedExecution.completedAt).toLocaleString('zh-CN')}</DetailValue>
+                </DetailSection>
+              )}
+              <DetailSection>
+                <DetailLabel>状态</DetailLabel>
+                <DetailValue>
+                  <StatusChip status={selectedExecution.status}>
+                    {selectedExecution.status === 'completed' && <CheckCircle size={12} />}
+                    {selectedExecution.status === 'failed' && <XCircle size={12} />}
+                    {selectedExecution.status === 'running' && <Clock size={12} />}
+                    {selectedExecution.status === 'paused' && <Pause size={12} />}
+                    {selectedExecution.status === 'completed' && '成功'}
+                    {selectedExecution.status === 'failed' && '失败'}
+                    {selectedExecution.status === 'running' && '运行中'}
+                    {selectedExecution.status === 'paused' && '暂停'}
+                  </StatusChip>
+                </DetailValue>
+              </DetailSection>
+              {selectedExecution.completedAt && (
+                <DetailSection>
+                  <DetailLabel>耗时</DetailLabel>
+                  <DetailValue>
+                    {Math.round(
+                      (new Date(selectedExecution.completedAt).getTime() -
+                        new Date(selectedExecution.startedAt).getTime()) /
+                        1000
+                    )}{' '}
+                    秒
+                  </DetailValue>
+                </DetailSection>
+              )}
+              {selectedExecution.result && (
+                <>
+                  <DetailSection>
+                    <DetailLabel>执行结果</DetailLabel>
+                    <DetailValue>
+                      {selectedExecution.result.success ? (
+                        <SuccessText>✓ 成功</SuccessText>
+                      ) : (
+                        <ErrorText>✗ 失败</ErrorText>
+                      )}
+                    </DetailValue>
+                  </DetailSection>
+                  {selectedExecution.result.output && (
+                    <DetailSection>
+                      <DetailLabel>输出内容</DetailLabel>
+                      <OutputPreview>{selectedExecution.result.output}</OutputPreview>
+                    </DetailSection>
+                  )}
+                  {selectedExecution.result.error && (
+                    <DetailSection>
+                      <DetailLabel>错误信息</DetailLabel>
+                      <ErrorText>{selectedExecution.result.error}</ErrorText>
+                    </DetailSection>
+                  )}
+                </>
+              )}
+              {selectedExecution.status === 'running' && (
+                <DetailSection>
+                  <DetailLabel>当前状态</DetailLabel>
+                  <RunningStatus>
+                    <Spinner />
+                    任务正在执行中...
+                  </RunningStatus>
+                </DetailSection>
+              )}
+            </DetailPanelContent>
+          </ExecutionDetailPanel>
+        )}
       </ContentContainer>
 
       {/* Edit Popup */}
@@ -268,6 +354,7 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   min-height: 100%;
+  position: relative;
 `
 
 const MainContent = styled(Scrollbar)`
@@ -284,6 +371,7 @@ const TaskSideNav = styled(Scrollbar)`
   width: calc(var(--settings-width) + 100px);
   border-right: 0.5px solid var(--color-border);
   padding: 12px 10px;
+  flex-shrink: 0;
 `
 
 const FilterSection = styled.div`
@@ -385,7 +473,162 @@ const PlayIconWrapper = styled.button`
 
 const TaskContent = styled(Scrollbar)`
   flex: 1;
-  padding: 20px;
+  padding: 16px;
+  overflow-y: auto;
+`
+
+// Right Execution Detail Panel
+const ExecutionDetailPanel = styled.div`
+  width: 320px;
+  border-left: 0.5px solid var(--color-border);
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 10;
+`
+
+const DetailPanelHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--color-border);
+  background: var(--color-background-soft);
+  height: 44px;
+`
+
+const DetailPanelTitle = styled.div`
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-1);
+`
+
+const CloseDetailButton = styled.button`
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-2);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-hover-background);
+    color: var(--color-text-1);
+  }
+`
+
+const DetailPanelContent = styled.div`
+  flex: 1;
+  padding: 12px 16px;
+  overflow-y: auto;
+`
+
+const DetailSection = styled.div`
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`
+
+const DetailLabel = styled.div`
+  font-size: 11px;
+  color: var(--color-text-2);
+  margin-bottom: 4px;
+`
+
+const DetailValue = styled.div`
+  font-size: 12px;
+  color: var(--color-text-1);
+  word-break: break-word;
+`
+
+const OutputPreview = styled.pre`
+  padding: 8px;
+  background: var(--color-background-soft);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--color-text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
+`
+
+const StatusChip = styled.div<{ status: string }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+
+  &[status="completed"] {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  &[status="failed"] {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+  }
+
+  &[status="running"] {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
+
+  &[status="paused"] {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+`
+
+const SuccessText = styled.span`
+  color: var(--color-success);
+  font-size: 12px;
+`
+
+const ErrorText = styled.span`
+  color: var(--color-error);
+  font-size: 12px;
+  word-break: break-word;
+`
+
+const RunningStatus = styled.div`
+  font-size: 12px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const Spinner = styled.span`
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+  opacity: 0.7;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `
 
 export default TasksPage
