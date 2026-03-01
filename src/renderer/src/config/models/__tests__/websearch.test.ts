@@ -239,6 +239,11 @@ describe('websearch helpers', () => {
       providerMock.mockReturnValueOnce(createProvider({ id: 'zhipu' }))
       expect(isWebSearchModel(createModel({ id: 'glm-5' }))).toBe(false)
     })
+
+    it('supports Kimi 2.5 built-in search on Moonshot', () => {
+      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds.moonshot }))
+      expect(isWebSearchModel(createModel({ id: 'kimi-k2.5', provider: 'moonshot' }))).toBe(true)
+    })
   })
 
   describe('isMandatoryWebSearchModel', () => {
