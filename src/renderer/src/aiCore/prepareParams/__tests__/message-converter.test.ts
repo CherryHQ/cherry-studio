@@ -41,7 +41,8 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   getMainTextContent: (message: Message) => (message as MockableMessage).__mockContent ?? '',
   findFileBlocks: (message: Message) => (message as MockableMessage).__mockFileBlocks ?? [],
   findImageBlocks: (message: Message) => (message as MockableMessage).__mockImageBlocks ?? [],
-  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? []
+  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? [],
+  findMainTextBlocks: () => []
 }))
 
 import { convertMessagesToSdkMessages, convertMessageToSdkParam } from '../messageConverter'

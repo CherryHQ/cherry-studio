@@ -17,7 +17,8 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
 import { throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -212,9 +213,32 @@ export class AgentMessageDataSource implements MessageDataSource {
       const isStreaming = this.isMessageStreaming(message)
       const agentSessionId = message.agentSessionId ?? ''
 
+      // Extract thoughtSignatures from blocks' metadata for Gemini persistence
+      const thoughtSignatures: Record<string, string> = {}
+      for (const block of blocks) {
+        if (block.type === MessageBlockType.MAIN_TEXT && (block as MainTextMessageBlock).metadata?.thoughtSignature) {
+          thoughtSignatures[block.id] = (block as MainTextMessageBlock).metadata!.thoughtSignature
+        }
+      }
+
+      // Add thoughtSignatures to message's providerMetadata for persistence
+      const messageWithMetadata =
+        Object.keys(thoughtSignatures).length > 0
+          ? {
+              ...message,
+              providerMetadata: {
+                ...message.providerMetadata,
+                google: {
+                  ...((message.providerMetadata as Record<string, unknown>)?.google as Record<string, unknown>),
+                  geminiThoughtSignatures: thoughtSignatures
+                }
+              } as Message['providerMetadata']
+            }
+          : message
+
       // Always persist immediately for visibility in UI
       const payload: AgentPersistedMessage = {
-        message,
+        message: messageWithMetadata,
         blocks
       }
 
