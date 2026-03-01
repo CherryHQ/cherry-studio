@@ -830,7 +830,9 @@ const McpSettings: React.FC = () => {
               <Flex gap={8} align="baseline">
                 <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
                 <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
-                <Text>{log.message}</Text>
+                <Text className="flex-1 truncate" ellipsis={{ tooltip: true }}>
+                  {log.message}
+                </Text>
               </Flex>
               {log.data && (
                 <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
