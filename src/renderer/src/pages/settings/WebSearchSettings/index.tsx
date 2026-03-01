@@ -3,6 +3,7 @@ import BingLogo from '@renderer/assets/images/search/bing.svg'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import GoogleLogo from '@renderer/assets/images/search/google.svg'
+import QueritLogo from '@renderer/assets/images/search/querit.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
@@ -67,6 +68,8 @@ const WebSearchSettings: FC = () => {
         return ExaLogo
       case 'bocha':
         return BochaLogo
+      case 'querit':
+        return QueritLogo
       case 'local-google':
         return GoogleLogo
       case 'local-bing':
