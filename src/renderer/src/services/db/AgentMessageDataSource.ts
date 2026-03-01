@@ -50,7 +50,10 @@ const streamingMessageCache = new LRUCache<
  */
 const messagePersistThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
-  ttl: 1000 * 60 * 5
+  ttl: 1000 * 60 * 5,
+  dispose: (throttler) => {
+    throttler.cancel()
+  }
 })
 
 /**
