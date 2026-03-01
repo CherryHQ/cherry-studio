@@ -172,10 +172,10 @@ export class AgentApiClient {
     }
   }
 
-  public async listSessions(agentId: string): Promise<ListAgentSessionsResponse> {
+  public async listSessions(agentId: string, options?: ListOptions): Promise<ListAgentSessionsResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
-      const response = await this.axios.get(url)
+      const response = await this.axios.get(url, { params: options })
       const result = ListAgentSessionsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Sessions array.')

@@ -1,4 +1,4 @@
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -10,9 +10,11 @@ import {
   setSessionWaitingAction
 } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert, Spin } from 'antd'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { Alert, Button, Spin } from 'antd'
 import { motion } from 'framer-motion'
-import { memo, useCallback, useEffect } from 'react'
+import { throttle } from 'lodash'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,13 +25,58 @@ interface SessionsProps {
   agentId: string
 }
 
+const LOAD_MORE_THRESHOLD = 100
+const SCROLL_THROTTLE_DELAY = 150
+
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
+    useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+  const listRef = useRef<DynamicVirtualListRef>(null)
+
+  // Use refs to always read the latest values inside the throttled handler,
+  // avoiding stale closures caused by recreating the throttle on each render.
+  const hasMoreRef = useRef(hasMore)
+  const isLoadingMoreRef = useRef(isLoadingMore)
+  const loadMoreRef = useRef(loadMore)
+  hasMoreRef.current = hasMore
+  isLoadingMoreRef.current = isLoadingMore
+  loadMoreRef.current = loadMore
+
+  // Create the throttle once — refs ensure it always sees fresh state.
+  const handleScroll = useMemo(
+    () =>
+      throttle(() => {
+        const scrollElement = listRef.current?.scrollElement()
+        if (!scrollElement) return
+
+        const { scrollTop, scrollHeight, clientHeight } = scrollElement
+        if (
+          scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD &&
+          hasMoreRef.current &&
+          !isLoadingMoreRef.current
+        ) {
+          loadMoreRef.current()
+        }
+      }, SCROLL_THROTTLE_DELAY),
+    []
+  )
+
+  // Handle scroll to load more
+  useEffect(() => {
+    const scrollElement = listRef.current?.scrollElement()
+    if (!scrollElement) return
+
+    scrollElement.addEventListener('scroll', handleScroll)
+    return () => {
+      handleScroll.cancel()
+      scrollElement.removeEventListener('scroll', handleScroll)
+    }
+  }, [handleScroll])
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -92,34 +139,55 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   }
 
   if (error) {
-    return <Alert type="error" message={t('agent.session.get.error.failed')} showIcon style={{ margin: 10 }} />
+    return (
+      <Alert
+        type="error"
+        message={t('agent.session.get.error.failed')}
+        description={formatErrorMessage(error)}
+        showIcon
+        style={{ margin: 10 }}
+        action={
+          <Button size="small" onClick={() => void reload()} disabled={isValidating}>
+            {t('common.retry')}
+          </Button>
+        }
+      />
+    )
   }
 
   return (
-    <StyledVirtualList
-      className="sessions-tab"
-      list={sessions}
-      estimateSize={() => 9 * 4}
-      // FIXME: This component only supports CSSProperties
-      scrollerStyle={{ overflowX: 'hidden' }}
-      autoHideScrollbar
-      header={
-        <div className="mt-[2px]">
-          <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
-            {t('agent.session.add.title')}
-          </AddButton>
+    <div className="flex h-full flex-col">
+      <StyledVirtualList
+        ref={listRef}
+        className="sessions-tab"
+        list={sessions}
+        estimateSize={() => 9 * 4}
+        // FIXME: This component only supports CSSProperties
+        scrollerStyle={{ overflowX: 'hidden' }}
+        autoHideScrollbar
+        header={
+          <div className="mt-0.5">
+            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-1 mb-1.5">
+              {t('agent.session.add.title')}
+            </AddButton>
+          </div>
+        }>
+        {(session) => (
+          <SessionItem
+            key={session.id}
+            session={session}
+            agentId={agentId}
+            onDelete={() => handleDeleteSession(session.id)}
+            onPress={() => setActiveSessionId(agentId, session.id)}
+          />
+        )}
+      </StyledVirtualList>
+      {isLoadingMore && (
+        <div className="flex justify-center py-2">
+          <Spin size="small" />
         </div>
-      }>
-      {(session) => (
-        <SessionItem
-          key={session.id}
-          session={session}
-          agentId={agentId}
-          onDelete={() => handleDeleteSession(session.id)}
-          onPress={() => setActiveSessionId(agentId, session.id)}
-        />
       )}
-    </StyledVirtualList>
+    </div>
   )
 }
 
@@ -127,7 +195,8 @@ const StyledVirtualList = styled(DynamicVirtualList)`
   display: flex;
   flex-direction: column;
   padding: 12px 10px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 ` as typeof DynamicVirtualList
 
 export default memo(Sessions)
