@@ -2,12 +2,13 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Assistant } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 
 import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
 import { availableImporters } from './importers'
-import type { ConversationImporter, ImportResponse } from './types'
+import type { ConversationImporter, ImportOptions, ImportResponse } from './types'
 import { saveImportToDatabase } from './utils/database'
 
 const logger = loggerService.withContext('ImportService')
@@ -157,6 +158,268 @@ class ImportServiceClass {
    */
   async importChatGPTConversations(fileContent: string): Promise<ImportResponse> {
     return this.importConversations(fileContent, 'chatgpt')
+  }
+
+  /**
+   * True streaming import - reads, processes, and saves each chunk before moving to next
+   * Never holds more than one chunk in memory at a time
+   * @param filePaths - Array of file paths to import
+   * @param chunkSize - Number of files per chunk
+   * @param readFile - Function to read a single file (provided by caller)
+   * @param importerName - Name of the importer to use
+   * @param onProgress - Optional callback for progress updates
+   * @param options - Optional import options (e.g., importAllBranches for Claude)
+   */
+  async importStreamingChunks(
+    filePaths: string[],
+    chunkSize: number,
+    readFile: (path: string) => Promise<string>,
+    importerName: string,
+    onProgress?: (current: number, total: number) => void,
+    options?: ImportOptions
+  ): Promise<ImportResponse> {
+    interface StreamingModelBucket {
+      assistantId: string
+      modelLabel: string
+      topicRefs: Topic[]
+    }
+
+    try {
+      const totalFiles = filePaths.length
+      const totalChunks = Math.ceil(totalFiles / chunkSize)
+      logger.info(`Starting streaming import: ${totalFiles} files in ${totalChunks} chunks of ${chunkSize}`)
+
+      const importer = this.getImporter(importerName)
+      if (!importer) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: `Importer "${importerName}" not found`
+        }
+      }
+
+      // Check if importer supports model bucketing (polymorphic interface method)
+      const getModelBucket = importer.getModelBucket?.bind(importer)
+      const unknownBucketKey = '__unknown__'
+      const unknownModelLabel = i18n.t('import.model.unknown', { defaultValue: 'Unknown Model' })
+
+      const modelBuckets = new Map<string, StreamingModelBucket>()
+      let totalTopics = 0
+      let totalMessages = 0
+      const errors: string[] = []
+
+      // Process chunks one at a time - TRUE STREAMING
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const startIdx = chunkIndex * chunkSize
+        const endIdx = Math.min(startIdx + chunkSize, totalFiles)
+        const chunkPaths = filePaths.slice(startIdx, endIdx)
+
+        logger.info(`Chunk ${chunkIndex + 1}/${totalChunks}: Reading ${chunkPaths.length} files...`)
+
+        // Read files for THIS chunk only - track which files succeeded
+        const chunkContents: Array<{ content: string; filePath: string }> = []
+        for (let i = 0; i < chunkPaths.length; i++) {
+          const filePath = chunkPaths[i]
+          const fileName = filePath.split('/').pop() || filePath
+          onProgress?.(startIdx + i + 1, totalFiles)
+
+          try {
+            const content = await readFile(filePath)
+            chunkContents.push({ content, filePath })
+          } catch (error) {
+            const errMsg = `READ FAILED: ${fileName}`
+            logger.warn(errMsg, { filePath, error })
+            errors.push(errMsg)
+          }
+        }
+
+        // Process THIS chunk
+        const chunkTopics: Topic[] = []
+        const chunkMessages: Message[] = []
+        const chunkBlocks: MessageBlock[] = []
+        const topicToBucket = new Map<string, string>()
+
+        for (let i = 0; i < chunkContents.length; i++) {
+          const { content: fileContent, filePath } = chunkContents[i]
+          const fileName = filePath.split('/').pop() || filePath
+
+          try {
+            if (!importer.validate(fileContent)) {
+              const errMsg = `INVALID FORMAT: ${fileName}`
+              logger.warn(errMsg, { filePath })
+              errors.push(errMsg)
+              continue
+            }
+
+            // Get bucket info from importer (includes both key AND label)
+            let bucketInfo: { key: string; label: string }
+            if (getModelBucket) {
+              try {
+                bucketInfo = getModelBucket(fileContent) ?? { key: unknownBucketKey, label: unknownModelLabel }
+              } catch (error) {
+                logger.warn('getModelBucket failed, using unknown bucket', { error })
+                bucketInfo = { key: unknownBucketKey, label: unknownModelLabel }
+              }
+            } else {
+              // No model bucketing - use importer name as label (e.g., "ChatGPT", "Claude")
+              bucketInfo = { key: 'default', label: importer.name }
+            }
+
+            // Get or create bucket
+            let bucket = modelBuckets.get(bucketInfo.key)
+            if (!bucket) {
+              bucket = {
+                assistantId: uuid(),
+                modelLabel: bucketInfo.label,
+                topicRefs: []
+              }
+              modelBuckets.set(bucketInfo.key, bucket)
+            }
+
+            const result = await importer.parse(fileContent, bucket.assistantId, options)
+
+            // Check if parsing produced any topics
+            if (result.topics.length === 0) {
+              const errMsg = `EMPTY (no messages): ${fileName}`
+              logger.warn(errMsg, { filePath })
+              errors.push(errMsg)
+              continue
+            }
+
+            for (const topic of result.topics) {
+              topicToBucket.set(topic.id, bucketInfo.key)
+            }
+
+            chunkTopics.push(...result.topics)
+            chunkMessages.push(...result.messages)
+            chunkBlocks.push(...result.blocks)
+          } catch (error) {
+            const errMsg = `PARSE ERROR: ${fileName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+            logger.warn(errMsg, { filePath, error })
+            errors.push(errMsg)
+          }
+        }
+
+        // SAVE THIS CHUNK TO DATABASE IMMEDIATELY
+        if (chunkTopics.length > 0) {
+          logger.info(
+            `Chunk ${chunkIndex + 1}: Saving ${chunkTopics.length} topics, ${chunkMessages.length} messages to DB...`
+          )
+          await saveImportToDatabase({
+            topics: chunkTopics,
+            messages: chunkMessages,
+            blocks: chunkBlocks
+          })
+
+          // Add minimal topic refs to buckets (only id, name, assistantId - not full messages)
+          for (const topic of chunkTopics) {
+            const bucketKey = topicToBucket.get(topic.id) || 'default'
+            const bucket = modelBuckets.get(bucketKey)
+            if (bucket) {
+              // Store minimal reference only
+              bucket.topicRefs.push({
+                id: topic.id,
+                assistantId: topic.assistantId,
+                name: topic.name,
+                createdAt: topic.createdAt,
+                updatedAt: topic.updatedAt,
+                messages: [], // Empty - don't hold message refs
+                isNameManuallyEdited: topic.isNameManuallyEdited
+              })
+            }
+          }
+
+          totalTopics += chunkTopics.length
+          totalMessages += chunkMessages.length
+        }
+
+        logger.info(`Chunk ${chunkIndex + 1}: Complete. Total so far: ${totalTopics} topics`)
+      }
+
+      if (totalTopics === 0) {
+        return {
+          success: false,
+          topicsCount: 0,
+          messagesCount: 0,
+          error: errors.length > 0 ? errors.slice(0, 3).join('; ') : 'No valid conversations found'
+        }
+      }
+
+      // Filter empty buckets before creating assistants
+      const nonEmptyBuckets = Array.from(modelBuckets.values()).filter((b) => b.topicRefs.length > 0)
+
+      // Create assistants
+      // - If getModelBucket exists: use "[Model] (Import)" pattern (e.g., "Claude Opus 4.5 (Import)")
+      // - If no getModelBucket (fallback): use importer-specific name (e.g., "ChatGPT Import") for consistency with batch
+      const assistants: Assistant[] = []
+      for (const bucket of nonEmptyBuckets) {
+        const assistantName = getModelBucket
+          ? i18n.t('import.assistant_name_pattern', {
+              model: bucket.modelLabel,
+              defaultValue: `${bucket.modelLabel} (Import)`
+            })
+          : i18n.t(`import.${importer.name.toLowerCase()}.assistant_name`, {
+              defaultValue: `${importer.name} Import`
+            })
+        const assistant: Assistant = {
+          id: bucket.assistantId,
+          name: assistantName,
+          emoji: importer.emoji,
+          prompt: '',
+          topics: bucket.topicRefs,
+          messages: [],
+          type: 'assistant',
+          settings: DEFAULT_ASSISTANT_SETTINGS
+        }
+        store.dispatch(addAssistant(assistant))
+        assistants.push(assistant)
+      }
+
+      logger.info(
+        `Streaming import complete: ${totalTopics} topics, ${totalMessages} messages, ${assistants.length} assistants`
+      )
+
+      // Log detailed error summary
+      if (errors.length > 0) {
+        logger.warn(`=== IMPORT ERRORS SUMMARY (${errors.length} files) ===`)
+        const readErrors = errors.filter((e) => e.startsWith('READ FAILED'))
+        const formatErrors = errors.filter((e) => e.startsWith('INVALID FORMAT'))
+        const emptyErrors = errors.filter((e) => e.startsWith('EMPTY'))
+        const parseErrors = errors.filter((e) => e.startsWith('PARSE ERROR'))
+
+        if (readErrors.length > 0) {
+          logger.warn(`Read failures (${readErrors.length}):`, readErrors)
+        }
+        if (formatErrors.length > 0) {
+          logger.warn(`Invalid format (${formatErrors.length}):`, formatErrors)
+        }
+        if (emptyErrors.length > 0) {
+          logger.warn(`Empty conversations (${emptyErrors.length}):`, emptyErrors)
+        }
+        if (parseErrors.length > 0) {
+          logger.warn(`Parse errors (${parseErrors.length}):`, parseErrors)
+        }
+        logger.warn(`=== END ERROR SUMMARY ===`)
+      }
+
+      return {
+        success: true,
+        assistant: assistants[0],
+        topicsCount: totalTopics,
+        messagesCount: totalMessages,
+        error: errors.length > 0 ? `${errors.length} files had errors` : undefined
+      }
+    } catch (error) {
+      logger.error('Streaming import failed:', error as Error)
+      return {
+        success: false,
+        topicsCount: 0,
+        messagesCount: 0,
+        error:
+          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
   }
 }
 

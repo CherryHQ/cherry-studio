@@ -1612,6 +1612,10 @@
     "split": "Geteilte Ansicht"
   },
   "import": {
+    "assistant_name_pattern": "[to be translated]:{{model}} (Import)",
+    "button": {
+      "folder": "[to be translated]:Select Folder"
+    },
     "chatgpt": {
       "assistant_name": "ChatGPT-Import",
       "button": "Datei auswählen",
@@ -1634,11 +1638,53 @@
       "title": "ChatGPT-Unterhaltungen importieren",
       "untitled_conversation": "Unbenannte Unterhaltung"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "branch_name": "[to be translated]:{{name}} (branch {{index}})",
+      "description": "[to be translated]:Import conversations from Claude. Only text content is imported; images and attachments are not included.",
+      "error": {
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_json_files": "[to be translated]:No JSON files found in the selected folder. Make sure you selected the Claude export folder.",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import"
+      },
+      "help": {
+        "note": "[to be translated]:Artifacts (code), thinking blocks, and tool calls are preserved.",
+        "step1": "[to be translated]:1. Install the Claude Exporter extension (agoramachina/claude-exporter)",
+        "step2": "[to be translated]:2. Go to Claude.ai and open the extension",
+        "step3": "[to be translated]:3. Click \"Export All\" or select specific conversations",
+        "step4": "[to be translated]:4. Choose JSON format and enable \"Include Thinking\" for extended thinking",
+        "step5": "[to be translated]:5. Select the exported folder (contains one JSON per conversation)",
+        "title": "[to be translated]:How to export from Claude"
+      },
+      "option": {
+        "allBranches": "[to be translated]:Import all branches (includes edit history and regenerations)"
+      },
+      "selectFolder": "[to be translated]:Select Claude Export Folder",
+      "title": "[to be translated]:Import from Claude",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Importdatei auswählen",
       "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
     },
     "content": "Wählen Sie die zu importierende Gesprächsdatei einer externen Anwendung aus; derzeit werden nur ChatGPT-JSON-Formatdateien unterstützt.",
+    "description": "[to be translated]:Import conversations from external AI assistants. Only text content is imported; images and attachments are not included.",
+    "error": {
+      "invalid_format": "[to be translated]:Invalid {{importer}} format",
+      "unknown": "[to be translated]:Unknown error",
+      "unsupported_format": "[to be translated]:Unsupported file format"
+    },
+    "importing": "[to be translated]:Importing conversations...",
+    "importing_progress": "[to be translated]:Importing file {{current}} of {{total}}...",
+    "model": {
+      "mixed": "[to be translated]:Mixed Models",
+      "unknown": "[to be translated]:Unknown Model"
+    },
+    "source": {
+      "auto": "[to be translated]:Auto-detect",
+      "label": "[to be translated]:Source:"
+    },
+    "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
     "title": "Externe Gespräche importieren"
   },
   "knowledge": {
@@ -3695,7 +3741,9 @@
       "hour_interval_other": "{{count}} Stunden",
       "import_settings": {
         "button": "JSON-Datei importieren",
+        "button_folder": "[to be translated]:Import Folder",
         "chatgpt": "Import aus ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importiere Daten von externen Anwendungen"
       },
       "joplin": {

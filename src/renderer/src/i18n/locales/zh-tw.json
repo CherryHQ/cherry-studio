@@ -1612,6 +1612,10 @@
     "split": "分割畫面"
   },
   "import": {
+    "assistant_name_pattern": "{{model}} (匯入)",
+    "button": {
+      "folder": "選擇資料夾"
+    },
     "chatgpt": {
       "assistant_name": "ChatGPT 匯入",
       "button": "選擇檔案",
@@ -1634,11 +1638,53 @@
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"
     },
+    "claude": {
+      "assistant_name": "Claude 匯入",
+      "branch_name": "{{name}} (分支 {{index}})",
+      "description": "僅匯入對話文字，不攜帶圖片和附件",
+      "error": {
+        "no_conversations": "檔案中未找到任何對話",
+        "no_json_files": "所選資料夾中未找到 JSON 檔案。請確保選擇了 Claude 匯出資料夾。",
+        "no_valid_conversations": "沒有可匯入的有效對話"
+      },
+      "help": {
+        "note": "程式碼工件、思考過程和工具呼叫均會被保留。",
+        "step1": "1. 安裝 Claude Exporter 瀏覽器擴充功能 (agoramachina/claude-exporter)",
+        "step2": "2. 前往 Claude.ai 並開啟該擴充功能",
+        "step3": "3. 點擊「全部匯出」或選擇特定對話",
+        "step4": "4. 選擇 JSON 格式並啟用「包含思考過程」以匯出延伸思考",
+        "step5": "5. 選擇匯出的資料夾（每個對話一個 JSON 檔案）",
+        "title": "如何從 Claude 匯出對話？"
+      },
+      "option": {
+        "allBranches": "匯入所有分支（包含編輯歷史和重新生成）"
+      },
+      "selectFolder": "選擇 Claude 匯出資料夾",
+      "title": "從 Claude 匯入",
+      "untitled_conversation": "未命名對話"
+    },
     "confirm": {
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"
     },
     "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
+    "description": "從外部 AI 助手匯入對話。僅匯入文字內容，不包括圖片和附件。",
+    "error": {
+      "invalid_format": "無效的 {{importer}} 格式",
+      "unknown": "未知錯誤",
+      "unsupported_format": "不支援的檔案格式"
+    },
+    "importing": "正在匯入對話...",
+    "importing_progress": "正在匯入第 {{current}}/{{total}} 個檔案...",
+    "model": {
+      "mixed": "混合模型",
+      "unknown": "未知模型"
+    },
+    "source": {
+      "auto": "自動偵測",
+      "label": "來源："
+    },
+    "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
     "title": "匯入外部對話"
   },
   "knowledge": {
@@ -3695,7 +3741,9 @@
       "hour_interval_other": "{{count}} 小時",
       "import_settings": {
         "button": "匯入 JSON 檔案",
+        "button_folder": "匯入資料夾",
         "chatgpt": "匯入 ChatGPT 資料",
+        "claude": "從 Claude 匯入",
         "title": "匯入外部應用程式資料"
       },
       "joplin": {
