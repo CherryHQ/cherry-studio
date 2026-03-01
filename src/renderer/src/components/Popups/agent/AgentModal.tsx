@@ -246,12 +246,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
 
-      if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
-        loadingRef.current = false
-        return
-      }
-
       if (isWin && !gitBashPathInfo.path) {
         window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
         loadingRef.current = false
@@ -430,9 +424,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
             <FormItem>
               <LabelWithButton>
-                <Label>
-                  {t('agent.session.accessible_paths.label')} <RequiredMark>*</RequiredMark>
-                </Label>
+                <Label>{t('agent.session.accessible_paths.label')}</Label>
                 <Button size="small" onClick={addAccessiblePath}>
                   {t('agent.session.accessible_paths.add')}
                 </Button>

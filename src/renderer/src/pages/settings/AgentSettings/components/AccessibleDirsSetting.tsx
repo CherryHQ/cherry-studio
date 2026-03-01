@@ -50,10 +50,6 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
     (path: string) => {
       if (!base) return
       const newPaths = base.accessible_paths.filter((p) => p !== path)
-      if (newPaths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
-        return
-      }
       updateAccessiblePaths(newPaths)
     },
     [base, t, updateAccessiblePaths]
