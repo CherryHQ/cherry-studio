@@ -1,6 +1,7 @@
 /**
- * Task Detail Popup
+ * Task Detail Popup/View
  * Shows detailed information about a task and its execution history
+ * Supports both modal and embedded modes
  */
 
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -17,9 +18,10 @@ interface TaskDetailPopupProps {
   onClose: () => void
   onEdit: () => void
   onRun?: (taskId: string) => void
+  embedded?: boolean // New prop for embedded mode
 }
 
-const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEdit, onRun }) => {
+const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEdit, onRun, embedded = false }) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const task = useAppSelector((state) => getTaskById(state)(taskId))
@@ -29,7 +31,6 @@ const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEd
   }
 
   const handleRun = () => {
-    // Create a new execution record
     const execution = {
       id: `exec-${Date.now()}`,
       taskId,
@@ -54,32 +55,33 @@ const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEd
     })
   }
 
-  return (
-    <Modal
-      title={
-        <Title>
+  // Render the content
+  const renderContent = () => (
+    <>
+      <HeaderSection>
+        <TaskTitle>
           <Emoji>{task.emoji || '📝'}</Emoji>
           {task.name}
-        </Title>
-      }
-      open={open}
-      onCancel={onClose}
-      width={700}
-      footer={
-        <Footer>
+        </TaskTitle>
+        <ActionButtons>
           {isManualTask && onRun && (
-            <Button onClick={handleRun} disabled={isRunning} icon={<Play size={14} />}>
+            <ActionButton type="primary" onClick={handleRun} disabled={isRunning}>
+              <Play size={14} />
               {isRunning ? t('tasks.status.running') : t('tasks.run')}
-            </Button>
+            </ActionButton>
           )}
-          <Button onClick={onEdit} icon={<Edit2 size={14} />}>
+          <ActionButton onClick={onEdit}>
+            <Edit2 size={14} />
             {t('tasks.edit')}
-          </Button>
-          <Button danger onClick={handleDelete} icon={<Trash2 size={14} />}>
-            {t('common.delete')}
-          </Button>
-        </Footer>
-      }>
+          </ActionButton>
+          {!embedded && (
+            <ActionButton danger onClick={handleDelete}>
+              <Trash2 size={14} />
+            </ActionButton>
+          )}
+        </ActionButtons>
+      </HeaderSection>
+
       <Content>
         <Section>
           <SectionTitle>{t('tasks.executionConfig.message')}</SectionTitle>
@@ -193,9 +195,68 @@ const TaskDetailPopup: FC<TaskDetailPopupProps> = ({ open, taskId, onClose, onEd
           </ExecutionHistory>
         </Section>
       </Content>
+    </>
+  )
+
+  // Embedded mode: return content directly
+  if (embedded) {
+    return <EmbeddedContainer>{renderContent()}</EmbeddedContainer>
+  }
+
+  // Modal mode: wrap in Modal
+  return (
+    <Modal
+      title={
+        <Title>
+          <Emoji>{task.emoji || '📝'}</Emoji>
+          {task.name}
+        </Title>
+      }
+      open={open}
+      onCancel={onClose}
+      width={700}
+      footer={null}
+      styles={{
+        body: { padding: '20px' }
+      }}>
+      {renderContent()}
     </Modal>
   )
 }
+
+const EmbeddedContainer = styled.div`
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+`
+
+const HeaderSection = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 20px;
+  border-bottom: 0.5px solid var(--color-border);
+  margin-bottom: 20px;
+`
+
+const TaskTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 500;
+`
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 8px;
+`
+
+const ActionButton = styled(Button)<{ $type?: string; danger?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
 
 const Title = styled.div`
   display: flex;
@@ -210,7 +271,7 @@ const Emoji = styled.span`
 `
 
 const Content = styled.div`
-  max-height: 60vh;
+  flex: 1;
   overflow-y: auto;
 `
 
@@ -392,12 +453,6 @@ const OutputText = styled.pre`
 const RunningStatus = styled.div`
   font-size: 12px;
   color: var(--color-primary);
-`
-
-const Footer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
 `
 
 export default TaskDetailPopup

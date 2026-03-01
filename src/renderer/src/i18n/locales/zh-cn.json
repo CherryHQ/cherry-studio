@@ -5381,7 +5381,9 @@
   },
   "tasks": {
     "create": "新建任务",
-    "deleteConfirm": "删除任务",
+    "delete_confirm": "删除任务",
+    "empty": "暂无任务，点击下方按钮创建",
+    "rename": "重命名",
     "deleteConfirmMessage": "你确认删除该任务吗？",
     "edit": "编辑任务",
     "execution": {

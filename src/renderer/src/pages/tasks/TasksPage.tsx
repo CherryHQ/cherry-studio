@@ -1,26 +1,32 @@
 /**
  * Periodic Tasks Manager Page
- * Grid view similar to MinApps for managing scheduled tasks
+ * Sidebar + Main Content layout (matching KnowledgePage style)
  */
 
 import { loggerService } from '@logger'
-import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import ListItem from '@renderer/components/ListItem'
+import PromptPopup from '@renderer/components/Popups/PromptPopup'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
-  addExecution,
+  deleteTask,
   getFilteredTasks,
-  getTaskListItems,
   selectTasks,
   setFilter,
   updateTask as updateTaskAction
 } from '@renderer/store/tasks'
-import { executeTask as executeTaskThunk, loadTasksFromStorage } from '@renderer/store/tasksThunk'
+import { executeTask as executeTaskThunk, loadTasksFromStorage, updateTask } from '@renderer/store/tasksThunk'
+import type { PeriodicTask } from '@types'
+import type { MenuProps } from 'antd'
+import { Dropdown, Empty } from 'antd'
+import { CirclePlus, Play, Settings } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import TaskCard from './components/TaskCard'
 import TaskDetailPopup from './components/TaskDetailPopup'
 import TaskEditPopup from './components/TaskEditPopup'
 
@@ -31,45 +37,39 @@ const TasksPage: FC = () => {
   const dispatch = useAppDispatch()
   const tasksState = useAppSelector(selectTasks)
   const tasks = useAppSelector(getFilteredTasks)
-  const taskListItems = useAppSelector(getTaskListItems)
+  const [selectedTask, setSelectedTask] = useState<PeriodicTask | undefined>(tasks[0])
+  const [isDragging] = useState(false)
 
   // Popup states
-  const [detailPopupOpen, setDetailPopupOpen] = useState(false)
   const [editPopupOpen, setEditPopupOpen] = useState(false)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined)
   const [editMode, setEditMode] = useState<'create' | 'edit'>('create')
 
-  // Calculate grid layout
-  const itemsPerRow = Math.floor(930 / 140)
-  const rowCount = Math.ceil((tasks.length + 1) / itemsPerRow)
-  const containerHeight = rowCount * 110 + (rowCount - 1) * 25
-
-  const handleTaskClick = (taskId: string) => {
-    setSelectedTaskId(taskId)
-    setDetailPopupOpen(true)
-  }
-
-  const handleCreateTask = () => {
+  const handleCreateTask = useCallback(async () => {
     setEditMode('create')
-    setSelectedTaskId(undefined)
+    setSelectedTask(undefined)
     setEditPopupOpen(true)
-  }
+  }, [])
 
-  const handleEditTask = () => {
-    setDetailPopupOpen(false)
+  const handleEditTask = useCallback(async () => {
     setEditMode('edit')
     setEditPopupOpen(true)
+  }, [])
+
+  const handleRunTask = async (taskId: string) => {
+    try {
+      await dispatch(executeTaskThunk(taskId) as any)
+      window.toast.success('任务已开始执行')
+    } catch (error) {
+      logger.error('Failed to execute task:', error as Error)
+      window.toast.error('任务执行失败')
+    }
   }
 
-  const handleCloseDetail = () => {
-    setDetailPopupOpen(false)
-    setSelectedTaskId(undefined)
-  }
-
-  const handleCloseEdit = () => {
-    setEditPopupOpen(false)
-    setSelectedTaskId(undefined)
-  }
+  // Update selected task when tasks change
+  useEffect(() => {
+    const hasSelectedTask = tasks.find((task) => task.id === selectedTask?.id)
+    !hasSelectedTask && setSelectedTask(tasks[0])
+  }, [tasks, selectedTask])
 
   // Load tasks from main process on mount
   useEffect(() => {
@@ -96,25 +96,61 @@ const TasksPage: FC = () => {
     }
   }, [])
 
-  const handleRunTask = async (taskId: string) => {
-    try {
-      await dispatch(executeTaskThunk(taskId) as any)
-      window.toast.success('任务已开始执行')
-    } catch (error) {
-      logger.error('Failed to execute task:', error as Error)
-      window.toast.error('任务执行失败')
-    }
-  }
+  const getMenuItems = useCallback(
+    (task: PeriodicTask): MenuProps['items'] => {
+      const menus: MenuProps['items'] = [
+        {
+          label: t('common.rename'),
+          key: 'rename',
+          icon: <EditIcon size={14} />,
+          async onClick() {
+            const name = await PromptPopup.show({
+              title: t('tasks.rename'),
+              message: '',
+              defaultValue: task.name || ''
+            })
+            if (name && task.name !== name) {
+              dispatch(updateTask({ ...task, name }))
+            }
+          }
+        },
+        {
+          label: t('tasks.edit'),
+          key: 'edit',
+          icon: <Settings size={14} />,
+          onClick: () => {
+            setSelectedTask(task)
+            setEditMode('edit')
+            setEditPopupOpen(true)
+          }
+        },
+        { type: 'divider' },
+        {
+          label: t('common.delete'),
+          danger: true,
+          key: 'delete',
+          icon: <DeleteIcon size={14} className="lucide-custom" />,
+          onClick: () => {
+            window.modal.confirm({
+              title: t('tasks.delete_confirm'),
+              centered: true,
+              onOk: () => {
+                setSelectedTask(undefined)
+                dispatch(deleteTask(task.id))
+              }
+            })
+          }
+        }
+      ]
+
+      return menus
+    },
+    [deleteTask, dispatch, t]
+  )
 
   // Listen for task execution events
   useEffect(() => {
-    const cleanupStarted = window.api.task.onExecutionStarted(({ taskId, executionId }) => {
-      // Execution already added when executeNow is called, this is just for background tasks
-      logger.info('任务执行已开始：', { taskId, executionId })
-    })
-
     const cleanupCompleted = window.api.task.onExecutionCompleted(({ taskId, execution }) => {
-      dispatch(addExecution({ taskId, execution }))
       dispatch(
         updateTaskAction({
           ...tasks.find((t) => t.id === taskId)!,
@@ -127,65 +163,95 @@ const TasksPage: FC = () => {
       }
     })
 
-    const cleanupFailed = window.api.task.onExecutionFailed(({ taskId, execution }) => {
-      dispatch(addExecution({ taskId, execution }))
+    const cleanupFailed = window.api.task.onExecutionFailed(({ execution }) => {
       window.toast.error(`任务执行失败: ${execution.result?.error}`)
     })
 
     return () => {
-      cleanupStarted()
       cleanupCompleted()
       cleanupFailed()
     }
-  }, [tasks])
+  }, [dispatch, tasks, updateTaskAction])
 
   return (
     <Container>
       <Navbar>
-        <NavbarMain>
-          {t('tasks.title')}
-          <FilterGroup>
-            <FilterButton $active={tasksState.filter === 'all'} onClick={() => dispatch(setFilter('all'))}>
-              {t('tasks.filter.all')}
-            </FilterButton>
-            <FilterButton $active={tasksState.filter === 'enabled'} onClick={() => dispatch(setFilter('enabled'))}>
-              {t('tasks.filter.enabled')}
-            </FilterButton>
-            <FilterButton $active={tasksState.filter === 'disabled'} onClick={() => dispatch(setFilter('disabled'))}>
-              {t('tasks.filter.disabled')}
-            </FilterButton>
-          </FilterGroup>
-        </NavbarMain>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('tasks.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer>
-        <TasksContainer style={{ height: containerHeight }}>
-          {tasks.map((task) => {
-            const listItem = taskListItems.find((item) => item.id === task.id)
-            if (!listItem) return null
-            return (
-              <TaskCard key={task.id} task={task} listItem={listItem} onClick={handleTaskClick} onRun={handleRunTask} />
-            )
-          })}
-          <AddTaskCard onClick={handleCreateTask}>
-            <AddIcon>+</AddIcon>
-            <AddText>{t('tasks.create')}</AddText>
-          </AddTaskCard>
-        </TasksContainer>
+      <ContentContainer id="content-container">
+        <TaskSideNav>
+          <FilterSection>
+            <FilterGroup>
+              <FilterButton $active={tasksState.filter === 'all'} onClick={() => dispatch(setFilter('all'))}>
+                {t('tasks.filter.all')}
+              </FilterButton>
+              <FilterButton $active={tasksState.filter === 'enabled'} onClick={() => dispatch(setFilter('enabled'))}>
+                {t('tasks.filter.enabled')}
+              </FilterButton>
+              <FilterButton $active={tasksState.filter === 'disabled'} onClick={() => dispatch(setFilter('disabled'))}>
+                {t('tasks.filter.disabled')}
+              </FilterButton>
+            </FilterGroup>
+          </FilterSection>
+
+          <TaskList>
+            {tasks.map((task) => (
+              <Dropdown menu={{ items: getMenuItems(task) }} trigger={['contextMenu']} key={task.id}>
+                <div style={{ position: 'relative' }}>
+                  <ListItem
+                    active={selectedTask?.id === task.id}
+                    icon={<TaskEmoji>{task.emoji || '📝'}</TaskEmoji>}
+                    title={task.name}
+                    onClick={() => setSelectedTask(task)}
+                  />
+                  <PlayIconWrapper
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRunTask(task.id)
+                    }}>
+                    <Play size={14} />
+                  </PlayIconWrapper>
+                </div>
+              </Dropdown>
+            ))}
+          </TaskList>
+
+          {!isDragging && (
+            <AddTaskItem onClick={handleCreateTask}>
+              <AddTaskName>
+                <CirclePlus size={18} />
+                {t('tasks.create')}
+              </AddTaskName>
+            </AddTaskItem>
+          )}
+          <div style={{ minHeight: '10px' }}></div>
+        </TaskSideNav>
+
+        {tasks.length === 0 ? (
+          <MainContent>
+            <Empty description={t('tasks.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </MainContent>
+        ) : selectedTask ? (
+          <TaskContent>
+            <TaskDetailPopup
+              open={true}
+              taskId={selectedTask.id}
+              onClose={() => setSelectedTask(undefined)}
+              onEdit={handleEditTask}
+              onRun={handleRunTask}
+              embedded
+            />
+          </TaskContent>
+        ) : null}
       </ContentContainer>
 
-      {/* Detail Popup */}
-      {selectedTaskId && (
-        <TaskDetailPopup
-          open={detailPopupOpen}
-          taskId={selectedTaskId}
-          onClose={handleCloseDetail}
-          onEdit={handleEditTask}
-          onRun={handleRunTask}
-        />
-      )}
-
       {/* Edit Popup */}
-      <TaskEditPopup open={editPopupOpen} mode={editMode} taskId={selectedTaskId} onClose={handleCloseEdit} />
+      <TaskEditPopup
+        open={editPopupOpen}
+        mode={editMode}
+        taskId={selectedTask?.id}
+        onClose={() => setEditPopupOpen(false)}
+      />
     </Container>
   )
 }
@@ -194,27 +260,36 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  height: calc(100vh - var(--navbar-height));
 `
 
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
-  justify-content: center;
-  height: 100%;
+  min-height: 100%;
 `
 
-const TasksContainer = styled.div`
-  display: grid;
-  min-width: 0;
-  max-width: 930px;
-  margin: 50px 20px 20px;
+const MainContent = styled(Scrollbar)`
+  padding: 15px 20px;
+  display: flex;
   width: 100%;
-  grid-template-columns: repeat(auto-fill, 115px);
-  gap: 25px;
-  justify-content: center;
+  flex-direction: column;
+  padding-bottom: 50px;
+`
+
+const TaskSideNav = styled(Scrollbar)`
+  display: flex;
+  flex-direction: column;
+  width: calc(var(--settings-width) + 100px);
+  border-right: 0.5px solid var(--color-border);
+  padding: 12px 10px;
+`
+
+const FilterSection = styled.div`
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--color-border);
 `
 
 const FilterGroup = styled.div`
@@ -234,6 +309,7 @@ const FilterButton = styled.button<{ $active: boolean }>`
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
+  flex: 1;
 
   &:hover {
     background: var(--color-hover-background);
@@ -244,34 +320,72 @@ const FilterButton = styled.button<{ $active: boolean }>`
   }
 `
 
-const AddTaskCard = styled.div`
+const TaskList = styled.div`
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 115px;
-  height: 85px;
-  border: 2px dashed var(--color-border);
-  border-radius: 12px;
+  gap: 4px;
+`
+
+const AddTaskItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 7px 12px;
+  position: relative;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
 
   &:hover {
-    border-color: var(--color-primary);
-    background: var(--color-hover-background);
+    background-color: var(--color-background-soft);
   }
 `
 
-const AddIcon = styled.div`
-  font-size: 32px;
-  color: var(--color-text-2);
+const AddTaskName = styled.div`
+  color: var(--color-text);
+  display: flex;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+`
+
+const TaskEmoji = styled.span`
+  font-size: 16px;
   line-height: 1;
 `
 
-const AddText = styled.div`
-  font-size: 12px;
+const PlayIconWrapper = styled.button`
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
   color: var(--color-text-2);
-  margin-top: 8px;
+  transition: all 0.2s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
+`
+
+const TaskContent = styled(Scrollbar)`
+  flex: 1;
+  padding: 20px;
 `
 
 export default TasksPage

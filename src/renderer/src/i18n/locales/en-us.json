@@ -5381,7 +5381,9 @@
   },
   "tasks": {
     "create": "Create Task",
-    "deleteConfirm": "Delete Task",
+    "delete_confirm": "Delete Task",
+    "empty": "No tasks yet. Click the button below to create one",
+    "rename": "Rename",
     "deleteConfirmMessage": "Are you sure you want to delete this task?",
     "edit": "Edit Task",
     "execution": {
