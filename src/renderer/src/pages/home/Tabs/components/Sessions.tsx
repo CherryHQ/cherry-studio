@@ -4,11 +4,7 @@ import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import {
-  setActiveSessionIdAction,
-  setActiveTopicOrSessionAction,
-  setSessionWaitingAction
-} from '@renderer/store/runtime'
+import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
@@ -45,7 +41,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         window.toast.error(t('agent.session.delete.error.last'))
         return
       }
-      dispatch(setSessionWaitingAction({ id, value: true }))
       const success = await deleteSession(id)
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
@@ -55,7 +50,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           // may clear messages instead of forbidden deletion
         }
       }
-      dispatch(setSessionWaitingAction({ id, value: false }))
     },
     [agentId, deleteSession, dispatch, sessions, t]
   )
@@ -104,7 +98,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       scrollerStyle={{ overflowX: 'hidden' }}
       autoHideScrollbar
       header={
-        <div className="mt-[2px]">
+        <div className="mt-0.5">
           <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
             {t('agent.session.add.title')}
           </AddButton>
