@@ -12,9 +12,9 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "dotenv electron-vite dev",
-    "dev:watch": "dotenv electron-vite dev -- -w",
-    "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
+    "dev": "node scripts/electron-dev.js dotenv electron-vite dev",
+    "dev:watch": "node scripts/electron-dev.js dotenv electron-vite dev -- -w",
+    "debug": "node scripts/electron-dev.js electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "pnpm lint && pnpm test",
     "build:unpack": "dotenv npm run build && electron-builder --dir",

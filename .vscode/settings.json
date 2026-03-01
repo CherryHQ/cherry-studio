@@ -51,5 +51,14 @@
   "tailwindCSS.classAttributes": [
     "className",
     "classNames",
-  ]
+  ],
+  "terminal.integrated.env.windows": {
+    "ELECTRON_RUN_AS_NODE": ""
+  },
+  "terminal.integrated.env.linux": {
+    "ELECTRON_RUN_AS_NODE": ""
+  },
+  "terminal.integrated.env.osx": {
+    "ELECTRON_RUN_AS_NODE": ""
+  }
 }
