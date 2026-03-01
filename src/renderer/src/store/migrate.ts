@@ -3255,6 +3255,20 @@ const migrateConfig = {
       logger.error('migrate 199 error', error as Error)
       return state
     }
+  },
+  '200': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        if (!state.settings.sidebarIcons.visible.includes('selection_assistant')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'selection_assistant']
+        }
+      }
+      logger.info('migrate 200 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 200 error', error as Error)
+      return state
+    }
   }
 }
 

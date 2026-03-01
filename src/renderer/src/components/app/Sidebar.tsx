@@ -26,7 +26,8 @@ import {
   Palette,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,7 +139,8 @@ const MainMenus: FC = () => {
     files: <Folder size={18} className="icon" />,
     notes: <NotepadText size={18} className="icon" />,
     code_tools: <Code size={18} className="icon" />,
-    openclaw: <OpenClawSidebarIcon style={{ width: 18, height: 18 }} className="icon" />
+    openclaw: <OpenClawSidebarIcon style={{ width: 18, height: 18 }} className="icon" />,
+    selection_assistant: <TextCursorInput size={18} className="icon" />
   }
 
   const pathMap = {
@@ -151,7 +153,8 @@ const MainMenus: FC = () => {
     files: '/files',
     code_tools: '/code',
     notes: '/notes',
-    openclaw: '/openclaw'
+    openclaw: '/openclaw',
+    selection_assistant: '/selection'
   }
 
   return sidebarIcons.visible.map((icon) => {
