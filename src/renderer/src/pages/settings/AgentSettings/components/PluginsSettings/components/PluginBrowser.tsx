@@ -20,6 +20,7 @@ export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
+  onUninstallPackage: (packageName: string) => void
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }
@@ -40,7 +41,13 @@ type PluginRow = {
   entries: MarketplaceEntry[]
 }
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInstall, onUninstall, kind }) => {
+export const PluginBrowser: FC<PluginBrowserProps> = ({
+  installedPlugins,
+  onInstall,
+  onUninstall,
+  onUninstallPackage,
+  kind
+}) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [searchQuery, setSearchQuery] = useState('')
@@ -51,7 +58,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   const activeType = kind ?? internalActiveType
   const showTypeTabs = kind === undefined
   const [sortOption, setSortOption] = useState<MarketplaceSort>('relevance')
-  const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
+  const [actioningPlugins, setActioningPlugins] = useState<Set<string>>(new Set())
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
@@ -175,25 +182,36 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
 
   // Handle install with loading state
   const handleInstall = async (plugin: PluginMetadata) => {
-    setActioningPlugin(plugin.sourcePath)
+    setActioningPlugins((prev) => new Set(prev).add(plugin.sourcePath))
     try {
       await onInstall(plugin.sourcePath, plugin.type)
     } finally {
-      setActioningPlugin(null)
+      setActioningPlugins((prev) => {
+        const next = new Set(prev)
+        next.delete(plugin.sourcePath)
+        return next
+      })
     }
   }
 
   // Handle uninstall with loading state
   const handleUninstall = async (plugin: PluginMetadata) => {
-    setActioningPlugin(plugin.sourcePath)
+    setActioningPlugins((prev) => new Set(prev).add(plugin.sourcePath))
     try {
-      // Find the actual installed plugin to get its real filename
       const installed = findInstalledPlugin(plugin)
       if (installed) {
-        await onUninstall(installed.metadata.filename, installed.type)
+        if (installed.metadata.packageName) {
+          await onUninstallPackage(installed.metadata.packageName)
+        } else {
+          await onUninstall(installed.metadata.filename, installed.type)
+        }
       }
     } finally {
-      setActioningPlugin(null)
+      setActioningPlugins((prev) => {
+        const next = new Set(prev)
+        next.delete(plugin.sourcePath)
+        return next
+      })
     }
   }
 
@@ -364,8 +382,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
                 {row.entries.map((entry) => {
                   const plugin = entry.metadata
                   const installed = isPluginInstalled(plugin)
-                  const isActioning = actioningPlugin === plugin.sourcePath
-
+                  const isActioning = actioningPlugins.has(plugin.sourcePath)
                   return (
                     <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
                       <PluginCard
@@ -394,7 +411,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
         installed={selectedPlugin ? isPluginInstalled(selectedPlugin) : false}
         onInstall={() => selectedPlugin && handleInstall(selectedPlugin)}
         onUninstall={() => selectedPlugin && handleUninstall(selectedPlugin)}
-        loading={selectedPlugin ? actioningPlugin === selectedPlugin.sourcePath : false}
+        loading={selectedPlugin ? actioningPlugins.has(selectedPlugin.sourcePath) : false}
       />
     </div>
   )

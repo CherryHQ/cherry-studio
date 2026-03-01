@@ -51,7 +51,7 @@ export function useInstalledPlugins(agentId: string | undefined) {
  * @param onSuccess - Optional callback to be called on successful operations
  * @returns Object containing install, uninstall, uninstallPackage functions and their loading states
  */
-export function usePluginActions(agentId: string, onSuccess?: () => void) {
+export function usePluginActions(agentId: string, onSuccess?: () => Promise<void> | void) {
   const [installing, setInstalling] = useState<boolean>(false)
   const [uninstalling, setUninstalling] = useState<boolean>(false)
   const [uninstallingPackage, setUninstallingPackage] = useState<boolean>(false)
@@ -66,7 +66,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
       try {
         const result = await action()
         if (result.success) {
-          onSuccess?.()
+          await onSuccess?.()
           return { success: true, data: result.data as TResult }
         }
         return { success: false, error: getPluginErrorMessage(result.error, errorPrefix) }
