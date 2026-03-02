@@ -1,93 +1,18 @@
 /**
- * Unit tests for the patch-claude-agent-sdk.mjs postinstall script.
+ * Unit tests for the patch-claude-agent-sdk.ts postinstall script.
  *
- * Since the script executes immediately on import (file I/O, process.exit),
- * we test the three core regex replacement functions in isolation.
- * The implementations here mirror the script exactly so that changes to the
- * script are caught by test failures.
+ * The patch functions are exported from the script and imported directly,
+ * so tests always exercise the real implementation.
  */
 
 import { describe, expect, it } from 'vitest'
 
-// ---------------------------------------------------------------------------
-// Mirror the three patch functions from patch-claude-agent-sdk.mjs
-// Any change to the regex in the script should be reflected here.
-// ---------------------------------------------------------------------------
-
-/**
- * Patch 1: Replace `import{spawn as X}from"child_process"` with
- *          `import{fork  as X}from"child_process"`.
- * Returns { result, matched }.
- */
-function applyPatch1(content: string): { result: string; matched: boolean } {
-  let matched = false
-  const result = content.replace(/import\{spawn as ([\w$]+)\}from"child_process"/, (_, alias) => {
-    matched = true
-    return `import{fork as ${alias}}from"child_process"`
-  })
-  return { result, matched }
-}
-
-/**
- * Patch 2: Remove `command:X,` from spawnLocalProcess destructuring.
- * Returns { result, matched }.
- */
-function applyPatch2(content: string): { result: string; matched: boolean } {
-  let matched = false
-  const result = content.replace(
-    /spawnLocalProcess\(([\w$]+)\)\{let\{command:([\w$]+),args:([\w$]+)/,
-    (_, fnArg, _cmd, args) => {
-      matched = true
-      return `spawnLocalProcess(${fnArg}){let{args:${args}`
-    }
-  )
-  return { result, matched }
-}
-
-/**
- * Patch 3: Rewrite spawn call to use fork(args[0], args.slice(1), …) with IPC stdio.
- * Returns { result, matched }.
- */
-function applyPatch3(content: string): { result: string; matched: boolean } {
-  let matched = false
-  const result = content.replace(
-    /([\w$]+)\(([\w$]+),([\w$]+),\{cwd:([\w$]+),stdio:\["pipe","pipe",([\w$]+)\],signal:([\w$]+),env:([\w$]+),windowsHide:!0\}/,
-    (_, fn, _cmd, args, cwd, stderr, signal, env) => {
-      matched = true
-      return `${fn}(${args}[0],${args}.slice(1),{cwd:${cwd},stdio:${stderr}==="pipe"?["pipe","pipe","pipe","ipc"]:["pipe","pipe","ignore","ipc"],signal:${signal},env:${env}}`
-    }
-  )
-  return { result, matched }
-}
-
-/**
- * Apply all three patches and return a summary identical to what the script does.
- */
-function applyAllPatches(content: string): {
-  result: string
-  patchCount: number
-  alreadyPatched: boolean
-} {
-  let patchCount = 0
-  let result = content
-
-  const p1 = applyPatch1(result)
-  result = p1.result
-  if (p1.matched) patchCount++
-
-  const p2 = applyPatch2(result)
-  result = p2.result
-  if (p2.matched) patchCount++
-
-  const p3 = applyPatch3(result)
-  result = p3.result
-  if (p3.matched) patchCount++
-
-  // Mimic the already-patched detection from the script
-  const alreadyPatched = patchCount === 0 && result.includes('import{fork as') && result.includes('"ipc"')
-
-  return { result, patchCount, alreadyPatched }
-}
+import {
+  applyAllPatches,
+  patchRemoveCommand as applyPatch2,
+  patchSpawnCall as applyPatch3,
+  patchSpawnImport as applyPatch1
+} from '../patch-claude-agent-sdk'
 
 // ---------------------------------------------------------------------------
 // Shared fixture helpers

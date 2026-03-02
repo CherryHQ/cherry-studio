@@ -64,7 +64,7 @@
     "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format:check",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
-    "postinstall": "node scripts/patch-claude-agent-sdk.mjs",
+    "postinstall": "tsx scripts/patch-claude-agent-sdk.ts",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
     "claude": "dotenv -e .env -- claude",
     "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
