@@ -14,6 +14,8 @@ export type MessageMenubarButtonId =
   | 'delete'
   | 'trace'
   | 'more-menu'
+  // dev only
+  | 'inspect-data'
 
 export type MessageMenubarScopeConfig = {
   buttonIds: MessageMenubarButtonId[]
@@ -33,6 +35,7 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
   'notes',
   'delete',
   'trace',
+  'inspect-data',
   'more-menu'
 ]
 
