@@ -18,7 +18,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { RootState } from '@renderer/store'
-import store, { useAppDispatch } from '@renderer/store'
+import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
@@ -171,8 +171,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
-  const dispatch = useAppDispatch()
-
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
   //     return withMessageThought(message)
@@ -265,7 +263,7 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       }
     },
-    [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, dispatch]
+    [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, removeMessageBlock]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
