@@ -5459,6 +5459,7 @@
       "interval": "Fixed Interval",
       "manual": "Manual Trigger"
     },
+    "search_placeholder": "Search tasks...",
     "status": {
       "completed": "Completed",
       "failed": "Failed",

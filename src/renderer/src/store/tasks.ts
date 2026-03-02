@@ -12,12 +12,14 @@ export interface TasksState {
   tasks: PeriodicTask[]
   selectedTaskId: string | null
   filter: 'all' | 'enabled' | 'disabled'
+  searchQuery: string
 }
 
 const initialState: TasksState = {
   tasks: [],
   selectedTaskId: null,
-  filter: 'all'
+  filter: 'all',
+  searchQuery: ''
 }
 
 const tasksSlice = createSlice({
@@ -65,6 +67,9 @@ const tasksSlice = createSlice({
     },
     setFilter: (state, action: PayloadAction<'all' | 'enabled' | 'disabled'>) => {
       state.filter = action.payload
+    },
+    setSearchQuery: (state, action: PayloadAction<string>) => {
+      state.searchQuery = action.payload
     },
     addExecution: (state, action: PayloadAction<{ taskId: string; execution: TaskExecution }>) => {
       const taskIndex = state.tasks.findIndex((t) => t.id === action.payload.taskId)
@@ -120,14 +125,29 @@ const tasksSlice = createSlice({
       return state.tasks.find((t) => t.id === state.selectedTaskId) || null
     },
     getFilteredTasks: (state) => {
+      let filtered = state.tasks
+
+      // Apply filter (all/enabled/disabled)
       switch (state.filter) {
         case 'enabled':
-          return state.tasks.filter((t) => t.enabled)
+          filtered = filtered.filter((t) => t.enabled)
+          break
         case 'disabled':
-          return state.tasks.filter((t) => !t.enabled)
+          filtered = filtered.filter((t) => !t.enabled)
+          break
         default:
-          return state.tasks
+          break
       }
+
+      // Apply search query
+      if (state.searchQuery && state.searchQuery.trim()) {
+        const query = state.searchQuery.toLowerCase()
+        filtered = filtered.filter(
+          (t) => t.name.toLowerCase().includes(query) || (t.description && t.description.toLowerCase().includes(query))
+        )
+      }
+
+      return filtered
     },
     getTaskListItems: (state) => {
       return state.tasks.map((task) => ({
@@ -153,6 +173,7 @@ export const {
   toggleTaskEnabled,
   setSelectedTask,
   setFilter,
+  setSearchQuery,
   addExecution
 } = tasksSlice.actions
 export const { getAllTasks, getTaskById, getSelectedTask, getFilteredTasks, getTaskListItems } = tasksSlice.selectors

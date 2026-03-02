@@ -5459,6 +5459,7 @@
       "interval": "[to be translated]:Fixed Interval",
       "manual": "[to be translated]:Manual Trigger"
     },
+    "search_placeholder": "[to be translated]:Search tasks...",
     "status": {
       "completed": "[to be translated]:Completed",
       "failed": "[to be translated]:Failed",

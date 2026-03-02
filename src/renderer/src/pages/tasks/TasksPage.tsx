@@ -15,13 +15,14 @@ import {
   getFilteredTasks,
   selectTasks,
   setFilter,
+  setSearchQuery,
   updateTask as updateTaskAction
 } from '@renderer/store/tasks'
 import { executeTask as executeTaskThunk, loadTasksFromStorage, updateTask } from '@renderer/store/tasksThunk'
 import type { PeriodicTask, TaskExecution } from '@types'
 import type { MenuProps } from 'antd'
-import { Dropdown, Empty } from 'antd'
-import { CheckCircle, CirclePlus, Clock, Pause, Play, Settings, X, XCircle } from 'lucide-react'
+import { Dropdown } from 'antd'
+import { CheckCircle, CirclePlus, Clock, Pause, Play, Search, Settings, Sparkles, X, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -189,6 +190,21 @@ const TasksPage: FC = () => {
       <ContentContainer id="content-container">
         <TaskSideNav>
           <FilterSection>
+            <SearchWrapper>
+              <SearchIconWrapper>
+                <Search size={14} />
+              </SearchIconWrapper>
+              <SearchInput
+                placeholder={t('tasks.search_placeholder') || '搜索任务...'}
+                value={tasksState.searchQuery}
+                onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+              />
+              {tasksState.searchQuery && (
+                <ClearSearchButton onClick={() => dispatch(setSearchQuery(''))}>
+                  <X size={14} />
+                </ClearSearchButton>
+              )}
+            </SearchWrapper>
             <FilterGroup>
               <FilterButton $active={tasksState.filter === 'all'} onClick={() => dispatch(setFilter('all'))}>
                 {t('tasks.filter.all')}
@@ -237,7 +253,33 @@ const TasksPage: FC = () => {
 
         {tasks.length === 0 ? (
           <MainContent>
-            <Empty description={t('tasks.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <EmptyStateContainer>
+              <EmptyStateIcon>
+                <Sparkles size={48} />
+              </EmptyStateIcon>
+              <EmptyStateTitle>{t('tasks.empty')}</EmptyStateTitle>
+              <EmptyStateDescription>
+                任务可以帮你自动化日常工作，定时或手动触发 AI 助手执行特定任务。
+              </EmptyStateDescription>
+              <EmptyStateFeatures>
+                <FeatureItem>
+                  <FeatureIcon>📅</FeatureIcon>
+                  <FeatureText>定时调度</FeatureText>
+                </FeatureItem>
+                <FeatureItem>
+                  <FeatureIcon>🤖</FeatureIcon>
+                  <FeatureText>AI 助手</FeatureText>
+                </FeatureItem>
+                <FeatureItem>
+                  <FeatureIcon>📊</FeatureIcon>
+                  <FeatureText>执行追踪</FeatureText>
+                </FeatureItem>
+              </EmptyStateFeatures>
+              <CreateTaskButton onClick={handleCreateTask}>
+                <CirclePlus size={18} />
+                {t('tasks.create')}
+              </CreateTaskButton>
+            </EmptyStateContainer>
           </MainContent>
         ) : selectedTask ? (
           <TaskContent>
@@ -380,6 +422,89 @@ const MainContent = styled(Scrollbar)`
   padding-bottom: 50px;
 `
 
+const EmptyStateContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+`
+
+const EmptyStateIcon = styled.div`
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+`
+
+const EmptyStateTitle = styled.h2`
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  margin: 0 0 12px 0;
+`
+
+const EmptyStateDescription = styled.p`
+  font-size: 13px;
+  color: var(--color-text-2);
+  max-width: 400px;
+  line-height: 1.6;
+  margin: 0 0 32px 0;
+`
+
+const EmptyStateFeatures = styled.div`
+  display: flex;
+  gap: 32px;
+  margin-bottom: 32px;
+`
+
+const FeatureItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`
+
+const FeatureIcon = styled.div`
+  font-size: 24px;
+`
+
+const FeatureText = styled.span`
+  font-size: 12px;
+  color: var(--color-text-2);
+`
+
+const CreateTaskButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`
+
 const TaskSideNav = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
@@ -395,6 +520,62 @@ const FilterSection = styled.div`
   border-bottom: 0.5px solid var(--color-border);
 `
 
+const SearchWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-background);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 0.5px solid var(--color-border);
+  transition: all 0.2s;
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+  }
+`
+
+const SearchIconWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  color: var(--color-text-2);
+  flex-shrink: 0;
+`
+
+const SearchInput = styled.input`
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-1);
+  outline: none;
+  padding: 0;
+
+  &::placeholder {
+    color: var(--color-text-3);
+  }
+`
+
+const ClearSearchButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-2);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-hover-background);
+    color: var(--color-text-1);
+  }
+`
+
 const FilterGroup = styled.div`
   display: flex;
   gap: 8px;
@@ -404,22 +585,46 @@ const FilterGroup = styled.div`
 `
 
 const FilterButton = styled.button<{ $active: boolean }>`
+  flex: 1;
+  height: 30px;
   border: none;
   background: transparent;
-  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-text-2)')};
-  padding: 4px 12px;
-  border-radius: 6px;
-  cursor: pointer;
+  color: ${(props) => (props.$active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
   font-size: 13px;
-  transition: all 0.2s;
-  flex: 1;
+  font-weight: ${(props) => (props.$active ? '600' : '400')};
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
 
   &:hover {
-    background: var(--color-hover-background);
+    color: var(--color-text);
   }
 
   &:active {
-    transform: scale(0.95);
+    transform: scale(0.98);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: ${(props) => (props.$active ? '30px' : '0')};
+    height: 3px;
+    background: var(--color-primary);
+    border-radius: 1px;
+    transition: all 0.2s ease;
+  }
+
+  &:hover::after {
+    width: ${(props) => (props.$active ? '30px' : '16px')};
+    background: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-primary-soft)')};
   }
 `
 

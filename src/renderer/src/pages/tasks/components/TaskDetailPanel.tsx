@@ -12,7 +12,7 @@ import type { PeriodicTask, TaskExecution } from '@types'
 import { Button } from 'antd'
 import { CheckCircle, ChevronRight, Clock, Edit2, Pause, Play, Square, Trash2, XCircle } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -34,27 +34,38 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
   const [currentPage, setCurrentPage] = useState(1)
   const executionsPerPage = 10
 
+  // 执行历史状态筛选
+  const [executionStatusFilter, setExecutionStatusFilter] = useState<'all' | 'completed' | 'failed' | 'running'>('all')
+
+  // 根据状态筛选执行记录
+  const filteredExecutions = useMemo(() => {
+    if (executionStatusFilter === 'all') {
+      return task.executions
+    }
+    return task.executions.filter((e) => e.status === executionStatusFilter)
+  }, [task.executions, executionStatusFilter])
+
   // 计算总页数
-  const totalPages = Math.ceil(task.executions.length / executionsPerPage)
+  const totalPages = Math.ceil(filteredExecutions.length / executionsPerPage)
 
   // 获取当前页的执行记录（倒序，最新的在前）
   const getCurrentPageExecutions = () => {
     const startIndex = (currentPage - 1) * executionsPerPage
     const endIndex = startIndex + executionsPerPage
-    return task.executions.slice(startIndex, endIndex)
+    return filteredExecutions.slice(startIndex, endIndex)
   }
 
-  // 当任务切换时重置页码
+  // 当任务切换或筛选条件变化时重置页码
   useEffect(() => {
     setCurrentPage(1)
-  }, [task.id])
+  }, [task.id, executionStatusFilter])
 
   // 当执行记录数量变化时，确保当前页码有效
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages)
     }
-  }, [task.executions.length, totalPages, currentPage])
+  }, [filteredExecutions.length, totalPages, currentPage])
 
   const handleRun = async () => {
     console.log('[TASKS] TaskDetailPanel handleRun 被调用, taskId:', task.id)
@@ -205,9 +216,50 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
             执行历史
             {task.executions.length > 0 && <ExecutionCount>（共 {task.executions.length} 条）</ExecutionCount>}
           </SectionTitle>
+          <ExecutionStatusFilters>
+            <StatusFilterButton
+              $active={executionStatusFilter === 'all'}
+              onClick={() => setExecutionStatusFilter('all')}>
+              全部
+            </StatusFilterButton>
+            <StatusFilterButton
+              $active={executionStatusFilter === 'completed'}
+              onClick={() => setExecutionStatusFilter('completed')}>
+              <CheckCircle size={12} />
+              成功
+            </StatusFilterButton>
+            <StatusFilterButton
+              $active={executionStatusFilter === 'failed'}
+              onClick={() => setExecutionStatusFilter('failed')}>
+              <XCircle size={12} />
+              失败
+            </StatusFilterButton>
+            <StatusFilterButton
+              $active={executionStatusFilter === 'running'}
+              onClick={() => setExecutionStatusFilter('running')}>
+              <Clock size={12} />
+              运行中
+            </StatusFilterButton>
+          </ExecutionStatusFilters>
           <CompactExecutionList>
-            {task.executions.length === 0 ? (
-              <EmptyState>暂无执行记录</EmptyState>
+            {filteredExecutions.length === 0 ? (
+              <ImprovedEmptyState>
+                <EmptyStateIconWrapper>
+                  {executionStatusFilter === 'all' ? <Clock size={32} /> : null}
+                  {executionStatusFilter === 'completed' ? <CheckCircle size={32} /> : null}
+                  {executionStatusFilter === 'failed' ? <XCircle size={32} /> : null}
+                  {executionStatusFilter === 'running' ? <Clock size={32} /> : null}
+                </EmptyStateIconWrapper>
+                <EmptyStateText>
+                  {executionStatusFilter === 'all' && '暂无执行记录'}
+                  {executionStatusFilter === 'completed' && '暂无成功的执行记录'}
+                  {executionStatusFilter === 'failed' && '暂无失败的执行记录'}
+                  {executionStatusFilter === 'running' && '暂无运行中的任务'}
+                </EmptyStateText>
+                {task.schedule.type === 'manual' && executionStatusFilter === 'all' && (
+                  <EmptyStateHint>点击上方"立即执行"按钮开始执行任务</EmptyStateHint>
+                )}
+              </ImprovedEmptyState>
             ) : (
               <>
                 {getCurrentPageExecutions().map((execution) => (
@@ -450,6 +502,56 @@ const CompactExecutionList = styled.div`
   gap: 2px;
 `
 
+const ExecutionStatusFilters = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+`
+
+const StatusFilterButton = styled.button<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  height: 28px;
+  font-size: 11px;
+  color: ${(props) => (props.$active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
+  font-weight: ${(props) => (props.$active ? '600' : '400')};
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+
+  &:hover {
+    color: var(--color-text);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: ${(props) => (props.$active ? '20px' : '0')};
+    height: 2px;
+    background: var(--color-primary);
+    border-radius: 1px;
+    transition: all 0.2s ease;
+  }
+
+  &:hover::after {
+    width: ${(props) => (props.$active ? '20px' : '12px')};
+    background: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-primary-soft)')};
+  }
+`
+
 const CompactExecutionItem = styled.div<{ $selected?: boolean }>`
   display: flex;
   align-items: center;
@@ -589,11 +691,36 @@ const ExpandIcon = styled.div`
   }
 `
 
-const EmptyState = styled.div`
+const ImprovedEmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
   text-align: center;
-  padding: 20px 0;
+`
+
+const EmptyStateIconWrapper = styled.div`
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-background-soft);
+  color: var(--color-text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+`
+
+const EmptyStateText = styled.div`
+  font-size: 13px;
+  color: var(--color-text-2);
+  margin-bottom: 4px;
+`
+
+const EmptyStateHint = styled.div`
+  font-size: 11px;
   color: var(--color-text-3);
-  font-size: 12px;
 `
 
 export default TaskDetailPanel

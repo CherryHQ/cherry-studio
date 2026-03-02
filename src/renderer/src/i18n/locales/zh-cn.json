@@ -5459,6 +5459,7 @@
       "interval": "固定间隔",
       "manual": "手动触发"
     },
+    "search_placeholder": "搜索任务...",
     "status": {
       "completed": "完成",
       "failed": "错误",
