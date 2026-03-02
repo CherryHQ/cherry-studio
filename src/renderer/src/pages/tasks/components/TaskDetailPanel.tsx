@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { useAppDispatch } from '@renderer/store'
 import { deleteTask } from '@renderer/store/tasks'
 import { executeTask as executeTaskThunk } from '@renderer/store/tasksThunk'
+import { abortCompletion } from '@renderer/utils/abortController'
 import type { PeriodicTask, TaskExecution } from '@types'
 import { Button } from 'antd'
 import { CheckCircle, ChevronRight, Clock, Edit2, Pause, Play, Square, Trash2, XCircle } from 'lucide-react'
@@ -86,15 +87,42 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
     })
   }
 
-  const handleTerminate = (executionId: string) => {
+  const handleTerminate = async (executionId: string) => {
     window.modal.confirm({
       title: '终止任务',
       content: '确认终止此任务的执行？',
       centered: true,
-      onOk: () => {
-        // TODO: Implement actual termination
-        logger.info('Terminate execution:', { executionId })
-        window.toast.info('终止功能开发中')
+      onOk: async () => {
+        try {
+          // Check if the execution is still running
+          const execution = task.executions.find((e) => e.id === executionId)
+
+          if (!execution) {
+            window.toast.info('任务未找到')
+            return
+          }
+
+          if (execution.status !== 'running') {
+            window.toast.info('任务已完成或已终止')
+            return
+          }
+
+          // Call abort directly in renderer process
+          abortCompletion(executionId)
+          logger.info('Task execution terminated:', executionId)
+
+          window.toast.success('任务已终止')
+
+          // Update local state to reflect termination
+          onExecutionSelect({
+            ...execution,
+            status: 'terminated',
+            completedAt: new Date().toISOString()
+          })
+        } catch (error) {
+          logger.error('Failed to terminate execution:', error as Error)
+          window.toast.error('终止任务失败')
+        }
       }
     })
   }

@@ -442,6 +442,7 @@ export enum IpcChannel {
   Task_GetExecutions = 'task:get-executions',
   Task_ExecuteTarget = 'task:execute-target',
   Task_SaveExecution = 'task:save-execution',
+  Task_AbortExecution = 'task:abort-execution',
 
   // Task Events
   Task_ExecutionStarted = 'task:execution-started',

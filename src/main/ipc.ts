@@ -89,6 +89,7 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
+import taskExecutorService from './services/TaskExecutorService'
 import taskSchedulerService from './services/TaskSchedulerService'
 import taskStorageService from './services/TaskStorageService'
 import { themeService } from './services/ThemeService'
@@ -1229,6 +1230,23 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     // Ensure the execution has the correct taskId
     execution.taskId = taskId
     return await taskStorageService.addExecution(execution)
+  })
+
+  ipcMain.handle(IpcChannel.Task_AbortExecution, async (_, executionId: string) => {
+    const success = taskExecutorService.abortExecution(executionId)
+
+    if (success) {
+      // Update execution status in storage
+      await taskStorageService.updateExecution(executionId, {
+        status: 'terminated',
+        completedAt: new Date().toISOString()
+      })
+      logger.info(`Execution aborted: ${executionId}`)
+    } else {
+      logger.warn(`Execution not found for abort: ${executionId}`)
+    }
+
+    return success
   })
 
   // Note: Task_ExecuteTarget is handled by the renderer process through the message system

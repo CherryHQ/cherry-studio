@@ -725,7 +725,8 @@ const api = {
       const listener = (_: Electron.IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on(IpcChannel.Task_ExecutionFailed, listener)
       return () => ipcRenderer.off(IpcChannel.Task_ExecutionFailed, listener)
-    }
+    },
+    abortExecution: (executionId: string) => ipcRenderer.invoke(IpcChannel.Task_AbortExecution, executionId)
   }
 }
 

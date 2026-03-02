@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import ModernAiProvider from '@renderer/aiCore/index_new'
 import store from '@renderer/store/index'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import { addAbortController } from '@renderer/utils/abortController'
 import type { PeriodicTask, TaskExecution, TaskTarget } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -93,6 +94,27 @@ export async function executeTaskDirect(task: PeriodicTask, executionId?: string
   console.log('[TASKS] 开始任务执行:', execution.id, '任务:', task.id, '目标数量:', task.targets.length)
   logger.info(`开始任务执行：${execution.id}，任务：${task.id}，目标数量：${task.targets.length}`)
 
+  // Create AbortController and register globally for this execution
+  const abortController = new AbortController()
+
+  // Register the abort controller for this execution ID
+  addAbortController(execution.id, () => {
+    abortController.abort()
+    logger.info(`Task execution aborted: ${execution.id}`)
+  })
+
+  // Find previous topicId if continueConversation is enabled
+  let previousTopicId: string | undefined
+  if (task.execution.continueConversation && task.executions.length > 0) {
+    // Find the last completed execution with a topicId
+    const lastExecution = task.executions.find((e) => e.topicId && e.status === 'completed')
+    if (lastExecution?.topicId) {
+      previousTopicId = lastExecution.topicId
+      console.log('[TASKS] 继续对话，使用 topicId:', previousTopicId)
+      logger.info(`继续对话，使用 topicId: ${previousTopicId}`)
+    }
+  }
+
   try {
     // Execute based on number of targets
     let result: TaskExecutionResult
@@ -105,16 +127,27 @@ export async function executeTaskDirect(task: PeriodicTask, executionId?: string
       const timeoutMs = (task.execution.maxExecutionTime || 300) * 1000
       console.log('[TASKS] 执行单个目标，超时时间:', timeoutMs, 'ms (', task.execution.maxExecutionTime, '秒)')
       logger.info(`执行单个目标，超时时间：${timeoutMs}ms (${task.execution.maxExecutionTime}秒)`)
-      result = await Promise.race([executeSingleTarget(task), createTimeoutPromise(timeoutMs)])
+      result = await Promise.race([
+        executeSingleTarget(task, abortController.signal, previousTopicId),
+        createTimeoutPromise(timeoutMs)
+      ])
       console.log('[TASKS] 单个目标执行完成，成功:', result.success)
       logger.info(`单个目标执行完成，成功：${result.success}`)
+
+      // Save topicId from result metadata
+      if (result.metadata?.topicId && typeof result.metadata.topicId === 'string') {
+        execution.topicId = result.metadata.topicId
+      }
     } else {
       // Multiple targets - execute all and aggregate results with timeout
       // maxExecutionTime is in seconds, convert to milliseconds
       const timeoutMs = (task.execution.maxExecutionTime || 300) * 1000
       console.log('[TASKS] 执行多个目标，超时时间:', timeoutMs, 'ms (', task.execution.maxExecutionTime, '秒)')
       logger.info(`执行多个目标，超时时间：${timeoutMs}ms (${task.execution.maxExecutionTime}秒)`)
-      result = await Promise.race([executeMultipleTargets(task), createTimeoutPromise(timeoutMs)])
+      result = await Promise.race([
+        executeMultipleTargets(task, abortController.signal),
+        createTimeoutPromise(timeoutMs)
+      ])
       console.log('[TASKS] 多个目标执行完成，成功:', result.success)
       logger.info(`多个目标执行完成，成功：${result.success}`)
     }
@@ -130,7 +163,14 @@ export async function executeTaskDirect(task: PeriodicTask, executionId?: string
   } catch (error) {
     const duration = Date.now() - startTime
     execution.completedAt = new Date().toISOString()
-    execution.status = 'failed'
+
+    // Check if aborted
+    if (abortController.signal.aborted) {
+      execution.status = 'terminated'
+    } else {
+      execution.status = 'failed'
+    }
+
     execution.result = {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -140,6 +180,11 @@ export async function executeTaskDirect(task: PeriodicTask, executionId?: string
     console.error('[TASKS] 任务执行失败:', executionId, '错误:', execution.result.error)
     logger.error(`任务执行失败：${executionId}，错误：${execution.result.error}`, error as Error)
   }
+
+  // Clean up AbortController after task completion
+  // Just remove from map without calling abort functions
+  const abortMap = (await import('@renderer/utils/abortController')).abortMap
+  abortMap.delete(execution.id)
 
   console.log('[TASKS] 返回执行记录:', executionId, '状态:', execution.status)
   logger.info(`返回执行记录：${executionId}，状态：${execution.status}`)
@@ -160,7 +205,11 @@ function createTimeoutPromise(timeoutMs: number): Promise<never> {
 /**
  * Execute task with a single target
  */
-async function executeSingleTarget(task: PeriodicTask): Promise<TaskExecutionResult> {
+async function executeSingleTarget(
+  task: PeriodicTask,
+  signal?: AbortSignal,
+  previousTopicId?: string
+): Promise<TaskExecutionResult> {
   const target = task.targets[0]
   const startTime = Date.now()
 
@@ -170,7 +219,7 @@ async function executeSingleTarget(task: PeriodicTask): Promise<TaskExecutionRes
     let output: string
 
     if (target.type === 'assistant') {
-      output = await executeWithAssistant(target.id, task.execution.message)
+      output = await executeWithAssistant(target.id, task.execution.message, signal, previousTopicId)
     } else if (target.type === 'agent') {
       output = await executeWithAgent(target.id, task.execution.message)
     } else if (target.type === 'agent_session') {
@@ -188,7 +237,8 @@ async function executeSingleTarget(task: PeriodicTask): Promise<TaskExecutionRes
           type: target.type,
           id: target.id,
           name: target.name
-        }
+        },
+        topicId: previousTopicId // Include topicId in metadata
       }
     }
   } catch (error) {
@@ -203,7 +253,7 @@ async function executeSingleTarget(task: PeriodicTask): Promise<TaskExecutionRes
 /**
  * Execute task with multiple targets and aggregate results
  */
-async function executeMultipleTargets(task: PeriodicTask): Promise<TaskExecutionResult> {
+async function executeMultipleTargets(task: PeriodicTask, signal?: AbortSignal): Promise<TaskExecutionResult> {
   const startTime = Date.now()
 
   logger.info(`正在执行任务 ${task.id}，共 ${task.targets.length} 个目标`)
@@ -218,11 +268,16 @@ async function executeMultipleTargets(task: PeriodicTask): Promise<TaskExecution
 
     // Execute all targets in sequence (can be optimized for parallel execution later)
     for (const target of task.targets) {
+      // Check if aborted
+      if (signal?.aborted) {
+        throw new Error('Task execution aborted')
+      }
+
       try {
         let output: string
 
         if (target.type === 'assistant') {
-          output = await executeWithAssistant(target.id, task.execution.message)
+          output = await executeWithAssistant(target.id, task.execution.message, signal)
         } else if (target.type === 'agent') {
           output = await executeWithAgent(target.id, task.execution.message)
         } else if (target.type === 'agent_session') {
@@ -313,9 +368,19 @@ function aggregateResults(
  * Execute task with an assistant
  * Uses ModernAiProvider to call AI directly
  */
-async function executeWithAssistant(assistantId: string, message: string): Promise<string> {
+async function executeWithAssistant(
+  assistantId: string,
+  message: string,
+  signal?: AbortSignal,
+  previousTopicId?: string
+): Promise<string> {
   console.log('[TASKS] executeWithAssistant 开始, assistantId:', assistantId)
   logger.info(`executeWithAssistant 开始，assistantId: ${assistantId}`)
+
+  // Check if aborted before starting
+  if (signal?.aborted) {
+    throw new Error('Task execution aborted')
+  }
 
   // Get the assistant
   const assistants = store.getState().assistants.assistants
@@ -353,19 +418,46 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
     // Call AI completions with proper config
     console.log('[TASKS] 准备调用 aiProvider.completions')
     logger.info(`准备调用 aiProvider.completions`)
-    const result = await aiProvider.completions(assistant.model.id, params, {
-      assistant,
-      streamOutput: false,
-      enableReasoning: false,
-      isPromptToolUse: false,
-      isSupportedToolUse: false,
-      isImageGenerationEndpoint: false,
-      enableWebSearch: false,
-      enableGenerateImage: false,
-      enableUrlContext: false,
-      callType: 'task_execution',
-      topicId: `task-${uuidv4()}`
+
+    // Use the same topicId if continuing conversation, otherwise generate new one
+    const topicId = previousTopicId || `task-${uuidv4()}`
+    console.log('[TASKS] 使用 topicId:', topicId)
+    logger.info(`使用 topicId: ${topicId}`)
+
+    // Wrap the AI call in a Promise that can be aborted
+    const result = await new Promise<Awaited<ReturnType<typeof aiProvider.completions>>>(async (resolve, reject) => {
+      const abortHandler = () => {
+        reject(new Error('Task execution aborted'))
+      }
+
+      if (signal) {
+        signal.addEventListener('abort', abortHandler, { once: true })
+      }
+
+      try {
+        const aiResult = await aiProvider.completions(assistant.model.id, params, {
+          assistant,
+          streamOutput: false,
+          enableReasoning: false,
+          isPromptToolUse: false,
+          isSupportedToolUse: false,
+          isImageGenerationEndpoint: false,
+          enableWebSearch: false,
+          enableGenerateImage: false,
+          enableUrlContext: false,
+          callType: 'task_execution',
+          topicId
+        })
+        resolve(aiResult)
+      } catch (error) {
+        reject(error)
+      } finally {
+        if (signal) {
+          signal.removeEventListener('abort', abortHandler)
+        }
+      }
     })
+
     console.log('[TASKS] aiProvider.completions 调用完成')
     logger.info(`aiProvider.completions 调用完成`)
 
@@ -379,6 +471,13 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
 
     return text
   } catch (error) {
+    // Check if it's an abort error
+    if (error instanceof Error && error.message === 'Task execution aborted') {
+      console.log('[TASKS] 任务执行被中止')
+      logger.info('任务执行被中止')
+      throw new Error('Task execution aborted')
+    }
+
     console.error('[TASKS] 助手执行失败:', error)
     logger.error(`助手执行失败：`, error as Error)
     throw new Error(`助手 ${assistant.name} 执行失败：${error instanceof Error ? error.message : String(error)}`)

@@ -6,7 +6,7 @@
 /**
  * Task execution status
  */
-export type TaskStatus = 'idle' | 'running' | 'completed' | 'failed' | 'paused'
+export type TaskStatus = 'idle' | 'running' | 'completed' | 'failed' | 'paused' | 'terminated'
 
 /**
  * Schedule type for periodic tasks
@@ -58,6 +58,10 @@ export interface TaskExecution {
   status: TaskStatus
   startedAt: string
   completedAt?: string
+  /** Session ID for continuing conversations */
+  sessionId?: string
+  /** Topic ID for continuing conversations */
+  topicId?: string
   result?: {
     success: boolean
     output?: string
