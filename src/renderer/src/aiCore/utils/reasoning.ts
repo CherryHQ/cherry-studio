@@ -529,7 +529,7 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
-export function getAnthropicThinkingBudget(
+export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
   modelId: string
@@ -612,7 +612,7 @@ export function getAnthropicReasoningParams(
 
     // Other Claude models continue using enabled + budgetTokens
     const { maxTokens } = getAssistantSettings(assistant)
-    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
       thinking: {
@@ -623,7 +623,7 @@ export function getAnthropicReasoningParams(
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
     const { maxTokens } = getAssistantSettings(assistant)
-    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     return budgetTokens ? { thinking: { type: 'enabled', budgetTokens } } : { thinking: { type: 'enabled' } }
   }
 }
@@ -796,7 +796,7 @@ export function getBedrockReasoningParams(
 
   // Other Claude models use enabled + budgetTokens
   const { maxTokens } = getAssistantSettings(assistant)
-  const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+  const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
     reasoningConfig: {
       type: 'enabled',
