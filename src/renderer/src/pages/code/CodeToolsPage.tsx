@@ -488,7 +488,9 @@ const CodeToolsPage: FC = () => {
                         style={{
                           flex: 1,
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis'
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
                         }}>
                         {option.value}
                       </span>
