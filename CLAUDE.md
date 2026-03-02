@@ -18,6 +18,17 @@ This file provides guidance to AI coding assistants when working with code in th
 When creating a Pull Request, you MUST use the `gh-create-pr` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
 
+## Review Workflow
+
+When reviewing a Pull Request, do NOT run `pnpm lint`, `pnpm test`, or `pnpm format` locally.
+Instead, check CI status directly using GitHub CLI:
+
+- **Check CI status**: `gh pr checks <PR_NUMBER>` - View all CI check results for the PR
+- **Check PR details**: `gh pr view <PR_NUMBER>` - View PR status, reviews, and merge readiness
+- **View failed logs**: `gh run view <RUN_ID> --log-failed` - Inspect logs for failed CI runs
+
+Only investigate CI failures by reading the logs, not by re-running checks locally.
+
 ## Issue Workflow
 
 When creating an Issue, you MUST use the `gh-create-issue` skill.
