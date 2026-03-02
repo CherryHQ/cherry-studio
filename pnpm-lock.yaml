@@ -285,9 +285,6 @@ importers:
       '@codemirror/lang-json':
         specifier: 6.0.1
         version: 6.0.1
-      '@codemirror/lang-liquid':
-        specifier: ^6.3.2
-        version: 6.3.2
       '@codemirror/lint':
         specifier: 6.8.5
         version: 6.8.5
@@ -11808,7 +11805,7 @@ packages:
         optional: true
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz:
-    resolution: {integrity: sha512-+nKZ39+nvK7Qq6i0PvWWRA4j/EkfWOtkP/YhMtupm+lJIiHxUrgTr1CcKv1nBk1rHtkRRQ3O2+Ih/q/sA+FXZA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
+    resolution: {tarball: https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz}
     version: 0.20.2
     engines: {node: '>=0.8'}
     hasBin: true
