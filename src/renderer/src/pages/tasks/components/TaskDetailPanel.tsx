@@ -109,7 +109,7 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
 
           // Call abort directly in renderer process
           abortCompletion(executionId)
-          logger.info('Task execution terminated:', executionId)
+          logger.info('Task execution terminated', { executionId })
 
           window.toast.success('任务已终止')
 

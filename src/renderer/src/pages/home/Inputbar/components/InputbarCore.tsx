@@ -615,7 +615,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         isLoading={isTranslating}
       />
     )
-    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={isSendDisabled} />)
+    extras.push(<SendMessageButton key="send-message" sendMessage={handleSendMessage} disabled={isSendDisabled} />)
 
     if (isLoading) {
       extras.push(
@@ -627,7 +627,13 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       )
     }
 
-    return <>{extras}</>
+    return (
+      <>
+        {extras.map((element, index) => (
+          <React.Fragment key={index}>{element}</React.Fragment>
+        ))}
+      </>
+    )
   }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
