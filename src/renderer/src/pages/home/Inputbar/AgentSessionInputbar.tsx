@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -18,7 +19,6 @@ import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newM
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Message, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
-import type { AgentEffort, AgentThinkingConfig } from '@renderer/types/agent'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -47,29 +47,6 @@ import { TopicType } from './types'
 const logger = loggerService.withContext('AgentSessionInputbar')
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
-
-/** Map ThinkingOption to SDK effort + thinking params */
-const toSdkThinkingParams = (
-  option: ThinkingOption
-): {
-  effort?: AgentEffort
-  thinking?: AgentThinkingConfig
-} => {
-  switch (option) {
-    case 'low':
-    case 'medium':
-    case 'high':
-      return { effort: option, thinking: { type: 'enabled' } }
-    case 'xhigh':
-      return { effort: 'max', thinking: { type: 'enabled' } }
-    case 'auto':
-      return { thinking: { type: 'adaptive' } }
-    case 'none':
-      return { thinking: { type: 'disabled' } }
-    default:
-      return {}
-  }
-}
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
@@ -431,11 +408,18 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         usage
       })
 
+      const thinkingParams = assistant.model
+        ? getAnthropicReasoningParams(
+            { ...assistant, settings: { ...assistant.settings, reasoning_effort: reasoningEffort } },
+            assistant.model
+          )
+        : {}
+
       dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId,
-          ...toSdkThinkingParams(reasoningEffort)
+          ...thinkingParams
         })
       )
 
@@ -497,17 +481,10 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && (
-          <InputbarTools
-            scope={scope}
-            assistantId={assistant.id}
-            session={toolsSession}
-            modelOverride={assistant.model}
-          />
-        )}
+        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={toolsSession} />}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, toolsSession, assistant.model]
+    [config.showTools, scope, assistant.id, toolsSession]
   )
   const placeholderText = useMemo(
     () =>

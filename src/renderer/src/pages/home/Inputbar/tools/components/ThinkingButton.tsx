@@ -69,19 +69,18 @@ const ThinkingButton: FC<Props> = ({
   }, [model, modelType])
 
   const onThinkingChange = useCallback(
-    (option?: ThinkingOption) => {
-      const resolvedOption = option ?? 'none'
-      const isEnabled = resolvedOption !== 'none'
+    (option: ThinkingOption) => {
+      const isEnabled = option !== 'none'
 
       if (isControlled) {
-        onReasoningEffortChange?.(resolvedOption)
+        onReasoningEffortChange?.(option)
         return
       }
 
       if (!isEnabled) {
         updateAssistantSettings({
-          reasoning_effort: resolvedOption,
-          reasoning_effort_cache: resolvedOption,
+          reasoning_effort: option,
+          reasoning_effort_cache: option,
           qwenThinkMode: false
         })
         return
@@ -90,14 +89,14 @@ const ThinkingButton: FC<Props> = ({
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
         assistant.enableWebSearch &&
-        resolvedOption === 'minimal'
+        option === 'minimal'
       ) {
         window.toast.warning(t('chat.web_search.warning.openai'))
         return
       }
       updateAssistantSettings({
-        reasoning_effort: resolvedOption,
-        reasoning_effort_cache: resolvedOption,
+        reasoning_effort: option,
+        reasoning_effort_cache: option,
         qwenThinkMode: true
       })
     },
