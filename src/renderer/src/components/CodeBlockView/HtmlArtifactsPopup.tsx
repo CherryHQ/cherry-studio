@@ -73,7 +73,6 @@ const PreviewPanel = memo<PreviewPanelProps>(({ previewFrameRef, html, previewTi
       {html.trim() ? (
         <PreviewFrame
           ref={previewFrameRef}
-          key={html}
           srcDoc={html}
           title={previewTitle}
           sandbox="allow-scripts allow-same-origin allow-forms"
@@ -102,7 +101,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
-  const [splitSizes, setSplitSizes] = useState<(number | string)[]>(['50%', '50%'])
+  const [splitSizes, setSplitSizes] = useState<string[]>(['50%', '50%'])
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
@@ -111,7 +110,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const handlePanelResize = useCallback(
     (sizes: number[]) => {
       if (viewMode === 'split') {
-        setSplitSizes(sizes)
+        const total = sizes[0] + sizes[1]
+        if (total > 0) {
+          setSplitSizes([`${(sizes[0] / total) * 100}%`, `${(sizes[1] / total) * 100}%`])
+        }
       }
     },
     [viewMode]
@@ -439,7 +441,7 @@ const PreviewFrame = styled.iframe`
   width: 100%;
   height: 100%;
   border: none;
-   background: var(--color-background);
+  background: var(--color-background);
 `
 
 const EmptyPreview = styled.div`
