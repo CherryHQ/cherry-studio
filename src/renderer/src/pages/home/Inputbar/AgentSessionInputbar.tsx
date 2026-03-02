@@ -16,8 +16,9 @@ import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message } from '@renderer/types'
+import type { Assistant, Message, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
+import type { AgentEffort, AgentThinkingConfig } from '@renderer/types/agent'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -26,7 +27,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
@@ -40,11 +41,35 @@ import {
 } from './context/InputbarToolsProvider'
 import InputbarTools from './InputbarTools'
 import { getInputbarConfig } from './registry'
+import type { ToolContext } from './types'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
+/** Map ThinkingOption to SDK effort + thinking params */
+const toSdkThinkingParams = (
+  option: ThinkingOption
+): {
+  effort?: AgentEffort
+  thinking?: AgentThinkingConfig
+} => {
+  switch (option) {
+    case 'low':
+    case 'medium':
+    case 'high':
+      return { effort: option, thinking: { type: 'enabled' } }
+    case 'xhigh':
+      return { effort: 'max', thinking: { type: 'enabled' } }
+    case 'auto':
+      return { thinking: { type: 'adaptive' } }
+    case 'none':
+      return { thinking: { type: 'disabled' } }
+    default:
+      return {}
+  }
+}
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
@@ -137,12 +162,7 @@ interface InnerProps {
   assistant: Assistant
   agentId: string
   sessionId: string
-  sessionData?: {
-    agentId?: string
-    sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
-    tools?: Array<{ id: string; name: string; type: string; description?: string }>
-  }
+  sessionData?: ToolContext['session']
   actionsRef: React.MutableRefObject<{
     resizeTextArea: () => void
     onTextChange: (updater: React.SetStateAction<string> | ((prev: string) => string)) => void
@@ -177,6 +197,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+
+  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('none')
 
   const { files } = useInputbarToolsState()
   const { toolsRegistry, setIsExpanded, setFiles } = useInputbarToolsDispatch()
@@ -412,7 +434,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
-          sessionId
+          sessionId,
+          ...toSdkThinkingParams(reasoningEffort)
         })
       )
 
@@ -440,7 +463,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setTimeoutTimer,
     text,
     files,
-    focusTextarea
+    focusTextarea,
+    reasoningEffort
   ])
 
   useEffect(() => {
@@ -465,13 +489,25 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     return []
   }, [canAddImageFile, canAddTextFile])
 
+  const toolsSession = useMemo(() => {
+    if (!sessionData) return undefined
+    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
+  }, [sessionData, reasoningEffort])
+
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={sessionData} />}
+        {config.showTools && (
+          <InputbarTools
+            scope={scope}
+            assistantId={assistant.id}
+            session={toolsSession}
+            modelOverride={assistant.model}
+          />
+        )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, sessionData]
+    [config.showTools, scope, assistant.id, toolsSession, assistant.model]
   )
   const placeholderText = useMemo(
     () =>
