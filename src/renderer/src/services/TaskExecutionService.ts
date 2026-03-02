@@ -5,10 +5,13 @@
 
 import { loggerService } from '@logger'
 import ModernAiProvider from '@renderer/aiCore/index_new'
+import { buildStreamTextParams } from '@renderer/aiCore/prepareParams/parameterBuilder'
+import { fetchMcpTools, getMcpServersForAssistant } from '@renderer/services/ApiService'
 import store from '@renderer/store/index'
-import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import { addAbortController } from '@renderer/utils/abortController'
-import type { PeriodicTask, TaskExecution, TaskTarget } from '@types'
+import type { ModelMessage } from '@renderer/types/aiCoreTypes'
+import type { MCPTool } from '@types'
+import { isPromptToolUse, isSupportedToolUse } from '@utils/mcp-tools'
+import { replacePromptVariables } from '@utils/prompt'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('TaskExecutionService')
@@ -366,7 +369,7 @@ function aggregateResults(
 
 /**
  * Execute task with an assistant
- * Uses ModernAiProvider to call AI directly
+ * Uses buildStreamTextParams to properly handle system prompt, MCP tools, and knowledge bases
  */
 async function executeWithAssistant(
   assistantId: string,
@@ -398,31 +401,117 @@ async function executeWithAssistant(
   logger.info(`正在执行助手任务：${assistant.name}，模型：${assistant.model.name}`)
 
   try {
+    // Get the provider for this assistant's model
+    const providers = store.getState().llm.providers
+    const provider = providers.find((p) => p.id === assistant.model?.provider)
+
+    if (!provider) {
+      throw new Error(`未找到模型对应的 Provider：${assistant.model?.provider}`)
+    }
+
+    console.log('[TASKS] 使用 Provider:', provider.id)
+    logger.info(`使用 Provider: ${provider.id}`)
+
+    // Replace prompt variables
+    console.log('[TASKS] 替换 prompt 变量')
+    logger.info(`替换 prompt 变量`)
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model.name)
+
+    // Build initial messages array
+    const messages: ModelMessage[] = [
+      {
+        role: 'user',
+        content: message
+      }
+    ]
+
+    // Fetch MCP tools if assistant supports tool use
+    let mcpTools: MCPTool[] = []
+    if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
+      console.log('[TASKS] 获取 MCP 工具')
+      logger.info(`获取 MCP 工具`)
+      mcpTools = await fetchMcpTools(assistant)
+      console.log('[TASKS] 获取到 MCP 工具数量:', mcpTools.length)
+      logger.info(`获取到 MCP 工具数量：${mcpTools.length}`)
+    }
+
+    // Inject knowledge base search if configured
+    if (assistant.knowledge_bases?.length && assistant.knowledge_bases.length > 0) {
+      console.log('[TASKS] 检测到知识库配置，开始知识库搜索')
+      logger.info(`检测到知识库配置，开始知识库搜索`)
+
+      // Import getKnowledgeReferences for knowledge base search
+      const { getKnowledgeReferences } = await import('@renderer/services/KnowledgeService')
+
+      const knowledgeReferences = await getKnowledgeReferences({
+        assistant,
+        lastUserMessage: messages[messages.length - 1] as any,
+        topicId: previousTopicId
+      })
+
+      if (knowledgeReferences.length > 0) {
+        console.log('[TASKS] 找到知识库引用数量:', knowledgeReferences.length)
+        logger.info(`找到知识库引用数量：${knowledgeReferences.length}`)
+
+        // Inject knowledge references into the user message
+        const references = JSON.stringify(knowledgeReferences, null, 2)
+        const REFERENCE_PROMPT = `请根据以下参考信息回答问题：\n\n参考信息：\n{references}\n\n问题：{question}`
+        const knowledgeSearchPrompt = REFERENCE_PROMPT.replace('{question}', message).replace(
+          '{references}',
+          references
+        )
+
+        messages[messages.length - 1] = {
+          role: 'user',
+          content: knowledgeSearchPrompt
+        }
+
+        console.log('[TASKS] 知识库引用已注入到用户消息')
+        logger.info(`知识库引用已注入到用户消息`)
+      } else {
+        console.log('[TASKS] 未找到相关知识库引用')
+        logger.info(`未找到相关知识库引用`)
+      }
+    }
+
+    // Use buildStreamTextParams to properly handle system prompt and other settings
+    console.log('[TASKS] 使用 buildStreamTextParams 构建参数')
+    logger.info(`使用 buildStreamTextParams 构建参数`)
+
+    const { params } = await buildStreamTextParams(messages, assistant, provider, {
+      mcpTools: mcpTools,
+      webSearchProviderId: assistant.webSearchProviderId,
+      requestOptions: {
+        signal
+      }
+    })
+
+    console.log('[TASKS] 参数构建完成, system prompt 长度:', params.system?.length || 0)
+    logger.info(`参数构建完成，system prompt 长度：${params.system?.length || 0}`)
+
+    // Determine tool use settings
+    const isPromptToolUseValue = isPromptToolUse(assistant)
+    const isSupportedToolUseValue = isSupportedToolUse(assistant)
+
+    console.log('[TASKS] 工具使用配置:', {
+      isPromptToolUse: isPromptToolUseValue,
+      isSupportedToolUse: isSupportedToolUseValue
+    })
+    logger.info(
+      `工具使用配置：${JSON.stringify({ isPromptToolUse: isPromptToolUseValue, isSupportedToolUse: isSupportedToolUseValue })}`
+    )
+
     // Create AI provider instance
     console.log('[TASKS] 创建 AI provider 实例')
     const aiProvider = new ModernAiProvider(assistant.model)
-
-    // Prepare parameters for completions
-    const params: StreamTextParams = {
-      messages: [
-        {
-          role: 'user',
-          content: message
-        }
-      ]
-    }
-
-    console.log('[TASKS] 开始调用 AI completions, 消息长度:', message.length)
-    logger.info(`开始调用 AI completions，消息长度：${message.length}`)
-
-    // Call AI completions with proper config
-    console.log('[TASKS] 准备调用 aiProvider.completions')
-    logger.info(`准备调用 aiProvider.completions`)
 
     // Use the same topicId if continuing conversation, otherwise generate new one
     const topicId = previousTopicId || `task-${uuidv4()}`
     console.log('[TASKS] 使用 topicId:', topicId)
     logger.info(`使用 topicId: ${topicId}`)
+
+    console.log('[TASKS] 开始调用 AI completions')
+    logger.info(`开始调用 AI completions`)
 
     // Wrap the AI call in a Promise that can be aborted
     const result = await new Promise<Awaited<ReturnType<typeof aiProvider.completions>>>(async (resolve, reject) => {
@@ -439,14 +528,16 @@ async function executeWithAssistant(
           assistant,
           streamOutput: false,
           enableReasoning: false,
-          isPromptToolUse: false,
-          isSupportedToolUse: false,
+          isPromptToolUse: isPromptToolUseValue,
+          isSupportedToolUse: isSupportedToolUseValue,
           isImageGenerationEndpoint: false,
           enableWebSearch: false,
           enableGenerateImage: false,
           enableUrlContext: false,
           callType: 'task_execution',
-          topicId
+          topicId,
+          mcpTools,
+          mcpMode: getMcpServersForAssistant(assistant).length > 0 ? 'manual' : 'disabled'
         })
         resolve(aiResult)
       } catch (error) {
@@ -460,9 +551,6 @@ async function executeWithAssistant(
 
     console.log('[TASKS] aiProvider.completions 调用完成')
     logger.info(`aiProvider.completions 调用完成`)
-
-    console.log('[TASKS] AI completions 调用完成')
-    logger.info(`AI completions 调用完成`)
 
     // Extract text from result using getText() method
     const text = result.getText() || '未收到响应'
