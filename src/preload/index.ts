@@ -705,7 +705,20 @@ const api = {
     delete: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Delete, taskId),
     get: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Get, taskId),
     list: () => ipcRenderer.invoke(IpcChannel.Task_List),
-    executeNow: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_ExecuteNow, taskId),
+    executeNow: (taskId: string) => {
+      console.log('[Preload] executeNow called with taskId:', taskId)
+      console.log('[Preload] IpcChannel.Task_ExecuteNow:', IpcChannel.Task_ExecuteNow)
+      const promise = ipcRenderer.invoke(IpcChannel.Task_ExecuteNow, taskId)
+      promise.then(
+        (result) => console.log('[Preload] executeNow success:', result),
+        (error) => console.error('[Preload] executeNow error:', error)
+      )
+      return promise
+    },
+    generatePlan: (taskId: string, appLanguage?: string) => {
+      console.log('[Preload] generatePlan called with taskId:', taskId, 'appLanguage:', appLanguage)
+      return ipcRenderer.invoke(IpcChannel.Task_GeneratePlan, taskId, appLanguage)
+    },
     pause: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Pause, taskId),
     resume: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Resume, taskId),
     getExecutions: (taskId: string, limit?: number) => ipcRenderer.invoke(IpcChannel.Task_GetExecutions, taskId, limit),
@@ -727,6 +740,18 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.Task_ExecutionFailed, listener)
     },
     abortExecution: (executionId: string) => ipcRenderer.invoke(IpcChannel.Task_AbortExecution, executionId)
+  },
+  // IPC methods for task execution communication between main and renderer
+  ipcRenderer: {
+    on: (channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => {
+      ipcRenderer.on(channel, listener)
+    },
+    removeListener: (channel: string, listener: (...args: any[]) => void) => {
+      ipcRenderer.removeListener(channel, listener)
+    },
+    send: (channel: string, ...args: any[]) => {
+      ipcRenderer.send(channel, ...args)
+    }
   }
 }
 

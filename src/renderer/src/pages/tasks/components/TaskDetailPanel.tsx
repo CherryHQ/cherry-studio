@@ -4,11 +4,12 @@
  */
 
 import { loggerService } from '@logger'
-import { useAppDispatch } from '@renderer/store'
+import TaskExecutionDetailModal from '@renderer/pages/tasks/components/TaskExecutionDetailModal'
+import TaskPlanConfirm from '@renderer/pages/tasks/components/TaskPlanConfirm'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { deleteTask } from '@renderer/store/tasks'
-import { executeTask as executeTaskThunk } from '@renderer/store/tasksThunk'
 import { abortCompletion } from '@renderer/utils/abortController'
-import type { PeriodicTask, TaskExecution } from '@types'
+import type { PeriodicTask, TaskExecution, TaskExecutionPlan } from '@types'
 import { Button } from 'antd'
 import { CheckCircle, ChevronRight, Clock, Edit2, Pause, Play, Square, Trash2, XCircle } from 'lucide-react'
 import type { FC } from 'react'
@@ -27,15 +28,25 @@ interface TaskDetailPanelProps {
 }
 
 const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, onExecutionSelect, onClose, onEdit }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dispatch = useAppDispatch()
+  const appLanguage = useAppSelector((state) => state.settings.language)
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
   const executionsPerPage = 10
 
+  // 规划确认相关状态
+  const [showPlanConfirm, setShowPlanConfirm] = useState(false)
+  const [currentPlan, setCurrentPlan] = useState<TaskExecutionPlan | null>(null)
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false)
+  const [isExecuting, setIsExecuting] = useState(false)
+
   // 执行历史状态筛选
   const [executionStatusFilter, setExecutionStatusFilter] = useState<'all' | 'completed' | 'failed' | 'running'>('all')
+
+  // 执行详情弹窗状态
+  const [showExecutionDetail, setShowExecutionDetail] = useState(false)
 
   // 根据状态筛选执行记录
   const filteredExecutions = useMemo(() => {
@@ -67,23 +78,144 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
     }
   }, [filteredExecutions.length, totalPages, currentPage])
 
+  /**
+   * 生成执行规划
+   */
+  const generateExecutionPlan = async (): Promise<TaskExecutionPlan | null> => {
+    setIsGeneratingPlan(true)
+    try {
+      logger.info('生成任务执行规划', { taskId: task.id, appLanguage })
+      const result = await window.api.task.generatePlan(task.id, i18n.language)
+
+      if (!result.success) {
+        throw new Error(result.error || '生成规划失败')
+      }
+
+      return result.plan || null
+    } catch (error) {
+      logger.error('生成规划失败', error as Error)
+      window.toast.error(`生成规划失败: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    } finally {
+      setIsGeneratingPlan(false)
+    }
+  }
+
+  /**
+   * 执行任务
+   */
+  const executeTask = async (): Promise<TaskExecution | undefined> => {
+    setIsExecuting(true)
+    try {
+      logger.info('执行任务', { taskId: task.id })
+
+      // 添加超时保护
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('任务执行超时（60秒）')), 60000)
+      })
+
+      // 调用主进程的执行服务
+      const execution = await Promise.race([window.api.task.executeNow(task.id), timeoutPromise])
+
+      logger.info('任务执行完成', { executionId: execution?.id, status: execution?.status })
+
+      // 刷新任务列表以获取最新的执行记录
+      await dispatch((await import('@renderer/store/tasksThunk')).loadTasksFromStorage())
+
+      return execution
+    } catch (error) {
+      logger.error('执行任务失败', error as Error)
+      throw error
+    } finally {
+      setIsExecuting(false)
+    }
+  }
+
+  /**
+   * 处理运行按钮点击
+   */
   const handleRun = async () => {
     console.log('[TASKS] TaskDetailPanel handleRun 被调用, taskId:', task.id)
-    try {
-      const execution = await dispatch(executeTaskThunk(task.id) as any)
+    console.log('[TASKS] 智能规划配置:', task.execution.enableSmartPlanning)
+    console.log('[TASKS] 目标数量:', task.targets.length)
 
-      // Show toast based on execution result
-      if (execution?.status === 'completed' && execution?.result?.success) {
-        window.toast.success('任务执行完成')
-      } else if (execution?.status === 'failed') {
-        window.toast.error(`任务执行失败: ${execution.result?.error}`)
+    try {
+      const enableSmartPlanning = task.execution.enableSmartPlanning ?? true
+      const needsPlanning = enableSmartPlanning && task.targets.length > 1
+
+      console.log('[TASKS] 判断条件:', needsPlanning)
+
+      if (needsPlanning) {
+        // 步骤1：生成规划
+        console.log('[TASKS] 生成执行规划...')
+        const plan = await generateExecutionPlan()
+
+        if (!plan) {
+          // 规划生成失败，直接执行
+          console.log('[TASKS] 规划生成失败，直接执行任务')
+          const execution = await executeTask()
+          handleExecutionResult(execution)
+          return
+        }
+
+        // 步骤2：显示规划确认弹窗
+        console.log('[TASKS] 显示规划确认弹窗')
+        setCurrentPlan(plan)
+        setShowPlanConfirm(true)
       } else {
-        window.toast.info('任务已开始执行')
+        // 不需要规划，直接执行
+        console.log('[TASKS] 直接执行任务（不需要规划）')
+        const execution = await executeTask()
+        handleExecutionResult(execution)
       }
     } catch (error) {
       console.error('[TASKS] TaskDetailPanel handleRun 出错:', error)
       logger.error('Failed to execute task:', error as Error)
       window.toast.error('任务执行失败')
+    }
+  }
+
+  /**
+   * 处理规划确认
+   */
+  const handlePlanConfirm = async () => {
+    setShowPlanConfirm(false)
+    console.log('[TASKS] 用户确认规划，开始执行任务')
+
+    try {
+      const execution = await executeTask()
+      handleExecutionResult(execution)
+    } catch (error) {
+      console.error('[TASKS] 执行任务时出错:', error)
+      window.toast.error('任务执行失败')
+    }
+  }
+
+  /**
+   * 处理规划取消
+   */
+  const handlePlanCancel = () => {
+    setShowPlanConfirm(false)
+    setCurrentPlan(null)
+    console.log('[TASKS] 用户取消规划')
+    window.toast.info('已取消任务执行')
+  }
+
+  /**
+   * 处理执行结果
+   */
+  const handleExecutionResult = (execution?: TaskExecution) => {
+    if (!execution) {
+      window.toast.info('任务已开始执行')
+      return
+    }
+
+    if (execution.status === 'completed' && execution.result?.success) {
+      window.toast.success('任务执行完成')
+    } else if (execution.status === 'failed') {
+      window.toast.error(`任务执行失败: ${execution.result?.error}`)
+    } else {
+      window.toast.info('任务已开始执行')
     }
   }
 
@@ -266,14 +398,18 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
                   <CompactExecutionItem
                     key={execution.id}
                     $selected={selectedExecution?.id === execution.id}
-                    onClick={() => onExecutionSelect(execution)}>
+                    onClick={() => {
+                      onExecutionSelect(execution)
+                      setShowExecutionDetail(true)
+                    }}>
                     <ExecutionMain>
                       <ExecutionTime>
                         {new Date(execution.startedAt).toLocaleString('zh-CN', {
                           month: '2-digit',
                           day: '2-digit',
                           hour: '2-digit',
-                          minute: '2-digit'
+                          minute: '2-digit',
+                          second: '2-digit'
                         })}
                       </ExecutionTime>
                       <ExecutionStatus status={execution.status}>
@@ -338,6 +474,23 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
           </CompactExecutionList>
         </TaskSection>
       </TaskSections>
+
+      {/* 规划确认弹窗 */}
+      <TaskPlanConfirm
+        open={showPlanConfirm}
+        plan={currentPlan}
+        taskName={task.name}
+        onConfirm={handlePlanConfirm}
+        onCancel={handlePlanCancel}
+        loading={isGeneratingPlan || isExecuting}
+      />
+
+      {/* Execution Detail Modal */}
+      <TaskExecutionDetailModal
+        execution={selectedExecution ?? null}
+        open={showExecutionDetail}
+        onClose={() => setShowExecutionDetail(false)}
+      />
     </>
   )
 }

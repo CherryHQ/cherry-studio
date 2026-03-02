@@ -134,13 +134,18 @@ class TaskSchedulerService {
    * Execute a task immediately (for manual execution)
    */
   async executeTaskNow(taskId: string): Promise<TaskExecution> {
+    logger.info(`[executeTaskNow] Starting execution for task: ${taskId}`)
+
     // Get task from storage
+    logger.info(`[executeTaskNow] Fetching task from storage...`)
     const task = await taskStorageService.getTask(taskId)
     if (!task) {
+      logger.error(`[executeTaskNow] Task not found: ${taskId}`)
       throw new Error(`Task not found: ${taskId}`)
     }
 
-    logger.info(`Executing task now: ${taskId}`)
+    logger.info(`[executeTaskNow] Task found: ${task.name}, targets: ${task.targets.length}`)
+    logger.info(`[executeTaskNow] enableSmartPlanning: ${task.execution.enableSmartPlanning}`)
 
     // Create execution record
     const execution: TaskExecution = {
@@ -150,14 +155,19 @@ class TaskSchedulerService {
       startedAt: new Date().toISOString()
     }
 
+    logger.info(`[executeTaskNow] Created execution record: ${execution.id}`)
+
     // Save execution record
     await taskStorageService.addExecution(execution)
+    logger.info(`[executeTaskNow] Execution record saved`)
 
     // Send execution started event
     this.sendExecutionEvent('Task_ExecutionStarted', { taskId, executionId: execution.id })
 
     // Execute the task
+    logger.info(`[executeTaskNow] Calling taskExecutorService.executeTask...`)
     const result = await taskExecutorService.executeTask(task)
+    logger.info(`[executeTaskNow] Task execution completed`, { status: result.status, success: result.result?.success })
 
     // Update execution record with result
     await taskStorageService.updateExecution(execution.id, {
@@ -173,6 +183,7 @@ class TaskSchedulerService {
       this.sendExecutionEvent('Task_ExecutionFailed', { taskId, execution: result })
     }
 
+    logger.info(`[executeTaskNow] Execution finished, returning result`)
     return result
   }
 

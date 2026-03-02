@@ -25,6 +25,7 @@ export interface TaskExecutionRequest {
     id: string
     name: string
   }
+  targetExecutionId?: string // Unique identifier for this specific execution instance
   message: string
   continueConversation?: boolean
   maxExecutionTime?: number
@@ -36,31 +37,129 @@ export interface TaskExecutionResult {
   error?: string
   duration?: number
   metadata?: Record<string, unknown>
+  errorType?: 'transient' | 'permanent' | 'timeout' | 'aborted' | 'configuration'
+}
+
+/**
+ * Categorize error type for better user feedback
+ */
+export function categorizeError(error: Error): TaskExecutionResult['errorType'] {
+  const message = error.message.toLowerCase()
+
+  // Check for timeout errors
+  if (message.includes('timeout') || message.includes('超时')) {
+    return 'timeout'
+  }
+
+  // Check for abort errors
+  if (message.includes('aborted') || message.includes('中止')) {
+    return 'aborted'
+  }
+
+  // Check for transient (network-related) errors
+  const transientPatterns = [
+    'network',
+    'connection',
+    'econnreset',
+    'etimedout',
+    'enotfound',
+    'socket',
+    'fetch',
+    'temporarily',
+    'unavailable'
+  ]
+
+  if (transientPatterns.some((pattern) => message.includes(pattern))) {
+    return 'transient'
+  }
+
+  // Check for configuration errors
+  if (
+    message.includes('not found') ||
+    message.includes('未找到') ||
+    message.includes('disabled') ||
+    message.includes('no model') ||
+    message.includes('没有配置') ||
+    message.includes('不支持')
+  ) {
+    return 'configuration'
+  }
+
+  // Default to permanent error
+  return 'permanent'
+}
+
+/**
+ * Get user-friendly error message based on error type and original error
+ */
+export function getUserFriendlyErrorMessage(error: Error, errorType: TaskExecutionResult['errorType']): string {
+  switch (errorType) {
+    case 'timeout':
+      return '任务执行超时，请检查网络连接或增加最大执行时间'
+    case 'aborted':
+      return '任务已被中止'
+    case 'transient':
+      return `网络错误，已自动重试: ${error.message}`
+    case 'configuration':
+      return `配置错误: ${error.message}`
+    case 'permanent':
+    default:
+      return error.message || '任务执行失败'
+  }
 }
 
 /**
  * Execute a task by calling the appropriate AI assistant/agent
+ * @param request - Task execution request
+ * @param signal - Optional abort signal for cancellation
  */
-export async function executeTask(request: TaskExecutionRequest): Promise<TaskExecutionResult> {
+export async function executeTask(request: TaskExecutionRequest, signal?: AbortSignal): Promise<TaskExecutionResult> {
   const startTime = Date.now()
 
+  logger.info(`[executeTask] Starting execution for: ${request.taskName}`)
+  logger.info(`[executeTask] Target: ${request.target.type}/${request.target.id}`)
+
+  // Create local abort controller if no signal provided
+  const localAbortController = signal ? undefined : new AbortController()
+  const effectiveSignal = signal || localAbortController?.signal
+
+  // Set timeout if maxExecutionTime is provided and no external signal
+  if (localAbortController && request.maxExecutionTime) {
+    setTimeout(() => {
+      localAbortController.abort()
+    }, request.maxExecutionTime * 1000)
+  }
+
   try {
-    logger.info(`正在执行任务：${request.taskName}，目标：${request.target.type}/${request.target.id}`)
+    logger.info(`[executeTask] Starting target execution...`)
+
+    // Check if aborted before starting
+    if (effectiveSignal?.aborted) {
+      throw new Error('Task execution aborted')
+    }
 
     let output: string
 
     if (request.target.type === 'assistant') {
-      output = await executeWithAssistant(request.target.id, request.message)
+      logger.info(`[executeTask] Executing assistant: ${request.target.id}`)
+      output = await executeWithAssistant(
+        request.target.id,
+        request.message,
+        effectiveSignal,
+        request.continueConversation ? undefined : undefined // previousTopicId would need to be fetched from task
+      )
     } else if (request.target.type === 'agent') {
-      output = await executeWithAgent(request.target.id, request.message)
+      logger.info(`[executeTask] Executing agent: ${request.target.id}`)
+      output = await executeWithAgent(request.target.id, request.message, effectiveSignal)
     } else if (request.target.type === 'agent_session') {
-      output = await executeWithAgentSession(request.target.id, request.message)
+      logger.info(`[executeTask] Executing agent session: ${request.target.id}`)
+      output = await executeWithAgentSession(request.target.id, request.message, effectiveSignal)
     } else {
       throw new Error(`不支持的目标类型：${request.target.type}`)
     }
 
     const duration = Date.now() - startTime
-    logger.info(`任务执行完成，耗时：${duration}ms`)
+    logger.info(`[executeTask] Task execution completed successfully in ${duration}ms`)
 
     return {
       success: true,
@@ -69,12 +168,21 @@ export async function executeTask(request: TaskExecutionRequest): Promise<TaskEx
     }
   } catch (error) {
     const duration = Date.now() - startTime
-    logger.error(`任务执行失败，耗时：${duration}ms`, error as Error)
+    const errorObj = error instanceof Error ? error : new Error(String(error))
+    const errorType = categorizeError(errorObj)
+    const userMessage = getUserFriendlyErrorMessage(errorObj, errorType)
+
+    logger.error(`[executeTask] Task execution failed after ${duration}ms`, {
+      error: errorObj.message,
+      errorType,
+      userMessage
+    })
 
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
-      duration
+      error: userMessage,
+      duration,
+      errorType
     }
   }
 }
@@ -574,9 +682,14 @@ async function executeWithAssistant(
       throw new Error('Task execution aborted')
     }
 
+    const errorObj = error instanceof Error ? error : new Error(String(error))
+    const errorType = categorizeError(errorObj)
+
     console.error('[TASKS] 助手执行失败:', error)
-    logger.error(`助手执行失败：`, error as Error)
-    throw new Error(`助手 ${assistant.name} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+    logger.error(`助手执行失败：${errorObj.message}`, errorObj)
+
+    // Re-throw with user-friendly message
+    throw new Error(getUserFriendlyErrorMessage(errorObj, errorType))
   }
 }
 
@@ -710,9 +823,14 @@ async function executeWithAgent(agentId: string, message: string, signal?: Abort
       throw new Error('Task execution aborted')
     }
 
+    const errorObj = error instanceof Error ? error : new Error(String(error))
+    const errorType = categorizeError(errorObj)
+
     console.error('[TASKS] 代理执行失败:', error)
-    logger.error(`代理执行失败：`, error as Error)
-    throw new Error(`代理 ${agentId} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+    logger.error(`代理执行失败：${errorObj.message}`, errorObj)
+
+    // Re-throw with user-friendly message
+    throw new Error(getUserFriendlyErrorMessage(errorObj, errorType))
   }
 }
 
@@ -844,80 +962,79 @@ async function executeWithAgentSession(sessionId: string, message: string, signa
       throw new Error('Task execution aborted')
     }
 
+    const errorObj = error instanceof Error ? error : new Error(String(error))
+    const errorType = categorizeError(errorObj)
+
     console.error('[TASKS] 代理会话执行失败:', error)
-    logger.error(`代理会话执行失败：`, error as Error)
-    throw new Error(`代理会话 ${sessionId} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+    logger.error(`代理会话执行失败：${errorObj.message}`, errorObj)
+
+    // Re-throw with user-friendly message
+    throw new Error(getUserFriendlyErrorMessage(errorObj, errorType))
   }
 }
 
 /**
  * Set up IPC listener for task execution requests from main process
  * This is used when the task scheduler triggers a scheduled task
+ * or when executing individual targets from the main process
  */
 export function setupTaskExecutionListener(): () => void {
-  const handler = async (event: Event) => {
-    // Cast to CustomEvent to access detail property
-    const customEvent = event as CustomEvent<TaskExecutionRequest>
-    const request = customEvent.detail
-
-    logger.info(`Received task execution request from main process: ${request.taskName}`)
+  const handler = async (_event: Electron.IpcRendererEvent, request: TaskExecutionRequest) => {
+    logger.info(`[task-execute-target] Received task execution request from main process: ${request.taskName}`, {
+      target: request.target,
+      hasTarget: !!request.target,
+      targetExecutionId: request.targetExecutionId,
+      message: request.message?.substring(0, 50)
+    })
 
     try {
-      // Get the task from the store
-      const task = store.getState().tasks.tasks.find((t) => t.id === request.taskId)
-      if (!task) {
-        throw new Error(`Task not found: ${request.taskId}`)
-      }
+      // Execute the specific target from the request
+      logger.info(`[task-execute-target] Calling executeTask...`)
+      const result = await executeTask(request)
+      logger.info(`[task-execute-target] executeTask completed`, { success: result.success })
 
-      // Execute the task directly
-      const execution = await executeTaskDirect(task)
-
-      // Save execution to storage
-      await window.api.task.saveExecution(request.taskId, execution)
-
-      // Send notification if configured
-      if (execution.status === 'completed' && execution.result?.success) {
-        window.toast.success(`任务 "${request.taskName}" 执行完成`)
-      } else if (execution.status === 'failed') {
-        window.toast.error(`任务 "${request.taskName}" 执行失败`)
-      }
-
-      // Notify main process that execution is complete
-      if (execution.status === 'completed') {
-        // @ts-ignore - custom event
-        window.electron?.ipcRenderer?.send('task-execution-completed', {
-          taskId: request.taskId,
-          execution
-        })
-      } else {
-        // @ts-ignore - custom event
-        window.electron?.ipcRenderer?.send('task-execution-failed', {
-          taskId: request.taskId,
-          execution
-        })
-      }
-    } catch (error) {
-      logger.error('Task execution error:', error as Error)
-      window.toast.error(
-        `任务 "${request.taskName}" 执行出错: ${error instanceof Error ? error.message : String(error)}`
-      )
-
-      // Notify main process of failure
-      // @ts-ignore - custom event
-      window.electron?.ipcRenderer?.send('task-execution-failed', {
+      // Notify main process that execution is complete via IPC
+      // Include targetExecutionId in the response to match with the correct execution
+      // @ts-ignore - custom IPC API exposed through preload
+      window.api.ipcRenderer?.send('task-execution-completed', {
         taskId: request.taskId,
+        targetExecutionId: request.targetExecutionId, // Echo back the execution ID
+        execution: {
+          result: {
+            success: result.success,
+            output: result.output
+          }
+        }
+      })
+
+      logger.info(`[task-execute-target] Sent task-execution-completed event`, {
+        targetExecutionId: request.targetExecutionId
+      })
+    } catch (error) {
+      logger.error('[task-execute-target] Task execution error:', error as Error)
+
+      // Notify main process of failure via IPC
+      // Include targetExecutionId in the error response
+      // @ts-ignore - custom IPC API exposed through preload
+      window.api.ipcRenderer?.send('task-execution-failed', {
+        taskId: request.taskId,
+        targetExecutionId: request.targetExecutionId, // Echo back the execution ID
         error: error instanceof Error ? error.message : String(error)
       })
+
+      logger.info(`[task-execute-target] Sent task-execution-failed event`)
     }
   }
 
-  // Listen for the custom event from main process
-  window.addEventListener('task-execute-target', handler)
+  // Listen for IPC messages from main process (not DOM events)
+  // @ts-ignore - custom IPC API exposed through preload
+  window.api.ipcRenderer?.on('task-execute-target', handler)
 
-  logger.info('Task execution listener registered')
+  logger.info('[task-execute-target] Task execution IPC listener registered')
 
   // Return cleanup function
   return () => {
-    window.removeEventListener('task-execute-target', handler)
+    // @ts-ignore - custom IPC API exposed through preload
+    window.api.ipcRenderer?.removeListener('task-execute-target', handler)
   }
 }

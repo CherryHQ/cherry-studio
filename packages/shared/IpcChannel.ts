@@ -437,6 +437,7 @@ export enum IpcChannel {
   Task_Get = 'task:get',
   Task_List = 'task:list',
   Task_ExecuteNow = 'task:execute-now',
+  Task_GeneratePlan = 'task:generate-plan',
   Task_Pause = 'task:pause',
   Task_Resume = 'task:resume',
   Task_GetExecutions = 'task:get-executions',
