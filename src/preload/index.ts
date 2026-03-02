@@ -705,10 +705,10 @@ const api = {
     delete: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Delete, taskId),
     get: (taskId: string) => ipcRenderer.invoke(IpcChannel.Task_Get, taskId),
     list: () => ipcRenderer.invoke(IpcChannel.Task_List),
-    executeNow: (taskId: string) => {
-      console.log('[Preload] executeNow called with taskId:', taskId)
+    executeNow: (taskId: string, preGeneratedPlan?: any) => {
+      console.log('[Preload] executeNow called with taskId:', taskId, 'hasPreGeneratedPlan:', !!preGeneratedPlan)
       console.log('[Preload] IpcChannel.Task_ExecuteNow:', IpcChannel.Task_ExecuteNow)
-      const promise = ipcRenderer.invoke(IpcChannel.Task_ExecuteNow, taskId)
+      const promise = ipcRenderer.invoke(IpcChannel.Task_ExecuteNow, taskId, preGeneratedPlan)
       promise.then(
         (result) => console.log('[Preload] executeNow success:', result),
         (error) => console.error('[Preload] executeNow error:', error)

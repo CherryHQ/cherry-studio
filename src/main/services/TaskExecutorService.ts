@@ -56,8 +56,10 @@ class TaskExecutorService {
 
   /**
    * Execute a task
+   * @param task - The task to execute
+   * @param preGeneratedPlan - Optional pre-generated execution plan (skips AI planning if provided)
    */
-  async executeTask(task: PeriodicTask): Promise<TaskExecution> {
+  async executeTask(task: PeriodicTask, preGeneratedPlan?: TaskExecutionPlan): Promise<TaskExecution> {
     const executionId = `exec-${uuidv4()}`
     const startTime = Date.now()
 
@@ -102,7 +104,7 @@ class TaskExecutorService {
       } else {
         // Multiple targets - plan and execute
         logger.info(`[executeTask] Multiple targets path, calling executeWithMultipleTargets...`)
-        result = await this.executeWithMultipleTargets(task, abortController.signal, execution)
+        result = await this.executeWithMultipleTargets(task, abortController.signal, execution, preGeneratedPlan)
         logger.info(`[executeTask] executeWithMultipleTargets completed`)
       }
 
@@ -170,11 +172,16 @@ class TaskExecutorService {
 
   /**
    * Execute task with multiple targets (plan and execute)
+   * @param task - The task to execute
+   * @param signal - Abort signal for cancellation
+   * @param execution - Execution record to update
+   * @param preGeneratedPlan - Optional pre-generated execution plan (skips AI planning if provided)
    */
   private async executeWithMultipleTargets(
     task: PeriodicTask,
     signal: AbortSignal,
-    execution: TaskExecution
+    execution: TaskExecution,
+    preGeneratedPlan?: TaskExecutionPlan
   ): Promise<TaskExecutionResult> {
     const startTime = Date.now()
 
@@ -187,9 +194,15 @@ class TaskExecutorService {
       const enableSmartPlanning = task.execution.enableSmartPlanning ?? true
 
       console.log(`[TaskExecutorService] enableSmartPlanning: ${enableSmartPlanning}`)
+      console.log(`[TaskExecutorService] hasPreGeneratedPlan: ${!!preGeneratedPlan}`)
 
       let plan: TaskExecutionPlan
-      if (enableSmartPlanning) {
+      if (preGeneratedPlan) {
+        // Use pre-generated plan (from user confirmation)
+        console.log(`[TaskExecutorService] Using pre-generated plan`)
+        logger.info(`[executeWithMultipleTargets] Using pre-generated plan for task ${task.id}`)
+        plan = preGeneratedPlan
+      } else if (enableSmartPlanning) {
         // Step 1: Plan execution order using AI
         console.log(`[TaskExecutorService] Calling planExecution...`)
         logger.info(`[executeWithMultipleTargets] Using AI-powered planning for task ${task.id}`)

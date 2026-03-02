@@ -103,19 +103,20 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
 
   /**
    * 执行任务
+   * @param plan - Optional pre-generated execution plan to use
    */
-  const executeTask = async (): Promise<TaskExecution | undefined> => {
+  const executeTask = async (plan?: TaskExecutionPlan): Promise<TaskExecution | undefined> => {
     setIsExecuting(true)
     try {
-      logger.info('执行任务', { taskId: task.id })
+      logger.info('执行任务', { taskId: task.id, hasPlan: !!plan })
 
       // 添加超时保护
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('任务执行超时（60秒）')), 60000)
       })
 
-      // 调用主进程的执行服务
-      const execution = await Promise.race([window.api.task.executeNow(task.id), timeoutPromise])
+      // 调用主进程的执行服务，传递预生成的规划（如果有）
+      const execution = await Promise.race([window.api.task.executeNow(task.id, plan), timeoutPromise])
 
       logger.info('任务执行完成', { executionId: execution?.id, status: execution?.status })
 
@@ -151,10 +152,10 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
         const plan = await generateExecutionPlan()
 
         if (!plan) {
-          // 规划生成失败，直接执行
-          console.log('[TASKS] 规划生成失败，直接执行任务')
-          const execution = await executeTask()
-          handleExecutionResult(execution)
+          // 规划生成失败，停止执行
+          // generateExecutionPlan 已经显示了错误提示
+          console.log('[TASKS] 规划生成失败，停止执行任务')
+          logger.warn('智能规划生成失败，任务执行已取消', { taskId: task.id })
           return
         }
 
@@ -181,9 +182,11 @@ const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ task, selectedExecution, on
   const handlePlanConfirm = async () => {
     setShowPlanConfirm(false)
     console.log('[TASKS] 用户确认规划，开始执行任务')
+    logger.info('用户确认规划，开始执行任务', { taskId: task.id, hasPlan: !!currentPlan })
 
     try {
-      const execution = await executeTask()
+      // 传递当前确认的规划给执行函数
+      const execution = await executeTask(currentPlan || undefined)
       handleExecutionResult(execution)
     } catch (error) {
       console.error('[TASKS] 执行任务时出错:', error)

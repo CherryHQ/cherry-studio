@@ -1244,24 +1244,24 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   console.log('[IPC] Registering Task_ExecuteNow handler...')
-  ipcMain.handle(IpcChannel.Task_ExecuteNow, async (event, taskId: string) => {
+  ipcMain.handle(IpcChannel.Task_ExecuteNow, async (event, taskId: string, preGeneratedPlan?: any) => {
     const logToRenderer = (message: string, data?: any) => {
       if (event?.sender) {
         event.sender.send('console-log', { message, data })
       }
     }
 
-    logToRenderer('[IPC] Task_ExecuteNow called', { taskId })
-    console.log('[IPC] Task_ExecuteNow called with taskId:', taskId)
+    logToRenderer('[IPC] Task_ExecuteNow called', { taskId, hasPreGeneratedPlan: !!preGeneratedPlan })
+    console.log('[IPC] Task_ExecuteNow called with taskId:', taskId, 'preGeneratedPlan:', !!preGeneratedPlan)
 
     const logger = (await import('@logger')).loggerService.withContext('IPC:Task_ExecuteNow')
-    logger.info(`Received executeNow request for task: ${taskId}`)
+    logger.info(`Received executeNow request for task: ${taskId}`, { hasPreGeneratedPlan: !!preGeneratedPlan })
 
     try {
       logToRenderer('[IPC] Calling taskSchedulerService.executeTaskNow...')
       console.log('[IPC] Calling taskSchedulerService.executeTaskNow...')
 
-      const result = await taskSchedulerService.executeTaskNow(taskId)
+      const result = await taskSchedulerService.executeTaskNow(taskId, preGeneratedPlan)
 
       logToRenderer('[IPC] executeTaskNow returned', { success: result?.result?.success, status: result?.status })
       console.log('[IPC] executeTaskNow returned:', result)

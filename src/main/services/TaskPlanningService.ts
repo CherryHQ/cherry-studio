@@ -51,10 +51,13 @@ const ExecutionPlanSchema = z.object({
   dependencies: z
     .array(
       z.object({
-        from: z.number().describe('Index of source target'),
+        from: z.number().nullable().optional().describe('Index of source target (null if no explicit source)'),
         to: z.number().describe('Index of dependent target'),
         reason: z.string().describe('Why this dependency exists'),
-        type: z.enum(['sequential', 'parallel', 'conditional'])
+        type: z
+          .enum(['sequential', 'parallel', 'conditional', 'input_dependent', 'output_dependent', 'resource'])
+          .or(z.string())
+          .describe('Type of dependency')
       })
     )
     .describe('Dependencies between targets')
@@ -527,13 +530,38 @@ Important: Use 0-based indices for target references (first target is index 0).`
       estimatedDuration: step.estimatedDuration
     }))
 
-    // Convert dependencies
-    const dependencies: TaskDependency[] = aiPlan.dependencies.map((dep) => ({
-      from: toTaskTarget(targets[dep.from]),
-      to: toTaskTarget(targets[dep.to]),
-      reason: dep.reason,
-      type: dep.type
-    }))
+    // Convert dependencies - filter out invalid ones and handle null/undefined from
+    const dependencies: TaskDependency[] = aiPlan.dependencies
+      .filter((dep) => {
+        // Skip if 'to' is invalid or out of bounds
+        if (typeof dep.to !== 'number' || dep.to < 0 || dep.to >= targets.length) {
+          console.warn(`[TaskPlanningService] Invalid dependency: to=${dep.to}, targets.length=${targets.length}`)
+          return false
+        }
+        // Skip if 'from' is out of bounds (but allow null/undefined for input dependencies)
+        if (dep.from !== null && dep.from !== undefined) {
+          if (typeof dep.from !== 'number' || dep.from < 0 || dep.from >= targets.length) {
+            console.warn(`[TaskPlanningService] Invalid dependency: from=${dep.from}, targets.length=${targets.length}`)
+            return false
+          }
+        }
+        return true
+      })
+      .map((dep) => {
+        // If from is null/undefined, create a placeholder target or skip
+        // For now, we'll use a special "input" target to represent external input
+        const fromTarget =
+          dep.from !== null && dep.from !== undefined
+            ? toTaskTarget(targets[dep.from])
+            : { type: 'assistant' as const, id: '__input__', name: 'External Input' }
+
+        return {
+          from: fromTarget,
+          to: toTaskTarget(targets[dep.to]),
+          reason: dep.reason,
+          type: (dep.type as 'sequential' | 'parallel' | 'conditional') || 'sequential'
+        }
+      })
 
     // Create planning metadata
     const planningMetadata: PlanningMetadata = {

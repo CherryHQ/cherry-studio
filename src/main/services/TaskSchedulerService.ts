@@ -4,7 +4,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { PeriodicTask, TaskExecution } from '@types'
+import type { PeriodicTask, TaskExecution, TaskExecutionPlan } from '@types'
 import type { BrowserWindow } from 'electron'
 import { powerMonitor } from 'electron'
 import cron from 'node-cron'
@@ -132,9 +132,11 @@ class TaskSchedulerService {
 
   /**
    * Execute a task immediately (for manual execution)
+   * @param taskId - The task ID to execute
+   * @param preGeneratedPlan - Optional pre-generated execution plan (skips AI planning if provided)
    */
-  async executeTaskNow(taskId: string): Promise<TaskExecution> {
-    logger.info(`[executeTaskNow] Starting execution for task: ${taskId}`)
+  async executeTaskNow(taskId: string, preGeneratedPlan?: TaskExecutionPlan): Promise<TaskExecution> {
+    logger.info(`[executeTaskNow] Starting execution for task: ${taskId}`, { hasPreGeneratedPlan: !!preGeneratedPlan })
 
     // Get task from storage
     logger.info(`[executeTaskNow] Fetching task from storage...`)
@@ -166,7 +168,7 @@ class TaskSchedulerService {
 
     // Execute the task
     logger.info(`[executeTaskNow] Calling taskExecutorService.executeTask...`)
-    const result = await taskExecutorService.executeTask(task)
+    const result = await taskExecutorService.executeTask(task, preGeneratedPlan)
     logger.info(`[executeTaskNow] Task execution completed`, { status: result.status, success: result.result?.success })
 
     // Update execution record with result
