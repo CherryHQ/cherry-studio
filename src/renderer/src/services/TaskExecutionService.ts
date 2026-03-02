@@ -8,10 +8,11 @@ import ModernAiProvider from '@renderer/aiCore/index_new'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams/parameterBuilder'
 import { fetchMcpTools, getMcpServersForAssistant } from '@renderer/services/ApiService'
 import store from '@renderer/store/index'
-import type { ModelMessage } from '@renderer/types/aiCoreTypes'
-import type { MCPTool } from '@types'
-import { isPromptToolUse, isSupportedToolUse } from '@utils/mcp-tools'
-import { replacePromptVariables } from '@utils/prompt'
+import { addAbortController } from '@renderer/utils/abortController'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
+import { replacePromptVariables } from '@renderer/utils/prompt'
+import type { MCPTool, PeriodicTask, TaskExecution, TaskTarget } from '@types'
+import type { ModelMessage } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('TaskExecutionService')
@@ -486,8 +487,11 @@ async function executeWithAssistant(
       }
     })
 
-    console.log('[TASKS] 参数构建完成, system prompt 长度:', params.system?.length || 0)
-    logger.info(`参数构建完成，system prompt 长度：${params.system?.length || 0}`)
+    console.log(
+      '[TASKS] 参数构建完成, system prompt 长度:',
+      typeof params.system === 'string' ? params.system.length : 0
+    )
+    logger.info(`参数构建完成，system prompt 长度：${typeof params.system === 'string' ? params.system.length : 0}`)
 
     // Determine tool use settings
     const isPromptToolUseValue = isPromptToolUse(assistant)
@@ -524,6 +528,9 @@ async function executeWithAssistant(
       }
 
       try {
+        if (!assistant.model) {
+          throw new Error(`助手 ${assistant.name} 没有配置模型`)
+        }
         const aiResult = await aiProvider.completions(assistant.model.id, params, {
           assistant,
           streamOutput: false,
@@ -620,7 +627,9 @@ async function executeWithAgent(agentId: string, message: string, signal?: Abort
     console.log('[TASKS] 创建新会话')
     logger.info(`创建新会话`)
     const session = await client.createSession(agentId, {
-      name: `Task Execution - ${new Date().toISOString()}`
+      name: `Task Execution - ${new Date().toISOString()}`,
+      accessible_paths: ['/'], // Default accessible path
+      model: agent.model // Use the agent's default model
     })
 
     if (!session) {
@@ -708,7 +717,8 @@ async function executeWithAgent(agentId: string, message: string, signal?: Abort
 
 /**
  * Execute task with an existing agent session
- * Sends a message to the existing session and returns the response
+ * NOTE: This function requires the session ID to be in format "agent-session:<sessionId>"
+ * We need to find the agent ID by listing all agents and their sessions
  */
 async function executeWithAgentSession(sessionId: string, message: string, signal?: AbortSignal): Promise<string> {
   console.log('[TASKS] executeWithAgentSession 开始, sessionId:', sessionId)
@@ -725,25 +735,8 @@ async function executeWithAgentSession(sessionId: string, message: string, signa
     throw new Error('Agent API server is disabled')
   }
 
-  // Find the agent ID from sessions in store
-  const { agents } = store.getState().agents
-  let agentId: string | undefined
-  let sessionInfo: { id: string; agentId: string } | undefined
-
-  // Search through agents to find the session
-  for (const agent of agents) {
-    const sessions = agent.sessions || []
-    const foundSession = sessions.find((s) => s.id === sessionId)
-    if (foundSession) {
-      agentId = agent.id
-      sessionInfo = { id: foundSession.id, agentId: agent.id }
-      break
-    }
-  }
-
-  if (!agentId || !sessionInfo) {
-    throw new Error(`Agent session not found: ${sessionId}`)
-  }
+  // Import AgentApiClient dynamically
+  const { AgentApiClient } = await import('@renderer/api/agent')
 
   // Build base URL
   const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
@@ -751,7 +744,35 @@ async function executeWithAgentSession(sessionId: string, message: string, signa
   const portSegment = apiServer.port ? `:${apiServer.port}` : ''
   const baseURL = `${baseHost}${portSegment}`
 
+  const client = new AgentApiClient({
+    baseURL,
+    headers: {
+      Authorization: `Bearer ${apiServer.apiKey}`
+    }
+  })
+
   try {
+    // Find the agent ID by listing all agents and their sessions
+    console.log('[TASKS] 查找代理 ID')
+    logger.info(`查找代理 ID`)
+
+    const agentsResponse = await client.listAgents({ limit: 100 })
+    let agentId: string | undefined
+    let foundSession: { id: string } | undefined
+
+    for (const agent of agentsResponse.data) {
+      const sessions = await client.listSessions(agent.id)
+      foundSession = sessions.data.find((s) => s.id === sessionId)
+      if (foundSession) {
+        agentId = agent.id
+        break
+      }
+    }
+
+    if (!agentId) {
+      throw new Error(`Agent session not found: ${sessionId}`)
+    }
+
     // Send message to the session via fetch API (streaming)
     const url = `${baseURL}/v1/agents/${agentId}/sessions/${sessionId}/messages`
 
