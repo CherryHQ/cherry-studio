@@ -5381,11 +5381,10 @@
   },
   "tasks": {
     "create": "新建任务",
-    "delete_confirm": "删除任务",
-    "empty": "暂无任务，点击下方按钮创建",
-    "rename": "重命名",
     "deleteConfirmMessage": "你确认删除该任务吗？",
+    "delete_confirm": "删除任务",
     "edit": "编辑任务",
+    "empty": "暂无任务，点击下方按钮创建",
     "execution": {
       "failed": "错误",
       "noHistory": "没有执行历史",
@@ -5437,6 +5436,7 @@
       "targets_placeholder": "选择助手或智能体",
       "targets_required": "请选择至少一个目标"
     },
+    "rename": "重命名",
     "run": "立即执行",
     "schedule": {
       "cronExpression": "Cron 表达式",

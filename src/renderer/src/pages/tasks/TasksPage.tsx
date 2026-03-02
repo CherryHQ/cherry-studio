@@ -23,7 +23,7 @@ import type { MenuProps } from 'antd'
 import { Dropdown, Empty } from 'antd'
 import { CheckCircle, CirclePlus, Clock, Pause, Play, Settings, X, XCircle } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -37,9 +37,12 @@ const TasksPage: FC = () => {
   const dispatch = useAppDispatch()
   const tasksState = useAppSelector(selectTasks)
   const tasks = useAppSelector(getFilteredTasks)
-  const [selectedTask, setSelectedTask] = useState<PeriodicTask | undefined>(tasks[0])
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(tasks[0]?.id)
   const [selectedExecution, setSelectedExecution] = useState<TaskExecution | undefined>(undefined)
   const [isDragging] = useState(false)
+
+  // Get the selected task from Redux store (always up-to-date)
+  const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId), [tasks, selectedTaskId])
 
   // Popup states
   const [editPopupOpen, setEditPopupOpen] = useState(false)
@@ -47,14 +50,22 @@ const TasksPage: FC = () => {
 
   const handleCreateTask = useCallback(async () => {
     setEditMode('create')
-    setSelectedTask(undefined)
+    setSelectedTaskId(undefined)
     setEditPopupOpen(true)
   }, [])
 
   const handleRunTask = async (taskId: string) => {
     try {
-      await dispatch(executeTaskThunk(taskId) as any)
-      window.toast.success('任务已开始执行')
+      const execution = await dispatch(executeTaskThunk(taskId) as any)
+
+      // Show toast based on execution result
+      if (execution?.status === 'completed' && execution?.result?.success) {
+        window.toast.success('任务执行完成')
+      } else if (execution?.status === 'failed') {
+        window.toast.error(`任务执行失败: ${execution.result?.error}`)
+      } else {
+        window.toast.info('任务已开始执行')
+      }
     } catch (error) {
       logger.error('Failed to execute task:', error as Error)
       window.toast.error('任务执行失败')
@@ -63,9 +74,9 @@ const TasksPage: FC = () => {
 
   // Update selected task when tasks change
   useEffect(() => {
-    const hasSelectedTask = tasks.find((task) => task.id === selectedTask?.id)
-    !hasSelectedTask && setSelectedTask(tasks[0])
-  }, [tasks, selectedTask])
+    const hasSelectedTask = tasks.find((task) => task.id === selectedTaskId)
+    !hasSelectedTask && setSelectedTaskId(tasks[0]?.id)
+  }, [tasks, selectedTaskId])
 
   // Load tasks from main process on mount
   useEffect(() => {
@@ -115,7 +126,7 @@ const TasksPage: FC = () => {
           key: 'edit',
           icon: <Settings size={14} />,
           onClick: () => {
-            setSelectedTask(task)
+            setSelectedTaskId(task.id)
             setEditMode('edit')
             setEditPopupOpen(true)
           }
@@ -131,7 +142,7 @@ const TasksPage: FC = () => {
               title: t('tasks.delete_confirm'),
               centered: true,
               onOk: () => {
-                setSelectedTask(undefined)
+                setSelectedTaskId(undefined)
                 setSelectedExecution(undefined)
                 dispatch(deleteTask(task.id))
               }
@@ -199,7 +210,7 @@ const TasksPage: FC = () => {
                     active={selectedTask?.id === task.id}
                     icon={<TaskEmoji>{task.emoji || '📝'}</TaskEmoji>}
                     title={task.name}
-                    onClick={() => setSelectedTask(task)}
+                    onClick={() => setSelectedTaskId(task.id)}
                   />
                   <PlayIconWrapper
                     onClick={(e) => {
@@ -235,6 +246,10 @@ const TasksPage: FC = () => {
               selectedExecution={selectedExecution}
               onExecutionSelect={setSelectedExecution}
               onClose={() => setSelectedExecution(undefined)}
+              onEdit={() => {
+                setEditMode('edit')
+                setEditPopupOpen(true)
+              }}
             />
           </TaskContent>
         ) : null}

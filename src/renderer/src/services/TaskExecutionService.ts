@@ -77,19 +77,21 @@ export async function executeTask(request: TaskExecutionRequest): Promise<TaskEx
 /**
  * Execute a PeriodicTask and return a TaskExecution record
  * This is the main entry point for task execution
+ * @param task - The task to execute
+ * @param executionId - Optional execution ID to use (for updating existing execution)
  */
-export async function executeTaskDirect(task: PeriodicTask): Promise<TaskExecution> {
-  const executionId = `exec-${uuidv4()}`
+export async function executeTaskDirect(task: PeriodicTask, executionId?: string): Promise<TaskExecution> {
   const startTime = Date.now()
 
   const execution: TaskExecution = {
-    id: executionId,
+    id: executionId || `exec-${uuidv4()}`,
     taskId: task.id,
     status: 'running',
     startedAt: new Date().toISOString()
   }
 
-  logger.info(`开始任务执行：${executionId}，任务：${task.id}`)
+  console.log('[TASKS] 开始任务执行:', execution.id, '任务:', task.id, '目标数量:', task.targets.length)
+  logger.info(`开始任务执行：${execution.id}，任务：${task.id}，目标数量：${task.targets.length}`)
 
   try {
     // Execute based on number of targets
@@ -98,11 +100,23 @@ export async function executeTaskDirect(task: PeriodicTask): Promise<TaskExecuti
     if (task.targets.length === 0) {
       throw new Error('任务没有可执行的目标')
     } else if (task.targets.length === 1) {
-      // Single target - execute directly
-      result = await executeSingleTarget(task)
+      // Single target - execute directly with timeout
+      // maxExecutionTime is in seconds, convert to milliseconds
+      const timeoutMs = (task.execution.maxExecutionTime || 300) * 1000
+      console.log('[TASKS] 执行单个目标，超时时间:', timeoutMs, 'ms (', task.execution.maxExecutionTime, '秒)')
+      logger.info(`执行单个目标，超时时间：${timeoutMs}ms (${task.execution.maxExecutionTime}秒)`)
+      result = await Promise.race([executeSingleTarget(task), createTimeoutPromise(timeoutMs)])
+      console.log('[TASKS] 单个目标执行完成，成功:', result.success)
+      logger.info(`单个目标执行完成，成功：${result.success}`)
     } else {
-      // Multiple targets - execute all and aggregate results
-      result = await executeMultipleTargets(task)
+      // Multiple targets - execute all and aggregate results with timeout
+      // maxExecutionTime is in seconds, convert to milliseconds
+      const timeoutMs = (task.execution.maxExecutionTime || 300) * 1000
+      console.log('[TASKS] 执行多个目标，超时时间:', timeoutMs, 'ms (', task.execution.maxExecutionTime, '秒)')
+      logger.info(`执行多个目标，超时时间：${timeoutMs}ms (${task.execution.maxExecutionTime}秒)`)
+      result = await Promise.race([executeMultipleTargets(task), createTimeoutPromise(timeoutMs)])
+      console.log('[TASKS] 多个目标执行完成，成功:', result.success)
+      logger.info(`多个目标执行完成，成功：${result.success}`)
     }
 
     const duration = Date.now() - startTime
@@ -111,7 +125,8 @@ export async function executeTaskDirect(task: PeriodicTask): Promise<TaskExecuti
     execution.status = result.success ? 'completed' : 'failed'
     execution.result = result
 
-    logger.info(`任务执行完成：${executionId}，耗时：${duration}ms`)
+    console.log('[TASKS] 任务执行完成:', executionId, '状态:', execution.status, '耗时:', duration + 'ms')
+    logger.info(`任务执行完成：${executionId}，状态：${execution.status}，耗时：${duration}ms`)
   } catch (error) {
     const duration = Date.now() - startTime
     execution.completedAt = new Date().toISOString()
@@ -122,10 +137,24 @@ export async function executeTaskDirect(task: PeriodicTask): Promise<TaskExecuti
       duration
     }
 
-    logger.error(`任务执行失败：${executionId}`, error as Error)
+    console.error('[TASKS] 任务执行失败:', executionId, '错误:', execution.result.error)
+    logger.error(`任务执行失败：${executionId}，错误：${execution.result.error}`, error as Error)
   }
 
+  console.log('[TASKS] 返回执行记录:', executionId, '状态:', execution.status)
+  logger.info(`返回执行记录：${executionId}，状态：${execution.status}`)
   return execution
+}
+
+/**
+ * Create a timeout promise that rejects after the specified time
+ */
+function createTimeoutPromise(timeoutMs: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`任务执行超时（超过 ${timeoutMs / 1000} 秒）`))
+    }, timeoutMs)
+  })
 }
 
 /**
@@ -285,6 +314,9 @@ function aggregateResults(
  * Uses ModernAiProvider to call AI directly
  */
 async function executeWithAssistant(assistantId: string, message: string): Promise<string> {
+  console.log('[TASKS] executeWithAssistant 开始, assistantId:', assistantId)
+  logger.info(`executeWithAssistant 开始，assistantId: ${assistantId}`)
+
   // Get the assistant
   const assistants = store.getState().assistants.assistants
   const assistant = assistants.find((a) => a.id === assistantId)
@@ -297,10 +329,12 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
     throw new Error(`助手 ${assistant.name} 没有配置模型`)
   }
 
+  console.log('[TASKS] 正在执行助手任务:', assistant.name, '模型:', assistant.model.name)
   logger.info(`正在执行助手任务：${assistant.name}，模型：${assistant.model.name}`)
 
   try {
     // Create AI provider instance
+    console.log('[TASKS] 创建 AI provider 实例')
     const aiProvider = new ModernAiProvider(assistant.model)
 
     // Prepare parameters for completions
@@ -313,7 +347,12 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
       ]
     }
 
+    console.log('[TASKS] 开始调用 AI completions, 消息长度:', message.length)
+    logger.info(`开始调用 AI completions，消息长度：${message.length}`)
+
     // Call AI completions with proper config
+    console.log('[TASKS] 准备调用 aiProvider.completions')
+    logger.info(`准备调用 aiProvider.completions`)
     const result = await aiProvider.completions(assistant.model.id, params, {
       assistant,
       streamOutput: false,
@@ -327,10 +366,20 @@ async function executeWithAssistant(assistantId: string, message: string): Promi
       callType: 'task_execution',
       topicId: `task-${uuidv4()}`
     })
+    console.log('[TASKS] aiProvider.completions 调用完成')
+    logger.info(`aiProvider.completions 调用完成`)
+
+    console.log('[TASKS] AI completions 调用完成')
+    logger.info(`AI completions 调用完成`)
 
     // Extract text from result using getText() method
-    return result.getText() || '未收到响应'
+    const text = result.getText() || '未收到响应'
+    console.log('[TASKS] 提取响应文本成功, 长度:', text.length)
+    logger.info(`提取响应文本成功，长度：${text.length}`)
+
+    return text
   } catch (error) {
+    console.error('[TASKS] 助手执行失败:', error)
     logger.error(`助手执行失败：`, error as Error)
     throw new Error(`助手 ${assistant.name} 执行失败：${error instanceof Error ? error.message : String(error)}`)
   }

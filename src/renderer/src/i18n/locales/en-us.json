@@ -5381,11 +5381,10 @@
   },
   "tasks": {
     "create": "Create Task",
-    "delete_confirm": "Delete Task",
-    "empty": "No tasks yet. Click the button below to create one",
-    "rename": "Rename",
     "deleteConfirmMessage": "Are you sure you want to delete this task?",
+    "delete_confirm": "Delete Task",
     "edit": "Edit Task",
+    "empty": "No tasks yet. Click the button below to create one",
     "execution": {
       "failed": "Failed",
       "noHistory": "No execution history",
@@ -5437,6 +5436,7 @@
       "targets_placeholder": "Select assistants or agents",
       "targets_required": "Please select at least one target"
     },
+    "rename": "Rename",
     "run": "Run Now",
     "schedule": {
       "cronExpression": "Cron Expression",

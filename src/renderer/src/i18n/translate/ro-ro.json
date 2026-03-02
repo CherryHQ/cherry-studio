@@ -5381,9 +5381,10 @@
   },
   "tasks": {
     "create": "[to be translated]:Create Task",
-    "deleteConfirm": "[to be translated]:Delete Task",
     "deleteConfirmMessage": "[to be translated]:Are you sure you want to delete this task?",
+    "delete_confirm": "[to be translated]:Delete Task",
     "edit": "[to be translated]:Edit Task",
+    "empty": "[to be translated]:No tasks yet. Click the button below to create one",
     "execution": {
       "failed": "[to be translated]:Failed",
       "noHistory": "[to be translated]:No execution history",
@@ -5435,6 +5436,7 @@
       "targets_placeholder": "[to be translated]:Select assistants or agents",
       "targets_required": "[to be translated]:Please select at least one target"
     },
+    "rename": "[to be translated]:Rename",
     "run": "[to be translated]:Run Now",
     "schedule": {
       "cronExpression": "[to be translated]:Cron Expression",

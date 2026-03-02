@@ -2,8 +2,11 @@
  * Redux slice for managing periodic tasks
  */
 
+import { loggerService } from '@logger'
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { CreateTaskForm, PeriodicTask, TaskExecution } from '@types'
+
+const logger = loggerService.withContext('tasksSlice')
 
 export interface TasksState {
   tasks: PeriodicTask[]
@@ -64,15 +67,48 @@ const tasksSlice = createSlice({
       state.filter = action.payload
     },
     addExecution: (state, action: PayloadAction<{ taskId: string; execution: TaskExecution }>) => {
-      const task = state.tasks.find((t) => t.id === action.payload.taskId)
-      if (task) {
-        task.executions.unshift(action.payload.execution)
-        // Keep only last 10 executions
-        if (task.executions.length > 10) {
-          task.executions = task.executions.slice(0, 10)
+      const taskIndex = state.tasks.findIndex((t) => t.id === action.payload.taskId)
+      if (taskIndex !== -1) {
+        const task = state.tasks[taskIndex]
+        // 检查是否已存在相同 ID 的执行记录（更新情况）
+        const existingIndex = task.executions.findIndex((e) => e.id === action.payload.execution.id)
+
+        let executions: TaskExecution[]
+        if (existingIndex !== -1) {
+          // 更新现有执行记录
+          executions = [...task.executions]
+          executions[existingIndex] = action.payload.execution
+        } else {
+          // 添加新的执行记录到开头（最新的在前）
+          // 保留最近 100 条记录
+          executions = [action.payload.execution, ...task.executions].slice(0, 100)
         }
-        task.totalRuns += 1
-        task.lastRunAt = action.payload.execution.startedAt
+
+        console.log(
+          '[TASKS REDUX] addExecution:',
+          'taskId=' + action.payload.taskId,
+          'executionId=' + action.payload.execution.id,
+          'status=' + action.payload.execution.status,
+          'existingIndex=' + existingIndex
+        )
+        logger.info(
+          `addExecution: taskId=${action.payload.taskId}, executionId=${action.payload.execution.id}, status=${action.payload.execution.status}, existingIndex=${existingIndex}`
+        )
+
+        // Create new task object to ensure re-render
+        state.tasks[taskIndex] = {
+          ...task,
+          executions,
+          totalRuns: existingIndex === -1 ? task.totalRuns + 1 : task.totalRuns,
+          lastRunAt: action.payload.execution.completedAt || action.payload.execution.startedAt,
+          updatedAt: new Date().toISOString()
+        }
+
+        console.log('[TASKS REDUX] 任务更新完成，执行记录数:', executions.length)
+        logger.info(`addExecution: 任务更新完成，执行记录数：${executions.length}`)
+      } else {
+        console.error('[TASKS REDUX] 未找到任务，taskId:', action.payload.taskId)
+        logger.error(`addExecution: 未找到任务，taskId=${action.payload.taskId}`)
       }
     }
   },
