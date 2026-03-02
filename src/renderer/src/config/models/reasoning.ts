@@ -793,7 +793,10 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 }
+  'baichuan-m3$': { min: 0, max: 30_000 },
+
+  // Kimi models (K2.5 uses up to 96K thinking budget in benchmarks)
+  'kimi-k2\\.5(?:-[\\w-]+)?$': { min: 1024, max: 96_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

@@ -622,11 +622,9 @@ export function getAnthropicReasoningParams(
     }
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
-    return {
-      thinking: {
-        type: 'enabled'
-      }
-    }
+    const { maxTokens } = getAssistantSettings(assistant)
+    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    return budgetTokens ? { thinking: { type: 'enabled', budgetTokens } } : { thinking: { type: 'enabled' } }
   }
 }
 
