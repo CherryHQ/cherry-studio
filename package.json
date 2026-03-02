@@ -139,6 +139,7 @@
     "@cherrystudio/extension-table-plus": "workspace:^",
     "@cherrystudio/openai": "6.15.0",
     "@codemirror/lang-json": "6.0.1",
+    "@codemirror/lang-liquid": "^6.3.2",
     "@codemirror/lint": "6.8.5",
     "@codemirror/view": "6.38.1",
     "@dnd-kit/core": "^6.3.1",
