@@ -221,9 +221,9 @@ async function executeSingleTarget(
     if (target.type === 'assistant') {
       output = await executeWithAssistant(target.id, task.execution.message, signal, previousTopicId)
     } else if (target.type === 'agent') {
-      output = await executeWithAgent(target.id, task.execution.message)
+      output = await executeWithAgent(target.id, task.execution.message, signal)
     } else if (target.type === 'agent_session') {
-      output = await executeWithAgentSession(target.id, task.execution.message)
+      output = await executeWithAgentSession(target.id, task.execution.message, signal)
     } else {
       throw new Error(`不支持的目标类型：${target.type}`)
     }
@@ -279,9 +279,9 @@ async function executeMultipleTargets(task: PeriodicTask, signal?: AbortSignal):
         if (target.type === 'assistant') {
           output = await executeWithAssistant(target.id, task.execution.message, signal)
         } else if (target.type === 'agent') {
-          output = await executeWithAgent(target.id, task.execution.message)
+          output = await executeWithAgent(target.id, task.execution.message, signal)
         } else if (target.type === 'agent_session') {
-          output = await executeWithAgentSession(target.id, task.execution.message)
+          output = await executeWithAgentSession(target.id, task.execution.message, signal)
         } else {
           throw new Error(`不支持的目标类型：${target.type}`)
         }
@@ -486,45 +486,258 @@ async function executeWithAssistant(
 
 /**
  * Execute task with an agent
- * TODO: Implement actual agent execution
- * Currently returns placeholder response
+ * Creates a new session and sends a message to the agent
  */
-async function executeWithAgent(agentId: string, message: string): Promise<string> {
-  logger.info(`正在执行代理任务：${agentId}`)
+async function executeWithAgent(agentId: string, message: string, signal?: AbortSignal): Promise<string> {
+  console.log('[TASKS] executeWithAgent 开始, agentId:', agentId)
+  logger.info(`executeWithAgent 开始，agentId: ${agentId}`)
 
-  // TODO: 实现实际的代理执行
-  // 需要：
-  // 1. 获取代理配置
-  // 2. 创建或重用会话
-  // 3. 向代理发送消息
-  // 4. 等待响应
-  // 5. 返回响应内容
-  //
-  // 目前返回占位符响应
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  // Check if aborted before starting
+  if (signal?.aborted) {
+    throw new Error('Task execution aborted')
+  }
 
-  return `[代理执行（占位符）]\n\n代理ID：${agentId}\n消息：${message}\n\n（注：完整的代理执行功能正在开发中 - 需要集成代理服务器API）`
+  // Get API server configuration
+  const { apiServer } = store.getState().settings
+  if (!apiServer.enabled) {
+    throw new Error('Agent API server is disabled')
+  }
+
+  // Import AgentApiClient
+  const { AgentApiClient } = await import('@renderer/api/agent')
+
+  // Build base URL
+  const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
+  const baseHost = hasProtocol ? apiServer.host : `http://${apiServer.host}`
+  const portSegment = apiServer.port ? `:${apiServer.port}` : ''
+  const baseURL = `${baseHost}${portSegment}`
+
+  const client = new AgentApiClient({
+    baseURL,
+    headers: {
+      Authorization: `Bearer ${apiServer.apiKey}`
+    }
+  })
+
+  try {
+    // Get agent info first
+    console.log('[TASKS] 获取代理信息:', agentId)
+    logger.info(`获取代理信息：${agentId}`)
+    const agent = await client.getAgent(agentId)
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`)
+    }
+
+    // Create a new session for this task execution
+    console.log('[TASKS] 创建新会话')
+    logger.info(`创建新会话`)
+    const session = await client.createSession(agentId, {
+      name: `Task Execution - ${new Date().toISOString()}`
+    })
+
+    if (!session) {
+      throw new Error('Failed to create agent session')
+    }
+
+    console.log('[TASKS] 会话创建成功:', session.id)
+    logger.info(`会话创建成功：${session.id}`)
+
+    // Send message to the session via fetch API (streaming)
+    const url = `${baseURL}/v1/agents/${agentId}/sessions/${session.id}/messages`
+
+    console.log('[TASKS] 发送消息到代理:', url)
+    logger.info(`发送消息到代理：${url}`)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiServer.apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({ content: message }),
+      signal
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(errorText || `Failed to stream agent message: ${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('Agent message stream has no body')
+    }
+
+    // Collect the full response from the stream
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let fullResponse = ''
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') break
+
+          try {
+            const event = JSON.parse(data)
+            if (event.type === 'text-delta' && event.text) {
+              fullResponse += event.text
+            }
+          } catch {
+            // Ignore parse errors for non-JSON lines
+          }
+        }
+      }
+    }
+
+    console.log('[TASKS] 代理执行完成, 响应长度:', fullResponse.length)
+    logger.info(`代理执行完成，响应长度：${fullResponse.length}`)
+
+    return fullResponse || 'Agent execution completed'
+  } catch (error) {
+    // Check if it's an abort error
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('[TASKS] 代理执行被中止')
+      logger.info('代理执行被中止')
+      throw new Error('Task execution aborted')
+    }
+
+    console.error('[TASKS] 代理执行失败:', error)
+    logger.error(`代理执行失败：`, error as Error)
+    throw new Error(`代理 ${agentId} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 /**
  * Execute task with an existing agent session
- * TODO: Implement actual agent session execution
- * Currently returns placeholder response
+ * Sends a message to the existing session and returns the response
  */
-async function executeWithAgentSession(sessionId: string, message: string): Promise<string> {
-  logger.info(`正在执行代理会话任务：${sessionId}`)
+async function executeWithAgentSession(sessionId: string, message: string, signal?: AbortSignal): Promise<string> {
+  console.log('[TASKS] executeWithAgentSession 开始, sessionId:', sessionId)
+  logger.info(`executeWithAgentSession 开始，sessionId: ${sessionId}`)
 
-  // TODO: 实现实际的代理会话执行
-  // 需要：
-  // 1. 获取会话信息
-  // 2. 向会话发送消息
-  // 3. 等待响应
-  // 4. 返回响应内容
-  //
-  // 目前返回占位符响应
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  // Check if aborted before starting
+  if (signal?.aborted) {
+    throw new Error('Task execution aborted')
+  }
 
-  return `[代理会话执行（占位符）]\n\n会话ID：${sessionId}\n消息：${message}\n\n（注：完整的代理会话执行功能正在开发中 - 需要集成代理服务器API）`
+  // Get API server configuration
+  const { apiServer } = store.getState().settings
+  if (!apiServer.enabled) {
+    throw new Error('Agent API server is disabled')
+  }
+
+  // Find the agent ID from sessions in store
+  const { agents } = store.getState().agents
+  let agentId: string | undefined
+  let sessionInfo: { id: string; agentId: string } | undefined
+
+  // Search through agents to find the session
+  for (const agent of agents) {
+    const sessions = agent.sessions || []
+    const foundSession = sessions.find((s) => s.id === sessionId)
+    if (foundSession) {
+      agentId = agent.id
+      sessionInfo = { id: foundSession.id, agentId: agent.id }
+      break
+    }
+  }
+
+  if (!agentId || !sessionInfo) {
+    throw new Error(`Agent session not found: ${sessionId}`)
+  }
+
+  // Build base URL
+  const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
+  const baseHost = hasProtocol ? apiServer.host : `http://${apiServer.host}`
+  const portSegment = apiServer.port ? `:${apiServer.port}` : ''
+  const baseURL = `${baseHost}${portSegment}`
+
+  try {
+    // Send message to the session via fetch API (streaming)
+    const url = `${baseURL}/v1/agents/${agentId}/sessions/${sessionId}/messages`
+
+    console.log('[TASKS] 发送消息到代理会话:', url)
+    logger.info(`发送消息到代理会话：${url}`)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiServer.apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({ content: message }),
+      signal
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      throw new Error(errorText || `Failed to stream agent session message: ${response.status}`)
+    }
+
+    if (!response.body) {
+      throw new Error('Agent session message stream has no body')
+    }
+
+    // Collect the full response from the stream
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let fullResponse = ''
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim()
+          if (data === '[DONE]') break
+
+          try {
+            const event = JSON.parse(data)
+            if (event.type === 'text-delta' && event.text) {
+              fullResponse += event.text
+            }
+          } catch {
+            // Ignore parse errors for non-JSON lines
+          }
+        }
+      }
+    }
+
+    console.log('[TASKS] 代理会话执行完成, 响应长度:', fullResponse.length)
+    logger.info(`代理会话执行完成，响应长度：${fullResponse.length}`)
+
+    return fullResponse || 'Agent session execution completed'
+  } catch (error) {
+    // Check if it's an abort error
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('[TASKS] 代理会话执行被中止')
+      logger.info('代理会话执行被中止')
+      throw new Error('Task execution aborted')
+    }
+
+    console.error('[TASKS] 代理会话执行失败:', error)
+    logger.error(`代理会话执行失败：`, error as Error)
+    throw new Error(`代理会话 ${sessionId} 执行失败：${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 /**
