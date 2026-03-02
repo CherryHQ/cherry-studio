@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { isDev } from '@renderer/config/constant'
+import { useEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import type { Message } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { Modal } from 'antd'
@@ -18,6 +18,7 @@ interface Props extends ShowParams {
 }
 
 const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks, resolve }) => {
+  const { enableDeveloperMode } = useEnableDeveloperMode()
   const [open, setOpen] = useState(true)
 
   const onOk = () => {
@@ -34,7 +35,7 @@ const InspectMessagePopupContainer: React.FC<Props> = ({ title, message, blocks,
 
   InspectMessagePopup.hide = onCancel
 
-  if (!isDev) {
+  if (!enableDeveloperMode) {
     return null
   }
 

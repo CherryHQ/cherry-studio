@@ -5,7 +5,6 @@ import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { isDev } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
@@ -977,8 +976,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'inspect-data': ({ message, blockEntities }) => {
-    if (!isDev) {
+  'inspect-data': ({ message, blockEntities, enableDeveloperMode }) => {
+    if (!enableDeveloperMode) {
       return null
     }
 
