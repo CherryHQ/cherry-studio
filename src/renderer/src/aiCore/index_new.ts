@@ -43,8 +43,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
-  private config?: ProviderConfig
-  private configPromise?: Promise<ProviderConfig>
+  private configOrPromise?: ProviderConfig | Promise<ProviderConfig>
   private actualProvider: Provider
   private model?: Model
 
@@ -91,9 +90,8 @@ export default class ModernAiProvider {
       this.actualProvider = provider
         ? adaptProvider({ provider, model: modelOrProvider })
         : getActualProvider(modelOrProvider)
-      // 注意：config 可能是同步值或 Promise，在 completions() 中会统一处理
-      const configOrPromise = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
-      this.config = configOrPromise instanceof Promise ? undefined : configOrPromise
+      // config 可能是同步值或 Promise，resolveConfig() 统一处理
+      this.configOrPromise = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
       // 传入的是 Provider
       this.actualProvider = adaptProvider({ provider: modelOrProvider })
@@ -119,23 +117,23 @@ export default class ModernAiProvider {
    * Ensures concurrent callers share the same in-flight promise.
    */
   private async resolveConfig(): Promise<ProviderConfig> {
-    if (this.config) return this.config
-    if (!this.model) {
-      throw new Error('Model is required to resolve provider config. Use constructor with model parameter.')
+    if (this.configOrPromise && !(this.configOrPromise instanceof Promise)) {
+      return this.configOrPromise
     }
-    if (!this.configPromise) {
-      this.configPromise = Promise.resolve(providerToAiSdkConfig(this.actualProvider, this.model))
-        .then((config) => {
-          this.config = config
-          this.configPromise = undefined
-          return config
-        })
-        .catch((error) => {
-          this.configPromise = undefined
-          throw error
-        })
+    if (!this.configOrPromise) {
+      if (!this.model) {
+        throw new Error('Model is required to resolve provider config. Use constructor with model parameter.')
+      }
+      this.configOrPromise = providerToAiSdkConfig(this.actualProvider, this.model)
     }
-    return this.configPromise
+    try {
+      const config = await this.configOrPromise
+      this.configOrPromise = config // 用解析后的值替换 Promise
+      return config
+    } catch (error) {
+      this.configOrPromise = undefined
+      throw error
+    }
   }
 
   public async completions(modelId: string, params: StreamTextParams, middlewareConfig: ModernAiProviderConfig) {
@@ -144,13 +142,10 @@ export default class ModernAiProvider {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
     }
 
-    // Config is now set in constructor, ApiService handles key rotation before passing provider
-    if (!this.config) {
-      this.config = await this.resolveConfig()
-    }
-    logger.debug('Using provider config for completions', this.config)
+    const config = await this.resolveConfig()
+    logger.debug('Using provider config for completions', config)
 
-    if (this.config.endpoint && (SUPPORTED_IMAGE_ENDPOINT_LIST as readonly string[]).includes(this.config.endpoint)) {
+    if (config.endpoint && (SUPPORTED_IMAGE_ENDPOINT_LIST as readonly string[]).includes(config.endpoint)) {
       middlewareConfig.isImageGenerationEndpoint = true
     }
 
@@ -178,9 +173,9 @@ export default class ModernAiProvider {
         ...middlewareConfig,
         topicId: middlewareConfig.topicId
       }
-      return await this._completionsForTrace(modelId, params, traceConfig, this.config)
+      return await this._completionsForTrace(modelId, params, traceConfig, config)
     } else {
-      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, this.config)
+      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, config)
     }
   }
 
@@ -412,7 +407,8 @@ export default class ModernAiProvider {
       }
 
       // 调用新 AI SDK 的图像生成功能
-      const executor = await createExecutor<AppProviderSettingsMap>(this.config!.providerId, this.config!.providerSettings, [])
+      const config = await this.resolveConfig()
+      const executor = await createExecutor<AppProviderSettingsMap>(config.providerId, config.providerSettings, [])
       const result = await executor.generateImage({
         model,
         ...imageParams
@@ -503,14 +499,8 @@ export default class ModernAiProvider {
     // 如果支持新的 AI SDK，使用现代化实现
     if (isModernSdkSupported(this.actualProvider)) {
       try {
-        // Resolve async config if not yet set (mirrors completions() recovery)
-        if (!this.config && this.model) {
-          this.config = await this.resolveConfig()
-        }
-        if (!this.config) {
-          throw new Error('Provider config is undefined; cannot proceed with generateImage')
-        }
-        const result = await this.modernGenerateImage(params, this.config)
+        const config = await this.resolveConfig()
+        const result = await this.modernGenerateImage(params, config)
         return result
       } catch (error) {
         logger.warn('Modern AI SDK generateImage failed, falling back to legacy:', error as Error)
