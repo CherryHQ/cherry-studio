@@ -89,7 +89,9 @@ export function getAiSdkProviderId(provider: Provider): string {
 
 export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {
   // Redirect providers that need the chat completions variant
-  const chatRedirectIds = ['openai', 'cherryin']
+  // Note: azure is included for defensive consistency with registry.ts,
+  // even though getAiSdkProviderId resolves azure-chat upstream for dated API versions
+  const chatRedirectIds = ['openai', 'azure', 'cherryin']
   if (chatRedirectIds.includes(config.providerId) && config.options?.mode === 'chat') {
     config.providerId = `${config.providerId}-chat`
   }

@@ -9,7 +9,7 @@ import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { ProviderV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import { createOpenRouter, type OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
@@ -17,15 +17,23 @@ import { customProvider, wrapProvider } from 'ai'
 import * as z from 'zod'
 
 /**
+ * Provider that exposes a .chat() method for Chat Completions API.
+ * Concrete providers like OpenAI, Azure, and CherryIn implement this at runtime,
+ * but ProviderV3 does not declare it — this interface provides compile-time safety.
+ */
+export interface ChatCapableProvider extends ProviderV3 {
+  chat(modelId: string): LanguageModelV3
+}
+
+/**
  * Wraps a provider instance so that languageModel() routes through provider.chat(),
  * forcing the Chat Completions API instead of the default Responses API.
  */
-export function wrapAsChatProvider(provider: ProviderV3): ProviderV3 {
+export function wrapAsChatProvider(provider: ChatCapableProvider): ProviderV3 {
   return customProvider({
     fallbackProvider: {
       ...provider,
-      // ProviderV3 doesn't declare .chat(), but concrete providers (OpenAI, Azure, CherryIn) expose it at runtime
-      languageModel: (modelId: string) => (provider as any).chat(modelId)
+      languageModel: (modelId: string) => provider.chat(modelId)
     }
   })
 }
@@ -34,7 +42,7 @@ export function wrapAsChatProvider(provider: ProviderV3): ProviderV3 {
  * Creates a chat-only variant of a provider creator.
  * Wraps the base creator so that languageModel() routes through provider.chat().
  */
-function createChatVariant<T>(baseCreator: (options: T) => ProviderV3): (options: T) => ProviderV3 {
+function createChatVariant<T>(baseCreator: (options: T) => ChatCapableProvider): (options: T) => ProviderV3 {
   return (options: T) => wrapAsChatProvider(baseCreator(options))
 }
 

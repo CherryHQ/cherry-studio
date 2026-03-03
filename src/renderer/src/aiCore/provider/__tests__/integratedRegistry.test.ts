@@ -169,13 +169,22 @@ describe('createAiSdkProvider providerId redirection', () => {
     mockCreateProviderCore.mockResolvedValue({ id: 'mock-provider' })
   })
 
-  it('should pass azure providerId through without redirection', async () => {
+  it('should keep azure providerId when mode is responses', async () => {
     await createAiSdkProvider({
       providerId: 'azure',
       options: { mode: 'responses', apiKey: 'test', baseURL: 'https://test.openai.azure.com' }
     })
 
     expect(mockCreateProviderCore).toHaveBeenCalledWith('azure', expect.objectContaining({ mode: 'responses' }))
+  })
+
+  it('should redirect azure with mode chat to azure-chat', async () => {
+    await createAiSdkProvider({
+      providerId: 'azure',
+      options: { mode: 'chat', apiKey: 'test', baseURL: 'https://test.openai.azure.com' }
+    })
+
+    expect(mockCreateProviderCore).toHaveBeenCalledWith('azure-chat', expect.objectContaining({ mode: 'chat' }))
   })
 
   it('should pass azure-chat providerId through without redirection', async () => {

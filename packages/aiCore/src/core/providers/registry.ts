@@ -5,7 +5,7 @@
  */
 
 import { globalRegistryManagement } from './RegistryManagement'
-import { baseProviders, type ProviderConfig, wrapAsChatProvider } from './schemas'
+import { baseProviders, type ChatCapableProvider, type ProviderConfig, wrapAsChatProvider } from './schemas'
 
 /**
  * Provider 初始化错误类型
@@ -178,7 +178,11 @@ export function registerProvider(providerId: string, provider: any): boolean {
     // (AI SDK v6 defaults languageModel to Responses API for these providers)
     const providersNeedingChatVariant = ['openai', 'azure']
     if (providersNeedingChatVariant.includes(providerId)) {
-      globalRegistryManagement.registerProvider(`${providerId}-chat`, wrapAsChatProvider(provider))
+      // Note: provider is typed as `any` from registerProvider signature — future cleanup should narrow it
+      globalRegistryManagement.registerProvider(
+        `${providerId}-chat`,
+        wrapAsChatProvider(provider as ChatCapableProvider)
+      )
     }
 
     return true
