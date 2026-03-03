@@ -13,7 +13,6 @@ import {
   setLastHealthCheck,
   setSelectedModelUniqId
 } from '@renderer/store/openclaw'
-import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
 import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
@@ -24,15 +23,6 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
-
-type NodeStatus = { status: 'not_found' } | { status: 'version_low'; version: string } | { status: 'ok' }
-
-/** Map the IPC result to the UI-side NodeStatus (drops the `path` field the renderer doesn't need). */
-function toNodeStatus(result: NodeCheckResult): NodeStatus {
-  if (result.status === 'version_low') return { status: 'version_low', version: result.version }
-  if (result.status === 'ok') return { status: 'ok' }
-  return { status: 'not_found' }
-}
 
 interface TitleSectionProps {
   title: string
@@ -95,59 +85,6 @@ const OpenClawPage: FC = () => {
   const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
-  const [nodeStatus, setNodeStatus] = useState<NodeStatus | null>(null)
-  const [gitMissing, setGitMissing] = useState(false)
-  const [nodeDownloadUrl, setNodeDownloadUrl] = useState<string>('https://nodejs.org/')
-  const [gitDownloadUrl, setGitDownloadUrl] = useState<string>('https://git-scm.com/downloads')
-
-  // Fetch Node.js download URL and poll node availability when node issue is shown
-  useEffect(() => {
-    if (!nodeStatus || nodeStatus.status === 'ok') return
-
-    // Fetch the download URL from main process
-    window.api.openclaw
-      .getNodeDownloadUrl()
-      .then(setNodeDownloadUrl)
-      .catch(() => {})
-
-    // Poll node version availability
-    const pollInterval = setInterval(async () => {
-      try {
-        const result = await window.api.openclaw.checkNodeVersion()
-        if (result.status === 'ok') {
-          setNodeStatus({ status: 'ok' })
-        }
-      } catch {
-        // Ignore errors during polling
-      }
-    }, 3000)
-
-    return () => clearInterval(pollInterval)
-  }, [nodeStatus])
-
-  // Fetch Git download URL and poll git availability when gitMissing is shown
-  useEffect(() => {
-    if (!gitMissing) return
-
-    // Fetch the download URL from main process
-    window.api.openclaw
-      .getGitDownloadUrl()
-      .then(setGitDownloadUrl)
-      .catch(() => {})
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const gitCheck = await window.api.openclaw.checkGitAvailable()
-        if (gitCheck.available) {
-          setGitMissing(false)
-        }
-      } catch {
-        // Ignore errors during polling
-      }
-    }, 3000)
-
-    return () => clearInterval(pollInterval)
-  }, [gitMissing])
 
   const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
   const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
@@ -186,18 +123,6 @@ const OpenClawPage: FC = () => {
       setIsInstalled(result.installed)
       setShowLogs(false)
       setInstallPath(result.path)
-
-      // If not installed, check node version and git availability in parallel
-      if (!result.installed) {
-        const [nodeResult, gitResult] = await Promise.allSettled([
-          window.api.openclaw.checkNodeVersion(),
-          window.api.openclaw.checkGitAvailable()
-        ])
-        if (nodeResult.status === 'fulfilled') {
-          setNodeStatus(toNodeStatus(nodeResult.value))
-        }
-        if (gitResult.status === 'fulfilled') setGitMissing(!gitResult.value.available)
-      }
     } catch (err) {
       logger.debug('Failed to check installation', err as Error)
       setIsInstalled(false)
@@ -205,28 +130,6 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleInstall = useCallback(async () => {
-    // Check node version and git availability in parallel before installing
-    const [nodeResult, gitResult] = await Promise.allSettled([
-      window.api.openclaw.checkNodeVersion(),
-      window.api.openclaw.checkGitAvailable()
-    ])
-
-    if (nodeResult.status === 'rejected' || gitResult.status === 'rejected') {
-      logger.error('Failed to check tool availability')
-      return
-    }
-    const nodeCheck = toNodeStatus(nodeResult.value)
-    if (nodeCheck.status !== 'ok') {
-      setNodeStatus(nodeCheck)
-      return
-    }
-    if (!gitResult.value.available) {
-      setGitMissing(true)
-      return
-    }
-
-    setNodeStatus(nodeCheck)
-    setGitMissing(false)
     setIsInstalling(true)
     setInstallError(null)
     setInstallLogs([])
@@ -482,86 +385,6 @@ const OpenClawPage: FC = () => {
             </Space>
           }
         />
-        <div className="mt-4 space-y-3" style={{ width: 580, marginLeft: -30 }}>
-          {nodeStatus?.status === 'not_found' && (
-            <Alert
-              message={t('openclaw.node_missing.title')}
-              description={
-                <div>
-                  <p>{t('openclaw.node_missing.description')}</p>
-                  <Space style={{ marginTop: 8 }}>
-                    <Button
-                      type="primary"
-                      icon={<Download size={16} />}
-                      onClick={() => window.open(nodeDownloadUrl, '_blank')}>
-                      {t('openclaw.node_missing.download_button')}
-                    </Button>
-                  </Space>
-                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                    {t('openclaw.node_missing.hint')}
-                  </p>
-                </div>
-              }
-              type="warning"
-              showIcon
-              closable
-              onClose={() => setNodeStatus(null)}
-              className="rounded-lg!"
-            />
-          )}
-          {nodeStatus?.status === 'version_low' && (
-            <Alert
-              message={t('openclaw.node_version_low.title')}
-              description={
-                <div>
-                  <p>{t('openclaw.node_version_low.description', { version: nodeStatus.version })}</p>
-                  <Space style={{ marginTop: 8 }}>
-                    <Button
-                      type="primary"
-                      icon={<Download size={16} />}
-                      onClick={() => window.open(nodeDownloadUrl, '_blank')}>
-                      {t('openclaw.node_missing.download_button')}
-                    </Button>
-                  </Space>
-                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                    {t('openclaw.node_version_low.hint')}
-                  </p>
-                </div>
-              }
-              type="warning"
-              showIcon
-              closable
-              onClose={() => setNodeStatus(null)}
-              className="rounded-lg!"
-            />
-          )}
-          {gitMissing && (
-            <Alert
-              message={t('openclaw.git_missing.title')}
-              description={
-                <div>
-                  <p>{t('openclaw.git_missing.description')}</p>
-                  <Space style={{ marginTop: 8 }}>
-                    <Button
-                      type="primary"
-                      icon={<Download size={16} />}
-                      onClick={() => window.open(gitDownloadUrl, '_blank')}>
-                      {t('openclaw.git_missing.download_button')}
-                    </Button>
-                  </Space>
-                  <p className="mt-3 text-xs" style={{ color: 'var(--color-text-3)' }}>
-                    {t('openclaw.git_missing.hint')}
-                  </p>
-                </div>
-              }
-              type="warning"
-              showIcon
-              closable
-              onClose={() => setGitMissing(false)}
-              className="rounded-lg!"
-            />
-          )}
-        </div>
         {installError && (
           <Alert
             message={installError}
