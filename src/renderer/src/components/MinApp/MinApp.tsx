@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -11,11 +12,10 @@ import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
-import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
 
 interface Props {
   app: MinAppType
@@ -25,10 +25,6 @@ interface Props {
 }
 
 const logger = loggerService.withContext('App')
-
-// MinApp configuration constants
-const SCROLL_ANIMATION_DURATION = '8s'
-const APP_TITLE_MAX_WIDTH = '80px'
 
 const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
@@ -44,20 +40,9 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
-  const [isHovered, setIsHovered] = useState(false)
-  const [shouldScroll, setShouldScroll] = useState(false)
-  const textRef = useRef<HTMLSpanElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   // Calculate display name
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
-
-  // Measure actual rendered width to determine if scrolling is needed
-  useLayoutEffect(() => {
-    if (textRef.current && containerRef.current) {
-      setShouldScroll(textRef.current.scrollWidth > containerRef.current.clientWidth)
-    }
-  }, [displayName])
 
   const handleClick = () => {
     if (isTopNavbar) {
@@ -134,7 +119,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   return (
     <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleClick} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+      <Container onClick={handleClick}>
         <IconContainer>
           <MinAppIcon size={size} app={app} />
           {isOpened && (
@@ -143,8 +128,10 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle ref={containerRef} $shouldScroll={shouldScroll} $isHovered={isHovered}>
-          <span ref={textRef}>{displayName}</span>
+        <AppTitle>
+          <MarqueeText speed={30} pauseDuration={0.8}>
+            {displayName}
+          </MarqueeText>
         </AppTitle>
       </Container>
     </Dropdown>
@@ -177,51 +164,14 @@ const StyledIndicator = styled.div`
   border-radius: 50%;
 `
 
-const AppTitle = styled.div<{ $shouldScroll?: boolean; $isHovered?: boolean }>`
+const AppTitle = styled.div`
   font-size: 12px;
   margin-top: 5px;
   color: var(--color-text-soft);
   text-align: center;
   user-select: none;
-  white-space: nowrap;
-  overflow: hidden;
   width: 100%;
-  max-width: ${APP_TITLE_MAX_WIDTH};
-
-  span {
-    display: inline-block;
-    ${({ $shouldScroll }) =>
-      $shouldScroll &&
-      css`
-        width: max-content;
-        display: block;
-        text-align: left;
-        padding: 0 4px;
-        animation: scrollText ${SCROLL_ANIMATION_DURATION} ease-in-out infinite;
-        animation-play-state: paused;
-      `}
-  }
-
-  ${({ $shouldScroll, $isHovered }) =>
-    $shouldScroll &&
-    $isHovered &&
-    css`
-      span {
-        animation-play-state: running;
-      }
-    `}
-
-  @keyframes scrollText {
-    0%, 20% {
-      transform: translateX(0);
-    }
-    50%, 70% {
-      transform: translateX(calc(-100% + ${APP_TITLE_MAX_WIDTH}));
-    }
-    90%, 100% {
-      transform: translateX(0);
-    }
-  }
+  max-width: 80px;
 `
 
 export default MinApp
