@@ -35,6 +35,7 @@ import Table from './Table'
 
 const SVG_ELEMENT_REGEX = /<svg[\s>]/i
 const DISALLOWED_ELEMENTS = ['iframe', 'script']
+const ALLOWED_TAGS = { sup: ['data-citation'] }
 
 interface Props {
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
@@ -130,7 +131,8 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
         urlTransform={urlTransform}
         isAnimating={isStreaming}
         normalizeHtmlIndentation
-        remarkRehypeOptions={remarkRehypeOptions}>
+        remarkRehypeOptions={remarkRehypeOptions}
+        allowedTags={ALLOWED_TAGS}>
         {messageContent}
       </Streamdown>
     </div>
