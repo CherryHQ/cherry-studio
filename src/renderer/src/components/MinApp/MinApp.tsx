@@ -11,7 +11,7 @@ import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
@@ -27,7 +27,6 @@ interface Props {
 const logger = loggerService.withContext('App')
 
 // MinApp configuration constants
-const MIN_APP_NAME_MAX_LENGTH = 14
 const SCROLL_ANIMATION_DURATION = '8s'
 const APP_TITLE_MAX_WIDTH = '80px'
 
@@ -46,10 +45,19 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
   const [isHovered, setIsHovered] = useState(false)
+  const [shouldScroll, setShouldScroll] = useState(false)
+  const textRef = useRef<HTMLSpanElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Calculate display name and whether it needs scrolling (length > 14)
+  // Calculate display name
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
-  const shouldScroll = displayName.length > MIN_APP_NAME_MAX_LENGTH
+
+  // Measure actual rendered width to determine if scrolling is needed
+  useLayoutEffect(() => {
+    if (textRef.current && containerRef.current) {
+      setShouldScroll(textRef.current.scrollWidth > containerRef.current.clientWidth)
+    }
+  }, [displayName])
 
   const handleClick = () => {
     if (isTopNavbar) {
@@ -135,8 +143,8 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle $shouldScroll={shouldScroll} $isHovered={isHovered}>
-          <span>{displayName}</span>
+        <AppTitle ref={containerRef} $shouldScroll={shouldScroll} $isHovered={isHovered}>
+          <span ref={textRef}>{displayName}</span>
         </AppTitle>
       </Container>
     </Dropdown>
