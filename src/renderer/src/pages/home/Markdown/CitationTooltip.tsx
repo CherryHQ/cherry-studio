@@ -1,4 +1,5 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
@@ -39,7 +40,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
-            {sourceTitle}
+            <MarqueeText>{sourceTitle}</MarqueeText>
           </TooltipTitle>
         </TooltipHeader>
         {citation.content?.trim() && (
