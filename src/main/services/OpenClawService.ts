@@ -680,7 +680,7 @@ class OpenClawService {
   /**
    * Restart the OpenClaw Gateway
    */
-  public async restartGateway(_: Electron.IpcMainInvokeEvent): Promise<OperationResult> {
+  public async restartGateway(): Promise<OperationResult> {
     const openclawPath = await findExecutableInEnv('openclaw')
     if (!openclawPath) {
       this.gatewayStatus = 'error'
