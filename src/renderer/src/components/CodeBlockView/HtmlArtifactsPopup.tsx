@@ -231,6 +231,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       $isFullscreen={isFullscreen}
       title={renderHeader()}
       open={open}
+      onCancel={onClose}
       afterClose={onClose}
       centered={!isFullscreen}
       destroyOnHidden
