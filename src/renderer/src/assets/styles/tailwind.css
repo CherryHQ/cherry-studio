@@ -143,6 +143,22 @@
       transform: translateY(calc(-100% - var(--gap)));
     }
   }
+
+  --animate-scroll-bounce: scroll-bounce var(--scroll-bounce-duration, 3s) linear infinite;
+  @keyframes scroll-bounce {
+    0%,
+    15% {
+      transform: translateX(0);
+    }
+    35%,
+    65% {
+      transform: translateX(var(--scroll-distance, 0px));
+    }
+    85%,
+    100% {
+      transform: translateX(0);
+    }
+  }
 }
 
 @layer base {
