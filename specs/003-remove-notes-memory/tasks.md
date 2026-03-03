@@ -130,7 +130,7 @@
   - `rg "from.*store/note" src/renderer/src --include="*.ts" --include="*.tsx" -l` (SC-006: no store/note imports)
   - `rg "from.*store/memory" src/renderer/src --include="*.ts" --include="*.tsx" -l` (SC-006: no store/memory imports)
   - `rg "state\.note" src/renderer/src --include="*.ts" --include="*.tsx" -l` (SC-006: no state.note references)
-- [ ] T041 Commit all changes with conventional commit message: `refactor: remove Notes and Memory features (Phase 03)` — stage all modified and deleted files, verify `git status` shows no unintended changes
+- [X] T041 Commit all changes with conventional commit message: `refactor: remove Notes and Memory features (Phase 03)` — stage all modified and deleted files, verify `git status` shows no unintended changes
 
 ---
 
