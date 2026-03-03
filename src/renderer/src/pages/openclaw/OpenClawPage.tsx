@@ -630,11 +630,6 @@ const OpenClawPage: FC = () => {
               <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
                 {t('openclaw.status.running')}
               </span>
-              {lastHealthCheck?.version && (
-                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  v{lastHealthCheck.version}
-                </span>
-              )}
               <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
                 :{gatewayPort}
               </span>
