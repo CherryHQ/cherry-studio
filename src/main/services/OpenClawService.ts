@@ -6,7 +6,6 @@ import path from 'node:path'
 import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
-import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
@@ -20,7 +19,6 @@ import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
-const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 // Original user config (read-only, used as template for first-time setup)
@@ -228,40 +226,42 @@ class OpenClawService {
   }
 
   /**
-   * Install OpenClaw using npm with China mirror acceleration
-   * For users in China, install @qingchencloud/openclaw-zh package instead
+   * Build the platform-specific command and args for the official OpenClaw install script.
+   */
+  private buildInstallCommand(): { command: string; args: string[] } {
+    if (isWin) {
+      return {
+        command: 'powershell.exe',
+        args: [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          '& ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard'
+        ]
+      }
+    }
+    return {
+      command: '/bin/sh',
+      args: ['-c', 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard --no-prompt']
+    }
+  }
+
+  /**
+   * Install OpenClaw using the official install scripts.
+   * Streams output in real-time. On macOS/Linux, retries with sudo-prompt on permission errors.
    */
   public async install(): Promise<OperationResult> {
-    const inChina = await isUserInChina()
-
-    const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
-    const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
-
-    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
-
-    const npmArgs = ['install', '-g', packageName]
-    if (registryArg) npmArgs.push(registryArg)
-
-    // Keep the command string for logging and sudo retry
-    const sharpEnvPrefix = isMac ? 'SHARP_IGNORE_GLOBAL_LIBVIPS=1 ' : ''
-    const npmCommand = `${sharpEnvPrefix}"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
-
-    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
-    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
-    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
-
-    logger.info(`Installing OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
-
+    const { command, args } = this.buildInstallCommand()
+    const shellCommand = `${command} ${args.join(' ')}`
     const spawnEnv = await getShellEnv()
-    // sharp (an openclaw dependency) may fail on macOS when a global libvips is present
-    if (isMac) {
-      spawnEnv.SHARP_IGNORE_GLOBAL_LIBVIPS = '1'
-    }
+
+    logger.info(`Installing OpenClaw with official script: ${shellCommand}`)
+    this.sendInstallProgress('Running official installer...')
 
     return new Promise((resolve) => {
       try {
-        const installProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: spawnEnv })
+        const installProcess = crossPlatformSpawn(command, args, { env: spawnEnv })
 
         let stderr = ''
 
@@ -277,10 +277,8 @@ class OpenClawService {
           const msg = data.toString().trim()
           stderr += data.toString()
           if (msg) {
-            // npm warnings are not fatal errors
-            const isWarning = msg.includes('npm warn') || msg.includes('ExperimentalWarning')
             logger.warn('OpenClaw install stderr:', msg)
-            this.sendInstallProgress(msg, isWarning ? 'warn' : 'info')
+            this.sendInstallProgress(msg, 'warn')
           }
         })
 
@@ -296,37 +294,36 @@ class OpenClawService {
             this.sendInstallProgress('OpenClaw installed successfully!')
             await this.installGatewayService()
             resolve({ success: true })
-          } else {
-            logger.error(`OpenClaw install failed with code ${code}`)
+          } else if (
+            !isWin &&
+            (stderr.includes('EACCES') || stderr.includes('permission denied') || stderr.includes('Permission denied'))
+          ) {
+            // Permission error on macOS/Linux — retry with elevated privileges
+            logger.info('Permission denied, retrying with sudo-prompt...')
+            this.sendInstallProgress('Permission denied. Requesting administrator access...')
 
-            // Detect EACCES permission error and retry with sudo
-            if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
-              logger.info('Permission denied, retrying with sudo-prompt...')
-              this.sendInstallProgress('Permission denied. Requesting administrator access...')
-
-              // Use full npm path since sudo runs in clean environment without user PATH
-              exec(npmCommand, { name: 'Cherry Studio' }, async (error, stdout) => {
-                if (error) {
-                  logger.error('Sudo install failed:', error)
-                  this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
-                  resolve({ success: false, message: error.message })
-                } else {
-                  logger.info('OpenClaw installed successfully with sudo')
-                  if (stdout) {
-                    this.sendInstallProgress(stdout.toString())
-                  }
-                  this.sendInstallProgress('OpenClaw installed successfully!')
-                  await this.installGatewayService()
-                  resolve({ success: true })
+            exec(shellCommand, { name: 'Cherry Studio' }, async (error, stdout) => {
+              if (error) {
+                logger.error('Sudo install failed:', error)
+                this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
+                resolve({ success: false, message: error.message })
+              } else {
+                logger.info('OpenClaw installed successfully with sudo')
+                if (stdout) {
+                  this.sendInstallProgress(stdout.toString())
                 }
-              })
-            } else {
-              this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
-              resolve({
-                success: false,
-                message: stderr || `Installation failed with exit code ${code}`
-              })
-            }
+                this.sendInstallProgress('OpenClaw installed successfully!')
+                await this.installGatewayService()
+                resolve({ success: true })
+              }
+            })
+          } else {
+            logger.error(`OpenClaw install failed with exit code ${code}`)
+            this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
+            resolve({
+              success: false,
+              message: stderr.trim() || `Installation failed with exit code ${code}`
+            })
           }
         })
       } catch (error) {
@@ -343,7 +340,8 @@ class OpenClawService {
    */
   private async installGatewayService(): Promise<void> {
     try {
-      const shellEnv = await getShellEnv()
+      // Refresh shell env to pick up PATH changes from the official installer
+      const shellEnv = await refreshShellEnv()
       const openclawPath = await findExecutableInEnv('openclaw')
       if (!openclawPath) {
         logger.warn('Cannot install gateway service: openclaw binary not found')
@@ -408,10 +406,10 @@ class OpenClawService {
 
     const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
-    const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
+    const npmArgs = ['uninstall', '-g', 'openclaw']
 
     // Keep the command string for logging and sudo retry
-    const npmCommand = `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+    const npmCommand = `"${npmPath}" uninstall -g openclaw`
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
