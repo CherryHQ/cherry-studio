@@ -140,6 +140,11 @@ vi.mock('streamdown', () => ({
       {components?.style && <span data-testid="has-style-component">style</span>}
     </div>
   ),
+  defaultRehypePlugins: {
+    raw: vi.fn(),
+    sanitize: [vi.fn(), { tagNames: [], attributes: {} }],
+    harden: vi.fn()
+  },
   defaultUrlTransform: vi.fn((url: string) => url),
   useIsCodeFenceIncomplete: vi.fn(() => false)
 }))

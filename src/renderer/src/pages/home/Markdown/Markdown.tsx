@@ -23,7 +23,7 @@ import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import remarkAlert from 'remark-github-blockquote-alert'
-import { defaultUrlTransform, Streamdown } from 'streamdown'
+import { defaultRehypePlugins, defaultUrlTransform, Streamdown } from 'streamdown'
 import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
@@ -35,7 +35,6 @@ import Table from './Table'
 
 const SVG_ELEMENT_REGEX = /<svg[\s>]/i
 const DISALLOWED_ELEMENTS = ['iframe', 'script']
-const ALLOWED_TAGS = { sup: ['data-citation'] }
 
 interface Props {
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
@@ -76,7 +75,19 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [block, postProcess, t])
 
   const rehypePlugins = useMemo(() => {
-    const result: Pluggable[] = []
+    // Custom rehypePlugins replace Streamdown's defaults entirely, so we must
+    // include the default pipeline (raw → sanitize → harden) explicitly.
+    // We also extend the sanitize schema to allow data-citation on <sup>.
+    const { raw, sanitize, harden } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const extendedSchema = {
+      ...schema,
+      attributes: {
+        ...schema.attributes,
+        sup: [...(schema.attributes?.sup || []), 'data-citation']
+      }
+    }
+    const result: Pluggable[] = [raw, [sanitizeFn, extendedSchema], harden]
     if (SVG_ELEMENT_REGEX.test(messageContent)) {
       result.push(rehypeScalableSvg)
     }
@@ -131,8 +142,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
         urlTransform={urlTransform}
         isAnimating={isStreaming}
         normalizeHtmlIndentation
-        remarkRehypeOptions={remarkRehypeOptions}
-        allowedTags={ALLOWED_TAGS}>
+        remarkRehypeOptions={remarkRehypeOptions}>
         {messageContent}
       </Streamdown>
     </div>
