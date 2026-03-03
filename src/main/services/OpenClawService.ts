@@ -10,6 +10,7 @@ import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
+import type { OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
@@ -30,7 +31,7 @@ const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
-export type OperationResult = { success: true } | { success: false; message: string }
+export type { OperationResult }
 
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
@@ -567,7 +568,7 @@ class OpenClawService {
         return
       }
 
-      const { status } = await this.checkHealth()
+      const { status } = await this.probeGatewayHealth()
       if (status === 'healthy') {
         logger.info(`Gateway port ${this.gatewayPort} is open (verified after ${pollCount} polls)`)
         return
@@ -686,7 +687,11 @@ class OpenClawService {
       return { success: false, message: 'OpenClaw binary not found' }
     }
     const shellEnv = await getShellEnv()
-    await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'restart'], shellEnv)
+    const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'restart'], shellEnv)
+    if (code !== 0) {
+      this.gatewayStatus = 'error'
+      return { success: false, message: stderr.trim() || `Restart failed with code ${code}` }
+    }
     return { success: true }
   }
 
@@ -695,7 +700,7 @@ class OpenClawService {
    */
   public async getStatus(): Promise<{ status: GatewayStatus; port: number }> {
     if (this.gatewayStatus === 'stopped' || this.gatewayStatus === 'error') {
-      const { status } = await this.checkHealth()
+      const { status } = await this.probeGatewayHealth()
       if (status === 'healthy') {
         logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
         this.gatewayStatus = 'running'
@@ -708,40 +713,36 @@ class OpenClawService {
   }
 
   /**
-   * Check Gateway health by verifying WebSocket connectivity
+   * Check Gateway health (public API).
+   * Returns unhealthy immediately if we know the gateway is not running.
    */
   public async checkHealth(): Promise<HealthInfo> {
     if (this.gatewayStatus !== 'running') {
-      return {
-        status: 'unhealthy',
-        gatewayPort: this.gatewayPort
-      }
+      return { status: 'unhealthy', gatewayPort: this.gatewayPort }
     }
+    return this.probeGatewayHealth()
+  }
 
+  /**
+   * Probe gateway health by running `openclaw gateway health`.
+   * Does NOT check gatewayStatus — callers that need to detect
+   * externally-started gateways should call this directly.
+   */
+  private async probeGatewayHealth(): Promise<HealthInfo> {
     try {
       const openclawPath = await findExecutableInEnv('openclaw')
       if (!openclawPath) {
-        return {
-          status: 'unhealthy',
-          gatewayPort: this.gatewayPort
-        }
+        return { status: 'unhealthy', gatewayPort: this.gatewayPort }
       }
       const shellEnv = await getShellEnv()
       const { code } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], shellEnv)
       if (code === 0) {
-        return {
-          status: 'healthy',
-          gatewayPort: this.gatewayPort
-        }
+        return { status: 'healthy', gatewayPort: this.gatewayPort }
       }
     } catch (error) {
-      logger.debug('Health check failed:', error as Error)
+      logger.debug('Health probe failed:', error as Error)
     }
-
-    return {
-      status: 'unhealthy',
-      gatewayPort: this.gatewayPort
-    }
+    return { status: 'unhealthy', gatewayPort: this.gatewayPort }
   }
 
   /**
