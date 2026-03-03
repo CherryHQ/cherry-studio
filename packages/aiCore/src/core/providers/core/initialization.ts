@@ -251,22 +251,6 @@ class ProviderInitializationError extends Error {
   }
 }
 
-// ==================== 工具函数 ====================
-
-/**
- * 获取支持的 Providers 列表
- * 从 Extension Registry 获取所有已注册的 provider IDs
- */
-export function getSupportedProviders(): Array<{
-  id: string
-  name: string
-}> {
-  return extensionRegistry.getAllProviderIds().map((id) => ({
-    id,
-    name: id
-  }))
-}
-
 /**
  * 检查是否有对应的 Provider Extension
  */

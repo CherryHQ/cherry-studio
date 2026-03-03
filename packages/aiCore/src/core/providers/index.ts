@@ -7,7 +7,6 @@
 // Provider 核心功能
 export {
   coreExtensions,
-  getSupportedProviders,
   hasProviderConfig,
   ProviderInitializationError,
   registeredProviderIds
