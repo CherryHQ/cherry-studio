@@ -1,0 +1,133 @@
+{
+  "auto_complete": {
+    "selected_items": []
+  },
+  "buffers": [],
+  "build_system": "",
+  "build_system_choices": [],
+  "build_varint": "",
+  "command_palette": {
+    "height": 0.0,
+    "last_filter": "",
+    "selected_items": [],
+    "width": 0.0
+  },
+  "console": {
+    "height": 0.0,
+    "history": []
+  },
+  "distraction_free": {
+    "menu_visible": true,
+    "show_minimap": false,
+    "show_open_files": false,
+    "show_tabs": false,
+    "side_bar_visible": false,
+    "status_bar_visible": false
+  },
+  "expanded_folders": ["/Users/wangyun/Documents/work/github/cherry-studio"],
+  "file_history": [
+    "/Users/wangyun/Documents/temp/opencode/skills/source/demo-project/jlpay-life/src/main/resources/application-dev.yml",
+    "/Users/wangyun/Documents/temp/opencode/skills/source/demo-project/jlpay-life/src/main/resources/application-prod.yml",
+    "/Users/wangyun/Documents/temp/opencode/skills/demo-project/README.md",
+    "/Users/wangyun/Documents/temp/github/openclaw/AGENTS.md",
+    "/Users/wangyun/Documents/work/2026/20260110-东方付通尽调/IT尽职调查资料.md",
+    "/Users/wangyun/Documents/work/2026/20260110-东方付通尽调/20260113-审计记录.md",
+    "/Users/wangyun/Documents/work/2026/20260110-东方付通尽调/20260112-现场审计测试程序和访谈提纲.md",
+    "/Users/wangyun/Documents/temp/minecraft/docker-compose.yml",
+    "/Users/wangyun/Documents/work/2026/20260110-东方付通尽调/# 立充指标拆解",
+    "/Users/wangyun/Documents/work/2026/20260110-东方付通尽调/现场审计前期.md",
+    "/Users/wangyun/Downloads/XGD106M_02.034.004_7c9e2c97.py",
+    "/Users/wangyun/Documents/temp/minecraft/untitled",
+    "/Users/wangyun/Library/Containers/com.tencent.WeWorkMac/Data/Documents/Profiles/17EEFEC0B96584C085E0C86DCF256383/Caches/Files/2025-11/2c4eefec9ac6e242375fe74ce2187aa5/tttt.txt",
+    "/Users/wangyun/Library/Containers/com.tencent.WeWorkMac/Data/Documents/Profiles/17EEFEC0B96584C085E0C86DCF256383/Caches/Files/2025-11/e78b8c608932d255b9c810a5b7ea3752/login.txt",
+    "/Users/wangyun/Downloads/carter/urdf/carter.urdf",
+    "/Users/wangyun/Documents/personal/20250909-Circle-招股书.html",
+    "/Users/wangyun/Documents/t.html",
+    "/Users/wangyun/Downloads/0001013762-25-002946.rtf",
+    "/Users/wangyun/Downloads/平安移企付文档/config-杭州合思莫尔信息技术有限公司-fat1.properties",
+    "/Users/wangyun/Downloads/平安移企付文档/config-庆闽清松心宝石电子玻璃股份有限公司-fat1.properties",
+    "/Users/wangyun/Documents/temp/vault/README.md",
+    "/Users/wangyun/Documents/pending/分户余额/20250702-余额表-v2.csv",
+    "/Users/wangyun/Documents/pending/分户余额/调账记录/垫资调账#1.csv",
+    "/Users/wangyun/Documents/pending/分户余额/调账记录/垫资调账#2.csv",
+    "/Users/wangyun/Documents/pending/分户余额/调账记录/垫资调账.csv",
+    "/Users/wangyun/Documents/pending/分户余额/调账记录/垫资调账.md"
+  ],
+  "find": {
+    "height": 39.0
+  },
+  "find_in_files": {
+    "height": 0.0,
+    "where_history": []
+  },
+  "find_state": {
+    "case_sensitive": false,
+    "find_history": [],
+    "highlight": true,
+    "in_selection": false,
+    "preserve_case": false,
+    "regex": false,
+    "replace_history": [],
+    "reverse": false,
+    "scrollbar_highlights": true,
+    "show_context": true,
+    "use_buffer2": true,
+    "use_gitignore": true,
+    "whole_word": false,
+    "wrap": true
+  },
+  "groups": [
+    {
+      "sheets": []
+    }
+  ],
+  "incremental_find": {
+    "height": 39.0
+  },
+  "input": {
+    "height": 0.0
+  },
+  "layout": {
+    "cells": [[0, 0, 1, 1]],
+    "cols": [0.0, 1.0],
+    "rows": [0.0, 1.0]
+  },
+  "menu_visible": true,
+  "output.find_results": {
+    "height": 0.0,
+    "history": []
+  },
+  "pinned_build_system": "",
+  "project": "cherry-studio.sublime-project",
+  "replace": {
+    "height": 74.0
+  },
+  "save_all_on_build": true,
+  "select_file": {
+    "height": 0.0,
+    "last_filter": "",
+    "selected_items": [],
+    "width": 0.0
+  },
+  "select_project": {
+    "height": 0.0,
+    "last_filter": "",
+    "selected_items": [],
+    "width": 0.0
+  },
+  "select_symbol": {
+    "height": 0.0,
+    "last_filter": "",
+    "selected_items": [],
+    "width": 0.0
+  },
+  "selected_group": 0,
+  "settings": {},
+  "show_minimap": true,
+  "show_open_files": false,
+  "show_tabs": true,
+  "side_bar_visible": true,
+  "side_bar_width": 244.0,
+  "status_bar_visible": true,
+  "template_settings": {}
+}

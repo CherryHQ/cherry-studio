@@ -32,6 +32,7 @@ import type {
   Provider,
   Shortcut,
   SupportedOcrFile,
+  TaskExecution,
   ThemeMode
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -88,6 +89,9 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
+import taskExecutorService from './services/TaskExecutorService'
+import taskSchedulerService from './services/TaskSchedulerService'
+import taskStorageService from './services/TaskStorageService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
@@ -132,6 +136,41 @@ function extractPluginError(error: unknown): PluginError | null {
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
+
+  // Hook console.log to forward to renderer for debugging
+  const originalConsoleLog = console.log
+  const originalConsoleError = console.error
+  const originalConsoleWarn = console.warn
+
+  console.log = (...args: any[]) => {
+    originalConsoleLog(...args)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('console-log', {
+        level: 'log',
+        message: args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ')
+      })
+    }
+  }
+
+  console.error = (...args: any[]) => {
+    originalConsoleError(...args)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('console-log', {
+        level: 'error',
+        message: args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ')
+      })
+    }
+  }
+
+  console.warn = (...args: any[]) => {
+    originalConsoleWarn(...args)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('console-log', {
+        level: 'warn',
+        message: args.map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg))).join(' ')
+      })
+    }
+  }
 
   // Register shutdown handlers
   powerMonitorService.registerShutdownHandler(() => {
@@ -1175,4 +1214,220 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
     analyticsService.trackTokenUsage(data)
   )
+
+  // Tasks
+  ipcMain.handle(IpcChannel.Task_Create, async (_, form) => {
+    const task = await taskStorageService.createTask(form)
+    await taskSchedulerService.upsertTask(task)
+    return task
+  })
+
+  ipcMain.handle(IpcChannel.Task_Update, async (_, form) => {
+    const updated = await taskStorageService.updateTask(form)
+    if (updated) {
+      await taskSchedulerService.upsertTask(updated)
+    }
+    return updated
+  })
+
+  ipcMain.handle(IpcChannel.Task_Delete, async (_, taskId: string) => {
+    taskSchedulerService.removeTask(taskId)
+    return await taskStorageService.deleteTask(taskId)
+  })
+
+  ipcMain.handle(IpcChannel.Task_Get, async (_, taskId: string) => {
+    return await taskStorageService.getTask(taskId)
+  })
+
+  ipcMain.handle(IpcChannel.Task_List, async () => {
+    return await taskStorageService.listTasks()
+  })
+
+  console.log('[IPC] Registering Task_ExecuteNow handler...')
+  ipcMain.handle(IpcChannel.Task_ExecuteNow, async (event, taskId: string, preGeneratedPlan?: any) => {
+    const logToRenderer = (message: string, data?: any) => {
+      if (event?.sender) {
+        event.sender.send('console-log', { message, data })
+      }
+    }
+
+    logToRenderer('[IPC] Task_ExecuteNow called', { taskId, hasPreGeneratedPlan: !!preGeneratedPlan })
+    console.log('[IPC] Task_ExecuteNow called with taskId:', taskId, 'preGeneratedPlan:', !!preGeneratedPlan)
+
+    const logger = (await import('@logger')).loggerService.withContext('IPC:Task_ExecuteNow')
+    logger.info(`Received executeNow request for task: ${taskId}`, { hasPreGeneratedPlan: !!preGeneratedPlan })
+
+    try {
+      logToRenderer('[IPC] Calling taskSchedulerService.executeTaskNow...')
+      console.log('[IPC] Calling taskSchedulerService.executeTaskNow...')
+
+      const result = await taskSchedulerService.executeTaskNow(taskId, preGeneratedPlan)
+
+      logToRenderer('[IPC] executeTaskNow returned', { success: result?.result?.success, status: result?.status })
+      console.log('[IPC] executeTaskNow returned:', result)
+
+      logger.info(`executeNow completed for task: ${taskId}`, { executionId: result?.id, status: result?.status })
+      return result
+    } catch (error) {
+      logToRenderer('[IPC] executeTaskNow error', { error: error instanceof Error ? error.message : String(error) })
+      console.error('[IPC] executeTaskNow error:', error)
+      logger.error(`executeNow failed for task: ${taskId}`, error as Error)
+      throw error
+    }
+  })
+
+  console.log('[IPC] Registering Task_GeneratePlan handler...')
+  ipcMain.handle(IpcChannel.Task_GeneratePlan, async (_, taskId: string, appLanguage?: string) => {
+    console.log('[IPC] Task_GeneratePlan called with taskId:', taskId, 'appLanguage:', appLanguage)
+
+    const logger = (await import('@logger')).loggerService.withContext('IPC:Task_GeneratePlan')
+    logger.info(`Received generatePlan request for task: ${taskId}`, { appLanguage })
+
+    try {
+      // Get task from storage
+      const task = await taskStorageService.getTask(taskId)
+      if (!task) {
+        throw new Error(`Task not found: ${taskId}`)
+      }
+
+      logger.info(`Task found: ${task.name}, targets: ${task.targets.length}`)
+
+      // Check if smart planning is enabled and there are multiple targets
+      const enableSmartPlanning = task.execution.enableSmartPlanning ?? true
+
+      // Helper to create a simple target object (avoid circular references)
+      const createSimpleTarget = (target: any) => ({
+        type: target.type,
+        id: target.id,
+        name: target.name
+      })
+
+      if (!enableSmartPlanning || task.targets.length <= 1) {
+        // Return a simple rule-based plan for single target or when smart planning is disabled
+        const plan: any = {
+          steps: [] as any[],
+          parallelGroups: [] as any[],
+          planningMetadata: {
+            modelUsed: 'rule-based',
+            planningTime: 0,
+            confidence: 1.0,
+            dependencies: [],
+            estimatedDuration: 60,
+            plannedAt: new Date().toISOString(),
+            reasoning: enableSmartPlanning
+              ? 'Single target - no planning needed'
+              : 'Smart planning disabled - using direct execution'
+          },
+          summary: enableSmartPlanning ? 'Single target execution' : 'Smart planning disabled - direct execution'
+        }
+
+        if (task.targets.length === 1) {
+          plan.steps = [
+            {
+              target: createSimpleTarget(task.targets[0]),
+              order: 1,
+              reason: 'Single target execution'
+            }
+          ]
+        } else {
+          // Multiple targets but smart planning disabled - group all assistants in parallel
+          const assistants = task.targets.filter((t) => t.type === 'assistant')
+          const others = task.targets.filter((t) => t.type !== 'assistant')
+
+          if (assistants.length > 0) {
+            ;(plan.parallelGroups as any[]).push({
+              targets: assistants.map(createSimpleTarget),
+              description: 'Execute all assistants in parallel',
+              reason: 'Assistants can run independently'
+            })
+          }
+
+          others.forEach((target: any, index: number) => {
+            ;(plan.steps as any[]).push({
+              target: createSimpleTarget(target),
+              order: index + 1,
+              reason: 'Sequential execution for non-assistant targets'
+            })
+          })
+        }
+
+        logger.info(`Generated rule-based plan for task: ${taskId}`)
+        return { success: true, plan }
+      }
+
+      // Use AI-powered planning
+      logger.info(`Using AI-powered planning for task: ${taskId}`)
+
+      const taskPlanningService = (await import('./services/TaskPlanningService')).default
+
+      const planningResult = await taskPlanningService.generateExecutionPlan(
+        task.name,
+        task.description,
+        task.targets,
+        task.execution.message,
+        task.execution.planModel,
+        appLanguage
+      )
+
+      if (!planningResult.success || !planningResult.plan) {
+        throw new Error(planningResult.error || 'Failed to generate plan')
+      }
+
+      logger.info(`Successfully generated AI plan for task: ${taskId}`, {
+        confidence: planningResult.plan.planningMetadata?.confidence
+      })
+
+      return {
+        success: true,
+        plan: planningResult.plan
+      }
+    } catch (error) {
+      console.error('[IPC] Task_GeneratePlan error:', error)
+      logger.error(`Failed to generate plan for task: ${taskId}`, error as Error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+
+  console.log('[IPC] Registering Task_Pause handler...')
+  ipcMain.handle(IpcChannel.Task_Pause, async (_, taskId: string) => {
+    taskSchedulerService.pauseTask(taskId)
+    return true
+  })
+
+  ipcMain.handle(IpcChannel.Task_Resume, async (_, taskId: string) => {
+    await taskSchedulerService.resumeTask(taskId)
+    return true
+  })
+
+  ipcMain.handle(IpcChannel.Task_GetExecutions, async (_, taskId: string, limit?: number) => {
+    return await taskStorageService.getExecutions(taskId, limit)
+  })
+
+  ipcMain.handle(IpcChannel.Task_SaveExecution, async (_, taskId: string, execution: TaskExecution) => {
+    // Ensure the execution has the correct taskId
+    execution.taskId = taskId
+    return await taskStorageService.addExecution(execution)
+  })
+
+  ipcMain.handle(IpcChannel.Task_AbortExecution, async (_, executionId: string) => {
+    const success = taskExecutorService.abortExecution(executionId)
+
+    if (success) {
+      // Update execution status in storage
+      await taskStorageService.updateExecution(executionId, {
+        status: 'terminated',
+        completedAt: new Date().toISOString()
+      })
+      logger.info(`Execution aborted: ${executionId}`)
+    } else {
+      logger.warn(`Execution not found for abort: ${executionId}`)
+    }
+
+    return success
+  })
+
+  // Note: Task_ExecuteTarget is handled by the renderer process through the message system
 }

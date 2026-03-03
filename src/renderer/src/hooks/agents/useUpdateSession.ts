@@ -14,6 +14,10 @@ export const useUpdateSession = (agentId: string | null) => {
   const updateSession: UpdateAgentSessionFunction = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       if (!agentId) return
+      if (!client) {
+        window.toast.error(t('apiServer.messages.notEnabled'))
+        return undefined
+      }
       const paths = client.getSessionPaths(agentId)
       const listKey = paths.base
       const sessionId = form.id

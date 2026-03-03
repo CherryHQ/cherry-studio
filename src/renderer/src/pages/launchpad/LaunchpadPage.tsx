@@ -3,7 +3,17 @@ import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import {
+  CheckSquare,
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,6 +81,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.notes'),
       path: '/notes',
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
+    },
+    {
+      icon: <CheckSquare size={32} className="icon" />,
+      text: t('tasks.title'),
+      path: '/tasks',
+      bgColor: 'linear-gradient(135deg, #3B82F6, #60A5FA)' // 任务：蓝色，代表效率和执行
     }
   ]
 

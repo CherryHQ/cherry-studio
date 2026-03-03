@@ -11,12 +11,15 @@ import { useUpdateSession } from './useUpdateSession'
 export const useSession = (agentId: string | null, sessionId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = agentId && sessionId ? client.getSessionPaths(agentId).withId(sessionId) : null
+  const key = client && agentId && sessionId ? client.getSessionPaths(agentId).withId(sessionId) : null
   const dispatch = useAppDispatch()
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : null), [sessionId])
   const { updateSession } = useUpdateSession(agentId)
 
   const fetcher = async () => {
+    if (!client) {
+      throw new Error(t('apiServer.messages.notEnabled'))
+    }
     if (!agentId) throw new Error(t('agent.get.error.null_id'))
     if (!sessionId) throw new Error(t('agent.session.get.error.null_id'))
     const data = await client.getSession(agentId, sessionId)

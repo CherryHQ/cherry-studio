@@ -21,6 +21,7 @@ import OpenClawPage from './pages/openclaw/OpenClawPage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPresetsPage'
+import TasksPage from './pages/tasks/TasksPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
 const Router: FC = () => {
@@ -39,6 +40,7 @@ const Router: FC = () => {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/apps/:appId" element={<MinAppPage />} />
           <Route path="/apps" element={<MinAppsPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
           <Route path="/code" element={<CodeToolsPage />} />
           <Route path="/openclaw" element={<OpenClawPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />

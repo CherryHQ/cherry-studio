@@ -23,13 +23,15 @@ type Result<T> =
 export const useAgents = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = client.agentPaths.base
   const { apiServerConfig, apiServerRunning } = useApiServer()
 
   // Disable SWR fetching when server is not running by setting key to null
-  const swrKey = apiServerRunning ? key : null
+  const swrKey = client && apiServerRunning ? client.agentPaths.base : null
 
   const fetcher = useCallback(async () => {
+    if (!client) {
+      throw new Error(t('apiServer.messages.notEnabled'))
+    }
     // API server will start on startup if enabled OR there are agents
     if (!apiServerConfig.enabled && !apiServerRunning) {
       throw new Error(t('apiServer.messages.notEnabled'))
@@ -49,6 +51,11 @@ export const useAgents = () => {
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
+      if (!client) {
+        const errorMessage = t('apiServer.messages.notEnabled')
+        window.toast.error(errorMessage)
+        return { success: false, error: new Error(errorMessage) }
+      }
       try {
         const result = await client.createAgent(form)
         mutate((prev) => [...(prev ?? []), result])
@@ -69,6 +76,10 @@ export const useAgents = () => {
 
   const deleteAgent = useCallback(
     async (id: string) => {
+      if (!client) {
+        window.toast.error(t('apiServer.messages.notEnabled'))
+        return
+      }
       try {
         await client.deleteAgent(id)
         dispatch(setActiveSessionIdAction({ agentId: id, sessionId: null }))
@@ -91,6 +102,9 @@ export const useAgents = () => {
 
   const getAgent = useCallback(
     async (id: string) => {
+      if (!client) {
+        return
+      }
       const result = await client.getAgent(id)
       mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
     },

@@ -21,6 +21,7 @@ import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
+  CheckSquare,
   FileSearch,
   Folder,
   Home,
@@ -99,6 +100,8 @@ const getTabIcon = (
       return <LayoutGrid size={14} />
     case 'notes':
       return <NotepadText size={14} />
+    case 'tasks':
+      return <CheckSquare size={14} />
     case 'knowledge':
       return <FileSearch size={14} />
     case 'files':
