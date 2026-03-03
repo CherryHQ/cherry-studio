@@ -40,6 +40,7 @@ import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
+import type { ProviderCapabilities } from '../types'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
@@ -88,12 +89,7 @@ export async function buildStreamTextParams(
 ): Promise<{
   params: StreamTextParams
   modelId: string
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-    enableUrlContext: boolean
-  }
+  capabilities: ProviderCapabilities
   webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools } = options
