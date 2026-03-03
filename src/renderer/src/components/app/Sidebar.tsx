@@ -14,16 +14,13 @@ import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import {
-  Code,
   FileSearch,
   Folder,
   Languages,
-  LayoutGrid,
   MessageSquare,
   Monitor,
   Moon,
   NotepadText,
-  Palette,
   Settings,
   Sparkle,
   Sun,
@@ -34,14 +31,12 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { minappShow } = useRuntime()
-  const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
 
   const { pathname } = useLocation()
@@ -55,7 +50,7 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
+  const showPinnedApps = pinned.length > 0
 
   const to = async (path: string) => {
     await modelGenerating()
@@ -92,7 +87,7 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} placement="right">
-          <Icon theme={theme} onClick={toggleTheme}>
+          <Icon $themeMode={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
             ) : settedTheme === ThemeMode.light ? (
@@ -108,7 +103,7 @@ const Sidebar: FC = () => {
               hideMinappPopup()
               await to('/settings/provider')
             }}>
-            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon $themeMode={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>
@@ -121,7 +116,7 @@ const Sidebar: FC = () => {
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { pathname } = useLocation()
-  const { sidebarIcons, defaultPaintingProvider } = useSettings()
+  const { sidebarIcons } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
@@ -132,28 +127,20 @@ const MainMenus: FC = () => {
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
     store: <Sparkle size={18} className="icon" />,
-    paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
-    minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
     files: <Folder size={18} className="icon" />,
     notes: <NotepadText size={18} className="icon" />,
-    code_tools: <Code size={18} className="icon" />,
-    openclaw: <OpenClawSidebarIcon style={{ width: 18, height: 18 }} className="icon" />,
     selection_assistant: <TextCursorInput size={18} className="icon" />
   }
 
   const pathMap = {
     assistants: '/',
     store: '/store',
-    paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
-    minapp: '/apps',
     knowledge: '/knowledge',
     files: '/files',
-    code_tools: '/code',
     notes: '/notes',
-    openclaw: '/openclaw',
     selection_assistant: '/selection'
   }
 
@@ -169,7 +156,7 @@ const MainMenus: FC = () => {
             await modelGenerating()
             navigate(path)
           }}>
-          <Icon theme={theme} className={isActive}>
+          <Icon $themeMode={theme} className={isActive}>
             {iconMap[icon]}
           </Icon>
         </StyledLink>
@@ -221,7 +208,7 @@ const Menus = styled.div`
   gap: 5px;
 `
 
-const Icon = styled.div<{ theme: string }>`
+const Icon = styled.div<{ $themeMode: string }>`
   width: 35px;
   height: 35px;
   display: flex;
@@ -235,7 +222,7 @@ const Icon = styled.div<{ theme: string }>`
     color: var(--color-icon);
   }
   &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: ${({ $themeMode }) => ($themeMode === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     opacity: 0.8;
     cursor: pointer;
     .icon {
@@ -243,7 +230,7 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
   &.active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: ${({ $themeMode }) => ($themeMode === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
     border: 0.5px solid var(--color-border);
     .icon {
       color: var(--color-primary);

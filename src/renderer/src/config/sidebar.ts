@@ -7,14 +7,10 @@ import type { SidebarIcon } from '@renderer/types'
 export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'assistants',
   'store',
-  'paintings',
   'translate',
-  'minapp',
   'knowledge',
   'files',
-  'code_tools',
   'notes',
-  'openclaw',
   'selection_assistant'
 ]
 

@@ -1641,8 +1641,8 @@ const migrateConfig = {
   },
   '107': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.dmxapi_paintings) {
-        state.paintings.dmxapi_paintings = []
+      if ((state as any).paintings && !(state as any).paintings.dmxapi_paintings) {
+        ;(state as any).paintings.dmxapi_paintings = []
       }
       return state
     } catch (error) {
@@ -1672,8 +1672,8 @@ const migrateConfig = {
   },
   '110': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.tokenflux_paintings) {
-        state.paintings.tokenflux_paintings = []
+      if ((state as any).paintings && !(state as any).paintings.tokenflux_paintings) {
+        ;(state as any).paintings.tokenflux_paintings = []
       }
       state.settings.testPlan = false
       return state
@@ -2221,9 +2221,9 @@ const migrateConfig = {
   },
   '133': (state: RootState) => {
     try {
-      state.settings.sidebarIcons.visible.push('code_tools')
-      if (state.codeTools) {
-        state.codeTools.environmentVariables = {
+      ;(state.settings.sidebarIcons.visible as any[]).push('code_tools')
+      if ((state as any).codeTools) {
+        ;(state as any).codeTools.environmentVariables = {
           'qwen-code': '',
           'claude-code': '',
           'gemini-cli': ''
@@ -2337,24 +2337,24 @@ const migrateConfig = {
   '140': (state: RootState) => {
     try {
       // @ts-ignore
-      state.paintings = {
+      ;(state as any).paintings = {
         // @ts-ignore paintings
-        siliconflow_paintings: state?.paintings?.paintings || [],
+        siliconflow_paintings: (state as any)?.paintings?.paintings || [],
         // @ts-ignore DMXAPIPaintings
-        dmxapi_paintings: state?.paintings?.DMXAPIPaintings || [],
+        dmxapi_paintings: (state as any)?.paintings?.DMXAPIPaintings || [],
         // @ts-ignore tokenFluxPaintings
-        tokenflux_paintings: state?.paintings?.tokenFluxPaintings || [],
+        tokenflux_paintings: (state as any)?.paintings?.tokenFluxPaintings || [],
         zhipu_paintings: [],
         // @ts-ignore generate
-        aihubmix_image_generate: state?.paintings?.generate || [],
+        aihubmix_image_generate: (state as any)?.paintings?.generate || [],
         // @ts-ignore remix
-        aihubmix_image_remix: state?.paintings?.remix || [],
+        aihubmix_image_remix: (state as any)?.paintings?.remix || [],
         // @ts-ignore edit
-        aihubmix_image_edit: state?.paintings?.edit || [],
+        aihubmix_image_edit: (state as any)?.paintings?.edit || [],
         // @ts-ignore upscale
-        aihubmix_image_upscale: state?.paintings?.upscale || [],
-        openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        aihubmix_image_upscale: (state as any)?.paintings?.upscale || [],
+        openai_image_generate: (state as any)?.paintings?.openai_image_generate || [],
+        openai_image_edit: (state as any)?.paintings?.openai_image_edit || [],
         ovms_paintings: []
       }
 
@@ -2727,8 +2727,8 @@ const migrateConfig = {
 
       // Add ovocr provider and clear ovms paintings
       addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
-      if (isEmpty(state.paintings.ovms_paintings)) {
-        state.paintings.ovms_paintings = []
+      if (isEmpty((state as any).paintings.ovms_paintings)) {
+        ;(state as any).paintings.ovms_paintings = []
       }
 
       // Migrate agents to assistants presets
@@ -3197,8 +3197,8 @@ const migrateConfig = {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'openclaw' to visible icons if not already present
-        if (!state.settings.sidebarIcons.visible.includes('openclaw')) {
-          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw']
+        if (!(state.settings.sidebarIcons.visible as any[]).includes('openclaw')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'openclaw' as any]
         }
       }
       logger.info('migrate 195 success')
@@ -3210,11 +3210,11 @@ const migrateConfig = {
   },
   '196': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.ppio_draw) {
-        state.paintings.ppio_draw = []
+      if ((state as any).paintings && !(state as any).paintings.ppio_draw) {
+        ;(state as any).paintings.ppio_draw = []
       }
-      if (state.paintings && !state.paintings.ppio_edit) {
-        state.paintings.ppio_edit = []
+      if ((state as any).paintings && !(state as any).paintings.ppio_edit) {
+        ;(state as any).paintings.ppio_edit = []
       }
       return state
     } catch (error) {
@@ -3224,8 +3224,8 @@ const migrateConfig = {
   },
   '197': (state: RootState) => {
     try {
-      if (state.openclaw.gatewayPort === 18789) {
-        state.openclaw.gatewayPort = 18790
+      if ((state as any).openclaw.gatewayPort === 18789) {
+        ;(state as any).openclaw.gatewayPort = 18790
       }
       return state
     } catch (error) {
@@ -3267,6 +3267,23 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
+      return state
+    }
+  },
+  '201': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        const removedIcons = ['paintings', 'code_tools', 'openclaw', 'minapp']
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
+          (icon: string) => !removedIcons.includes(icon)
+        )
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.filter(
+          (icon: string) => !removedIcons.includes(icon)
+        )
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 201 error', error as Error)
       return state
     }
   }

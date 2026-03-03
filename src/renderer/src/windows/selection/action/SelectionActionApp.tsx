@@ -1,3 +1,4 @@
+import CopyButton from '@renderer/components/CopyButton'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -10,6 +11,7 @@ import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC, MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,6 +27,7 @@ const SelectionActionApp: FC = () => {
   const { t } = useTranslation()
 
   const [action, setAction] = useState<ActionItem | null>(null)
+  const [contentToCopy, setContentToCopy] = useState('')
   const isActionLoaded = useRef(false)
 
   const { isAutoClose, isAutoPin, actionWindowOpacity } = useSelectionAssistant()
@@ -44,6 +47,7 @@ const SelectionActionApp: FC = () => {
       IpcChannel.Selection_UpdateActionData,
       (_, actionItem: ActionItem) => {
         setAction(actionItem)
+        setContentToCopy('')
         isActionLoaded.current = true
       }
     )
@@ -163,6 +167,16 @@ const SelectionActionApp: FC = () => {
       })
     }
   }, [])
+
+  const handleCopy = useCallback(() => {
+    if (!contentToCopy) return
+    navigator.clipboard
+      .writeText(contentToCopy)
+      .then(() => window.toast.success(t('message.copy.success')))
+      .catch(() => window.toast.error(t('message.copy.failed')))
+  }, [contentToCopy, t])
+
+  useHotkeys('c', handleCopy)
 
   const handleUserScroll = () => {
     if (!contentElementRef.current) return
@@ -301,10 +315,30 @@ const SelectionActionApp: FC = () => {
         </TitleBarButtons>
       </TitleBar>
       <MainContainer>
-        <Content ref={contentElementRef}>
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
-        </Content>
+        <ContentWrapper>
+          {contentToCopy && (
+            <FloatingCopyIcon>
+              <CopyButton
+                textToCopy={contentToCopy}
+                size={14}
+                color="var(--color-text-3)"
+                hoverColor="var(--color-primary)"
+              />
+            </FloatingCopyIcon>
+          )}
+          <Content ref={contentElementRef}>
+            {action.id == 'translate' && (
+              <ActionTranslate
+                action={action}
+                scrollToBottom={handleScrollToBottom}
+                onContentReady={setContentToCopy}
+              />
+            )}
+            {action.id != 'translate' && (
+              <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} onContentReady={setContentToCopy} />
+            )}
+          </Content>
+        </ContentWrapper>
       </MainContainer>
     </WindowFrame>
   )
@@ -429,6 +463,51 @@ const MainContainer = styled.div`
   overflow: auto;
 `
 
+const ContentWrapper = styled.div`
+  position: relative;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  overflow: hidden;
+`
+
+const FloatingCopyIcon = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: var(--color-background);
+  border: 0.5px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  .copy-icon {
+    color: var(--color-text-3) !important;
+    transition: color 0.2s ease;
+  }
+
+  &:hover {
+    background-color: var(--color-background-mute);
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+
+    .copy-icon {
+      color: var(--color-primary) !important;
+    }
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+`
+
 const Content = styled.div`
   display: flex;
   flex-direction: column;
@@ -438,8 +517,6 @@ const Content = styled.div`
   font-size: 14px;
   -webkit-app-region: none;
   user-select: text;
-  /* width: 100%; */
-  max-width: 1280px;
 `
 
 const OpacitySlider = styled.div`

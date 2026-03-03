@@ -1,29 +1,22 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { CircleX, Copy, Pause } from 'lucide-react'
+import { CircleX, Pause } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface FooterProps {
-  content?: string
   loading?: boolean
   onPause?: () => void
   onRegenerate?: () => void
 }
 
-const WindowFooter: FC<FooterProps> = ({
-  content = '',
-  loading = false,
-  onPause = undefined,
-  onRegenerate = undefined
-}) => {
+const WindowFooter: FC<FooterProps> = ({ loading = false, onPause = undefined, onRegenerate = undefined }) => {
   const { t } = useTranslation()
 
   const [isWindowFocus, setIsWindowFocus] = useState(true)
-  const [isCopyHovered, setIsCopyHovered] = useState(false)
   const [isEscHovered, setIsEscHovered] = useState(false)
   const [isRegenerateHovered, setIsRegenerateHovered] = useState(false)
   const [isContainerHovered, setIsContainerHovered] = useState(false)
@@ -68,11 +61,6 @@ const WindowFooter: FC<FooterProps> = ({
       hideTimerRef.current = null
     }, 2000)
   }
-
-  useHotkeys('c', () => {
-    showMePeriod()
-    handleCopy()
-  })
 
   useHotkeys('r', () => {
     showMePeriod()
@@ -127,27 +115,6 @@ const WindowFooter: FC<FooterProps> = ({
     }
   }
 
-  const handleCopy = () => {
-    if (!content || loading) return
-
-    navigator.clipboard
-      .writeText(content)
-      .then(() => {
-        window.toast.success(t('message.copy.success'))
-        setIsCopyHovered(true)
-        setTimeoutTimer(
-          'handleCopy',
-          () => {
-            setIsCopyHovered(false)
-          },
-          200
-        )
-      })
-      .catch(() => {
-        window.toast.error(t('message.copy.failed'))
-      })
-  }
-
   const handleWindowFocus = () => {
     setIsWindowFocus(true)
   }
@@ -189,10 +156,6 @@ const WindowFooter: FC<FooterProps> = ({
             {t('selection.action.window.r_regenerate')}
           </OpButton>
         )}
-        <OpButton onClick={handleCopy} $isWindowFocus={isWindowFocus && !!content} data-hovered={isCopyHovered}>
-          <Copy size={14} className="btn-icon" />
-          {t('selection.action.window.c_copy')}
-        </OpButton>
       </OpButtonWrapper>
     </Container>
   )

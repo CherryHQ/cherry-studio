@@ -62,6 +62,8 @@ export default defineConfig([
       '.yarn/**',
       '.gitignore',
       '.conductor/**',
+      '.claude/**',
+      '.agents/**',
       'scripts/cloudflare-worker.js',
       'src/main/integration/nutstore/sso/lib/**',
       'src/main/integration/cherryai/index.js',

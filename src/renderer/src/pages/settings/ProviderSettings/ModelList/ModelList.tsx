@@ -8,7 +8,6 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
 import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/AddModelPopup'
-import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
@@ -103,11 +102,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [provider, t])
 
-  const onDownloadModel = useCallback(
-    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
-    [provider, t]
-  )
-
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
 
   return (
@@ -182,15 +176,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
           {t('button.manage')}
         </Button>
-        {provider.id !== 'ovms' ? (
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-            {t('button.add')}
-          </Button>
-        ) : (
-          <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
-            {t('button.download')}
-          </Button>
-        )}
+        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          {t('button.add')}
+        </Button>
       </Flex>
     </>
   )

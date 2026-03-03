@@ -41,7 +41,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { userName, sidebarIcons } = useSettings()
+  const { userName } = useSettings()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
   const { agent } = useAgent(activeAgentId)
@@ -74,7 +74,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
-  const showMinappIcon = sidebarIcons.visible.includes('minapp')
+  const showMinappIcon = false
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])

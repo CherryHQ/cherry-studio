@@ -3,7 +3,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
-import type { GitBashPathInfo, TerminalConfig, UpgradeChannel } from '@shared/config/constant'
+import type { GitBashPathInfo, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
   FileChangeEvent,
@@ -12,7 +12,6 @@ import type {
   LanHandshakeAckMessage,
   LocalTransferConnectPayload,
   LocalTransferState,
-  NodeCheckResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -33,7 +32,6 @@ import type {
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
-  Model,
   OcrProvider,
   OcrResult,
   Provider,
@@ -64,23 +62,6 @@ import type {
   WritePluginContentOptions
 } from '../renderer/src/types/plugin'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
-
-// OpenClaw types
-type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
-
-interface OpenClawHealthInfo {
-  status: 'healthy' | 'unhealthy'
-  gatewayPort: number
-  uptime?: number
-  version?: string
-}
-
-interface OpenClawChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
-}
 
 type DirectoryListOptions = {
   recursive?: boolean
@@ -366,17 +347,6 @@ const api = {
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
   },
-  ovms: {
-    isSupported: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Ovms_IsSupported),
-    addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
-      ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
-    stopAddModel: () => ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
-    getModels: () => ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
-    isRunning: () => ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
-    getStatus: () => ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
-    runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
-    stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
-  },
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
@@ -461,7 +431,6 @@ const api = {
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
   installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
-  installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
@@ -573,23 +542,6 @@ const api = {
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
   },
-  codeTools: {
-    run: (
-      cliTool: string,
-      model: string,
-      directory: string,
-      env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
-    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
-    setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
-    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
-    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
-  },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
@@ -671,30 +623,6 @@ const api = {
     sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
       ipcRenderer.invoke(IpcChannel.LocalTransfer_SendFile, { filePath }),
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
-  },
-  openclaw: {
-    checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    checkNodeVersion: (): Promise<NodeCheckResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
-    checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
-    getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
-    getGitDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetGitDownloadUrl),
-    install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
-    uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
-    startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
-    stopGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
-    restartGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_RestartGateway),
-    getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
-    checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
-    getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
-    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
