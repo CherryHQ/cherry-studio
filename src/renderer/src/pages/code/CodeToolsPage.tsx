@@ -476,35 +476,35 @@ const CodeToolsPage: FC = () => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
                     return label.toLowerCase().includes(input.toLowerCase())
                   }}
-                  options={directories.map((dir) => ({
-                    value: dir,
-                    label: (
-                      <div
+                  options={directories.map((dir) => ({ value: dir, label: dir }))}
+                  optionRender={(option) => (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                      <span
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
                         }}>
-                        <span
-                          style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                          {dir}
-                        </span>
-                        <X
-                          size={14}
-                          style={{
-                            marginLeft: 8,
-                            cursor: 'pointer',
-                            color: '#999'
-                          }}
-                          onClick={(e) => handleRemoveDirectory(dir, e)}
-                        />
-                      </div>
-                    )
-                  }))}
+                        {option.value}
+                      </span>
+                      <X
+                        size={14}
+                        style={{
+                          marginLeft: 8,
+                          cursor: 'pointer',
+                          color: '#999'
+                        }}
+                        onClick={(e) => handleRemoveDirectory(option.value as string, e)}
+                      />
+                    </div>
+                  )}
                 />
                 <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}
