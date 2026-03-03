@@ -317,7 +317,7 @@ class OpenClawService {
               }
             })
           } else {
-            logger.error(`OpenClaw install failed with exit code ${code}`)
+            logger.error(`OpenClaw install failed with exit code ${code}`, { stderr: stderr.trim() })
             this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
             resolve({
               success: false,
@@ -454,7 +454,7 @@ class OpenClawService {
             this.sendInstallProgress('OpenClaw uninstalled successfully!')
             resolve({ success: true })
           } else {
-            logger.error(`OpenClaw uninstall failed with code ${code}`)
+            logger.error(`OpenClaw uninstall failed with code ${code}`, { stderr: stderr.trim() })
 
             // Detect EACCES permission error and retry with sudo
             if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
