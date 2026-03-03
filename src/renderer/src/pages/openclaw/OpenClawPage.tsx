@@ -77,7 +77,7 @@ const OpenClawPage: FC = () => {
     return DEFAULT_DOCS_URL
   }, [i18n.language])
 
-  const { gatewayStatus, gatewayPort, selectedModelUniqId } = useAppSelector((state) => state.openclaw)
+  const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
@@ -429,27 +429,11 @@ const OpenClawPage: FC = () => {
         className="flex items-center justify-between px-3 py-2 font-medium text-[13px]"
         style={{ background: 'var(--color-background-mute)' }}>
         <span>{t(expanded ? 'openclaw.uninstall_progress' : 'openclaw.install_progress')}</span>
-        <Space size={4}>
-          <Button
-            size="small"
-            type="text"
-            icon={<CopyIcon className="size-3!" />}
-            onClick={async () => {
-              const text = installLogs.map((l) => l.message).join('\n')
-              try {
-                await navigator.clipboard.writeText(text)
-                window.toast.success(t('common.copied'))
-              } catch {
-                window.toast.error(t('common.copy_failed'))
-              }
-            }}
-          />
-          {!expanded && (
-            <Button size="small" type="text" onClick={() => setShowLogs(false)}>
-              {t('common.close')}
-            </Button>
-          )}
-        </Space>
+        {!expanded && (
+          <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+            {t('common.close')}
+          </Button>
+        )}
       </div>
       <div className={`overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed ${expanded ? 'h-75' : 'h-37.5'}`}>
         {installLogs.map((log, index) => (
@@ -585,7 +569,6 @@ const OpenClawPage: FC = () => {
             closable
             onClose={() => setInstallError(null)}
             style={{ marginBottom: 16 }}
-            className="select-text"
           />
         )}
 
@@ -647,6 +630,11 @@ const OpenClawPage: FC = () => {
               <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
                 {t('openclaw.status.running')}
               </span>
+              {lastHealthCheck?.version && (
+                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
+                  v{lastHealthCheck.version}
+                </span>
+              )}
               <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
                 :{gatewayPort}
               </span>
@@ -678,13 +666,7 @@ const OpenClawPage: FC = () => {
         {/* Error Alert */}
         {error && (
           <div className="mb-6">
-            <Alert
-              message={error}
-              type="error"
-              closable
-              onClose={() => setError(null)}
-              className="select-text rounded-lg!"
-            />
+            <Alert message={error} type="error" closable onClose={() => setError(null)} className="rounded-lg!" />
           </div>
         )}
 
@@ -770,7 +752,7 @@ const OpenClawPage: FC = () => {
               type="error"
               closable
               onClose={() => setInstallError(null)}
-              className="select-text rounded-lg!"
+              className="rounded-lg!"
             />
           </div>
         )}

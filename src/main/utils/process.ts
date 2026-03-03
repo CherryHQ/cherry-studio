@@ -241,11 +241,12 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   try {
     // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
     // We then filter by allowed extensions below for security and precision
-    const result = execFileSync('where.exe', [name], {
-      encoding: 'utf8',
+    const resultBuf = execFileSync('where.exe', [name], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: options?.env
     })
+    // where.exe output is file paths (ASCII-safe), decode as utf8
+    const result = resultBuf.toString('utf8')
 
     // Handle both Windows (\r\n) and Unix (\n) line endings
     const paths = result.trim().split(/\r?\n/).filter(Boolean)
@@ -279,8 +280,11 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     }
 
     return null
-  } catch (error) {
-    logger.debug(`where.exe ${name} failed`, { error })
+  } catch (error: unknown) {
+    // On Chinese Windows, where.exe stderr is GBK-encoded and gets garbled as UTF-8.
+    // Log only the exit code to avoid mojibake in logs.
+    const code = error instanceof Error && 'status' in error ? (error as { status: unknown }).status : undefined
+    logger.debug(`where.exe ${name} not found (exit code ${code})`)
     return null
   }
 }
@@ -355,13 +359,12 @@ export function findViaMise(name: string, env: Record<string, string>): string |
  */
 function findMiseExecutable(env: Record<string, string>): string | null {
   try {
-    const result = execFileSync('where.exe', ['mise'], {
-      encoding: 'utf8',
+    const resultBuf = execFileSync('where.exe', ['mise'], {
       timeout: MISE_TIMEOUT_MS,
       stdio: ['pipe', 'pipe', 'pipe'],
       env
     })
-    const firstLine = result.trim().split(/\r?\n/)[0]?.trim()
+    const firstLine = resultBuf.toString('utf8').trim().split(/\r?\n/)[0]?.trim()
     if (firstLine && firstLine.toLowerCase().endsWith('.exe')) {
       return firstLine
     }
