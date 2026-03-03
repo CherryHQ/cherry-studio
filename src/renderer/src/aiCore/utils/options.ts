@@ -502,13 +502,16 @@ function buildOllamaProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
+  let options = {}
 
   if (enableReasoning) {
-    return { ollama: getOllamaReasoningParams(assistant, model) }
+    options = {
+      ...options,
+      ...getOllamaReasoningParams(assistant, model)
+    }
   }
 
-  // Explicitly disable thinking when reasoning is turned off (fixes Issue #11612)
-  return { ollama: { think: false } }
+  return { ollama: options }
 }
 
 /**
