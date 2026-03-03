@@ -570,7 +570,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    */
   useEffect(() => {
     if (role !== 'manager') return
-    if (!hasAttemptedLoadRef.current && fileList.length === 0 && !isLoading && plugins.length === 0) {
+    if (!hasAttemptedLoadRef.current && fileList.length === 0 && !isLoading) {
       return
     }
     if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {

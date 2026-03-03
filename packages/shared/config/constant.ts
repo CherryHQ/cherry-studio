@@ -1,4 +1,4 @@
-import { languages } from './languages'
+import { codeLanguages } from './code-languages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
@@ -17,7 +17,7 @@ export const API_SERVER_DEFAULTS = {
  * This is the primary source for identifying code files.
  */
 const linguistExtSet = new Set<string>()
-for (const lang of Object.values(languages)) {
+for (const lang of Object.values(codeLanguages)) {
   if (lang.extensions) {
     for (const ext of lang.extensions) {
       linguistExtSet.add(ext)

@@ -140,28 +140,33 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.17 - New Features & Bug Fixes
-
-    ✨ New Features
-    - [Agent] Add "Open in Editor" button to agent workspace, supporting VS Code, Cursor, and Zed
-    - [Tools] Add OpenCode CLI tool support
+    Cherry Studio 1.7.22 - Bug Fixes & Improvements
 
     🐛 Bug Fixes
-    - [Agent] Fix tool output display showing blank content during streaming
-    - [Models] Fix Kimi K2.5 model parameter error
-    - [Models] Fix reasoning parameter handling for Together AI and DashScope Kimi models
-    - [macOS] Fix npm detection when app launched from Dock/Finder
+    - [Models] Fix qwen3.5-flash thinking budget configuration by correcting regex typo
+    - [Ollama] Fix reasoning order in stream responses
+    - [Notes] Fix export failure when restoring from cloud backup without opening Notes page first
+    - [Chat] Abort translation API call when closing message translation
+    - [Chat] Disable translate button when message sending is disabled
+    - [Agent] Clear attached files after sending message in agent session input bar
+    - [Export] Filter hidden elements when exporting messages as images
+    - [Settings] Remove extra divider in settings page
 
+    🔒 Security
+    - [MCP] Upgrade @modelcontextprotocol/sdk to 1.27.1 to fix security vulnerability (GHSA-8r9q-7v3j-jr4g)
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.17 - 新功能与问题修复
-
-    ✨ 新功能
-    - [智能体] 新增"在编辑器中打开"按钮，支持 VS Code、Cursor、Zed
-    - [工具] 新增 OpenCode CLI 工具支持
+    Cherry Studio 1.7.22 - 问题修复与改进
 
     🐛 问题修复
-    - [智能体] 修复工具流式输出时内容显示为空的问题
-    - [模型] 修复 Kimi K2.5 模型参数错误
-    - [模型] 修复 Together AI 和 DashScope Kimi 推理模型的参数处理
-    - [macOS] 修复从 Dock/Finder 启动时 npm 检测失败的问题
+    - [模型] 修复 qwen3.5-flash thinking budget 配置，更正正则表达式拼写错误
+    - [Ollama] 修复流式响应中推理内容的排序问题
+    - [笔记] 修复从云端恢复备份后，未打开笔记页面时导出笔记失败的问题
+    - [聊天] 关闭消息翻译时中止 API 调用
+    - [聊天] 消息发送禁用时禁用翻译按钮
+    - [Agent] 修复 Agent 会话发送消息后附件未清除的问题
+    - [导出] 导出消息为图片时过滤隐藏元素
+    - [设置] 移除设置页面多余的分隔线
+
+    🔒 安全更新
+    - [MCP] 升级 @modelcontextprotocol/sdk 至 1.27.1 修复安全漏洞 (GHSA-8r9q-7v3j-jr4g)
     <!--LANG:END-->

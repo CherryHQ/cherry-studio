@@ -38,7 +38,10 @@ const initialState: PaintingsState = {
   openai_image_generate: [],
   openai_image_edit: [],
   // OVMS
-  ovms_paintings: []
+  ovms_paintings: [],
+  // PPIO
+  ppio_draw: [],
+  ppio_edit: []
 }
 
 const paintingsSlice = createSlice({

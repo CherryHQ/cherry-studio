@@ -21,7 +21,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AgentMessageDataSource } from './AgentMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
 import type { MessageDataSource } from './types'
-import { isAgentSessionTopicId } from './types'
+import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
 
 const logger = loggerService.withContext('DbService')
 
@@ -63,6 +63,25 @@ class DbService implements MessageDataSource {
 
     logger.silly(`Using DexieMessageDataSource for topic ${topicId}`)
     return this.dexieSource
+  }
+
+  /**
+   * Resolve topicId for a message
+   */
+  private resolveMessageTopicId(messageId: string): string | undefined {
+    const state = store.getState()
+
+    const parentMessage = state.messages.entities[messageId]
+    if (parentMessage) {
+      return parentMessage.topicId
+    }
+
+    const agentInfo = this.agentSource.getStreamingCacheInfo(messageId)
+    if (agentInfo) {
+      return buildAgentSessionTopicId(agentInfo.sessionId)
+    }
+
+    return undefined
   }
 
   // ============ Read Operations ============
@@ -115,16 +134,18 @@ class DbService implements MessageDataSource {
       return
     }
 
-    const state = store.getState()
-
     const agentBlocks: MessageBlock[] = []
     const regularBlocks: MessageBlock[] = []
 
     for (const block of blocks) {
-      const parentMessage = state.messages.entities[block.messageId]
-      if (parentMessage && isAgentSessionTopicId(parentMessage.topicId)) {
+      const topicId = this.resolveMessageTopicId(block.messageId)
+
+      if (topicId && isAgentSessionTopicId(topicId)) {
         agentBlocks.push(block)
       } else {
+        if (!topicId) {
+          logger.warn(`Unable to resolve topicId for block ${block.id}, defaulting to Dexie`)
+        }
         regularBlocks.push(block)
       }
     }
@@ -169,39 +190,37 @@ class DbService implements MessageDataSource {
   }
 
   async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
-    // For single block operations, default to Dexie since agent blocks are immutable
-    if (this.dexieSource.updateSingleBlock) {
+    const state = store.getState()
+    const existingBlock = state.messageBlocks.entities[blockId]
+
+    if (!existingBlock) {
+      logger.warn(`Block ${blockId} not found in state, defaulting to Dexie`)
       return this.dexieSource.updateSingleBlock(blockId, updates)
     }
-    // Fallback to updateBlocks with single item
-    return this.dexieSource.updateBlocks([{ ...updates, id: blockId } as MessageBlock])
+
+    const topicId = this.resolveMessageTopicId(existingBlock.messageId)
+
+    if (topicId && isAgentSessionTopicId(topicId)) {
+      return this.agentSource.updateSingleBlock(blockId, updates)
+    }
+
+    // Default to Dexie for regular blocks
+    return this.dexieSource.updateSingleBlock(blockId, updates)
   }
 
   async bulkAddBlocks(blocks: MessageBlock[]): Promise<void> {
     // For bulk add operations, default to Dexie since agent blocks use persistExchange
-    if (this.dexieSource.bulkAddBlocks) {
-      return this.dexieSource.bulkAddBlocks(blocks)
-    }
-    // Fallback to updateBlocks
-    return this.dexieSource.updateBlocks(blocks)
+    return this.dexieSource.bulkAddBlocks(blocks)
   }
 
   async updateFileCount(fileId: string, delta: number, deleteIfZero: boolean = false): Promise<void> {
     // File operations only apply to Dexie source
-    if (this.dexieSource.updateFileCount) {
-      return this.dexieSource.updateFileCount(fileId, delta, deleteIfZero)
-    }
-    // No-op if not supported
-    logger.warn(`updateFileCount not supported for file ${fileId}`)
+    return this.dexieSource.updateFileCount(fileId, delta, deleteIfZero)
   }
 
   async updateFileCounts(files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // File operations only apply to Dexie source
-    if (this.dexieSource.updateFileCounts) {
-      return this.dexieSource.updateFileCounts(files)
-    }
-    // No-op if not supported
-    logger.warn(`updateFileCounts not supported`)
+    return this.dexieSource.updateFileCounts(files)
   }
 
   // ============ Utility Methods ============

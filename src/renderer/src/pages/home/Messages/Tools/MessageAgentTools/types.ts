@@ -1,4 +1,5 @@
 import type { CollapseProps } from 'antd'
+import * as z from 'zod'
 
 export enum AgentToolsType {
   Skill = 'Skill',
@@ -16,7 +17,8 @@ export enum AgentToolsType {
   MultiEdit = 'MultiEdit',
   BashOutput = 'BashOutput',
   NotebookEdit = 'NotebookEdit',
-  ExitPlanMode = 'ExitPlanMode'
+  ExitPlanMode = 'ExitPlanMode',
+  AskUserQuestion = 'AskUserQuestion'
 }
 
 export type TextOutput = {
@@ -325,6 +327,48 @@ export type ExitPlanModeToolInput = {
 }
 export type ExitPlanModeToolOutput = string
 
+// AskUserQuestion 工具的类型定义 (使用 Zod)
+export const AskUserQuestionOptionSchema = z.object({
+  /** The display text for this option */
+  label: z.string(),
+  /** Explanation of what this option means */
+  description: z.string().optional()
+})
+
+export const AskUserQuestionItemSchema = z.object({
+  /** The complete question to ask the user */
+  question: z.string(),
+  /** Very short label displayed as a chip/tag (max 12 chars) */
+  header: z.string(),
+  /** The available choices for this question (2-4 options) */
+  options: z.array(AskUserQuestionOptionSchema),
+  /** Set to true to allow multiple selections */
+  multiSelect: z.boolean()
+})
+
+export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
+
+export const AskUserQuestionToolInputSchema = z.object({
+  /** Questions to ask the user (1-4 questions) */
+  questions: z.array(AskUserQuestionItemSchema),
+  answers: AskUserQuestionAnswerSchema.optional()
+})
+
+// 从 Zod schema 推断类型
+export type AskUserQuestionOption = z.infer<typeof AskUserQuestionOptionSchema>
+export type AskUserQuestionItem = z.infer<typeof AskUserQuestionItemSchema>
+export type AskUserQuestionToolInput = z.infer<typeof AskUserQuestionToolInputSchema>
+export type AskUserQuestionAnswer = z.infer<typeof AskUserQuestionAnswerSchema>
+
+/**
+ * Safely parse AskUserQuestionToolInput from unknown data.
+ * Returns undefined if the data doesn't match the expected structure.
+ */
+export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
+  const result = AskUserQuestionToolInputSchema.safeParse(value)
+  return result.success ? result.data : undefined
+}
+
 // ListMcpResourcesToolInput
 export type ListMcpResourcesToolInput = {
   /**
@@ -368,6 +412,7 @@ export type ToolInput =
   | ExitPlanModeToolInput
   | ListMcpResourcesToolInput
   | ReadMcpResourceToolInput
+  | AskUserQuestionToolInput
 
 export type ToolOutput =
   | ReadToolOutput

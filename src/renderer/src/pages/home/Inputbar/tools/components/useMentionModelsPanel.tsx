@@ -6,8 +6,8 @@ import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { FileType, Model } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileMetadata, Model } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -27,7 +27,7 @@ interface Params {
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   couldMentionNotVisionModel: boolean
-  files: FileType[]
+  files: FileMetadata[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
@@ -100,7 +100,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
   const onMentionModel = useCallback(
     (model: Model) => {
-      const allowNonVision = !files.some((file) => file.type === FileTypes.IMAGE)
+      const allowNonVision = !files.some((file) => file.type === FILE_TYPE.IMAGE)
       if (isVisionModel(model) || allowNonVision) {
         setMentionedModels((prev) => {
           const modelId = getModelUniqId(model)

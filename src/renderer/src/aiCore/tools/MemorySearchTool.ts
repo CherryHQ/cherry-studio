@@ -11,7 +11,6 @@ import { MemoryProcessor } from '../../services/MemoryProcessor'
  */
 export const memorySearchTool = () => {
   return tool({
-    name: 'builtin_memory_search',
     description: 'Search through conversation memories and stored facts for relevant context',
     inputSchema: z.object({
       query: z.string().describe('Search query to find relevant memories'),
