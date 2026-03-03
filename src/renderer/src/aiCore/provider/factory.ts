@@ -57,7 +57,6 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 /**
  * 获取AI SDK Provider ID
  * 简化版：减少重复逻辑，利用通用解析函数
- * TODO: 整理函数逻辑
  */
 export function getAiSdkProviderId(provider: Provider): string {
   // 1. Azure requires special handling: pick responses vs chat variant based on API version

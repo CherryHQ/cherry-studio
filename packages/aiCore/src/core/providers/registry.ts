@@ -4,10 +4,8 @@
  * 集成了来自 ModelCreator 的特殊处理逻辑
  */
 
-import { customProvider } from 'ai'
-
 import { globalRegistryManagement } from './RegistryManagement'
-import { baseProviders, type ProviderConfig } from './schemas'
+import { baseProviders, type ProviderConfig, wrapAsChatProvider } from './schemas'
 
 /**
  * Provider 初始化错误类型
@@ -180,13 +178,7 @@ export function registerProvider(providerId: string, provider: any): boolean {
     // (AI SDK v6 defaults languageModel to Responses API for these providers)
     const providersNeedingChatVariant = ['openai', 'azure']
     if (providersNeedingChatVariant.includes(providerId)) {
-      const chatVariant = customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.chat(modelId)
-        }
-      })
-      globalRegistryManagement.registerProvider(`${providerId}-chat`, chatVariant)
+      globalRegistryManagement.registerProvider(`${providerId}-chat`, wrapAsChatProvider(provider))
     }
 
     return true

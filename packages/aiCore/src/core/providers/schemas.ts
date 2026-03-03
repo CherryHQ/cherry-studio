@@ -17,20 +17,25 @@ import { customProvider, wrapProvider } from 'ai'
 import * as z from 'zod'
 
 /**
- * Creates a chat-only variant of a provider.
- * Wraps the base creator so that languageModel() routes through provider.chat(),
+ * Wraps a provider instance so that languageModel() routes through provider.chat(),
  * forcing the Chat Completions API instead of the default Responses API.
  */
+export function wrapAsChatProvider(provider: ProviderV3): ProviderV3 {
+  return customProvider({
+    fallbackProvider: {
+      ...provider,
+      // ProviderV3 doesn't declare .chat(), but concrete providers (OpenAI, Azure, CherryIn) expose it at runtime
+      languageModel: (modelId: string) => (provider as any).chat(modelId)
+    }
+  })
+}
+
+/**
+ * Creates a chat-only variant of a provider creator.
+ * Wraps the base creator so that languageModel() routes through provider.chat().
+ */
 function createChatVariant<T>(baseCreator: (options: T) => ProviderV3): (options: T) => ProviderV3 {
-  return (options: T) => {
-    const provider = baseCreator(options)
-    return customProvider({
-      fallbackProvider: {
-        ...provider,
-        languageModel: (modelId: string) => (provider as any).chat(modelId)
-      }
-    })
-  }
+  return (options: T) => wrapAsChatProvider(baseCreator(options))
 }
 
 /**
