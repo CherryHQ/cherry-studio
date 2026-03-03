@@ -7,7 +7,6 @@ import {
   Brain,
   Cloud,
   Command,
-  FileCode,
   HardDrive,
   Info,
   MonitorCog,
@@ -26,7 +25,6 @@ import styled from 'styled-components'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
-import DocProcessSettings from './DocProcessSettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
@@ -106,12 +104,6 @@ const SettingsPage: FC = () => {
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/docprocess">
-            <MenuItem className={isRoute('/settings/docprocess')}>
-              <FileCode size={18} />
-              {t('settings.tool.preprocess.title')}
-            </MenuItem>
-          </MenuItemLink>
           <MenuItemLink to="/settings/quickphrase">
             <MenuItem className={isRoute('/settings/quickphrase')}>
               <Zap size={18} />
@@ -145,7 +137,6 @@ const SettingsPage: FC = () => {
             <Route path="model" element={<ModelSettings />} />
             <Route path="websearch/*" element={<WebSearchSettings />} />
             <Route path="api-server" element={<ApiServerSettings />} />
-            <Route path="docprocess" element={<DocProcessSettings />} />
             <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
             <Route path="memory" element={<MemorySettings />} />

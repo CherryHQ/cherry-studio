@@ -6,7 +6,6 @@ import { BuiltinMCPServerNames } from '@types'
 import BraveSearchServer from './brave-search'
 import BrowserServer from './browser'
 import DiDiMcpServer from './didi-mcp'
-import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
 import HubServer from './hub'
@@ -38,10 +37,6 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.filesystem: {
       return new FileSystemServer(envs.WORKSPACE_ROOT).server
-    }
-    case BuiltinMCPServerNames.difyKnowledge: {
-      const difyKey = envs.DIFY_KEY
-      return new DifyKnowledgeServer(difyKey, args).server
     }
     case BuiltinMCPServerNames.python: {
       return new PythonServer().server

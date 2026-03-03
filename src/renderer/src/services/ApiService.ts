@@ -38,7 +38,6 @@ import {
   getQuickModel
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
-import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
@@ -161,16 +160,6 @@ export async function transformMessagesAndFetch(
 
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
-
-    // inject knowledge search prompt into model messages
-    await injectUserMessageWithKnowledgeSearchPrompt({
-      modelMessages,
-      assistant,
-      assistantMsgId: request.assistantMsgId,
-      topicId: request.topicId,
-      blockManager: request.blockManager,
-      setCitationBlockId: request.callbacks.setCitationBlockId!
-    })
 
     await fetchChatCompletion({
       messages: modelMessages,

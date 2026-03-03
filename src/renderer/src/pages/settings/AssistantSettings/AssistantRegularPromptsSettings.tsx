@@ -1,7 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
+import FileItem from '@renderer/components/FileItem'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import FileItem from '@renderer/pages/files/FileItem'
 import type { Assistant, QuickPhrase } from '@renderer/types'
 import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'

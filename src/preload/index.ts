@@ -25,22 +25,16 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
-  KnowledgeBaseParams,
-  KnowledgeItem,
-  KnowledgeSearchResult,
   MCPServer,
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
-  OcrProvider,
-  OcrResult,
   Provider,
   RestartApiServerStatusResult,
   S3Config,
   Shortcut,
   StartApiServerStatusResult,
   StopApiServerStatusResult,
-  SupportedOcrFile,
   ThemeMode,
   WebDavConfig
 } from '@types'
@@ -279,31 +273,6 @@ const api = {
   shortcuts: {
     update: (shortcuts: Shortcut[]) => ipcRenderer.invoke(IpcChannel.Shortcuts_Update, shortcuts)
   },
-  knowledgeBase: {
-    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
-    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
-    add: ({
-      base,
-      item,
-      userId,
-      forceReload = false
-    }: {
-      base: KnowledgeBaseParams
-      item: KnowledgeItem
-      userId?: string
-      forceReload?: boolean
-    }) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, { base, item, forceReload, userId }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, { uniqueId, uniqueIds, base }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
-    rerank: (
-      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
-      context?: SpanContext
-    ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results })
-  },
   memory: {
     add: (messages: string | AssistantMessage[], options?: AddMemoryOptions) =>
       ipcRenderer.invoke(IpcChannel.Memory_Add, messages, options),
@@ -541,11 +510,6 @@ const api = {
     getAccessToken: () => ipcRenderer.invoke(IpcChannel.Anthropic_GetAccessToken),
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
-  },
-  ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

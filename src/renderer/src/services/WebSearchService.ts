@@ -1,31 +1,21 @@
 import { loggerService } from '@logger'
-import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
-import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
 import type { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
 import type {
-  KnowledgeBase,
-  KnowledgeItem,
-  KnowledgeReference,
   WebSearchProvider,
   WebSearchProviderResponse,
   WebSearchProviderResult,
   WebSearchStatus
 } from '@renderer/types'
-import { hasObjectKey, removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
+import { hasObjectKey } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
-import { formatErrorMessage } from '@renderer/utils/error'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
-import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
 import { sliceByTokens } from 'tokenx'
-
-import { getKnowledgeBaseParams } from './KnowledgeService'
-import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
 
 const logger = loggerService.withContext('WebSearchService')
 
@@ -198,164 +188,6 @@ class WebSearchService {
   }
 
   /**
-   * 创建临时搜索知识库
-   */
-  private async ensureSearchBase(
-    config: CompressionConfig,
-    documentCount: number,
-    requestId: string
-  ): Promise<KnowledgeBase> {
-    // requestId: eg: openai-responses-openai/gpt-5-timestamp-uuid
-    const baseId = `websearch-compression-${requestId}`
-
-    if (!config.embeddingModel) {
-      throw new Error('Embedding model is required for RAG compression')
-    }
-
-    // 创建新的知识库
-    const searchBase: KnowledgeBase = {
-      id: baseId,
-      name: `WebSearch-RAG-${requestId}`,
-      model: config.embeddingModel,
-      rerankModel: config.rerankModel,
-      dimensions: config.embeddingDimensions,
-      documentCount,
-      items: [],
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      version: 1
-    }
-
-    // 创建知识库
-    const baseParams = getKnowledgeBaseParams(searchBase)
-    await window.api.knowledgeBase.create(baseParams)
-
-    return searchBase
-  }
-
-  /**
-   * 清理临时搜索知识库
-   */
-  private async cleanupSearchBase(searchBase: KnowledgeBase): Promise<void> {
-    try {
-      await window.api.knowledgeBase.delete(removeSpecialCharactersForFileName(searchBase.id))
-      logger.debug(`Cleaned up search base: ${searchBase.id}`)
-    } catch (error) {
-      logger.warn(`Failed to cleanup search base ${searchBase.id}:`, error as Error)
-    }
-  }
-
-  /**
-   * 对搜索知识库执行多问题查询并按分数排序
-   * @param questions 问题列表
-   * @param searchBase 搜索知识库
-   * @returns 排序后的知识引用列表
-   */
-  private async querySearchBase(questions: string[], searchBase: KnowledgeBase): Promise<KnowledgeReference[]> {
-    // 1. 单独搜索每个问题
-    const searchPromises = questions.map((question) => searchKnowledgeBase(question, searchBase))
-    const allResults = await Promise.all(searchPromises)
-
-    // 2. 合并所有结果并按分数排序
-    const flatResults = allResults.flat().sort((a, b) => b.score - a.score)
-
-    logger.debug(`Found ${flatResults.length} result(s) in search base related to question(s): `, questions)
-
-    // 3. 去重，保留最高分的重复内容
-    const seen = new Set<string>()
-    const uniqueResults = flatResults.filter((item) => {
-      if (seen.has(item.pageContent)) {
-        return false
-      }
-      seen.add(item.pageContent)
-      return true
-    })
-
-    logger.debug(`Found ${uniqueResults.length} unique result(s) from search base after sorting and deduplication`)
-
-    // 4. 转换为引用格式
-    return await Promise.all(
-      uniqueResults.map(async (result, index) => ({
-        id: index + 1,
-        content: result.pageContent,
-        sourceUrl: await getKnowledgeSourceUrl(result),
-        type: 'url' as const
-      }))
-    )
-  }
-
-  /**
-   * 使用RAG压缩搜索结果。
-   * - 一次性将所有搜索结果添加到知识库
-   * - 从知识库中 retrieve 相关结果
-   * - 根据 sourceUrl 映射回原始搜索结果
-   *
-   * @param questions 问题列表
-   * @param rawResults 原始搜索结果
-   * @param config 压缩配置
-   * @param requestId 请求ID
-   * @returns 压缩后的搜索结果
-   */
-  private async compressWithSearchBase(
-    questions: string[],
-    rawResults: WebSearchProviderResult[],
-    config: CompressionConfig,
-    requestId: string
-  ): Promise<WebSearchProviderResult[]> {
-    // 根据搜索次数计算所需的文档数量
-    const totalDocumentCount =
-      Math.max(0, rawResults.length) * (config.documentCount ?? DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT)
-
-    const searchBase = await this.ensureSearchBase(config, totalDocumentCount, requestId)
-    logger.debug('Search base for RAG compression: ', searchBase)
-
-    try {
-      // 1. 清空知识库
-      const baseParams = getKnowledgeBaseParams(searchBase)
-      await window.api.knowledgeBase.reset(baseParams)
-
-      logger.debug('Search base parameters for RAG compression: ', baseParams)
-
-      // 2. 顺序添加所有搜索结果到知识库
-      // FIXME: 目前的知识库 add 不支持并发
-      for (const result of rawResults) {
-        const item: KnowledgeItem & { sourceUrl?: string } = {
-          id: uuid(),
-          type: 'note',
-          content: result.content,
-          sourceUrl: result.url, // 设置 sourceUrl 用于映射
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          processingStatus: 'pending'
-        }
-
-        await window.api.knowledgeBase.add({
-          base: getKnowledgeBaseParams(searchBase),
-          item
-        })
-      }
-
-      // 3. 对知识库执行多问题搜索获取压缩结果
-      const references = await this.querySearchBase(questions, searchBase)
-
-      // 4. 使用 Round Robin 策略选择引用
-      const selectedReferences = selectReferences(rawResults, references, totalDocumentCount)
-
-      logger.verbose('With RAG, the number of search results:', {
-        raw: rawResults.length,
-        retrieved: references.length,
-        selected: selectedReferences.length
-      })
-
-      // 5. 按 sourceUrl 分组并合并同源片段
-      return consolidateReferencesByUrl(rawResults, selectedReferences)
-    } finally {
-      // 无论成功或失败都立即清理知识库
-      await this.cleanupSearchBase(searchBase)
-    }
-  }
-
-  /**
    * 使用截断方式压缩搜索结果，可以选择单位 char 或 token。
    *
    * @param rawResults 原始搜索结果
@@ -513,36 +345,8 @@ class WebSearchService {
 
     const { compressionConfig } = this.getWebSearchState()
 
-    // RAG压缩处理
-    if (compressionConfig?.method === 'rag' && requestId) {
-      await this.setWebSearchStatus(requestId, { phase: 'rag' }, 500)
-
-      const originalCount = finalResults.length
-
-      try {
-        finalResults = await this.compressWithSearchBase(questions, finalResults, compressionConfig, requestId)
-        await this.setWebSearchStatus(
-          requestId,
-          {
-            phase: 'rag_complete',
-            countBefore: originalCount,
-            countAfter: finalResults.length
-          },
-          1000
-        )
-      } catch (error) {
-        logger.warn('RAG compression failed, will return empty results:', error as Error)
-        window.toast.error({
-          timeout: 10000,
-          title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
-        })
-
-        finalResults = []
-        await this.setWebSearchStatus(requestId, { phase: 'rag_failed' }, 1000)
-      }
-    }
     // 截断压缩处理
-    else if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
+    if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
       await this.setWebSearchStatus(requestId, { phase: 'cutoff' }, 500)
       finalResults = await this.compressWithCutoff(finalResults, compressionConfig)
     }

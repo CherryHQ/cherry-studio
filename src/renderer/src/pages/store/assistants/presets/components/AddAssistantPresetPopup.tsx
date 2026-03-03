@@ -1,18 +1,16 @@
-import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { useAppSelector } from '@renderer/store'
-import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import type { FormInstance, SelectProps } from 'antd'
-import { Button, Form, Input, Modal, Popover, Select } from 'antd'
+import type { FormInstance } from 'antd'
+import { Button, Form, Input, Modal, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,7 +25,6 @@ type FieldType = {
   id: string
   name: string
   prompt: string
-  knowledge_base_ids: string[]
 }
 
 const logger = loggerService.withContext('AddAssistantPresetPopup')
@@ -44,16 +41,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const knowledgeState = useAppSelector((state) => state.knowledge)
-  const showKnowledgeIcon = useSidebarIconShow('knowledge')
-  const knowledgeOptions: SelectProps['options'] = []
-
-  knowledgeState.bases.forEach((base) => {
-    knowledgeOptions.push({
-      label: base.name,
-      value: base.id
-    })
-  })
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -79,9 +66,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     const _agent: AssistantPreset = {
       id: uuid(),
       name: values.name,
-      knowledge_bases: values.knowledge_base_ids
-        ?.map((id) => knowledgeState.bases.find((t) => t.id === id))
-        ?.filter((base): base is KnowledgeBase => base !== undefined),
       emoji: _emoji,
       prompt: values.prompt,
       defaultModel: getDefaultModel(),
@@ -154,11 +138,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   // Compute label width based on the longest label
-  const labelWidth = [
-    t('assistants.presets.add.name.label'),
-    t('assistants.presets.add.prompt.label'),
-    t('assistants.presets.add.knowledge_base.label')
-  ]
+  const labelWidth = [t('assistants.presets.add.name.label'), t('assistants.presets.add.prompt.label')]
     .map((labelText) => stringWidth(labelText) * 8)
     .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
 
@@ -233,25 +213,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             />
           )}
         </div>
-        {showKnowledgeIcon && (
-          <Form.Item
-            name="knowledge_base_ids"
-            label={t('assistants.presets.add.knowledge_base.label')}
-            rules={[{ required: false }]}>
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder={t('assistants.presets.add.knowledge_base.placeholder')}
-              menuItemSelectedIcon={<CheckOutlined />}
-              options={knowledgeOptions}
-              filterOption={(input, option) =>
-                String(option?.label ?? '')
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-            />
-          </Form.Item>
-        )}
       </Form>
     </Modal>
   )

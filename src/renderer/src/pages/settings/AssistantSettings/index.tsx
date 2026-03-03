@@ -2,14 +2,12 @@ import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import type { Assistant } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantMemorySettings from './AssistantMemorySettings'
 import AssistantModelSettings from './AssistantModelSettings'
@@ -21,14 +19,7 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab =
-  | 'prompt'
-  | 'model'
-  | 'messages'
-  | 'knowledge_base'
-  | 'mcp'
-  | 'regular_phrases'
-  | 'memory'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'mcp' | 'regular_phrases' | 'memory'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -48,8 +39,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   const updateAssistantSettings = isAgent
     ? _useAgent.updateAssistantPresetSettings
     : _useAssistant.updateAssistantSettings
-
-  const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
   const onOk = () => {
     setOpen(false)
@@ -71,10 +60,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'prompt',
       label: t('assistants.settings.prompt')
-    },
-    showKnowledgeIcon && {
-      key: 'knowledge_base',
-      label: t('assistants.settings.knowledge_base.label')
     },
     {
       key: 'mcp',
@@ -132,13 +117,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           )}
           {menu === 'prompt' && (
             <AssistantPromptSettings
-              assistant={assistant}
-              updateAssistant={updateAssistant}
-              updateAssistantSettings={updateAssistantSettings}
-            />
-          )}
-          {menu === 'knowledge_base' && showKnowledgeIcon && (
-            <AssistantKnowledgeBaseSettings
               assistant={assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}

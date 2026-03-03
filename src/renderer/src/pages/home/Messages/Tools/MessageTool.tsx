@@ -3,7 +3,6 @@ import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
 import { MessageAgentTools } from './MessageAgentTools'
 import { AgentToolsType } from './MessageAgentTools/types'
-import { MessageKnowledgeSearchToolTitle } from './MessageKnowledgeSearch'
 import { MessageMemorySearchToolTitle } from './MessageMemorySearch'
 import { MessageWebSearchToolTitle } from './MessageWebSearch'
 
@@ -30,8 +29,6 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       case 'web_search':
       case 'web_search_preview':
         return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
-      case 'knowledge_search':
-        return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
       case 'memory_search':
         return <MessageMemorySearchToolTitle toolResponse={toolResponse} />
       default:

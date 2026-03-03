@@ -1,19 +1,16 @@
 import { loggerService } from '@logger'
+import ModernAiProvider from '@renderer/aiCore/index_new'
 import { getModel } from '@renderer/hooks/useModel'
 import store from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import type {
   AddMemoryOptions,
   AssistantMessage,
-  KnowledgeBase,
   MemoryHistoryItem,
   MemoryListOptions,
   MemorySearchOptions,
   MemorySearchResult
 } from '@types'
-import { now } from 'lodash'
-
-import { getKnowledgeBaseParams } from './KnowledgeService'
 
 const logger = loggerService.withContext('MemoryService')
 
@@ -210,17 +207,17 @@ class MemoryService {
       const memoryConfig = selectMemoryConfig(store.getState())
       const embeddingModel = memoryConfig.embeddingModel
 
-      // Get knowledge base params for memory
-      const { embedApiClient: embeddingApiClient } = getKnowledgeBaseParams({
-        id: 'memory',
-        name: 'Memory',
-        model: getModel(embeddingModel?.id, embeddingModel?.provider),
-        dimensions: memoryConfig.embeddingDimensions,
-        items: [],
-        created_at: now(),
-        updated_at: now(),
-        version: 1
-      } as KnowledgeBase)
+      const model = getModel(embeddingModel?.id, embeddingModel?.provider)
+      let embeddingApiClient: any = undefined
+      if (model) {
+        const aiProvider = new ModernAiProvider(model)
+        embeddingApiClient = {
+          model: model.id,
+          provider: model.provider,
+          apiKey: aiProvider.getApiKey() || 'secret',
+          baseURL: aiProvider.getBaseURL()
+        }
+      }
 
       return window.api.memory.setConfig({
         ...memoryConfig,

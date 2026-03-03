@@ -1,12 +1,10 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { FileMetadata, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
+import type { FileMetadata } from '@renderer/types'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
-import dayjs from 'dayjs'
-import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
+import { Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +21,6 @@ interface Props {
 const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions, files, setFiles, disabled }) => {
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
-  const { bases: knowledgeBases } = useKnowledgeBases()
   const [selecting, setSelecting] = useState<boolean>(false)
 
   const openFileSelectDialog = useCallback(async () => {
@@ -65,42 +62,6 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
     }
   }, [extensions, files, selecting, setFiles, t])
 
-  const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      quickPanelHook.open({
-        title: base.name,
-        list: base.items
-          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
-          .map((file) => {
-            const fileContent = file.content as FileMetadata
-            return {
-              label: fileContent.origin_name || fileContent.name,
-              description:
-                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-              icon: <FileText />,
-              isSelected: files.some((f) => f.path === fileContent.path),
-              action: async ({ item }) => {
-                item.isSelected = !item.isSelected
-                if (fileContent.path) {
-                  setFiles((prevFiles) => {
-                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                    if (fileExists) {
-                      return prevFiles.filter((f) => f.path !== fileContent.path)
-                    } else {
-                      return fileContent ? [...prevFiles, fileContent] : prevFiles
-                    }
-                  })
-                }
-              }
-            }
-          }),
-        symbol: QuickPanelReservedSymbol.File,
-        multiple: true
-      })
-    },
-    [files, quickPanelHook, setFiles]
-  )
-
   const items = useMemo(() => {
     return [
       {
@@ -108,22 +69,9 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
         description: '',
         icon: <Upload />,
         action: () => openFileSelectDialog()
-      },
-      ...knowledgeBases.map((base) => {
-        const length = base.items?.filter(
-          (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
-        ).length
-        return {
-          label: base.name,
-          description: `${length} ${t('files.count')}`,
-          icon: <FileSearch />,
-          disabled: length === 0,
-          isMenu: true,
-          action: () => openKnowledgeFileList(base)
-        }
-      })
+      }
     ]
-  }, [knowledgeBases, openFileSelectDialog, openKnowledgeFileList, t])
+  }, [openFileSelectDialog, t])
 
   const openQuickPanel = useCallback(() => {
     quickPanelHook.open({
