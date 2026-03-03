@@ -8,7 +8,7 @@ import { type AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { createOpenAICompatible, type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
@@ -31,7 +31,8 @@ export const baseProviderIds = [
   'deepseek',
   'openrouter',
   'cherryin',
-  'cherryin-chat'
+  'cherryin-chat',
+  'moonshot'
 ] as const
 
 /**
@@ -48,11 +49,23 @@ export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
   return baseProviderIdSchema.safeParse(id).success
 }
 
+/**
+ * Built-in tool configuration
+ */
+export type BuiltinToolConfig = {
+  type: 'builtin_function'
+  function: { name: string }
+}
+
 type BaseProvider = {
   id: BaseProviderId
   name: string
   creator: (options: any) => ProviderV3
   supportsImageGeneration: boolean
+  supportsBuiltinTools?: boolean
+  builtinToolsConfig?: {
+    webSearch?: BuiltinToolConfig
+  }
 }
 
 /**
@@ -158,6 +171,25 @@ export const baseProviders = [
       })
     },
     supportsImageGeneration: true
+  },
+  {
+    id: 'moonshot',
+    name: 'Moonshot AI',
+    creator: (options: OpenAICompatibleProviderSettings) => {
+      return createOpenAICompatible({
+        ...options,
+        baseURL: options.baseURL || 'https://api.moonshot.cn/v1',
+        name: 'moonshot'
+      })
+    },
+    supportsImageGeneration: false,
+    supportsBuiltinTools: true,
+    builtinToolsConfig: {
+      webSearch: {
+        type: 'builtin_function',
+        function: { name: '$web_search' }
+      }
+    }
   }
 ] as const satisfies BaseProvider[]
 

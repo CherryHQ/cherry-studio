@@ -32,7 +32,9 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
         }
       }
 
+      console.log('[webSearchPlugin] Transforming params for provider:', providerId, 'config:', config)
       switchWebSearchTool(config, params, { ...context, providerId })
+      console.log('[webSearchPlugin] After transform, params.tools:', params.tools)
       return params
     }
   })

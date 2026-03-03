@@ -186,6 +186,27 @@ export class StreamEventManager {
   }
 
   /**
+   * 构建带自定义消息的递归调用参数
+   * 用于内置工具调用（如 Moonshot 的 $web_search）
+   */
+  buildRecursiveParamsWithMessages<TParams extends StreamTextParams>(
+    context: AiRequestContext<TParams, StreamTextResult>,
+    messages: any[],
+    tools: Record<string, unknown>
+  ): Partial<TParams> {
+    const params = context.originalParams
+
+    // 递归调用，使用提供的完整消息链
+    const recursiveParams = {
+      ...params,
+      messages: [...(params.messages || []), ...messages],
+      tools: tools
+    } as Partial<TParams>
+
+    return recursiveParams
+  }
+
+  /**
    * 累加 usage 数据
    *
    * 使用类型守卫来处理不同类型的 usage（LanguageModelUsage, ImageModelUsage, EmbeddingModelUsage）

@@ -200,7 +200,8 @@ export function buildProviderOptions(
         break
       case 'deepseek':
       case 'openrouter':
-      case 'openai-compatible': {
+      case 'openai-compatible':
+      case 'moonshot': {
         // 对于其他 provider，使用通用的构建逻辑
         const genericOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
         providerSpecificOptions = {
