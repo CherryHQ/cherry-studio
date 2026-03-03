@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Brand Configuration Schema",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Application display name"
+      },
+      "description": {
+        "type": "string",
+        "description": "Application description"
+      },
+      "appId": {
+        "type": "string",
+        "description": "Application ID (reverse domain notation)"
+      },
+      "productName": {
+        "type": "string",
+        "description": "Product name for builds"
+      },
+      "executableName": {
+        "type": "string",
+        "description": "Executable file name"
+      },
+      "desktopName": {
+        "type": "string",
+        "description": "Desktop entry file name"
+      },
+      "author": {
+        "type": "string",
+        "description": "Author email or contact"
+      },
+      "homepage": {
+        "type": "string",
+        "description": "Application homepage URL"
+      },
+      "protocols": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "schemes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["name", "schemes"]
+      },
+      "assets": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "trayIcon": {
+            "type": "string"
+          },
+          "trayIconDark": {
+            "type": "string"
+          },
+          "trayIconLight": {
+            "type": "string"
+          }
+        }
+      },
+      "features": {
+        "type": "object",
+        "properties": {
+          "enableTestPlan": {
+            "type": "boolean"
+          }
+        },
+        "required": ["enableTestPlan"]
+      },
+      "license": {
+        "type": "object",
+        "description": "AGPL-3.0 license compliance information",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "License type (must be AGPL-3.0 for derivatives)"
+          },
+          "sourceCodeUrl": {
+            "type": "string",
+            "description": "URL where source code can be obtained (AGPL-3.0 requirement)"
+          },
+          "licenseUrl": {
+            "type": "string",
+            "description": "URL to the full license text"
+          },
+          "copyrightNotice": {
+            "type": "string",
+            "description": "Copyright notice including attribution to Cherry Studio"
+          },
+          "showOriginalAttribution": {
+            "type": "boolean",
+            "description": "Whether to show 'Based on Cherry Studio' attribution (recommended: true)"
+          }
+        }
+      },
+      "ui": {
+        "type": "object",
+        "description": "UI visibility and customization settings",
+        "properties": {
+          "contactEmail": {
+            "type": "string",
+            "description": "Contact email displayed in About page"
+          },
+          "showDocs": {
+            "type": "boolean",
+            "description": "Show documentation link in About page"
+          },
+          "showWebsite": {
+            "type": "boolean",
+            "description": "Show website link in About page"
+          },
+          "showEnterprise": {
+            "type": "boolean",
+            "description": "Show enterprise link in About page"
+          },
+          "showCareers": {
+            "type": "boolean",
+            "description": "Show careers link in About page"
+          },
+          "githubRepoUrl": {
+            "type": "string",
+            "description": "GitHub repository URL for feedback and releases"
+          }
+        }
+      },
+      "update": {
+        "type": "object",
+        "description": "Update server configuration for branded builds",
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "description": "Custom update server base URL (e.g., https://updates.example.com)"
+          },
+          "configUrl": {
+            "type": "string",
+            "description": "Custom update configuration URL (e.g., https://updates.example.com/config.json)"
+          },
+          "feedUrl": {
+            "type": "string",
+            "description": "Custom update feed URL (e.g., https://updates.example.com/update/latest)"
+          },
+          "mirror": {
+            "type": "string",
+            "description": "Update mirror preference (github or gitcode)",
+            "enum": ["github", "gitcode"]
+          }
+        }
+      }
+    },
+    "required": ["name", "description", "appId", "productName", "features"]
+  }
+}

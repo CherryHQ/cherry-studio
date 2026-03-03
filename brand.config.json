@@ -1,0 +1,121 @@
+{
+  "$schema": "./brand.config.schema.json",
+  "default": {
+    "name": "Cherry Studio",
+    "description": "A powerful AI assistant for producer.",
+    "appId": "com.kangfenmao.CherryStudio",
+    "productName": "Cherry Studio",
+    "executableName": "Cherry Studio",
+    "desktopName": "CherryStudio.desktop",
+    "author": "support@cherry-ai.com",
+    "homepage": "https://github.com/CherryHQ/cherry-studio",
+    "protocols": {
+      "name": "Cherry Studio",
+      "schemes": ["cherrystudio"]
+    },
+    "assets": {
+      "icon": "build/icon.png",
+      "logo": "build/logo.png",
+      "trayIcon": "build/tray_icon.png",
+      "trayIconDark": "build/tray_icon_dark.png",
+      "trayIconLight": "build/tray_icon_light.png"
+    },
+    "features": {
+      "enableTestPlan": true
+    },
+    "license": {
+      "type": "AGPL-3.0",
+      "sourceCodeUrl": "https://github.com/CherryHQ/cherry-studio",
+      "licenseUrl": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "copyrightNotice": "Copyright (C) CherryHQ"
+    },
+    "update": {
+      "serverUrl": "",
+      "configUrl": "",
+      "feedUrl": "",
+      "mirror": "github"
+    }
+  },
+  "custom": {
+    "name": "Your Brand Name",
+    "description": "Your custom description",
+    "appId": "com.yourcompany.yourapp",
+    "productName": "Your App Name",
+    "executableName": "YourAppName",
+    "desktopName": "yourapp.desktop",
+    "author": "support@yourcompany.com",
+    "homepage": "https://yourcompany.com",
+    "protocols": {
+      "name": "Your App",
+      "schemes": ["yourapp"]
+    },
+    "assets": {
+      "icon": "brand-custom/icon.png",
+      "logo": "brand-custom/logo.png",
+      "trayIcon": "brand-custom/tray_icon.png",
+      "trayIconDark": "brand-custom/tray_icon_dark.png",
+      "trayIconLight": "brand-custom/tray_icon_light.png"
+    },
+    "features": {
+      "enableTestPlan": false
+    },
+    "license": {
+      "type": "AGPL-3.0",
+      "sourceCodeUrl": "https://github.com/wybug/cherry-studio",
+      "licenseUrl": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "copyrightNotice": "Based on Cherry Studio (https://github.com/CherryHQ/cherry-studio) - Copyright (C) CherryHQ. Modified by Your Company.",
+      "showOriginalAttribution": true
+    },
+    "update": {
+      "serverUrl": "",
+      "configUrl": "",
+      "feedUrl": "",
+      "mirror": "github"
+    }
+  },
+  "jlpay": {
+    "name": "JlPay Studio",
+    "description": "嘉联AI+平台. 超级工作个人助理.",
+    "appId": "com.jlpay.AIStudio",
+    "productName": "JlPay Studio",
+    "executableName": "JlPay Studio",
+    "desktopName": "JlPayStudio.desktop",
+    "author": "support@jlpay.com",
+    "homepage": "https://www.jlpay.com",
+    "protocols": {
+      "name": "JlPay Studio",
+      "schemes": ["jlpaystudio"]
+    },
+    "assets": {
+      "icon": "brand-jlpay/icon.png",
+      "logo": "brand-jlpay/logo.png",
+      "trayIcon": "brand-jlpay/tray_icon.png",
+      "trayIconDark": "brand-jlpay/tray_icon_dark.png",
+      "trayIconLight": "brand-jlpay/tray_icon_light.png"
+    },
+    "features": {
+      "enableTestPlan": false
+    },
+    "license": {
+      "type": "AGPL-3.0",
+      "sourceCodeUrl": "https://github.com/wybug/cherry-studio",
+      "licenseUrl": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "copyrightNotice": "Based on Cherry Studio (https://github.com/CherryHQ/cherry-studio) - Copyright (C) CherryHQ. Modified by 嘉联支付 (JlPay).",
+      "showOriginalAttribution": true
+    },
+    "ui": {
+      "contactEmail": "support@jlpay.com",
+      "showDocs": false,
+      "showWebsite": false,
+      "showEnterprise": false,
+      "showCareers": false,
+      "githubRepoUrl": "https://github.com/wybug/cherry-studio"
+    },
+    "update": {
+      "serverUrl": "http://localhost:8080/",
+      "configUrl": "http://localhost:8080/api/v1/config/update",
+      "feedUrl": "http://localhost:8080/api/v1/versions/latest?channel=latest",
+      "mirror": "github"
+    }
+  }
+}

@@ -15,6 +15,33 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
+const buildTimeEnvVars = {
+  'process.env.ENABLE_TEST_PLAN': JSON.stringify(process.env.ENABLE_TEST_PLAN || 'true'),
+  'process.env.APP_NAME': JSON.stringify(process.env.APP_NAME || 'Cherry Studio'),
+  'process.env.APP_DESCRIPTION': JSON.stringify(process.env.APP_DESCRIPTION || 'A powerful AI assistant for producer.'),
+  'process.env.APP_ID': JSON.stringify(process.env.APP_ID || 'com.kangfenmao.CherryStudio'),
+  'process.env.APP_AUTHOR': JSON.stringify(process.env.APP_AUTHOR || 'support@cherry-ai.com'),
+  'process.env.APP_HOMEPAGE': JSON.stringify(process.env.APP_HOMEPAGE || 'https://github.com/CherryHQ/cherry-studio'),
+  'process.env.APP_PROTOCOL': JSON.stringify(process.env.APP_PROTOCOL || 'cherrystudio'),
+  'process.env.CUSTOM_BUILD': JSON.stringify(process.env.CUSTOM_BUILD === 'true'),
+  'process.env.BUILD_BRAND': JSON.stringify(process.env.BUILD_BRAND || 'default'),
+  'process.env.SOURCE_CODE_URL': JSON.stringify(
+    process.env.SOURCE_CODE_URL || 'https://github.com/CherryHQ/cherry-studio'
+  ),
+  'process.env.CONTACT_EMAIL': JSON.stringify(process.env.CONTACT_EMAIL || 'support@cherry-ai.com'),
+  'process.env.SHOW_DOCS': JSON.stringify(process.env.SHOW_DOCS !== 'false'),
+  'process.env.SHOW_WEBSITE': JSON.stringify(process.env.SHOW_WEBSITE !== 'false'),
+  'process.env.SHOW_ENTERPRISE': JSON.stringify(process.env.SHOW_ENTERPRISE !== 'false'),
+  'process.env.SHOW_CAREERS': JSON.stringify(process.env.SHOW_CAREERS !== 'false'),
+  'process.env.GITHUB_REPO_URL': JSON.stringify(
+    process.env.GITHUB_REPO_URL || 'https://github.com/CherryHQ/cherry-studio'
+  ),
+  'process.env.UPDATE_SERVER_URL': JSON.stringify(process.env.UPDATE_SERVER_URL || ''),
+  'process.env.UPDATE_CONFIG_URL': JSON.stringify(process.env.UPDATE_CONFIG_URL || ''),
+  'process.env.UPDATE_FEED_URL': JSON.stringify(process.env.UPDATE_FEED_URL || ''),
+  'process.env.UPDATE_MIRROR': JSON.stringify(process.env.UPDATE_MIRROR || 'github')
+}
+
 export default defineConfig({
   main: {
     plugins: [...visualizerPlugin('main')],
@@ -37,6 +64,8 @@ export default defineConfig({
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
+          // Filter out code-inspector-plugin path module externalization warnings
+          if (warning.code === 'MODULE_EXTERNALIZATION' && warning.message?.includes('path')) return
           warn(warning)
         }
       },
@@ -45,7 +74,8 @@ export default defineConfig({
     esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
-    }
+    },
+    define: buildTimeEnvVars
   },
   preload: {
     plugins: [
@@ -74,6 +104,8 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
+        // Provide browser-compatible path module stub to prevent externalization warnings
+        path: resolve('src/renderer/src/utils/path-stub.ts'),
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared'),
         '@types': resolve('src/renderer/src/types'),
@@ -96,6 +128,8 @@ export default defineConfig({
     worker: {
       format: 'es'
     },
+    // In development mode with custom brand, serve assets from build directory
+    publicDir: process.env.CUSTOM_BUILD === 'true' ? 'build' : 'resources',
     build: {
       target: 'esnext', // for build
       rollupOptions: {
@@ -108,10 +142,13 @@ export default defineConfig({
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
+          // Filter out code-inspector-plugin path module externalization warnings
+          if (warning.code === 'MODULE_EXTERNALIZATION' && warning.message?.includes('path')) return
           warn(warning)
         }
       }
     },
+    define: buildTimeEnvVars,
     esbuild: isProd ? { legalComments: 'none' } : {}
   }
 })

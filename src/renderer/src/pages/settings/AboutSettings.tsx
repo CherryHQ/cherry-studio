@@ -2,7 +2,18 @@ import { GithubOutlined } from '@ant-design/icons'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { APP_NAME, AppLogo } from '@renderer/config/env'
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  AppLogo,
+  CONTACT_EMAIL,
+  ENABLE_TEST_PLAN,
+  GITHUB_REPO_URL,
+  SHOW_CAREERS,
+  SHOW_DOCS,
+  SHOW_ENTERPRISE,
+  SHOW_WEBSITE
+} from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -67,7 +78,7 @@ const AboutSettings: FC = () => {
   }
 
   const mailto = async () => {
-    const email = 'support@cherry-ai.com'
+    const email = CONTACT_EMAIL
     const subject = `${APP_NAME} Feedback`
     const version = (await window.api.getAppInfo()).version
     const platform = window.electron.process.platform
@@ -178,7 +189,7 @@ const AboutSettings: FC = () => {
         <SettingTitle>
           {t('settings.about.title')}
           <HStack alignItems="center">
-            <Link to="https://github.com/CherryHQ/cherry-studio">
+            <Link to={GITHUB_REPO_URL}>
               <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
             </Link>
           </HStack>
@@ -186,7 +197,7 @@ const AboutSettings: FC = () => {
         <SettingDivider />
         <AboutHeader>
           <Row align="middle">
-            <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
+            <AvatarWrapper onClick={() => onOpenWebsite(GITHUB_REPO_URL)}>
               {update.downloadProgress > 0 && (
                 <ProgressCircle
                   type="circle"
@@ -201,7 +212,7 @@ const AboutSettings: FC = () => {
             </AvatarWrapper>
             <VersionWrapper>
               <Title>{APP_NAME}</Title>
-              <Description>{t('settings.about.description')}</Description>
+              <Description>{APP_DESCRIPTION}</Description>
               <Tag
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 color="cyan"
@@ -230,30 +241,34 @@ const AboutSettings: FC = () => {
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
-              </Tooltip>
-            </SettingRow>
-            {testPlan && (
+            {ENABLE_TEST_PLAN && (
               <>
                 <SettingDivider />
                 <SettingRow>
-                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
-                    value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
-                    {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
-                      </Tooltip>
-                    ))}
-                  </Radio.Group>
+                  <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+                  <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+                    <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
+                  </Tooltip>
                 </SettingRow>
+                {testPlan && (
+                  <>
+                    <SettingDivider />
+                    <SettingRow>
+                      <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                      <Radio.Group
+                        size="small"
+                        buttonStyle="solid"
+                        value={getTestChannel()}
+                        onChange={(e) => handleTestChannelChange(e.target.value)}>
+                        {getAvailableTestChannels().map((option) => (
+                          <Tooltip key={option.value} title={option.tooltip}>
+                            <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                          </Tooltip>
+                        ))}
+                      </Radio.Group>
+                    </SettingRow>
+                  </>
+                )}
               </>
             )}
           </>
@@ -277,14 +292,18 @@ const AboutSettings: FC = () => {
         </SettingGroup>
       )}
       <SettingGroup theme={theme}>
-        <SettingRow>
-          <SettingRowTitle>
-            <BadgeQuestionMark size={18} />
-            {t('docs.title')}
-          </SettingRowTitle>
-          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
+        {SHOW_DOCS && (
+          <>
+            <SettingRow>
+              <SettingRowTitle>
+                <BadgeQuestionMark size={18} />
+                {t('docs.title')}
+              </SettingRowTitle>
+              <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
+            </SettingRow>
+            <SettingDivider />
+          </>
+        )}
         <SettingRow>
           <SettingRowTitle>
             <Rss size={18} />
@@ -292,32 +311,42 @@ const AboutSettings: FC = () => {
           </SettingRowTitle>
           <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Globe size={18} />
-            {t('settings.about.website.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
+        {SHOW_WEBSITE && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>
+                <Globe size={18} />
+                {t('settings.about.website.title')}
+              </SettingRowTitle>
+              <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>
+                {t('settings.about.website.button')}
+              </Button>
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
             <Github size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
+          <Button onClick={() => onOpenWebsite(`${GITHUB_REPO_URL}/issues/new/choose`)}>
             {t('settings.about.feedback.button')}
           </Button>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Building2 size={18} />
-            {t('settings.about.enterprise.title')}
-          </SettingRowTitle>
-          <Button onClick={showEnterprise}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
+        {SHOW_ENTERPRISE && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>
+                <Building2 size={18} />
+                {t('settings.about.enterprise.title')}
+              </SettingRowTitle>
+              <Button onClick={showEnterprise}>{t('settings.about.website.button')}</Button>
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
@@ -326,16 +355,20 @@ const AboutSettings: FC = () => {
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Briefcase size={18} />
-            {t('settings.about.careers.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
-            {t('settings.about.careers.button')}
-          </Button>
-        </SettingRow>
+        {SHOW_CAREERS && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>
+                <Briefcase size={18} />
+                {t('settings.about.careers.title')}
+              </SettingRowTitle>
+              <Button onClick={() => onOpenWebsite('https://www.cherry-ai.com/careers')}>
+                {t('settings.about.careers.button')}
+              </Button>
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>

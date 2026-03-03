@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent } from '@main/utils/systemInfo'
+import { BUILD_CONSTANTS } from '@shared/build-constants'
 import { FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
@@ -224,22 +225,62 @@ export default class AppUpdater {
 
   private async _setFeedUrl() {
     const currentVersion = app.getVersion()
-    const testPlan = configManager.getTestPlan()
+    const testPlan = BUILD_CONSTANTS.ENABLE_TEST_PLAN && configManager.getTestPlan()
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
-    // Determine mirror based on IP country
+    // Debug BUILD_CONSTANTS values
+    logger.info(
+      `BUILD_CONSTANTS: IS_CUSTOM_BUILD=${BUILD_CONSTANTS.IS_CUSTOM_BUILD}, BUILD_BRAND=${BUILD_CONSTANTS.BUILD_BRAND}, UPDATE_SERVER_URL=${BUILD_CONSTANTS.UPDATE_SERVER_URL}, UPDATE_CONFIG_URL=${BUILD_CONSTANTS.UPDATE_CONFIG_URL}, UPDATE_FEED_URL=${BUILD_CONSTANTS.UPDATE_FEED_URL}, UPDATE_MIRROR=${BUILD_CONSTANTS.UPDATE_MIRROR}`
+    )
+
+    // Use custom mirror if configured, otherwise determine by IP country
+    const customMirror = BUILD_CONSTANTS.UPDATE_MIRROR
     const ipCountry = await getIpCountry()
-    const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
+    const mirror = customMirror || (ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB)
 
     logger.info(
-      `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry})`
+      `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry}, custom mirror: ${customMirror || 'auto'})`
     )
 
     // Try to fetch update config from remote
-    const config = await this._fetchUpdateConfig(mirror)
+    const hasCustomConfigUrl = !!BUILD_CONSTANTS.UPDATE_CONFIG_URL
+    const configUrl =
+      BUILD_CONSTANTS.UPDATE_CONFIG_URL ||
+      (mirror === UpdateMirror.GITCODE ? UpdateConfigUrl.GITCODE : UpdateConfigUrl.GITHUB)
+
+    let config: UpdateConfig | null = null
+
+    if (configUrl) {
+      try {
+        logger.info(`Fetching update config from ${configUrl}`)
+        const response = await net.fetch(configUrl, {
+          headers: {
+            'User-Agent': generateUserAgent(),
+            Accept: 'application/json',
+            'X-Client-Id': configManager.getClientId(),
+            'Cache-Control': 'no-cache'
+          }
+        })
+
+        if (response.ok) {
+          config = await response.json()
+          logger.info('Successfully fetched update config')
+        }
+      } catch (error) {
+        logger.error('Failed to fetch custom update config:', error as Error)
+      }
+    }
+
+    // Only fetch default config if we don't have a custom config URL
+    // For branded builds, if custom config fails, use the custom feed URL directly
+    if (!config && !hasCustomConfigUrl) {
+      // Use default config URL (for non-branded builds)
+      const defaultMirror = mirror === 'gitcode' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
+      config = await this._fetchUpdateConfig(defaultMirror)
+    }
 
     if (config) {
-      // Use new config-based system
+      // Use config-based system
       const result = this._findCompatibleChannel(currentVersion, requestedChannel, config)
 
       if (result) {
@@ -254,8 +295,19 @@ export default class AppUpdater {
     }
 
     logger.info('Failed to fetch update config, falling back to default feed URL')
-    // Fallback: use default feed URL based on mirror
-    const defaultFeedUrl = mirror === UpdateMirror.GITCODE ? FeedUrl.PRODUCTION : FeedUrl.GITHUB_LATEST
+    // Fallback: use default feed URL based on mirror or custom configuration
+    let defaultFeedUrl = BUILD_CONSTANTS.UPDATE_FEED_URL
+
+    if (!defaultFeedUrl) {
+      // Use brand-specific default feed URL if configured, otherwise use original
+      if (BUILD_CONSTANTS.IS_CUSTOM_BUILD && BUILD_CONSTANTS.UPDATE_SERVER_URL) {
+        // Custom update server
+        defaultFeedUrl = `${BUILD_CONSTANTS.UPDATE_SERVER_URL}/update/${BUILD_CONSTANTS.BUILD_BRAND}/latest`
+      } else {
+        // Original Cherry Studio update server
+        defaultFeedUrl = mirror === UpdateMirror.GITCODE ? FeedUrl.PRODUCTION : FeedUrl.GITHUB_LATEST
+      }
+    }
 
     logger.info(`Using fallback feed URL: ${defaultFeedUrl}`)
     this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)

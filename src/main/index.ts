@@ -117,12 +117,17 @@ app.on('web-contents-created', (_, webContents) => {
 if (!isDev) {
   // handle uncaught exception
   process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', error)
+    // Safely log error without causing stack overflow from circular references
+    const errorMessage = error?.message || String(error)
+    const errorStack = error?.stack || ''
+    logger.error(`Uncaught Exception: ${errorMessage}\n${errorStack}`)
   })
 
   // handle unhandled rejection
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
+    // Safely log rejection reason
+    const reasonString = reason instanceof Error ? reason.message : String(reason)
+    logger.error(`Unhandled Rejection at: ${promise} reason: ${reasonString}`)
   })
 }
 

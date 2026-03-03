@@ -156,6 +156,9 @@ function DraggableVirtualList<T>({
               parentRef.current = el
             }
 
+            // Calculate total size before render to avoid state updates during render
+            const totalSize = virtualizer.getTotalSize()
+
             return (
               <Scrollbar
                 ref={setRefs}
@@ -171,7 +174,7 @@ function DraggableVirtualList<T>({
                 <div
                   className="virtual-list"
                   style={{
-                    height: `${virtualizer.getTotalSize()}px`,
+                    height: `${totalSize}px`,
                     width: '100%',
                     position: 'relative'
                   }}>

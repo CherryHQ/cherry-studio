@@ -1,11 +1,13 @@
 import { isMac } from '@main/constant'
 import { windowService } from '@main/services/WindowService'
 import { locales } from '@main/utils/locales'
+import { BUILD_CONSTANTS } from '@shared/build-constants'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MenuItemConstructorOptions } from 'electron'
-import { app, Menu, shell } from 'electron'
+import { Menu, shell } from 'electron'
 
 import { configManager } from './ConfigManager'
+
 export class AppMenuService {
   private languageChangeCallback?: (newLanguage: string) => void
 
@@ -28,12 +30,14 @@ export class AppMenuService {
     const locale = locales[configManager.getLanguage()]
     const { appMenu } = locale.translation
 
+    const appName = BUILD_CONSTANTS.APP_NAME
+
     const template: MenuItemConstructorOptions[] = [
       {
-        label: app.name,
+        label: appName,
         submenu: [
           {
-            label: appMenu.about + ' ' + app.name,
+            label: appMenu.about + ' ' + appName,
             click: () => {
               // Emit event to navigate to About page
               const mainWindow = windowService.getMainWindow()
@@ -46,11 +50,11 @@ export class AppMenuService {
           { type: 'separator' },
           { role: 'services', label: appMenu.services },
           { type: 'separator' },
-          { role: 'hide', label: `${appMenu.hide} ${app.name}` },
+          { role: 'hide', label: `${appMenu.hide} ${appName}` },
           { role: 'hideOthers', label: appMenu.hideOthers },
           { role: 'unhide', label: appMenu.unhide },
           { type: 'separator' },
-          { role: 'quit', label: `${appMenu.quit} ${app.name}` }
+          { role: 'quit', label: `${appMenu.quit} ${appName}` }
         ]
       },
       {
@@ -99,25 +103,29 @@ export class AppMenuService {
           {
             label: appMenu.website,
             click: () => {
-              shell.openExternal('https://cherry-ai.com')
+              shell.openExternal(BUILD_CONSTANTS.APP_HOMEPAGE)
             }
           },
-          {
-            label: appMenu.documentation,
-            click: () => {
-              shell.openExternal('https://cherry-ai.com/docs')
-            }
-          },
+          ...(BUILD_CONSTANTS.SHOW_DOCS
+            ? [
+                {
+                  label: appMenu.documentation,
+                  click: () => {
+                    shell.openExternal('https://docs.cherry-ai.com/')
+                  }
+                }
+              ]
+            : []),
           {
             label: appMenu.feedback,
             click: () => {
-              shell.openExternal('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
+              shell.openExternal(`${BUILD_CONSTANTS.GITHUB_REPO_URL}/issues/new/choose`)
             }
           },
           {
             label: appMenu.releases,
             click: () => {
-              shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
+              shell.openExternal(`${BUILD_CONSTANTS.GITHUB_REPO_URL}/releases`)
             }
           }
         ]

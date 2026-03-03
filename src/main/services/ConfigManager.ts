@@ -14,6 +14,7 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import { BUILD_CONSTANTS } from '@shared/build-constants'
 import type { UpgradeChannel } from '@shared/config/constant'
 import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import type { LanguageVarious, Shortcut } from '@types'
@@ -170,10 +171,16 @@ export class ConfigManager {
   }
 
   getTestPlan(): boolean {
+    if (!BUILD_CONSTANTS.ENABLE_TEST_PLAN) {
+      return false
+    }
     return this.get<boolean>(ConfigKeys.TestPlan, false)
   }
 
   setTestPlan(value: boolean) {
+    if (!BUILD_CONSTANTS.ENABLE_TEST_PLAN) {
+      return
+    }
     this.set(ConfigKeys.TestPlan, value)
   }
 
