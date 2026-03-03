@@ -90,7 +90,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
           )}
         </div>
       }>
-      <div>
+      <div className="select-text">
         {/* Description */}
         {plugin.description && (
           <div className="mb-4">
