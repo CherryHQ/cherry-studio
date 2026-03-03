@@ -230,13 +230,16 @@ class OpenClawService {
    */
   private buildInstallCommand(): { command: string; args: string[] } {
     if (isWin) {
-      // Use cmd.exe wrapper with chcp 65001 to force UTF-8 output on Chinese Windows (CP936)
-      // This follows the same pattern as CodeToolsService for Windows encoding
+      // Set [Console]::OutputEncoding to UTF-8 inside PowerShell to avoid GBK mojibake on Chinese Windows.
+      // Cannot use cmd.exe /c chcp wrapper because cmd.exe consumes quotes needed by PowerShell.
       return {
-        command: 'cmd.exe',
+        command: 'powershell.exe',
         args: [
-          '/c',
-          'chcp 65001 >nul 2>&1 && powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard"'
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard'
         ]
       }
     }
