@@ -429,11 +429,27 @@ const OpenClawPage: FC = () => {
         className="flex items-center justify-between px-3 py-2 font-medium text-[13px]"
         style={{ background: 'var(--color-background-mute)' }}>
         <span>{t(expanded ? 'openclaw.uninstall_progress' : 'openclaw.install_progress')}</span>
-        {!expanded && (
-          <Button size="small" type="text" onClick={() => setShowLogs(false)}>
-            {t('common.close')}
-          </Button>
-        )}
+        <Space size={4}>
+          <Button
+            size="small"
+            type="text"
+            icon={<CopyIcon className="size-3!" />}
+            onClick={async () => {
+              const text = installLogs.map((l) => l.message).join('\n')
+              try {
+                await navigator.clipboard.writeText(text)
+                window.toast.success(t('common.copied'))
+              } catch {
+                window.toast.error(t('common.copy_failed'))
+              }
+            }}
+          />
+          {!expanded && (
+            <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+              {t('common.close')}
+            </Button>
+          )}
+        </Space>
       </div>
       <div className={`overflow-y-auto px-3 py-2 font-mono text-xs leading-relaxed ${expanded ? 'h-75' : 'h-37.5'}`}>
         {installLogs.map((log, index) => (
@@ -569,6 +585,7 @@ const OpenClawPage: FC = () => {
             closable
             onClose={() => setInstallError(null)}
             style={{ marginBottom: 16 }}
+            className="select-text"
           />
         )}
 
@@ -661,7 +678,13 @@ const OpenClawPage: FC = () => {
         {/* Error Alert */}
         {error && (
           <div className="mb-6">
-            <Alert message={error} type="error" closable onClose={() => setError(null)} className="rounded-lg!" />
+            <Alert
+              message={error}
+              type="error"
+              closable
+              onClose={() => setError(null)}
+              className="select-text rounded-lg!"
+            />
           </div>
         )}
 
@@ -747,7 +770,7 @@ const OpenClawPage: FC = () => {
               type="error"
               closable
               onClose={() => setInstallError(null)}
-              className="rounded-lg!"
+              className="select-text rounded-lg!"
             />
           </div>
         )}
