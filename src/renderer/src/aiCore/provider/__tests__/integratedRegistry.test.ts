@@ -1,9 +1,11 @@
 import type { Model, Provider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getAiSdkProviderId } from '../factory'
+import { createAiSdkProvider, getAiSdkProviderId } from '../factory'
 
 // Mock the external dependencies
+const mockCreateProviderCore = vi.fn().mockResolvedValue({ id: 'mock-provider' })
+
 vi.mock('@cherrystudio/ai-core', () => ({
   registerMultipleProviders: vi.fn(() => 4), // Mock successful registration of 4 providers
   getProviderMapping: vi.fn((id: string) => {
@@ -22,6 +24,14 @@ vi.mock('@cherrystudio/ai-core', () => ({
     isSupported: vi.fn(() => true)
   }
 }))
+
+vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    createProvider: (...args: unknown[]) => mockCreateProviderCore(...args)
+  }
+})
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getProviderByModel: vi.fn(),
@@ -51,6 +61,7 @@ vi.mock('../providerConfigs', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
+      debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn()
@@ -124,16 +135,16 @@ describe('Integrated Provider Registry', () => {
       expect(result).toBe('unknown-provider')
     })
 
-    it('should handle Azure OpenAI providers correctly', () => {
+    it('should handle Azure OpenAI providers with dated API version correctly', () => {
       const azureProvider = createAzureProvider('azure-test', '2024-02-15', 'gpt-4o')
       const result = getAiSdkProviderId(azureProvider)
-      expect(result).toBe('azure')
+      expect(result).toBe('azure-chat')
     })
 
     it('should handle Azure OpenAI providers response endpoint correctly', () => {
       const azureProvider = createAzureProvider('azure-test', 'v1', 'gpt-4o')
       const result = getAiSdkProviderId(azureProvider)
-      expect(result).toBe('azure-responses')
+      expect(result).toBe('azure')
     })
 
     it('should handle Azure provider Claude Models', () => {
@@ -149,5 +160,48 @@ describe('Integrated Provider Registry', () => {
       const result = getAiSdkProviderId(grokProvider)
       expect(result).toBe('xai')
     })
+  })
+})
+
+describe('createAiSdkProvider providerId redirection', () => {
+  beforeEach(() => {
+    mockCreateProviderCore.mockClear()
+    mockCreateProviderCore.mockResolvedValue({ id: 'mock-provider' })
+  })
+
+  it('should pass azure providerId through without redirection', async () => {
+    await createAiSdkProvider({
+      providerId: 'azure',
+      options: { mode: 'responses', apiKey: 'test', baseURL: 'https://test.openai.azure.com' }
+    })
+
+    expect(mockCreateProviderCore).toHaveBeenCalledWith('azure', expect.objectContaining({ mode: 'responses' }))
+  })
+
+  it('should pass azure-chat providerId through without redirection', async () => {
+    await createAiSdkProvider({
+      providerId: 'azure-chat',
+      options: { mode: 'chat', apiKey: 'test', baseURL: 'https://test.openai.azure.com' }
+    })
+
+    expect(mockCreateProviderCore).toHaveBeenCalledWith('azure-chat', expect.objectContaining({ mode: 'chat' }))
+  })
+
+  it('should redirect openai with mode chat to openai-chat', async () => {
+    await createAiSdkProvider({
+      providerId: 'openai',
+      options: { mode: 'chat', apiKey: 'test', baseURL: 'https://api.openai.com' }
+    })
+
+    expect(mockCreateProviderCore).toHaveBeenCalledWith('openai-chat', expect.objectContaining({ mode: 'chat' }))
+  })
+
+  it('should redirect cherryin with mode chat to cherryin-chat', async () => {
+    await createAiSdkProvider({
+      providerId: 'cherryin',
+      options: { mode: 'chat', apiKey: 'test', baseURL: 'https://api.cherryin.com' }
+    })
+
+    expect(mockCreateProviderCore).toHaveBeenCalledWith('cherryin-chat', expect.objectContaining({ mode: 'chat' }))
   })
 })

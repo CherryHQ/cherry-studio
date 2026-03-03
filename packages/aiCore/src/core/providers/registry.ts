@@ -173,32 +173,20 @@ export function registerProvider(providerId: string, provider: any): boolean {
     // 获取aliases配置
     const aliases = config.aliases
 
-    // 处理特殊provider逻辑
-    if (providerId === 'openai') {
-      // 注册默认 openai
-      globalRegistryManagement.registerProvider(providerId, provider, aliases)
+    // Register the provider itself
+    globalRegistryManagement.registerProvider(providerId, provider, aliases)
 
-      // 创建并注册 openai-chat 变体
-      const openaiChatProvider = customProvider({
+    // For openai and azure, also register a -chat variant that forces chat completions
+    // (AI SDK v6 defaults languageModel to Responses API for these providers)
+    const providersNeedingChatVariant = ['openai', 'azure']
+    if (providersNeedingChatVariant.includes(providerId)) {
+      const chatVariant = customProvider({
         fallbackProvider: {
           ...provider,
           languageModel: (modelId: string) => provider.chat(modelId)
         }
       })
-      globalRegistryManagement.registerProvider(`${providerId}-chat`, openaiChatProvider)
-    } else if (providerId === 'azure') {
-      globalRegistryManagement.registerProvider(`${providerId}-chat`, provider, aliases)
-      // 跟上面相反,creator产出的默认会调用chat
-      const azureResponsesProvider = customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.responses(modelId)
-        }
-      })
-      globalRegistryManagement.registerProvider(providerId, azureResponsesProvider)
-    } else {
-      // 其他provider直接注册
-      globalRegistryManagement.registerProvider(providerId, provider, aliases)
+      globalRegistryManagement.registerProvider(`${providerId}-chat`, chatVariant)
     }
 
     return true

@@ -20,7 +20,7 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
           'openai',
           'openai-chat',
           'azure',
-          'azure-responses',
+          'azure-chat',
           'huggingface',
           'anthropic',
           'google',

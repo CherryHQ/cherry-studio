@@ -28,7 +28,7 @@ describe('Provider Schemas', () => {
         'google',
         'xai',
         'azure',
-        'azure-responses',
+        'azure-chat',
         'deepseek',
         'openrouter',
         'cherryin',

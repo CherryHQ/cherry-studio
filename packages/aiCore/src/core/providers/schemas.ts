@@ -17,6 +17,23 @@ import { customProvider, wrapProvider } from 'ai'
 import * as z from 'zod'
 
 /**
+ * Creates a chat-only variant of a provider.
+ * Wraps the base creator so that languageModel() routes through provider.chat(),
+ * forcing the Chat Completions API instead of the default Responses API.
+ */
+function createChatVariant<T>(baseCreator: (options: T) => ProviderV3): (options: T) => ProviderV3 {
+  return (options: T) => {
+    const provider = baseCreator(options)
+    return customProvider({
+      fallbackProvider: {
+        ...provider,
+        languageModel: (modelId: string) => (provider as any).chat(modelId)
+      }
+    })
+  }
+}
+
+/**
  * 基础 Provider IDs
  */
 export const baseProviderIds = [
@@ -27,7 +44,7 @@ export const baseProviderIds = [
   'google',
   'xai',
   'azure',
-  'azure-responses',
+  'azure-chat',
   'deepseek',
   'openrouter',
   'cherryin',
@@ -69,15 +86,7 @@ export const baseProviders = [
   {
     id: 'openai-chat',
     name: 'OpenAI Chat',
-    creator: (options: OpenAIProviderSettings) => {
-      const provider = createOpenAI(options)
-      return customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.chat(modelId)
-        }
-      })
-    },
+    creator: createChatVariant<OpenAIProviderSettings>(createOpenAI),
     supportsImageGeneration: true
   },
   {
@@ -111,17 +120,9 @@ export const baseProviders = [
     supportsImageGeneration: true
   },
   {
-    id: 'azure-responses',
-    name: 'Azure OpenAI Responses',
-    creator: (options: AzureOpenAIProviderSettings) => {
-      const provider = createAzure(options)
-      return customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.responses(modelId)
-        }
-      })
-    },
+    id: 'azure-chat',
+    name: 'Azure OpenAI Chat',
+    creator: createChatVariant<AzureOpenAIProviderSettings>(createAzure),
     supportsImageGeneration: true
   },
   {
@@ -148,15 +149,7 @@ export const baseProviders = [
   {
     id: 'cherryin-chat',
     name: 'CherryIN Chat',
-    creator: (options: CherryInProviderSettings) => {
-      const provider = createCherryIn(options)
-      return customProvider({
-        fallbackProvider: {
-          ...provider,
-          languageModel: (modelId: string) => provider.chat(modelId)
-        }
-      })
-    },
+    creator: createChatVariant<CherryInProviderSettings>(createCherryIn),
     supportsImageGeneration: true
   }
 ] as const satisfies BaseProvider[]

@@ -246,13 +246,13 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   let mode: BaseExtraOptions['mode']
   if (
     (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) ||
-    aiSdkProviderId === 'azure-responses'
+    aiSdkProviderId === 'azure'
   ) {
     mode = 'responses'
   } else if (
     aiSdkProviderId === 'openai' ||
     (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai') ||
-    aiSdkProviderId === 'azure'
+    aiSdkProviderId === 'azure-chat'
   ) {
     mode = 'chat'
   }

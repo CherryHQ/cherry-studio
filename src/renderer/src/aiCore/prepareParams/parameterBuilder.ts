@@ -164,7 +164,7 @@ export async function buildStreamTextParams(
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }) as ProviderDefinedTool
-    } else if (aiSdkProviderId === 'azure-responses') {
+    } else if (aiSdkProviderId === 'azure') {
       tools.web_search_preview = azure.tools.webSearchPreview({
         searchContextSize: webSearchPluginConfig?.openai!.searchContextSize
       }) as ProviderDefinedTool

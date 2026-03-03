@@ -176,7 +176,7 @@ export function buildProviderOptions(
       case 'openai':
       case 'openai-chat':
       case 'azure':
-      case 'azure-responses':
+      case 'azure-chat':
         {
           providerSpecificOptions = buildOpenAIProviderOptions(
             assistant,

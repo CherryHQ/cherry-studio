@@ -60,57 +60,56 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
  * TODO: 整理函数逻辑
  */
 export function getAiSdkProviderId(provider: Provider): string {
-  // 1. 尝试解析provider.id
-  const resolvedFromId = tryResolveProviderId(provider.id)
+  // 1. Azure requires special handling: pick responses vs chat variant based on API version
   if (isAzureOpenAIProvider(provider)) {
-    if (isAzureResponsesEndpoint(provider)) {
-      return 'azure-responses'
-    } else {
-      return 'azure'
-    }
+    return isAzureResponsesEndpoint(provider) ? 'azure' : 'azure-chat'
   }
+
+  // 2. 尝试解析provider.id（静态映射 + 别名）
+  const resolvedFromId = tryResolveProviderId(provider.id)
   if (resolvedFromId) {
     return resolvedFromId
   }
 
-  // 2. 尝试解析provider.type
-  // 会把所有类型为openai的自定义provider解析到aisdk的openaiProvider上
+  // 3. 尝试解析provider.type（跳过 'openai' 以避免把自定义provider错误映射）
   if (provider.type !== 'openai') {
     const resolvedFromType = tryResolveProviderId(provider.type)
     if (resolvedFromType) {
       return resolvedFromType
     }
   }
+
+  // 4. OpenAI API host detection
   if (provider.apiHost.includes('api.openai.com')) {
     return 'openai-chat'
   }
-  // 3. 最后的fallback（使用provider本身的id）
+
+  // 5. Fallback to provider's own id
   return provider.id
 }
 
 export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {
-  let localProvider: Awaited<AiSdkProvider> | null = null
+  // Redirect providers that need the chat completions variant
+  const chatRedirectIds = ['openai', 'cherryin']
+  if (chatRedirectIds.includes(config.providerId) && config.options?.mode === 'chat') {
+    config.providerId = `${config.providerId}-chat`
+  }
+
   try {
-    if (config.providerId === 'openai' && config.options?.mode === 'chat') {
-      config.providerId = `${config.providerId}-chat`
-    } else if (config.providerId === 'azure' && config.options?.mode === 'responses') {
-      config.providerId = `${config.providerId}-responses`
-    } else if (config.providerId === 'cherryin' && config.options?.mode === 'chat') {
-      config.providerId = 'cherryin-chat'
-    }
-    localProvider = await createProviderCore(config.providerId, config.options)
+    const localProvider = await createProviderCore(config.providerId, config.options)
 
     logger.debug('Local provider created successfully', {
       providerId: config.providerId,
       hasOptions: !!config.options,
-      localProvider: localProvider,
+      localProvider,
       options: config.options
     })
+
+    return localProvider
   } catch (error) {
     logger.error('Failed to create local provider', error as Error, {
       providerId: config.providerId
     })
     throw error
   }
-  return localProvider
 }

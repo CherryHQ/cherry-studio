@@ -539,22 +539,41 @@ describe('Azure OpenAI traditional API routing', () => {
     const provider = createAzureProvider('2024-02-15-preview')
     const config = providerToAiSdkConfig(provider, createModel('gpt-4o', 'GPT-4o', provider.id))
 
-    expect(config.providerId).toBe('azure')
+    expect(config.providerId).toBe('azure-chat')
     expect(config.options.apiVersion).toBe('2024-02-15-preview')
+    expect(config.options.useDeploymentBasedUrls).toBe(true)
+  })
+
+  it('sets mode to chat for Azure with dated API versions', () => {
+    const provider = createAzureProvider('2024-12-01-preview')
+    const config = providerToAiSdkConfig(provider, createModel('gpt-5.1', 'GPT-5.1', provider.id))
+
+    expect(config.providerId).toBe('azure-chat')
+    expect(config.options.mode).toBe('chat')
     expect(config.options.useDeploymentBasedUrls).toBe(true)
   })
 
   it('does not force deployment-based URLs for apiVersion v1/preview', () => {
     const v1Provider = createAzureProvider('v1')
     const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
-    expect(v1Config.providerId).toBe('azure-responses')
+    expect(v1Config.providerId).toBe('azure')
     expect(v1Config.options.apiVersion).toBe('v1')
     expect(v1Config.options.useDeploymentBasedUrls).toBeUndefined()
 
     const previewProvider = createAzureProvider('preview')
     const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
-    expect(previewConfig.providerId).toBe('azure-responses')
+    expect(previewConfig.providerId).toBe('azure')
     expect(previewConfig.options.apiVersion).toBe('preview')
     expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
+  })
+
+  it('sets mode to responses for Azure with v1/preview API versions', () => {
+    const v1Provider = createAzureProvider('v1')
+    const v1Config = providerToAiSdkConfig(v1Provider, createModel('gpt-4o', 'GPT-4o', v1Provider.id))
+    expect(v1Config.options.mode).toBe('responses')
+
+    const previewProvider = createAzureProvider('preview')
+    const previewConfig = providerToAiSdkConfig(previewProvider, createModel('gpt-4o', 'GPT-4o', previewProvider.id))
+    expect(previewConfig.options.mode).toBe('responses')
   })
 })
