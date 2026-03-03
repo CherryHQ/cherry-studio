@@ -5529,7 +5529,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "翻訳を停止",
     "success": {
       "custom": {
         "delete": "削除が成功しました",

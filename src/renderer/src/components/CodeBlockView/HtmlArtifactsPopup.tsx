@@ -8,9 +8,83 @@ import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/form
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
 import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+interface CodePanelProps {
+  codeEditorRef: React.RefObject<CodeEditorHandles | null>
+  html: string
+  onSave?: (html: string) => void
+  saved: boolean
+  onClickSave: () => void
+  saveLabel: string
+}
+
+const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, onClickSave, saveLabel }) => {
+  return (
+    <CodeSection>
+      <CodeEditor
+        ref={codeEditorRef}
+        value={html}
+        language="html"
+        editable={true}
+        onSave={onSave}
+        height="100%"
+        expanded={false}
+        wrapped
+        style={{ minHeight: 0 }}
+        options={{
+          stream: true, // FIXME: 避免多余空行
+          lineNumbers: true,
+          keymap: true
+        }}
+      />
+      <ToolbarWrapper>
+        <Tooltip title={saveLabel} mouseLeaveDelay={0}>
+          <ToolbarButton
+            shape="circle"
+            size="large"
+            icon={
+              saved ? (
+                <Check size={16} color="var(--color-status-success)" />
+              ) : (
+                <SaveIcon size={16} className="custom-lucide" />
+              )
+            }
+            onClick={onClickSave}
+          />
+        </Tooltip>
+      </ToolbarWrapper>
+    </CodeSection>
+  )
+})
+
+interface PreviewPanelProps {
+  previewFrameRef: React.RefObject<HTMLIFrameElement | null>
+  html: string
+  previewTitle: string
+  emptyText: string
+}
+
+const PreviewPanel = memo<PreviewPanelProps>(({ previewFrameRef, html, previewTitle, emptyText }) => {
+  return (
+    <PreviewSection>
+      {html.trim() ? (
+        <PreviewFrame
+          ref={previewFrameRef}
+          srcDoc={html}
+          title={previewTitle}
+          sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+      ) : (
+        <EmptyPreview>
+          <p>{emptyText}</p>
+        </EmptyPreview>
+      )}
+    </PreviewSection>
+  )
+})
 
 interface HtmlArtifactsPopupProps {
   open: boolean
@@ -27,8 +101,23 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
+  const [splitSizes, setSplitSizes] = useState<string[]>(['50%', '50%'])
   const codeEditorRef = useRef<CodeEditorHandles>(null)
   const previewFrameRef = useRef<HTMLIFrameElement>(null)
+
+  const panelSizes = viewMode === 'split' ? splitSizes : viewMode === 'code' ? ['100%', 0] : [0, '100%']
+
+  const handlePanelResize = useCallback(
+    (sizes: number[]) => {
+      if (viewMode === 'split') {
+        const total = sizes[0] + sizes[1]
+        if (total > 0) {
+          setSplitSizes([`${(sizes[0] / total) * 100}%`, `${(sizes[1] / total) * 100}%`])
+        }
+      }
+    },
+    [viewMode]
+  )
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -43,10 +132,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     }
   }, [isFullscreen, open])
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     codeEditorRef.current?.save?.()
     setSaved(true)
-  }
+  }, [setSaved])
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
@@ -137,88 +226,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     </ModalHeader>
   )
 
-  const renderContent = () => {
-    const codePanel = (
-      <CodeSection>
-        <CodeEditor
-          ref={codeEditorRef}
-          value={html}
-          language="html"
-          editable={true}
-          onSave={onSave}
-          height="100%"
-          expanded={false}
-          wrapped
-          style={{ minHeight: 0 }}
-          options={{
-            stream: true, // FIXME: 避免多余空行
-            lineNumbers: true,
-            keymap: true
-          }}
-        />
-        <ToolbarWrapper>
-          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
-            <ToolbarButton
-              shape="circle"
-              size="large"
-              icon={
-                saved ? (
-                  <Check size={16} color="var(--color-status-success)" />
-                ) : (
-                  <SaveIcon size={16} className="custom-lucide" />
-                )
-              }
-              onClick={handleSave}
-            />
-          </Tooltip>
-        </ToolbarWrapper>
-      </CodeSection>
-    )
-
-    const previewPanel = (
-      <PreviewSection>
-        {html.trim() ? (
-          <PreviewFrame
-            ref={previewFrameRef}
-            key={html} // Force recreate iframe when preview content changes
-            srcDoc={html}
-            title={t('common.html_preview')}
-            sandbox="allow-scripts allow-same-origin allow-forms"
-          />
-        ) : (
-          <EmptyPreview>
-            <p>{t('html_artifacts.empty_preview', 'No content to preview')}</p>
-          </EmptyPreview>
-        )}
-      </PreviewSection>
-    )
-
-    switch (viewMode) {
-      case 'split':
-        return (
-          <Splitter>
-            <Splitter.Panel defaultSize="50%" min="25%">
-              {codePanel}
-            </Splitter.Panel>
-            <Splitter.Panel defaultSize="50%" min="25%">
-              {previewPanel}
-            </Splitter.Panel>
-          </Splitter>
-        )
-      case 'code':
-        return codePanel
-      case 'preview':
-        return previewPanel
-      default:
-        return null
-    }
-  }
-
   return (
     <StyledModal
       $isFullscreen={isFullscreen}
       title={renderHeader()}
       open={open}
+      onCancel={onClose}
       afterClose={onClose}
       centered={!isFullscreen}
       destroyOnHidden
@@ -233,7 +246,32 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       zIndex={isFullscreen ? 10000 : 1000}
       footer={null}
       closable={false}>
-      <Container>{renderContent()}</Container>
+      <Container>
+        <Splitter onResize={handlePanelResize}>
+          <Splitter.Panel size={panelSizes[0]} min={viewMode === 'split' ? '25%' : 0}>
+            <PanelWrapper $hidden={viewMode === 'preview'}>
+              <CodePanel
+                codeEditorRef={codeEditorRef}
+                html={html}
+                onSave={onSave}
+                saved={saved}
+                onClickSave={handleSave}
+                saveLabel={t('code_block.edit.save.label')}
+              />
+            </PanelWrapper>
+          </Splitter.Panel>
+          <Splitter.Panel size={panelSizes[1]} min={viewMode === 'split' ? '25%' : 0}>
+            <PanelWrapper $hidden={viewMode === 'code'}>
+              <PreviewPanel
+                previewFrameRef={previewFrameRef}
+                html={html}
+                previewTitle={t('common.html_preview')}
+                emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
+              />
+            </PanelWrapper>
+          </Splitter.Panel>
+        </Splitter>
+      </Container>
     </StyledModal>
   )
 }
@@ -374,16 +412,14 @@ const Container = styled.div`
   flex: 1;
   background: var(--color-background);
   overflow: hidden;
+`
 
-  .ant-splitter {
-    width: 100%;
-    height: 100%;
-    border: none;
-
-    .ant-splitter-pane {
-      overflow: hidden;
-    }
-  }
+const PanelWrapper = styled.div<{ $hidden: boolean }>`
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  display: ${(props) => (props.$hidden ? 'none' : 'flex')};
 `
 
 const CodeSection = styled.div`
@@ -398,7 +434,7 @@ const CodeSection = styled.div`
 const PreviewSection = styled.div`
   height: 100%;
   width: 100%;
-  background: white;
+  background: var(--color-background);
   overflow: hidden;
 `
 
@@ -406,7 +442,7 @@ const PreviewFrame = styled.iframe`
   width: 100%;
   height: 100%;
   border: none;
-  background: white;
+  background: var(--color-background);
 `
 
 const EmptyPreview = styled.div`
