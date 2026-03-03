@@ -11,6 +11,7 @@ import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
@@ -44,6 +45,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
+  const [isHovered, setIsHovered] = useState(false)
 
   // Calculate display name and whether it needs scrolling (length > 14)
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
@@ -124,7 +126,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   return (
     <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleClick}>
+      <Container onClick={handleClick} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
         <IconContainer>
           <MinAppIcon size={size} app={app} />
           {isOpened && (
@@ -133,7 +135,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle $shouldScroll={shouldScroll}>
+        <AppTitle $shouldScroll={shouldScroll} $isHovered={isHovered}>
           <span>{displayName}</span>
         </AppTitle>
       </Container>
@@ -167,7 +169,7 @@ const StyledIndicator = styled.div`
   border-radius: 50%;
 `
 
-const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
+const AppTitle = styled.div<{ $shouldScroll?: boolean; $isHovered?: boolean }>`
   font-size: 12px;
   margin-top: 5px;
   color: var(--color-text-soft);
@@ -192,10 +194,11 @@ const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
       `}
   }
 
-  ${({ $shouldScroll }) =>
+  ${({ $shouldScroll, $isHovered }) =>
     $shouldScroll &&
+    $isHovered &&
     css`
-      &:hover span {
+      span {
         animation-play-state: running;
       }
     `}
