@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -6,7 +5,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { audioExts, documentExts, HOME_CHERRY_DIR, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
-import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import type { FileMetadata, FileType } from '@types'
 import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import { app } from 'electron'
@@ -150,15 +149,6 @@ export function getFilesDir() {
   return path.join(app.getPath('userData'), 'Data', 'Files')
 }
 
-export function getNotesDir() {
-  const notesDir = path.join(app.getPath('userData'), 'Data', 'Notes')
-  if (!fs.existsSync(notesDir)) {
-    fs.mkdirSync(notesDir, { recursive: true })
-    logger.info(`Notes directory created at: ${notesDir}`)
-  }
-  return notesDir
-}
-
 export function getConfigDir() {
   return path.join(os.homedir(), HOME_CHERRY_DIR, 'config')
 }
@@ -282,105 +272,6 @@ export async function base64Image(file: FileMetadata): Promise<{ mime: string; b
     base64,
     data: `data:${mime};base64,${base64}`
   }
-}
-
-/**
- * 递归扫描目录，获取符合条件的文件和目录结构
- * @param dirPath 当前要扫描的路径
- * @param depth 当前深度
- * @param basePath
- * @returns 文件元数据数组
- */
-export async function scanDir(dirPath: string, depth = 0, basePath?: string): Promise<NotesTreeNode[]> {
-  const options = {
-    includeFiles: true,
-    includeDirectories: true,
-    fileExtensions: ['.md'],
-    ignoreHiddenFiles: true,
-    recursive: true,
-    maxDepth: 10
-  }
-
-  // 如果是第一次调用，设置basePath为当前目录
-  if (!basePath) {
-    basePath = dirPath
-  }
-
-  if (options.maxDepth !== undefined && depth > options.maxDepth) {
-    return []
-  }
-
-  if (!fs.existsSync(dirPath)) {
-    loggerService.withContext('Utils:File').warn(`Dir not exist: ${dirPath}`)
-    return []
-  }
-
-  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
-  const result: NotesTreeNode[] = []
-
-  for (const entry of entries) {
-    if (options.ignoreHiddenFiles && entry.name.startsWith('.')) {
-      continue
-    }
-
-    const entryPath = path.join(dirPath, entry.name)
-
-    const relativePath = path.relative(basePath, entryPath)
-    const treePath = '/' + relativePath.replace(/\\/g, '/')
-
-    if (entry.isDirectory() && options.includeDirectories) {
-      const stats = await fs.promises.stat(entryPath)
-      const externalDirPath = entryPath.replace(/\\/g, '/')
-      const dirTreeNode: NotesTreeNode = {
-        id: createHash('sha1').update(externalDirPath).digest('hex'),
-        name: entry.name,
-        treePath: treePath,
-        externalPath: externalDirPath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString(),
-        type: 'folder',
-        children: [] // 添加 children 属性
-      }
-
-      // 如果启用了递归扫描，则递归调用 scanDir
-      if (options.recursive) {
-        dirTreeNode.children = await scanDir(entryPath, depth + 1, basePath)
-      }
-
-      result.push(dirTreeNode)
-    } else if (entry.isFile() && options.includeFiles) {
-      const ext = path.extname(entry.name).toLowerCase()
-      if (options.fileExtensions.length > 0 && !options.fileExtensions.includes(ext)) {
-        continue
-      }
-
-      const stats = await fs.promises.stat(entryPath)
-      const name = entry.name.endsWith(options.fileExtensions[0])
-        ? entry.name.slice(0, -options.fileExtensions[0].length)
-        : entry.name
-
-      // 对于文件，treePath应该使用不带扩展名的路径
-      const nameWithoutExt = path.basename(entryPath, path.extname(entryPath))
-      const dirRelativePath = path.relative(basePath, path.dirname(entryPath))
-      const fileTreePath = dirRelativePath
-        ? `/${dirRelativePath.replace(/\\/g, '/')}/${nameWithoutExt}`
-        : `/${nameWithoutExt}`
-
-      const externalFilePath = entryPath.replace(/\\/g, '/')
-      const fileTreeNode: NotesTreeNode = {
-        id: createHash('sha1').update(externalFilePath).digest('hex'),
-        name: name,
-        treePath: fileTreePath,
-        externalPath: externalFilePath,
-        createdAt: stats.birthtime.toISOString(),
-        updatedAt: stats.mtime.toISOString(),
-        type: 'file'
-      }
-      result.push(fileTreeNode)
-    }
-  }
-
-  return result
 }
 
 /**

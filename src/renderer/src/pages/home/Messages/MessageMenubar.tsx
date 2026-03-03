@@ -10,7 +10,6 @@ import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@rendere
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useEnableDeveloperMode, useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -34,7 +33,6 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
-  exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
@@ -59,7 +57,6 @@ import {
   Languages,
   ListChecks,
   Menu,
-  NotebookPen,
   Save,
   Split,
   ThumbsUp,
@@ -117,7 +114,6 @@ type MessageMenubarButtonContext = {
   isTranslating: boolean
   isUserMessage: boolean
   message: Message
-  notesPath: string
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
   onMentionModel: (e: React.MouseEvent) => void | Promise<void>
@@ -147,7 +143,6 @@ const MessageMenubar: FC<Props> = (props) => {
     onUpdateUseful
   } = props
   const { t } = useTranslation()
-  const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
@@ -567,7 +562,6 @@ const MessageMenubar: FC<Props> = (props) => {
     isTranslating,
     isUserMessage,
     message,
-    notesPath,
     onCopy,
     onEdit,
     onMentionModel,
@@ -886,27 +880,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
           ) : (
             <ThumbsUp size={15} />
           )}
-        </ActionButton>
-      </Tooltip>
-    )
-  },
-  notes: ({ isAssistantMessage, softHoverBg, message, notesPath, t }) => {
-    if (!isAssistantMessage) {
-      return null
-    }
-
-    return (
-      <Tooltip title={t('notes.save')} mouseEnterDelay={0.8}>
-        <ActionButton
-          className="message-action-button"
-          onClick={async (e) => {
-            e.stopPropagation()
-            const title = await getMessageTitle(message)
-            const markdown = messageToMarkdown(message)
-            exportMessageToNotes(title, markdown, notesPath)
-          }}
-          $softHoverBg={softHoverBg}>
-          <NotebookPen size={15} />
         </ActionButton>
       </Tooltip>
     )

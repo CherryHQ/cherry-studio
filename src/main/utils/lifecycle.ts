@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 
 import { DatabaseManager } from '../services/agents/database/DatabaseManager'
 import { fileStorage } from '../services/FileStorage'
-import MemoryService from '../services/memory/MemoryService'
 
 const logger = loggerService.withContext('Lifecycle')
 
@@ -12,13 +11,9 @@ const logger = loggerService.withContext('Lifecycle')
  * to avoid EBUSY on Windows.
  */
 export async function closeAllDataConnections(): Promise<void> {
-  const results = await Promise.allSettled([
-    DatabaseManager.close(),
-    MemoryService.getInstance().close(),
-    fileStorage.stopFileWatcher()
-  ])
+  const results = await Promise.allSettled([DatabaseManager.close(), fileStorage.stopFileWatcher()])
 
-  const labels = ['DatabaseManager', 'MemoryService', 'FileWatcher']
+  const labels = ['DatabaseManager', 'FileWatcher']
   for (let i = 0; i < results.length; i++) {
     if (results[i].status === 'rejected') {
       logger.warn(`Failed to close ${labels[i]}`, (results[i] as PromiseRejectedResult).reason as Error)

@@ -3,7 +3,6 @@ import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
-import { addNote } from '@renderer/services/NotesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
@@ -1043,45 +1042,6 @@ async function createSiyuanDoc(
   }
 
   return data.data
-}
-
-/**
- * 导出消息到笔记工作区
- * @returns 创建的笔记节点
- * @param title
- * @param content
- * @param folderPath
- */
-export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
-  try {
-    const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-    await addNote(title, cleanedContent, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
-  } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
-    throw error
-  }
-}
-
-/**
- * 导出话题到笔记工作区
- * @param topic 要导出的话题
- * @param folderPath
- * @returns 创建的笔记节点
- */
-export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
-  try {
-    const content = await topicToMarkdown(topic)
-    await addNote(topic.name, content, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
-  } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
-    throw error
-  }
 }
 
 const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<void> => {

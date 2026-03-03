@@ -4,15 +4,13 @@ import {
   getFilesDir,
   getFileType as getFileTypeByExt,
   getName,
-  getNotesDir,
   getTempDir,
-  readTextFileWithAutoEncoding,
-  scanDir
+  readTextFileWithAutoEncoding
 } from '@main/utils/file'
 import { t } from '@main/utils/locales'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import type { FileMetadata, FileType } from '@types'
 import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
@@ -148,7 +146,6 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
 
 class FileStorage {
   private storageDir = getFilesDir()
-  private notesDir = getNotesDir()
   private tempDir = getTempDir()
   private watcher?: FSWatcher
   private watcherSender?: Electron.WebContents
@@ -165,9 +162,6 @@ class FileStorage {
     try {
       if (!fs.existsSync(this.storageDir)) {
         fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-      if (!fs.existsSync(this.notesDir)) {
-        fs.mkdirSync(this.notesDir, { recursive: true })
       }
       if (!fs.existsSync(this.tempDir)) {
         fs.mkdirSync(this.tempDir, { recursive: true })
@@ -871,15 +865,6 @@ class FileStorage {
     }
   }
 
-  public getDirectoryStructure = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<NotesTreeNode[]> => {
-    try {
-      return await scanDir(dirPath)
-    } catch (error) {
-      logger.error('Failed to get directory structure:', error as Error)
-      throw error
-    }
-  }
-
   public listDirectory = async (
     _: Electron.IpcMainInvokeEvent,
     dirPath: string,
@@ -1364,70 +1349,6 @@ class FileStorage {
 
     logger.debug('Found matches by filename', { count: filenameResults.length })
     return filenameResults.slice(0, options.maxEntries)
-  }
-
-  public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
-    try {
-      if (!dirPath || typeof dirPath !== 'string') {
-        return false
-      }
-
-      // Normalize path
-      const normalizedPath = path.resolve(dirPath)
-
-      // Check if directory exists
-      if (!fs.existsSync(normalizedPath)) {
-        return false
-      }
-
-      // Check if it's actually a directory
-      const stats = fs.statSync(normalizedPath)
-      if (!stats.isDirectory()) {
-        return false
-      }
-
-      // Get app paths to prevent selection of restricted directories
-      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
-      const filesDir = path.resolve(getFilesDir())
-      const currentNotesDir = path.resolve(getNotesDir())
-
-      // Prevent selecting app data directories
-      if (
-        normalizedPath.startsWith(filesDir) ||
-        normalizedPath.startsWith(appDataPath) ||
-        normalizedPath === currentNotesDir
-      ) {
-        logger.warn(`Invalid directory selection: ${normalizedPath} (app data directory)`)
-        return false
-      }
-
-      // Prevent selecting system root directories
-      const isSystemRoot =
-        process.platform === 'win32'
-          ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
-          : normalizedPath === '/' ||
-            normalizedPath === '/usr' ||
-            normalizedPath === '/etc' ||
-            normalizedPath === '/System'
-
-      if (isSystemRoot) {
-        logger.warn(`Invalid directory selection: ${normalizedPath} (system root directory)`)
-        return false
-      }
-
-      // Check write permissions
-      try {
-        fs.accessSync(normalizedPath, fs.constants.W_OK)
-      } catch (error) {
-        logger.warn(`Directory not writable: ${normalizedPath}`)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      logger.error('Failed to validate notes directory:', error as Error)
-      return false
-    }
   }
 
   public save = async (

@@ -173,7 +173,6 @@ const createAssistant = (overrides: Partial<Assistant> = {}): Assistant => ({
   knowledgeRecognition: 'off' as const,
   regularPhrases: [],
   tags: [],
-  enableMemory: false,
   content: '',
   ...overrides
 })
