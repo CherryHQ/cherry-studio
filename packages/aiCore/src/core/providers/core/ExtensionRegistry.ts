@@ -103,6 +103,7 @@ export class ExtensionRegistry {
       return false
     }
 
+    extension.clearCache()
     this.extensions.delete(name)
 
     if (extension.config.aliases) {
