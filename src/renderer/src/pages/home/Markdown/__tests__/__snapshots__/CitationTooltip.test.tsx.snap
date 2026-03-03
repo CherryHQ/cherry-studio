@@ -81,7 +81,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
             class="overflow-hidden whitespace-nowrap"
           >
             <div
-              class="inline-block whitespace-nowrap will-change-transform"
+              class="inline-block whitespace-nowrap"
             >
               Example Article
             </div>
