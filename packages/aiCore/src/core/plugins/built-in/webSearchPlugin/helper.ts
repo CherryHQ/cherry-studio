@@ -18,6 +18,17 @@ export type AnthropicSearchConfig = NonNullable<Parameters<typeof anthropic.tool
 export type GoogleSearchConfig = NonNullable<Parameters<typeof google.tools.googleSearch>[0]>
 export type XAISearchConfig = NonNullable<ProviderOptionsMap['xai']['searchParameters']>
 
+/**
+ * Moonshot search configuration
+ * Uses built-in function approach, no additional config needed
+ */
+export type MoonshotSearchConfig =
+  | {
+      type: 'builtin_function'
+      function: { name: '$web_search' }
+    }
+  | boolean // true = use default config
+
 type NormalizeTool<T> = T extends Tool<infer INPUT, infer OUTPUT> ? Tool<INPUT, OUTPUT> : Tool<any, any>
 
 type AnthropicWebSearchTool = NormalizeTool<ReturnType<typeof anthropic.tools.webSearch_20250305>>
@@ -37,6 +48,7 @@ export interface WebSearchPluginConfig {
   xai?: ProviderOptionsMap['xai']['searchParameters']
   google?: GoogleSearchConfig
   openrouter?: OpenRouterSearchConfig
+  moonshot?: MoonshotSearchConfig
 }
 
 /**
@@ -62,7 +74,8 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
         max_results: 5
       }
     ]
-  }
+  },
+  moonshot: true
 }
 
 export type WebSearchToolOutputSchema = {
@@ -98,9 +111,13 @@ export type WebSearchToolInputSchema = {
 
 /**
  * Helper function to ensure params.tools object exists
+ * Note: tools should be an object { toolName: toolDefinition }, not an array
  */
 const ensureToolsObject = (params: any) => {
-  if (!params.tools) params.tools = {}
+  // If tools is falsy or is an array, reinitialize as object
+  if (!params.tools || Array.isArray(params.tools)) {
+    params.tools = {}
+  }
 }
 
 /**
@@ -148,6 +165,32 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
       const cfg = (config.openrouter ?? DEFAULT_WEB_SEARCH_CONFIG.openrouter) as OpenRouterSearchConfig
       const searchOptions = createOpenRouterOptions(cfg)
       applyProviderOptionsSearch(params, searchOptions)
+    },
+    moonshot: () => {
+      const cfg = config.moonshot ?? DEFAULT_WEB_SEARCH_CONFIG.moonshot
+
+      if (cfg === false) return // Explicitly disabled
+
+      // Moonshot uses builtin_function type
+      const builtInTool = {
+        type: 'provider',
+        toolType: 'builtin_function',
+        description: 'Moonshot built-in web search',
+        isBuiltin: true,
+        definition: {
+          type: 'builtin_function',
+          function: {
+            name: '$web_search'
+          }
+        },
+        execute: async () => {
+          // Built-in tools are executed on the provider side
+          // Results are processed by the provider
+          return { status: 'completed' }
+        }
+      }
+
+      applyToolBasedSearch(params, '$web_search', builtInTool)
     }
   }
 
@@ -165,7 +208,8 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
     'anthropic',
     'google',
     'xai',
-    'openrouter'
+    'openrouter',
+    'moonshot'
   ]
 
   for (const key of fallbackOrder) {

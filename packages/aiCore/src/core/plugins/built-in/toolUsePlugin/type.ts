@@ -1,4 +1,4 @@
-import type { ToolSet } from 'ai'
+import type { Tool, ToolSet } from 'ai'
 
 import type { AiRequestContext } from '../..'
 
@@ -26,8 +26,28 @@ export interface PromptToolUseConfig extends BaseToolUsePluginConfig {
 }
 
 /**
+ * 内置工具类型
+ * 支持 Provider 内置工具（如 Moonshot 的 $web_search）
+ */
+export type BuiltinTool = Tool & {
+  type: 'provider' | 'builtin'
+  toolType?: 'builtin_function'
+  isBuiltin?: boolean
+  definition?: {
+    type: string
+    function: { name: string }
+  }
+}
+
+/**
+ * 扩展工具集合，支持标准工具和内置工具
+ */
+export type ExtendedToolSet = Record<string, BuiltinTool>
+
+/**
  * 扩展的 AI 请求上下文，支持 MCP 工具存储
  */
 export interface ToolUseRequestContext extends AiRequestContext {
   mcpTools: ToolSet
+  builtinTools?: ExtendedToolSet
 }

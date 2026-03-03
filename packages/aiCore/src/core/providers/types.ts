@@ -30,6 +30,7 @@ export interface ExtensibleProviderSettingsMap {
   xai: XaiProviderSettings
   azure: AzureOpenAIProviderSettings
   deepseek: DeepSeekProviderSettings
+  moonshot: OpenAICompatibleProviderSettings
 }
 
 // 动态扩展的provider类型注册表

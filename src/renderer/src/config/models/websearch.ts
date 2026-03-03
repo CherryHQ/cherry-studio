@@ -15,7 +15,7 @@ export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isClaude4SeriesModel } from './reasoning'
-import { isAnthropicModel, isKimi25Model } from './utils'
+import { isAnthropicModel } from './utils'
 import { isTextToImageModel } from './vision'
 
 const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
@@ -106,7 +106,8 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  if (provider.id === SystemProviderIds.moonshot && isKimi25Model(model)) {
+  // All Moonshot models support built-in web search
+  if (provider.id === SystemProviderIds.moonshot) {
     return true
   }
 

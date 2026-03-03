@@ -35,7 +35,6 @@ import {
   isVisionModel,
   ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
-import { isKimi25Model } from '@renderer/config/models/utils'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -93,11 +92,11 @@ import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
 const KIMI_WEB_SEARCH_TOOL = {
-  type: 'builtin_function',
+  type: 'builtin_function' as const,
   function: {
     name: '$web_search'
   }
-} as ChatCompletionTool
+}
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
@@ -735,8 +734,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
-        if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot && isKimi25Model(model)) {
-          commonParams.tools = [...(commonParams.tools ?? []), KIMI_WEB_SEARCH_TOOL]
+        // All Moonshot models support built-in web search
+        logger.debug('Moonshot web search check', {
+          enableWebSearch,
+          providerId: this.provider.id,
+          isMoonshot: this.provider.id === SystemProviderIds.moonshot,
+          currentTools: commonParams.tools
+        })
+        if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot) {
+          commonParams.tools = [...(commonParams.tools ?? []), KIMI_WEB_SEARCH_TOOL as unknown as ChatCompletionTool]
+          logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
         }
 
         const timeout = this.getTimeout(model)
