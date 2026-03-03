@@ -77,7 +77,7 @@ const OpenClawPage: FC = () => {
     return DEFAULT_DOCS_URL
   }, [i18n.language])
 
-  const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
+  const { gatewayStatus, gatewayPort, selectedModelUniqId } = useAppSelector((state) => state.openclaw)
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
@@ -630,11 +630,6 @@ const OpenClawPage: FC = () => {
               <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
                 {t('openclaw.status.running')}
               </span>
-              {lastHealthCheck?.version && (
-                <span className="text-xs" style={{ color: 'var(--color-text-3)' }}>
-                  v{lastHealthCheck.version}
-                </span>
-              )}
               <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
                 :{gatewayPort}
               </span>
