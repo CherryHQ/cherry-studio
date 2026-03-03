@@ -42,6 +42,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
+import type { ProviderCapabilities } from '../types'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -152,11 +153,7 @@ export function buildProviderOptions(
   assistant: Assistant,
   model: Model,
   actualProvider: Provider,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
@@ -314,11 +311,7 @@ export function buildProviderOptions(
 function buildOpenAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<string, OpenAIResponsesProviderOptions> {
@@ -373,11 +366,7 @@ function buildOpenAIProviderOptions(
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
@@ -404,11 +393,7 @@ function buildAnthropicProviderOptions(
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {}
@@ -439,11 +424,7 @@ function buildGeminiProviderOptions(
 function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, XaiProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
@@ -466,11 +447,7 @@ function buildXAIProviderOptions(
 function buildCherryInProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   actualProvider: Provider,
   serviceTier: OpenAIServiceTier,
   textVerbosity: OpenAIVerbosity
@@ -496,11 +473,7 @@ function buildCherryInProviderOptions(
 function buildBedrockProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, BedrockProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: BedrockProviderOptions = {}
@@ -526,11 +499,7 @@ function buildBedrockProviderOptions(
 function buildOllamaProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
 
@@ -549,11 +518,7 @@ function buildGenericProviderOptions(
   providerId: string,
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, any> {
   const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
@@ -597,11 +562,7 @@ function buildGenericProviderOptions(
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<
