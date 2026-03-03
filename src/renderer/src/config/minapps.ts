@@ -194,7 +194,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     url: 'https://hailuoai.com/',
     logo: HailuoModelLogo,
     bodered: true,
-    supportedRegions: ['CN', 'Global']
+    supportedRegions: ['CN']
   },
   {
     id: 'minimax-agent',

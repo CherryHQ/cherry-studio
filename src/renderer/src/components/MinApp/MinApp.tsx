@@ -186,10 +186,19 @@ const AppTitle = styled.div<{ $shouldScroll?: boolean }>`
         width: max-content;
         display: block;
         text-align: left;
-        animation: scrollText ${SCROLL_ANIMATION_DURATION} ease-in-out infinite;
         padding: 0 4px;
+        animation: scrollText ${SCROLL_ANIMATION_DURATION} ease-in-out infinite;
+        animation-play-state: paused;
       `}
   }
+
+  ${({ $shouldScroll }) =>
+    $shouldScroll &&
+    css`
+      &:hover span {
+        animation-play-state: running;
+      }
+    `}
 
   @keyframes scrollText {
     0%, 20% {
