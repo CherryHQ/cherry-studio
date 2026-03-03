@@ -166,7 +166,7 @@ const buildListUrl = (endpoint: 'plugins' | 'skills', params: MarketplaceListPar
   url.searchParams.set('limit', String(clampLimit(params.limit)))
   url.searchParams.set('offset', String(params.offset ?? 0))
   if (params.query) {
-    url.searchParams.set('q', params.query)
+    url.searchParams.set('q', params.query.replace(/[-_]+/g, ' ').trim())
   }
   return url.toString()
 }
