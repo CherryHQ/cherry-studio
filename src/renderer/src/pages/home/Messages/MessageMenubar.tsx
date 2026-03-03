@@ -20,8 +20,9 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -174,7 +175,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
   const dispatch = useAppDispatch()
-
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
   //     return withMessageThought(message)
@@ -262,12 +262,21 @@ const MessageMenubar: FC<Props> = (props) => {
           const block = translationBlocks[0]
           logger.silly(`block`, block)
           if (!block.content) {
-            dispatch(removeOneBlock(block.id))
+            dispatch(removeBlocksThunk(message.topicId, message.id, [block.id]))
           }
         }
       }
     },
-    [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, dispatch]
+    [
+      isTranslating,
+      message.topicId,
+      message.id,
+      getTranslationUpdater,
+      mainTextContent,
+      translationAbortKey,
+      t,
+      dispatch
+    ]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
