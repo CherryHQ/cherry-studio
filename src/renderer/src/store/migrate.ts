@@ -38,7 +38,6 @@ import db from '@renderer/databases'
 import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
   Assistant,
   BuiltinOcrProvider,
@@ -130,8 +129,8 @@ function fixMissingProvider(state: RootState) {
 
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
-  if (!state.ocr.providers.find((p) => p.id === provider.id)) {
-    state.ocr.providers.push(provider)
+  if (!(state as any).ocr?.providers?.find((p: any) => p.id === provider.id)) {
+    ;(state as any).ocr?.providers?.push(provider)
   }
 }
 
@@ -225,16 +224,10 @@ function addShortcuts(state: RootState, ids: string[], afterId: string) {
   }
 }
 
-// add preprocess provider
-function addPreprocessProviders(state: RootState, id: string) {
-  if (state.preprocess && state.preprocess.providers) {
-    if (!state.preprocess.providers.find((p) => p.id === id)) {
-      const provider = defaultPreprocessProviders.find((p) => p.id === id)
-      if (provider) {
-        state.preprocess.providers.push({ ...provider })
-      }
-    }
-  }
+// add preprocess provider (no-op after preprocess state removal in migration 202)
+
+function addPreprocessProviders(_state: RootState, _id: string) {
+  // preprocess state removed in migration 202 — this function is a no-op for forward compat
 }
 
 const migrateConfig = {
@@ -2069,7 +2062,7 @@ const migrateConfig = {
   },
   '126': (state: RootState) => {
     try {
-      state.knowledge.bases.forEach((base) => {
+      ;(state as any).knowledge.bases.forEach((base) => {
         // @ts-ignore eslint-disable-next-line
         if (base.preprocessOrOcrProvider) {
           // @ts-ignore eslint-disable-next-line
@@ -2274,7 +2267,7 @@ const migrateConfig = {
   },
   '137': (state: RootState) => {
     try {
-      state.ocr = {
+      ;(state as any).ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
         imageProviderId: DEFAULT_OCR_PROVIDER.image.id
       }
@@ -2448,7 +2441,7 @@ const migrateConfig = {
   },
   '147': (state: RootState) => {
     try {
-      state.knowledge.bases.forEach((base) => {
+      ;(state as any).knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
           delete (base as any).framework
         }
@@ -2470,7 +2463,7 @@ const migrateConfig = {
   },
   '149': (state: RootState) => {
     try {
-      state.knowledge.bases.forEach((base) => {
+      ;(state as any).knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
           delete (base as any).framework
         }
@@ -2539,7 +2532,7 @@ const migrateConfig = {
   },
   '155': (state: RootState) => {
     try {
-      state.knowledge.bases.forEach((base) => {
+      ;(state as any).knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
           delete (base as any).framework
         }
@@ -3284,6 +3277,26 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 201 error', error as Error)
+      return state
+    }
+  },
+  '202': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        const removedIcons = ['knowledge', 'files']
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
+          (icon: string) => !removedIcons.includes(icon)
+        )
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.filter(
+          (icon: string) => !removedIcons.includes(icon)
+        )
+      }
+      delete (state as any).knowledge
+      delete (state as any).ocr
+      delete (state as any).preprocess
+      return state
+    } catch (error) {
+      logger.error('migrate 202 error', error as Error)
       return state
     }
   }

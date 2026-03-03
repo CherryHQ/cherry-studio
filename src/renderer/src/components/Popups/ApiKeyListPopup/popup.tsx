@@ -1,16 +1,16 @@
 import { TopView } from '@renderer/components/TopView'
-import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import { isWebSearchProviderId } from '@renderer/types'
 import { Modal } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DocPreprocessApiKeyList, LlmApiKeyList, WebSearchApiKeyList } from './list'
+import { LlmApiKeyList, WebSearchApiKeyList } from './list'
 
 interface ShowParams {
   providerId: string
   title?: string
   showHealthCheck?: boolean
-  providerType?: 'llm' | 'webSearch' | 'preprocess'
+  providerType?: 'llm' | 'webSearch'
 }
 
 interface Props extends ShowParams {
@@ -33,15 +33,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealt
   }
 
   const ListComponent = useMemo(() => {
-    const type =
-      providerType ||
-      (isWebSearchProviderId(providerId) ? 'webSearch' : isPreprocessProviderId(providerId) ? 'preprocess' : 'llm')
+    const type = providerType || (isWebSearchProviderId(providerId) ? 'webSearch' : 'llm')
 
     switch (type) {
       case 'webSearch':
         return <WebSearchApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
-      case 'preprocess':
-        return <DocPreprocessApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
       case 'llm':
       default:
         return <LlmApiKeyList providerId={providerId} showHealthCheck={showHealthCheck} />

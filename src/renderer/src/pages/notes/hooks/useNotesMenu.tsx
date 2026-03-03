@@ -1,13 +1,11 @@
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { RootState } from '@renderer/store'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
 import type { MenuProps } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
-import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
+import { Edit3, FilePlus, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -39,29 +37,7 @@ export const useNotesMenu = ({
   activeNode
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
-  const { bases } = useKnowledgeBases()
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
-
-  const handleExportKnowledge = useCallback(
-    async (note: NotesTreeNode) => {
-      try {
-        if (bases.length === 0) {
-          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
-          return
-        }
-
-        const result = await SaveToKnowledgePopup.showForNote(note)
-
-        if (result?.success) {
-          window.toast.success(t('notes.export_success', { count: result.savedCount }))
-        }
-      } catch (error) {
-        window.toast.error(t('notes.export_failed'))
-        logger.error(`Failed to export note to knowledge base: ${error}`)
-      }
-    },
-    [bases.length, t]
-  )
 
   const handleImageAction = useCallback(
     async (node: NotesTreeNode, platform: 'copyImage' | 'exportImage') => {
@@ -168,14 +144,6 @@ export const useNotesMenu = ({
             }
           },
           {
-            label: t('notes.export_knowledge'),
-            key: 'export_knowledge',
-            icon: <FileSearch size={14} />,
-            onClick: () => {
-              handleExportKnowledge(node)
-            }
-          },
-          {
             label: t('chat.topics.export.title'),
             key: 'export',
             icon: <UploadIcon size={14} />,
@@ -248,7 +216,6 @@ export const useNotesMenu = ({
       t,
       handleStartEdit,
       onToggleStar,
-      handleExportKnowledge,
       handleImageAction,
       handleDeleteNodeWrapper,
       renamingNodeIds,

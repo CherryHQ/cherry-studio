@@ -15,11 +15,7 @@ import {
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 // import { generateObject } from '@cherrystudio/ai-core'
-import {
-  SEARCH_SUMMARY_PROMPT,
-  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
-  SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@renderer/config/prompts'
+import { SEARCH_SUMMARY_PROMPT_WEB_ONLY } from '@renderer/config/prompts'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
@@ -31,7 +27,6 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor } from '../../services/MemoryProcessor'
-import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
@@ -81,37 +76,18 @@ async function analyzeSearchIntent(
   assistant: Assistant,
   options: {
     shouldWebSearch?: boolean
-    shouldKnowledgeSearch?: boolean
     shouldMemorySearch?: boolean
     lastAnswer?: ModelMessage
     context: AiRequestContext
     topicId: string
   }
 ): Promise<ExtractResults | undefined> {
-  const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context } = options
+  const { shouldWebSearch = false, lastAnswer, context } = options
 
   if (!lastUserMessage) return undefined
+  if (!shouldWebSearch) return undefined
 
-  // 根据配置决定是否需要提取
-  const needWebExtract = shouldWebSearch
-  const needKnowledgeExtract = shouldKnowledgeSearch
-
-  if (!needWebExtract && !needKnowledgeExtract) return undefined
-
-  // 选择合适的提示词
-  let prompt: string
-  // let schema: z.Schema
-
-  if (needWebExtract && !needKnowledgeExtract) {
-    prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    // schema = z.object({ websearch: WebSearchSchema })
-  } else if (!needWebExtract && needKnowledgeExtract) {
-    prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
-    // schema = z.object({ knowledge: KnowledgeSearchSchema })
-  } else {
-    prompt = SEARCH_SUMMARY_PROMPT
-    // schema = SearchIntentAnalysisSchema
-  }
+  const prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
 
   // 构建消息上下文 - 简化逻辑
   const chatHistory = lastAnswer ? `assistant: ${getMessageContent(lastAnswer)}` : ''
@@ -133,8 +109,7 @@ async function analyzeSearchIntent(
       modelId: model.id,
       topicId: options.topicId,
       requestId: context.requestId,
-      hasWebSearch: needWebExtract,
-      hasKnowledgeSearch: needKnowledgeExtract
+      hasWebSearch: shouldWebSearch
     })
 
     const { text: result } = await generateText({
@@ -150,10 +125,9 @@ async function analyzeSearchIntent(
     const parsedResult = extractInfoFromXML(result)
     logger.debug('Intent analysis result', { parsedResult })
 
-    // 根据需求过滤结果
     return {
-      websearch: needWebExtract ? parsedResult?.websearch : undefined,
-      knowledge: needKnowledgeExtract ? parsedResult?.knowledge : undefined
+      websearch: parsedResult?.websearch,
+      knowledge: undefined
     }
   } catch (e: any) {
     logger.error('Intent analysis failed', e as Error)
@@ -164,12 +138,7 @@ async function analyzeSearchIntent(
     const fallbackContent = getMessageContent(lastUserMessage)
     return {
       websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
-      knowledge: shouldKnowledgeSearch
-        ? {
-            question: [fallbackContent || 'search'],
-            rewrite: fallbackContent || 'search'
-          }
-        : undefined
+      knowledge: undefined
     }
   }
 }
@@ -258,7 +227,7 @@ export const searchOrchestrationPlugin = (
      */
     onRequestStart: async (context) => {
       // 没开启任何搜索则不进行意图分析
-      if (!(assistant.webSearchProviderId || assistant.knowledge_bases?.length || assistant.enableMemory)) return
+      if (!(assistant.webSearchProviderId || assistant.enableMemory)) return
 
       try {
         const messages = context.originalParams.messages
@@ -273,19 +242,14 @@ export const searchOrchestrationPlugin = (
         userMessages[context.requestId] = lastUserMessage
 
         // 判断是否需要各种搜索
-        const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
-        const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         const shouldWebSearch = !!assistant.webSearchProviderId
-        const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
 
         // 执行意图分析
-        if (shouldWebSearch || shouldKnowledgeSearch) {
+        if (shouldWebSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
             shouldWebSearch,
-            shouldKnowledgeSearch,
             shouldMemorySearch,
             lastAnswer: lastAssistantMessage,
             context,
@@ -332,31 +296,6 @@ export const searchOrchestrationPlugin = (
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId
-            )
-          }
-        }
-
-        // 📚 知识库搜索工具配置
-        const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
-        const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
-        const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
-
-        if (shouldKnowledgeSearch) {
-          // on 模式：根据意图识别结果决定是否添加工具
-          const needsKnowledgeSearch =
-            analysisResult?.knowledge &&
-            analysisResult.knowledge.question &&
-            analysisResult.knowledge.question[0] !== 'not_needed'
-
-          if (needsKnowledgeSearch && analysisResult.knowledge) {
-            // logger.info('📚 Adding knowledge search tool (intent-based)')
-            const userMessage = userMessages[context.requestId]
-            params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
-              assistant,
-              analysisResult.knowledge,
-              getMessageContent(userMessage),
-              topicId
             )
           }
         }
