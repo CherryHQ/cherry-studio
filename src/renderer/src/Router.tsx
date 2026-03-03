@@ -9,9 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
-import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
-import KnowledgePage from './pages/knowledge/KnowledgePage'
 import NotesPage from './pages/notes/NotesPage'
 import SelectionAssistantPage from './pages/selection/SelectionAssistantPage'
 import SettingsPage from './pages/settings/SettingsPage'
@@ -28,9 +26,7 @@ const Router: FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/store" element={<AssistantPresetsPage />} />
           <Route path="/translate" element={<TranslatePage />} />
-          <Route path="/files" element={<FilesPage />} />
           <Route path="/notes" element={<NotesPage />} />
-          <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/selection" element={<SelectionAssistantPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

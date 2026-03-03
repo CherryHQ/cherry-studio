@@ -184,8 +184,6 @@ const sidebarIconKeyMap = {
   paintings: 'paintings.title',
   translate: 'translate.title',
   minapp: 'minapp.title',
-  knowledge: 'knowledge.title',
-  files: 'files.title',
   code_tools: 'code.title',
   notes: 'notes.title',
   openclaw: 'openclaw.title',

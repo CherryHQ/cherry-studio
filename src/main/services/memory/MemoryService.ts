@@ -2,7 +2,6 @@ import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { DATA_PATH } from '@main/config'
-import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import { makeSureDirExists } from '@main/utils'
 import type {
   AddMemoryOptions,
@@ -18,6 +17,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 
+import Embeddings from './embeddings/Embeddings'
 import { MemoryQueries } from './queries'
 
 const logger = loggerService.withContext('MemoryService')

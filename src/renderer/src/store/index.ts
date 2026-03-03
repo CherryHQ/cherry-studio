@@ -26,7 +26,6 @@ import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
 import inputToolsReducer from './inputTools'
-import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
 import memory from './memory'
@@ -37,8 +36,6 @@ import newMessagesReducer from './newMessage'
 import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
-import ocr from './ocr'
-import preprocess from './preprocess'
 import runtime from './runtime'
 import selectionStore from './selectionStore'
 import settings from './settings'
@@ -58,7 +55,6 @@ const rootReducer = combineReducers({
   settings,
   runtime,
   shortcuts,
-  knowledge,
   minapps,
   websearch,
   mcp,
@@ -66,12 +62,10 @@ const rootReducer = combineReducers({
   copilot,
   selectionStore,
   tabs,
-  preprocess,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
   translate,
-  ocr,
   note,
   toolPermissions
 })
@@ -80,7 +74,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 201,
+    version: 202,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },

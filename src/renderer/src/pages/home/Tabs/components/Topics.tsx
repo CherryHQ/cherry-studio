@@ -4,7 +4,6 @@ import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
@@ -387,22 +386,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.save.label'),
         key: 'save',
         icon: <Save size={14} />,
-        children: [
-          {
-            label: t('chat.save.topic.knowledge.title'),
-            key: 'knowledge',
-            onClick: async () => {
-              try {
-                const result = await SaveToKnowledgePopup.showForTopic(topic)
-                if (result?.success) {
-                  window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
-                }
-              } catch {
-                window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
-              }
-            }
-          }
-        ]
+        children: []
       },
       {
         label: t('chat.topics.export.title'),

@@ -6,7 +6,6 @@
 
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { processKnowledgeReferences } from '@renderer/services/KnowledgeService'
 import type { BaseTool, MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
@@ -345,17 +344,6 @@ export class ToolCallChunkHandler {
       status: 'done',
       response: output,
       toolCallId: toolCallId
-    }
-
-    // 工具特定的后处理
-    switch (toolResponse.tool.name) {
-      case 'builtin_knowledge_search': {
-        processKnowledgeReferences(toolResponse.response, this.onChunk)
-        break
-      }
-      // 未来可以在这里添加其他工具的后处理逻辑
-      default:
-        break
     }
 
     // 从活跃调用中移除（交互结束后整个实例会被丢弃）

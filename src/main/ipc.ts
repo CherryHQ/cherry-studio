@@ -26,11 +26,9 @@ import type {
   AgentPersistedMessage,
   FileMetadata,
   Notification,
-  OcrProvider,
   PluginError,
   Provider,
   Shortcut,
-  SupportedOcrFile,
   ThemeMode
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -53,7 +51,6 @@ import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/KnowledgeService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
 import mcpService from './services/MCPService'
@@ -62,7 +59,6 @@ import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceServic
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { ocrService } from './services/ocr/OcrService'
 import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
@@ -697,14 +693,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, KnowledgeService.add.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search.bind(KnowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank.bind(KnowledgeService))
-
   // memory
   ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
   ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
@@ -987,12 +975,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
-
-  // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
-    ocrService.ocr(file, provider)
-  )
-  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))

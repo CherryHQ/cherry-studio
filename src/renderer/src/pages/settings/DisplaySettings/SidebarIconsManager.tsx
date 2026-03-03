@@ -6,7 +6,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
-import { FileSearch, Folder, Languages, MessageSquareQuote, NotepadText, Sparkle, TextCursorInput } from 'lucide-react'
+import { Languages, MessageSquareQuote, NotepadText, Sparkle, TextCursorInput } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,8 +108,6 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         assistants: <MessageSquareQuote size={16} />,
         store: <Sparkle size={16} />,
         translate: <Languages size={16} />,
-        knowledge: <FileSearch size={16} />,
-        files: <Folder size={16} />,
         notes: <NotepadText size={16} />,
         selection_assistant: <TextCursorInput size={16} />
       }) satisfies Record<SidebarIcon, ReactNode>,
