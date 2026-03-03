@@ -243,7 +243,8 @@ class OpenClawService {
     if (registryArg) npmArgs.push(registryArg)
 
     // Keep the command string for logging and sudo retry
-    const npmCommand = `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+    const sharpEnvPrefix = isMac ? 'SHARP_IGNORE_GLOBAL_LIBVIPS=1 ' : ''
+    const npmCommand = `${sharpEnvPrefix}"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
@@ -253,6 +254,10 @@ class OpenClawService {
     this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
 
     const spawnEnv = await getShellEnv()
+    // sharp (an openclaw dependency) may fail on macOS when a global libvips is present
+    if (isMac) {
+      spawnEnv.SHARP_IGNORE_GLOBAL_LIBVIPS = '1'
+    }
 
     return new Promise((resolve) => {
       try {
