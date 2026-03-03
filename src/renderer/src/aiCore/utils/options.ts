@@ -10,7 +10,6 @@ import {
   isGeminiModel,
   isGrokModel,
   isOpenAIModel,
-  isOpenAIOpenWeightModel,
   isQwenMTModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
@@ -49,6 +48,7 @@ import {
   getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
+  getOllamaReasoningParams,
   getOpenAIReasoningParams,
   getReasoningEffort,
   getXAIReasoningParams
@@ -533,29 +533,13 @@ function buildOllamaProviderOptions(
   }
 ): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
-  const providerOptions: OllamaProviderOptions = {}
-  const reasoningEffort = assistant.settings?.reasoning_effort
+
   if (enableReasoning) {
-    if (isOpenAIOpenWeightModel(model)) {
-      // gpt-oss models accept 'low' | 'medium' | 'high' string values
-      if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
-        providerOptions.think = reasoningEffort
-      } else if (reasoningEffort === 'none') {
-        providerOptions.think = false
-      } else {
-        providerOptions.think = true
-      }
-    } else {
-      // Other models: boolean only. undefined defaults to true (user enabled reasoning)
-      providerOptions.think = reasoningEffort !== 'none'
-    }
-  } else {
-    // Explicitly disable thinking when reasoning is turned off (fixes Issue #11612)
-    providerOptions.think = false
+    return { ollama: getOllamaReasoningParams(assistant, model) }
   }
-  return {
-    ollama: providerOptions
-  }
+
+  // Explicitly disable thinking when reasoning is turned off (fixes Issue #11612)
+  return { ollama: { think: false } }
 }
 
 /**

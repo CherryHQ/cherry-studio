@@ -18,6 +18,7 @@ import {
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
+  isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
@@ -44,6 +45,7 @@ import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
+import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
 
@@ -800,6 +802,30 @@ export function getBedrockReasoningParams(
       budgetTokens: budgetTokens
     }
   }
+}
+
+/**
+ * Get Ollama reasoning parameters
+ * Handles the `think` parameter for Ollama models
+ *
+ * - GPT-OSS models: accept 'low' | 'medium' | 'high' string values
+ * - Other models: boolean only (true/false)
+ */
+export function getOllamaReasoningParams(assistant: Assistant, model: Model): Pick<OllamaProviderOptions, 'think'> {
+  const reasoningEffort = assistant.settings?.reasoning_effort
+
+  if (isOpenAIOpenWeightModel(model)) {
+    // gpt-oss models accept 'low' | 'medium' | 'high' string values
+    if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
+      return { think: reasoningEffort }
+    } else if (reasoningEffort === 'none') {
+      return { think: false }
+    }
+    return { think: true }
+  }
+
+  // Other models: boolean only. undefined defaults to true (user enabled reasoning)
+  return { think: reasoningEffort !== 'none' }
 }
 
 /**
