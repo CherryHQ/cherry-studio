@@ -239,7 +239,7 @@ class OpenClawService {
           '-ExecutionPolicy',
           'Bypass',
           '-Command',
-          '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard'
+          '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard'
         ]
       }
     }
