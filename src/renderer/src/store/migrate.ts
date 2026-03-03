@@ -63,7 +63,6 @@ import type { RootState } from '.'
 import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
-import { initialState as notesInitialState } from './note'
 import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
@@ -2361,8 +2360,8 @@ const migrateConfig = {
     try {
       if (state.settings && state.settings.sidebarIcons) {
         // Check if 'notes' is not already in visible icons
-        if (!state.settings.sidebarIcons.visible.includes('notes')) {
-          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'notes']
+        if (!state.settings.sidebarIcons.visible.includes('notes' as any)) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'notes' as any]
         }
       }
       return state
@@ -2373,10 +2372,8 @@ const migrateConfig = {
   },
   '142': (state: RootState) => {
     try {
-      // Initialize notes settings if not present
-      if (!state.note) {
-        state.note = notesInitialState
-      }
+      // Initialize notes settings if not present - note slice removed
+      // (state as any).note handled by deletion in later migration
       return state
     } catch (error) {
       logger.error('migrate 142 error', error as Error)
@@ -2419,18 +2416,15 @@ const migrateConfig = {
   '146': (state: RootState) => {
     try {
       // Migrate showWorkspace from settings to note store
-      if (state.settings && state.note) {
+      if (state.settings && (state as any).note) {
         const showWorkspaceValue = (state.settings as any)?.showWorkspace
         if (showWorkspaceValue !== undefined) {
-          // @ts-ignore eslint-disable-next-line
-          state.note.settings.showWorkspace = showWorkspaceValue
+          ;(state as any).note.settings.showWorkspace = showWorkspaceValue
           // Remove from settings
           delete (state.settings as any).showWorkspace
-          // @ts-ignore eslint-disable-next-line
-        } else if (state.note.settings.showWorkspace === undefined) {
+        } else if ((state as any).note.settings.showWorkspace === undefined) {
           // Set default value if not exists
-          // @ts-ignore eslint-disable-next-line
-          state.note.settings.showWorkspace = true
+          ;(state as any).note.settings.showWorkspace = true
         }
       }
       return state
@@ -2508,9 +2502,9 @@ const migrateConfig = {
   },
   '153': (state: RootState) => {
     try {
-      if (state.note.settings) {
-        state.note.settings.fontSize = notesInitialState.settings.fontSize
-        state.note.settings.showTableOfContents = notesInitialState.settings.showTableOfContents
+      if ((state as any).note?.settings) {
+        ;(state as any).note.settings.fontSize = (state as any).note.settings.fontSize ?? 14
+        ;(state as any).note.settings.showTableOfContents = (state as any).note.settings.showTableOfContents ?? false
       }
       return state
     } catch (error) {
@@ -3077,25 +3071,20 @@ const migrateConfig = {
   // 1.7.7
   '189': (state: RootState) => {
     try {
-      window.api.memory.migrateMemoryDb()
-      // @ts-ignore
-      const memoryLlmApiClient = state?.memory?.memoryConfig?.llmApiClient
-      // @ts-ignore
-      const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
+      const memoryLlmApiClient = (state as any)?.memory?.memoryConfig?.llmApiClient
+      const memoryEmbeddingApiClient = (state as any)?.memory?.memoryConfig?.embedderApiClient
 
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
-        // @ts-ignore
-        delete state.memory.memoryConfig.llmApiClient
+        ;(state as any).memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        delete (state as any).memory.memoryConfig.llmApiClient
       }
 
       if (memoryEmbeddingApiClient) {
-        state.memory.memoryConfig.embeddingModel = getModel(
+        ;(state as any).memory.memoryConfig.embeddingModel = getModel(
           memoryEmbeddingApiClient.model,
           memoryEmbeddingApiClient.provider
         )
-        // @ts-ignore
-        delete state.memory.memoryConfig.embedderApiClient
+        delete (state as any).memory.memoryConfig.embedderApiClient
       }
       return state
     } catch (error) {
@@ -3297,6 +3286,24 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 202 error', error as Error)
+      return state
+    }
+  },
+  '203': (state: RootState) => {
+    try {
+      if (state.settings?.sidebarIcons) {
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.filter(
+          (icon: string) => icon !== 'notes'
+        )
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.filter(
+          (icon: string) => icon !== 'notes'
+        )
+      }
+      delete (state as any).note
+      delete (state as any).memory
+      return state
+    } catch (error) {
+      logger.error('migrate 203 error', error as Error)
       return state
     }
   }

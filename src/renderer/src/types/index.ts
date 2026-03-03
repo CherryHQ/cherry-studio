@@ -5,7 +5,6 @@ import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '
 import type { CSSProperties } from 'react'
 
 export * from './file'
-export * from './note'
 
 import * as z from 'zod'
 
@@ -56,7 +55,6 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
-  enableMemory?: boolean
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
@@ -652,7 +650,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-export type SidebarIcon = 'assistants' | 'store' | 'translate' | 'notes' | 'selection_assistant'
+export type SidebarIcon = 'assistants' | 'store' | 'translate' | 'selection_assistant'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

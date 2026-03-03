@@ -28,13 +28,10 @@ import copilot from './copilot'
 import inputToolsReducer from './inputTools'
 import llm from './llm'
 import mcp from './mcp'
-import memory from './memory'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
-import { setNotesPath } from './note'
-import note from './note'
 import nutstore from './nutstore'
 import runtime from './runtime'
 import selectionStore from './selectionStore'
@@ -58,7 +55,6 @@ const rootReducer = combineReducers({
   minapps,
   websearch,
   mcp,
-  memory,
   copilot,
   selectionStore,
   tabs,
@@ -66,7 +62,6 @@ const rootReducer = combineReducers({
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
   translate,
-  note,
   toolPermissions
 })
 
@@ -74,7 +69,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 202,
+    version: 203,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
@@ -93,7 +88,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'note/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/']
 })
 
 const store = configureStore({
@@ -113,21 +108,6 @@ export type RootState = ReturnType<typeof rootReducer>
 export type AppDispatch = typeof store.dispatch
 
 export const persistor = persistStore(store, undefined, () => {
-  // Initialize notes path after rehydration if empty
-  const state = store.getState()
-  if (!state.note.notesPath) {
-    // Use setTimeout to ensure this runs after the store is fully initialized
-    setTimeout(async () => {
-      try {
-        const info = await window.api.getAppInfo()
-        store.dispatch(setNotesPath(info.notesPath))
-        logger.info('Initialized notes path on startup:', info.notesPath)
-      } catch (error) {
-        logger.error('Failed to initialize notes path on startup:', error as Error)
-      }
-    }, 0)
-  }
-
   // Notify main process that Redux store is ready
   window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
   logger.info('Redux store ready, notified main process')
