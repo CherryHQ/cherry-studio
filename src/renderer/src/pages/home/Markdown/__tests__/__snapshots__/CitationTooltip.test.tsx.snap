@@ -77,7 +77,15 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
           role="heading"
           title="Example Article"
         >
-          Example Article
+          <div
+            class="overflow-hidden whitespace-nowrap"
+          >
+            <div
+              class="inline-block whitespace-nowrap"
+            >
+              Example Article
+            </div>
+          </div>
         </div>
       </div>
       <div

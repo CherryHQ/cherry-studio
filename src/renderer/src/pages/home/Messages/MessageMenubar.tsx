@@ -1,6 +1,7 @@
 // import { InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
@@ -19,8 +20,9 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -51,6 +53,7 @@ import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
   AtSign,
+  Bug,
   Check,
   CirclePause,
   FilePenLine,
@@ -172,7 +175,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
   const dispatch = useAppDispatch()
-
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
   //     return withMessageThought(message)
@@ -260,12 +262,21 @@ const MessageMenubar: FC<Props> = (props) => {
           const block = translationBlocks[0]
           logger.silly(`block`, block)
           if (!block.content) {
-            dispatch(removeOneBlock(block.id))
+            dispatch(removeBlocksThunk(message.topicId, message.id, [block.id]))
           }
         }
       }
     },
-    [isTranslating, message.id, getTranslationUpdater, mainTextContent, translationAbortKey, t, dispatch]
+    [
+      isTranslating,
+      message.topicId,
+      message.id,
+      getTranslationUpdater,
+      mainTextContent,
+      translationAbortKey,
+      t,
+      dispatch
+    ]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -970,6 +981,29 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
         <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
           <TraceIcon size={16} className={'lucide lucide-trash'} />
+        </ActionButton>
+      </Tooltip>
+    )
+  },
+  'inspect-data': ({ message, blockEntities, enableDeveloperMode }) => {
+    if (!enableDeveloperMode) {
+      return null
+    }
+
+    const handleInspect = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const blocks = message.blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+      InspectMessagePopup.show({
+        title: `Message: ${message.id}`,
+        message,
+        blocks
+      })
+    }
+
+    return (
+      <Tooltip title="Inspect Data (Dev)" mouseEnterDelay={0.8}>
+        <ActionButton className="message-action-button" onClick={handleInspect}>
+          <Bug size={15} />
         </ActionButton>
       </Tooltip>
     )

@@ -60,5 +60,6 @@
   },
   "terminal.integrated.env.osx": {
     "ELECTRON_RUN_AS_NODE": ""
-  }
+  },
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

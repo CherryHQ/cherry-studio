@@ -251,8 +251,6 @@ export async function fetchChatCompletion({
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
-    model: assistant.model,
-    provider,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
