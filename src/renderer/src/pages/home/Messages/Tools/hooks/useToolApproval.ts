@@ -59,7 +59,9 @@ export function useToolApproval(
   const toolResponse = block.metadata?.rawMcpToolResponse
   const tool = toolResponse?.tool
 
-  const isMcpTool = forceType === 'mcp' || (forceType !== 'agent' && tool?.type === 'mcp')
+  const isMcpTool =
+    forceType === 'mcp' ||
+    (forceType !== 'agent' && (tool?.type === 'mcp' || tool?.type === 'builtin' || tool?.type === 'provider'))
   const mcpApproval = useMcpToolApproval(block, mcpOptions)
   const agentApproval = useAgentToolApproval(block)
 
