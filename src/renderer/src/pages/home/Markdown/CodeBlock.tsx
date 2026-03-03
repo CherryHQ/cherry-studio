@@ -1,12 +1,10 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
+import { getCodeBlockId } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
+import { useIsCodeFenceIncomplete } from 'streamdown'
 
 interface Props {
   children: string
@@ -21,13 +19,10 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const isMultiline = children?.includes('\n')
   const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
   const { codeFancyBlock } = useSettings()
+  const isIncomplete = useIsCodeFenceIncomplete()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
-
-  // 消息块
-  const msgBlock = messageBlocksSelectors.selectById(store.getState(), blockId)
-  const isStreaming = useMemo(() => msgBlock?.status === MessageBlockStatus.STREAMING, [msgBlock?.status])
 
   const handleSave = useCallback(
     (newContent: string) => {
@@ -46,8 +41,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     // Fancy code block
     if (codeFancyBlock) {
       if (language === 'html') {
-        const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
-        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
+        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isIncomplete} />
       }
     }
 

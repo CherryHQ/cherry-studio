@@ -190,7 +190,6 @@ const AgentSettingsTab = () => {
               onChange={(value) => setMathEngine(value as MathEngine)}
               options={[
                 { value: 'KaTeX', label: 'KaTeX' },
-                { value: 'MathJax', label: 'MathJax' },
                 { value: 'none', label: t('settings.math.engine.none') }
               ]}
             />

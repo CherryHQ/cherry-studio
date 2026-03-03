@@ -6,7 +6,7 @@ import { Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('UpdateDialog')
@@ -84,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       ]}>
       <ModalBodyWrapper>
         <ReleaseNotesWrapper className="markdown">
-          <Markdown>
+          <Streamdown mode="static">
             {typeof releaseNotes === 'string'
               ? releaseNotes
               : Array.isArray(releaseNotes)
@@ -93,7 +93,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
                     .filter(Boolean)
                     .join('\n\n')
                 : t('update.noReleaseNotes')}
-          </Markdown>
+          </Streamdown>
         </ReleaseNotesWrapper>
       </ModalBodyWrapper>
     </Modal>

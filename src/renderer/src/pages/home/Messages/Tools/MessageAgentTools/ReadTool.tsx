@@ -1,7 +1,7 @@
 import { formatFileSize } from '@renderer/utils/file'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -66,7 +66,7 @@ export function ReadTool({
     ),
     children: truncatedOutput ? (
       <div>
-        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        <Streamdown mode="static">{truncatedOutput}</Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     ) : (
