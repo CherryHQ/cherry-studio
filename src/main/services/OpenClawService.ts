@@ -1096,12 +1096,49 @@ class OpenClawService {
       // Write config file
       fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
 
+      // Also sync gateway config (mode, port, auth) to the default openclaw.json
+      // so that the system service / daemon (which doesn't inherit OPENCLAW_CONFIG_PATH)
+      // can read the auth token and bind settings.
+      this.syncGatewayConfigToDefault(config)
+
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to sync provider config:', error as Error)
       return { success: false, message: errorMessage }
+    }
+  }
+
+  /**
+   * Sync gateway-related config (mode, port, auth) to the default openclaw.json.
+   * The system service / daemon started by `openclaw gateway install` does NOT
+   * inherit the OPENCLAW_CONFIG_PATH env var, so it reads the default config.
+   * Without this, the gateway starts without auth → health checks fail with 1006.
+   */
+  private syncGatewayConfigToDefault(cherryConfig: OpenClawConfig): void {
+    try {
+      let defaultConfig: OpenClawConfig = {}
+      if (fs.existsSync(OPENCLAW_ORIGINAL_CONFIG_PATH)) {
+        try {
+          defaultConfig = JSON.parse(fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8'))
+        } catch {
+          // Corrupted file — overwrite with gateway config
+        }
+      }
+
+      // Only sync gateway settings, leave everything else untouched
+      defaultConfig.gateway = {
+        ...defaultConfig.gateway,
+        mode: cherryConfig.gateway?.mode,
+        port: cherryConfig.gateway?.port,
+        auth: cherryConfig.gateway?.auth
+      }
+
+      fs.writeFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, JSON.stringify(defaultConfig, null, 2), 'utf-8')
+      logger.debug('Synced gateway config to default openclaw.json')
+    } catch (error) {
+      logger.warn('Failed to sync gateway config to default openclaw.json:', error as Error)
     }
   }
 
