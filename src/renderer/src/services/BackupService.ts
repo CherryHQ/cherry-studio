@@ -657,6 +657,15 @@ export function startAutoSync(immediate = false, type?: BackupType) {
       return
     }
 
+    // Check if any streaming response is in progress to avoid saving incomplete conversations
+    const messagesState = store.getState().messages
+    const isStreamingInProgress = Object.values(messagesState.loadingByTopic).some((loading) => loading === true)
+    if (isStreamingInProgress) {
+      logger.verbose(`${logPrefix} Streaming response in progress, skipping backup and rescheduling`)
+      scheduleNextBackup('fromNow', backupType)
+      return
+    }
+
     // 设置运行状态
     if (backupType === 'webdav') {
       isWebdavAutoBackupRunning = true
