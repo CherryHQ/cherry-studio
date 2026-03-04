@@ -6,6 +6,7 @@ import path from 'node:path'
 import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
+import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, decodeBufferFromShell, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
@@ -20,6 +21,7 @@ import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
 
+const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 // Original user config (read-only, used as template for first-time setup)
 const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
@@ -495,6 +497,8 @@ class OpenClawService {
       }
 
       // Step 5: Run npm install -g openclaw with streaming
+      const inChina = await isUserInChina()
+
       const shellEnv = await getShellEnv()
       const npmEnv: Record<string, string> = {
         ...shellEnv,
@@ -505,7 +509,8 @@ class OpenClawService {
         NPM_CONFIG_AUDIT: 'false',
         ...(isWin ? { NPM_CONFIG_SCRIPT_SHELL: 'cmd.exe' } : {})
       }
-      const npmArgs = ['install', '-g', 'openclaw']
+      const npmArgs = ['install', '-g', 'openclaw@latest']
+      if (inChina) npmArgs.push(`--registry=${NPM_MIRROR_CN}`)
       const npmCommand = `"${npmPath}" ${npmArgs.join(' ')}`
 
       logger.info(`Installing OpenClaw: ${npmCommand}`)
