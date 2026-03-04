@@ -138,7 +138,6 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const mathEngineItems = useMemo<SelectorItem<MathEngine>[]>(
     () => [
       { value: 'KaTeX', label: 'KaTeX' },
-      { value: 'MathJax', label: 'MathJax' },
       { value: 'none', label: t('settings.math.engine.none') }
     ],
     [t]

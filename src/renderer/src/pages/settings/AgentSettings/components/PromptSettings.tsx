@@ -8,7 +8,7 @@ import { Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
@@ -61,7 +61,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
                   setShowPreview(false)
                   requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
                 }}>
-                <ReactMarkdown>{processedPrompt || instructions}</ReactMarkdown>
+                <Streamdown mode="static">{processedPrompt || instructions}</Streamdown>
               </MarkdownContainer>
             ) : (
               <CodeEditor

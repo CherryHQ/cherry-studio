@@ -14,7 +14,7 @@ import { Import, Plus, Search, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 import { groupByCategories, useSystemAssistantPresets } from '.'
@@ -76,7 +76,7 @@ const AssistantPresetsPage: FC = () => {
 
             {preset.prompt && (
               <AgentPrompt className="markdown">
-                <ReactMarkdown>{preset.prompt}</ReactMarkdown>
+                <Streamdown mode="static">{preset.prompt}</Streamdown>
               </AgentPrompt>
             )}
           </ColFlex>

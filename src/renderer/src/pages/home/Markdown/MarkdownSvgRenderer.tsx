@@ -13,7 +13,7 @@ interface SvgProps extends React.SVGProps<SVGSVGElement> {
 /**
  * A smart SVG renderer for Markdown content.
  *
- * This component handles two types of SVGs passed from `react-markdown`:
+ * This component handles two types of SVGs passed from Streamdown:
  *
  * 1.  **Pre-processed SVGs**: Simple SVGs that were already handled by the
  *     `rehypeScalableSvg` plugin. These are rendered directly.

@@ -979,7 +979,7 @@ export interface Citation {
   metadata?: Record<string, any>
 }
 
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+export type MathEngine = 'KaTeX' | 'none'
 
 export interface StoreSyncAction {
   type: string

@@ -1,14 +1,11 @@
 import 'katex/dist/katex.min.css'
 
+import { cjk } from '@streamdown/cjk'
+import { math } from '@streamdown/math'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
-import rehypeKatex from 'rehype-katex'
-import rehypeRaw from 'rehype-raw'
-import remarkCjkFriendly from 'remark-cjk-friendly'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 interface MarkdownEditorProps {
@@ -43,11 +40,9 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
     <EditorContainer style={{ height }}>
       <InputArea value={inputValue} onChange={handleChange} placeholder={placeholder} autoFocus={autoFocus} />
       <PreviewArea className="markdown">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkMath]}
-          rehypePlugins={[rehypeRaw, rehypeKatex]}>
+        <Streamdown mode="static" plugins={{ math, cjk }}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
-        </ReactMarkdown>
+        </Streamdown>
       </PreviewArea>
     </EditorContainer>
   )

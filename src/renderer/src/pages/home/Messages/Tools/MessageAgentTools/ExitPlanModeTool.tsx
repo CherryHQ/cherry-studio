@@ -1,6 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -32,7 +32,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <ReactMarkdown>{truncatedContent}</ReactMarkdown>
+        <Streamdown mode="static">{truncatedContent}</Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )
