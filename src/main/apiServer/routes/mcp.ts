@@ -139,9 +139,9 @@ router.get('/:server_id', async (req: Request, res: Response) => {
 /**
  * @swagger
  * /v1/mcps/{server_id}/mcp:
- *   all:
+ *   post:
  *     summary: MCP protocol proxy
- *     description: Proxy endpoint for Model Context Protocol communication with a specific MCP server. Supports all HTTP methods.
+ *     description: Proxy endpoint for Model Context Protocol communication with a specific MCP server. Accepts all HTTP methods (GET, POST, DELETE, etc.).
  *     tags: [MCP]
  *     parameters:
  *       - in: path

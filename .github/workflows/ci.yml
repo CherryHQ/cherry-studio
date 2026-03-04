@@ -98,6 +98,9 @@ jobs:
       - name: Hardcoded Strings Check
         run: pnpm i18n:hardcoded:strict
 
+      - name: OpenAPI Spec Check
+        run: pnpm openapi:check
+
       - name: Skills Check
         run: pnpm skills:check
 
