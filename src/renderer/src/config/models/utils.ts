@@ -317,6 +317,20 @@ export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
 }
 
 /**
+ * Check if the model is a Gemini 3.1 Flash Lite model
+ * Matches: gemini-3.1-flash-lite-preview, gemini-3.1-flash-lite-preview-06-2025
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3.1 Flash Lite model
+ */
+export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return /gemini-3\.1-flash-lite(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
  * Check if the model is a Gemini 3 Pro model
  * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
  * Excludes: gemini-3-pro-image-preview, 3.x pro versions
