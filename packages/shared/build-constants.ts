@@ -52,9 +52,9 @@ export const BUILD_CONSTANTS = {
   SHOW_CAREERS: getEnvBool('SHOW_CAREERS', true),
   GITHUB_REPO_URL: getEnv('GITHUB_REPO_URL', 'https://github.com/CherryHQ/cherry-studio'),
   // Update server configuration
-  UPDATE_SERVER_URL: getEnv('UPDATE_SERVER_URL', null),
-  UPDATE_CONFIG_URL: getEnv('UPDATE_CONFIG_URL', null),
-  UPDATE_FEED_URL: getEnv('UPDATE_FEED_URL', null),
+  UPDATE_SERVER_URL: getEnv('UPDATE_SERVER_URL', ''),
+  UPDATE_CONFIG_URL: getEnv('UPDATE_CONFIG_URL', ''),
+  UPDATE_FEED_URL: getEnv('UPDATE_FEED_URL', ''),
   UPDATE_MIRROR: getEnv('UPDATE_MIRROR', 'github')
 } as const
 

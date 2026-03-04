@@ -87,10 +87,15 @@ exports.default = async function (context) {
   await downloadPackages()
 
   const excludePackages = async (packagesToExclude) => {
-    // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
-    const electronBuilderConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
-    const electronBuilderConfig = parse(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
+    // Try to read from brand config first, then fall back to base config
+    const brandConfigPath = path.join(__dirname, '..', 'electron-builder.brand.yml')
+    const baseConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
+    const configPath = fs.existsSync(brandConfigPath) ? brandConfigPath : baseConfigPath
+    const electronBuilderConfig = parse(fs.readFileSync(configPath, 'utf-8'))
     let filters = electronBuilderConfig.files
+
+    // Always exclude server directory (it's a separate backend project)
+    filters.push('!server')
 
     // add filters for other architectures (exclude them)
     filters.push(...packagesToExclude)
@@ -108,10 +113,14 @@ exports.default = async function (context) {
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
+  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'arm64-win32', 'x64-darwin', 'x64-linux', 'x64-win32']
     .filter((f) => {
       // On Windows ARM64, also keep x64-win32 for emulation compatibility
       if (platform === 'win32' && context.arch === Arch.arm64 && f === 'x64-win32') {
+        return false
+      }
+      // On Windows x64, also keep arm64-win32 for emulation compatibility
+      if (platform === 'win32' && context.arch === Arch.x64 && f === 'arm64-win32') {
         return false
       }
       return f !== `${arch}-${platform}`

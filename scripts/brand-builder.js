@@ -125,6 +125,7 @@ files:
   - "!local"
   - "!docs"
   - "!packages"
+  - "!server"
   - "!.swc"
   - "!.bin"
   - "!._*"

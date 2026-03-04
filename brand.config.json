@@ -114,7 +114,7 @@
     "update": {
       "serverUrl": "http://localhost:8080/",
       "configUrl": "http://localhost:8080/api/v1/config/update",
-      "feedUrl": "http://localhost:8080/api/v1/versions/latest?channel=latest",
+      "feedUrl": "http://localhost:8080/releases/latest",
       "mirror": "github"
     }
   }
