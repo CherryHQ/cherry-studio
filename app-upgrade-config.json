@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-03-02T15:15:07.719Z",
+  "lastUpdated": "2026-03-04T03:42:39.914Z",
   "versions": {
     "2.0.0": {
       "metadata": {
@@ -14,7 +14,7 @@
         "beta": null
       }
     },
-    "1.7.22": {
+    "1.7.23": {
       "metadata": {
         "segmentId": "legacy-v1",
         "segmentType": "legacy"
@@ -23,9 +23,9 @@
       "description": "Last stable v1.7.x release - required intermediate version for users below v1.7",
       "channels": {
         "latest": {
-          "version": "1.7.22",
+          "version": "1.7.23",
           "feedUrls": {
-            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.7.22",
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.7.23",
             "gitcode": "https://releases.cherry-ai.com"
           }
         },
