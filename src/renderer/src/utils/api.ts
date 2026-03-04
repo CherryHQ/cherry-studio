@@ -4,7 +4,7 @@ import { formatApiHost } from '@shared/utils'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
 import { trim } from 'lodash'
 
-// Re-export from shared utils, for backward compatibility
+// Re-export from shared, for backward compatibility
 export {
   formatApiHost,
   formatApiKeys,
@@ -14,28 +14,10 @@ export {
   withoutTrailingSlash
 } from '@shared/utils/api'
 
-/**
- * 格式化 Ollama 的 API 主机地址。
- */
-export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    ?.replace(/\/api$/, '')
-    ?.replace(/\/chat$/, '')
-  return formatApiHost(normalizedHost + '/api', false)
-}
+// Re-export from shared, for backward compatibility
+export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/aiCore/provider/utils'
 
-/**
- * 格式化 Azure OpenAI 的 API 主机地址。
- */
-export function formatAzureOpenAIApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    .replace(/\/openai$/, '')
-  // NOTE: AISDK会添加上`v1`
-  return formatApiHost(normalizedHost + '/openai', false)
-}
-
+// NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
 export function formatVertexApiHost(provider: VertexProvider): string {
   const { apiHost } = provider
   const { projectId: project, location } = store.getState().llm.settings.vertexai
