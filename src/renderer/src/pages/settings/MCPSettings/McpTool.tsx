@@ -71,9 +71,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
         )}
         {prop.enum && (
           <div style={{ marginTop: 4 }}>
-            <Typography.Text type="secondary">
-              {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
-            </Typography.Text>
+            <Typography.Text type="secondary">{t('settings.mcp.tools.inputSchema.enum.allowedValues')}</Typography.Text>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
               {prop.enum.map((value: string, idx: number) => (
                 <Tag key={idx}>{value}</Tag>
@@ -81,16 +79,21 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             </div>
           </div>
         )}
-        {depth < MAX_NESTING_DEPTH && prop.type === 'object' && prop.properties &&
+        {depth < MAX_NESTING_DEPTH &&
+          prop.type === 'object' &&
+          prop.properties &&
           renderSchemaProperties(prop.properties, prop.required, depth + 1)}
-        {depth < MAX_NESTING_DEPTH && prop.type === 'array' && prop.items?.type === 'object' && prop.items.properties && (
-          <div style={{ marginTop: 4 }}>
-            <Typography.Text type="secondary" italic>
-              items:
-            </Typography.Text>
-            {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
-          </div>
-        )}
+        {depth < MAX_NESTING_DEPTH &&
+          prop.type === 'array' &&
+          prop.items?.type === 'object' &&
+          prop.items.properties && (
+            <div style={{ marginTop: 4 }}>
+              <Typography.Text type="secondary" italic>
+                items:
+              </Typography.Text>
+              {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
+            </div>
+          )}
       </Flex>
     )
   }

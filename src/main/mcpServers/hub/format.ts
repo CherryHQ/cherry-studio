@@ -79,9 +79,7 @@ function appendPropertyParams(
     // Recurse into nested object properties
     if ((prop.type as string) === 'object' && prop.properties) {
       const nestedProps = prop.properties as Record<string, PropertySchema>
-      const nestedRequired = new Set<string>(
-        Array.isArray(prop.required) ? (prop.required as string[]) : []
-      )
+      const nestedRequired = new Set<string>(Array.isArray(prop.required) ? (prop.required as string[]) : [])
       appendPropertyParams(lines, nestedProps, nestedRequired, `${prefix}.${propName}`, depth + 1)
     }
 
@@ -90,9 +88,7 @@ function appendPropertyParams(
       const items = prop.items as PropertySchema
       if ((items.type as string) === 'object' && items.properties) {
         const itemProps = items.properties as Record<string, PropertySchema>
-        const itemRequired = new Set<string>(
-          Array.isArray(items.required) ? (items.required as string[]) : []
-        )
+        const itemRequired = new Set<string>(Array.isArray(items.required) ? (items.required as string[]) : [])
         appendPropertyParams(lines, itemProps, itemRequired, `${prefix}.${propName}[]`, depth + 1)
       }
     }
