@@ -1,6 +1,6 @@
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/providers'
 import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
 export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
   return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'

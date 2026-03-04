@@ -4,11 +4,11 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models/reasoning'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/providers'
 import { type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
 import { codeTools } from '@shared/config/constant'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
 export interface LaunchValidationResult {
   isValid: boolean
