@@ -35,11 +35,19 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     )
 
     // Format provider apiHost according to their type
-    const formattedProviders = (
-      await Promise.allSettled(supportedProviders.map((p: Provider) => formatProviderApiHost(p)))
-    )
-      .filter((r): r is PromiseFulfilledResult<Provider> => r.status === 'fulfilled')
-      .map((r) => r.value)
+    const results = await Promise.allSettled(supportedProviders.map((p: Provider) => formatProviderApiHost(p)))
+    const formattedProviders: Provider[] = []
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      if (result.status === 'fulfilled') {
+        formattedProviders.push(result.value)
+      } else {
+        logger.warn('Failed to format provider API host', {
+          providerId: supportedProviders[i].id,
+          error: result.reason
+        })
+      }
+    }
 
     // Cache the formatted results
     CacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)

@@ -158,7 +158,7 @@ export {
   isOllamaProvider,
   isPerplexityProvider,
   isVertexProvider
-} from '@shared/aiCore/provider/utils/types'
+} from '@shared/aiCore/provider/utils'
 
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'gateway'
