@@ -1,0 +1,137 @@
+name: Release Issue Notifications
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify released issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = context.payload.release.tag_name;
+            const releaseUrl = context.payload.release.html_url;
+            const isPrerelease = context.payload.release.prerelease;
+
+            // Get all releases to find the previous one
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 10
+            });
+
+            // Find previous release (not draft, different from current, same prerelease status)
+            const previousRelease = releases.data.find(r =>
+              r.tag_name !== version &&
+              !r.draft &&
+              r.prerelease === isPrerelease
+            );
+
+            if (!previousRelease) {
+              console.log('No previous release found, skipping notifications');
+              return;
+            }
+
+            console.log(`Comparing ${previousRelease.tag_name}...${version}`);
+
+            // Compare commits between releases
+            const comparison = await github.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: previousRelease.tag_name,
+              head: version
+            });
+
+            // Extract issue numbers from commit messages
+            const issueNumbers = new Set();
+
+            for (const commit of comparison.data.commits) {
+              const message = commit.commit.message;
+
+              // Match "Fixes #123", "Closes #123", "Resolves #123" patterns (case insensitive)
+              const fixes = message.matchAll(/(?:fixes|closes|resolves)\s+#(\d+)/gi);
+              for (const match of fixes) {
+                issueNumbers.add(parseInt(match[1]));
+              }
+            }
+
+            if (issueNumbers.size === 0) {
+              console.log('No issues found to notify');
+              return;
+            }
+
+            console.log(`Found ${issueNumbers.size} issues: ${Array.from(issueNumbers).join(', ')}`);
+
+            // Bilingual comment template
+            const commentBody = `:tada: This issue has been resolved in **${version}** :tada:
+
+The release is available on [GitHub releases](${releaseUrl})
+
+---
+
+:tada: 此 Issue 已在 **${version}** 版本中修复 :tada:
+
+该版本可在 [GitHub releases](${releaseUrl}) 下载`;
+
+            // Labels to add
+            const labels = ['released'];
+            if (!isPrerelease) {
+              labels.push(`released-${version}`);
+            } else {
+              labels.push('released-prerelease');
+            }
+
+            const results = { success: [], failed: [] };
+
+            // Notify, label, and optionally close issues
+            for (const issueNumber of issueNumbers) {
+              try {
+                // Add comment
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: commentBody
+                });
+
+                // Add labels
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: labels
+                });
+
+                // Close issue only if it's a stable release (not prerelease)
+                if (!isPrerelease) {
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    state: 'closed'
+                  });
+                  console.log(`✅ Notified and closed issue #${issueNumber}`);
+                } else {
+                  console.log(`✅ Notified issue #${issueNumber} (prerelease, not closing)`);
+                }
+                results.success.push(issueNumber);
+              } catch (error) {
+                console.error(`❌ Failed to notify issue #${issueNumber}: ${error.message}`);
+                results.failed.push({ number: issueNumber, error: error.message });
+              }
+            }
+
+            // Summary
+            console.log('\n📊 Summary:');
+            console.log(`${results.success.length} issues notified, ${results.failed.length} failed`);
+
+            if (results.failed.length > 0) {
+              console.log('⚠️ Some notifications failed. Check logs above for details.');
+            }
