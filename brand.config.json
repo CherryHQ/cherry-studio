@@ -88,6 +88,8 @@
     },
     "assets": {
       "icon": "brand-jlpay/icon.png",
+      "iconMac": "brand-jlpay/icon.icns",
+      "iconWin": "brand-jlpay/icon.ico",
       "logo": "brand-jlpay/logo.png",
       "trayIcon": "brand-jlpay/tray_icon.png",
       "trayIconDark": "brand-jlpay/tray_icon_dark.png",
@@ -112,7 +114,7 @@
       "githubRepoUrl": "https://github.com/wybug/cherry-studio"
     },
     "update": {
-      "serverUrl": "http://localhost:8080/",
+      "serverUrl": "http://localhost:8080",
       "configUrl": "http://localhost:8080/api/v1/config/update",
       "feedUrl": "http://localhost:8080/releases/latest",
       "mirror": "github"

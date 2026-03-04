@@ -1,8 +1,9 @@
 packages:
-  - 'packages/*'
-
+  - packages/*
 supportedArchitectures:
   os:
-  - current
+    - current
+    - darwin
   cpu:
-  - current
+    - current
+    - x64

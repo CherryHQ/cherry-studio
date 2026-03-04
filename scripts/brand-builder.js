@@ -230,77 +230,43 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 `
 }
 
-// Copy brand assets if they exist
-// Note: Icons (icon.png, icon.icns, icon.ico) are NOT copied to build directory
-// They are used directly from brand directory via electron-builder config
-// Returns an array of copied file paths for later restoration
-function copyBrandAssets(brandConfig) {
+// Configure brand assets - NO files are copied to build/ directory
+// All assets are used directly from brand directory or copied to out/ after build
+// For default brand, restore all brand assets to default from git
+function copyBrandAssets(brandConfig, profile) {
   const assets = brandConfig.assets
   const rootDir = path.join(__dirname, '..')
+  const { execSync } = require('child_process')
 
   // Check if custom brand assets directory exists
   const brandDir = path.dirname(assets.icon)
   const isCustomBrand = brandDir.startsWith('brand-')
 
   if (!isCustomBrand) {
-    // For default brand, assets are already in build/ directory, no need to copy
-    return []
-  }
+    // For default brand, restore all brand assets from git
+    console.log('Restoring brand assets to default from git...')
+    try {
+      // Restore build/ directory
+      execSync('git checkout HEAD -- build/', { stdio: 'inherit', cwd: rootDir })
+      console.log('  ✓ Restored build/ assets')
 
-  if (!fs.existsSync(path.join(rootDir, brandDir))) {
-    return []
-  }
-
-  console.log(`Found custom brand assets in ${brandDir}/`)
-
-  // Skip icon files - they are used directly by electron-builder
-  const skipKeys = ['icon', 'iconMac', 'iconWin']
-  const copiedFiles = [] // Track copied files for restoration
-
-  // Copy other assets (logo, tray icons, etc.)
-  for (const [key, assetPath] of Object.entries(assets)) {
-    if (skipKeys.includes(key)) {
-      console.log(`  ↗ Using ${key} directly: ${assetPath}`)
-      continue
+      // Also restore renderer logo
+      execSync('git checkout HEAD -- src/renderer/src/assets/images/logo.png', { stdio: 'inherit', cwd: rootDir })
+      console.log('  ✓ Restored renderer logo\n')
+    } catch (error) {
+      console.log('  ⚠ Could not restore from git (might be initial commit)\n')
     }
-
-    const sourcePath = path.join(rootDir, assetPath)
-    const targetPath = path.join(rootDir, 'build', path.basename(assetPath))
-
-    if (fs.existsSync(sourcePath)) {
-      // Backup original file before overwriting
-      if (fs.existsSync(targetPath)) {
-        const backupPath = targetPath + '.brand-backup'
-        fs.copyFileSync(targetPath, backupPath)
-        copiedFiles.push({ target: targetPath, backup: backupPath })
-      }
-      fs.copyFileSync(sourcePath, targetPath)
-      console.log(`  ✓ Copied ${key}: ${assetPath}`)
-    } else {
-      console.log(`  ⚠ Skipped ${key}: ${assetPath} (not found)`)
-    }
-  }
-
-  return copiedFiles
-}
-
-// Restore build/ assets from backups after custom brand build
-function restoreBuildAssets(copiedFiles) {
-  if (!copiedFiles || copiedFiles.length === 0) {
     return
   }
 
-  console.log('\nRestoring build/ assets to default...')
-
-  for (const { target, backup } of copiedFiles) {
-    if (fs.existsSync(backup)) {
-      fs.copyFileSync(backup, target)
-      fs.unlinkSync(backup)
-      console.log(`  ✓ Restored ${path.basename(target)}`)
-    }
+  // Custom brand: NO assets copied to build/ directory
+  // All assets will be copied directly to out/ after build
+  if (!fs.existsSync(path.join(rootDir, brandDir))) {
+    return
   }
 
-  console.log('Build/ assets restored to default\n')
+  console.log(`Using custom brand assets from ${brandDir}/`)
+  console.log('  ↗ Icons and other assets will be copied to out/ after build\n')
 }
 
 // Export environment variables for use in build scripts
@@ -405,7 +371,7 @@ function writeElectronBuilderConfig(brandConfig, profile) {
 }
 
 // Run build with environment variables set
-function runBuild(envVars, copiedFiles) {
+function runBuild(envVars, brandConfig, profile) {
   const { execSync } = require('child_process')
 
   console.log('\n🔨 Starting build with brand configuration...\n')
@@ -430,18 +396,81 @@ function runBuild(envVars, copiedFiles) {
       env: { ...process.env }
     })
 
-    // Copy brand logo to renderer assets (without hash)
-    const logoSource = path.join(__dirname, '..', 'build', 'logo.png')
-    const logoTarget = path.join(__dirname, '..', 'out', 'renderer', 'assets', 'logo.png')
-    if (fs.existsSync(logoSource)) {
-      fs.copyFileSync(logoSource, logoTarget)
-      console.log('  ✓ Copied brand logo to renderer assets')
+    // Copy brand assets to out/ directory after build
+    // For custom brands, copy all assets directly from brand directory
+    // For default brand, assets are already in build/ and copied by electron-vite
+    const isCustomBrand = profile !== 'default'
+    if (isCustomBrand && brandConfig.assets) {
+      const rootDir = path.join(__dirname, '..')
+      const assets = brandConfig.assets
+      const outMainDir = path.join(rootDir, 'out', 'main')
+      const outRendererDir = path.join(rootDir, 'out', 'renderer', 'assets')
+
+      console.log('\nCopying brand assets to out/ directory...')
+
+      // Copy logo to renderer assets and replace all hashed versions
+      if (assets.logo) {
+        const logoSource = path.join(rootDir, assets.logo)
+        if (fs.existsSync(logoSource)) {
+          // Copy to logo.png (for direct references)
+          const logoTarget = path.join(outRendererDir, 'logo.png')
+          fs.copyFileSync(logoSource, logoTarget)
+
+          // Find and replace all hashed logo files generated by Vite
+          // These are files like logo-<hash>.png where hash can be alphanumeric
+          const logoFiles = fs.readdirSync(outRendererDir).filter((f) => f.match(/^logo-[a-zA-Z0-9_-]+\.png$/))
+          for (const hashedFile of logoFiles) {
+            const hashedPath = path.join(outRendererDir, hashedFile)
+            fs.copyFileSync(logoSource, hashedPath)
+            console.log(`  ✓ Copied logo to ${hashedFile}`)
+          }
+          console.log(`  ✓ Copied logo to out/renderer/assets/`)
+        }
+      }
+
+      // Copy tray icons to out/main/
+      const trayIcons = ['trayIcon', 'trayIconDark', 'trayIconLight']
+      for (const key of trayIcons) {
+        if (assets[key]) {
+          const source = path.join(rootDir, assets[key])
+          const target = path.join(outMainDir, path.basename(assets[key]))
+          if (fs.existsSync(source)) {
+            fs.copyFileSync(source, target)
+            console.log(`  ✓ Copied ${key} to out/main/`)
+          }
+        }
+      }
+
+      // Copy app icons to out/main/
+      if (assets.icon) {
+        const iconSource = path.join(rootDir, assets.icon)
+        const iconTarget = path.join(outMainDir, 'icon.png')
+        if (fs.existsSync(iconSource)) {
+          fs.copyFileSync(iconSource, iconTarget)
+          console.log(`  ✓ Copied icon.png to out/main/`)
+        }
+      }
+
+      if (assets.iconMac) {
+        const iconSource = path.join(rootDir, assets.iconMac)
+        const iconTarget = path.join(outMainDir, 'icon.icns')
+        if (fs.existsSync(iconSource)) {
+          fs.copyFileSync(iconSource, iconTarget)
+          console.log(`  ✓ Copied icon.icns to out/main/`)
+        }
+      }
+
+      if (assets.iconWin) {
+        const iconSource = path.join(rootDir, assets.iconWin)
+        const iconTarget = path.join(outMainDir, 'icon.ico')
+        if (fs.existsSync(iconSource)) {
+          fs.copyFileSync(iconSource, iconTarget)
+          console.log(`  ✓ Copied icon.ico to out/main/`)
+        }
+      }
     }
 
     console.log('\n✅ Build complete!')
-
-    // Restore build/ assets for custom brands
-    restoreBuildAssets(copiedFiles)
 
     return { success: true, backupPath }
   } catch (error) {
@@ -450,7 +479,6 @@ function runBuild(envVars, copiedFiles) {
     if (backupPath) {
       restoreBuildConstants(backupPath)
     }
-    restoreBuildAssets(copiedFiles)
     return { success: false, backupPath: null }
   }
 }
@@ -470,8 +498,8 @@ function main() {
   // Generate environment variables
   const envVars = generateEnvVars(brandConfig, profile)
 
-  // Copy brand assets if available (returns list of copied files for restoration)
-  const copiedFiles = copyBrandAssets(brandConfig)
+  // Copy brand assets if available
+  copyBrandAssets(brandConfig, profile)
 
   // Export environment variables (sets process.env)
   exportEnvVars(envVars)
@@ -482,7 +510,7 @@ function main() {
   console.log('✅ Brand configuration complete!')
 
   if (shouldBuild) {
-    const result = runBuild(envVars, copiedFiles)
+    const result = runBuild(envVars, brandConfig, profile)
 
     // Restore build-constants.ts after build
     if (result.backupPath) {

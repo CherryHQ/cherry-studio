@@ -1,11 +1,12 @@
-import DefaultAppLogo from '@renderer/assets/images/logo.png'
+// Import logo for the current brand
+// Brand builder copies the appropriate logo to src/renderer/src/assets/images/logo.png
+import AppLogoSrc from '@renderer/assets/images/logo.png'
 import { BUILD_CONSTANTS } from '@shared/build-constants'
 
-export { default as UserAvatar } from '@renderer/assets/images/avatar.png'
+// Re-export the logo - it's managed by brand-builder.js
+export const AppLogo = AppLogoSrc
 
-// For custom builds, use the build directory logo
-// For default builds, use the original logo from assets
-export const AppLogo = BUILD_CONSTANTS.IS_CUSTOM_BUILD ? `/logo.png?v=${BUILD_CONSTANTS.BUILD_BRAND}` : DefaultAppLogo
+export { default as UserAvatar } from '@renderer/assets/images/avatar.png'
 
 export const APP_NAME = BUILD_CONSTANTS.APP_NAME
 export const ENABLE_TEST_PLAN = BUILD_CONSTANTS.ENABLE_TEST_PLAN

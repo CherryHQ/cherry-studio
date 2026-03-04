@@ -16,7 +16,7 @@
     "dev:jlpay": "dotenv -e .env.brand -- electron-vite dev",
     "dev:brand": "dotenv -e .env.brand -- electron-vite dev",
     "build:brand": "node scripts/brand-builder.js",
-    "build:jlpay": "node scripts/brand-builder.js jlpay && dotenv -e .env.brand -- pnpm build && electron-builder --config electron-builder.brand.yml",
+    "build:jlpay": "node scripts/brand-builder.js jlpay --build && electron-builder --config electron-builder.brand.yml",
     "build:custom": "node scripts/brand-builder.js custom && dotenv -e .env.brand -- pnpm build && electron-builder --config electron-builder.brand.yml",
     "build:default": "node scripts/brand-builder.js default && dotenv -e .env.brand -- pnpm build",
     "dev:watch": "dotenv electron-vite dev -- -w",

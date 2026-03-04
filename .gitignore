@@ -75,3 +75,4 @@ test-results
 YOUR_MEMORY_FILE_PATH
 
 .sessions/
+electron-builder.brand.yml

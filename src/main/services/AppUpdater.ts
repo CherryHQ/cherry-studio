@@ -234,9 +234,14 @@ export default class AppUpdater {
     )
 
     // Use custom mirror if configured, otherwise determine by IP country
-    const customMirror = BUILD_CONSTANTS.UPDATE_MIRROR
+    const customMirror = BUILD_CONSTANTS.UPDATE_MIRROR as UpdateMirror
     const ipCountry = await getIpCountry()
-    const mirror = customMirror || (ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB)
+    const mirror: UpdateMirror =
+      (customMirror && Object.values(UpdateMirror).includes(customMirror)
+        ? customMirror
+        : ipCountry.toLowerCase() === 'cn'
+          ? UpdateMirror.GITCODE
+          : UpdateMirror.GITHUB) || UpdateMirror.GITHUB
 
     logger.info(
       `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry}, custom mirror: ${customMirror || 'auto'})`
@@ -275,7 +280,7 @@ export default class AppUpdater {
     // For branded builds, if custom config fails, use the custom feed URL directly
     if (!config && !hasCustomConfigUrl) {
       // Use default config URL (for non-branded builds)
-      const defaultMirror = mirror === 'gitcode' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
+      const defaultMirror: UpdateMirror = mirror === UpdateMirror.GITCODE ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
       config = await this._fetchUpdateConfig(defaultMirror)
     }
 
@@ -296,7 +301,7 @@ export default class AppUpdater {
 
     logger.info('Failed to fetch update config, falling back to default feed URL')
     // Fallback: use default feed URL based on mirror or custom configuration
-    let defaultFeedUrl = BUILD_CONSTANTS.UPDATE_FEED_URL
+    let defaultFeedUrl: string = BUILD_CONSTANTS.UPDATE_FEED_URL || ''
 
     if (!defaultFeedUrl) {
       // Use brand-specific default feed URL if configured, otherwise use original
