@@ -1,5 +1,3 @@
-import { useAppSelector } from '@renderer/store'
-import { selectPendingPermission } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
@@ -131,9 +129,8 @@ function ToolContent({
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
-  const pendingPermission = useAppSelector((state) =>
-    selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
-  )
+  // toolPermissions store has been removed; treat as no pending permission
+  const pendingPermission = undefined
 
   const parsedPartialArgs = useMemo(() => {
     if (!partialArguments) return undefined

@@ -1,6 +1,4 @@
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { Button, Checkbox, Input, Radio, Tag } from 'antd'
@@ -261,14 +259,13 @@ function PendingContent({
 // ==================== Main Component ====================
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
 
-  const isPending = toolResponse.status === 'pending' && !!request
+  // toolPermissions store has been removed; isPending is always false
+  const isPending = false
 
-  // Parse from available sources - prefer request.input when pending, fall back to toolResponse.arguments
+  // Parse from toolResponse.arguments only (no pending request available)
   const { questions, answers } = useMemo(() => {
-    const source = isPending ? request.input : toolResponse.arguments
+    const source = toolResponse.arguments
     const parsed = parseAskUserQuestionToolInput(source)
 
     // Debug: log data source
@@ -276,7 +273,6 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       logger.debug('AskUserQuestion: no questions parsed', {
         isPending,
         status: toolResponse.status,
-        hasRequestInput: !!request?.input,
         hasArguments: !!toolResponse.arguments,
         source
       })
@@ -286,7 +282,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       questions: parsed?.questions ?? [],
       answers: parsed?.answers ?? {}
     }
-  }, [isPending, request?.input, toolResponse.arguments, toolResponse.status])
+  }, [toolResponse.arguments, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   // Use question index as key to avoid collision when questions have identical text
@@ -297,7 +293,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
 
   const displayAnswers = Object.keys(answers).length > 0 ? answers : submittedAnswers
 
-  const isSubmitting = request?.status === 'submitting-allow'
+  const isSubmitting = false
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
@@ -355,8 +351,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   }, [isLastQuestion])
 
   const handleSubmit = useCallback(async () => {
-    if (!request) return
-
+    // toolPermissions and agentTools have been removed; submit is a no-op
     const collectedAnswers: Record<string, string> = {}
     questions.forEach((q, idx) => {
       const selected = selectedAnswers[idx] ?? []
@@ -370,22 +365,8 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     })
 
     setSubmittedAnswers(collectedAnswers)
-    dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior: 'allow' }))
-
-    try {
-      const response = await window.api.agentTools.respondToPermission({
-        requestId: request.requestId,
-        behavior: 'allow' as const,
-        updatedInput: { ...request.input, answers: collectedAnswers }
-      })
-
-      if (!response?.success) throw new Error('Response rejected by main process')
-    } catch (error) {
-      logger.error('Failed to submit AskUserQuestion answers', { error })
-      window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
-      dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
-    }
-  }, [dispatch, request, questions, selectedAnswers, customInputs, showCustomInput, t])
+    logger.debug('AskUserQuestion: submit (agentTools removed)', { collectedAnswers })
+  }, [questions, selectedAnswers, customInputs, showCustomInput])
 
   if (isPending && (questions.length === 0 || !currentQuestion)) {
     return (

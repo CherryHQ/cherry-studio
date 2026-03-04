@@ -1,4 +1,3 @@
-import mcpService from '@main/services/MCPService'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types'
 import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'
@@ -93,29 +92,6 @@ class MCPApiService extends EventEmitter {
     } catch (error: any) {
       logger.error('Failed to get server', { id, error })
       throw new Error('Failed to retrieve server')
-    }
-  }
-
-  async getServerInfo(id: string): Promise<any> {
-    try {
-      const server = await this.getServerById(id)
-      if (!server) {
-        logger.warn('Server not found while fetching info', { id })
-        return null
-      }
-
-      const client = await mcpService.initClient(server)
-      const tools = await client.listTools()
-      return {
-        id: server.id,
-        name: server.name,
-        type: server.type,
-        description: server.description,
-        tools: tools.tools
-      }
-    } catch (error: any) {
-      logger.error('Failed to get server info', { id, error })
-      throw new Error('Failed to retrieve server info')
     }
   }
 

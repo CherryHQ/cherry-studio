@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { AppDispatch } from '@renderer/store'
 import store from '@renderer/store'
-import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
@@ -22,7 +21,7 @@ interface ToolCallbacksDependencies {
 }
 
 export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
-  const { blockManager, assistantMsgId, dispatch } = deps
+  const { blockManager, assistantMsgId, dispatch: _dispatch } = deps
 
   // 内部维护的状态
   const toolCallIdToBlockIdMap = new Map<string, string>()
@@ -99,13 +98,9 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
     },
 
     onToolCallComplete: (toolResponse: ToolResponse) => {
-      // Read resolvedInput BEFORE removing from store (removeByToolCallId deletes it)
       const state = store.getState()
-      const resolvedInput = toolResponse?.id ? state.toolPermissions.resolvedInputs[toolResponse.id] : undefined
-
-      if (toolResponse?.id) {
-        dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))
-      }
+      // toolPermissions store has been removed; resolvedInput is always undefined
+      const resolvedInput = undefined
       const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
       toolCallIdToBlockIdMap.delete(toolResponse.id)
 

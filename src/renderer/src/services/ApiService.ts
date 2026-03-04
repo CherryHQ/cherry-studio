@@ -8,8 +8,6 @@ import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
-import { hubMCPServer } from '@renderer/store/mcp'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
@@ -55,80 +53,26 @@ const logger = loggerService.withContext('ApiService')
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
+ * MCP store has been removed; always returns an empty list.
  */
-export function getMcpServersForAssistant(assistant: Assistant): MCPServer[] {
-  const mode = getEffectiveMcpMode(assistant)
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-
-  switch (mode) {
-    case 'disabled':
-      return []
-    case 'auto':
-      return [hubMCPServer]
-    case 'manual': {
-      const assistantMcpServers = assistant.mcpServers || []
-      return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-    }
-    default:
-      return []
-  }
+export function getMcpServersForAssistant(_assistant: Assistant): MCPServer[] {
+  return []
 }
 
+/**
+ * Fetch tools from all active MCP servers.
+ * MCP store and window.api.mcp have been removed; always returns an empty list.
+ */
 export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
-  const allMcpServers = store.getState().mcp.servers || []
-  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-
-  if (activedMcpServers.length === 0) {
-    return []
-  }
-
-  try {
-    const toolPromises = activedMcpServers.map(async (mcpServer: MCPServer) => {
-      try {
-        const tools = await window.api.mcp.listTools(mcpServer)
-        return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-      } catch (error) {
-        logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
-        return []
-      }
-    })
-    const results = await Promise.allSettled(toolPromises)
-    return results
-      .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
-      .map((result) => result.value)
-      .flat()
-  } catch (toolError) {
-    logger.error('Error fetching all active server tools:', toolError as Error)
-    return []
-  }
+  return []
 }
 
-export async function fetchMcpTools(assistant: Assistant) {
-  let mcpTools: MCPTool[] = []
-  const enabledMCPs = getMcpServersForAssistant(assistant)
-
-  if (enabledMCPs && enabledMCPs.length > 0) {
-    try {
-      const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
-        try {
-          const tools = await window.api.mcp.listTools(mcpServer)
-          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-        } catch (error) {
-          logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
-          return []
-        }
-      })
-      const results = await Promise.allSettled(toolPromises)
-      mcpTools = results
-        .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
-        .map((result) => result.value)
-        .flat()
-    } catch (toolError) {
-      logger.error('Error fetching MCP tools:', toolError as Error)
-    }
-  }
-  return mcpTools
+/**
+ * Fetch MCP tools for an assistant.
+ * MCP store and window.api.mcp have been removed; always returns an empty list.
+ */
+export async function fetchMcpTools(_assistant: Assistant): Promise<MCPTool[]> {
+  return []
 }
 
 /**

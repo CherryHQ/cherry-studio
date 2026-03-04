@@ -1,6 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, AssistantSettings, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { Empty, Radio, Switch, Tooltip } from 'antd'
@@ -26,7 +25,8 @@ interface Props {
 
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
   const { t } = useTranslation()
-  const { mcpServers: allMcpServers } = useMCPServers()
+  // useMCPServers has been removed; no MCP servers available
+  const allMcpServers: MCPServer[] = []
 
   const currentMode = getEffectiveMcpMode(assistant)
 

@@ -53,7 +53,6 @@ import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { localTransferService } from './services/LocalTransferService'
-import mcpService from './services/MCPService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
@@ -62,7 +61,6 @@ import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
-import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
@@ -765,22 +763,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     decrypt(encryptedData, iv, secretKey)
   )
 
-  // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, mcpService.removeServer)
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, mcpService.restartServer)
-  ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
-  ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
-  ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
-  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
-  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
-  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
-  ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
-  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
-  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
-
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
     try {
@@ -843,17 +825,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
-
-  // search window
-  ipcMain.handle(IpcChannel.SearchWindow_Open, async (_, uid: string, show?: boolean) => {
-    await searchService.openSearchWindow(uid, show)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_Close, async (_, uid: string) => {
-    await searchService.closeSearchWindow(uid)
-  })
-  ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
-    return await searchService.openUrlInSearchWindow(uid, url)
-  })
 
   // webview
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>

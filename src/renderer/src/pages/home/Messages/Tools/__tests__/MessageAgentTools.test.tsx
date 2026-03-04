@@ -319,8 +319,9 @@ describe('MessageAgentTools', () => {
   })
 
   describe('pending without streaming', () => {
-    it('should show permission card when pending permission exists', () => {
-      mockUseAppSelector.mockReturnValue({ toolCallId: 'call-123' }) // Has pending permission
+    it('should show loading indicator regardless of store state (toolPermissions removed)', () => {
+      // toolPermissions store has been removed; pendingPermission is always undefined
+      mockUseAppSelector.mockReturnValue({ toolCallId: 'call-123' })
 
       const toolResponse = createToolResponse({
         status: 'pending',
@@ -329,7 +330,8 @@ describe('MessageAgentTools', () => {
 
       render(<MessageAgentTools toolResponse={toolResponse} />)
 
-      expect(screen.getByTestId('permission-card')).toBeInTheDocument()
+      // Permission card no longer shows since toolPermissions store was removed
+      expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
     })
 
     it('should show pending indicator when no streaming and no permission', () => {

@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MCPToolResponse } from '@renderer/types'
+import type { MCPServer, MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
@@ -29,7 +28,9 @@ export function useMcpToolApproval(
 ): ToolApprovalState & ToolApprovalActions {
   const { disableCountdown = false } = options
   const { t } = useTranslation()
-  const { mcpServers, updateMCPServer } = useMCPServers()
+  // useMCPServers has been deleted; stub with empty data
+  const mcpServers: MCPServer[] = []
+  const updateMCPServer = (_server: MCPServer) => {}
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined

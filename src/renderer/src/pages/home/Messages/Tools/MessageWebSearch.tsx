@@ -1,5 +1,8 @@
-import type { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
+
+// Inline type stubs replacing the deleted WebSearchTool module
+type WebSearchToolInput = { additionalContext?: string }
+type WebSearchToolOutput = { results?: unknown[] }
 import type { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'

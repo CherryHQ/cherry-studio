@@ -5,8 +5,13 @@ import type {
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
+
+interface CherryWebSearchConfig {
+  maxResults: number
+  excludeDomains?: string[]
+  searchWithTime?: boolean
+}
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
 const X_AI_MAX_SEARCH_RESULT = 30
@@ -71,7 +76,7 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'anthropic': {
-      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains ?? [])
       const anthropicSearchOptions: AnthropicSearchConfig = {
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
@@ -81,7 +86,7 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'xai': {
-      const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains ?? [])
       return {
         xai: {
           maxSearchResults: Math.min(webSearchConfig.maxResults, X_AI_MAX_SEARCH_RESULT),

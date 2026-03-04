@@ -28,8 +28,6 @@ import {
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
@@ -78,7 +76,7 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     webSearchProviderId?: string
-    webSearchConfig?: CherryWebSearchConfig
+    webSearchConfig?: { maxResults: number; excludeDomains?: string[]; searchWithTime?: boolean }
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -131,10 +129,10 @@ export async function buildStreamTextParams(
   let tools = setupToolsConfig(mcpTools)
 
   // 构建真正的 providerOptions
-  const webSearchConfig: CherryWebSearchConfig = {
-    maxResults: store.getState().websearch.maxResults,
-    excludeDomains: store.getState().websearch.excludeDomains,
-    searchWithTime: store.getState().websearch.searchWithTime
+  const webSearchConfig = {
+    maxResults: 10,
+    excludeDomains: [] as string[],
+    searchWithTime: false
   }
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {

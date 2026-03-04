@@ -10,7 +10,6 @@ import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Flex, Progress, Tooltip } from 'antd'
-import { message } from 'antd'
 import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
@@ -105,19 +104,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   }
 
   const handleAbortTool = async () => {
-    if (toolResponse?.id) {
-      try {
-        const success = await window.api.mcp.abortTool(toolResponse.id)
-        if (success) {
-          window.toast.success(t('message.tools.aborted'))
-        } else {
-          message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
-        }
-      } catch (error) {
-        logger.error('Failed to abort tool:', error as Error)
-        message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
-      }
-    }
+    // window.api.mcp has been removed; abort is a no-op
+    logger.warn('handleAbortTool: window.api.mcp is no longer available')
   }
 
   // Format tool responses for collapse items

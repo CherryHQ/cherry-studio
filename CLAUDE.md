@@ -1,4 +1,4 @@
-﻿# AI Assistant Guide
+# AI Assistant Guide
 
 This file provides guidance to AI coding assistants when working with code in this repository. Adherence to these guidelines is crucial for maintaining code quality and consistency.
 

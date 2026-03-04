@@ -1,9 +1,7 @@
 import { loggerService } from '@logger'
-import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
-import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
+import type { AgentType, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -18,7 +16,6 @@ const logger = loggerService.withContext('BaseService')
 const MCP_TOOL_ID_PREFIX = 'mcp__'
 const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
 
-const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
 const toLegacyMcpToolId = (toolId: string) => {
   if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
     return null
@@ -56,37 +53,8 @@ export abstract class BaseService {
     if (agentType === 'claude-code') {
       tools.push(...builtinTools)
     }
-    if (ids && ids.length > 0) {
-      for (const id of ids) {
-        try {
-          const server = await mcpApiService.getServerInfo(id)
-          if (server) {
-            server.tools.forEach((tool: MCPTool) => {
-              const canonicalId = buildFunctionCallToolName(server.name, tool.name)
-              const serverIdBasedId = buildMcpToolId(id, tool.name)
-              const legacyId = toLegacyMcpToolId(serverIdBasedId)
-
-              tools.push({
-                id: canonicalId,
-                name: tool.name,
-                type: 'mcp',
-                description: tool.description || '',
-                requirePermissions: true
-              })
-              legacyIdMap.set(serverIdBasedId, canonicalId)
-              if (legacyId) {
-                legacyIdMap.set(legacyId, canonicalId)
-              }
-            })
-          }
-        } catch (error) {
-          logger.warn('Failed to list MCP tools', {
-            id,
-            error: error as Error
-          })
-        }
-      }
-    }
+    // MCP server listing is unavailable; ids are ignored and no MCP tools are returned
+    void ids
 
     return { tools, legacyIdMap }
   }

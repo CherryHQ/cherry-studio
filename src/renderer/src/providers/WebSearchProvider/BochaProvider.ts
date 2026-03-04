@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import type { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
+import type { WebSearchState } from './BaseWebSearchProvider'
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
 const logger = loggerService.withContext('BochaProvider')

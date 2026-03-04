@@ -52,32 +52,28 @@ const mockTools: MCPTool[] = [
   }
 ]
 
-vi.mock('@main/services/MCPService', () => ({
-  default: {
-    listAllActiveServerTools: vi.fn(async () => mockTools),
-    callToolById: vi.fn(async (toolId: string, args: unknown) => {
-      if (toolId === 'github__search_repos') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
-        }
-      }
-      if (toolId === 'github__get_user') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
-        }
-      }
-      if (toolId === 'database__query') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
-        }
-      }
-      return { content: [{ type: 'text', text: '{}' }] }
-    }),
-    abortTool: vi.fn(async () => true)
-  }
+vi.mock('../mcp-bridge', () => ({
+  listAllTools: vi.fn(async () => mockTools),
+  callMcpTool: vi.fn(async (nameOrId: string, args: unknown) => {
+    if (nameOrId === 'githubSearchRepos' || nameOrId === 'github__search_repos') {
+      return { repos: ['repo1', 'repo2'], query: args }
+    }
+    if (nameOrId === 'githubGetUser' || nameOrId === 'github__get_user') {
+      return { username: (args as any).username, id: 123 }
+    }
+    if (nameOrId === 'databaseQuery' || nameOrId === 'database__query') {
+      return { rows: [{ id: 1 }, { id: 2 }] }
+    }
+    return {}
+  }),
+  abortMcpTool: vi.fn(async () => false),
+  syncToolMapFromTools: vi.fn(),
+  syncToolMapFromHubTools: vi.fn(),
+  clearToolMap: vi.fn(),
+  refreshToolMap: vi.fn()
 }))
 
-import mcpService from '@main/services/MCPService'
+import * as mcpBridge from '../mcp-bridge'
 
 describe('HubServer Integration', () => {
   let hubServer: HubServer
@@ -135,22 +131,22 @@ describe('HubServer Integration', () => {
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const firstCallCount = vi.mocked(mcpBridge.listAllTools).mock.calls.length
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const secondCallCount = vi.mocked(mcpBridge.listAllTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const firstCallCount = vi.mocked(mcpBridge.listAllTools).mock.calls.length
 
       hubServer.invalidateCache()
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const secondCallCount = vi.mocked(mcpBridge.listAllTools).mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)
     })
@@ -193,7 +189,7 @@ describe('HubServer Integration', () => {
         toolCallStarted = resolve
       })
 
-      vi.mocked(mcpService.callToolById).mockImplementationOnce(async () => {
+      vi.mocked(mcpBridge.callMcpTool).mockImplementationOnce(async () => {
         toolCallStarted?.()
         return await new Promise(() => {})
       })
@@ -216,7 +212,7 @@ describe('HubServer Integration', () => {
       expect(execOutput.result).toBeUndefined()
       expect(execOutput.isError).toBe(true)
       expect(execOutput.logs).toContain('[log] starting')
-      expect(vi.mocked(mcpService.abortTool)).toHaveBeenCalled()
+      expect(vi.mocked(mcpBridge.abortMcpTool)).toHaveBeenCalled()
     })
   })
 

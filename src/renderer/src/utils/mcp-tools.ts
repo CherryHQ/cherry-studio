@@ -11,9 +11,6 @@ import { Type as GeminiSchemaType } from '@google/genai'
 import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import { currentSpan } from '@renderer/services/SpanManagerService'
-import store from '@renderer/store'
-import { addMCPServer, hubMCPServer } from '@renderer/store/mcp'
 import type {
   Assistant,
   MCPCallToolResponse,
@@ -23,12 +20,10 @@ import type {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import { BuiltinMCPServerNames } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
 import { t } from 'i18next'
-import { nanoid } from 'nanoid'
 
 import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
@@ -133,61 +128,23 @@ export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MC
 
 export async function callMCPTool(
   toolResponse: MCPToolResponse,
-  topicId?: string,
-  modelName?: string
+  _topicId?: string,
+  _modelName?: string
 ): Promise<MCPCallToolResponse> {
   logger.info(
     `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
     toolResponse.tool
   )
-  try {
-    const server = getMcpServerByTool(toolResponse.tool)
-
-    if (!server) {
-      throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
-    }
-
-    const resp = await window.api.mcp.callTool(
+  // window.api.mcp has been removed; MCP tool calls are no longer supported at runtime.
+  return Promise.resolve({
+    isError: true,
+    content: [
       {
-        server,
-        name: toolResponse.tool.name,
-        args: toolResponse.arguments,
-        callId: toolResponse.id
-      },
-      topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
-    )
-    if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
-      if (resp.data) {
-        const mcpServer: MCPServer = {
-          id: `f${nanoid()}`,
-          name: resp.data.name,
-          description: resp.data.description,
-          baseUrl: resp.data.baseUrl,
-          command: resp.data.command,
-          args: resp.data.args,
-          env: resp.data.env,
-          registryUrl: '',
-          isActive: false,
-          provider: 'CherryAI'
-        }
-        store.dispatch(addMCPServer(mcpServer))
+        type: 'text',
+        text: `MCP tool calls are unavailable: window.api.mcp has been removed. Tool: ${toolResponse.tool.name}`
       }
-    }
-
-    logger.info(`Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
-    return resp
-  } catch (e) {
-    logger.error(`Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e as Error)
-    return Promise.resolve({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: `Error calling tool ${toolResponse.tool.name}: ${e instanceof Error ? e.stack || e.message || 'No error details available' : JSON.stringify(e)}`
-        }
-      ]
-    })
-  }
+    ]
+  })
 }
 
 export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> {
@@ -323,17 +280,8 @@ export function filterMCPTools(
   return mcpTools
 }
 
-export function getMcpServerByTool(tool: MCPTool) {
-  const servers = store.getState().mcp.servers
-  const server = servers.find((s) => s.id === tool.serverId)
-  if (server) {
-    return server
-  }
-  // For hub server (auto mode), the server isn't in the store
-  // Return the hub server constant if the tool's serverId matches
-  if (tool.serverId === 'hub') {
-    return hubMCPServer
-  }
+export function getMcpServerByTool(_tool: MCPTool): MCPServer | undefined {
+  // The MCP store (@renderer/store/mcp) has been removed; server lookup is unavailable.
   return undefined
 }
 

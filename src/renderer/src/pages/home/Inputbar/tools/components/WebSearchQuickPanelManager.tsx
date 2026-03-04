@@ -12,10 +12,8 @@ import {
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
 import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -61,7 +59,7 @@ export const WebSearchProviderIcon = ({
 export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
   const { assistant, updateAssistant } = useAssistant(assistantId)
-  const { providers } = useWebSearchProviders()
+  const providers: WebSearchProvider[] = []
   const { setTimeoutTimer } = useTimer()
 
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
@@ -133,14 +131,12 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
         ...providers
           .map((p) => ({
             label: p.name,
-            description: WebSearchService.isWebSearchEnabled(p.id)
-              ? hasObjectKey(p, 'apiKey')
-                ? t('settings.tool.websearch.apikey')
-                : t('settings.tool.websearch.free')
-              : t('chat.input.web_search.enable_content'),
+            description: hasObjectKey(p, 'apiKey')
+              ? t('settings.tool.websearch.apikey')
+              : t('settings.tool.websearch.free'),
             icon: <WebSearchProviderIcon size={13} pid={p.id} />,
             isSelected: p.id === assistant?.webSearchProviderId,
-            disabled: !WebSearchService.isWebSearchEnabled(p.id),
+            disabled: false,
             action: () => updateQuickPanelItem(p.id)
           }))
           .filter((item) => !item.disabled)

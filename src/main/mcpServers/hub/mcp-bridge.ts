@@ -1,12 +1,12 @@
 /**
- * Bridge module for Hub server to access MCPService.
+ * Bridge module for Hub server to access MCP tools.
+ * MCPService has been removed; listAllTools returns an empty list.
  */
-import mcpService from '@main/services/MCPService'
-import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
+import type { MCPTool } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
 
-export const listAllTools = () => mcpService.listAllActiveServerTools()
+export const listAllTools = (): Promise<MCPTool[]> => Promise.resolve([])
 
 let toolNameMapping: ToolNameMapping | null = null
 
@@ -44,7 +44,7 @@ export function clearToolMap(): void {
  * - JS name (camelCase), e.g. "githubSearchRepos"
  * - original tool id (namespaced), e.g. "github__search_repos"
  */
-export const callMcpTool = async (nameOrId: string, params: unknown, callId?: string): Promise<unknown> => {
+export const callMcpTool = async (nameOrId: string, _params: unknown, _callId?: string): Promise<unknown> => {
   if (!toolNameMapping) {
     await refreshToolMap()
   }
@@ -69,46 +69,9 @@ export const callMcpTool = async (nameOrId: string, params: unknown, callId?: st
     throw new Error(`Tool not found: ${nameOrId}`)
   }
 
-  const result = await mcpService.callToolById(toolId, params, callId)
-  throwIfToolError(result)
-  return extractToolResult(result)
+  throw new Error(`MCPService is unavailable; cannot call tool: ${toolId}`)
 }
 
-export const abortMcpTool = async (callId: string): Promise<boolean> => {
-  return mcpService.abortTool(null as unknown as Electron.IpcMainInvokeEvent, callId)
-}
-
-function extractToolResult(result: MCPCallToolResponse): unknown {
-  if (!result.content || result.content.length === 0) {
-    return null
-  }
-
-  const textContent = result.content.find((c) => c.type === 'text')
-  if (textContent?.text) {
-    try {
-      return JSON.parse(textContent.text)
-    } catch {
-      return textContent.text
-    }
-  }
-
-  return result.content
-}
-
-function throwIfToolError(result: MCPCallToolResponse): void {
-  if (!result.isError) {
-    return
-  }
-
-  const textContent = extractTextContent(result.content)
-  throw new Error(textContent ?? 'Tool execution failed')
-}
-
-function extractTextContent(content: MCPToolResultContent[] | undefined): string | undefined {
-  if (!content || content.length === 0) {
-    return undefined
-  }
-
-  const textBlock = content.find((item) => item.type === 'text' && item.text)
-  return textBlock?.text
+export const abortMcpTool = async (_callId: string): Promise<boolean> => {
+  return false
 }

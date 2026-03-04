@@ -24,8 +24,6 @@ import type { LanguageModel, ModelMessage } from 'ai'
 import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
-import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
-
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
 export const getMessageContent = (message: ModelMessage) => {
@@ -191,12 +189,11 @@ export const searchOrchestrationPlugin = (
     /**
      * 🔧 Step 2: 工具配置阶段
      */
-    transformParams: async (params, context) => {
+    transformParams: async (params, _context) => {
       // logger.info('🔧 Configuring tools based on intent...', context.requestId)
 
       try {
-        const analysisResult = intentAnalysisResults[context.requestId]
-        // if (!analysisResult || !assistant) {
+        // if (!intentAnalysisResults[context.requestId] || !assistant) {
         //   logger.info('🔧 No analysis result or assistant, skipping tool configuration')
         //   return params
         // }
@@ -204,21 +201,6 @@ export const searchOrchestrationPlugin = (
         // 确保 tools 对象存在
         if (!params.tools) {
           params.tools = {}
-        }
-
-        // 🌐 网络搜索工具配置
-        if (analysisResult?.websearch && assistant.webSearchProviderId) {
-          const needsSearch = analysisResult.websearch.question && analysisResult.websearch.question[0] !== 'not_needed'
-
-          if (needsSearch) {
-            // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-            // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
-              assistant.webSearchProviderId,
-              analysisResult.websearch,
-              context.requestId
-            )
-          }
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))

@@ -1,8 +1,5 @@
 import { CacheService } from '@main/services/CacheService'
-import mcpService from '@main/services/MCPService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { MCPServer } from '@types'
 
 import { loggerService } from '../../services/LoggerService'
@@ -15,33 +12,6 @@ const MCP_SERVERS_CACHE_KEY = 'api-server:mcp-servers'
 const MCP_SERVERS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 const cachedServers: Record<string, Server> = {}
-
-async function handleListToolsRequest(request: any, extra: any): Promise<ListToolsResult> {
-  logger.debug('Handling list tools request', { request: request, extra: extra })
-  const serverId: string = request.params._meta.serverId
-  const serverConfig = await getMcpServerConfigById(serverId)
-  if (!serverConfig) {
-    throw new Error(`Server not found: ${serverId}`)
-  }
-  const client = await mcpService.initClient(serverConfig)
-  return client.listTools()
-}
-
-async function handleCallToolRequest(request: any, extra: any): Promise<any> {
-  logger.debug('Handling call tool request', { request: request, extra: extra })
-  const serverId: string = request.params._meta.serverId
-  const serverConfig = await getMcpServerConfigById(serverId)
-  if (!serverConfig) {
-    throw new Error(`Server not found: ${serverId}`)
-  }
-  const client = await mcpService.initClient(serverConfig)
-  return client.callTool(request.params)
-}
-
-async function getMcpServerConfigById(id: string): Promise<MCPServer | undefined> {
-  const servers = await getMCPServersFromRedux()
-  return servers.find((s) => s.id === id || s.name === id)
-}
 
 /**
  * Get servers directly from Redux store
@@ -83,8 +53,6 @@ export async function getMcpServerById(id: string): Promise<Server> {
 
     const createMcpServer = (name: string, version: string): Server => {
       const server = new Server({ name: name, version }, { capabilities: { tools: {} } })
-      server.setRequestHandler(ListToolsRequestSchema, handleListToolsRequest)
-      server.setRequestHandler(CallToolRequestSchema, handleCallToolRequest)
       return server
     }
 

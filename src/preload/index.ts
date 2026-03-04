@@ -1,4 +1,3 @@
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -14,7 +13,6 @@ import type {
   LocalTransferState,
   WebviewKeyEvent
 } from '@shared/config/types'
-import type { MCPServerLogEntry } from '@shared/config/types'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
@@ -22,14 +20,9 @@ import type {
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
-  GetApiServerStatusResult,
-  MCPServer,
   Provider,
-  RestartApiServerStatusResult,
   S3Config,
   Shortcut,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult,
   ThemeMode,
   WebDavConfig
 } from '@types'
@@ -311,40 +304,6 @@ const api = {
     decrypt: (encryptedData: string, iv: string, secretKey: string) =>
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
-  mcp: {
-    removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
-    restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
-    stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
-    callTool: (
-      { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
-      context?: SpanContext
-    ) => tracedInvoke(IpcChannel.Mcp_CallTool, context, { server, name, args, callId }),
-    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
-    getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
-    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
-    getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
-    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
-    uploadDxt: async (file: File) => {
-      const buffer = await file.arrayBuffer()
-      return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
-    },
-    abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    getServerVersion: (server: MCPServer): Promise<string | null> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
-    getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, server),
-    onServerLog: (callback: (log: MCPServerLogEntry & { serverId?: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, log: MCPServerLogEntry & { serverId?: string }) => {
-        callback(log)
-      }
-      ipcRenderer.on(IpcChannel.Mcp_ServerLog, listener)
-      return () => ipcRenderer.off(IpcChannel.Mcp_ServerLog, listener)
-    }
-  },
   python: {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>
       ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
@@ -397,11 +356,6 @@ const api = {
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
   },
-  searchService: {
-    openSearchWindow: (uid: string, show?: boolean) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid, show),
-    closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
-    openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
-  },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
@@ -445,15 +399,6 @@ const api = {
     // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
     resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
       ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
-  },
-  agentTools: {
-    respondToPermission: (payload: {
-      requestId: string
-      behavior: 'allow' | 'deny'
-      updatedInput?: Record<string, unknown>
-      message?: string
-      updatedPermissions?: PermissionUpdate[]
-    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
   setDisableHardwareAcceleration: (isDisable: boolean) =>
@@ -504,21 +449,6 @@ const api = {
       ipcRenderer.on(channel, listener)
       return () => {
         ipcRenderer.removeListener(channel, listener)
-      }
-    }
-  },
-  apiServer: {
-    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
-    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
-    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
-    onReady: (callback: () => void): (() => void) => {
-      const listener = () => {
-        callback()
-      }
-      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
       }
     }
   },

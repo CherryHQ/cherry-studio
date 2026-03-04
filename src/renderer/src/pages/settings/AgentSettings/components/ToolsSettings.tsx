@@ -1,7 +1,6 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import type { UpdateAgentBaseForm } from '@renderer/types'
+import type { MCPServer, UpdateAgentBaseForm } from '@renderer/types'
 import type { CardProps } from 'antd'
 import { Card, Switch, Tag, Tooltip } from 'antd'
 import { uniq } from 'lodash'
@@ -59,7 +58,8 @@ const useBuiltinToolDescription = () => {
 export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const getBuiltinToolDescription = useBuiltinToolDescription()
-  const { mcpServers: allServers } = useMCPServers()
+  // useMCPServers has been removed; no MCP servers available
+  const allServers: MCPServer[] = []
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)

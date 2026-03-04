@@ -2384,7 +2384,7 @@ describe('ApiService', () => {
     expect(() => mockSelfReturningClient.getClientCompatibilityType({ id: 'gpt-4o' })).not.toThrow()
   })
 
-  it('should extract tool use responses correctly', async () => {
+  it.skip('should extract tool use responses correctly (skipped: MCP tool execution removed in Phase 04)', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockGeminiToolUseApiClient as unknown as BaseApiClient)
     const AI = new AiProvider(mockProvider)

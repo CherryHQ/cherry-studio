@@ -62,11 +62,9 @@ import { createMigrate } from 'redux-persist'
 import type { RootState } from '.'
 import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
-import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
-import { defaultWebSearchProviders } from './websearch'
 
 const logger = loggerService.withContext('Migrate')
 
@@ -146,24 +144,29 @@ function updateProvider(state: RootState, id: string, provider: Partial<Provider
 }
 
 function addWebSearchProvider(state: RootState, id: string) {
-  if (state.websearch && state.websearch.providers) {
-    if (!state.websearch.providers.find((p) => p.id === id)) {
-      const provider = defaultWebSearchProviders.find((p) => p.id === id)
+  const s = state as any
+  if (s.websearch && s.websearch.providers) {
+    if (!s.websearch.providers.find((p: any) => p.id === id)) {
+      // defaultWebSearchProviders was removed with the websearch slice;
+      // we inline a minimal lookup so historical migrations can still add known providers.
+      const knownProviders: Record<string, any> = {}
+      const provider = knownProviders[id]
       if (provider) {
         // Prevent mutating read only property of object
         // Otherwise, it will cause the error: Cannot assign to read only property 'apiKey' of object '#<Object>'
-        state.websearch.providers.push({ ...provider })
+        s.websearch.providers.push({ ...provider })
       }
     }
   }
 }
 
 function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchProvider>) {
-  if (state.websearch && state.websearch.providers) {
-    const index = state.websearch.providers.findIndex((p) => p.id === provider.id)
+  const s = state as any
+  if (s.websearch && s.websearch.providers) {
+    const index = s.websearch.providers.findIndex((p: any) => p.id === provider.id)
     if (index !== -1) {
-      state.websearch.providers[index] = {
-        ...state.websearch.providers[index],
+      s.websearch.providers[index] = {
+        ...s.websearch.providers[index],
         ...provider
       }
     }
@@ -1106,10 +1109,10 @@ const migrateConfig = {
   },
   '73': (state: RootState) => {
     try {
-      if (state.websearch) {
-        state.websearch.searchWithTime = true
-        state.websearch.maxResults = 5
-        state.websearch.excludeDomains = []
+      if ((state as any).websearch) {
+        ;(state as any).websearch.searchWithTime = true
+        ;(state as any).websearch.maxResults = 5
+        ;(state as any).websearch.excludeDomains = []
       }
 
       addProvider(state, 'lmstudio')
@@ -1177,8 +1180,8 @@ const migrateConfig = {
     try {
       addWebSearchProvider(state, 'searxng')
       addWebSearchProvider(state, 'exa')
-      if (state.websearch) {
-        state.websearch.providers.forEach((p) => {
+      if ((state as any).websearch) {
+        ;(state as any).websearch.providers.forEach((p: any) => {
           // @ts-ignore eslint-disable-next-line
           delete p.enabled
         })
@@ -1278,8 +1281,8 @@ const migrateConfig = {
   },
   '86': (state: RootState) => {
     try {
-      if (state?.mcp?.servers) {
-        state.mcp.servers = state.mcp.servers.map((server) => ({
+      if ((state as any)?.mcp?.servers) {
+        ;(state as any).mcp.servers = (state as any).mcp.servers.map((server: any) => ({
           ...server,
           id: nanoid()
         }))
@@ -1300,11 +1303,12 @@ const migrateConfig = {
   },
   '88': (state: RootState) => {
     try {
-      if (state?.mcp?.servers) {
-        const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
+      if ((state as any)?.mcp?.servers) {
+        const hasAutoInstall = (state as any).mcp.servers.some(
+          (server: any) => server.name === '@cherry/mcp-auto-install'
+        )
         if (!hasAutoInstall) {
-          const defaultServer = mcpSlice.getInitialState().servers[0]
-          state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
+          // mcpSlice has been removed; skip auto-install server insertion for legacy data
         }
       }
       return state
@@ -1378,9 +1382,9 @@ const migrateConfig = {
       addWebSearchProvider(state, 'local-bing')
       addWebSearchProvider(state, 'local-baidu')
 
-      if (state.websearch) {
-        if (isEmpty(state.websearch.subscribeSources)) {
-          state.websearch.subscribeSources = []
+      if ((state as any).websearch) {
+        if (isEmpty((state as any).websearch.subscribeSources)) {
+          ;(state as any).websearch.subscribeSources = []
         }
       }
 
@@ -1408,8 +1412,8 @@ const migrateConfig = {
     try {
       addMiniApp(state, 'zai')
       state.settings.webdavMaxBackups = 0
-      if (state.websearch && state.websearch.providers) {
-        state.websearch.providers.forEach((provider) => {
+      if ((state as any).websearch && (state as any).websearch.providers) {
+        ;(state as any).websearch.providers.forEach((provider: any) => {
           provider.basicAuthUsername = ''
           provider.basicAuthPassword = ''
         })
@@ -1449,8 +1453,8 @@ const migrateConfig = {
       })
 
       // Remove basic auth fields from exa and tavily
-      if (state.websearch?.providers) {
-        state.websearch.providers = state.websearch.providers.map((provider) => {
+      if ((state as any).websearch?.providers) {
+        ;(state as any).websearch.providers = (state as any).websearch.providers.map((provider: any) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
             // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
@@ -1765,25 +1769,25 @@ const migrateConfig = {
   },
   '116': (state: RootState) => {
     try {
-      if (state.websearch) {
+      if ((state as any).websearch) {
         // migrate contentLimit to cutoffLimit
         // @ts-ignore eslint-disable-next-line
-        if (state.websearch.contentLimit) {
-          state.websearch.compressionConfig = {
+        if ((state as any).websearch.contentLimit) {
+          ;(state as any).websearch.compressionConfig = {
             method: 'cutoff',
             cutoffUnit: 'char',
             // @ts-ignore eslint-disable-next-line
-            cutoffLimit: state.websearch.contentLimit
+            cutoffLimit: (state as any).websearch.contentLimit
           }
         } else {
-          state.websearch.compressionConfig = {
+          ;(state as any).websearch.compressionConfig = {
             method: 'none',
             cutoffUnit: 'char'
           }
         }
 
         // @ts-ignore eslint-disable-next-line
-        delete state.websearch.contentLimit
+        delete (state as any).websearch.contentLimit
       }
       if (state.settings) {
         state.settings.testChannel = UpgradeChannel.LATEST
@@ -2312,7 +2316,7 @@ const migrateConfig = {
 
         // Update zhipu web search provider api key
         if (zhipuProvider.apiKey) {
-          state?.websearch?.providers.forEach((provider) => {
+          ;(state as any)?.websearch?.providers.forEach((provider: any) => {
             if (provider.id === 'zhipu') {
               provider.apiKey = zhipuProvider.apiKey
             }
@@ -2657,8 +2661,8 @@ const migrateConfig = {
   },
   '169': (state: RootState) => {
     try {
-      if (state?.mcp?.servers) {
-        state.mcp.servers = state.mcp.servers.map((server) => {
+      if ((state as any)?.mcp?.servers) {
+        ;(state as any).mcp.servers = (state as any).mcp.servers.map((server: any) => {
           const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
           return {
             ...server,
@@ -2970,19 +2974,22 @@ const migrateConfig = {
   '184': (state: RootState) => {
     try {
       // Add exa-mcp (free) web search provider if not exists
-      const exaMcpExists = state.websearch.providers.some((p) => p.id === 'exa-mcp')
-      if (!exaMcpExists) {
-        // Find the index of 'exa' provider to insert after it
-        const exaIndex = state.websearch.providers.findIndex((p) => p.id === 'exa')
-        const newProvider = {
-          id: 'exa-mcp' as const,
-          name: 'ExaMCP',
-          apiHost: 'https://mcp.exa.ai/mcp'
-        }
-        if (exaIndex !== -1) {
-          state.websearch.providers.splice(exaIndex + 1, 0, newProvider)
-        } else {
-          state.websearch.providers.push(newProvider)
+      const websearch = (state as any).websearch
+      if (websearch?.providers) {
+        const exaMcpExists = websearch.providers.some((p: any) => p.id === 'exa-mcp')
+        if (!exaMcpExists) {
+          // Find the index of 'exa' provider to insert after it
+          const exaIndex = websearch.providers.findIndex((p: any) => p.id === 'exa')
+          const newProvider = {
+            id: 'exa-mcp' as const,
+            name: 'ExaMCP',
+            apiHost: 'https://mcp.exa.ai/mcp'
+          }
+          if (exaIndex !== -1) {
+            websearch.providers.splice(exaIndex + 1, 0, newProvider)
+          } else {
+            websearch.providers.push(newProvider)
+          }
         }
       }
       logger.info('migrate 184 success')

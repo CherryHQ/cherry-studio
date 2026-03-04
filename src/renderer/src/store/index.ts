@@ -27,7 +27,6 @@ import backup from './backup'
 import copilot from './copilot'
 import inputToolsReducer from './inputTools'
 import llm from './llm'
-import mcp from './mcp'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
@@ -38,9 +37,7 @@ import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
-import toolPermissions from './toolPermissions'
 import translate from './translate'
-import websearch from './websearch'
 
 const logger = loggerService.withContext('Store')
 
@@ -53,16 +50,13 @@ const rootReducer = combineReducers({
   runtime,
   shortcuts,
   minapps,
-  websearch,
-  mcp,
   copilot,
   selectionStore,
   tabs,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
-  translate,
-  toolPermissions
+  translate
 })
 
 const persistedReducer = persistReducer(
@@ -70,7 +64,7 @@ const persistedReducer = persistReducer(
     key: 'cherry-studio',
     storage,
     version: 203,
-    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
+    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
   rootReducer

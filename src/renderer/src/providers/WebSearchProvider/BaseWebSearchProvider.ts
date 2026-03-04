@@ -1,5 +1,15 @@
-import type { WebSearchState } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+
+/**
+ * Minimal subset of web-search settings consumed by providers.
+ * Previously imported from the deleted @renderer/store/websearch slice.
+ */
+export interface WebSearchState {
+  maxResults: number
+  excludeDomains: string[]
+  searchWithTime?: boolean
+  subscribeSources?: Array<{ blacklist?: string[] }>
+}
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this

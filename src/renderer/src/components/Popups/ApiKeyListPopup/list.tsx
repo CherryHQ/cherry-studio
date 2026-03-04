@@ -2,7 +2,6 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import type { WebSearchProviderId } from '@renderer/types'
@@ -193,10 +192,9 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHea
   return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }
 
-export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
-  const { provider, updateProvider } = useWebSearchProvider(providerId)
-
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = () => {
+  // Web search provider hook has been removed; this component is a no-op stub
+  return null
 }
 
 const ListContainer = styled.div`

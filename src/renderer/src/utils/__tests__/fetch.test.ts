@@ -15,24 +15,12 @@ vi.mock('@mozilla/readability', () => ({
     }))
   }))
 }))
-vi.mock('@reduxjs/toolkit', () => ({
-  nanoid: vi.fn(() => 'test-id')
-}))
-
 import { fetchRedirectUrl, fetchWebContent, fetchWebContents } from '../fetch'
 
 // 设置基础 mocks
 global.DOMParser = vi.fn().mockImplementation(() => ({
   parseFromString: vi.fn(() => ({}))
 })) as any
-
-global.window = {
-  api: {
-    searchService: {
-      openUrlInSearchWindow: vi.fn()
-    }
-  }
-} as any
 
 // 辅助函数
 const createMockResponse = (overrides = {}) =>
@@ -70,15 +58,13 @@ describe('fetch', () => {
       expect(global.fetch).toHaveBeenCalledWith('https://example.com', expect.any(Object))
     })
 
-    it('should use browser mode when specified', async () => {
-      vi.mocked(window.api.searchService.openUrlInSearchWindow).mockResolvedValueOnce(
-        '<html><body>Browser content</body></html>'
-      )
+    it('should fall back to HTTP fetch when browser mode is requested (searchService removed)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
 
       const result = await fetchWebContent('https://example.com', 'markdown', true)
 
       expect(result.content).toBe('# Test content')
-      expect(window.api.searchService.openUrlInSearchWindow).toHaveBeenCalled()
+      expect(global.fetch).toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {

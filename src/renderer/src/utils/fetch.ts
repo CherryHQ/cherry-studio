@@ -1,8 +1,6 @@
 import { loggerService } from '@logger'
 import { Readability } from '@mozilla/readability'
-import { nanoid } from '@reduxjs/toolkit'
 import type { WebSearchProviderResult } from '@renderer/types'
-import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import TurndownService from 'turndown'
 
@@ -58,35 +56,23 @@ export async function fetchWebContent(
       throw new Error(`Invalid URL format: ${url}`)
     }
 
-    let html: string
-    if (usingBrowser) {
-      const windowApiPromise = window.api.searchService.openUrlInSearchWindow(`search-window-${nanoid()}`, url)
-
-      const promisesToRace: [Promise<string>] = [windowApiPromise]
-
-      if (httpOptions?.signal) {
-        const signal = httpOptions.signal
-        const abortPromise = createAbortPromise(signal, windowApiPromise)
-        promisesToRace.push(abortPromise)
-      }
-
-      html = await Promise.race(promisesToRace)
-    } else {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        ...httpOptions,
-        signal: httpOptions?.signal
-          ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
-          : AbortSignal.timeout(30000)
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
-      }
-      html = await response.text()
+    // Note: usingBrowser mode relied on window.api.searchService which has been removed.
+    // All fetches now use the standard HTTP path regardless of the usingBrowser flag.
+    void usingBrowser
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      ...httpOptions,
+      signal: httpOptions?.signal
+        ? AbortSignal.any([httpOptions.signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000)
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`)
     }
+    const html = await response.text()
 
     // clearTimeout(timeoutId) // Clear the timeout if fetch completes successfully
     const parser = new DOMParser()
