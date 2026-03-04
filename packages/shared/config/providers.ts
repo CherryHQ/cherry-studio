@@ -5,7 +5,7 @@
  * Used by both the Code Tools page and the Anthropic SDK client.
  */
 
-import { SystemProviderIds } from '@types'
+import { type SystemProviderId, SystemProviderIds } from '@types'
 
 /**
  * Silicon provider models that support Anthropic API endpoint.
@@ -27,7 +27,7 @@ export const SILICON_ANTHROPIC_COMPATIBLE_MODELS: readonly string[] = [
   'moonshotai/Kimi-Dev-72B',
   // Baidu ERNIE
   'baidu/ERNIE-4.5-300B-A47B'
-]
+] as const
 
 /**
  * Creates a Set for efficient lookup of silicon Anthropic-compatible model IDs.
@@ -61,7 +61,8 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   SystemProviderIds.silicon,
   SystemProviderIds.mimo,
   SystemProviderIds.openrouter
-]
+] as const satisfies SystemProviderId[]
+
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
   'dmxapi',
@@ -69,4 +70,4 @@ export const CLAUDE_SUPPORTED_PROVIDERS = [
   'cherryin',
   '302ai',
   ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
-]
+] as const satisfies SystemProviderId[]
