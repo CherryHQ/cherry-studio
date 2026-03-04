@@ -787,26 +787,30 @@ class OpenClawService {
     const pollIntervalMs = 1000
     const startTime = Date.now()
     let pollCount = 0
+    let lastError = ''
 
     while (Date.now() - startTime < maxWaitMs) {
       await new Promise((r) => setTimeout(r, pollIntervalMs))
       pollCount++
 
       logger.debug(`Polling gateway status (attempt ${pollCount})...`)
-      const isRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
-      if (isRunning) {
+      const { running, error: statusError } = await this.checkGatewayStatusWithError(openclawPath, shellEnv)
+      if (running) {
         logger.info(`Gateway is running (verified after ${pollCount} polls)`)
         return
       }
+      if (statusError) lastError = statusError
 
-      const { status } = await this.probeGatewayHealth()
+      const { status, error: healthError } = await this.probeGatewayHealthWithError(openclawPath, shellEnv)
       if (status === 'healthy') {
         logger.info(`Gateway port ${this.gatewayPort} is open (verified after ${pollCount} polls)`)
         return
       }
+      if (healthError) lastError = healthError
     }
 
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)`)
+    const detail = lastError ? `\n${lastError}` : ''
+    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
   /**
@@ -1166,6 +1170,72 @@ class OpenClawService {
         doResolve(false)
       })
     })
+  }
+
+  /**
+   * Like checkGatewayStatus but also returns the stderr error message when not running.
+   */
+  private async checkGatewayStatusWithError(
+    openclawPath: string,
+    env: Record<string, string>
+  ): Promise<{ running: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const proc = crossPlatformSpawn(openclawPath, ['gateway', 'status'], {
+        env: { ...env, OPENCLAW_CONFIG_PATH }
+      })
+
+      let stdout = ''
+      let stderr = ''
+      let resolved = false
+
+      const doResolve = (value: { running: boolean; error?: string }) => {
+        if (resolved) return
+        resolved = true
+        resolve(value)
+      }
+
+      const timeoutId = setTimeout(() => {
+        const isRunning = stdout.toLowerCase().includes('listening')
+        proc.kill('SIGKILL')
+        doResolve({ running: isRunning, error: isRunning ? undefined : stderr.trim() || undefined })
+      }, 10_000)
+
+      proc.stdout?.on('data', (data) => {
+        stdout += data.toString()
+      })
+      proc.stderr?.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      proc.on('close', (code) => {
+        clearTimeout(timeoutId)
+        const isRunning = (code === 0 || code === null) && stdout.toLowerCase().includes('listening')
+        doResolve({ running: isRunning, error: isRunning ? undefined : stderr.trim() || stdout.trim() || undefined })
+      })
+
+      proc.on('error', (err) => {
+        clearTimeout(timeoutId)
+        doResolve({ running: false, error: err.message })
+      })
+    })
+  }
+
+  /**
+   * Like probeGatewayHealth but also returns stderr when unhealthy.
+   */
+  private async probeGatewayHealthWithError(
+    openclawPath: string,
+    env: Record<string, string>
+  ): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+    try {
+      const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], env)
+      if (code === 0) {
+        return { status: 'healthy' }
+      }
+      return { status: 'unhealthy', error: stderr.trim() || undefined }
+    } catch (error) {
+      return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   /**
