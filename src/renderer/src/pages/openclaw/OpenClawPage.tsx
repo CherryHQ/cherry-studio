@@ -486,7 +486,31 @@ const OpenClawPage: FC = () => {
         {/* Error Alert */}
         {error && (
           <div className="mb-6">
-            <Alert message={error} type="error" closable onClose={() => setError(null)} className="rounded-lg!" />
+            <Alert
+              message={
+                <div className="flex items-start justify-between gap-2">
+                  <span className="flex-1">{error}</span>
+                  <Button
+                    type="link"
+                    className="h-auto! w-3! shrink-0 p-0!"
+                    aria-label={t('common.copy')}
+                    icon={<CopyIcon className="size-3!" />}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(error)
+                        window.toast.success(t('common.copied'))
+                      } catch (err) {
+                        window.toast.error(t('common.copy_failed'))
+                      }
+                    }}
+                  />
+                </div>
+              }
+              type="error"
+              closable
+              onClose={() => setError(null)}
+              className="rounded-lg!"
+            />
           </div>
         )}
 
