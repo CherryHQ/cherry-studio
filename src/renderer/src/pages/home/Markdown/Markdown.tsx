@@ -23,7 +23,7 @@ import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import remarkAlert from 'remark-github-blockquote-alert'
-import { defaultRehypePlugins, defaultUrlTransform, Streamdown } from 'streamdown'
+import { type Components, defaultRehypePlugins, defaultUrlTransform, Streamdown } from 'streamdown'
 import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
@@ -97,7 +97,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
 
   // Fix #2: Move style tag check into useMemo to avoid mutating memoized object
   const components = useMemo(() => {
-    const result: any = {
+    const result: Partial<Components> = {
       a: (props: any) => <Link {...props} />,
       code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
@@ -108,10 +108,10 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
         if (hasImage) return <div {...props} />
         return <p {...props} />
       },
-      svg: MarkdownSvgRenderer
+      svg: MarkdownSvgRenderer as Components['svg']
     }
     if (/<style\b[^>]*>/i.test(messageContent)) {
-      result.style = MarkdownShadowDOMRenderer
+      result.style = MarkdownShadowDOMRenderer as Components['style']
     }
     return result
   }, [block.id, messageContent])
