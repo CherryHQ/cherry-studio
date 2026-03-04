@@ -234,7 +234,7 @@ export class SessionService extends BaseService {
 
     if (updates.accessible_paths !== undefined) {
       if (updates.accessible_paths.length === 0) {
-        const defaultPath = path.join(getDataPath(), 'agents', existing.agent_id)
+        const defaultPath = path.join(getDataPath(), 'Agents', existing.agent_id)
         updates.accessible_paths = [defaultPath]
       }
       updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
