@@ -1,4 +1,4 @@
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/providers'
 import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
 

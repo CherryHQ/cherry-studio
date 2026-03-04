@@ -61,7 +61,7 @@ import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
-import { OpenAIServiceTiers } from '@renderer/types'
+import { OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { qwen3Next80BModel, qwen38bModel, SYSTEM_MODELS } from './models'
@@ -1461,3 +1461,25 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     }
   }
 }
+
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
+  'deepseek',
+  'moonshot',
+  'zhipu',
+  'dashscope',
+  'modelscope',
+  'minimax',
+  'longcat',
+  SystemProviderIds.qiniu,
+  SystemProviderIds.silicon,
+  SystemProviderIds.mimo,
+  SystemProviderIds.openrouter
+]
+export const CLAUDE_SUPPORTED_PROVIDERS = [
+  'aihubmix',
+  'dmxapi',
+  'new-api',
+  'cherryin',
+  '302ai',
+  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
+]

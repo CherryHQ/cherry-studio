@@ -3,7 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { getProviderLogo } from '@renderer/config/providers'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -27,7 +27,6 @@ import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
