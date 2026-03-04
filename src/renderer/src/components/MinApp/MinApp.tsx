@@ -129,9 +129,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           )}
         </IconContainer>
         <AppTitle>
-          <MarqueeText speed={30} pauseDuration={0.8}>
-            {displayName}
-          </MarqueeText>
+          <MarqueeText>{displayName}</MarqueeText>
         </AppTitle>
       </Container>
     </Dropdown>
