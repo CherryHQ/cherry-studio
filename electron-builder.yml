@@ -140,33 +140,19 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.22 - Bug Fixes & Improvements
+    Cherry Studio 1.7.23 - Bug Fixes
 
     🐛 Bug Fixes
-    - [Models] Fix qwen3.5-flash thinking budget configuration by correcting regex typo
-    - [Ollama] Fix reasoning order in stream responses
-    - [Notes] Fix export failure when restoring from cloud backup without opening Notes page first
-    - [Chat] Abort translation API call when closing message translation
-    - [Chat] Disable translate button when message sending is disabled
-    - [Agent] Clear attached files after sending message in agent session input bar
-    - [Export] Filter hidden elements when exporting messages as images
-    - [Settings] Remove extra divider in settings page
-
-    🔒 Security
-    - [MCP] Upgrade @modelcontextprotocol/sdk to 1.27.1 to fix security vulnerability (GHSA-8r9q-7v3j-jr4g)
+    - [Selection] Fix app crash on Windows when closing action window
+    - [MiniApp] Fix settings state synchronization and region filter consistency
+    - [Plugin Browser] Make detail modal text selectable and improve search experience
+    - [Tools] Fix approval card not showing for builtin and provider tools
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.22 - 问题修复与改进
+    Cherry Studio 1.7.23 - 问题修复
 
     🐛 问题修复
-    - [模型] 修复 qwen3.5-flash thinking budget 配置，更正正则表达式拼写错误
-    - [Ollama] 修复流式响应中推理内容的排序问题
-    - [笔记] 修复从云端恢复备份后，未打开笔记页面时导出笔记失败的问题
-    - [聊天] 关闭消息翻译时中止 API 调用
-    - [聊天] 消息发送禁用时禁用翻译按钮
-    - [Agent] 修复 Agent 会话发送消息后附件未清除的问题
-    - [导出] 导出消息为图片时过滤隐藏元素
-    - [设置] 移除设置页面多余的分隔线
-
-    🔒 安全更新
-    - [MCP] 升级 @modelcontextprotocol/sdk 至 1.27.1 修复安全漏洞 (GHSA-8r9q-7v3j-jr4g)
+    - [选择助手] 修复 Windows 上关闭操作窗口时应用崩溃的问题
+    - [小程序] 修复设置状态同步和区域过滤一致性问题
+    - [插件浏览器] 使详情弹窗文本可选择，改进搜索体验
+    - [工具] 修复内置和提供商工具的批准卡片未显示的问题
     <!--LANG:END-->

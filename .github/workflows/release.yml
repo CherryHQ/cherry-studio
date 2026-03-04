@@ -129,6 +129,7 @@ jobs:
           sudo -H pip install setuptools
           pnpm build:mac
         env:
+          CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
