@@ -48,6 +48,53 @@ function schemaToParamType(prop: PropertySchema): string {
   return jsonSchemaTypeToJs(typeValue)
 }
 
+function appendPropertyParams(
+  lines: string[],
+  properties: Record<string, PropertySchema>,
+  required: Set<string>,
+  prefix: string
+): void {
+  const propNames = Object.keys(properties).sort((a, b) => a.localeCompare(b))
+
+  for (const propName of propNames) {
+    const prop = properties[propName]
+    const isReq = required.has(propName)
+    const jsType = schemaToParamType(prop)
+
+    const paramPath = isReq ? `${prefix}.${propName}` : `[${prefix}.${propName}]`
+
+    const propDesc = typeof prop.description === 'string' ? prop.description.trim().split('\n')[0] : ''
+    const suffix = isReq ? (propDesc ? `${propDesc} (required)` : '(required)') : propDesc
+
+    if (suffix) {
+      lines.push(` * @param {${jsType}} ${paramPath} - ${suffix}`)
+    } else {
+      lines.push(` * @param {${jsType}} ${paramPath}`)
+    }
+
+    // Recurse into nested object properties
+    if ((prop.type as string) === 'object' && prop.properties) {
+      const nestedProps = prop.properties as Record<string, PropertySchema>
+      const nestedRequired = new Set<string>(
+        Array.isArray(prop.required) ? (prop.required as string[]) : []
+      )
+      appendPropertyParams(lines, nestedProps, nestedRequired, `${prefix}.${propName}`)
+    }
+
+    // Recurse into array item properties
+    if ((prop.type as string) === 'array' && prop.items) {
+      const items = prop.items as PropertySchema
+      if ((items.type as string) === 'object' && items.properties) {
+        const itemProps = items.properties as Record<string, PropertySchema>
+        const itemRequired = new Set<string>(
+          Array.isArray(items.required) ? (items.required as string[]) : []
+        )
+        appendPropertyParams(lines, itemProps, itemRequired, `${prefix}.${propName}[]`)
+      }
+    }
+  }
+}
+
 /**
  * Generate a JSDoc function stub from a tool schema.
  *
@@ -63,33 +110,15 @@ export function schemaToJSDoc(toolName: string, description: string | undefined,
 
   const required = new Set<string>(Array.isArray(schema?.required) ? schema?.required : [])
   const properties = schema?.properties ?? {}
-  const propNames = Object.keys(properties).sort((a, b) => a.localeCompare(b))
 
   const lines: string[] = []
   lines.push('/**')
   lines.push(` * ${desc}`)
 
-  if (propNames.length > 0) {
+  if (Object.keys(properties).length > 0) {
     lines.push(' *')
     lines.push(' * @param {Object} params - Parameters')
-
-    for (const propName of propNames) {
-      const prop = properties[propName]
-      const isReq = required.has(propName)
-      const jsType = schemaToParamType(prop)
-
-      // Optional params use bracket syntax: [params.foo]
-      const paramPath = isReq ? `params.${propName}` : `[params.${propName}]`
-
-      const propDesc = typeof prop.description === 'string' ? prop.description.trim().split('\n')[0] : ''
-      const suffix = isReq ? (propDesc ? `${propDesc} (required)` : '(required)') : propDesc
-
-      if (suffix) {
-        lines.push(` * @param {${jsType}} ${paramPath} - ${suffix}`)
-      } else {
-        lines.push(` * @param {${jsType}} ${paramPath}`)
-      }
-    }
+    appendPropertyParams(lines, properties, required, 'params')
   }
 
   lines.push(' */')
