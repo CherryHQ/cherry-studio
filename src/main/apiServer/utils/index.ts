@@ -1,3 +1,4 @@
+import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
@@ -33,15 +34,22 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
     )
 
-    // Cache the filtered results
-    CacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
+    // Format provider apiHost according to their type
+    const formattedProviders = (
+      await Promise.allSettled(supportedProviders.map((p: Provider) => formatProviderApiHost(p)))
+    )
+      .filter((r): r is PromiseFulfilledResult<Provider> => r.status === 'fulfilled')
+      .map((r) => r.value)
 
-    logger.info('Providers filtered', {
-      supported: supportedProviders.length,
+    // Cache the formatted results
+    CacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
+
+    logger.info('Providers filtered and formatted', {
+      supported: formattedProviders.length,
       total: providers.length
     })
 
-    return supportedProviders
+    return formattedProviders
   } catch (error: any) {
     logger.error('Failed to get providers from Redux store', { error })
     return []
