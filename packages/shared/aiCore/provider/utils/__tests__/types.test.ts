@@ -1,3 +1,4 @@
+import type { Provider } from '@types'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -10,15 +11,16 @@ import {
   isVertexProvider
 } from '../types'
 
-const createProvider = (overrides: Record<string, unknown> = {}) => ({
-  id: 'custom',
-  type: 'openai',
-  name: 'Custom Provider',
-  apiKey: 'key',
-  apiHost: 'https://api.example.com',
-  models: [],
-  ...overrides
-})
+const createProvider = (overrides: Record<string, unknown> = {}) =>
+  ({
+    id: 'custom',
+    type: 'openai',
+    name: 'Custom Provider',
+    apiKey: 'key',
+    apiHost: 'https://api.example.com',
+    models: [],
+    ...overrides
+  }) as Provider
 
 describe('provider type utils', () => {
   it('detects Anthropic providers', () => {
