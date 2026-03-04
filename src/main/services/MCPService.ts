@@ -848,8 +848,8 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
-          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
+          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,
