@@ -86,6 +86,10 @@ function generateEnvVars(brandConfig, profile) {
 
 // Generate dynamic electron-builder.yml based on brand configuration
 function generateElectronBuilderConfig(brandConfig) {
+  const iconMac = brandConfig.assets.iconMac || 'build/icon.icns'
+  const iconWin = brandConfig.assets.iconWin || 'build/icon.ico'
+  const iconLinux = brandConfig.assets.icon || 'build/icon.png'
+
   return `appId: ${brandConfig.appId}
 productName: ${brandConfig.productName}
 electronLanguages:
@@ -162,6 +166,7 @@ asarUnpack:
   - "node_modules/@img/sharp-libvips-*/**"
 win:
   executableName: ${brandConfig.executableName}
+  icon: ${iconWin}
   artifactName: \${productName}-\${version}-\${arch}-setup.\${ext}
   target:
     - target: nsis
@@ -183,6 +188,7 @@ portable:
   artifactName: \${productName}-\${version}-\${arch}-portable.\${ext}
   buildUniversalInstaller: false
 mac:
+  icon: ${iconMac}
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: \${productName}-\${version}-\${arch}.\${ext}
@@ -197,6 +203,7 @@ mac:
 dmg:
   writeUpdateInfo: false
 linux:
+  icon: ${iconLinux}
   artifactName: \${productName}-\${version}-\${arch}.\${ext}
   executableName: ${brandConfig.executableName}
   target:
@@ -224,28 +231,76 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 }
 
 // Copy brand assets if they exist
+// Note: Icons (icon.png, icon.icns, icon.ico) are NOT copied to build directory
+// They are used directly from brand directory via electron-builder config
+// Returns an array of copied file paths for later restoration
 function copyBrandAssets(brandConfig) {
   const assets = brandConfig.assets
   const rootDir = path.join(__dirname, '..')
 
   // Check if custom brand assets directory exists
   const brandDir = path.dirname(assets.icon)
-  if (fs.existsSync(path.join(rootDir, brandDir)) && brandDir.startsWith('brand-')) {
-    console.log(`Found custom brand assets in ${brandDir}/`)
+  const isCustomBrand = brandDir.startsWith('brand-')
 
-    // Copy each asset if it exists
-    for (const [key, assetPath] of Object.entries(assets)) {
-      const sourcePath = path.join(rootDir, assetPath)
-      const targetPath = path.join(rootDir, 'build', path.basename(assetPath))
+  if (!isCustomBrand) {
+    // For default brand, assets are already in build/ directory, no need to copy
+    return []
+  }
 
-      if (fs.existsSync(sourcePath)) {
-        fs.copyFileSync(sourcePath, targetPath)
-        console.log(`  ✓ Copied ${key}: ${assetPath}`)
-      } else {
-        console.log(`  ⚠ Skipped ${key}: ${assetPath} (not found)`)
+  if (!fs.existsSync(path.join(rootDir, brandDir))) {
+    return []
+  }
+
+  console.log(`Found custom brand assets in ${brandDir}/`)
+
+  // Skip icon files - they are used directly by electron-builder
+  const skipKeys = ['icon', 'iconMac', 'iconWin']
+  const copiedFiles = [] // Track copied files for restoration
+
+  // Copy other assets (logo, tray icons, etc.)
+  for (const [key, assetPath] of Object.entries(assets)) {
+    if (skipKeys.includes(key)) {
+      console.log(`  ↗ Using ${key} directly: ${assetPath}`)
+      continue
+    }
+
+    const sourcePath = path.join(rootDir, assetPath)
+    const targetPath = path.join(rootDir, 'build', path.basename(assetPath))
+
+    if (fs.existsSync(sourcePath)) {
+      // Backup original file before overwriting
+      if (fs.existsSync(targetPath)) {
+        const backupPath = targetPath + '.brand-backup'
+        fs.copyFileSync(targetPath, backupPath)
+        copiedFiles.push({ target: targetPath, backup: backupPath })
       }
+      fs.copyFileSync(sourcePath, targetPath)
+      console.log(`  ✓ Copied ${key}: ${assetPath}`)
+    } else {
+      console.log(`  ⚠ Skipped ${key}: ${assetPath} (not found)`)
     }
   }
+
+  return copiedFiles
+}
+
+// Restore build/ assets from backups after custom brand build
+function restoreBuildAssets(copiedFiles) {
+  if (!copiedFiles || copiedFiles.length === 0) {
+    return
+  }
+
+  console.log('\nRestoring build/ assets to default...')
+
+  for (const { target, backup } of copiedFiles) {
+    if (fs.existsSync(backup)) {
+      fs.copyFileSync(backup, target)
+      fs.unlinkSync(backup)
+      console.log(`  ✓ Restored ${path.basename(target)}`)
+    }
+  }
+
+  console.log('Build/ assets restored to default\n')
 }
 
 // Export environment variables for use in build scripts
@@ -265,6 +320,77 @@ function exportEnvVars(envVars) {
   console.log('Use with: dotenv -e .env.brand -- <command>\n')
 }
 
+// Write a temporary build-constants file with brand values hardcoded
+// This ensures brand constants are baked into the bundled code
+function writeTempBuildConstants(envVars, profile) {
+  const constantsPath = path.join(__dirname, '..', 'packages', 'shared', 'build-constants.ts')
+  const backupPath = constantsPath + '.backup'
+
+  // Read original file
+  const originalContent = fs.readFileSync(constantsPath, 'utf8')
+
+  // Backup original file
+  if (!fs.existsSync(backupPath)) {
+    fs.writeFileSync(backupPath, originalContent)
+  }
+
+  // Generate hardcoded version
+  const hardcodedContent = `/**
+ * BUILD-TIME BRAND CONSTANTS - Auto-generated for brand: ${profile}
+ * This file is temporarily modified during brand builds
+ * Original file backed up as build-constants.ts.backup
+ */
+
+export const BUILD_CONSTANTS = {
+  ENABLE_TEST_PLAN: ${envVars.ENABLE_TEST_PLAN === 'true'},
+  APP_NAME: '${envVars.APP_NAME}',
+  APP_DESCRIPTION: '${envVars.APP_DESCRIPTION.replace(/'/g, "\\'")}',
+  APP_ID: '${envVars.APP_ID}',
+  APP_AUTHOR: '${envVars.APP_AUTHOR}',
+  APP_HOMEPAGE: '${envVars.APP_HOMEPAGE}',
+  APP_PROTOCOL: '${envVars.APP_PROTOCOL}',
+  IS_CUSTOM_BUILD: ${envVars.CUSTOM_BUILD === 'true'},
+  BUILD_BRAND: '${envVars.BUILD_BRAND}',
+  // AGPL-3.0 Compliance: These fields must be preserved for license compliance
+  ORIGINAL_PROJECT_NAME: 'Cherry Studio',
+  ORIGINAL_PROJECT_URL: 'https://github.com/CherryHQ/cherry-studio',
+  ORIGINAL_PROJECT_LICENSE: 'AGPL-3.0',
+  LICENSE_URL: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  SOURCE_CODE_URL: '${envVars.SOURCE_CODE_URL}',
+  // Contact and feature visibility
+  CONTACT_EMAIL: '${envVars.CONTACT_EMAIL}',
+  SHOW_DOCS: ${envVars.SHOW_DOCS === 'true'},
+  SHOW_WEBSITE: ${envVars.SHOW_WEBSITE === 'true'},
+  SHOW_ENTERPRISE: ${envVars.SHOW_ENTERPRISE === 'true'},
+  SHOW_CAREERS: ${envVars.SHOW_CAREERS === 'true'},
+  GITHUB_REPO_URL: '${envVars.GITHUB_REPO_URL}',
+  // Update server configuration
+  UPDATE_SERVER_URL: '${envVars.UPDATE_SERVER_URL}',
+  UPDATE_CONFIG_URL: '${envVars.UPDATE_CONFIG_URL}',
+  UPDATE_FEED_URL: '${envVars.UPDATE_FEED_URL}',
+  UPDATE_MIRROR: '${envVars.UPDATE_MIRROR}'
+} as const
+
+export type BuildConstants = typeof BUILD_CONSTANTS
+`
+
+  fs.writeFileSync(constantsPath, hardcodedContent)
+  console.log(`  ✓ Wrote brand constants to build-constants.ts`)
+
+  return backupPath
+}
+
+// Restore original build-constants file
+function restoreBuildConstants(backupPath) {
+  if (!backupPath || !fs.existsSync(backupPath)) {
+    return
+  }
+  const constantsPath = path.join(__dirname, '..', 'packages', 'shared', 'build-constants.ts')
+  fs.copyFileSync(backupPath, constantsPath)
+  fs.unlinkSync(backupPath)
+  console.log(`  ✓ Restored original build-constants.ts`)
+}
+
 // Write electron-builder.yml for brand build
 function writeElectronBuilderConfig(brandConfig, profile) {
   if (profile === 'default') {
@@ -278,10 +404,62 @@ function writeElectronBuilderConfig(brandConfig, profile) {
   console.log(`Brand electron-builder config written to ${configPath}`)
 }
 
+// Run build with environment variables set
+function runBuild(envVars, copiedFiles) {
+  const { execSync } = require('child_process')
+
+  console.log('\n🔨 Starting build with brand configuration...\n')
+
+  let backupPath = null
+
+  try {
+    // Write brand constants to build-constants.ts
+    backupPath = writeTempBuildConstants(envVars, envVars.BUILD_BRAND)
+
+    // Run typecheck
+    console.log('Running: npm run typecheck')
+    execSync('npm run typecheck', {
+      stdio: 'inherit',
+      env: { ...process.env }
+    })
+
+    // Run build
+    console.log('Running: electron-vite build')
+    execSync('npx electron-vite build', {
+      stdio: 'inherit',
+      env: { ...process.env }
+    })
+
+    // Copy brand logo to renderer assets (without hash)
+    const logoSource = path.join(__dirname, '..', 'build', 'logo.png')
+    const logoTarget = path.join(__dirname, '..', 'out', 'renderer', 'assets', 'logo.png')
+    if (fs.existsSync(logoSource)) {
+      fs.copyFileSync(logoSource, logoTarget)
+      console.log('  ✓ Copied brand logo to renderer assets')
+    }
+
+    console.log('\n✅ Build complete!')
+
+    // Restore build/ assets for custom brands
+    restoreBuildAssets(copiedFiles)
+
+    return { success: true, backupPath }
+  } catch (error) {
+    console.error('\n❌ Build failed:', error.message)
+    // Restore on failure
+    if (backupPath) {
+      restoreBuildConstants(backupPath)
+    }
+    restoreBuildAssets(copiedFiles)
+    return { success: false, backupPath: null }
+  }
+}
+
 // Main execution
 function main() {
   const args = process.argv.slice(2)
-  const profile = args[0] || 'default'
+  const profile = args.find((arg) => !arg.startsWith('--')) || 'default'
+  const shouldBuild = args.includes('--build')
 
   console.log(`🎨 Brand Builder: Configuring build for profile "${profile}"`)
 
@@ -292,20 +470,34 @@ function main() {
   // Generate environment variables
   const envVars = generateEnvVars(brandConfig, profile)
 
-  // Copy brand assets if available
-  copyBrandAssets(brandConfig)
+  // Copy brand assets if available (returns list of copied files for restoration)
+  const copiedFiles = copyBrandAssets(brandConfig)
 
-  // Export environment variables
+  // Export environment variables (sets process.env)
   exportEnvVars(envVars)
 
   // Write electron-builder.yml for brand builds
   writeElectronBuilderConfig(brandConfig, profile)
 
   console.log('✅ Brand configuration complete!')
-  console.log(`\nTo build with this configuration, use:`)
-  console.log(`  dotenv -e .env.brand -- pnpm build`)
-  console.log(`  or`)
-  console.log(`  BRAND_PROFILE=${profile} pnpm build`)
+
+  if (shouldBuild) {
+    const result = runBuild(envVars, copiedFiles)
+
+    // Restore build-constants.ts after build
+    if (result.backupPath) {
+      restoreBuildConstants(result.backupPath)
+    }
+
+    if (!result.success) {
+      process.exit(1)
+    }
+  } else {
+    console.log(`\nTo build with this configuration, use:`)
+    console.log(`  node scripts/brand-builder.js ${profile} --build`)
+    console.log(`  or`)
+    console.log(`  dotenv -e .env.brand -- pnpm build`)
+  }
 }
 
 // Run if executed directly
