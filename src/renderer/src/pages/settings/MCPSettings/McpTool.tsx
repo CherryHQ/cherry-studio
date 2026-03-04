@@ -48,8 +48,10 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     }
   }
 
+  const MAX_NESTING_DEPTH = 5
+
   // Render a single property's value (type badge, description, enum, nested properties)
-  const renderPropertyValue = (prop: any) => {
+  const renderPropertyValue = (prop: any, depth: number = 0) => {
     const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
 
     return (
@@ -79,13 +81,14 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             </div>
           </div>
         )}
-        {prop.type === 'object' && prop.properties && renderSchemaProperties(prop.properties, prop.required)}
-        {prop.type === 'array' && prop.items?.type === 'object' && prop.items.properties && (
+        {depth < MAX_NESTING_DEPTH && prop.type === 'object' && prop.properties &&
+          renderSchemaProperties(prop.properties, prop.required, depth + 1)}
+        {depth < MAX_NESTING_DEPTH && prop.type === 'array' && prop.items?.type === 'object' && prop.items.properties && (
           <div style={{ marginTop: 4 }}>
             <Typography.Text type="secondary" italic>
               items:
             </Typography.Text>
-            {renderSchemaProperties(prop.items.properties, prop.items.required)}
+            {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
           </div>
         )}
       </Flex>
@@ -93,7 +96,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   }
 
   // Render a set of schema properties as a Descriptions list
-  const renderSchemaProperties = (properties: Record<string, any>, required?: string[]) => {
+  const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
     return (
       <Descriptions bordered size="small" column={1} style={{ userSelect: 'text', marginTop: 4 }}>
         {Object.entries(properties).map(([key, prop]: [string, any]) => (
@@ -109,7 +112,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 )}
               </Flex>
             }>
-            {renderPropertyValue(prop)}
+            {renderPropertyValue(prop, depth)}
           </Descriptions.Item>
         ))}
       </Descriptions>

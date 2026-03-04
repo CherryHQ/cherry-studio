@@ -48,12 +48,16 @@ function schemaToParamType(prop: PropertySchema): string {
   return jsonSchemaTypeToJs(typeValue)
 }
 
+const MAX_NESTING_DEPTH = 5
+
 function appendPropertyParams(
   lines: string[],
   properties: Record<string, PropertySchema>,
   required: Set<string>,
-  prefix: string
+  prefix: string,
+  depth: number = 0
 ): void {
+  if (depth >= MAX_NESTING_DEPTH) return
   const propNames = Object.keys(properties).sort((a, b) => a.localeCompare(b))
 
   for (const propName of propNames) {
@@ -78,7 +82,7 @@ function appendPropertyParams(
       const nestedRequired = new Set<string>(
         Array.isArray(prop.required) ? (prop.required as string[]) : []
       )
-      appendPropertyParams(lines, nestedProps, nestedRequired, `${prefix}.${propName}`)
+      appendPropertyParams(lines, nestedProps, nestedRequired, `${prefix}.${propName}`, depth + 1)
     }
 
     // Recurse into array item properties
@@ -89,7 +93,7 @@ function appendPropertyParams(
         const itemRequired = new Set<string>(
           Array.isArray(items.required) ? (items.required as string[]) : []
         )
-        appendPropertyParams(lines, itemProps, itemRequired, `${prefix}.${propName}[]`)
+        appendPropertyParams(lines, itemProps, itemRequired, `${prefix}.${propName}[]`, depth + 1)
       }
     }
   }
