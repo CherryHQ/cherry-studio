@@ -253,6 +253,7 @@ const OpenClawPage: FC = () => {
       const syncResult = await window.api.openclaw.syncConfig(selectedProvider, selectedModel)
       if (!syncResult.success) {
         setError(syncResult.message)
+        setIsStarting(false)
         return
       }
 
@@ -260,6 +261,7 @@ const OpenClawPage: FC = () => {
       const startResult = await window.api.openclaw.startGateway(gatewayPort)
       if (!startResult.success) {
         setError(startResult.message)
+        setIsStarting(false)
         return
       }
 
