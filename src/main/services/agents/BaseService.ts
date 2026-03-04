@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
+import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
@@ -259,6 +260,17 @@ export abstract class BaseService {
     }
 
     return sanitizedPaths
+  }
+
+  /**
+   * Resolve accessible paths, assigning a default workspace under `{dataPath}/Agents/{id}`
+   * when the provided paths are empty or undefined, then ensure all directories exist.
+   */
+  protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
+    if (!paths || paths.length === 0) {
+      paths = [path.join(getDataPath(), 'Agents', id)]
+    }
+    return this.ensurePathsExist(paths)
   }
 
   /**

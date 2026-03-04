@@ -1,7 +1,4 @@
-import path from 'node:path'
-
 import { loggerService } from '@logger'
-import { getDataPath } from '@main/utils'
 import type { SlashCommand, UpdateSessionResponse } from '@types'
 import {
   AgentBaseSchema,
@@ -233,11 +230,7 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      if (updates.accessible_paths.length === 0) {
-        const defaultPath = path.join(getDataPath(), 'Agents', existing.agent_id)
-        updates.accessible_paths = [defaultPath]
-      }
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}

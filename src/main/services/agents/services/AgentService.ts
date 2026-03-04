@@ -1,8 +1,5 @@
-import path from 'node:path'
-
 import { loggerService } from '@logger'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
-import { getDataPath } from '@main/utils'
 import type {
   AgentEntity,
   CreateAgentRequest,
@@ -37,14 +34,7 @@ export class AgentService extends BaseService {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
-    if (!req.accessible_paths || req.accessible_paths.length === 0) {
-      const defaultPath = path.join(getDataPath(), 'Agents', id)
-      req.accessible_paths = [defaultPath]
-    }
-
-    if (req.accessible_paths !== undefined) {
-      req.accessible_paths = this.ensurePathsExist(req.accessible_paths)
-    }
+    req.accessible_paths = this.resolveAccessiblePaths(req.accessible_paths, id)
 
     await this.validateAgentModels(req.type, {
       model: req.model,
@@ -158,11 +148,7 @@ export class AgentService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      if (updates.accessible_paths.length === 0) {
-        const defaultPath = path.join(getDataPath(), 'Agents', id)
-        updates.accessible_paths = [defaultPath]
-      }
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
