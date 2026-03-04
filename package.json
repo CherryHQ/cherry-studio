@@ -437,6 +437,7 @@
       "@codemirror/view": "6.39.16",
       "@codemirror/language": "6.12.2",
       "@codemirror/lint": "6.9.5",
+      "@lezer/common": "1.5.1",
       "esbuild": "^0.25.0",
       "node-abi": "4.24.0",
       "openai": "npm:@cherrystudio/openai@6.15.0",
