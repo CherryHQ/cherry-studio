@@ -3,6 +3,7 @@ import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
+import iconv from 'iconv-lite'
 import os from 'os'
 import path from 'path'
 
@@ -420,9 +421,35 @@ export function crossPlatformSpawn(
   options: SpawnOptions & { env: Record<string, string> }
 ): ChildProcess {
   if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    return spawn(command, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
+    // When shell: true, Node passes the command to cmd.exe as:
+    //   cmd /d /s /c "command arg1 arg2"
+    // If the command path contains spaces (e.g. C:\Program Files\nodejs\npm.cmd),
+    // cmd.exe splits on the space. Wrapping in quotes fixes this:
+    //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
+    const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
+    return spawn(quotedCommand, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
   }
   return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
+}
+
+/**
+ * Decode a Buffer from a shell process.
+ * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
+ * This function detects replacement characters (U+FFFD) from a naive UTF-8 decode
+ * and falls back to GBK decoding.
+ */
+export function decodeBufferFromShell(buf: Buffer): string {
+  if (!isWin) return buf.toString('utf8')
+  const utf8 = buf.toString('utf8')
+  // If the UTF-8 decode contains replacement characters, try GBK
+  if (utf8.includes('\uFFFD')) {
+    try {
+      return iconv.decode(buf, 'gbk')
+    } catch {
+      return utf8
+    }
+  }
+  return utf8
 }
 
 /**

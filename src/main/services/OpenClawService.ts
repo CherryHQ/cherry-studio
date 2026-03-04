@@ -6,7 +6,7 @@ import path from 'node:path'
 import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
-import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
+import { crossPlatformSpawn, decodeBufferFromShell, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
 import type { OperationResult } from '@shared/config/types'
@@ -239,19 +239,20 @@ class OpenClawService {
       const proc = crossPlatformSpawn(command, args, { env: resolvedEnv })
       let stderr = ''
 
-      proc.stdout?.on('data', (data) => {
-        const msg = data.toString().trim()
+      proc.stdout?.on('data', (data: Buffer) => {
+        const msg = decodeBufferFromShell(data).trim()
         if (msg) {
-          logger.info(`[${command}] stdout:`, msg)
+          logger.info(`[${command}] stdout:`, { output: msg })
           this.sendInstallProgress(msg)
         }
       })
 
-      proc.stderr?.on('data', (data) => {
-        const msg = data.toString().trim()
-        stderr += data.toString()
+      proc.stderr?.on('data', (data: Buffer) => {
+        const decoded = decodeBufferFromShell(data)
+        const msg = decoded.trim()
+        stderr += decoded
         if (msg) {
-          logger.warn(`[${command}] stderr:`, msg)
+          logger.warn(`[${command}] stderr:`, { output: msg })
           this.sendInstallProgress(msg, 'warn')
         }
       })
@@ -636,34 +637,31 @@ class OpenClawService {
     // Keep the command string for logging and sudo retry
     const npmCommand = `"${npmPath}" uninstall -g openclaw`
 
-    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
-    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
-    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
-
-    logger.info(`Uninstalling OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
+    logger.info(`Uninstalling OpenClaw: ${npmCommand}`)
+    this.sendInstallProgress(`Running: npm ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        const uninstallProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: shellEnv })
+        const uninstallProcess = crossPlatformSpawn(npmPath, npmArgs, { env: shellEnv })
 
         let stderr = ''
 
-        uninstallProcess.stdout?.on('data', (data) => {
-          const msg = data.toString().trim()
+        uninstallProcess.stdout?.on('data', (data: Buffer) => {
+          const msg = decodeBufferFromShell(data).trim()
           if (msg) {
-            logger.info('OpenClaw uninstall stdout:', msg)
+            logger.info('OpenClaw uninstall stdout:', { output: msg })
             this.sendInstallProgress(msg)
           }
         })
 
-        uninstallProcess.stderr?.on('data', (data) => {
-          const msg = data.toString().trim()
-          stderr += data.toString()
+        uninstallProcess.stderr?.on('data', (data: Buffer) => {
+          const decoded = decodeBufferFromShell(data)
+          const msg = decoded.trim()
+          stderr += decoded
           if (msg) {
-            logger.warn('OpenClaw uninstall stderr:', msg)
+            logger.warn('OpenClaw uninstall stderr:', { output: msg })
             this.sendInstallProgress(msg, 'warn')
           }
         })
