@@ -53,7 +53,6 @@ import {
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
