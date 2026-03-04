@@ -5,9 +5,39 @@
 const TRAILING_VERSION_REGEX = /\/v\d+(?:alpha|beta)?\/?$/i
 
 /**
- * Matches a version segment anywhere in a URL path (e.g., /v1, /v2beta, /v3alpha).
+ * Matches a version segment in a path that starts with `/v<number>` and optionally
+ * continues with `alpha` or `beta`. The segment may be followed by `/` or the end
+ * of the string (useful for cases like `/v3alpha/resources`).
  */
 const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
+
+/**
+ * Formats an API key string.
+ *
+ * @param {string} value - The API key string to format.
+ * @returns {string} The formatted API key string.
+ */
+export function formatApiKeys(value: string): string {
+  return value.replaceAll('，', ',').replaceAll('\n', ',')
+}
+
+/**
+ * Determines whether a host or path string contains a version-like segment (e.g., /v1, /v2beta).
+ *
+ * @param host - The host or path string to check.
+ * @returns True if the path contains a version string, false otherwise.
+ */
+export function hasAPIVersion(host?: string): boolean {
+  if (!host) return false
+
+  try {
+    const url = new URL(host)
+    return VERSION_REGEX.test(url.pathname)
+  } catch {
+    // If the input cannot be parsed as a full URL, treat it as a path and test directly.
+    return VERSION_REGEX.test(host)
+  }
+}
 
 /**
  * Extracts the trailing API version segment from a URL path.
@@ -58,20 +88,50 @@ export function withoutTrailingApiVersion(url: string): string {
 
 /**
  * Removes the trailing slash from a URL string if it exists.
+ *
+ * @param url - The URL string to process
+ * @returns The URL string without a trailing slash
+ *
+ * @example
+ * ```ts
+ * withoutTrailingSlash('https://example.com/') // 'https://example.com'
+ * withoutTrailingSlash('https://example.com')  // 'https://example.com'
+ * ```
  */
 export function withoutTrailingSlash(url: string): string {
   return url.replace(/\/$/, '')
 }
 
 /**
- * Checks if a URL's path contains a version segment (e.g., /v1, /v2beta, /v3alpha).
- * Unlike getTrailingApiVersion, this checks for versions anywhere in the path.
+ * Checks if a URL string ends with a trailing '#' character.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to check
+ * @returns {boolean} True if the URL ends with '#', false otherwise
+ *
+ * @example
+ * ```ts
+ * isWithTrailingSharp('https://example.com#') // true
+ * isWithTrailingSharp('https://example.com')  // false
+ * ```
  */
-export function hasAPIVersion(host: string): boolean {
-  try {
-    const url = new URL(host)
-    return VERSION_REGEX.test(url.pathname)
-  } catch {
-    return VERSION_REGEX.test(host)
-  }
+export function isWithTrailingSharp<T extends string>(url: T): boolean {
+  return url.endsWith('#')
+}
+
+/**
+ * Removes the trailing '#' from a URL string if it exists.
+ *
+ * @template T - The string type to preserve type safety
+ * @param {T} url - The URL string to process
+ * @returns {T} The URL string without a trailing '#'
+ *
+ * @example
+ * ```ts
+ * withoutTrailingSharp('https://example.com#') // 'https://example.com'
+ * withoutTrailingSharp('https://example.com')  // 'https://example.com'
+ * ```
+ */
+export function withoutTrailingSharp<T extends string>(url: T): T {
+  return url.replace(/#$/, '') as T
 }
