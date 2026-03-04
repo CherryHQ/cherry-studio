@@ -238,7 +238,7 @@ function createIssueCard(issueData: IssueData): FeishuCard {
       tag: 'div',
       text: {
         tag: 'lark_md',
-        content: `<at id=ou_ad34e67a0c870cb54598add5797da51d></at>`
+        content: `<at id=cli_a92d6e7ba3f85ced></at>`
       }
     },
     { tag: 'hr' },
