@@ -1297,7 +1297,34 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.10.4)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(esbuild@0.25.12)(jiti@2.6.1)(jsdom@26.1.0)(msw@2.12.7(@types/node@24.10.4)(typescript@5.8.3))(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/catalog:
+  packages/extension-table-plus:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.2.4
+        version: 2.2.4
+      '@tiptap/core':
+        specifier: 3.2.0
+        version: 3.2.0(@tiptap/pm@3.2.0)
+      '@tiptap/pm':
+        specifier: 3.2.0
+        version: 3.2.0
+      eslint:
+        specifier: ^9.22.0
+        version: 9.39.2(jiti@2.6.1)
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@9.39.2(jiti@2.6.1))
+      eslint-plugin-simple-import-sort:
+        specifier: ^12.1.1
+        version: 12.1.1(eslint@9.39.2(jiti@2.6.1))
+      eslint-plugin-unused-imports:
+        specifier: ^4.1.4
+        version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))
+      tsdown:
+        specifier: ^0.20.3
+        version: 0.20.3(@typescript/native-preview@7.0.0-dev.20260204.1)(typescript@5.9.3)
+
+  packages/provider-catalog:
     dependencies:
       class-variance-authority:
         specifier: ^0.7.1
@@ -1330,33 +1357,6 @@ importers:
       zod:
         specifier: ^4.1.12
         version: 4.3.6
-
-  packages/extension-table-plus:
-    devDependencies:
-      '@biomejs/biome':
-        specifier: 2.2.4
-        version: 2.2.4
-      '@tiptap/core':
-        specifier: 3.2.0
-        version: 3.2.0(@tiptap/pm@3.2.0)
-      '@tiptap/pm':
-        specifier: 3.2.0
-        version: 3.2.0
-      eslint:
-        specifier: ^9.22.0
-        version: 9.39.2(jiti@2.6.1)
-      eslint-plugin-react-hooks:
-        specifier: ^5.2.0
-        version: 5.2.0(eslint@9.39.2(jiti@2.6.1))
-      eslint-plugin-simple-import-sort:
-        specifier: ^12.1.1
-        version: 12.1.1(eslint@9.39.2(jiti@2.6.1))
-      eslint-plugin-unused-imports:
-        specifier: ^4.1.4
-        version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))
-      tsdown:
-        specifier: ^0.20.3
-        version: 0.20.3(@typescript/native-preview@7.0.0-dev.20260204.1)(typescript@5.9.3)
 
   packages/ui:
     dependencies:
