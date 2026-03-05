@@ -101,7 +101,7 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   }
 
   // 0.7 Skip Gemini3 thought signature for OpenAI-compatible API
-  if (isGemini3Model(middlewareConfig.model)) {
+  if (isGemini3Model(model)) {
     plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }
 
