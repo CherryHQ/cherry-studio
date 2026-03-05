@@ -2,6 +2,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import { BUILD_CONSTANTS } from '@shared/build-constants'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
@@ -52,19 +53,23 @@ const SettingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
-              <Cloud size={18} />
-              {t('settings.provider.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
-              <Package size={18} />
-              {t('settings.model')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
+          {!BUILD_CONSTANTS.IS_CUSTOM_BUILD && (
+            <>
+              <MenuItemLink to="/settings/provider">
+                <MenuItem className={isRoute('/settings/provider')}>
+                  <Cloud size={18} />
+                  {t('settings.provider.title')}
+                </MenuItem>
+              </MenuItemLink>
+              <MenuItemLink to="/settings/model">
+                <MenuItem className={isRoute('/settings/model')}>
+                  <Package size={18} />
+                  {t('settings.model')}
+                </MenuItem>
+              </MenuItemLink>
+              <Divider />
+            </>
+          )}
           <MenuItemLink to="/settings/general">
             <MenuItem className={isRoute('/settings/general')}>
               <Settings2 size={18} />
@@ -149,8 +154,12 @@ const SettingsPage: FC = () => {
         </SettingMenus>
         <SettingContent>
           <Routes>
-            <Route path="provider" element={<ProviderList />} />
-            <Route path="model" element={<ModelSettings />} />
+            {!BUILD_CONSTANTS.IS_CUSTOM_BUILD && (
+              <>
+                <Route path="provider" element={<ProviderList />} />
+                <Route path="model" element={<ModelSettings />} />
+              </>
+            )}
             <Route path="websearch/*" element={<WebSearchSettings />} />
             <Route path="api-server" element={<ApiServerSettings />} />
             <Route path="docprocess" element={<DocProcessSettings />} />

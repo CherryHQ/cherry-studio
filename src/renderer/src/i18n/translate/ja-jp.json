@@ -2959,7 +2959,9 @@
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
     "no_results": "プラグインが見つかりません",
+    "no_results_skills": "[to be translated]:No skills found",
     "search_placeholder": "検索プラグイン...",
+    "search_placeholder_skills": "[to be translated]:Search skills...",
     "showing_results": "{{count}} 個のプラグインを表示",
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
@@ -4773,6 +4775,10 @@
       "use_assistant": "アシスタントの活用",
       "use_model": "デフォルトモデル"
     },
+    "models_remote": {
+      "managed_by_server": "[to be translated]:Model configuration managed by server",
+      "managed_description": "[to be translated]:This is a customized brand version where model configuration is centrally managed by the server and cannot be manually modified."
+    },
     "moresetting": {
       "check": {
         "confirm": "選択を確認",
@@ -5076,6 +5082,9 @@
           "title": "サービスアカウント設定"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "[to be translated]:Managed by server"
     },
     "proxy": {
       "address": "プロキシアドレス",

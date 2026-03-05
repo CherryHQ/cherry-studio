@@ -2959,7 +2959,9 @@
     "no_description": "Sans description",
     "no_installed_plugins": "Aucun plugin n’est encore installé",
     "no_results": "Aucun plugin trouvé",
+    "no_results_skills": "[to be translated]:No skills found",
     "search_placeholder": "Rechercher des modules d'extension...",
+    "search_placeholder_skills": "[to be translated]:Search skills...",
     "showing_results": "Afficher {{count}} extensions",
     "showing_results_one": "Afficher {{count}} modules d’extension",
     "showing_results_other": "Afficher {{count}} modules d'extension",
@@ -4773,6 +4775,10 @@
       "use_assistant": "Utiliser l'assistant",
       "use_model": "Modèle par défaut"
     },
+    "models_remote": {
+      "managed_by_server": "[to be translated]:Model configuration managed by server",
+      "managed_description": "[to be translated]:This is a customized brand version where model configuration is centrally managed by the server and cannot be manually modified."
+    },
     "moresetting": {
       "check": {
         "confirm": "Confirmer la sélection",
@@ -5076,6 +5082,9 @@
           "title": "Configuration du compte de service"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "[to be translated]:Managed by server"
     },
     "proxy": {
       "address": "Adresse du proxy",

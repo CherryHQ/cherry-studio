@@ -4775,6 +4775,10 @@
       "use_assistant": "使用助手",
       "use_model": "默认模型"
     },
+    "models_remote": {
+      "managed_by_server": "模型配置由服务器管理",
+      "managed_description": "当前为品牌定制版本，模型配置由服务器统一管理，无法手动修改。"
+    },
     "moresetting": {
       "check": {
         "confirm": "确认勾选",
@@ -5078,6 +5082,9 @@
           "title": "Service Account 配置"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "由服务器管理"
     },
     "proxy": {
       "address": "代理地址",

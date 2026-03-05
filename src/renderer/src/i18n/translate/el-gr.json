@@ -2959,7 +2959,9 @@
     "no_description": "Χωρίς περιγραφή",
     "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
     "no_results": "Δεν βρέθηκε πρόσθετο",
+    "no_results_skills": "[to be translated]:No skills found",
     "search_placeholder": "Πρόσθετο αναζήτησης...",
+    "search_placeholder_skills": "[to be translated]:Search skills...",
     "showing_results": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_one": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_other": "Εμφάνιση {{count}} προσθέτων",
@@ -4773,6 +4775,10 @@
       "use_assistant": "Χρήση Βοηθού",
       "use_model": "Προεπιλεγμένο Μοντέλο"
     },
+    "models_remote": {
+      "managed_by_server": "[to be translated]:Model configuration managed by server",
+      "managed_description": "[to be translated]:This is a customized brand version where model configuration is centrally managed by the server and cannot be manually modified."
+    },
     "moresetting": {
       "check": {
         "confirm": "Επιβεβαίωση επιλογής",
@@ -5076,6 +5082,9 @@
           "title": "Διαμόρφωση λογαριασμού υπηρεσίας"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "[to be translated]:Managed by server"
     },
     "proxy": {
       "address": "Διεύθυνση διαμεσολάβησης",

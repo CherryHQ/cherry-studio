@@ -2959,7 +2959,9 @@
     "no_description": "Nicio descriere disponibilă",
     "no_installed_plugins": "Niciun plugin instalat încă",
     "no_results": "Nu s-au găsit pluginuri",
+    "no_results_skills": "[to be translated]:No skills found",
     "search_placeholder": "Caută pluginuri...",
+    "search_placeholder_skills": "[to be translated]:Search skills...",
     "showing_results": "Se afișează {{count}} plugin",
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
@@ -4773,6 +4775,10 @@
       "use_assistant": "Folosește asistent",
       "use_model": "Model implicit"
     },
+    "models_remote": {
+      "managed_by_server": "[to be translated]:Model configuration managed by server",
+      "managed_description": "[to be translated]:This is a customized brand version where model configuration is centrally managed by the server and cannot be manually modified."
+    },
     "moresetting": {
       "check": {
         "confirm": "Confirmă selecția",
@@ -5076,6 +5082,9 @@
           "title": "Configurare Cont de Serviciu"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "[to be translated]:Managed by server"
     },
     "proxy": {
       "address": "Adresă proxy",

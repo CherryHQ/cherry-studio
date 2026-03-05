@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { loggerService } from '@logger'
+import { useRemoteModelConfig } from '@renderer/hooks/useRemoteModelConfig'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
@@ -27,8 +28,14 @@ const queryClient = new QueryClient({
   }
 })
 
-function App(): React.ReactElement {
+// Inner component that uses Redux hooks
+// This must be inside the Provider to access Redux context
+function AppContent(): React.ReactElement {
   logger.info('App initialized')
+
+  // Initialize remote model configuration in brand/custom builds
+  // This hook uses useDispatch, so it must be called inside the Provider
+  useRemoteModelConfig()
 
   // 监听主进程的日志输出
   useEffect(() => {
@@ -57,23 +64,29 @@ function App(): React.ReactElement {
   }, [])
 
   return (
+    <StyleSheetManager>
+      <ThemeProvider>
+        <AntdProvider>
+          <NotificationProvider>
+            <CodeStyleProvider>
+              <PersistGate loading={null} persistor={persistor}>
+                <TopViewContainer>
+                  <Router />
+                </TopViewContainer>
+              </PersistGate>
+            </CodeStyleProvider>
+          </NotificationProvider>
+        </AntdProvider>
+      </ThemeProvider>
+    </StyleSheetManager>
+  )
+}
+
+function App(): React.ReactElement {
+  return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
-                  </PersistGate>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
+        <AppContent />
       </QueryClientProvider>
     </Provider>
   )

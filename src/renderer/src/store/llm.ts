@@ -20,6 +20,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
+import { BUILD_CONSTANTS } from '@shared/build-constants'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -103,6 +104,49 @@ export const initialState: LlmState = {
   }
 }
 
+// Get initial state for brand/custom builds
+// In brand mode, providers are loaded from remote config service
+const getBrandInitialState = (): LlmState => {
+  return {
+    defaultModel: SYSTEM_MODELS.defaultModel[0],
+    topicNamingModel: SYSTEM_MODELS.defaultModel[1],
+    quickModel: SYSTEM_MODELS.defaultModel[1],
+    translateModel: SYSTEM_MODELS.defaultModel[2],
+    quickAssistantId: '',
+    providers: [], // Will be populated by remote config service
+    settings: {
+      ollama: {
+        keepAliveTime: 0
+      },
+      lmstudio: {
+        keepAliveTime: 0
+      },
+      gpustack: {
+        keepAliveTime: 0
+      },
+      vertexai: {
+        serviceAccount: {
+          privateKey: '',
+          clientEmail: ''
+        },
+        projectId: '',
+        location: ''
+      },
+      awsBedrock: {
+        authType: 'iam',
+        accessKeyId: '',
+        secretAccessKey: '',
+        apiKey: '',
+        region: ''
+      },
+      cherryIn: {
+        accessToken: '',
+        refreshToken: ''
+      }
+    }
+  }
+}
+
 // 由于 isLocalAi 目前总是为false，该函数暂未被使用
 // 需要投入使用时，应当保证返回值类型满足 LlmState 要求，而不是使用类型断言
 const getIntegratedInitialState = () => {
@@ -150,7 +194,15 @@ export const moveProvider = (providers: Provider[], id: string, position: number
 
 const llmSlice = createSlice({
   name: 'llm',
-  initialState: isLocalAi ? getIntegratedInitialState() : initialState,
+  initialState: (() => {
+    if (isLocalAi) {
+      return getIntegratedInitialState()
+    }
+    if (BUILD_CONSTANTS.IS_CUSTOM_BUILD) {
+      return getBrandInitialState()
+    }
+    return initialState
+  })(),
   reducers: {
     updateProvider: (state, action: PayloadAction<Partial<Provider> & { id: string }>) => {
       const index = state.providers.findIndex((p) => p.id === action.payload.id)

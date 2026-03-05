@@ -4775,6 +4775,10 @@
       "use_assistant": "Use Assistant",
       "use_model": "Default Model"
     },
+    "models_remote": {
+      "managed_by_server": "Model configuration managed by server",
+      "managed_description": "This is a customized brand version where model configuration is centrally managed by the server and cannot be manually modified."
+    },
     "moresetting": {
       "check": {
         "confirm": "Confirm Selection",
@@ -5078,6 +5082,9 @@
           "title": "Service Account Configuration"
         }
       }
+    },
+    "provider_remote": {
+      "managed_by_server": "Managed by server"
     },
     "proxy": {
       "address": "Proxy Address",

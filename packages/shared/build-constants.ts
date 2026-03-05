@@ -55,7 +55,9 @@ export const BUILD_CONSTANTS = {
   UPDATE_SERVER_URL: getEnv('UPDATE_SERVER_URL', ''),
   UPDATE_CONFIG_URL: getEnv('UPDATE_CONFIG_URL', ''),
   UPDATE_FEED_URL: getEnv('UPDATE_FEED_URL', ''),
-  UPDATE_MIRROR: getEnv('UPDATE_MIRROR', 'github')
+  UPDATE_MIRROR: getEnv('UPDATE_MIRROR', 'github'),
+  // Remote model configuration URL (optional, defaults to UPDATE_SERVER_URL)
+  MODEL_CONFIG_URL: getEnv('MODEL_CONFIG_URL', '')
 } as const
 
 export type BuildConstants = typeof BUILD_CONSTANTS
