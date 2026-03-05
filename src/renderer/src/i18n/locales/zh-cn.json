@@ -2957,7 +2957,9 @@
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何插件",
     "no_results": "未找到插件",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
+    "search_placeholder_skills": "搜索技能...",
     "showing_results": "显示 {{count}} 个插件",
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",
@@ -5529,6 +5531,7 @@
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
     },
+    "stop": "停止翻译",
     "success": {
       "custom": {
         "delete": "删除成功",

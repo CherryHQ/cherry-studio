@@ -5529,6 +5529,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "stop": "Übersetzung stoppen",
     "success": {
       "custom": {
         "delete": "Erfolgreich gelöscht",
