@@ -519,7 +519,7 @@ class BackupManager {
       if (isDirectBackup) {
         // Direct backup format (version 6+)
         logger.debug('Detected direct backup format (version 6+)')
-        await fs.remove(this.tempDir).catch(() => {}) // Clean up before restoreDirect creates its own temp
+        // Note: tempDir is NOT cleaned up here - restoreDirect will use and clean it
         await this.restoreDirect()
         // Direct restore doesn't return data - app needs to relaunch
         return
@@ -700,9 +700,11 @@ class BackupManager {
    */
   async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
+      const resolvedBackupDir = path.resolve(localBackupDir)
       const backupPath = path.resolve(localBackupDir, fileName)
 
-      if (!backupPath.startsWith(path.resolve(localBackupDir))) {
+      // Ensure the backup path is within the allowed directory
+      if (!backupPath.startsWith(resolvedBackupDir + path.sep)) {
         throw new Error('Invalid file path: path traversal detected')
       }
 
