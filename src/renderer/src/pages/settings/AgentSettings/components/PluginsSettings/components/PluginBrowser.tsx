@@ -18,8 +18,8 @@ export type PluginFilterType = 'plugin' | 'skill'
 
 export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
-  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
-  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
+  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => Promise<void>
+  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => Promise<void>
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }

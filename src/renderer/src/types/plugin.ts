@@ -27,7 +27,7 @@ export const PluginMetadataSchema = z.object({
   author: z.string().optional(),
 
   // Metadata
-  size: z.number(), // file size in bytes
+  size: z.number().nullable(), // file size in bytes
   contentHash: z.string(), // SHA-256 hash for change detection
   installedAt: z.number().optional(), // Unix timestamp (for installed plugins)
   updatedAt: z.number().optional(), // Unix timestamp (for installed plugins)
