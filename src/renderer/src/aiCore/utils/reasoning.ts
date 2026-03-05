@@ -144,7 +144,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
 
-    // Qwen 3.5 without enable_thinking
+    // Qwen 3.5 without direct enable_thinking
     // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
     if (isQwen35Model(model)) {
       return {

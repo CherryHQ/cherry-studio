@@ -84,7 +84,7 @@ describe('Qwen Model Detection', () => {
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen3.5-flash-2026-02-23' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-flash' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-flash-2025-07-28' } as Model)).toBe(true)
-    // turbo (deprecated)
+    // turbo (deprecated variant in dashscope)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-turbo' } as Model)).toBe(true)
     expect(isSupportedThinkingTokenQwenModel({ id: 'qwen-turbo-latest' } as Model)).toBe(true)
 
