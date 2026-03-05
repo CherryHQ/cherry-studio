@@ -632,13 +632,13 @@ const PermissionOptionWrapper = styled.div`
 
   .description {
     font-size: 12px;
-    color: var(--color-text-1);
+    color: var(--color-text-2);
     line-height: 1.4;
   }
 
   .behavior {
     font-size: 12px;
-    color: var(--color-text-2);
+    color: var(--color-text-3);
     line-height: 1.4;
   }
 

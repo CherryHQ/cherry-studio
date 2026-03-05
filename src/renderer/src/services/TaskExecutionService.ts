@@ -521,11 +521,10 @@ async function executeWithAssistant(
     console.log('[TASKS] 使用 Provider:', provider.id)
     logger.info(`使用 Provider: ${provider.id}`)
 
-    // Replace prompt variables - create a mutable copy of assistant
+    // Replace prompt variables
     console.log('[TASKS] 替换 prompt 变量')
     logger.info(`替换 prompt 变量`)
-    const mutableAssistant = { ...assistant }
-    mutableAssistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model.name)
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model.name)
 
     // Build initial messages array
     const messages: ModelMessage[] = [
@@ -537,10 +536,10 @@ async function executeWithAssistant(
 
     // Fetch MCP tools if assistant supports tool use
     let mcpTools: MCPTool[] = []
-    if (isPromptToolUse(mutableAssistant) || isSupportedToolUse(mutableAssistant)) {
+    if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
       console.log('[TASKS] 获取 MCP 工具')
       logger.info(`获取 MCP 工具`)
-      mcpTools = await fetchMcpTools(mutableAssistant)
+      mcpTools = await fetchMcpTools(assistant)
       console.log('[TASKS] 获取到 MCP 工具数量:', mcpTools.length)
       logger.info(`获取到 MCP 工具数量：${mcpTools.length}`)
     }
@@ -588,9 +587,9 @@ async function executeWithAssistant(
     console.log('[TASKS] 使用 buildStreamTextParams 构建参数')
     logger.info(`使用 buildStreamTextParams 构建参数`)
 
-    const { params } = await buildStreamTextParams(messages, mutableAssistant, provider, {
+    const { params } = await buildStreamTextParams(messages, assistant, provider, {
       mcpTools: mcpTools,
-      webSearchProviderId: mutableAssistant.webSearchProviderId,
+      webSearchProviderId: assistant.webSearchProviderId,
       requestOptions: {
         signal
       }
@@ -603,8 +602,8 @@ async function executeWithAssistant(
     logger.info(`参数构建完成，system prompt 长度：${typeof params.system === 'string' ? params.system.length : 0}`)
 
     // Determine tool use settings
-    const isPromptToolUseValue = isPromptToolUse(mutableAssistant)
-    const isSupportedToolUseValue = isSupportedToolUse(mutableAssistant)
+    const isPromptToolUseValue = isPromptToolUse(assistant)
+    const isSupportedToolUseValue = isSupportedToolUse(assistant)
 
     console.log('[TASKS] 工具使用配置:', {
       isPromptToolUse: isPromptToolUseValue,
@@ -653,7 +652,7 @@ async function executeWithAssistant(
           callType: 'task_execution',
           topicId,
           mcpTools,
-          mcpMode: getMcpServersForAssistant(mutableAssistant).length > 0 ? 'manual' : 'disabled'
+          mcpMode: getMcpServersForAssistant(assistant).length > 0 ? 'manual' : 'disabled'
         })
         resolve(aiResult)
       } catch (error) {

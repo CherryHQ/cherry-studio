@@ -8,18 +8,15 @@ import { useAgentClient } from './useAgentClient'
 export const useAgent = (id: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = client && id ? client.agentPaths.withId(id) : null
+  const key = id ? client.agentPaths.withId(id) : null
   const { apiServerConfig, apiServerRunning } = useApiServer()
 
   // Disable SWR fetching when server is not running by setting key to null
-  const swrKey = client && apiServerRunning && id ? key : null
+  const swrKey = apiServerRunning && id ? key : null
 
   const fetcher = useCallback(async () => {
     if (!id) {
       throw new Error(t('agent.get.error.null_id'))
-    }
-    if (!client) {
-      throw new Error(t('apiServer.messages.notEnabled'))
     }
     if (!apiServerConfig.enabled) {
       throw new Error(t('apiServer.messages.notEnabled'))

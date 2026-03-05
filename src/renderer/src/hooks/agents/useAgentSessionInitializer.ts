@@ -26,11 +26,6 @@ export const useAgentSessionInitializer = () => {
   const initializeAgentSession = useCallback(
     async (agentId: string) => {
       if (!agentId) return
-      if (!client) {
-        logger.debug('Agent client not available, skipping session initialization')
-        dispatch(setActiveTopicOrSessionAction('session'))
-        return
-      }
 
       try {
         // Check if this agent already has an active session

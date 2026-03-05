@@ -1,9 +1,13 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { agentModelFilter } from '@renderer/config/models'
-import { useModel } from '@renderer/hooks/useModel'
+import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AgentBaseWithId, ApiModel } from '@renderer/types'
+import { isAgentSessionEntity } from '@renderer/types'
+import { isAgentEntity } from '@renderer/types'
+import { getModelFilterByAgentType } from '@renderer/utils/agentSession'
+import { apiModelAdapter } from '@renderer/utils/model'
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
@@ -43,30 +47,24 @@ const SelectAgentBaseModelButton: FC<Props> = ({
   containerClassName
 }) => {
   const { t } = useTranslation()
-  const model = useModel(agent?.model)
+  const model = useApiModel({ id: agent?.model })
+
+  const apiFilter = isAgentEntity(agent)
+    ? getModelFilterByAgentType(agent.type)
+    : isAgentSessionEntity(agent)
+      ? getModelFilterByAgentType(agent.agent_type)
+      : undefined
 
   if (!agent) return null
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({
-      model: model,
-      filter: agentModelFilter
-    })
+    const selectedModel = await SelectApiModelPopup.show({ model, apiFilter: apiFilter, modelFilter: agentModelFilter })
     if (selectedModel && selectedModel.id !== agent.model) {
-      // Convert Model to ApiModel format
-      const apiModel: ApiModel = {
-        id: selectedModel.id,
-        object: 'model',
-        created: Date.now(),
-        name: selectedModel.name,
-        owned_by: selectedModel.provider,
-        provider: selectedModel.provider
-      }
-      onSelect(apiModel)
+      onSelect(selectedModel)
     }
   }
 
-  const providerName = model?.provider ? getProviderNameById(model.provider) : undefined
+  const providerName = model?.provider ? getProviderNameById(model.provider) : model?.provider_name
 
   // Merge default styles with custom styles
   const mergedStyle: CSSProperties = {
@@ -86,7 +84,7 @@ const SelectAgentBaseModelButton: FC<Props> = ({
       disabled={isDisabled}>
       <div className={containerClassName || 'flex w-full items-center gap-1.5'}>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-hidden">
-          <ModelAvatar model={model} size={avatarSize} />
+          <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={avatarSize} />
           <span className="truncate text-[var(--color-text)]">
             {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
           </span>
