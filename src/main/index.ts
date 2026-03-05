@@ -16,6 +16,7 @@ import { isDev, isLinux, isWin } from './constant'
 
 import process from 'node:process'
 
+import './services/DetachedWindowManager'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { analyticsService } from './services/AnalyticsService'
