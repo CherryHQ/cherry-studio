@@ -29,7 +29,12 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
+import type {
+  AgentEffort,
+  AgentSessionEntity,
+  AgentThinkingConfig,
+  GetAgentSessionResponse
+} from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -83,6 +88,8 @@ type AgentSessionContext = {
   agentId: string
   sessionId: string
   agentSessionId?: string
+  effort?: AgentEffort
+  thinking?: AgentThinkingConfig
 }
 
 const agentSessionRenameLocks = new Set<string>()
@@ -348,7 +355,11 @@ const createAgentMessageStream = async (
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache'
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({
+      content,
+      ...(agentSession.effort ? { effort: agentSession.effort } : {}),
+      ...(agentSession.thinking ? { thinking: agentSession.thinking } : {})
+    }),
     signal
   })
 

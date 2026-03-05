@@ -11,6 +11,7 @@ import type {
   InputbarScope,
   ToolActionKey,
   ToolActionMap,
+  ToolContext,
   ToolDefinition,
   ToolOrderConfig,
   ToolQuickPanelApi,
@@ -34,13 +35,7 @@ import styled from 'styled-components'
 export interface InputbarToolsNewProps {
   scope: InputbarScope
   assistantId: string
-  // Session data for Agent Session scope (optional)
-  session?: {
-    agentId?: string
-    sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
-    tools?: Array<{ id: string; name: string; type: string; description?: string }>
-  }
+  session?: ToolContext['session']
 }
 
 interface ToolConfig {
