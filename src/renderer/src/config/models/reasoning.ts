@@ -412,7 +412,7 @@ export function isQwenReasoningModel(model?: Model): boolean {
   return false
 }
 
-/** 是否为支持思考控制的Qwen3推理模型 */
+/** Whether it is a Qwen3 or Qwen3.5 reasoning model that supports thinking control */
 export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -420,45 +420,39 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (modelId.includes('coder')) {
+  // Filter specific qwen3 variants
+  if (
+    ['coder', 'asr', 'tts', 'reranker', 'embedding', 'instruct', 'thinking'].some((field) => modelId.includes(field))
+  ) {
     return false
   }
 
-  if (modelId.startsWith('qwen3')) {
-    // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
-    if (modelId.includes('instruct') || modelId.includes('thinking')) {
-      return false
-    }
-    if (!modelId.includes('qwen3-max')) {
-      return true
-    }
+  // qwen 3.5 series models, all support
+  if (modelId.startsWith('qwen3.5')) {
+    return true
   }
 
+  // dashscope variants, including max, plus, flash
+  // instruct/thinking variant already filtered
   // https://help.aliyun.com/zh/model-studio/deep-thinking
-  return [
-    'qwen-plus',
-    'qwen-plus-latest',
-    'qwen-plus-0428',
-    'qwen-plus-2025-04-28',
-    'qwen-plus-0714',
-    'qwen-plus-2025-07-14',
-    'qwen-plus-2025-07-28',
-    'qwen-plus-2025-09-11',
-    'qwen-turbo',
-    'qwen-turbo-latest',
-    'qwen-turbo-0428',
-    'qwen-turbo-2025-04-28',
-    'qwen-turbo-0715',
-    'qwen-turbo-2025-07-15',
-    'qwen-flash',
-    'qwen-flash-2025-07-28',
-    'qwen3-max', // qwen3-max is now a reasoning model (equivalent to qwen3-max-2026-01-23)
-    'qwen3-max-2026-01-23',
-    'qwen3-max-preview',
-    'qwen3.5-plus',
-    'qwen3.5-plus-2026-02-15',
-    'qwen3.5-397b-a17b'
-  ].includes(modelId)
+  // https://bailian.console.aliyun.com/cn-beijing/?spm=5176.29619931.J_AHgvE-XDhTWrtotIBlDQQ.13.74cd521cKLGUN4&tab=doc#/doc/?type=model&url=2840914
+  // Known limitations:
+  //    In the global deployment environment, qwen-max still points to the non-reasoning snapshot from 2025-09-23,
+  //    whereas in mainland China, qwen-max has been updated to the latest 2026-01-23 snapshot, which supports reasoning control. - 2026-03-05
+  const MAX_REGEX = /^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i
+  const PLUS_REGEX = /^qwen(?:3\.5)?-plus(?:-|$)/i
+  const FLASH_REGEX = /^qwen(?:3\.5)?-flash(?:-|$)/i
+  const TURBO_REGEX = /^qwen(?:3\.5)?-turbo(?:-|$)/i
+  // open-weight qwen3 models with numeric size (e.g. qwen3-8b, qwen3-72b)
+  const QWEN3_OPEN_REGEX = /^qwen3-\d/i
+
+  return (
+    MAX_REGEX.test(modelId) ||
+    PLUS_REGEX.test(modelId) ||
+    FLASH_REGEX.test(modelId) ||
+    TURBO_REGEX.test(modelId) ||
+    QWEN3_OPEN_REGEX.test(modelId)
+  )
 }
 
 /** 是否为不支持思考控制的Qwen推理模型 */
@@ -764,11 +758,7 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
   // Qwen3.5 series (max thinking budget: 81920)
-  'qwen3\\.5-(?:plus|flash).*$': { min: 0, max: 81_920 },
-  'qwen3\\.5-397b-a17b$': { min: 0, max: 81_920 },
-  'qwen3\\.5-122b-a10b$': { min: 0, max: 81_920 },
-  'qwen3\\.5-35b-a3b$': { min: 0, max: 81_920 },
-  'qwen3\\.5-27b$': { min: 0, max: 81_920 },
+  '^qwen3\\.5': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
