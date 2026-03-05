@@ -49,6 +49,7 @@ type ToolBlockState = BaseBlockState & {
   toolCallId: string
   rawToolCallId: string
   toolName: string
+  inputBuffer: string
   providerMetadata?: ProviderMetadata
   resolvedInput?: unknown
 }
@@ -145,6 +146,7 @@ export class ClaudeStreamState {
       toolCallId,
       rawToolCallId: params.rawToolCallId,
       toolName: params.toolName,
+      inputBuffer: '',
       providerMetadata: params.providerMetadata
     }
     this.blocksByIndex.set(index, block)
@@ -195,6 +197,14 @@ export class ClaudeStreamState {
     const block = this.blocksByIndex.get(index)
     if (!block || block.kind !== 'reasoning') return undefined
     block.text += text
+    return block
+  }
+
+  /** Concatenates incremental JSON payloads for tool input blocks. */
+  appendToolInputDelta(index: number, jsonDelta: string): ToolBlockState | undefined {
+    const block = this.blocksByIndex.get(index)
+    if (!block || block.kind !== 'tool') return undefined
+    block.inputBuffer += jsonDelta
     return block
   }
 
