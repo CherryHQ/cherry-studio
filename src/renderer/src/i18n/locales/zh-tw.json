@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
+        "default_hint": "未指定時將自動建立預設工作目錄。",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
         "error": {

@@ -69,7 +69,7 @@ export const AgentBaseSchema = z.object({
   // Basic info
   name: z.string().optional(),
   description: z.string().optional(),
-  accessible_paths: z.array(z.string()).nonempty(), // Array of directory paths the agent can access
+  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access (empty = use default workspace)
 
   // Instructions for the agent
   instructions: z.string().optional(), // System prompt

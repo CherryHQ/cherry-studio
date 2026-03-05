@@ -230,7 +230,7 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}

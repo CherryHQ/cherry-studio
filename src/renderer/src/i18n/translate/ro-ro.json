@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adaugă director",
+        "default_hint": "Implicit: {{path}}",
         "duplicate": "Acest director este deja inclus.",
         "empty": "Selectează cel puțin un director pe care agentul îl poate accesa.",
         "error": {

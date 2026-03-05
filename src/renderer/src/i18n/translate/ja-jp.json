@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
+        "default_hint": "デフォルト: {{path}}",
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
