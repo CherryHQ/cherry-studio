@@ -65,17 +65,20 @@ class BackupManager {
   static async handleStartupRestore(): Promise<void> {
     const userDataPath = app.getPath('userData')
 
+    // Define restore paths
+    const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
+    const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
+    const dataRestore = getDataPath() + '.restore'
+
+    // Define target paths
+    const indexedDBDest = path.join(userDataPath, 'IndexedDB')
+    const localStorageDest = path.join(userDataPath, 'Local Storage')
+    const dataDest = getDataPath()
+
     try {
-      const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
-      const indexedDBDest = path.join(userDataPath, 'IndexedDB')
+      // Check if any restore markers exist
       const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
-
-      const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
-      const localStorageDest = path.join(userDataPath, 'Local Storage')
       const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
-
-      const dataRestore = getDataPath() + '.restore'
-      const dataDest = getDataPath()
       const hasDataRestore = await fs.pathExists(dataRestore)
 
       // Restore IndexedDB
@@ -102,6 +105,10 @@ class BackupManager {
       logger.info('[handleStartupRestore] Restoration completed successfully')
     } catch (error) {
       logger.error('[handleStartupRestore] Failed to complete restoration:', error as Error)
+      // Clean up restore markers to avoid endless retry loop
+      await fs.remove(indexedDBRestore).catch(() => {})
+      await fs.remove(localStorageRestore).catch(() => {})
+      await fs.remove(dataRestore).catch(() => {})
     }
   }
 
