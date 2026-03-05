@@ -1,5 +1,5 @@
+import * as XLSX from '@e965/xlsx'
 import dayjs from 'dayjs'
-import * as XLSX from 'xlsx'
 
 /**
  * 解析 Markdown 表格为二维数组

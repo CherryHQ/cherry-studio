@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adaugă director",
+        "default_hint": "Implicit: {{path}}",
         "duplicate": "Acest director este deja inclus.",
         "empty": "Selectează cel puțin un director pe care agentul îl poate accesa.",
         "error": {
@@ -1101,6 +1102,7 @@
       },
       "export": {
         "image": "Exportă ca imagine",
+        "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
           "label": "Exportă ca markdown",
@@ -2957,7 +2959,9 @@
     "no_description": "Nicio descriere disponibilă",
     "no_installed_plugins": "Niciun plugin instalat încă",
     "no_results": "Nu s-au găsit pluginuri",
+    "no_results_skills": "Nicio abilitate găsită",
     "search_placeholder": "Caută pluginuri...",
+    "search_placeholder_skills": "Abilități de căutare...",
     "showing_results": "Se afișează {{count}} plugin",
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
@@ -5540,6 +5544,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "stop": "Oprește traducerea",
     "success": {
       "custom": {
         "delete": "Șters cu succes",

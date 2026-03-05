@@ -3,26 +3,28 @@
  * Provides mock implementations for all supported AI providers
  */
 
-import type { ImageModelV2, LanguageModelV2 } from '@ai-sdk/provider'
+import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import { vi } from 'vitest'
 
 /**
  * Creates a mock language model with customizable behavior
  */
-export function createMockLanguageModel(overrides?: Partial<LanguageModelV2>): LanguageModelV2 {
+export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): LanguageModelV3 {
   return {
-    specificationVersion: 'v1',
+    specificationVersion: 'v3',
     provider: 'mock-provider',
     modelId: 'mock-model',
-    defaultObjectGenerationMode: 'tool',
+    supportedUrls: {},
 
     doGenerate: vi.fn().mockResolvedValue({
       text: 'Mock response text',
       finishReason: 'stop',
       usage: {
-        promptTokens: 10,
-        completionTokens: 20,
-        totalTokens: 30
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
       },
       rawCall: { rawPrompt: null, rawSettings: {} },
       rawResponse: { headers: {} },
@@ -47,9 +49,11 @@ export function createMockLanguageModel(overrides?: Partial<LanguageModelV2>): L
           type: 'finish',
           finishReason: 'stop',
           usage: {
-            promptTokens: 10,
-            completionTokens: 15,
-            totalTokens: 25
+            inputTokens: 10,
+            outputTokens: 15,
+            totalTokens: 25,
+            inputTokenDetails: {},
+            outputTokenDetails: {}
           }
         }
       })(),
@@ -59,17 +63,19 @@ export function createMockLanguageModel(overrides?: Partial<LanguageModelV2>): L
     }),
 
     ...overrides
-  } as LanguageModelV2
+  } as LanguageModelV3
 }
 
 /**
  * Creates a mock image model with customizable behavior
+ * Compliant with AI SDK v3 specification
  */
-export function createMockImageModel(overrides?: Partial<ImageModelV2>): ImageModelV2 {
+export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageModelV3 {
   return {
-    specificationVersion: 'v2',
+    specificationVersion: 'v3',
     provider: 'mock-provider',
     modelId: 'mock-image-model',
+    maxImagesPerCall: undefined,
 
     doGenerate: vi.fn().mockResolvedValue({
       images: [
@@ -83,7 +89,7 @@ export function createMockImageModel(overrides?: Partial<ImageModelV2>): ImageMo
     }),
 
     ...overrides
-  } as ImageModelV2
+  } as ImageModelV3
 }
 
 /**

@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
+        "default_hint": "Défaut : {{path}}",
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
         "error": {
@@ -1101,6 +1102,7 @@
       },
       "export": {
         "image": "Exporter sous forme d'image",
+        "image_saved": "Image enregistrée avec succès",
         "joplin": "Exporter vers Joplin",
         "md": {
           "label": "Exporter sous forme de Markdown",
@@ -2957,7 +2959,9 @@
     "no_description": "Sans description",
     "no_installed_plugins": "Aucun plugin n’est encore installé",
     "no_results": "Aucun plugin trouvé",
+    "no_results_skills": "Aucune compétence trouvée",
     "search_placeholder": "Rechercher des modules d'extension...",
+    "search_placeholder_skills": "Compétences de recherche...",
     "showing_results": "Afficher {{count}} extensions",
     "showing_results_one": "Afficher {{count}} modules d’extension",
     "showing_results_other": "Afficher {{count}} modules d'extension",
@@ -5540,6 +5544,7 @@
       "scroll_sync": "Paramètres de synchronisation du défilement",
       "title": "Paramètres de traduction"
     },
+    "stop": "Arrêter la traduction",
     "success": {
       "custom": {
         "delete": "Suppression réussie",

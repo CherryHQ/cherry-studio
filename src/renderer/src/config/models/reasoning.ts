@@ -25,6 +25,7 @@ import {
   isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
+  isGemini31FlashLiteModel,
   isGemini31ProModel,
   isKimi25Model,
   withModelIdAndNameAsId
@@ -143,7 +144,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isGemini3FlashModel(model)) {
+    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'
@@ -763,8 +764,11 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
   // Qwen3.5 series (max thinking budget: 81920)
-  'qwen3\\.5-plus.*$': { min: 0, max: 81_920 },
+  'qwen3\\.5-(?:plus|flash).*$': { min: 0, max: 81_920 },
   'qwen3\\.5-397b-a17b$': { min: 0, max: 81_920 },
+  'qwen3\\.5-122b-a10b$': { min: 0, max: 81_920 },
+  'qwen3\\.5-35b-a3b$': { min: 0, max: 81_920 },
+  'qwen3\\.5-27b$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
@@ -819,12 +823,14 @@ export const isFixedReasoningModel = (model: Model) =>
 // https://platform.minimaxi.com/docs/guides/text-m2-function-call#openai-sdk
 // https://docs.z.ai/guides/capabilities/thinking-mode
 // https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
+/** @deprecated No longer used. */
 const INTERLEAVED_THINKING_MODEL_REGEX =
   /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
 
 /**
  * Determines whether the given model supports interleaved thinking.
  *
+ * @deprecated No longer used.
  * @param model - The model object to check.
  * @returns `true` if the model's ID matches the interleaved thinking model pattern; otherwise, `false`.
  */

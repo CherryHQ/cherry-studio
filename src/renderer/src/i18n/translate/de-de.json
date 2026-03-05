@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
+        "default_hint": "Standard: {{path}}",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
@@ -1101,6 +1102,7 @@
       },
       "export": {
         "image": "Als Bild exportieren",
+        "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {
           "label": "Als Markdown exportieren",
@@ -2957,7 +2959,9 @@
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
     "no_results": "Keine Plugins gefunden",
+    "no_results_skills": "Keine Fähigkeiten gefunden",
     "search_placeholder": "Such-Plugins...",
+    "search_placeholder_skills": "Suchfähigkeiten...",
     "showing_results": "{{count}} Plugin anzeigen",
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
@@ -5540,6 +5544,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "stop": "Übersetzung stoppen",
     "success": {
       "custom": {
         "delete": "Erfolgreich gelöscht",

@@ -205,6 +205,7 @@ export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
     provider.type === 'anthropic' ||
     isNewApiProvider(provider) ||
     provider.id === SystemProviderIds.aihubmix ||
+    provider.id === SystemProviderIds.openrouter ||
     isAzureOpenAIProvider(provider)
   )
 }

@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
+        "default_hint": "未指定時將自動建立預設工作目錄。",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
         "error": {
@@ -1101,6 +1102,7 @@
       },
       "export": {
         "image": "匯出為圖片",
+        "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {
           "label": "匯出為 Markdown",
@@ -2957,7 +2959,9 @@
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何外掛",
     "no_results": "未找到外掛",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜尋外掛...",
+    "search_placeholder_skills": "搜尋技能...",
     "showing_results": "顯示 {{count}} 個外掛",
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
@@ -5540,6 +5544,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
+    "stop": "停止翻譯",
     "success": {
       "custom": {
         "delete": "刪除成功",

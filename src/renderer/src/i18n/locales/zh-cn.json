@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "添加目录",
+        "default_hint": "未指定时将自动创建默认工作目录。",
         "duplicate": "该目录已添加。",
         "empty": "请选择至少一个智能体可访问的目录。",
         "error": {
@@ -1101,6 +1102,7 @@
       },
       "export": {
         "image": "导出为图片",
+        "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",
         "md": {
           "label": "导出为 Markdown",
@@ -2957,7 +2959,9 @@
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何插件",
     "no_results": "未找到插件",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
+    "search_placeholder_skills": "搜索技能...",
     "showing_results": "显示 {{count}} 个插件",
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",
@@ -5540,6 +5544,7 @@
       "scroll_sync": "滚动同步设置",
       "title": "翻译设置"
     },
+    "stop": "停止翻译",
     "success": {
       "custom": {
         "delete": "删除成功",

@@ -29,7 +29,12 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
+import type {
+  AgentEffort,
+  AgentSessionEntity,
+  AgentThinkingConfig,
+  GetAgentSessionResponse
+} from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -83,6 +88,8 @@ type AgentSessionContext = {
   agentId: string
   sessionId: string
   agentSessionId?: string
+  effort?: AgentEffort
+  thinking?: AgentThinkingConfig
 }
 
 const agentSessionRenameLocks = new Set<string>()
@@ -348,7 +355,11 @@ const createAgentMessageStream = async (
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache'
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({
+      content,
+      ...(agentSession.effort ? { effort: agentSession.effort } : {}),
+      ...(agentSession.thinking ? { thinking: agentSession.thinking } : {})
+    }),
     signal
   })
 
@@ -826,11 +837,32 @@ const fetchAndProcessAssistantResponseImpl = async (
     logger.silly('Add Abort Controller', { id: userMessageId })
     addAbortController(userMessageId!, () => abortController.abort())
 
+    // Fetch agent allowed_tools for MCP auto-approval
+    let allowedTools: string[] | undefined
+    const activeAgentId = getState().runtime.chat.activeAgentId
+    const apiServer = getState().settings.apiServer
+    if (activeAgentId && apiServer?.apiKey) {
+      try {
+        const baseURL = buildAgentBaseURL(apiServer)
+        const agentClient = new AgentApiClient({
+          baseURL,
+          headers: {
+            Authorization: `Bearer ${apiServer.apiKey}`
+          }
+        })
+        const agentData = await agentClient.getAgent(activeAgentId)
+        allowedTools = agentData?.allowed_tools
+      } catch {
+        // Agent fetch failed — proceed without allowedTools
+      }
+    }
+
     await transformMessagesAndFetch(
       {
         messages: messagesForContext,
         assistant,
         topicId,
+        allowedTools,
         blockManager,
         assistantMsgId,
         callbacks,

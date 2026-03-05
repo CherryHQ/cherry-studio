@@ -4,7 +4,7 @@ import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { Collapse, Tooltip } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -37,12 +37,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       navigator.clipboard
         .writeText(block.content)
         .then(() => {
-          antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+          window.toast.success({ title: t('message.copied'), key: 'copy-message' })
           setCopied(true)
         })
         .catch((error) => {
           logger.error('Failed to copy text:', error)
-          antdMessage.error({ content: t('message.copy.failed'), key: 'copy-message-error' })
+          window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
   }, [block.content, setCopied, t])

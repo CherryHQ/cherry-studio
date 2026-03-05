@@ -13,7 +13,7 @@ on:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened, edited]
+    types: [ready_for_review, synchronize, opened]
 
 jobs:
   changes:
@@ -62,7 +62,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -98,6 +98,9 @@ jobs:
       - name: Hardcoded Strings Check
         run: pnpm i18n:hardcoded:strict
 
+      - name: OpenAPI Spec Check
+        run: pnpm openapi:check
+
       - name: Skills Check
         run: pnpm skills:check
 
@@ -119,7 +122,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -170,7 +173,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -206,7 +209,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -241,7 +244,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
