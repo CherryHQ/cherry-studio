@@ -552,6 +552,11 @@ class BackupManager {
       const metadataPath = path.join(this.tempDir, 'metadata.json')
       const metadata = await fs.readJson(metadataPath)
 
+      // Validate appName to ensure backup is from Cherry Studio
+      if (metadata.appName !== 'Cherry Studio') {
+        throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+      }
+
       // Warn about cross-platform restore
       if (metadata.platform && metadata.platform !== process.platform) {
         logger.warn(

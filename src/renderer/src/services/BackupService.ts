@@ -135,7 +135,11 @@ export async function restore() {
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      window.toast.error(i18n.t('error.backup.file_format'))
+      window.modal.error({
+        title: i18n.t('error.backup.file_format'),
+        content: (error as Error).message,
+        centered: true
+      })
     }
   }
 }
