@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
+        "default_hint": "[to be translated]:Default: {{path}}",
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
         "error": {

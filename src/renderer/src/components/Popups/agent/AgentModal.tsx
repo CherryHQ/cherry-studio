@@ -441,7 +441,12 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   ))}
                 </PathList>
               ) : (
-                <EmptyText>{t('agent.session.accessible_paths.empty')}</EmptyText>
+                <HelpText>
+                  {t(
+                    'agent.session.accessible_paths.default_hint',
+                    'A default workspace will be created automatically if not specified.'
+                  )}
+                </HelpText>
               )}
             </FormItem>
 
@@ -594,12 +599,6 @@ const PathText = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const EmptyText = styled.p`
-  font-size: 13px;
-  color: var(--color-text-3);
-  margin: 0;
 `
 
 const FormFooter = styled.div`

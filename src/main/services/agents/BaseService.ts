@@ -268,7 +268,8 @@ export abstract class BaseService {
    */
   protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
     if (!paths || paths.length === 0) {
-      paths = [path.join(getDataPath(), 'Agents', id)]
+      const shortId = id.substring(id.length - 9)
+      paths = [path.join(getDataPath(), 'Agents', shortId)]
     }
     return this.ensurePathsExist(paths)
   }

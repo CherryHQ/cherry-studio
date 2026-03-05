@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adicionar diretório",
+        "default_hint": "[to be translated]:Default: {{path}}",
         "duplicate": "Este diretório já está incluído.",
         "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
         "error": {
