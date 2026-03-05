@@ -25,6 +25,7 @@ import {
   isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
+  isGemini31FlashLiteModel,
   isGemini31ProModel,
   isKimi25Model,
   withModelIdAndNameAsId
@@ -143,7 +144,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isGemini3FlashModel(model)) {
+    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'

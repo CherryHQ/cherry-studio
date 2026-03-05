@@ -375,8 +375,21 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+
+const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
+  z.object({ type: z.literal('disabled') }),
+  z.object({ type: z.literal('adaptive') })
+])
+
+export type AgentEffort = z.infer<typeof AgentEffortSchema>
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
+
 export const CreateSessionMessageRequestSchema = z.object({
-  content: z.string().min(1, 'Content must be a valid string')
+  content: z.string().min(1, 'Content must be a valid string'),
+  effort: AgentEffortSchema.optional(),
+  thinking: AgentThinkingConfigSchema.optional()
 })
 
 export type PermissionModeCard = {
