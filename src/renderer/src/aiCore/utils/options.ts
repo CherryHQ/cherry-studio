@@ -40,7 +40,7 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
-import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
+import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
@@ -573,19 +573,27 @@ function buildOllamaProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, OllamaCompletionProviderOptions> {
+): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
-  const providerOptions: OllamaCompletionProviderOptions = {}
+  const providerOptions: OllamaProviderOptions = {}
   const reasoningEffort = assistant.settings?.reasoning_effort
   if (enableReasoning) {
     if (isOpenAIOpenWeightModel(model)) {
-      // For gpt-oss models, Ollama accepts: 'low' | 'medium' | 'high'
+      // gpt-oss models accept 'low' | 'medium' | 'high' string values
       if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
         providerOptions.think = reasoningEffort
+      } else if (reasoningEffort === 'none') {
+        providerOptions.think = false
+      } else {
+        providerOptions.think = true
       }
     } else {
-      providerOptions.think = !['none', undefined].includes(reasoningEffort)
+      // Other models: boolean only. undefined defaults to true (user enabled reasoning)
+      providerOptions.think = reasoningEffort !== 'none'
     }
+  } else {
+    // Explicitly disable thinking when reasoning is turned off (fixes Issue #11612)
+    providerOptions.think = false
   }
   return {
     ollama: providerOptions

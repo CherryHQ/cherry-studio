@@ -347,10 +347,10 @@ export class SelectionService {
     this.isCtrlkeyListenerActive = false
     this.isHideByMouseKeyListenerActive = false
 
-    if (this.toolbarWindow) {
+    if (this.toolbarWindow && !this.toolbarWindow.isDestroyed()) {
       this.toolbarWindow.close()
-      this.toolbarWindow = null
     }
+    this.toolbarWindow = null
 
     this.closePreloadedActionWindows()
 
@@ -444,9 +444,6 @@ export class SelectionService {
 
     // Clean up when closed
     this.toolbarWindow.on('closed', () => {
-      if (!this.toolbarWindow?.isDestroyed()) {
-        this.toolbarWindow?.destroy()
-      }
       this.toolbarWindow = null
     })
 
@@ -1199,12 +1196,27 @@ export class SelectionService {
     // Get a window from the preloaded queue or create a new one if empty
     const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
 
+    // [Windows] Workaround for Electron 40+ (Chromium 144) native crash.
+    // Calling close() on a visible transparent frameless window triggers DestroyWindow
+    // while the compositor still holds references to the transparent layer, causing a
+    // use-after-free crash. Hide first to release compositor resources, then destroy
+    // on the next tick.
+    if (isWin) {
+      actionWindow.on('close', (event) => {
+        if (!actionWindow.isVisible()) return
+        event.preventDefault()
+        actionWindow.hide()
+        setImmediate(() => {
+          if (!actionWindow.isDestroyed()) {
+            actionWindow.close()
+          }
+        })
+      })
+    }
+
     // Set up event listeners for this instance
     actionWindow.on('closed', () => {
       this.actionWindows.delete(actionWindow)
-      if (!actionWindow.isDestroyed()) {
-        actionWindow.destroy()
-      }
 
       // [macOS] a HACKY way
       // make sure other windows do not bring to front when action window is closed
@@ -1230,6 +1242,7 @@ export class SelectionService {
 
     //remember the action window size
     actionWindow.on('resized', () => {
+      if (actionWindow.isDestroyed()) return
       if (this.isRemeberWinSize) {
         this.lastActionWindowSize = {
           width: actionWindow.getBounds().width,
@@ -1383,6 +1396,7 @@ export class SelectionService {
 
     // unset everything
     setTimeout(() => {
+      if (actionWindow.isDestroyed()) return
       actionWindow.setVisibleOnAllWorkspaces(false, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true
@@ -1397,14 +1411,17 @@ export class SelectionService {
   }
 
   public closeActionWindow(actionWindow: BrowserWindow): void {
+    if (actionWindow.isDestroyed()) return
     actionWindow.close()
   }
 
   public minimizeActionWindow(actionWindow: BrowserWindow): void {
+    if (actionWindow.isDestroyed()) return
     actionWindow.minimize()
   }
 
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
+    if (actionWindow.isDestroyed()) return
     actionWindow.setAlwaysOnTop(isPinned)
   }
 
@@ -1419,6 +1436,7 @@ export class SelectionService {
    * This method can be removed once the Electron bug is fixed.
    */
   public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
+    if (actionWindow.isDestroyed()) return
     const bounds = actionWindow.getBounds()
     const minWidth = 300
     const minHeight = 200
@@ -1556,21 +1574,21 @@ export class SelectionService {
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
+      if (actionWindow && !actionWindow.isDestroyed()) {
         selectionService?.closeActionWindow(actionWindow)
       }
     })
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
+      if (actionWindow && !actionWindow.isDestroyed()) {
         selectionService?.minimizeActionWindow(actionWindow)
       }
     })
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
-      if (actionWindow) {
+      if (actionWindow && !actionWindow.isDestroyed()) {
         selectionService?.pinActionWindow(actionWindow, isPinned)
       }
     })
@@ -1581,7 +1599,7 @@ export class SelectionService {
       IpcChannel.Selection_ActionWindowResize,
       (event, deltaX: number, deltaY: number, direction: string) => {
         const actionWindow = BrowserWindow.fromWebContents(event.sender)
-        if (actionWindow) {
+        if (actionWindow && !actionWindow.isDestroyed()) {
           selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
         }
       }

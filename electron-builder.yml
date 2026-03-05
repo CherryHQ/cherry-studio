@@ -140,37 +140,19 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.20 - New Models & Features
-
-    ✨ New Features
-    - [Models] Add support for Claude Sonnet 4.6 model with reasoning effort configuration
-    - [Models] Add support for Gemini 3.1 Pro models with reasoning effort and vision capabilities
-    - [Models] Add support for Qwen 3.5 series models
-    - [Models] Add support for Moonshot Kimi K2.5 series models (kimi-k2.5, kimi-k2-thinking, etc.)
-    - [Models] Add support for Zhipu GLM-5 model with thinking tokens and function calling
-    - [Models] Add support for Doubao Seed 2.0 models with function-calling capabilities
-    - [Mini Apps] Add proper region/language tags for all mini apps, pinned apps no longer filtered by region
-    - [Chat] Add keyboard shortcut Cmd+Shift+M (Ctrl+Shift+M) to open model selector
-    - [Search] Add keyword-based topic search with whole-word matching and result sorting
+    Cherry Studio 1.7.23 - Bug Fixes
 
     🐛 Bug Fixes
-    - [i18n] Fix PluginCard translation not updating when language is switched
-    - [OpenClaw] Fix installation failure on Windows when npm path contains spaces
+    - [Selection] Fix app crash on Windows when closing action window
+    - [MiniApp] Fix settings state synchronization and region filter consistency
+    - [Plugin Browser] Make detail modal text selectable and improve search experience
+    - [Tools] Fix approval card not showing for builtin and provider tools
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.20 - 新模型与功能
-
-    ✨ 新功能
-    - [模型] 添加 Claude Sonnet 4.6 模型支持，包含推理配置
-    - [模型] 添加 Gemini 3.1 Pro 模型支持，包含推理能力和视觉功能
-    - [模型] 添加 Qwen 3.5 系列模型支持
-    - [模型] 添加 Moonshot Kimi K2.5 系列模型支持（kimi-k2.5、kimi-k2-thinking 等）
-    - [模型] 添加智谱 GLM-5 模型支持，包含思维令牌和函数调用
-    - [模型] 添加豆包 Seed 2.0 模型支持，包含函数调用能力
-    - [小程序] 为所有小程序添加正确的地区/语言标签，固定的小程序不再受地区过滤影响
-    - [聊天] 添加键盘快捷键 Cmd+Shift+M (Ctrl+Shift+M) 打开模型选择器
-    - [搜索] 添加基于关键词的话题搜索，支持全词匹配和结果排序
+    Cherry Studio 1.7.23 - 问题修复
 
     🐛 问题修复
-    - [国际化] 修复切换语言时插件卡片翻译不更新的问题
-    - [OpenClaw] 修复 Windows 上 npm 路径包含空格时的安装失败问题
+    - [选择助手] 修复 Windows 上关闭操作窗口时应用崩溃的问题
+    - [小程序] 修复设置状态同步和区域过滤一致性问题
+    - [插件浏览器] 使详情弹窗文本可选择，改进搜索体验
+    - [工具] 修复内置和提供商工具的批准卡片未显示的问题
     <!--LANG:END-->

@@ -18,7 +18,7 @@ on:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false) && (github.event.action != 'edited' || github.event.changes.base != null)
     outputs:
       main: ${{ steps.filter.outputs.main }}
       renderer: ${{ steps.filter.outputs.renderer }}
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false) && (github.event.action != 'edited' || github.event.changes.base != null)
 
     steps:
       - name: Check out Git repository
@@ -97,6 +97,9 @@ jobs:
 
       - name: Hardcoded Strings Check
         run: pnpm i18n:hardcoded:strict
+
+      - name: OpenAPI Spec Check
+        run: pnpm openapi:check
 
       - name: Skills Check
         run: pnpm skills:check
@@ -198,7 +201,7 @@ jobs:
     runs-on: windows-latest
     env:
       CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false) && (github.event.action != 'edited' || github.event.changes.base != null)
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
