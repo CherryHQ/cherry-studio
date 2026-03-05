@@ -85,7 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Добавить каталог",
-        "default_hint": "[to be translated]:Default: {{path}}",
+        "default_hint": "По умолчанию: {{path}}",
         "duplicate": "Этот каталог уже включён.",
         "empty": "Выберите хотя бы один каталог, к которому агент имеет доступ.",
         "error": {

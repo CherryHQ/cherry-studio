@@ -85,7 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
-        "default_hint": "[to be translated]:Default: {{path}}",
+        "default_hint": "Standard: {{path}}",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
