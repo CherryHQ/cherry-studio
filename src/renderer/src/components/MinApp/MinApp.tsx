@@ -40,6 +40,8 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
+  // Pinned apps should always be visible regardless of region/locale filtering
+  const shouldShow = isVisible || isPinned
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
@@ -113,7 +115,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       : [])
   ]
 
-  if (!isVisible) {
+  if (!shouldShow) {
     return null
   }
 

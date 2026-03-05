@@ -81,6 +81,7 @@ export type SidebarIcon =
   | 'files'
   | 'code_tools'
   | 'notes'
+  | 'openclaw'
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

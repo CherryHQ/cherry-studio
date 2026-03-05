@@ -147,7 +147,8 @@ const titleKeyMap = {
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
-  translate: 'title.translate'
+  translate: 'title.translate',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -185,7 +186,8 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title'
+  notes: 'notes.title',
+  openclaw: 'openclaw.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
@@ -211,6 +213,7 @@ const shortcutKeyMap = {
   reset_to_default: 'settings.shortcuts.reset_to_default',
   search_message: 'settings.shortcuts.search_message',
   search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
+  select_model: 'settings.shortcuts.select_model',
   selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
   selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
   show_app: 'settings.shortcuts.show_app',

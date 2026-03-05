@@ -87,6 +87,11 @@ export class ClaudeStreamState {
   private pendingUsage: PendingUsageState = {}
   private pendingToolCalls = new Map<string, PendingToolCall>()
   private stepActive = false
+  /**
+   * Tracks whether the next user message should be suppressed because it contains
+   * skill content injected after a Skill tool result.
+   */
+  private expectingSkillContent = false
 
   constructor(options: ClaudeStreamStateOptions) {
     this.logger = loggerService.withContext('ClaudeStreamState')
@@ -284,10 +289,29 @@ export class ClaudeStreamState {
     this.resetBlocks()
     this.resetPendingUsage()
     this.stepActive = false
+    this.expectingSkillContent = false
   }
 
   getNamespacedToolCallId(rawToolCallId: string): string {
     return buildNamespacedToolCallId(this.agentSessionId, rawToolCallId)
+  }
+
+  /**
+   * Marks that the next user message should be suppressed because it will contain
+   * skill content injected after a Skill tool invocation.
+   */
+  setExpectingSkillContent(expecting: boolean): void {
+    this.expectingSkillContent = expecting
+  }
+
+  /**
+   * Checks and clears the skill content expectation flag.
+   * Returns true if skill content was expected (and should be suppressed).
+   */
+  consumeExpectingSkillContent(): boolean {
+    const wasExpecting = this.expectingSkillContent
+    this.expectingSkillContent = false
+    return wasExpecting
   }
 }
 

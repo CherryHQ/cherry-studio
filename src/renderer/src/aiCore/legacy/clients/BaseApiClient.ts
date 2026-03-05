@@ -26,7 +26,7 @@ import type {
   WebSearchResponse
 } from '@renderer/types'
 import {
-  FileTypes,
+  FILE_TYPE,
   GroqServiceTiers,
   isGroqServiceTier,
   isOpenAIServiceTier,
@@ -321,7 +321,7 @@ export abstract class BaseApiClient<
     const fileBlocks = findFileBlocks(message)
     if (fileBlocks.length > 0) {
       const textFileBlocks = fileBlocks.filter(
-        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+        (fb) => fb.file && [FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => fb.file.type === type)
       )
 
       if (textFileBlocks.length > 0) {

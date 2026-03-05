@@ -13,7 +13,7 @@ const visionAllowedModels = [
   'gemini-1\\.5',
   'gemini-2\\.0',
   'gemini-2\\.5',
-  'gemini-3-(?:flash|pro)(?:-preview)?',
+  'gemini-3(?:\\.\\d)?-(?:flash|pro)(?:-preview)?',
   'gemini-(flash|pro|flash-lite)-latest',
   'gemini-exp',
   'claude-3',
@@ -26,6 +26,7 @@ const visionAllowedModels = [
   'qwen2-vl',
   'qwen2.5-vl',
   'qwen3-vl',
+  'qwen3\\.5(?:-[\\w-]+)?',
   'qwen2.5-omni',
   'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
@@ -47,6 +48,7 @@ const visionAllowedModels = [
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
+  'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-thinking-preview',
   `gemma3(?:[-:\\w]+)?`,
@@ -120,7 +122,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
-const DEDICATED_IMAGE_MODELS_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
+const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
@@ -170,7 +172,7 @@ const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('
 export function isDedicatedImageModel(model: Model): boolean {
   if (!model) return false
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS_REGEX.test(modelId)
+  return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
 }
 
 // Backward compatible aliases

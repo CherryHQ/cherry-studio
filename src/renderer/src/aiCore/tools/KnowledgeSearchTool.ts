@@ -17,7 +17,6 @@ export const knowledgeSearchTool = (
   userMessage?: string
 ) => {
   return tool({
-    name: 'builtin_knowledge_search',
     description: `Knowledge base search tool for retrieving information from user's private knowledge base. This searches your local collection of documents, web content, notes, and other materials you have stored.
 
 This tool has been configured with search parameters based on the conversation context:
@@ -103,7 +102,7 @@ You can use this tool as-is, or provide additionalContext to refine the search f
       // 返回结果
       return knowledgeReferencesData
     },
-    toModelOutput: (results) => {
+    toModelOutput: ({ output: results }) => {
       let summary = 'No search needed based on the query analysis.'
       if (results.length > 0) {
         summary = `Found ${results.length} relevant sources. Use [number] format to cite specific information.`

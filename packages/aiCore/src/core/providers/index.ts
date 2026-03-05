@@ -56,6 +56,7 @@ export type {
 } from './schemas' // 从 schemas 导出的类型
 export { baseProviderIdSchema, customProviderIdSchema, providerConfigSchema, providerIdSchema } from './schemas' // Schema 导出
 export type {
+  AiSdkModel,
   DynamicProviderRegistry,
   ExtensibleProviderSettingsMap,
   ProviderError,

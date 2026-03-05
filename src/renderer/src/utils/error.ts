@@ -10,6 +10,7 @@ import type {
   SerializedError
 } from '@renderer/types/error'
 import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
 import { InvalidToolInputError } from 'ai'
@@ -19,7 +20,6 @@ import type * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { parseJSON } from './json'
-import { safeSerialize } from './serialize'
 
 const logger = loggerService.withContext('Utils:error')
 
@@ -192,7 +192,7 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('toolInput' in error) serializedError.toolInput = error.toolInput
   if ('text' in error) serializedError.text = error.text ?? null
   if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
-  if ('response' in error) serializedError.response = error.response ?? null
+  if ('response' in error) serializedError.response = safeSerialize(error.response)
   if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
   if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
   if ('modelId' in error) serializedError.modelId = error.modelId

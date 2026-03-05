@@ -2,7 +2,7 @@ const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const yaml = require('js-yaml')
+const { parse, stringify } = require('yaml')
 
 const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 
@@ -60,7 +60,7 @@ exports.default = async function (context) {
 
     // Backup and modify pnpm-workspace.yaml to add target platform support
     const originalWorkspaceConfig = fs.readFileSync(workspaceConfigPath, 'utf-8')
-    const workspaceConfig = yaml.load(originalWorkspaceConfig)
+    const workspaceConfig = parse(originalWorkspaceConfig)
 
     // Add target platform to supportedArchitectures.os
     if (!workspaceConfig.supportedArchitectures.os.includes(platform)) {
@@ -72,7 +72,7 @@ exports.default = async function (context) {
       workspaceConfig.supportedArchitectures.cpu.push(arch)
     }
 
-    const modifiedWorkspaceConfig = yaml.dump(workspaceConfig)
+    const modifiedWorkspaceConfig = stringify(workspaceConfig)
     console.log('Modified workspace config:', modifiedWorkspaceConfig)
     fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
 
@@ -89,7 +89,7 @@ exports.default = async function (context) {
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
     const electronBuilderConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
-    const electronBuilderConfig = yaml.load(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
+    const electronBuilderConfig = parse(fs.readFileSync(electronBuilderConfigPath, 'utf-8'))
     let filters = electronBuilderConfig.files
 
     // add filters for other architectures (exclude them)

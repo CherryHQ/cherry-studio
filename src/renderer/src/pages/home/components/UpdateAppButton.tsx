@@ -48,9 +48,6 @@ const Container = styled.div``
 const UpdateButton = styled(Button)`
   border-radius: 24px;
   font-size: 12px;
-  @media (max-width: 1000px) {
-    display: none;
-  }
 `
 
 export default UpdateAppButton

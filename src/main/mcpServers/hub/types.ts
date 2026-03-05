@@ -1,28 +1,35 @@
-import type { MCPServer, MCPTool } from '@types'
-
-export interface GeneratedTool {
+export type HubTool = {
+  /** namespaced id: serverId__toolName */
+  id: string
   serverId: string
   serverName: string
   toolName: string
-  functionName: string
-  jsCode: string
-  fn: (params: unknown) => Promise<unknown>
-  signature: string
-  returns: string
   description?: string
+  inputSchema?: unknown
+  /** JS-friendly name (camelCase) */
+  jsName: string
 }
 
-export interface SearchQuery {
-  query: string
+export type ListInput = {
+  /** Optional: maximum results to return (default: 30, max: 100). */
   limit?: number
+  /** Optional: zero-based offset for pagination (default: 0). */
+  offset?: number
 }
 
-export interface SearchResult {
-  tools: string
-  total: number
+export type InspectInput = {
+  /** Tool name in JS form (camelCase) OR original namespaced id (serverId__toolName). */
+  name: string
 }
 
-export interface ExecInput {
+export type InvokeInput = {
+  /** Tool name in JS form (camelCase) OR original namespaced id (serverId__toolName). */
+  name: string
+  /** Tool parameters as JSON object. */
+  params?: unknown
+}
+
+export type ExecInput = {
   code: string
 }
 
@@ -33,44 +40,15 @@ export type ExecOutput = {
   isError?: boolean
 }
 
-export interface ToolRegistryOptions {
-  ttl?: number
-}
-
-export interface MCPToolWithServer extends MCPTool {
-  server: MCPServer
-}
-
-export interface ExecutionContext {
-  __callTool: (functionName: string, params: unknown) => Promise<unknown>
-  parallel: <T>(...promises: Promise<T>[]) => Promise<T[]>
-  settle: <T>(...promises: Promise<T>[]) => Promise<PromiseSettledResult<T>[]>
-  console: ConsoleMethods
-  [functionName: string]: unknown
-}
-
-export interface ConsoleMethods {
-  log: (...args: unknown[]) => void
-  warn: (...args: unknown[]) => void
-  error: (...args: unknown[]) => void
-  info: (...args: unknown[]) => void
-  debug: (...args: unknown[]) => void
-}
-
-export type HubWorkerTool = {
-  functionName: string
-}
-
 export type HubWorkerExecMessage = {
   type: 'exec'
   code: string
-  tools: HubWorkerTool[]
 }
 
 export type HubWorkerCallToolMessage = {
   type: 'callTool'
   requestId: string
-  functionName: string
+  name: string
   params: unknown
 }
 

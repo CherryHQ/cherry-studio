@@ -51,7 +51,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   }
 
   if (!message.usage) {
-    return <div />
+    return null
   }
 
   if (message.role === 'user') {

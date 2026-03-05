@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { AppInfo } from '@renderer/types'
 import { GB, MB } from '@shared/config/constant'
+import { notification } from 'antd'
 import { t } from 'i18next'
 
 const logger = loggerService.withContext('useDataLimit')
@@ -9,7 +10,7 @@ const CHECK_INTERVAL_NORMAL = 1000 * 60 * 10 // 10 minutes
 const CHECK_INTERVAL_WARNING = 1000 * 60 * 1 // 1 minute when warning is active
 
 let currentInterval: NodeJS.Timeout | null = null
-let currentToastId: string | null = null
+let diskWarningNotificationKey: string | null = null
 
 async function checkAppStorageQuota() {
   try {
@@ -63,18 +64,16 @@ export async function checkDataLimit() {
 
     const shouldShowWarning = isStorageQuotaLow || isAppDataDiskQuotaLow
 
-    // Show or hide toast based on warning state
-    if (shouldShowWarning && !currentToastId) {
-      // Show persistent toast without close button
-      const toastId = window.toast.warning({
-        title: t('settings.data.limit.appDataDiskQuota'),
+    // Show or hide notification based on warning state
+    if (shouldShowWarning && !diskWarningNotificationKey) {
+      const key = `disk-warning-${Date.now()}`
+      notification.warning({
+        message: t('settings.data.limit.appDataDiskQuota'),
         description: t('settings.data.limit.appDataDiskQuotaDescription'),
-        timeout: 0 // Never auto-dismiss
-        // hideCloseButton: true // Hide close button so user cannot dismiss
-        // commented out because antd message doesn't support hiding close button
-        // so we just rely on the timeout: 0 to keep it persistent
+        duration: 0,
+        key
       })
-      currentToastId = toastId
+      diskWarningNotificationKey = key
 
       // Switch to warning mode with shorter interval
       logger.info('Disk space low, switching to 1-minute check interval')
@@ -82,10 +81,10 @@ export async function checkDataLimit() {
         clearInterval(currentInterval)
       }
       currentInterval = setInterval(check, CHECK_INTERVAL_WARNING)
-    } else if (!shouldShowWarning && currentToastId) {
-      // Dismiss toast when space is recovered
-      window.toast.closeToast(currentToastId)
-      currentToastId = null
+    } else if (!shouldShowWarning && diskWarningNotificationKey) {
+      // Dismiss notification when space is recovered
+      notification.destroy(diskWarningNotificationKey)
+      diskWarningNotificationKey = null
 
       // Switch back to normal mode
       logger.info('Disk space recovered, switching back to 10-minute check interval')

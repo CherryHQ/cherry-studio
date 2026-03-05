@@ -17,27 +17,12 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
-
-// Sensitive environment variable keys to redact in logs
-const SENSITIVE_ENV_KEYS = ['API_KEY', 'APIKEY', 'AUTHORIZATION', 'TOKEN', 'SECRET', 'PASSWORD']
-
-/**
- * Sanitize environment variables for safe logging
- * Redacts values of sensitive keys to prevent credential leakage
- */
-function sanitizeEnvForLogging(env: Record<string, string>): Record<string, string> {
-  const sanitized: Record<string, string> = {}
-  for (const [key, value] of Object.entries(env)) {
-    const isSensitive = SENSITIVE_ENV_KEYS.some((k) => key.toUpperCase().includes(k))
-    sanitized[key] = isSensitive ? '<redacted>' : value
-  }
-  return sanitized
-}
 
 interface VersionInfo {
   installed: string | null
@@ -54,6 +39,8 @@ class CodeToolsService {
   private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
+  private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -105,6 +92,8 @@ class CodeToolsService {
         return '@github/copilot'
       case codeTools.kimiCli:
         return 'kimi-cli' // Python package
+      case codeTools.openCode:
+        return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -126,9 +115,257 @@ class CodeToolsService {
         return 'copilot'
       case codeTools.kimiCli:
         return 'kimi'
+      case codeTools.openCode:
+        return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
+  }
+
+  /**
+   * Generate opencode.json config file for OpenCode CLI
+   * Merge approach:
+   * 1. Parse existing config (if any) with JSONC support
+   * 2. Merge CherryStudio provider into provider object
+   * 3. Preserve other fields like $schema, model, etc.
+   */
+  private async generateOpenCodeConfig(
+    directory: string,
+    model: { id: string; name: string },
+    baseUrl: string,
+    isReasoning: boolean,
+    supportsReasoningEffort: boolean,
+    budgetTokens: number | undefined,
+    providerType: string,
+    providerName: string
+  ): Promise<string> {
+    const configPath = path.join(directory, 'opencode.json')
+
+    // Determine npm package based on provider type
+    let npmPackage = '@ai-sdk/openai-compatible'
+    if (providerType === 'anthropic') {
+      npmPackage = '@ai-sdk/anthropic'
+    } else if (providerType === 'openai-response') {
+      npmPackage = '@ai-sdk/openai'
+    }
+
+    // Build model config - NO limit field (cannot determine output capacity)
+    const modelConfig: Record<string, any> = {
+      name: model.name
+    }
+
+    // Add reasoning config based on provider type
+    if (isReasoning) {
+      modelConfig.reasoning = true
+      if (providerType === 'anthropic') {
+        // Anthropic style: thinking with budgetTokens
+        modelConfig.options = {
+          thinking: {
+            budgetTokens: budgetTokens ?? 10000, // Use passed budget or fallback to default
+            type: 'enabled'
+          }
+        }
+      } else if (supportsReasoningEffort) {
+        // OpenAI style: only add reasoningEffort if model supports it
+        modelConfig.options = {
+          reasoningEffort: 'medium'
+        }
+      }
+      // else: model is a reasoning model but doesn't support reasoningEffort - don't add options
+    }
+
+    // Dynamic provider key to avoid race conditions between different providers
+    const dynamicProviderKey = `Cherry-${providerName}`
+    const dynamicProviderName = `Cherry-${providerName}`
+
+    // Parse existing config (if any) with JSONC support
+    let existingConfig: Record<string, any> | null = null
+    let backupContent: string | null = null
+    if (fs.existsSync(configPath)) {
+      const rawContent = fs.readFileSync(configPath, 'utf8')
+      // Parse and clean backup to only preserve non-Cherry content
+      const existingConfigForBackup = parseJSONC(rawContent)
+      if (existingConfigForBackup && typeof existingConfigForBackup === 'object') {
+        // Remove any existing Cherry-* providers from backup
+        if (existingConfigForBackup.provider && typeof existingConfigForBackup.provider === 'object') {
+          const providers = existingConfigForBackup.provider as Record<string, any>
+          const cherryKeys = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
+          for (const key of cherryKeys) {
+            delete providers[key]
+          }
+          // If provider object becomes empty, remove it
+          if (Object.keys(providers).length === 0) {
+            delete existingConfigForBackup.provider
+          }
+          // Check if config is empty after cleaning
+          const functionalKeys = getFunctionalKeys(existingConfigForBackup)
+          if (functionalKeys.length > 0) {
+            backupContent = JSON.stringify(existingConfigForBackup, null, 2)
+          } else {
+            backupContent = null // Backup was all Cherry content, nothing to preserve
+          }
+        } else {
+          backupContent = rawContent
+        }
+      } else {
+        backupContent = rawContent
+      }
+      existingConfig = JSON.parse(JSON.stringify(existingConfigForBackup))
+      logger.info('Parsed existing opencode.json config')
+    }
+    this.openCodeConfigBackups.set(configPath, backupContent)
+
+    // config with env variable Build CherryStudio provider reference for security
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const cherryProviderConfig = {
+      npm: npmPackage,
+      name: dynamicProviderName,
+      options: { apiKey: `{env:${envVarKey}}`, baseURL: baseUrl },
+      models: { [model.id]: modelConfig }
+    }
+
+    // Merge into existing config or create new one
+    let finalConfig: Record<string, any>
+    if (existingConfig && typeof existingConfig === 'object') {
+      // Deep merge: preserve existing fields, add Cherry provider
+      finalConfig = { ...existingConfig }
+      if (!finalConfig.provider || typeof finalConfig.provider !== 'object') {
+        finalConfig.provider = {}
+      }
+      // Merge Cherry provider into existing providers
+      finalConfig.provider = {
+        ...finalConfig.provider,
+        [dynamicProviderKey]: cherryProviderConfig
+      }
+    } else {
+      // No existing config, create fresh one
+      finalConfig = {
+        $schema: 'https://opencode.ai/config.json',
+        provider: {
+          [dynamicProviderKey]: cherryProviderConfig
+        }
+      }
+    }
+
+    fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
+    logger.info(`Wrote opencode.json at: ${configPath} (merged: ${existingConfig !== null})`)
+
+    return configPath
+  }
+
+  /**
+   * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
+   * Precise cleanup approach:
+   * - Parse current config
+   * - Remove only providers starting with "Cherry-"
+   * - Keep all other providers and fields
+   * - If provider object becomes empty, remove it
+   */
+  private scheduleOpenCodeConfigCleanup(configPath: string): void {
+    // Cancel any existing timer for this directory (debounce)
+    const existingTimer = this.openCodeCleanupTimers.get(configPath)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+      logger.info(`Cancelled previous cleanup timer for: ${configPath}`)
+    }
+
+    // Schedule new cleanup
+    const timer = setTimeout(
+      () => {
+        this.openCodeCleanupTimers.delete(configPath)
+
+        try {
+          // Check if file still exists
+          if (!fs.existsSync(configPath)) {
+            logger.info(`opencode.json already deleted: ${configPath}`)
+            this.openCodeConfigBackups.delete(configPath)
+            return
+          }
+
+          // Get backup content
+          const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
+
+          // Parse current config
+          const currentContent = fs.readFileSync(configPath, 'utf8')
+          const currentConfig = parseJSONC(currentContent)
+
+          if (!currentConfig || typeof currentConfig !== 'object') {
+            // Invalid config, fall back to backup or deletion
+            if (backupContent !== null) {
+              fs.writeFileSync(configPath, backupContent, 'utf8')
+              logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
+            } else {
+              fs.unlinkSync(configPath)
+              logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
+            }
+            this.openCodeConfigBackups.delete(configPath)
+            return
+          }
+
+          // Remove Cherry-* providers from current config
+          if (currentConfig.provider && typeof currentConfig.provider === 'object') {
+            const providers = currentConfig.provider as Record<string, any>
+            const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
+
+            if (keysToDelete.length > 0) {
+              for (const key of keysToDelete) {
+                delete providers[key]
+              }
+
+              // If provider object becomes empty, remove it
+              if (Object.keys(providers).length === 0) {
+                delete currentConfig.provider
+              }
+
+              // Check if config is now "empty" (only contains non-functional fields like $schema)
+              const remainingKeys = getFunctionalKeys(currentConfig)
+              if (remainingKeys.length === 0) {
+                // Config is essentially empty after cleanup
+                // Check if backup also has no functional content
+                let backupHasFunctionalContent = false
+                if (backupContent !== null) {
+                  try {
+                    const backupConfig = parseJSONC(backupContent)
+                    if (backupConfig && typeof backupConfig === 'object') {
+                      const backupKeys = getFunctionalKeys(backupConfig)
+                      backupHasFunctionalContent = backupKeys.length > 0
+                    }
+                  } catch {
+                    // Parse failed, treat as no functional content
+                  }
+                }
+
+                if (backupHasFunctionalContent && backupContent !== null) {
+                  // Restore original content (it had functional content)
+                  fs.writeFileSync(configPath, backupContent, 'utf8')
+                  logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
+                } else {
+                  // No backup or backup had no functional content, delete the file
+                  fs.unlinkSync(configPath)
+                  logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
+                }
+              } else {
+                // Write back the cleaned config
+                fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
+                logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
+              }
+            } else {
+              logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
+            }
+          } else {
+            logger.info(`No provider object in opencode.json: ${configPath}`)
+          }
+
+          // Clean up backup
+          this.openCodeConfigBackups.delete(configPath)
+        } catch (error) {
+          logger.warn(`Failed to cleanup opencode.json: ${error}`)
+        }
+      },
+      5 * 60 * 1000
+    ) // 5 minutes timeout
+
+    this.openCodeCleanupTimers.set(configPath, timer)
   }
 
   /**
@@ -688,6 +925,33 @@ class CodeToolsService {
         `--config model="${model}"`
       ].join(' ')
       baseCommand = `${baseCommand} ${configParams}`
+    }
+
+    // Special handling for OpenCode: generate config file and add --model flag
+    if (cliTool === codeTools.openCode) {
+      const baseUrl = env.OPENCODE_BASE_URL
+      const modelId = _model
+      const modelName = env.OPENCODE_MODEL_NAME || modelId
+      const isReasoning = env.OPENCODE_MODEL_IS_REASONING === 'true'
+      const supportsReasoningEffort = env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT === 'true'
+      const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
+      const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
+      const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
+
+      const configPath = await this.generateOpenCodeConfig(
+        directory,
+        { id: modelId, name: modelName },
+        baseUrl,
+        isReasoning,
+        supportsReasoningEffort,
+        budgetTokens,
+        providerType,
+        providerName
+      )
+      this.scheduleOpenCodeConfigCleanup(configPath)
+
+      // Add --model flag with dynamic provider prefix to avoid race conditions
+      baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
     }
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)

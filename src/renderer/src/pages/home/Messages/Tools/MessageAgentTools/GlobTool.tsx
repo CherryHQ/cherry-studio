@@ -22,16 +22,12 @@ export function GlobTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Glob,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Glob}
         params={input?.pattern}
-        stats={
-          output
-            ? `${lineCount} ${t(lineCount === 1 ? 'message.tools.units.file' : 'message.tools.units.files')}`
-            : undefined
-        }
+        stats={output ? t('message.tools.units.file', { count: lineCount }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />

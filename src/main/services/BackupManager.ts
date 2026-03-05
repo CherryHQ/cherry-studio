@@ -27,6 +27,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import { closeAllDataConnections } from '../utils/lifecycle'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -409,6 +410,10 @@ class BackupManager {
         const totalSize = await this.getDirSize(sourcePath)
         let copiedSize = 0
 
+        // Close all database connections and file watchers before removing Data directory.
+        // On Windows, open file handles prevent deletion (EBUSY).
+        await closeAllDataConnections()
+
         await this.setWritableRecursive(destPath)
         await fs.remove(destPath)
 
@@ -497,8 +502,7 @@ class BackupManager {
   listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
     try {
       const client = this.getWebDavInstance(config)
-      const response = await client.getDirectoryContents()
-      const files = Array.isArray(response) ? response : response.data
+      const files = await client.getDirectoryContents()
 
       return files
         .filter((file: FileStat) => file.type === 'file' && file.basename.endsWith('.zip'))
