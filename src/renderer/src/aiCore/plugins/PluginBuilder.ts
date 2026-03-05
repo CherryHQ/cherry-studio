@@ -72,8 +72,8 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createSimulateStreamingPlugin())
   }
 
-  if (providerType === 'anthropic' && provider.anthropicCacheControl?.tokenThreshold) {
-    plugins.push(createAnthropicCachePlugin())
+  if (provider.anthropicCacheControl?.tokenThreshold) {
+    plugins.push(createAnthropicCachePlugin(provider))
   }
 
   // 0.3 OpenRouter reasoning redaction
