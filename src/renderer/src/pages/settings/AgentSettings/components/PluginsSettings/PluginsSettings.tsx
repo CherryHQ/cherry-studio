@@ -26,7 +26,7 @@ export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) =>
   const { plugins, refresh } = useInstalledPlugins(agentBase.id)
 
   // Plugin actions
-  const { install, uninstall } = usePluginActions(agentBase.id, refresh)
+  const { install, uninstall, uninstallPackage } = usePluginActions(agentBase.id, refresh)
 
   // Handle install action
   const handleInstall = useCallback(
@@ -56,10 +56,32 @@ export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) =>
     [uninstall, t]
   )
 
+  // Handle package uninstall action
+  const handleUninstallPackage = useCallback(
+    async (packageName: string) => {
+      const result = await uninstallPackage(packageName)
+
+      if (result.success) {
+        window.toast.success(
+          t('agent.settings.plugins.success.uninstall_package', { name: packageName }) ||
+            `Package "${packageName}" uninstalled successfully`
+        )
+      } else {
+        window.toast.error(t('agent.settings.plugins.error.uninstall') + (result.error ? ': ' + result.error : ''))
+      }
+    },
+    [uninstallPackage, t]
+  )
+
   return (
-    <div className="flex h-full flex-col overflow-hidden p-[16px]">
+    <div className="flex h-full flex-col overflow-hidden p-4">
       <div className="min-h-0 flex-1">
-        <PluginBrowser installedPlugins={plugins} onInstall={handleInstall} onUninstall={handleUninstall} />
+        <PluginBrowser
+          installedPlugins={plugins}
+          onInstall={handleInstall}
+          onUninstall={handleUninstall}
+          onUninstallPackage={handleUninstallPackage}
+        />
       </div>
     </div>
   )
