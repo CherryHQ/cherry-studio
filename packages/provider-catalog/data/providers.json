@@ -1,0 +1,1362 @@
+{
+  "version": "2026.02.10",
+  "providers": [
+    {
+      "id": "cherryin",
+      "name": "CherryIN",
+      "description": "CherryIN - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://open.cherryin.net",
+        "messages": "https://open.cherryin.net"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://open.cherryin.net/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://open.cherryin.ai",
+          "docs": "https://open.cherryin.ai",
+          "apiKey": "https://open.cherryin.ai/console/token",
+          "models": "https://open.cherryin.ai/pricing"
+        }
+      }
+    },
+    {
+      "id": "silicon",
+      "name": "Silicon",
+      "description": "Silicon - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.siliconflow.cn",
+        "messages": "https://api.siliconflow.cn"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.siliconflow.cn/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.siliconflow.cn",
+          "docs": "https://docs.siliconflow.cn/",
+          "apiKey": "https://cloud.siliconflow.cn/i/d1nTBKXU",
+          "models": "https://cloud.siliconflow.cn/models"
+        }
+      }
+    },
+    {
+      "id": "aihubmix",
+      "name": "AiHubMix",
+      "description": "AiHubMix - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://aihubmix.com",
+        "messages": "https://aihubmix.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://aihubmix.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["aggregator"],
+        "website": {
+          "official": "https://aihubmix.com?aff=SJyh",
+          "docs": "https://doc.aihubmix.com/",
+          "apiKey": "https://aihubmix.com?aff=SJyh",
+          "models": "https://aihubmix.com/models"
+        }
+      }
+    },
+    {
+      "id": "ovms",
+      "name": "OpenVINO Model Server",
+      "description": "OpenVINO Model Server - AI model provider",
+      "baseUrls": {},
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html",
+          "docs": "https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html",
+          "models": "https://www.modelscope.cn/organization/OpenVINO"
+        }
+      }
+    },
+    {
+      "id": "ocoolai",
+      "name": "ocoolAI",
+      "description": "ocoolAI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.ocoolai.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.ocoolai.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://one.ocoolai.com/",
+          "docs": "https://docs.ocoolai.com/",
+          "apiKey": "https://one.ocoolai.com/token",
+          "models": "https://api.ocoolai.com/info/models/"
+        }
+      }
+    },
+    {
+      "id": "zhipu",
+      "name": "ZhiPu",
+      "description": "ZhiPu - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://open.bigmodel.cn/api/paas/v4",
+        "messages": "https://open.bigmodel.cn/api/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://open.bigmodel.cn/",
+          "docs": "https://docs.bigmodel.cn/",
+          "apiKey": "https://open.bigmodel.cn/usercenter/apikeys",
+          "models": "https://open.bigmodel.cn/modelcenter/square"
+        }
+      }
+    },
+    {
+      "id": "deepseek",
+      "name": "deepseek",
+      "description": "deepseek - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.deepseek.com",
+        "messages": "https://api.deepseek.com/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.deepseek.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://deepseek.com/",
+          "docs": "https://platform.deepseek.com/api-docs/",
+          "apiKey": "https://platform.deepseek.com/api_keys",
+          "models": "https://platform.deepseek.com/api-docs/"
+        }
+      }
+    },
+    {
+      "id": "alayanew",
+      "name": "AlayaNew",
+      "description": "AlayaNew - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://deepseek.alayanew.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://deepseek.alayanew.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.alayanew.com/backend/register?id=cherrystudio",
+          "docs": "https://docs.alayanew.com/docs/modelService/interview?utm_source=cherrystudio",
+          "apiKey": "https://www.alayanew.com/backend/register?id=cherrystudio",
+          "models": "https://www.alayanew.com/product/deepseek?id=cherrystudio"
+        }
+      }
+    },
+    {
+      "id": "dmxapi",
+      "name": "DMXAPI",
+      "description": "DMXAPI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://www.dmxapi.cn",
+        "messages": "https://www.dmxapi.cn"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://www.dmxapi.cn/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.dmxapi.cn/register?aff=bwwY",
+          "docs": "https://doc.dmxapi.cn/",
+          "apiKey": "https://www.dmxapi.cn/register?aff=bwwY",
+          "models": "https://www.dmxapi.cn/pricing"
+        }
+      }
+    },
+    {
+      "id": "aionly",
+      "name": "AIOnly",
+      "description": "AIOnly - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.aiionly.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.aiionly.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.aiionly.com",
+          "docs": "https://www.aiionly.com/document",
+          "apiKey": "https://www.aiionly.com/keyApi",
+          "models": "https://www.aiionly.com"
+        }
+      }
+    },
+    {
+      "id": "burncloud",
+      "name": "BurnCloud",
+      "description": "BurnCloud - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://ai.burncloud.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://ai.burncloud.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://ai.burncloud.com/",
+          "docs": "https://ai.burncloud.com/docs",
+          "apiKey": "https://ai.burncloud.com/token",
+          "models": "https://ai.burncloud.com/pricing"
+        }
+      }
+    },
+    {
+      "id": "tokenflux",
+      "name": "TokenFlux",
+      "description": "TokenFlux - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.tokenflux.ai/openai/v1",
+        "messages": "https://api.tokenflux.ai/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.tokenflux.ai/openai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://api.tokenflux.ai",
+          "docs": "https://api.tokenflux.ai/docs",
+          "apiKey": "https://api.tokenflux.ai/dashboard/api-keys",
+          "models": "https://api.tokenflux.ai/models"
+        }
+      }
+    },
+    {
+      "id": "302ai",
+      "name": "302.AI",
+      "description": "302.AI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.302.ai",
+        "messages": "https://api.302.ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.302.ai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://302.ai",
+          "docs": "https://302ai.apifox.cn/api-147522039",
+          "apiKey": "https://dash.302.ai/apis/list",
+          "models": "https://302.ai/pricing/"
+        }
+      }
+    },
+    {
+      "id": "cephalon",
+      "name": "Cephalon",
+      "description": "Cephalon - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://cephalon.cloud/user-center/v1/model"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://cephalon.cloud/share/register-landing?invite_id=jSdOYA",
+          "docs": "https://cephalon.cloud/apitoken/1864244127731589124",
+          "apiKey": "https://cephalon.cloud/api",
+          "models": "https://cephalon.cloud/model"
+        }
+      }
+    },
+    {
+      "id": "lanyun",
+      "name": "LANYUN",
+      "description": "LANYUN - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://maas-api.lanyun.net"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://maas-api.lanyun.net/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://maas.lanyun.net",
+          "docs": "https://archive.lanyun.net/#/maas/",
+          "apiKey": "https://maas.lanyun.net/#/system/apiKey",
+          "models": "https://maas.lanyun.net/#/model/modelSquare"
+        }
+      }
+    },
+    {
+      "id": "ph8",
+      "name": "PH8",
+      "description": "PH8 - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://ph8.co"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://ph8.co/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://ph8.co",
+          "docs": "https://m1r239or5aw.feishu.cn/wiki/SegzwS4x1i2P4OksFY2cMvujn9f",
+          "apiKey": "https://ph8.co/apiKey",
+          "models": "https://ph8.co/v1/models"
+        }
+      }
+    },
+    {
+      "id": "sophnet",
+      "name": "SophNet",
+      "description": "SophNet - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://www.sophnet.com/api/open-apis/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://www.sophnet.com/api/open-apis/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://sophnet.com",
+          "docs": "https://sophnet.com/docs/component/introduce.html",
+          "apiKey": "https://sophnet.com/#/project/key",
+          "models": "https://sophnet.com/#/model/list"
+        }
+      }
+    },
+    {
+      "id": "ppio",
+      "name": "PPIO",
+      "description": "PPIO - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.ppinfra.com/v3/openai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.ppinfra.com/v3/openai/models",
+        "embedding": "https://api.ppinfra.com/v3/openai/models?model_type=embedding",
+        "reranker": "https://api.ppinfra.com/v3/openai/models?model_type=reranker"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/",
+          "docs": "https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio",
+          "apiKey": "https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/settings/key-management",
+          "models": "https://ppio.com/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio"
+        }
+      }
+    },
+    {
+      "id": "qiniu",
+      "name": "Qiniu",
+      "description": "Qiniu - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.qnaigc.com",
+        "messages": "https://api.qnaigc.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "developerRole": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.qnaigc.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://qiniu.com",
+          "docs": "https://developer.qiniu.com/aitokenapi",
+          "apiKey": "https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq",
+          "models": "https://developer.qiniu.com/aitokenapi/12883/model-list"
+        }
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "description": "OpenRouter - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://openrouter.ai/api/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://openrouter.ai/api/v1/models",
+        "embedding": "https://openrouter.ai/api/v1/embeddings/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["aggregator"],
+        "website": {
+          "official": "https://openrouter.ai/",
+          "docs": "https://openrouter.ai/docs/quick-start",
+          "apiKey": "https://openrouter.ai/settings/keys",
+          "models": "https://openrouter.ai/models"
+        }
+      }
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "description": "Ollama - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://ollama.com/",
+          "docs": "https://github.com/ollama/ollama/tree/main/docs",
+          "models": "https://ollama.com/library"
+        }
+      }
+    },
+    {
+      "id": "new-api",
+      "name": "New API",
+      "description": "New API - AI model provider",
+      "baseUrls": {},
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://docs.newapi.pro/",
+          "docs": "https://docs.newapi.pro"
+        }
+      }
+    },
+    {
+      "id": "lmstudio",
+      "name": "LM Studio",
+      "description": "LM Studio - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://lmstudio.ai/",
+          "docs": "https://lmstudio.ai/docs",
+          "models": "https://lmstudio.ai/models"
+        }
+      }
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "description": "Anthropic - AI model provider",
+      "baseUrls": {
+        "messages": "https://api.anthropic.com"
+      },
+      "defaultChatEndpoint": "messages",
+      "modelsApiUrls": {
+        "default": "https://api.anthropic.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://anthropic.com/",
+          "docs": "https://docs.anthropic.com/en/docs",
+          "apiKey": "https://console.anthropic.com/settings/keys",
+          "models": "https://docs.anthropic.com/en/docs/about-claude/models"
+        }
+      }
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "description": "OpenAI - AI model provider",
+      "baseUrls": {
+        "responses": "https://api.openai.com"
+      },
+      "defaultChatEndpoint": "responses",
+      "apiCompatibility": {
+        "serviceTier": true
+      },
+      "modelsApiUrls": {
+        "default": "https://api.openai.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://openai.com/",
+          "docs": "https://platform.openai.com/docs",
+          "apiKey": "https://platform.openai.com/api-keys",
+          "models": "https://platform.openai.com/docs/models"
+        }
+      }
+    },
+    {
+      "id": "azure-openai",
+      "name": "Azure OpenAI",
+      "description": "Azure OpenAI - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "serviceTier": true
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
+          "docs": "https://learn.microsoft.com/en-us/azure/ai-services/openai/",
+          "apiKey": "https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI",
+          "models": "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models"
+        }
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "description": "Gemini - AI model provider",
+      "baseUrls": {
+        "generate_content": "https://generativelanguage.googleapis.com"
+      },
+      "defaultChatEndpoint": "generate_content",
+      "modelsApiUrls": {
+        "default": "https://generativelanguage.googleapis.com/v1beta/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://gemini.google.com/",
+          "docs": "https://ai.google.dev/gemini-api/docs",
+          "apiKey": "https://aistudio.google.com/app/apikey",
+          "models": "https://ai.google.dev/gemini-api/docs/models/gemini"
+        }
+      }
+    },
+    {
+      "id": "vertexai",
+      "name": "VertexAI",
+      "description": "VertexAI - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://cloud.google.com/vertex-ai",
+          "docs": "https://cloud.google.com/vertex-ai/generative-ai/docs",
+          "apiKey": "https://console.cloud.google.com/apis/credentials",
+          "models": "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models"
+        }
+      }
+    },
+    {
+      "id": "github",
+      "name": "Github Models",
+      "description": "Github Models - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://models.github.ai/inference"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://models.github.ai/catalog/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://github.com/marketplace/models",
+          "docs": "https://docs.github.com/en/github-models",
+          "apiKey": "https://github.com/settings/tokens",
+          "models": "https://github.com/marketplace/models"
+        }
+      }
+    },
+    {
+      "id": "copilot",
+      "name": "Github Copilot",
+      "description": "Github Copilot - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.githubcopilot.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.githubcopilot.com/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {}
+      }
+    },
+    {
+      "id": "yi",
+      "name": "Yi",
+      "description": "Yi - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.lingyiwanwu.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.lingyiwanwu.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://platform.lingyiwanwu.com/",
+          "docs": "https://platform.lingyiwanwu.com/docs",
+          "apiKey": "https://platform.lingyiwanwu.com/apikeys",
+          "models": "https://platform.lingyiwanwu.com/docs#%E6%A8%A1%E5%9E%8B"
+        }
+      }
+    },
+    {
+      "id": "moonshot",
+      "name": "Moonshot AI",
+      "description": "Moonshot AI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.moonshot.cn",
+        "messages": "https://api.moonshot.cn/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.moonshot.cn/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.moonshot.cn/",
+          "docs": "https://platform.moonshot.cn/docs/",
+          "apiKey": "https://platform.moonshot.cn/console/api-keys",
+          "models": "https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8"
+        }
+      }
+    },
+    {
+      "id": "baichuan",
+      "name": "BAICHUAN AI",
+      "description": "BAICHUAN AI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.baichuan-ai.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.baichuan-ai.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.baichuan-ai.com/",
+          "docs": "https://platform.baichuan-ai.com/docs",
+          "apiKey": "https://platform.baichuan-ai.com/console/apikey",
+          "models": "https://platform.baichuan-ai.com/prices"
+        }
+      }
+    },
+    {
+      "id": "dashscope",
+      "name": "Bailian",
+      "description": "Bailian - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "messages": "https://dashscope.aliyuncs.com/apps/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://dashscope.aliyuncs.com/compatible-mode/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.aliyun.com/product/bailian",
+          "docs": "https://help.aliyun.com/zh/model-studio/getting-started/",
+          "apiKey": "https://bailian.console.aliyun.com/?tab=model#/api-key",
+          "models": "https://bailian.console.aliyun.com/?tab=model#/model-market"
+        }
+      }
+    },
+    {
+      "id": "stepfun",
+      "name": "StepFun",
+      "description": "StepFun - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.stepfun.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.stepfun.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://platform.stepfun.com/",
+          "docs": "https://platform.stepfun.com/docs/overview/concept",
+          "apiKey": "https://platform.stepfun.com/interface-key",
+          "models": "https://platform.stepfun.com/docs/llm/text"
+        }
+      }
+    },
+    {
+      "id": "doubao",
+      "name": "doubao",
+      "description": "doubao - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://ark.cn-beijing.volces.com/api/v3"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://ark.cn-beijing.volces.com/api/v3/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://console.volcengine.com/ark/",
+          "docs": "https://www.volcengine.com/docs/82379/1182403",
+          "apiKey": "https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=DB4II4FC",
+          "models": "https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint"
+        }
+      }
+    },
+    {
+      "id": "infini",
+      "name": "Infini",
+      "description": "Infini - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://cloud.infini-ai.com/maas"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://cloud.infini-ai.com/maas/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://cloud.infini-ai.com/",
+          "docs": "https://docs.infini-ai.com/gen-studio/api/maas.html#/operations/chatCompletions",
+          "apiKey": "https://cloud.infini-ai.com/iam/secret/key",
+          "models": "https://cloud.infini-ai.com/genstudio/model"
+        }
+      }
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "description": "MiniMax - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.minimaxi.com/v1",
+        "messages": "https://api.minimaxi.com/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://platform.minimaxi.com/",
+          "docs": "https://platform.minimaxi.com/docs/api-reference/text-openai-api",
+          "apiKey": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+          "models": "https://platform.minimaxi.com/document/Models"
+        }
+      }
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "description": "Groq - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.groq.com/openai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "serviceTier": true,
+        "verbosity": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.groq.com/openai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://groq.com/",
+          "docs": "https://console.groq.com/docs/quickstart",
+          "apiKey": "https://console.groq.com/keys",
+          "models": "https://console.groq.com/docs/models"
+        }
+      }
+    },
+    {
+      "id": "together",
+      "name": "Together",
+      "description": "Together - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.together.xyz"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.together.xyz/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["aggregator"],
+        "website": {
+          "official": "https://www.together.ai/",
+          "docs": "https://docs.together.ai/docs/introduction",
+          "apiKey": "https://api.together.ai/settings/api-keys",
+          "models": "https://docs.together.ai/docs/serverless-models"
+        }
+      }
+    },
+    {
+      "id": "fireworks",
+      "name": "Fireworks",
+      "description": "Fireworks - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.fireworks.ai/inference"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.fireworks.ai/inference/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://fireworks.ai/",
+          "docs": "https://docs.fireworks.ai/getting-started/introduction",
+          "apiKey": "https://fireworks.ai/account/api-keys",
+          "models": "https://fireworks.ai/dashboard/models"
+        }
+      }
+    },
+    {
+      "id": "nvidia",
+      "name": "nvidia",
+      "description": "nvidia - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://integrate.api.nvidia.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://integrate.api.nvidia.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://build.nvidia.com/explore/discover",
+          "docs": "https://docs.api.nvidia.com/nim/reference/llm-apis",
+          "apiKey": "https://build.nvidia.com/meta/llama-3_1-405b-instruct",
+          "models": "https://build.nvidia.com/nim"
+        }
+      }
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "description": "Grok - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.x.ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.x.ai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://x.ai/",
+          "docs": "https://docs.x.ai/",
+          "models": "https://docs.x.ai/docs/models"
+        }
+      }
+    },
+    {
+      "id": "hyperbolic",
+      "name": "Hyperbolic",
+      "description": "Hyperbolic - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.hyperbolic.xyz"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.hyperbolic.xyz/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://app.hyperbolic.xyz",
+          "docs": "https://docs.hyperbolic.xyz",
+          "apiKey": "https://app.hyperbolic.xyz/settings",
+          "models": "https://app.hyperbolic.xyz/models"
+        }
+      }
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral",
+      "description": "Mistral - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.mistral.ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "streamOptions": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.mistral.ai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://mistral.ai",
+          "docs": "https://docs.mistral.ai",
+          "apiKey": "https://console.mistral.ai/api-keys/",
+          "models": "https://docs.mistral.ai/getting-started/models/models_overview"
+        }
+      }
+    },
+    {
+      "id": "jina",
+      "name": "Jina",
+      "description": "Jina - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.jina.ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.jina.ai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://jina.ai",
+          "docs": "https://jina.ai",
+          "apiKey": "https://jina.ai/",
+          "models": "https://jina.ai"
+        }
+      }
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "description": "Perplexity - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.perplexity.ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://perplexity.ai/",
+          "docs": "https://docs.perplexity.ai/home",
+          "apiKey": "https://www.perplexity.ai/settings/api",
+          "models": "https://docs.perplexity.ai/guides/model-cards"
+        }
+      }
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "description": "ModelScope - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api-inference.modelscope.cn/v1",
+        "messages": "https://api-inference.modelscope.cn"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api-inference.modelscope.cn/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://modelscope.cn",
+          "docs": "https://modelscope.cn/docs/model-service/API-Inference/intro",
+          "apiKey": "https://modelscope.cn/my/myaccesstoken",
+          "models": "https://modelscope.cn/models"
+        }
+      }
+    },
+    {
+      "id": "xirang",
+      "name": "Xirang",
+      "description": "Xirang - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://wishub-x1.ctyun.cn"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false
+      },
+      "modelsApiUrls": {
+        "default": "https://wishub-x1.ctyun.cn/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.ctyun.cn",
+          "docs": "https://www.ctyun.cn/products/ctxirang",
+          "apiKey": "https://huiju.ctyun.cn/service/serviceGroup",
+          "models": "https://huiju.ctyun.cn/modelSquare/"
+        }
+      }
+    },
+    {
+      "id": "hunyuan",
+      "name": "hunyuan",
+      "description": "hunyuan - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.hunyuan.cloud.tencent.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.hunyuan.cloud.tencent.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://cloud.tencent.com/product/hunyuan",
+          "docs": "https://cloud.tencent.com/document/product/1729/111007",
+          "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
+          "models": "https://cloud.tencent.com/document/product/1729/104753"
+        }
+      }
+    },
+    {
+      "id": "tencent-cloud-ti",
+      "name": "Tencent Cloud TI",
+      "description": "Tencent Cloud TI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.lkeap.cloud.tencent.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.lkeap.cloud.tencent.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://cloud.tencent.com/product/ti",
+          "docs": "https://cloud.tencent.com/document/product/1772",
+          "apiKey": "https://console.cloud.tencent.com/lkeap/api",
+          "models": "https://console.cloud.tencent.com/tione/v2/aimarket"
+        }
+      }
+    },
+    {
+      "id": "baidu-cloud",
+      "name": "Baidu Cloud",
+      "description": "Baidu Cloud - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://qianfan.baidubce.com/v2"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://qianfan.baidubce.com/v2/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://cloud.baidu.com/",
+          "docs": "https://cloud.baidu.com/doc/index.html",
+          "apiKey": "https://console.bce.baidu.com/iam/#/iam/apikey/list",
+          "models": "https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu"
+        }
+      }
+    },
+    {
+      "id": "gpustack",
+      "name": "GPUStack",
+      "description": "GPUStack - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://gpustack.ai/",
+          "docs": "https://docs.gpustack.ai/latest/",
+          "models": "https://docs.gpustack.ai/latest/overview/#supported-models"
+        }
+      }
+    },
+    {
+      "id": "voyageai",
+      "name": "VoyageAI",
+      "description": "VoyageAI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.voyageai.com"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.voyageai.com/",
+          "docs": "https://docs.voyageai.com/docs",
+          "apiKey": "https://dashboard.voyageai.com/organization/api-keys",
+          "models": "https://docs.voyageai.com/docs"
+        }
+      }
+    },
+    {
+      "id": "aws-bedrock",
+      "name": "AWS Bedrock",
+      "description": "AWS Bedrock - AI model provider",
+      "baseUrls": {},
+      "apiCompatibility": {
+        "requiresApiKey": false
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["minimal"],
+        "website": {
+          "official": "https://aws.amazon.com/bedrock/",
+          "docs": "https://docs.aws.amazon.com/bedrock/",
+          "apiKey": "https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html",
+          "models": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"
+        }
+      }
+    },
+    {
+      "id": "poe",
+      "name": "Poe",
+      "description": "Poe - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.poe.com/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": false,
+        "developerRole": false
+      },
+      "modelsApiUrls": {
+        "default": "https://api.poe.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://poe.com/",
+          "docs": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
+          "apiKey": "https://poe.com/api_key",
+          "models": "https://poe.com/"
+        }
+      }
+    },
+    {
+      "id": "longcat",
+      "name": "LongCat",
+      "description": "LongCat - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.longcat.chat/openai",
+        "messages": "https://api.longcat.chat/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://longcat.chat",
+          "docs": "https://longcat.chat/platform/docs/zh/",
+          "apiKey": "https://longcat.chat/platform/api_keys",
+          "models": "https://longcat.chat/platform/docs/zh/APIDocs.html"
+        }
+      }
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "description": "Hugging Face - AI model provider",
+      "baseUrls": {
+        "responses": "https://router.huggingface.co/v1"
+      },
+      "defaultChatEndpoint": "responses",
+      "modelsApiUrls": {
+        "default": "https://router.huggingface.co/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://huggingface.co/",
+          "docs": "https://huggingface.co/docs",
+          "apiKey": "https://huggingface.co/settings/tokens",
+          "models": "https://huggingface.co/models"
+        }
+      }
+    },
+    {
+      "id": "gateway",
+      "name": "Vercel AI Gateway",
+      "description": "Vercel AI Gateway - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://ai-gateway.vercel.sh/v1/ai"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://ai-gateway.vercel.sh/v1/ai/config"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://vercel.com/ai-gateway",
+          "docs": "https://vercel.com/docs/ai-gateway",
+          "apiKey": "https://vercel.com/",
+          "models": "https://vercel.com/ai-gateway/models"
+        }
+      }
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras AI",
+      "description": "Cerebras AI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.cerebras.ai/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.cerebras.ai/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://www.cerebras.ai",
+          "docs": "https://inference-docs.cerebras.ai/introduction",
+          "apiKey": "https://cloud.cerebras.ai",
+          "models": "https://inference-docs.cerebras.ai/models/overview"
+        }
+      }
+    },
+    {
+      "id": "mimo",
+      "name": "Xiaomi MiMo",
+      "description": "Xiaomi MiMo - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://api.xiaomimimo.com",
+        "messages": "https://api.xiaomimimo.com/anthropic"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://api.xiaomimimo.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://platform.xiaomimimo.com/",
+          "docs": "https://platform.xiaomimimo.com/#/docs/welcome",
+          "apiKey": "https://platform.xiaomimimo.com/#/console/usage",
+          "models": "https://platform.xiaomimimo.com/"
+        }
+      }
+    },
+    {
+      "id": "gitee-ai",
+      "name": "Gitee AI",
+      "description": "Gitee AI - AI model provider",
+      "baseUrls": {
+        "chat_completions": "https://ai.gitee.com/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "modelsApiUrls": {
+        "default": "https://ai.gitee.com/v1/models"
+      },
+      "metadata": {
+        "source": "cherry-studio",
+        "tags": ["official"],
+        "website": {
+          "official": "https://ai.gitee.com/",
+          "docs": "https://ai.gitee.com/docs/openapi/v1",
+          "apiKey": "https://ai.gitee.com/",
+          "models": "https://ai.gitee.com/serverless-api"
+        }
+      }
+    }
+  ]
+}
