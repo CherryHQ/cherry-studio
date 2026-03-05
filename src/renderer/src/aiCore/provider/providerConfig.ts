@@ -72,7 +72,7 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
  * @param provider - The provider whose API host is to be formatted.
  * @returns A new provider instance with the formatted API host.
  */
-// WARNING: if any changes are made here, please sync it to shared/aiCore/provider/providerConfig.ts:formatProviderApiHost
+// WARNING: if any changes are made here, please sync it to src/main/aiCore/provider/providerConfig.ts:formatProviderApiHost
 export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
   const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
