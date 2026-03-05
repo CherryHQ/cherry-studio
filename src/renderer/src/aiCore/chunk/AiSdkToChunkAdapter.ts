@@ -9,7 +9,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
@@ -65,13 +65,23 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    // 如果是流式且有 fullStream
-    if (aiSdkResult.fullStream) {
-      await this.readFullStream(aiSdkResult.fullStream)
-    }
+    try {
+      // 如果是流式且有 fullStream
+      if (aiSdkResult.fullStream) {
+        await this.readFullStream(aiSdkResult.fullStream)
+      }
 
-    // 使用 streamResult.text 获取最终结果
-    return await aiSdkResult.text
+      // 使用 streamResult.text 获取最终结果
+      return await aiSdkResult.text
+    } catch (error: any) {
+      // abort 时，AI SDK 通常会先通过流发送 'abort' chunk（在 readFullStream 中 convertAndEmitChunk
+      // 转为 ERROR chunk 发出）。随后 aiSdkResult.text 会抛出 AbortError
+      // 这里捕获它以避免 transformMessagesAndFetch 的 catch 再次发送重复的 ERROR chunk
+      if (isAbortError(error)) {
+        return ''
+      }
+      throw error
+    }
   }
 
   /**
