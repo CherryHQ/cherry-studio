@@ -9,16 +9,19 @@ import type {
   McpHttpServerConfig,
   Options,
   PreToolUseHookInput,
-  SDKMessage
+  SDKMessage,
+  SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
+import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
@@ -35,8 +38,14 @@ const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
 
-const getLanguageInstruction = () =>
-  `IMPORTANT: You MUST use ${getAppLanguage()} language for ALL your outputs, including: (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content. Never use English unless the content is code, file paths, or technical identifiers.`
+const getLanguageInstruction = () => {
+  const lang = getAppLanguage()
+  return `
+  IMPORTANT: You MUST use ${languageEnglishNameMap[lang]} language for ALL your outputs, including:
+  (1) text responses, (2) tool call parameters like "description" fields, and (3) any user-facing content.
+  ${lang === 'en-US' ? '' : 'Never use English unless the content is code, file paths, or technical identifiers.'}
+  `
+}
 
 type UserInputMessage = {
   type: 'user'
@@ -130,6 +139,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const env = {
       ...loginShellEnvWithoutProxies,
+      // prevent claude agent sdk using bedrock api
+      CLAUDE_CODE_USE_BEDROCK: '0',
       // TODO: fix the proxy api server
       // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
       // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
@@ -156,6 +167,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
+
+    let plugins: SdkPluginConfig[] | undefined
+    try {
+      const pluginPaths = await pluginService.listInstalledPluginPackagePaths(session.agent_id)
+      if (pluginPaths.length > 0) {
+        plugins = pluginPaths.map((pluginPath) => ({ type: 'local', path: pluginPath }))
+      }
+    } catch (error) {
+      logger.warn('Failed to load plugin packages for Claude Code', {
+        agentId: session.agent_id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     const canUseTool: CanUseTool = async (toolName, input, options) => {
       logger.info('Handling tool permission check', {
@@ -270,11 +294,12 @@ class ClaudeCodeService implements AgentServiceInterface {
             preset: 'claude_code',
             append: getLanguageInstruction()
           },
-      settingSources: ['project'],
+      settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
+      plugins,
       canUseTool,
       hooks: {
         PreToolUse: [

@@ -4,6 +4,7 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import {
+  Bot,
   Code,
   FileSearch,
   Folder,
@@ -113,7 +114,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         knowledge: <FileSearch size={16} />,
         files: <Folder size={16} />,
         notes: <NotepadText size={16} />,
-        code_tools: <Code size={16} />
+        code_tools: <Code size={16} />,
+        openclaw: <Bot size={16} />
       }) satisfies Record<SidebarIcon, ReactNode>,
     []
   )

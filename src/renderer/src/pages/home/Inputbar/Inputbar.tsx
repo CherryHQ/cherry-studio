@@ -33,7 +33,14 @@ import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { type Assistant, type FileType, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
+import {
+  type Assistant,
+  type FileMetadata,
+  type KnowledgeBase,
+  type Model,
+  type Topic,
+  TopicType
+} from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -96,7 +103,7 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
 
   const initialState = useMemo(
     () => ({
-      files: [] as FileType[],
+      files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,

@@ -43,25 +43,12 @@ type ExtractResultResponse = {
   extract_result: ExtractFileResult[]
 }
 
-type QuotaResponse = {
-  code: number
-  data: {
-    user_left_quota: number
-    total_left_quota: number
-  }
-  msg?: string
-  trace_id?: string
-}
-
 export default class MineruPreprocessProvider extends BasePreprocessProvider {
   constructor(provider: PreprocessProvider, userId?: string) {
     super(provider, userId)
   }
 
-  public async parseFile(
-    sourceId: string,
-    file: FileMetadata
-  ): Promise<{ processedFile: FileMetadata; quota: number }> {
+  public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
       if (!this.provider.apiKey) {
         throw new Error('MinerU API key is required')
@@ -82,42 +69,13 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       // 3. Download and extract output
       const { path: outputPath } = await this.downloadAndExtractFile(extractResult.full_zip_url!, file)
 
-      // 4. check quota
-      const quota = await this.checkQuota()
-
-      // 5. Create processed file metadata
+      // 4. Create processed file metadata
       return {
-        processedFile: this.createProcessedFileInfo(file, outputPath),
-        quota
+        processedFile: this.createProcessedFileInfo(file, outputPath)
       }
     } catch (error: any) {
       logger.error(`MinerU preprocess processing failed for:`, error as Error)
       throw new Error(error.message)
-    }
-  }
-
-  public async checkQuota() {
-    try {
-      if (!this.provider.apiKey) {
-        throw new Error('MinerU API key is required')
-      }
-
-      const quota = await net.fetch(`${this.provider.apiHost}/api/v4/quota`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.provider.apiKey}`,
-          token: this.userId ?? ''
-        }
-      })
-      if (!quota.ok) {
-        throw new Error(`HTTP ${quota.status}: ${quota.statusText}`)
-      }
-      const response: QuotaResponse = await quota.json()
-      return response.data.user_left_quota
-    } catch (error) {
-      logger.error('Error checking quota:', error as Error)
-      throw error
     }
   }
 

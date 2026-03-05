@@ -6,7 +6,7 @@ import { createStreamProcessor } from '@renderer/services/StreamProcessingServic
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
 import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
@@ -72,6 +72,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   return {
     ...actual,
     // Override functions that need mocking for tests
+    getModelLogo: vi.fn(),
     isVisionModel: vi.fn(() => false),
     isFunctionCallingModel: vi.fn(() => false),
     isEmbeddingModel: vi.fn(() => false),
@@ -257,7 +258,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 vi.mock('@renderer/utils', () => ({
   default: {},
-  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).substr(2, 9))
+  uuid: vi.fn(() => 'mock-uuid-' + Math.random().toString(36).slice(2, 11))
 }))
 
 interface MockTopicsState {
@@ -562,7 +563,7 @@ describe('streamCallback Integration Tests', () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
     const mockWebSearchResult = {
-      source: WebSearchSource.WEBSEARCH,
+      source: WEB_SEARCH_SOURCE.WEBSEARCH,
       results: [{ title: 'Test Result', url: 'http://example.com', snippet: 'Test snippet' }]
     }
 
@@ -726,7 +727,7 @@ describe('streamCallback Integration Tests', () => {
 
     const mockExternalToolResult: ExternalToolResult = {
       webSearch: {
-        source: WebSearchSource.WEBSEARCH,
+        source: WEB_SEARCH_SOURCE.WEBSEARCH,
         results: [{ title: 'External Result', url: 'http://external.com', snippet: 'External snippet' }]
       },
       knowledge: [

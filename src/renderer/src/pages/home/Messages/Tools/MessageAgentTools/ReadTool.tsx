@@ -57,7 +57,7 @@ export function ReadTool({
         params={<SkeletonValue value={filename} width="120px" />}
         stats={
           stats
-            ? `${stats.lineCount} ${t(stats.lineCount === 1 ? 'message.tools.units.line' : 'message.tools.units.lines')}, ${formatFileSize(stats.fileSize)}`
+            ? `${t('message.tools.units.line', { count: stats.lineCount })}, ${formatFileSize(stats.fileSize)}`
             : undefined
         }
         variant="collapse-label"

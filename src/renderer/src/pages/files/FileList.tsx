@@ -3,8 +3,8 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { handleDelete } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileMetadata, FileType } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
@@ -14,9 +14,9 @@ import styled from 'styled-components'
 import FileItem from './FileItem'
 
 interface FileItemProps {
-  id: FileTypes | 'all' | string
+  id: FileType | 'all' | string
   list: {
-    key: FileTypes | 'all' | string
+    key: FileType | 'all' | string
     file: React.ReactNode
     files?: FileMetadata[]
     count?: number
@@ -31,7 +31,7 @@ interface FileItemProps {
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   const estimateSize = useCallback(() => 75, [])
 
-  if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
+  if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
     return (
       <div style={{ padding: 16, overflowY: 'auto' }}>
         <Image.PreviewGroup>
