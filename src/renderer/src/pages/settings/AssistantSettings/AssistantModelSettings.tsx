@@ -1,5 +1,6 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import CodeEditor from '@renderer/components/CodeEditor'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
@@ -130,26 +131,41 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             ]}
           />
         )
-      case 'json':
+      case 'json': {
+        const jsonValue = typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)
+        let hasJsonError = false
+        if (jsonValue.trim()) {
+          try {
+            JSON.parse(jsonValue)
+          } catch {
+            hasJsonError = true
+          }
+        }
         return (
-          <Input
-            value={typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)}
-            onChange={(e) => {
-              // For JSON type parameters, always store the value as a STRING
-              //
-              // Data Flow:
-              // 1. UI stores: { name: "config", value: '{"key":"value"}', type: "json" } ← STRING format
-              // 2. API parses: getCustomParameters() in src/renderer/src/aiCore/utils/reasoning.ts:687-696
-              //                calls JSON.parse() to convert string to object
-              // 3. Request sends: The parsed object is sent to the AI provider
-              //
-              // Previously this code was parsing JSON here and storing
-              // the object directly, which caused getCustomParameters() to fail when trying
-              // to JSON.parse() an already-parsed object.
-              onUpdateCustomParameter(index, 'value', e.target.value)
-            }}
-          />
+          <>
+            <CodeEditor
+              value={jsonValue}
+              language="json"
+              onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
+              expanded={false}
+              height="auto"
+              maxHeight="200px"
+              minHeight="60px"
+              options={{ lint: true, lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
+              style={{
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
+              }}
+            />
+            {hasJsonError && (
+              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>
+                {t('models.json_parse_error')}
+              </div>
+            )}
+          </>
         )
+      }
       default:
         return (
           <Input
@@ -468,35 +484,38 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Button>
       </SettingRow>
       {customParameters.map((param, index) => (
-        <Row key={index} align="stretch" gutter={10} style={{ marginTop: 10 }}>
-          <Col span={6}>
-            <Input
-              placeholder={t('models.parameter_name')}
-              value={param.name}
-              onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
-            />
-          </Col>
-          <Col span={6}>
-            <Select
-              value={param.type}
-              onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}>
-              <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
-              <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
-              <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
-              <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
-            </Select>
-          </Col>
-          <Col span={10}>{renderParameterValueInput(param, index)}</Col>
-          <Col span={2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              color="danger"
-              variant="filled"
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              onClick={() => onDeleteCustomParameter(index)}
-            />
-          </Col>
-        </Row>
+        <div key={index} style={{ marginTop: 10 }}>
+          <Row align="stretch" gutter={10}>
+            <Col span={6}>
+              <Input
+                placeholder={t('models.parameter_name')}
+                value={param.name}
+                onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
+              />
+            </Col>
+            <Col span={6}>
+              <Select
+                value={param.type}
+                onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
+                style={{ width: '100%' }}>
+                <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
+                <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
+                <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
+                <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
+              </Select>
+            </Col>
+            {param.type !== 'json' && <Col span={10}>{renderParameterValueInput(param, index)}</Col>}
+            <Col span={param.type === 'json' ? 12 : 2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                color="danger"
+                variant="filled"
+                icon={<DeleteIcon size={14} className="lucide-custom" />}
+                onClick={() => onDeleteCustomParameter(index)}
+              />
+            </Col>
+          </Row>
+          {param.type === 'json' && <div style={{ marginTop: 6 }}>{renderParameterValueInput(param, index)}</div>}
+        </div>
       ))}
       <Divider style={{ margin: '15px 0' }} />
       <HStack justifyContent="flex-end">

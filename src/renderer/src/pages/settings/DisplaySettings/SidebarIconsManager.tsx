@@ -7,6 +7,7 @@ import { setSidebarIcons } from '@renderer/store/settings'
 import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
+  Bot,
   Code,
   FileSearch,
   Folder,
@@ -123,7 +124,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
         knowledge: <FileSearch size={16} />,
         files: <Folder size={16} />,
         notes: <NotepadText size={16} />,
-        code_tools: <Code size={16} />
+        code_tools: <Code size={16} />,
+        openclaw: <Bot size={16} />
       }) satisfies Record<SidebarIcon, ReactNode>,
     []
   )

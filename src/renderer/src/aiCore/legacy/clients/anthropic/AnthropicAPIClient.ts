@@ -39,7 +39,7 @@ import type {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
+import { EFFORT_RATIO, FILE_TYPE, WEB_SEARCH_SOURCE } from '@renderer/types'
 import type {
   ErrorChunk,
   LLMWebSearchCompleteChunk,
@@ -246,7 +246,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     const fileBlocks = findFileBlocks(message)
     for (const fileBlock of fileBlocks) {
       const { file } = fileBlock
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+      if ([FILE_TYPE.TEXT, FILE_TYPE.DOCUMENT].some((type) => file.type === type)) {
         if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
           const base64Data = await FileManager.readBase64File(file)
           parts.push({
@@ -588,7 +588,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: content.content,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     } as LLMWebSearchCompleteChunk)
                     break
@@ -641,7 +641,7 @@ export class AnthropicAPIClient extends BaseApiClient<
                       type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                       llm_web_search: {
                         results: contentBlock.content as Array<WebSearchResultBlock>,
-                        source: WebSearchSource.ANTHROPIC
+                        source: WEB_SEARCH_SOURCE.ANTHROPIC
                       }
                     } as LLMWebSearchCompleteChunk)
                   }

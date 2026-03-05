@@ -22,16 +22,12 @@ export function SearchTool({
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(output)
 
   return {
-    key: 'tool',
+    key: AgentToolsType.Search,
     label: (
       <ToolHeader
         toolName={AgentToolsType.Search}
         params={input ? `"${input}"` : undefined}
-        stats={
-          output
-            ? `${resultCount} ${t(resultCount === 1 ? 'message.tools.units.result' : 'message.tools.units.results')}`
-            : undefined
-        }
+        stats={output ? t('message.tools.units.result', { count: resultCount }) : undefined}
         variant="collapse-label"
         showStatus={false}
       />

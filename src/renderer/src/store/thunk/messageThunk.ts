@@ -161,7 +161,7 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    const summary = await fetchMessagesSummary({ messages, assistant })
+    const { text: summary } = await fetchMessagesSummary({ messages, assistant })
     const summaryText = summary?.trim()
     if (!summaryText) {
       return
@@ -826,11 +826,32 @@ const fetchAndProcessAssistantResponseImpl = async (
     logger.silly('Add Abort Controller', { id: userMessageId })
     addAbortController(userMessageId!, () => abortController.abort())
 
+    // Fetch agent allowed_tools for MCP auto-approval
+    let allowedTools: string[] | undefined
+    const activeAgentId = getState().runtime.chat.activeAgentId
+    const apiServer = getState().settings.apiServer
+    if (activeAgentId && apiServer?.apiKey) {
+      try {
+        const baseURL = buildAgentBaseURL(apiServer)
+        const agentClient = new AgentApiClient({
+          baseURL,
+          headers: {
+            Authorization: `Bearer ${apiServer.apiKey}`
+          }
+        })
+        const agentData = await agentClient.getAgent(activeAgentId)
+        allowedTools = agentData?.allowed_tools
+      } catch {
+        // Agent fetch failed — proceed without allowedTools
+      }
+    }
+
     await transformMessagesAndFetch(
       {
         messages: messagesForContext,
         assistant,
         topicId,
+        allowedTools,
         blockManager,
         assistantMsgId,
         callbacks,
@@ -1708,7 +1729,7 @@ export const removeBlocksThunk =
   (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
   async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
     if (!blockIdsToRemove.length) {
-      logger.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      logger.warn('[removeBlocksThunk] No block IDs provided to remove.')
       return
     }
 
@@ -1717,7 +1738,7 @@ export const removeBlocksThunk =
       const message = state.messages.entities[messageId]
 
       if (!message) {
-        logger.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        logger.error(`[removeBlocksThunk] Message ${messageId} not found in state.`)
         return
       }
       const blockIdsToRemoveSet = new Set(blockIdsToRemove)
@@ -1726,26 +1747,26 @@ export const removeBlocksThunk =
 
       // 1. Update Redux state
       dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
-
       cleanupMultipleBlocks(dispatch, blockIdsToRemove)
 
-      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-
-      // 2. Update database (in a transaction)
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Update the message in the topic
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        // Delete the blocks from the database
-        if (blockIdsToRemove.length > 0) {
-          await db.message_blocks.bulkDelete(blockIdsToRemove)
-        }
-      })
+      // 2. Update database - different handling for agent vs Dexie topics
+      if (isAgentSessionTopicId(topicId)) {
+        // For agent topics: dbService.updateMessage routes to AgentMessageDataSource
+        await dbService.updateMessage(topicId, messageId, { blocks: updatedBlockIds })
+      } else {
+        // For Dexie topics: use transaction for atomicity
+        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          if (blockIdsToRemove.length > 0) {
+            await db.message_blocks.bulkDelete(blockIdsToRemove)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
-
-      return
     } catch (error) {
-      logger.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
+      logger.error(`[removeBlocksThunk] Failed to remove blocks from message ${messageId}:`, error as Error)
       throw error
     }
   }

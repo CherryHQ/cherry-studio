@@ -385,8 +385,6 @@ export type PermissionModeCard = {
   titleFallback: string
   descriptionKey: string
   descriptionFallback: string
-  behaviorKey: string
-  behaviorFallback: string
   caution?: boolean
   unsupported?: boolean
 }

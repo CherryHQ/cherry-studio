@@ -80,7 +80,7 @@ export default defineConfig([
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
       'no-restricted-syntax': [
-        process.env.PRCI ? 'error' : 'warn',
+        process.env.CI ? 'error' : 'warn',
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:

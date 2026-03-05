@@ -7,7 +7,7 @@ import type { MCPTool } from '@renderer/types'
 import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { convertMcpToolsToAiSdkTools, setupToolsConfig } from '../mcp'
+import { convertMcpToolsToAiSdkTools, hasMultimodalContent, mcpResultToTextSummary, setupToolsConfig } from '../mcp'
 
 // Mock dependencies
 vi.mock('@logger', () => ({
@@ -285,6 +285,136 @@ describe('mcp utils', () => {
       expect(result['string-tool-id']).toBeDefined()
       expect(result['number-tool-id']).toBeDefined()
       expect(result['boolean-tool-id']).toBeDefined()
+    })
+  })
+
+  describe('hasMultimodalContent', () => {
+    it('should return false for pure text content', () => {
+      expect(hasMultimodalContent({ content: [{ type: 'text', text: 'hello' }] })).toBe(false)
+    })
+
+    it('should return true for image content', () => {
+      expect(hasMultimodalContent({ content: [{ type: 'image', data: 'base64...', mimeType: 'image/png' }] })).toBe(
+        true
+      )
+    })
+
+    it('should return true for audio content', () => {
+      expect(hasMultimodalContent({ content: [{ type: 'audio', data: 'base64...', mimeType: 'audio/mp3' }] })).toBe(
+        true
+      )
+    })
+
+    it('should return true for resource with blob', () => {
+      expect(
+        hasMultimodalContent({
+          content: [{ type: 'resource', resource: { blob: 'base64...', mimeType: 'image/png', uri: 'file://a.png' } }]
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for resource without blob', () => {
+      expect(
+        hasMultimodalContent({
+          content: [{ type: 'resource', resource: { text: 'plain text', uri: 'file://a.txt' } }]
+        })
+      ).toBe(false)
+    })
+
+    it('should return true for mixed content with at least one multimodal item', () => {
+      expect(
+        hasMultimodalContent({
+          content: [
+            { type: 'text', text: 'hello' },
+            { type: 'image', data: 'base64...', mimeType: 'image/png' }
+          ]
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for empty content array', () => {
+      expect(hasMultimodalContent({ content: [] })).toBe(false)
+    })
+
+    it('should return false for null/undefined result', () => {
+      expect(hasMultimodalContent(null as any)).toBe(false)
+      expect(hasMultimodalContent(undefined as any)).toBe(false)
+    })
+
+    it('should return false when content is not an array', () => {
+      expect(hasMultimodalContent({ content: 'not-array' } as any)).toBe(false)
+    })
+  })
+
+  describe('mcpResultToTextSummary', () => {
+    it('should extract text from text content', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'text', text: 'hello world' }] })).toBe('hello world')
+    })
+
+    it('should replace image with placeholder', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'image', data: 'base64...', mimeType: 'image/jpeg' }] })).toBe(
+        '[Image: image/jpeg, delivered to user]'
+      )
+    })
+
+    it('should use default mimeType for image without mimeType', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'image', data: 'base64...' }] })).toBe(
+        '[Image: image/png, delivered to user]'
+      )
+    })
+
+    it('should replace audio with placeholder', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'audio', data: 'base64...', mimeType: 'audio/wav' }] })).toBe(
+        '[Audio: audio/wav, delivered to user]'
+      )
+    })
+
+    it('should use default mimeType for audio without mimeType', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'audio', data: 'base64...' }] })).toBe(
+        '[Audio: audio/mp3, delivered to user]'
+      )
+    })
+
+    it('should replace resource with blob with placeholder', () => {
+      expect(
+        mcpResultToTextSummary({
+          content: [
+            { type: 'resource', resource: { blob: 'base64...', mimeType: 'application/pdf', uri: 'file://doc.pdf' } }
+          ]
+        })
+      ).toBe('[Resource: application/pdf, uri=file://doc.pdf, delivered to user]')
+    })
+
+    it('should use resource text when no blob', () => {
+      expect(
+        mcpResultToTextSummary({
+          content: [{ type: 'resource', resource: { text: 'resource content', uri: 'file://a.txt' } }]
+        })
+      ).toBe('resource content')
+    })
+
+    it('should JSON.stringify unknown content types', () => {
+      const item = { type: 'unknown' as any, foo: 'bar' }
+      expect(mcpResultToTextSummary({ content: [item] })).toBe(JSON.stringify(item))
+    })
+
+    it('should join multiple content parts with newline', () => {
+      const result = mcpResultToTextSummary({
+        content: [
+          { type: 'text', text: 'Description' },
+          { type: 'image', data: 'base64...', mimeType: 'image/png' }
+        ]
+      })
+      expect(result).toBe('Description\n[Image: image/png, delivered to user]')
+    })
+
+    it('should JSON.stringify result when content is missing', () => {
+      expect(mcpResultToTextSummary(null as any)).toBe('null')
+      expect(mcpResultToTextSummary({} as any)).toBe('{}')
+    })
+
+    it('should handle empty text gracefully', () => {
+      expect(mcpResultToTextSummary({ content: [{ type: 'text' }] })).toBe('')
     })
   })
 

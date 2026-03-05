@@ -22,6 +22,8 @@ exports[`Table > rendering > should match snapshot 1`] = `
   top: 8px;
   right: 8px;
   z-index: 10;
+  display: flex;
+  gap: 4px;
 }
 
 .c2 {
@@ -73,6 +75,21 @@ exports[`Table > rendering > should match snapshot 1`] = `
       >
         <div
           data-testid="copy-icon"
+          style="width: 14px; height: 14px;"
+        />
+      </div>
+    </div>
+    <div
+      data-testid="tooltip"
+      title="common.export.excel"
+    >
+      <div
+        aria-label="common.export.excel"
+        class="c2"
+        role="button"
+      >
+        <div
+          data-testid="excel-icon"
           style="width: 14px; height: 14px;"
         />
       </div>

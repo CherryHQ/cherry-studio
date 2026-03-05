@@ -31,75 +31,101 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     onToggleAutoApprove(tool, checked)
   }
 
-  // Render tool properties from the input schema
-  const renderToolProperties = (tool: MCPTool) => {
-    if (!tool.inputSchema?.properties) return null
-
-    const getTypeColor = (type: string) => {
-      switch (type) {
-        case 'string':
-          return 'blue'
-        case 'number':
-          return 'green'
-        case 'boolean':
-          return 'purple'
-        case 'object':
-          return 'orange'
-        case 'array':
-          return 'cyan'
-        default:
-          return 'default'
-      }
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'string':
+        return 'blue'
+      case 'number':
+        return 'green'
+      case 'boolean':
+        return 'purple'
+      case 'object':
+        return 'orange'
+      case 'array':
+        return 'cyan'
+      default:
+        return 'default'
     }
+  }
 
-    // <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema.label')}:</Typography.Title>
+  const MAX_NESTING_DEPTH = 5
+
+  // Render a single property's value (type badge, description, enum, nested properties)
+  const renderPropertyValue = (prop: any, depth: number = 0) => {
+    const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
+
     return (
-      <Descriptions bordered size="small" column={1} style={{ userSelect: 'text' }}>
-        {Object.entries(tool.inputSchema.properties).map(([key, prop]: [string, any]) => (
+      <Flex vertical gap={4}>
+        <Flex align="center" gap={8}>
+          {itemType && (
+            <Badge
+              color={getTypeColor(prop.type)}
+              text={<Typography.Text type="secondary">{itemType}</Typography.Text>}
+            />
+          )}
+        </Flex>
+        {prop.description && (
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+            {prop.description}
+          </Typography.Paragraph>
+        )}
+        {prop.enum && (
+          <div style={{ marginTop: 4 }}>
+            <Typography.Text type="secondary">{t('settings.mcp.tools.inputSchema.enum.allowedValues')}</Typography.Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {prop.enum.map((value: string, idx: number) => (
+                <Tag key={idx}>{value}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
+        {depth < MAX_NESTING_DEPTH &&
+          prop.type === 'object' &&
+          prop.properties &&
+          renderSchemaProperties(prop.properties, prop.required, depth + 1)}
+        {depth < MAX_NESTING_DEPTH &&
+          prop.type === 'array' &&
+          prop.items?.type === 'object' &&
+          prop.items.properties && (
+            <div style={{ marginTop: 4 }}>
+              <Typography.Text type="secondary" italic>
+                items:
+              </Typography.Text>
+              {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
+            </div>
+          )}
+      </Flex>
+    )
+  }
+
+  // Render a set of schema properties as a Descriptions list
+  const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
+    return (
+      <Descriptions bordered size="small" column={1} style={{ userSelect: 'text', marginTop: 4 }}>
+        {Object.entries(properties).map(([key, prop]: [string, any]) => (
           <Descriptions.Item
             key={key}
             label={
               <Flex gap={4}>
                 <Typography.Text strong>{key}</Typography.Text>
-                {tool.inputSchema.required?.includes(key) && (
+                {required?.includes(key) && (
                   <Tooltip title={t('common.required_field')}>
                     <span style={{ color: '#f5222d' }}>*</span>
                   </Tooltip>
                 )}
               </Flex>
             }>
-            <Flex vertical gap={4}>
-              <Flex align="center" gap={8}>
-                {prop.type && (
-                  // <Typography.Text type="secondary">{prop.type} </Typography.Text>
-                  <Badge
-                    color={getTypeColor(prop.type)}
-                    text={<Typography.Text type="secondary">{prop.type}</Typography.Text>}
-                  />
-                )}
-              </Flex>
-              {prop.description && (
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                  {prop.description}
-                </Typography.Paragraph>
-              )}
-              {prop.enum && (
-                <div style={{ marginTop: 4 }}>
-                  <Typography.Text type="secondary">
-                    {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
-                  </Typography.Text>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                    {prop.enum.map((value: string, idx: number) => (
-                      <Tag key={idx}>{value}</Tag>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Flex>
+            {renderPropertyValue(prop, depth)}
           </Descriptions.Item>
         ))}
       </Descriptions>
     )
+  }
+
+  // Render tool properties from the input schema
+  const renderToolProperties = (tool: MCPTool) => {
+    if (!tool.inputSchema?.properties) return null
+    return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)
   }
 
   const columns: ColumnsType<MCPTool> = [

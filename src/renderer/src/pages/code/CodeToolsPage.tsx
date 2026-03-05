@@ -8,7 +8,7 @@ import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -60,6 +60,15 @@ const CodeToolsPage: FC = () => {
     selectFolder
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
+
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = useMemo(() => {
+    if (!defaultAssistant) {
+      return { maxTokens: undefined, reasoning_effort: undefined }
+    }
+    return getAssistantSettings(defaultAssistant)
+  }, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -126,6 +135,17 @@ const CodeToolsPage: FC = () => {
           )
         }
         return true
+      }
+
+      if (selectedCliTool === codeTools.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to openai, openai-response, or anthropic type provider
+        const provider = providers.find((p) => p.id === m.provider)
+        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
       }
 
       return true
@@ -246,7 +266,8 @@ const CodeToolsPage: FC = () => {
       model: selectedModel,
       modelProvider,
       apiKey,
-      baseUrl
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
     // 合并用户自定义的环境变量
@@ -259,10 +280,12 @@ const CodeToolsPage: FC = () => {
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+    const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    })
+    }
+
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
     window.toast.success(t('code.launch.success'))
   }
 
@@ -453,35 +476,35 @@ const CodeToolsPage: FC = () => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
                     return label.toLowerCase().includes(input.toLowerCase())
                   }}
-                  options={directories.map((dir) => ({
-                    value: dir,
-                    label: (
-                      <div
+                  options={directories.map((dir) => ({ value: dir, label: dir }))}
+                  optionRender={(option) => (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                      <span
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
                         }}>
-                        <span
-                          style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                          {dir}
-                        </span>
-                        <X
-                          size={14}
-                          style={{
-                            marginLeft: 8,
-                            cursor: 'pointer',
-                            color: '#999'
-                          }}
-                          onClick={(e) => handleRemoveDirectory(dir, e)}
-                        />
-                      </div>
-                    )
-                  }))}
+                        {option.value}
+                      </span>
+                      <X
+                        size={14}
+                        style={{
+                          marginLeft: 8,
+                          cursor: 'pointer',
+                          color: '#999'
+                        }}
+                        onClick={(e) => handleRemoveDirectory(option.value as string, e)}
+                      />
+                    </div>
+                  )}
                 />
                 <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}
