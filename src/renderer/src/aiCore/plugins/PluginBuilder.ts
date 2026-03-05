@@ -109,11 +109,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   // 1. 模型内置搜索
   if (config.enableWebSearch && config.webSearchPluginConfig) {
     plugins.push(webSearchPlugin(config.webSearchPluginConfig))
-    logger.debug('Added webSearchPlugin', middlewareConfig.webSearchPluginConfig)
+    logger.debug('Added webSearchPlugin', config.webSearchPluginConfig)
   } else {
     logger.debug('Skipped webSearchPlugin', {
-      enableWebSearch: middlewareConfig.enableWebSearch,
-      hasConfig: !!middlewareConfig.webSearchPluginConfig
+      enableWebSearch: config.enableWebSearch,
+      hasConfig: !!config.webSearchPluginConfig
     })
   }
   // 2. 支持工具调用时添加搜索插件
