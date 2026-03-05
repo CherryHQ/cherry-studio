@@ -17,7 +17,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - name: Check PR description
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = context.payload.pull_request.body || '';
@@ -117,7 +117,7 @@ jobs:
     if: github.event.action == 'synchronize' && github.event.pull_request.draft == false
     steps:
       - name: Remind to review description
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const marker = '<!-- pr-sync-reminder -->';
