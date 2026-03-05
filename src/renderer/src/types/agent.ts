@@ -69,7 +69,7 @@ export const AgentBaseSchema = z.object({
   // Basic info
   name: z.string().optional(),
   description: z.string().optional(),
-  accessible_paths: z.array(z.string()).nonempty(), // Array of directory paths the agent can access
+  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access (empty = use default workspace)
 
   // Instructions for the agent
   instructions: z.string().optional(), // System prompt
@@ -375,8 +375,21 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+
+const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
+  z.object({ type: z.literal('disabled') }),
+  z.object({ type: z.literal('adaptive') })
+])
+
+export type AgentEffort = z.infer<typeof AgentEffortSchema>
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
+
 export const CreateSessionMessageRequestSchema = z.object({
-  content: z.string().min(1, 'Content must be a valid string')
+  content: z.string().min(1, 'Content must be a valid string'),
+  effort: AgentEffortSchema.optional(),
+  thinking: AgentThinkingConfigSchema.optional()
 })
 
 export type PermissionModeCard = {

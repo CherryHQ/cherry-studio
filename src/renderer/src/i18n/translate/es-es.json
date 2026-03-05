@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
+        "default_hint": "Predeterminado: {{path}}",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
         "error": {
@@ -2959,9 +2960,9 @@
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
     "no_results": "No se encontró el complemento",
-    "no_results_skills": "[to be translated]:No skills found",
+    "no_results_skills": "No se encontraron habilidades",
     "search_placeholder": "Buscar complemento...",
-    "search_placeholder_skills": "[to be translated]:Search skills...",
+    "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
     "showing_results_one": "Mostrar {{count}} complementos",
     "showing_results_other": "Mostrar {{count}} complementos",

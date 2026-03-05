@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
+        "default_hint": "デフォルト: {{path}}",
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
@@ -2959,9 +2960,9 @@
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
     "no_results": "プラグインが見つかりません",
-    "no_results_skills": "[to be translated]:No skills found",
+    "no_results_skills": "スキルが見つかりません",
     "search_placeholder": "検索プラグイン...",
-    "search_placeholder_skills": "[to be translated]:Search skills...",
+    "search_placeholder_skills": "検索スキル…",
     "showing_results": "{{count}} 個のプラグインを表示",
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",

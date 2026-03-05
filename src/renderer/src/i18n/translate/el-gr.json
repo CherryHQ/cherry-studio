@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Προσθήκη καταλόγου",
+        "default_hint": "Προεπιλογή: {{path}}",
         "duplicate": "Αυτός ο κατάλογος έχει ήδη συμπεριληφθεί.",
         "empty": "Επιλέξτε τουλάχιστον έναν κατάλογο στον οποίο ο πράκτορας μπορεί να έχει πρόσβαση.",
         "error": {
@@ -2959,9 +2960,9 @@
     "no_description": "Χωρίς περιγραφή",
     "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
     "no_results": "Δεν βρέθηκε πρόσθετο",
-    "no_results_skills": "[to be translated]:No skills found",
+    "no_results_skills": "Δεν βρέθηκαν δεξιότητες",
     "search_placeholder": "Πρόσθετο αναζήτησης...",
-    "search_placeholder_skills": "[to be translated]:Search skills...",
+    "search_placeholder_skills": "Δεξιότητες αναζήτησης...",
     "showing_results": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_one": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_other": "Εμφάνιση {{count}} προσθέτων",

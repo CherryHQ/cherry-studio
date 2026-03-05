@@ -16,6 +16,7 @@ overrides:
   '@codemirror/view': 6.39.16
   '@codemirror/language': 6.12.2
   '@codemirror/lint': 6.9.5
+  '@lezer/common': 1.5.1
   esbuild: ^0.25.0
   node-abi: 4.24.0
   openai: npm:@cherrystudio/openai@6.15.0
@@ -144,9 +145,6 @@ importers:
       sharp:
         specifier: 0.34.3
         version: 0.34.3
-      swagger-jsdoc:
-        specifier: 6.2.8
-        version: 6.2.8(openapi-types@12.1.3)
       swagger-ui-express:
         specifier: 5.0.1
         version: 5.0.1(express@5.1.0)
@@ -1057,6 +1055,9 @@ importers:
       styled-components:
         specifier: ^6.1.11
         version: 6.1.19(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      swagger-jsdoc:
+        specifier: 6.2.8
+        version: 6.2.8(openapi-types@12.1.3)
       swr:
         specifier: ^2.3.6
         version: 2.3.8(react@19.2.3)
@@ -3177,9 +3178,6 @@ packages:
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
 
-  '@lezer/common@1.5.0':
-    resolution: {integrity: sha512-PNGcolp9hr4PJdXR4ix7XtixDrClScvtSCYW3rQG106oVMOOI+jFb+0+J3mbeL/53g1Zd6s0kJzaw6Ri68GmAA==}
-
   '@lezer/common@1.5.1':
     resolution: {integrity: sha512-6YRVG9vBkaY7p1IVxL4s44n5nUnaNnGM2/AckNgYOnxTG2kWh1vR8BMxPseWPjRNpb5VtXnMpeYAEAADoRV1Iw==}
 
@@ -3999,7 +3997,7 @@ packages:
       '@codemirror/language': 6.12.2
       '@codemirror/state': 6.5.4
       '@codemirror/view': 6.39.16
-      '@lezer/common': ^1.0.0
+      '@lezer/common': 1.5.1
       '@lezer/highlight': ^1.0.0
       '@lezer/lr': ^1.0.0
 
@@ -4018,7 +4016,7 @@ packages:
       '@codemirror/language': 6.12.2
       '@codemirror/state': 6.5.4
       '@codemirror/view': 6.39.16
-      '@lezer/common': ^1.0.0
+      '@lezer/common': 1.5.1
       '@lezer/highlight': ^1.0.0
       '@lezer/javascript': ^1.2.0
       '@lezer/lr': ^1.0.0
@@ -14461,8 +14459,6 @@ snapshots:
 
   '@leichtgewicht/ip-codec@2.0.5': {}
 
-  '@lezer/common@1.5.0': {}
-
   '@lezer/common@1.5.1': {}
 
   '@lezer/cpp@1.1.5':
@@ -14485,7 +14481,7 @@ snapshots:
 
   '@lezer/highlight@1.2.3':
     dependencies:
-      '@lezer/common': 1.5.0
+      '@lezer/common': 1.5.1
 
   '@lezer/html@1.3.13':
     dependencies:
@@ -14513,7 +14509,7 @@ snapshots:
 
   '@lezer/lr@1.4.5':
     dependencies:
-      '@lezer/common': 1.5.0
+      '@lezer/common': 1.5.1
 
   '@lezer/lr@1.4.8':
     dependencies:
@@ -14550,7 +14546,7 @@ snapshots:
 
   '@lezer/xml@1.0.6':
     dependencies:
-      '@lezer/common': 1.5.0
+      '@lezer/common': 1.5.1
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.5
 
@@ -17369,7 +17365,7 @@ snapshots:
   '@viz-js/lang-dot@1.0.5':
     dependencies:
       '@codemirror/language': 6.12.2
-      '@lezer/common': 1.5.0
+      '@lezer/common': 1.5.1
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.5
       '@lezer/xml': 1.0.6

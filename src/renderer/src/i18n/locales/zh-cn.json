@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "添加目录",
+        "default_hint": "未指定时将自动创建默认工作目录。",
         "duplicate": "该目录已添加。",
         "empty": "请选择至少一个智能体可访问的目录。",
         "error": {
