@@ -27,6 +27,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import { resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -700,13 +701,7 @@ class BackupManager {
    */
   async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
-      const resolvedBackupDir = path.resolve(localBackupDir)
-      const backupPath = path.resolve(localBackupDir, fileName)
-
-      // Ensure the backup path is within the allowed directory
-      if (!backupPath.startsWith(resolvedBackupDir + path.sep)) {
-        throw new Error('Invalid file path: path traversal detected')
-      }
+      const backupPath = resolveAndValidatePath(localBackupDir, fileName)
 
       if (!fs.existsSync(backupPath)) {
         throw new Error(`Backup file not found: ${backupPath}`)
@@ -1068,7 +1063,7 @@ class BackupManager {
    */
   async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
-      const filePath = path.join(localBackupDir, fileName)
+      const filePath = resolveAndValidatePath(localBackupDir, fileName)
 
       if (!fs.existsSync(filePath)) {
         throw new Error(`Backup file not found: ${filePath}`)
