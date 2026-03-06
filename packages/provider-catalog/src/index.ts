@@ -3,11 +3,16 @@
  * Main entry point for the model and provider catalog system
  */
 
-// Export all schemas (Zod — will be replaced by proto exports after migration)
+// Legacy Zod schemas — still used by packages/shared for runtime type composition
+// TODO: migrate packages/shared to define its own schemas, then remove this export
 export * from './schemas'
 
-// Export protobuf utilities (enum mapping helpers, file I/O)
+// Protobuf utilities (enum mapping helpers)
 export * from './proto-utils'
 
-// Export catalog reader (read .pb files and return typed JSON objects)
+// Catalog reader (read .pb files and return typed JSON objects)
 export { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from './catalog-reader'
+
+// Proto-generated types are available via direct imports:
+//   import { ModelCatalogSchema } from '@cherrystudio/provider-catalog/gen/v1/model_pb'
+// Not re-exported here to avoid name conflicts with legacy Zod types.
