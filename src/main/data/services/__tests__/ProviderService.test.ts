@@ -95,9 +95,10 @@ function makeCreateDto(overrides: Partial<CreateProviderDto> = {}): CreateProvid
  * The mock exposes each chainable method as a `vi.fn()` so call assertions
  * work naturally with `expect(mockDb.select).toHaveBeenCalled()`.
  */
-function buildMockDb(resolveWith: unknown = []) {
-  // All terminal operations resolve with `resolveWith`.
-  const terminal = vi.fn().mockResolvedValue(resolveWith)
+function buildMockDb(resolveWith: unknown = [], opts?: { returningWith?: unknown }) {
+  // `.returning()` resolves with `returningWith` if provided, otherwise same as `resolveWith`
+  const returningValue = opts?.returningWith !== undefined ? opts.returningWith : resolveWith
+  const terminal = vi.fn().mockResolvedValue(returningValue)
 
   const chain: Record<string, ReturnType<typeof vi.fn>> = {}
 
@@ -403,18 +404,12 @@ describe('ProviderService', () => {
       const existingRow = makeDbRow({ providerId: 'update-me', name: 'Old Name' })
       const updatedRow = makeDbRow({ providerId: 'update-me', name: 'New Name' })
 
-      // First call: getByProviderId (SELECT to verify existence)
-      // Second call: UPDATE ... RETURNING
-      const mockDb = buildMockDb([existingRow])
-      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
-
-      // For update we need two separate DB interactions:
-      // 1. getByProviderId internally calls select, returns [existingRow]
-      // 2. the actual update returns [updatedRow]
-      // We return different values per getDb call
+      // update() calls getDb() first (line 141), then getByProviderId calls getDb() again (line 100)
+      // 1st getDb call → used for the actual UPDATE ... RETURNING
+      // 2nd getDb call → used inside getByProviderId for SELECT existence check
       vi.mocked(dbService.getDb)
+        .mockReturnValueOnce(buildMockDb([updatedRow]) as any) // for update().returning()
         .mockReturnValueOnce(buildMockDb([existingRow]) as any) // for getByProviderId
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any) // for update
 
       const svc = ProviderService.getInstance()
       const dto: UpdateProviderDto = { name: 'New Name' }
@@ -438,8 +433,8 @@ describe('ProviderService', () => {
       const afterUpdateRow = makeDbRow({ providerId: 'partial-update', isEnabled: false })
 
       vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
         .mockReturnValueOnce(buildMockDb([afterUpdateRow]) as any)
+        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.update('partial-update', { isEnabled: false })
@@ -475,8 +470,8 @@ describe('ProviderService', () => {
       })
 
       vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
         .mockReturnValueOnce(buildMockDb([afterUpdateRow]) as any)
+        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.update('full-update', {
@@ -499,8 +494,8 @@ describe('ProviderService', () => {
       const afterUpdateRow = makeDbRow({ providerId: 'empty-dto' })
 
       vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
         .mockReturnValueOnce(buildMockDb([afterUpdateRow]) as any)
+        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.update('empty-dto', {})
@@ -915,9 +910,10 @@ describe('ProviderService', () => {
         ]
       })
 
-      vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any) // SELECT to find row
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any) // UPDATE ... RETURNING
+      // addApiKey calls getDb() once; SELECT (thenable) returns existingRow,
+      // UPDATE .returning() returns updatedRow
+      const mockDb = buildMockDb([existingRow], { returningWith: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.addApiKey('add-key', 'sk-new', 'My New Key')
@@ -933,9 +929,8 @@ describe('ProviderService', () => {
         apiKeys: [{ id: 'new-key-id', key: 'sk-first', isEnabled: true, createdAt: 2000 }]
       })
 
-      vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any)
+      const mockDb = buildMockDb([existingRow], { returningWith: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.addApiKey('empty-keys', 'sk-first')
@@ -951,9 +946,8 @@ describe('ProviderService', () => {
         apiKeys: [{ id: 'nk', key: 'sk-x', isEnabled: true, createdAt: 2000 }]
       })
 
-      vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any)
+      const mockDb = buildMockDb([existingRow], { returningWith: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.addApiKey('default-enabled', 'sk-x')
@@ -968,9 +962,8 @@ describe('ProviderService', () => {
         apiKeys: [{ id: 'new-id', key: 'sk-new', isEnabled: true, createdAt: 2000 }]
       })
 
-      vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any)
+      const mockDb = buildMockDb([existingRow], { returningWith: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.addApiKey('null-api-keys', 'sk-new')
@@ -986,9 +979,8 @@ describe('ProviderService', () => {
         apiKeys: [{ id: 'new-id', key: 'sk-labeled', label: 'My Label', isEnabled: true, createdAt: 2000 }]
       })
 
-      vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
-        .mockReturnValueOnce(buildMockDb([updatedRow]) as any)
+      const mockDb = buildMockDb([existingRow], { returningWith: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
 
       const svc = ProviderService.getInstance()
       const result = await svc.addApiKey('label-check', 'sk-labeled', 'My Label')
@@ -1012,9 +1004,10 @@ describe('ProviderService', () => {
     it('deletes an existing provider without throwing', async () => {
       const existingRow = makeDbRow({ providerId: 'to-delete' })
 
+      // delete() calls getDb() first (for the delete op), then getByProviderId calls getDb() again
       vi.mocked(dbService.getDb)
+        .mockReturnValueOnce(buildMockDb([]) as any) // for delete
         .mockReturnValueOnce(buildMockDb([existingRow]) as any) // for getByProviderId
-        .mockReturnValueOnce(buildMockDb([]) as any) // for delete (returns void)
 
       const svc = ProviderService.getInstance()
       await expect(svc.delete('to-delete')).resolves.toBeUndefined()
@@ -1024,8 +1017,8 @@ describe('ProviderService', () => {
       const existingRow = makeDbRow({ providerId: 'verify-before-delete' })
 
       vi.mocked(dbService.getDb)
-        .mockReturnValueOnce(buildMockDb([existingRow]) as any)
-        .mockReturnValueOnce(buildMockDb([]) as any)
+        .mockReturnValueOnce(buildMockDb([]) as any) // for delete
+        .mockReturnValueOnce(buildMockDb([existingRow]) as any) // for getByProviderId
 
       const svc = ProviderService.getInstance()
       const getSpy = vi.spyOn(svc, 'getByProviderId')

@@ -20,7 +20,7 @@ import type {
 } from '@shared/data/types/model'
 import { ParameterSupportDbSchema, ReasoningConfigSchema, RuntimeModelPricingSchema } from '@shared/data/types/model'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createSchemaFactory } from 'drizzle-orm/zod'
+import { createSchemaFactory } from 'drizzle-zod'
 import * as z from 'zod'
 
 const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
