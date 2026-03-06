@@ -4,10 +4,16 @@
  * need to work with plain objects internally but read/write .pb files.
  */
 
-import type { ModelConfig, ModelPricing, Reasoning } from '../gen/v1/model_pb'
-import type { ProviderModelOverride } from '../gen/v1/provider_models_pb'
-import type { ProviderConfig } from '../gen/v1/provider_pb'
-import { fromCapability, fromCurrency, fromEndpointType, fromModality, fromReasoningEffort } from '../proto-utils'
+import type { ModelConfig, ModelPricing, Reasoning } from '../../src/gen/v1/model_pb'
+import type { ProviderModelOverride } from '../../src/gen/v1/provider_models_pb'
+import type { ProviderConfig } from '../../src/gen/v1/provider_pb'
+import {
+  fromCapability,
+  fromCurrency,
+  fromEndpointType,
+  fromModality,
+  fromReasoningEffort
+} from '../../src/proto-utils'
 
 // Reasoning oneof case → type string (matches the JSON format)
 const REASONING_CASE_TO_TYPE: Record<string, string> = {
