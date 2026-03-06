@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock catalog reader functions
 vi.mock('@cherrystudio/provider-catalog', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/provider-catalog')>()
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     readModelCatalog: vi.fn(),
