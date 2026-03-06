@@ -3421,9 +3421,11 @@
           "originalKey": "translate_history",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "user_data",
+          "targetTable": "translate_history",
+          "targetKey": null,
+          "notes": "Migrated via TranslateHistoryMigrator to SQLite translate_history table"
         }
       ],
       "quick_phrases": [
@@ -3451,9 +3453,11 @@
           "originalKey": "translate_languages",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "user_data",
+          "targetTable": "translate_language",
+          "targetKey": null,
+          "notes": "Migrated via TranslateLanguageMigrator to SQLite translate_language table"
         }
       ]
     }
