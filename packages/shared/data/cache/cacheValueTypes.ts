@@ -1,4 +1,4 @@
-import type { MinAppType, Topic, WebSearchStatus } from '@types'
+import type { MinAppType, Topic, TranslateLanguageCode, WebSearchStatus } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export type CacheAppUpdateState = {
@@ -52,3 +52,18 @@ export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }
+
+export interface PersistedTranslateState {
+  sourceLanguage: TranslateLanguageCode | 'auto'
+  targetLanguage: TranslateLanguageCode
+}
+
+export type TranslatingState =
+  | {
+      isTranslating: true
+      abortKey: string
+    }
+  | {
+      isTranslating: false
+      abortKey: null
+    }
