@@ -9,6 +9,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { loggerService } from '@logger'
 import type {
   MigrationProgress,
@@ -203,7 +204,8 @@ export class MigrationEngine {
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
       { table: preferenceTable, name: 'preference' },
-      { table: translateHistoryTable, name: 'translate_history' }
+      { table: translateHistoryTable, name: 'translate_history' },
+      { table: translateLanguageTable, name: 'translate_language' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
       // { table: fileTable, name: 'file' },
@@ -225,6 +227,7 @@ export class MigrationEngine {
     await db.delete(topicTable)
     await db.delete(preferenceTable)
     await db.delete(translateHistoryTable)
+    await db.delete(translateLanguageTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
     // await db.delete(knowledgeBaseTable)
