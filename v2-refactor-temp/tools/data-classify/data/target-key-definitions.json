@@ -32,6 +32,69 @@
       "defaultValue": 600,
       "status": "pending",
       "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "feature.translate.settings.auto_detection_method",
+      "type": "PreferenceTypes.AutoDetectionMethod",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate language auto detection method."
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable bidirectional translation mode on main translate page (v2 new, migrated from Dexie settings 'translate:bidirectional:enabled')."
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": ["zh-cn", "en-us"],
+      "status": "classified",
+      "description": "Main translate page bidirectional translation language pair (symmetric, order does not matter)."
+    },
+    {
+      "targetKey": "feature.translate.page.enable_markdown",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable Markdown rendering in translate output."
+    },
+    {
+      "targetKey": "feature.translate.page.scroll_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable scroll synchronization between source and translate output."
+    },
+    {
+      "targetKey": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Main translate page current source language."
+    },
+    {
+      "targetKey": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLanguageCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Main translate page current target language."
+    },
+    {
+      "targetKey": "feature.translate.selection.preferred_language",
+      "type": "PreferenceTypes.TranslateLanguageCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Selection action translate preferred target language."
+    },
+    {
+      "targetKey": "feature.translate.selection.alter_language",
+      "type": "PreferenceTypes.TranslateLanguageCode",
+      "defaultValue": "en-us",
+      "status": "classified",
+      "description": "Selection action translate alter language (fallback when source matches preferred)."
     }
   ]
 }
