@@ -153,6 +153,12 @@
  * ```
  */
 
+import {
+  PRESETS_WEB_SEARCH_PROVIDERS,
+  type WebSearchProviderOverride,
+  type WebSearchProviderOverrides
+} from '@shared/data/presets/web-search-providers'
+
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
 // Re-export TransformResult for convenience
@@ -193,4 +199,189 @@ export function isValidNumber(value: unknown): value is number {
  */
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
+}
+
+// ============================================================================
+// WebSearch Transformers
+// ============================================================================
+
+/**
+ * WebSearch compression config source type
+ * Matches the actual Redux websearch.compressionConfig structure
+ */
+interface WebSearchCompressionConfigSource {
+  method?: string
+  cutoffLimit?: number | null
+  cutoffUnit?: string
+  documentCount?: number
+  embeddingModel?: { id?: string; provider?: string } | null
+  embeddingDimensions?: number | null
+  rerankModel?: { id?: string; provider?: string } | null
+}
+
+const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff', 'rag'] as const
+const WEB_SEARCH_CUTOFF_UNITS = ['char', 'token'] as const
+
+function isStringInList<const T extends readonly string[]>(value: unknown, list: T): value is T[number] {
+  return typeof value === 'string' && (list as readonly string[]).includes(value)
+}
+
+function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESSION_METHODS)[number] {
+  return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
+}
+
+function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
+  return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
+}
+
+/**
+ * Flatten websearch compressionConfig object into separate preference keys.
+ *
+ * Transforms nested model objects (embeddingModel, rerankModel) into flat id/provider keys.
+ *
+ * @example
+ * Input: {
+ *   compressionConfig: {
+ *     method: 'rag',
+ *     documentCount: 5,
+ *     embeddingModel: { id: 'model-1', provider: 'openai' },
+ *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
+ *   }
+ * }
+ * Output: {
+ *   'chat.web_search.compression.method': 'rag',
+ *   'chat.web_search.compression.rag_document_count': 5,
+ *   'chat.web_search.compression.rag_embedding_model_id': 'model-1',
+ *   'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+ *   ...
+ * }
+ */
+export function flattenCompressionConfig(sources: {
+  compressionConfig?: WebSearchCompressionConfigSource
+}): TransformResult {
+  const config = sources.compressionConfig
+
+  // If no config, return defaults
+  if (!config) {
+    return {
+      'chat.web_search.compression.method': 'none',
+      'chat.web_search.compression.cutoff_limit': null,
+      'chat.web_search.compression.cutoff_unit': 'char',
+      'chat.web_search.compression.rag_document_count': 5,
+      'chat.web_search.compression.rag_embedding_model_id': null,
+      'chat.web_search.compression.rag_embedding_provider_id': null,
+      'chat.web_search.compression.rag_embedding_dimensions': null,
+      'chat.web_search.compression.rag_rerank_model_id': null,
+      'chat.web_search.compression.rag_rerank_provider_id': null
+    }
+  }
+
+  const method = normalizeCompressionMethod(config.method)
+  const cutoffUnit = normalizeCutoffUnit(config.cutoffUnit)
+
+  return {
+    'chat.web_search.compression.method': method,
+    'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
+    'chat.web_search.compression.cutoff_unit': cutoffUnit,
+    'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
+    'chat.web_search.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
+    'chat.web_search.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,
+    'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
+    'chat.web_search.compression.rag_rerank_model_id': config.rerankModel?.id ?? null,
+    'chat.web_search.compression.rag_rerank_provider_id': config.rerankModel?.provider ?? null
+  }
+}
+
+/**
+ * Old WebSearch provider structure from Redux (missing type and other fields)
+ */
+interface OldWebSearchProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  url?: string
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+/**
+ * Migrate websearch providers array into layered provider overrides.
+ *
+ * This function keeps only user-customized values that differ from preset defaults.
+ * Fields that match preset values are dropped to keep `provider_overrides` minimal.
+ * Providers without a matching built-in preset are ignored because v2 only supports
+ * the curated preset list plus per-provider overrides.
+ *
+ * @example
+ * Input: {
+ *   providers: [
+ *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: 'https://api.tavily.com' },
+ *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
+ *     { id: 'local-google', name: 'Google', url: 'https://custom.google.proxy/search?q=%s' }
+ *   ]
+ * }
+ * Output: {
+ *   'chat.web_search.provider_overrides': {
+ *     tavily: { apiKey: '...' },
+ *     'local-google': { apiHost: 'https://custom.google.proxy/search?q=%s' }
+ *   }
+ * }
+ */
+export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
+  const providers = sources.providers
+  const presetById = new Map<string, (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number]>(
+    PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => [preset.id, preset])
+  )
+
+  if (!providers || !Array.isArray(providers)) {
+    return {
+      'chat.web_search.provider_overrides': {}
+    }
+  }
+
+  const overrides: WebSearchProviderOverrides = {}
+
+  providers.forEach((provider) => {
+    const override: WebSearchProviderOverride = {}
+    const preset = presetById.get(provider.id)
+
+    if (!preset) {
+      return
+    }
+
+    const apiKey = provider.apiKey?.trim()
+    if (apiKey) {
+      override.apiKey = apiKey
+    }
+
+    const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
+    const apiHost = rawApiHost?.trim()
+    if (apiHost && apiHost !== preset.defaultApiHost) {
+      override.apiHost = apiHost
+    }
+
+    if (provider.engines && provider.engines.length > 0) {
+      override.engines = provider.engines
+    }
+
+    const basicAuthUsername = provider.basicAuthUsername?.trim()
+    if (basicAuthUsername) {
+      override.basicAuthUsername = basicAuthUsername
+    }
+
+    const basicAuthPassword = provider.basicAuthPassword?.trim()
+    if (basicAuthPassword) {
+      override.basicAuthPassword = basicAuthPassword
+    }
+
+    if (Object.keys(override).length > 0) {
+      overrides[provider.id] = override
+    }
+  })
+
+  return {
+    'chat.web_search.provider_overrides': overrides
+  }
 }
