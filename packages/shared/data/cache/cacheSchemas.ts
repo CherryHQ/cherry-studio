@@ -245,12 +245,10 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
-  'ui.translate.state': CacheValueTypes.PersistedTranslateState
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' },
-  'ui.translate.state': { sourceLanguage: 'en-us', targetLanguage: 'zh-cn' }
+  'ui.tab.state': { tabs: [], activeTabId: '' }
 }
 
 // ============================================================================

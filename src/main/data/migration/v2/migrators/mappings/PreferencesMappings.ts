@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-06T08:38:10.558Z
+ * Generated at: 2026-03-06T09:48:43.866Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -814,7 +814,7 @@ export const REDUX_STORE_MAPPINGS = {
   translate: [
     {
       originalKey: 'settings.autoCopy',
-      targetKey: 'translate.settings.auto_copy'
+      targetKey: 'feature.translate.page.auto_copy'
     }
   ],
   note: [

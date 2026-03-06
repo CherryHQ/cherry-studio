@@ -2734,17 +2734,9 @@
               "defaultValue": false,
               "status": "classified",
               "category": "preferences",
-              "targetKey": "translate.settings.auto_copy"
+              "targetKey": "feature.translate.page.auto_copy"
             }
           ]
-        },
-        {
-          "originalKey": "autoCopy",
-          "type": "boolean",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
         }
       ],
       "websearch": [

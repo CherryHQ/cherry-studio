@@ -109,7 +109,6 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
-export type TargetLangs = {
-  firstTarget: TranslateLanguageCode
-  secondTarget: TranslateLanguageCode
-}
+export type { TranslateLanguageCode }
+export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
