@@ -10,7 +10,14 @@
  *
  * Type definitions are sourced from @shared/data/types/model
  */
-import type { ParameterSupport, ReasoningConfig, RuntimeModelPricing } from '@shared/data/types/model'
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ParameterSupport,
+  ReasoningConfig,
+  RuntimeModelPricing
+} from '@shared/data/types/model'
 import { ParameterSupportDbSchema, ReasoningConfigSchema, RuntimeModelPricingSchema } from '@shared/data/types/model'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { createSchemaFactory } from 'drizzle-orm/zod'
@@ -51,16 +58,16 @@ export const userModelTable = sqliteTable(
     group: text(),
 
     /** Complete capability list (resolved at add time) */
-    capabilities: text({ mode: 'json' }).$type<string[]>(),
+    capabilities: text({ mode: 'json' }).$type<ModelCapability[]>(),
 
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
-    inputModalities: text({ mode: 'json' }).$type<string[]>(),
+    inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
     /** Supported output modalities (e.g., TEXT, VISION, AUDIO, VIDEO, VECTOR) */
-    outputModalities: text({ mode: 'json' }).$type<string[]>(),
+    outputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
     /** Endpoint types (optional, override Provider default) */
-    endpointTypes: text({ mode: 'json' }).$type<string[]>(),
+    endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
 
     /** Custom endpoint URL (optional, complete override) */
     customEndpointUrl: text(),
@@ -110,10 +117,10 @@ export type UserModel = typeof userModelTable.$inferSelect
 export type NewUserModel = typeof userModelTable.$inferInsert
 
 const jsonColumnOverrides = {
-  capabilities: () => z.array(z.string()).nullable(),
-  inputModalities: () => z.array(z.string()).nullable(),
-  outputModalities: () => z.array(z.string()).nullable(),
-  endpointTypes: () => z.array(z.string()).nullable(),
+  capabilities: () => z.array(z.number()).nullable(),
+  inputModalities: () => z.array(z.number()).nullable(),
+  outputModalities: () => z.array(z.number()).nullable(),
+  endpointTypes: () => z.array(z.number()).nullable(),
   reasoning: () => ReasoningConfigSchema.nullable(),
   parameters: () => ParameterSupportDbSchema.nullable(),
   pricing: () => RuntimeModelPricingSchema.nullable()
