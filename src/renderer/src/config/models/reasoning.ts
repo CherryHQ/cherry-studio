@@ -95,7 +95,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
   gemini3_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_pro] as const,
   gemini3_1_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_pro] as const,
-  gemini3_1_flash_lite: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini_3_1_flash_lite] as const,
+  gemini3_1_flash_lite: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_flash_lite] as const,
   qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
