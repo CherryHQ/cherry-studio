@@ -3,7 +3,7 @@
  * 将 Cherry Studio 消息格式转换为 AI SDK 消息格式
  */
 
-import type { ReasoningPart } from '@ai-sdk/provider-utils'
+import type { ProviderOptions, ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
@@ -45,7 +45,7 @@ export async function convertMessageToSdkParam(
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, imageBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantModelMessage(content, fileBlocks, imageBlocks, reasoningBlocks, model, message)
   }
 }
 
@@ -163,9 +163,13 @@ async function convertMessageToAssistantModelMessage(
   fileBlocks: FileMessageBlock[],
   imageBlocks: ImageMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
-  model?: Model
+  model?: Model,
+  message?: Message
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
+
+  // Extract reasoning_details directly from the message (stored at the same level as content)
+  const reasoningDetails = message?.reasoning_details
 
   // Add reasoning blocks first (required by AWS Bedrock for Claude extended thinking)
   for (const thinkingBlock of thinkingBlocks) {
@@ -201,9 +205,19 @@ async function convertMessageToAssistantModelMessage(
     parts.push({ type: 'text', text: '[Image]' })
   }
 
+  // If reasoning_details exists from OpenRouter, pass it via providerOptions.
+  // The OpenRouter SDK reads from providerOptions.openrouter.reasoning_details
+  // and flattens it to reasoning_details at the same level as content in the API request,
+  // enabling models like Claude/Gemini to resume encrypted reasoning.
+  // Note: JSON round-trip strips undefined values that would fail AI SDK's Zod validation.
+  const providerOptions: ProviderOptions | undefined = reasoningDetails?.length
+    ? { openrouter: { reasoning_details: JSON.parse(JSON.stringify(reasoningDetails)) } }
+    : undefined
+
   return {
     role: 'assistant',
-    content: parts
+    content: parts,
+    ...(providerOptions ? { providerOptions } : {})
   }
 }
 
