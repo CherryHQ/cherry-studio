@@ -11,22 +11,62 @@
  */
 
 import {
-  CommonReasoningFieldsSchema,
   ENDPOINT_TYPE,
   EndpointType,
   MODALITY,
   Modality,
   MODEL_CAPABILITY,
   ModelCapability,
-  ParameterSupportSchema as CatalogParameterSupportSchema,
-  PricePerTokenSchema,
-  ReasoningEffort,
-  ThinkingTokenLimitsSchema
-} from '@cherrystudio/provider-catalog/schemas'
+  ReasoningEffort
+} from '@cherrystudio/provider-catalog'
+import * as z from 'zod'
 
 // Re-export const objects and types for consumers
 export { ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
-import * as z from 'zod'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Zod schemas (formerly in provider-catalog/schemas, now owned by shared)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Price per token schema */
+export const PricePerTokenSchema = z.object({
+  perMillionTokens: z.number().nonnegative().nullable(),
+  currency: z.enum(['USD', 'CNY']).default('USD').optional()
+})
+
+/** Thinking token limits */
+export const ThinkingTokenLimitsSchema = z.object({
+  min: z.number().nonnegative().optional(),
+  max: z.number().positive().optional(),
+  default: z.number().nonnegative().optional()
+})
+
+/** Reasoning effort levels */
+const ReasoningEffortSchema = z.enum(ReasoningEffort)
+
+/** Common reasoning fields shared across all reasoning type variants */
+const CommonReasoningFieldsSchema = {
+  thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  interleaved: z.boolean().optional()
+}
+
+/** Parameter support (DB form) */
+const NumericRangeSchema = z.object({
+  min: z.number(),
+  max: z.number()
+})
+
+export const ParameterSupportDbSchema = z.object({
+  temperature: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
+  topP: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
+  topK: z.object({ supported: z.boolean(), range: NumericRangeSchema.optional() }).optional(),
+  frequencyPenalty: z.boolean().optional(),
+  presencePenalty: z.boolean().optional(),
+  maxTokens: z.boolean().optional(),
+  stopSequences: z.boolean().optional(),
+  systemMessage: z.boolean().optional()
+})
 
 /** Separator used in UniqueModelId */
 export const UNIQUE_MODEL_ID_SEPARATOR = '::'
@@ -97,8 +137,6 @@ export type ModelTag = ModelCapabilityTag | 'free'
 /** All possible ModelTag values (for iteration) */
 export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, 'free'] as const
 
-// Re-export from catalog (source of truth)
-export { ThinkingTokenLimitsSchema }
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
 /** DB form: supportedEfforts is optional */
@@ -119,8 +157,6 @@ export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supported
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
-/** DB form: imported from catalog (source of truth) */
-export const ParameterSupportDbSchema = CatalogParameterSupportSchema
 export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
 /** Runtime form: strict parameter support with more fields (not derivable from DB form — different shape) */

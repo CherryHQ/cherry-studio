@@ -28,7 +28,7 @@ import * as z from 'zod'
 
 const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
 
-import type { EndpointType } from '@cherrystudio/provider-catalog/schemas'
+import type { EndpointType } from '@shared/data/types/model'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 

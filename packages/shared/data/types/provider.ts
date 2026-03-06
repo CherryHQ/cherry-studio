@@ -11,13 +11,33 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import type { ProviderWebsiteSchema } from '@cherrystudio/provider-catalog/schemas'
-import {
-  ApiCompatibilitySchema as CatalogApiCompatibilitySchema,
-  type EndpointType,
-  EndpointTypeSchema
-} from '@cherrystudio/provider-catalog/schemas'
+import { EndpointType } from '@cherrystudio/provider-catalog'
 import * as z from 'zod'
+
+// ─── Schemas formerly from provider-catalog/schemas ─────────────────────────
+
+const EndpointTypeSchema = z.enum(EndpointType)
+
+/** API compatibility flags for provider-specific behaviors */
+const CatalogApiCompatibilitySchema = z.object({
+  arrayContent: z.boolean().optional(),
+  streamOptions: z.boolean().optional(),
+  developerRole: z.boolean().optional(),
+  serviceTier: z.boolean().optional(),
+  verbosity: z.boolean().optional(),
+  enableThinking: z.boolean().optional(),
+  requiresApiKey: z.boolean().optional()
+})
+
+/** Provider website schema (type used for catalog ProviderWebsite type) */
+const ProviderWebsiteSchema = z.object({
+  website: z.object({
+    official: z.string().url().optional(),
+    docs: z.string().url().optional(),
+    apiKey: z.string().url().optional(),
+    models: z.string().url().optional()
+  })
+})
 
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex' | 'priority' | null | undefined
 export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
