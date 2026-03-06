@@ -311,6 +311,8 @@ interface OldWebSearchProvider {
  *
  * This function keeps only user-customized values that differ from preset defaults.
  * Fields that match preset values are dropped to keep `provider_overrides` minimal.
+ * Providers without a matching built-in preset are ignored because v2 only supports
+ * the curated preset list plus per-provider overrides.
  *
  * @example
  * Input: {
@@ -345,6 +347,10 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     const override: WebSearchProviderOverride = {}
     const preset = presetById.get(provider.id)
 
+    if (!preset) {
+      return
+    }
+
     const apiKey = provider.apiKey?.trim()
     if (apiKey) {
       override.apiKey = apiKey
@@ -352,7 +358,7 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
     const apiHost = rawApiHost?.trim()
-    if (apiHost && (!preset || apiHost !== preset.defaultApiHost)) {
+    if (apiHost && apiHost !== preset.defaultApiHost) {
       override.apiHost = apiHost
     }
 

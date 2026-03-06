@@ -283,14 +283,17 @@ describe('PreferenceTransformers', () => {
       expect(overrides).toEqual({})
     })
 
-    it('should keep apiHost for unknown providers without presets', () => {
+    it('should ignore providers without matching presets', () => {
       const result = migrateWebSearchProviders({
-        providers: [{ id: 'custom-provider', name: 'Custom', apiHost: 'https://custom.example.com/search' }]
+        providers: [
+          { id: 'custom-provider', name: 'Custom', apiHost: 'https://custom.example.com/search' },
+          { id: 'tavily', name: 'Tavily', apiKey: 'key1' }
+        ]
       })
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
-        'custom-provider': { apiHost: 'https://custom.example.com/search' }
+        tavily: { apiKey: 'key1' }
       })
     })
   })
