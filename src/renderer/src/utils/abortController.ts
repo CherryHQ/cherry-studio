@@ -15,6 +15,9 @@ export const removeAbortController = (id: string, abortFn: () => void) => {
     if (index !== -1) {
       callbackArr.splice(index, 1)
     }
+    if (callbackArr.length === 0) {
+      abortMap.delete(id)
+    }
   } else {
     abortMap.delete(id)
   }
@@ -66,8 +69,11 @@ export function createAbortPromise<T>(signal: AbortSignal, finallyPromise: Promi
  *   });
  * ```
  */
-export function readyToAbort(key: string) {
+export function readyToAbort(key: string): AbortSignal & { cleanup?: () => void } {
   const controller = new AbortController()
-  addAbortController(key, () => controller.abort())
-  return controller.signal
+  const abortFn = () => controller.abort()
+  addAbortController(key, abortFn)
+  const signal = controller.signal as AbortSignal & { cleanup?: () => void }
+  signal.cleanup = () => removeAbortController(key, abortFn)
+  return signal
 }

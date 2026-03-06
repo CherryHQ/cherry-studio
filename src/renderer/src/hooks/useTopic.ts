@@ -10,6 +10,7 @@ import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { truncateText } from '@renderer/utils/naming'
+import { clearTopicQueue } from '@renderer/utils/queue'
 import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
@@ -214,6 +215,7 @@ export const TopicManager = {
 
   async removeTopic(id: string) {
     await TopicManager.clearTopicMessages(id)
+    clearTopicQueue(id)
     await db.topics.delete(id)
   },
 

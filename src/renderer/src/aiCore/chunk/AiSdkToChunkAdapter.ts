@@ -127,6 +127,7 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      this.toolCallHandler.clearOwned()
     }
   }
 

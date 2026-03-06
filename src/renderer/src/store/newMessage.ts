@@ -27,6 +27,8 @@ const logger = loggerService.withContext('newMessage')
 const messagesAdapter = createEntityAdapter<Message>()
 
 // 2. Define the State Interface
+export const MAX_CACHED_TOPICS = 5
+
 export interface MessagesState extends EntityState<Message, string> {
   messageIdsByTopic: Record<string, string[]> // Map: topicId -> ordered message IDs
   currentTopicId: string | null
@@ -280,6 +282,21 @@ export const messagesSlice = createSlice({
       if (Object.keys(changes).length > 0) {
         messagesAdapter.updateOne(state, { id: messageId, changes })
       }
+    },
+    /**
+     * Evict a topic's cached messages from the Redux store to free memory.
+     * Removes message entities, topic ID mappings, and loading/fulfilled state.
+     * Associated message blocks must be cleaned up separately via removeManyBlocks.
+     */
+    evictTopicCache(state, action: PayloadAction<string>) {
+      const topicId = action.payload
+      const idsToRemove = state.messageIdsByTopic[topicId] || []
+      if (idsToRemove.length > 0) {
+        messagesAdapter.removeMany(state, idsToRemove)
+      }
+      delete state.messageIdsByTopic[topicId]
+      delete state.loadingByTopic[topicId]
+      delete state.fulfilledByTopic[topicId]
     }
   }
 })
