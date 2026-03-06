@@ -1,3 +1,4 @@
+import type { WebSearchProviderType } from '../presets/web-search-providers'
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -104,3 +105,48 @@ export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+// ============================================================================
+// WebSearch Types
+// ============================================================================
+
+/**
+ * Full WebSearch Provider configuration
+ * Generated at runtime by merging preset with user overrides
+ */
+export interface WebSearchProvider {
+  /** Unique provider identifier */
+  id: string
+  /** Display name (from preset) */
+  name: string
+  /** Provider type (from preset) */
+  type: WebSearchProviderType
+  /** API key (from user overrides) */
+  apiKey: string
+  /** API host (user override or preset default) */
+  apiHost: string
+  /** Search engines (from user overrides) */
+  engines: string[]
+  /** Whether to use browser for search (from preset) */
+  usingBrowser: boolean
+  /** Basic auth username (from user overrides) */
+  basicAuthUsername: string
+  /** Basic auth password (from user overrides) */
+  basicAuthPassword: string
+}
+
+// ============================================================================
+// WebSearch Compression Types (v2 - Flattened)
+// ============================================================================
+
+/**
+ * Compression method type
+ * Stored in chat.web_search.compression.method
+ */
+export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+
+/**
+ * Cutoff unit type
+ * Stored in chat.web_search.compression.cutoff_unit
+ */
+export type WebSearchCompressionCutoffUnit = 'char' | 'token'

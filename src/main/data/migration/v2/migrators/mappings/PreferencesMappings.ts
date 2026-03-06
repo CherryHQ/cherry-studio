@@ -852,6 +852,20 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'sortType',
       targetKey: 'feature.notes.sort_type'
     }
+  ],
+  websearch: [
+    {
+      originalKey: 'searchWithTime',
+      targetKey: 'chat.web_search.search_with_time'
+    },
+    {
+      originalKey: 'maxResults',
+      targetKey: 'chat.web_search.max_results'
+    },
+    {
+      originalKey: 'excludeDomains',
+      targetKey: 'chat.web_search.exclude_domains'
+    }
   ]
 } as const
 
@@ -860,9 +874,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 205
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note, websearch
+ * - 总配置项: 206
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
