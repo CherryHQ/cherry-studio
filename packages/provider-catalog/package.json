@@ -7,9 +7,9 @@
   "types": "dist/index.d.ts",
   "packageManager": "pnpm@10.27.0",
   "scripts": {
-    "proto:generate": "buf generate proto",
-    "proto:lint": "buf lint proto",
-    "proto:breaking": "buf breaking proto --against '../../.git#subdir=packages/provider-catalog/proto,branch=main'",
+    "proto:generate": "cd proto && buf generate .",
+    "proto:lint": "cd proto && buf lint .",
+    "proto:breaking": "cd proto && buf breaking . --against '../../../.git#subdir=packages/provider-catalog/proto,branch=main'",
     "build": "pnpm proto:generate && tsdown",
     "dev": "pnpm proto:generate && tsc -w",
     "clean": "rm -rf dist",

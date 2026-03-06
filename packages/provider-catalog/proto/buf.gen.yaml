@@ -4,4 +4,4 @@ inputs:
 plugins:
   - local: protoc-gen-es
     opt: target=ts
-    out: ../../src/gen
+    out: ../src/gen
