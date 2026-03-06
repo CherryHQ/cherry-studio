@@ -183,6 +183,29 @@ interface CherryInExtraOptions extends BaseExtraOptions {
 
 type ExtraOptions = BedrockExtraOptions | AzureOpenAIExtraOptions | VertexExtraOptions | CherryInExtraOptions
 
+const MOONSHOT_WEB_SEARCH_TOOL = {
+  type: 'builtin_function',
+  function: { name: '$web_search' }
+} as const
+
+function isMoonshotProvider(provider: Provider): boolean {
+  if (provider.id === SystemProviderIds.moonshot) {
+    return true
+  }
+
+  const apiHost = provider.apiHost
+  if (!apiHost || typeof apiHost !== 'string') {
+    return false
+  }
+
+  try {
+    const hostname = new URL(apiHost).hostname
+    return hostname === 'moonshot.cn' || hostname.endsWith('.moonshot.cn')
+  } catch {
+    return apiHost.includes('moonshot.cn')
+  }
+}
+
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
  * 简化版：利用新的别名映射系统
@@ -275,6 +298,12 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   // TODO: but the PR don't backport to v5, the code will be removed when upgrading to v6
   if (!isSupportDeveloperRoleProvider(actualProvider) || !isOpenAIReasoningModel(model)) {
     _fetch = createDeveloperToSystemFetch(fetch)
+  }
+
+  // Moonshot requires builtin_function.$web_search in tools for built-in web search.
+  // Add a final outbound safeguard so the request body sent to Moonshot is never tools: [] when tool_choice is not none.
+  if (isMoonshotProvider(actualProvider)) {
+    _fetch = createMoonshotBuiltinSearchFetch(_fetch ?? fetch)
   }
 
   const baseExtraOptions = {
@@ -439,6 +468,43 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
           options = {
             ...options,
             body: JSON.stringify(body)
+          }
+        }
+      } catch {
+        // If parsing fails, just use original body
+      }
+    }
+    return baseFetch(input, options)
+  }
+}
+
+function isMoonshotBuiltinWebSearchTool(tool: unknown): boolean {
+  if (!tool || typeof tool !== 'object') {
+    return false
+  }
+
+  const candidate = tool as { type?: unknown; function?: { name?: unknown } }
+  return candidate.type === 'builtin_function' && candidate.function?.name === '$web_search'
+}
+
+function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof fetch {
+  const baseFetch = originalFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let options = init
+    if (options?.body && typeof options.body === 'string') {
+      try {
+        const body = JSON.parse(options.body)
+
+        // Only apply to chat-completions style payloads.
+        if (Array.isArray(body.messages) && body.tool_choice !== 'none') {
+          const currentTools = Array.isArray(body.tools) ? [...body.tools] : []
+          const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
+          if (!hasBuiltinWebSearch) {
+            body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL]
+            options = {
+              ...options,
+              body: JSON.stringify(body)
+            }
           }
         }
       } catch {
