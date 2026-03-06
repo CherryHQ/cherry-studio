@@ -1,0 +1,65 @@
+syntax = "proto3";
+package catalog.v1;
+
+import "catalog/v1/common.proto";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// API Compatibility
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ApiCompatibility {
+  optional bool array_content = 1;
+  optional bool stream_options = 2;
+  optional bool developer_role = 3;
+  optional bool service_tier = 4;
+  optional bool verbosity = 5;
+  optional bool enable_thinking = 6;
+  optional bool requires_api_key = 7;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Website
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderWebsite {
+  optional string official = 1;
+  optional string docs = 2;
+  optional string api_key = 3;
+  optional string models = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Models API URLs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ModelsApiUrls {
+  optional string default = 1;
+  optional string embedding = 2;
+  optional string reranker = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderConfig {
+  string id = 1;
+  string name = 2;
+  optional string description = 3;
+
+  // Base URLs keyed by endpoint type
+  map<int32, string> base_urls = 4; // key = EndpointType enum value
+
+  optional EndpointType default_chat_endpoint = 5;
+  optional ApiCompatibility api_compatibility = 6;
+  optional ModelsApiUrls models_api_urls = 7;
+
+  optional Metadata metadata = 8;
+  optional ProviderWebsite website = 9;
+}
+
+// Top-level container
+message ProviderCatalog {
+  string version = 1;
+  repeated ProviderConfig providers = 2;
+}
