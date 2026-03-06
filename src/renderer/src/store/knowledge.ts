@@ -44,7 +44,6 @@ const knowledgeSlice = createSlice({
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
         const files = base.items.filter((item) => item.type === 'file')
         FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
-        window.api.knowledgeBase.delete(action.payload.baseId)
       }
     },
 
@@ -94,9 +93,6 @@ const knowledgeSlice = createSlice({
           }
         }
         if (action.payload.item.type === 'note') {
-          base.items.push(action.payload.item)
-        }
-        if (action.payload.item.type === 'video') {
           base.items.push(action.payload.item)
         }
         base.updated_at = Date.now()

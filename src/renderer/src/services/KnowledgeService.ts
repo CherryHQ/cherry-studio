@@ -3,8 +3,8 @@ import type { Span } from '@opentelemetry/api'
 import { ModernAiProvider } from '@renderer/aiCore'
 import AiProvider from '@renderer/aiCore/legacy'
 import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import type { Assistant } from '@renderer/types'
@@ -24,13 +24,13 @@ import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
+import type { KnowledgeBase as KnowledgeBaseV2 } from '@shared/data/types/knowledge'
 import type { ModelMessage, UserModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 import type { BlockManager } from './messageStreaming'
-import { estimateTextTokens } from './TokenService'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
@@ -141,28 +141,14 @@ export const getKnowledgeSourceUrl = async (item: KnowledgeSearchResult & { file
 
 export const searchKnowledgeBase = async (
   query: string,
-  base: KnowledgeBase,
+  base: KnowledgeBaseV2,
   rewrite?: string,
   topicId?: string,
   parentSpanId?: string,
   modelName?: string
 ): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
-  // Truncate query based on embedding model's max_context to prevent embedding errors
-  const maxContext = getEmbeddingMaxContext(base.model.id)
-  if (maxContext) {
-    const estimatedTokens = estimateTextTokens(query)
-    if (estimatedTokens > maxContext) {
-      const ratio = maxContext / estimatedTokens
-      query = query.slice(0, Math.floor(query.length * ratio))
-    }
-  }
-
   let currentSpan: Span | undefined = undefined
   try {
-    const baseParams = getKnowledgeBaseParams(base)
-    const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
-    const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
-
     if (topicId) {
       currentSpan = await addSpan({
         topicId,
@@ -170,7 +156,7 @@ export const searchKnowledgeBase = async (
         inputs: {
           query,
           rewrite,
-          base: baseParams
+          baseId: base.id
         },
         tag: 'Knowledge',
         parentSpanId,
@@ -178,36 +164,14 @@ export const searchKnowledgeBase = async (
       })
     }
 
-    const searchResults: KnowledgeSearchResult[] = await window.api.knowledgeBase.search(
-      {
-        search: query || rewrite || '',
-        base: baseParams
-      },
-      currentSpan?.spanContext()
-    )
-
-    // 过滤阈值不达标的结果
-    const filteredResults = searchResults.filter((item) => item.score >= threshold)
-
-    // 如果有rerank模型，执行重排
-    let rerankResults = filteredResults
-    if (base.rerankModel && filteredResults.length > 0) {
-      rerankResults = await window.api.knowledgeBase.rerank(
-        {
-          search: rewrite || query,
-          base: baseParams,
-          results: filteredResults
-        },
-        currentSpan?.spanContext()
-      )
-    }
-
-    // 限制文档数量
-    const limitedResults = rerankResults.slice(0, documentCount)
+    // Search via DataApi (threshold, documentCount, rerank handled server-side)
+    const searchResults: KnowledgeSearchResult[] = await dataApiService.get(`/knowledge-bases/${base.id}/search`, {
+      query: { search: query || rewrite || '' }
+    })
 
     // 处理文件信息
     const result = await Promise.all(
-      limitedResults.map(async (item) => {
+      searchResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
         logger.debug(`Knowledge search item: ${JSON.stringify(item)} File: ${JSON.stringify(file)}`)
         return { ...item, file }
@@ -255,7 +219,9 @@ export const processKnowledgeSearch = async (
   const questions = extractResults.knowledge.question
   const rewrite = extractResults.knowledge.rewrite
 
-  const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
+  // Fetch knowledge bases via DataApi instead of Redux store
+  const allBases: KnowledgeBaseV2[] = await dataApiService.get('/knowledge-bases')
+  const bases = allBases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
   if (!bases || bases.length === 0) {
     logger.info('Skipping knowledge search: No matching knowledge bases found.')
     return []
