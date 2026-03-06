@@ -101,8 +101,10 @@ export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
 /** DB form: supportedEfforts is optional */
 export const ReasoningConfigSchema = z.object({
-  /** Reasoning type: 'openai-chat', 'anthropic', 'gemini', etc. */
-  type: z.string(),
+  /** Reasoning type: must match a known reasoning variant */
+  type: z.string().regex(/^[a-z][a-z0-9-]*$/, {
+    message: 'Reasoning type must be lowercase alphanumeric with hyphens'
+  }),
   ...CommonReasoningFieldsSchema
 })
 export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
