@@ -11,11 +11,9 @@
 
 import { join } from 'node:path'
 
+import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-catalog'
 import {
-  ENDPOINT_TYPE,
-  type ModelConfig,
-  type ProviderConfig,
-  type ProviderModelOverride,
+  EndpointType,
   readModelCatalog,
   readProviderCatalog,
   readProviderModelCatalog
@@ -35,8 +33,8 @@ const logger = loggerService.withContext('DataApi:CatalogService')
 export class CatalogService {
   private static instance: CatalogService
 
-  private catalogModels: ModelConfig[] | null = null
-  private catalogProviderModels: ProviderModelOverride[] | null = null
+  private catalogModels: ProtoModelConfig[] | null = null
+  private catalogProviderModels: ProtoProviderModelOverride[] | null = null
 
   private constructor() {}
 
@@ -61,7 +59,7 @@ export class CatalogService {
   /**
    * Load and cache catalog models from models.pb
    */
-  private loadCatalogModels(): ModelConfig[] {
+  private loadCatalogModels(): ProtoModelConfig[] {
     if (this.catalogModels) return this.catalogModels
 
     try {
@@ -79,7 +77,7 @@ export class CatalogService {
   /**
    * Load and cache provider-model overrides from provider-models.pb
    */
-  private loadProviderModels(): ProviderModelOverride[] {
+  private loadProviderModels(): ProtoProviderModelOverride[] {
     if (this.catalogProviderModels) return this.catalogProviderModels
 
     try {
@@ -114,7 +112,7 @@ export class CatalogService {
     }
 
     // Build a map of catalog models by ID for fast lookup
-    const modelMap = new Map<string, ModelConfig>()
+    const modelMap = new Map<string, ProtoModelConfig>()
     for (const model of catalogModels) {
       modelMap.set(model.id, model)
     }
@@ -138,7 +136,7 @@ export class CatalogService {
       const merged = mergeModelConfig(null, override, baseModel, providerId)
       mergedModels.push(merged)
 
-      // Convert to DB row format
+      // Convert to DB row format — capabilities/modalities are now numeric arrays
       dbRows.push({
         providerId,
         modelId: baseModel.id,
@@ -146,10 +144,10 @@ export class CatalogService {
         name: merged.name,
         description: merged.description ?? null,
         group: merged.group ?? null,
-        capabilities: merged.capabilities as string[],
-        inputModalities: (merged.inputModalities as string[]) ?? null,
-        outputModalities: (merged.outputModalities as string[]) ?? null,
-        endpointTypes: (merged.endpointTypes as string[]) ?? null,
+        capabilities: merged.capabilities,
+        inputModalities: merged.inputModalities ?? null,
+        outputModalities: merged.outputModalities ?? null,
+        endpointTypes: merged.endpointTypes ?? null,
         contextWindow: merged.contextWindow ?? null,
         maxOutputTokens: merged.maxOutputTokens ?? null,
         supportsStreaming: merged.supportsStreaming,
@@ -174,12 +172,12 @@ export class CatalogService {
   /**
    * Initialize preset providers from catalog into SQLite.
    *
-   * Reads providers.json, maps fields to NewUserProvider, and batch upserts.
-   * Also seeds the cherryai provider which is not in providers.json.
+   * Reads providers.pb, maps fields to NewUserProvider, and batch upserts.
+   * Also seeds the cherryai provider which is not in providers.pb.
    */
   async initializePresetProviders(): Promise<void> {
     const dataPath = this.getCatalogDataPath()
-    let rawProviders: ProviderConfig[] = []
+    let rawProviders: ReturnType<typeof readProviderCatalog>['providers'] = []
 
     try {
       const data = readProviderCatalog(join(dataPath, 'providers.pb'))
@@ -203,11 +201,19 @@ export class CatalogService {
             }
           : null
 
+      // Proto baseUrls uses map<int32, string> — convert to Record<string, string>
+      const baseUrls: Record<string, string> = {}
+      if (p.baseUrls) {
+        for (const [k, v] of Object.entries(p.baseUrls)) {
+          baseUrls[String(k)] = v
+        }
+      }
+
       return {
         providerId: p.id,
         presetProviderId: p.id,
         name: p.name,
-        baseUrls: p.baseUrls ?? null,
+        baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
         modelsApiUrls: p.modelsApiUrls ?? null,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
         apiCompatibility: p.apiCompatibility ?? null,
@@ -219,9 +225,9 @@ export class CatalogService {
       providerId: 'cherryai',
       name: 'CherryAI',
       baseUrls: {
-        [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+        [EndpointType.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
       },
-      defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS
+      defaultChatEndpoint: EndpointType.CHAT_COMPLETIONS
     })
 
     await providerService.batchUpsert(dbRows)
@@ -250,7 +256,7 @@ export class CatalogService {
   lookupModel(
     providerId: string,
     modelId: string
-  ): { presetModel: ModelConfig | null; catalogOverride: ProviderModelOverride | null } {
+  ): { presetModel: ProtoModelConfig | null; catalogOverride: ProtoProviderModelOverride | null } {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
 
@@ -277,18 +283,18 @@ export class CatalogService {
       name?: string
       group?: string
       description?: string
-      endpointTypes?: string[]
+      endpointTypes?: number[]
     }>
   ): Model[] {
     const catalogModels = this.loadCatalogModels()
     const providerModels = this.loadProviderModels()
 
     // Build lookup maps
-    const modelMap = new Map<string, ModelConfig>()
+    const modelMap = new Map<string, ProtoModelConfig>()
     for (const m of catalogModels) {
       modelMap.set(m.id, m)
     }
-    const overrideMap = new Map<string, ProviderModelOverride>()
+    const overrideMap = new Map<string, ProtoProviderModelOverride>()
     for (const pm of providerModels) {
       if (pm.providerId === providerId) {
         overrideMap.set(pm.modelId, pm)

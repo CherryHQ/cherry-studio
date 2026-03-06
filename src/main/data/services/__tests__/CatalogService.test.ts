@@ -1,5 +1,5 @@
-import type { ModelConfig, ProviderModelOverride } from '@cherrystudio/provider-catalog'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
+import type { ProtoModelConfig, ProtoProviderModelOverride } from '@cherrystudio/provider-catalog'
+import { EndpointType, ModelCapability } from '@cherrystudio/provider-catalog'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock catalog reader functions
@@ -33,20 +33,26 @@ import { providerService } from '../ProviderService'
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
 
-function makeModelConfig(overrides: Partial<ModelConfig> & { id: string }): ModelConfig {
+function makeModelConfig(overrides: Partial<ProtoModelConfig> & { id: string }): ProtoModelConfig {
   return {
-    metadata: {},
+    capabilities: [],
+    inputModalities: [],
+    outputModalities: [],
+    alias: [],
     ...overrides
-  }
+  } as unknown as ProtoModelConfig
 }
 
 function makeProviderModelOverride(
-  overrides: Partial<ProviderModelOverride> & { providerId: string; modelId: string }
-): ProviderModelOverride {
+  overrides: Partial<ProtoProviderModelOverride> & { providerId: string; modelId: string }
+): ProtoProviderModelOverride {
   return {
     priority: 0,
+    endpointTypes: [],
+    inputModalities: [],
+    outputModalities: [],
     ...overrides
-  }
+  } as unknown as ProtoProviderModelOverride
 }
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
@@ -64,8 +70,8 @@ describe('CatalogService', () => {
 
   // Helper to set up catalog reader mock responses
   function mockCatalogData(opts: {
-    models?: ModelConfig[]
-    overrides?: ProviderModelOverride[]
+    models?: ProtoModelConfig[]
+    overrides?: ProtoProviderModelOverride[]
     providers?: Array<{ id: string; name: string; metadata?: Record<string, unknown>; [k: string]: unknown }>
   }) {
     if (opts.models !== undefined) {
@@ -165,7 +171,7 @@ describe('CatalogService', () => {
       const preset = makeModelConfig({
         id: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        capabilities: [ModelCapability.FUNCTION_CALL],
         contextWindow: 128000
       })
       const override = makeProviderModelOverride({
@@ -244,8 +250,8 @@ describe('CatalogService', () => {
           {
             id: 'openai',
             name: 'OpenAI',
-            baseUrls: { [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.openai.com/v1' },
-            defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS
+            baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.openai.com/v1' },
+            defaultChatEndpoint: EndpointType.CHAT_COMPLETIONS
           }
         ]
       })
@@ -264,7 +270,7 @@ describe('CatalogService', () => {
       const cherryai = rows.find((r) => r.providerId === 'cherryai')!
       expect(cherryai.name).toBe('CherryAI')
       expect(cherryai.baseUrls).toEqual({
-        [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+        [EndpointType.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
       })
     })
 
@@ -345,7 +351,7 @@ describe('CatalogService', () => {
       const preset = makeModelConfig({
         id: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        capabilities: [ModelCapability.FUNCTION_CALL],
         contextWindow: 128000
       })
       const override = makeProviderModelOverride({
@@ -359,7 +365,7 @@ describe('CatalogService', () => {
 
       expect(result).toHaveLength(1)
       expect(result[0].id).toBe('openai::gpt-4o')
-      expect(result[0].capabilities).toContain(MODEL_CAPABILITY.FUNCTION_CALL)
+      expect(result[0].capabilities).toContain(ModelCapability.FUNCTION_CALL)
       expect(result[0].contextWindow).toBe(128000)
     })
 
@@ -414,11 +420,11 @@ describe('CatalogService', () => {
       mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [
-        { modelId: 'my-model', endpointTypes: [ENDPOINT_TYPE.MESSAGES] }
+        { modelId: 'my-model', endpointTypes: [EndpointType.MESSAGES] }
       ])
 
       expect(result).toHaveLength(1)
-      expect(result[0].endpointTypes).toEqual([ENDPOINT_TYPE.MESSAGES])
+      expect(result[0].endpointTypes).toEqual([EndpointType.MESSAGES])
     })
   })
 
