@@ -194,13 +194,7 @@ export const ParameterSupportSchema = z.object({
   presencePenalty: z.boolean().optional(),
   maxTokens: z.boolean().optional(),
   stopSequences: z.boolean().optional(),
-  systemMessage: z.boolean().optional(),
-
-  /**
-   * Groups of parameter names that cannot be specified simultaneously.
-   * e.g. [["temperature", "topP"]] means only one can be set at a time (Claude, etc.)
-   */
-  mutuallyExclusive: z.array(z.array(z.string())).optional()
+  systemMessage: z.boolean().optional()
 })
 
 // Model pricing configuration

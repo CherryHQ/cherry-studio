@@ -148,9 +148,7 @@ export const RuntimeParameterSupportSchema = z.object({
   presencePenalty: z.boolean().optional(),
   maxTokens: z.boolean(),
   stopSequences: z.boolean(),
-  systemMessage: z.boolean(),
-  /** Groups of parameter names that cannot be specified simultaneously */
-  mutuallyExclusive: z.array(z.array(z.string())).optional()
+  systemMessage: z.boolean()
 })
 export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSchema>
 
