@@ -3424,6 +3424,9 @@
         }
       ]
     },
+    "dexieSettings": {
+      "settings": []
+    },
     "dexie": {
       "files": [
         {

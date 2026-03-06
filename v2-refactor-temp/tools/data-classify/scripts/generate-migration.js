@@ -40,7 +40,7 @@ class SimpleMappingGenerator {
 
   extractPreferencesData(classification) {
     const allPreferencesData = []
-    const sources = ['electronStore', 'redux', 'localStorage']
+    const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
 
     // 递归提取项目，包括children (保持现有逻辑)
     const extractItems = (items, source, category, parentKey = '') => {
@@ -88,7 +88,7 @@ class SimpleMappingGenerator {
     })
 
     // 去重：按redux > localStorage > electronStore优先级选择
-    const sourcePriority = { redux: 3, localStorage: 2, electronStore: 1 }
+    const sourcePriority = { redux: 3, dexieSettings: 2, localStorage: 2, electronStore: 1 }
     const deduplicatedData = []
 
     Object.keys(targetKeyGroups).forEach((targetKey) => {
@@ -114,6 +114,7 @@ class SimpleMappingGenerator {
       electronStore: [],
       redux: [],
       localStorage: [],
+      dexieSettings: [],
       all: deduplicatedData
     }
 
@@ -151,33 +152,51 @@ class SimpleMappingGenerator {
       })
     })
 
+    // 生成DexieSettings映射 - 简单KV结构
+    const dexieSettingsMappings = preferencesData.dexieSettings.map((item) => ({
+      originalKey: item.originalKey,
+      targetKey: item.targetKey
+    }))
+
     // 生成映射关系文件内容
     const content = `/**
  * Auto-generated preference mappings from classification.json
  * Generated at: ${new Date().toISOString()}
- * 
+ *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
- * 
+ *
  * === AUTO-GENERATED CONTENT START ===
  */
 
 /**
  * ElectronStore映射关系 - 简单一层结构
- * 
+ *
  * ElectronStore没有嵌套，originalKey直接对应configManager.get(key)
  */
 export const ELECTRON_STORE_MAPPINGS = ${JSON.stringify(electronStoreMappings, null, 2)} as const
 
 /**
  * Redux Store映射关系 - 按category分组，支持嵌套路径
- * 
+ *
  * Redux Store可能有children结构，originalKey可能包含嵌套路径:
  * - 直接字段: "theme" -> reduxData.settings.theme
  * - 嵌套字段: "codeEditor.enabled" -> reduxData.settings.codeEditor.enabled
  * - 多层嵌套: "exportMenuOptions.docx" -> reduxData.settings.exportMenuOptions.docx
  */
 export const REDUX_STORE_MAPPINGS = ${JSON.stringify(reduxMappings, null, 2)} as const
+
+/**
+ * Dexie Settings映射关系 - 简单KV结构
+ *
+ * Maps Dexie IndexedDB \`settings\` table keys (id field) to new preference target keys.
+ * The settings table uses a simple KV structure: { id: string, value: any }.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (value conversion, multi-key merging, etc.),
+ * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
+ */
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(dexieSettingsMappings, null, 2)}
 
 // === AUTO-GENERATED CONTENT END ===
 
@@ -186,18 +205,19 @@ export const REDUX_STORE_MAPPINGS = ${JSON.stringify(reduxMappings, null, 2)} as
  * - ElectronStore项: ${electronStoreMappings.length}
  * - Redux Store项: ${preferencesData.redux.length}
  * - Redux分类: ${Object.keys(reduxMappings).join(', ')}
+ * - DexieSettings项: ${dexieSettingsMappings.length}
  * - 总配置项: ${preferencesData.all.length}
- * 
+ *
  * 使用说明:
- * 1. ElectronStore读取: configManager.get(mapping.originalKey)  
+ * 1. ElectronStore读取: configManager.get(mapping.originalKey)
  * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
  */`
 
-    // 写入文件
+    // 写入 PreferencesMappings.ts
     const targetFile = path.join(this.targetDir, 'PreferencesMappings.ts')
     fs.writeFileSync(targetFile, content, 'utf8')
-
     console.log(`映射关系文件已生成: ${targetFile}`)
   }
 
@@ -206,6 +226,7 @@ export const REDUX_STORE_MAPPINGS = ${JSON.stringify(reduxMappings, null, 2)} as
     console.log(`- 输出文件: PreferencesMappings.ts`)
     console.log(`- ElectronStore映射: ${preferencesData.electronStore.length}`)
     console.log(`- Redux Store映射: ${preferencesData.redux.length}`)
+    console.log(`- DexieSettings映射: ${preferencesData.dexieSettings.length}`)
     console.log(`- 总配置项: ${preferencesData.all.length}`)
 
     // 显示Redux分类

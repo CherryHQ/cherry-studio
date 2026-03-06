@@ -73,6 +73,7 @@ function loadInventory(dataDir = DATA_DIR) {
  */
 const SOURCE_PRIORITY = {
   redux: 3,
+  dexieSettings: 2,
   localStorage: 2,
   electronStore: 1
 }
@@ -90,7 +91,7 @@ const SOURCE_PRIORITY = {
  */
 function extractPreferencesData(classification) {
   const allPreferencesData = []
-  const sources = ['electronStore', 'redux', 'localStorage']
+  const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
 
   // Recursive function to extract items including children
   const extractItems = (items, source, category, parentKey = '') => {
@@ -151,6 +152,7 @@ function extractPreferencesData(classification) {
     electronStore: [],
     redux: [],
     localStorage: [],
+    dexieSettings: [],
     all: deduplicatedData
   }
 
