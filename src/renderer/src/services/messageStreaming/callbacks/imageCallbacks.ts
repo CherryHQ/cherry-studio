@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { createImageBlock } from '@renderer/utils/messageUtils/create'
 
 import type { BlockManager } from '../BlockManager'
@@ -22,17 +22,17 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
     onImageCreated: async () => {
       if (blockManager.hasInitialPlaceholder) {
         const initialChanges = {
-          type: MessageBlockType.IMAGE,
-          status: MessageBlockStatus.PENDING
+          type: MESSAGE_BLOCK_TYPE.IMAGE,
+          status: MESSAGE_BLOCK_STATUS.PENDING
         }
         imageBlockId = blockManager.initialPlaceholderBlockId!
-        blockManager.smartBlockUpdate(imageBlockId, initialChanges, MessageBlockType.IMAGE)
+        blockManager.smartBlockUpdate(imageBlockId, initialChanges, MESSAGE_BLOCK_TYPE.IMAGE)
       } else if (!imageBlockId) {
         const imageBlock = createImageBlock(assistantMsgId, {
-          status: MessageBlockStatus.PENDING
+          status: MESSAGE_BLOCK_STATUS.PENDING
         })
         imageBlockId = imageBlock.id
-        await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        await blockManager.handleBlockTransition(imageBlock, MESSAGE_BLOCK_TYPE.IMAGE)
       }
     },
 
@@ -42,9 +42,9 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         const changes: Partial<ImageMessageBlock> = {
           url: imageUrl,
           metadata: { generateImageResponse: imageData },
-          status: MessageBlockStatus.STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING
         }
-        blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
+        blockManager.smartBlockUpdate(imageBlockId, changes, MESSAGE_BLOCK_TYPE.IMAGE, true)
       }
     },
 
@@ -52,27 +52,27 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       if (imageBlockId) {
         if (!imageData) {
           const changes: Partial<ImageMessageBlock> = {
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
-          blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
+          blockManager.smartBlockUpdate(imageBlockId, changes, MESSAGE_BLOCK_TYPE.IMAGE)
         } else {
           const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
           const changes: Partial<ImageMessageBlock> = {
             url: imageUrl,
             metadata: { generateImageResponse: imageData },
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
-          blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
+          blockManager.smartBlockUpdate(imageBlockId, changes, MESSAGE_BLOCK_TYPE.IMAGE, true)
         }
         imageBlockId = null
       } else {
         if (imageData) {
           const imageBlock = createImageBlock(assistantMsgId, {
-            status: MessageBlockStatus.SUCCESS,
+            status: MESSAGE_BLOCK_STATUS.SUCCESS,
             url: imageData.images?.[0] || 'placeholder_image_url',
             metadata: { generateImageResponse: imageData }
           })
-          await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+          await blockManager.handleBlockTransition(imageBlock, MESSAGE_BLOCK_TYPE.IMAGE)
         } else {
           logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
@@ -82,7 +82,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
     onImageSearched: async (content: string, metadata: Record<string, any>) => {
       if (!imageBlockId) {
         const imageBlock = createImageBlock(assistantMsgId, {
-          status: MessageBlockStatus.SUCCESS,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           metadata: {
             generateImageResponse: {
               type: 'base64',
@@ -90,7 +90,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
             }
           }
         })
-        await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        await blockManager.handleBlockTransition(imageBlock, MESSAGE_BLOCK_TYPE.IMAGE)
       }
     }
   }

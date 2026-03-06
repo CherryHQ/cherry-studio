@@ -22,7 +22,7 @@ import {
 } from '@renderer/store/thunk/messageThunk'
 import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { difference, throttle } from 'lodash'
 import { useCallback } from 'react'
@@ -230,7 +230,7 @@ export function useMessageOperations(topic: Topic) {
       if (message.blocks && message.blocks.length > 0) {
         for (const blockId of message.blocks) {
           const block = state.messageBlocks.entities[blockId]
-          if (block && block.type === MessageBlockType.TRANSLATION) {
+          if (block && block.type === MESSAGE_BLOCK_TYPE.TRANSLATION) {
             existingTranslationBlockId = blockId
             break
           }
@@ -242,7 +242,7 @@ export function useMessageOperations(topic: Topic) {
         blockId = existingTranslationBlockId
         const changes: Partial<MessageBlock> = {
           content: '',
-          status: MessageBlockStatus.STREAMING,
+          status: MESSAGE_BLOCK_STATUS.STREAMING,
           metadata: {
             targetLanguage,
             sourceBlockId,
@@ -385,7 +385,7 @@ export function useMessageOperations(topic: Topic) {
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
       await editMessageBlocks(message.id, editedBlocks)
 
-      const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
+      const mainTextBlock = editedBlocks.find((block) => block.type === MESSAGE_BLOCK_TYPE.MAIN_TEXT)
       if (!mainTextBlock) {
         logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
@@ -394,7 +394,7 @@ export function useMessageOperations(topic: Topic) {
       await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
-        (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
+        (block) => block.type === MESSAGE_BLOCK_TYPE.FILE || block.type === MESSAGE_BLOCK_TYPE.IMAGE
       )
 
       const files = fileBlocks.map((block) => block.file).filter((file) => file !== undefined)

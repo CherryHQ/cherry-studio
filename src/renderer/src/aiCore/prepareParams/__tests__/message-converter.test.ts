@@ -5,8 +5,8 @@ import {
   AssistantMessageStatus,
   type FileMessageBlock,
   type ImageMessageBlock,
-  MessageBlockStatus,
-  MessageBlockType,
+  MESSAGE_BLOCK_STATUS,
+  MESSAGE_BLOCK_TYPE,
   type ThinkingMessageBlock,
   UserMessageStatus
 } from '@renderer/types/newMessage'
@@ -77,9 +77,9 @@ const createFileBlock = (
   return {
     id: blockOverrides.id ?? `file-block-${blockCounter}`,
     messageId,
-    type: MessageBlockType.FILE,
+    type: MESSAGE_BLOCK_TYPE.FILE,
     createdAt: blockOverrides.createdAt ?? timestamp,
-    status: blockOverrides.status ?? MessageBlockStatus.SUCCESS,
+    status: blockOverrides.status ?? MESSAGE_BLOCK_STATUS.SUCCESS,
     file: {
       id: file?.id ?? `file-${blockCounter}`,
       name: file?.name ?? 'document.txt',
@@ -102,9 +102,9 @@ const createImageBlock = (
 ): ImageMessageBlock => ({
   id: overrides.id ?? `image-block-${++blockCounter}`,
   messageId,
-  type: MessageBlockType.IMAGE,
+  type: MESSAGE_BLOCK_TYPE.IMAGE,
   createdAt: overrides.createdAt ?? new Date(2024, 0, 1, 0, 0, blockCounter).toISOString(),
-  status: overrides.status ?? MessageBlockStatus.SUCCESS,
+  status: overrides.status ?? MESSAGE_BLOCK_STATUS.SUCCESS,
   url: overrides.url ?? 'https://example.com/image.png',
   ...overrides
 })
@@ -115,9 +115,9 @@ const createThinkingBlock = (
 ): ThinkingMessageBlock => ({
   id: overrides.id ?? `thinking-block-${++blockCounter}`,
   messageId,
-  type: MessageBlockType.THINKING,
+  type: MESSAGE_BLOCK_TYPE.THINKING,
   createdAt: overrides.createdAt ?? new Date(2024, 0, 1, 0, 0, blockCounter).toISOString(),
-  status: overrides.status ?? MessageBlockStatus.SUCCESS,
+  status: overrides.status ?? MESSAGE_BLOCK_STATUS.SUCCESS,
   content: overrides.content ?? 'Let me think...',
   thinking_millsec: overrides.thinking_millsec ?? 1000,
   ...overrides

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, Tooltip } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +22,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
-  const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
+  const isThinking = useMemo(() => block.status === MESSAGE_BLOCK_STATUS.STREAMING, [block.status])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {

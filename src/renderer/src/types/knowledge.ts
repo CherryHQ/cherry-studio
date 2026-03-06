@@ -1,8 +1,11 @@
 import type { ApiClient, Model } from '@types'
+import * as z from 'zod'
 
-import type { FileMetadata } from './file'
+import { type FileMetadata, FileMetadataSchema } from './file'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory' | 'video'
+const KnowledgeItemTypeSchema = z.enum(['file', 'url', 'note', 'sitemap', 'directory', 'memory', 'video'])
+
+export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
 export type KnowledgeItem = {
   id: string
@@ -142,14 +145,16 @@ export type KnowledgeBaseParams = {
   }
 }
 
-export type KnowledgeReference = {
-  id: number
-  content: string
-  sourceUrl: string
-  type: KnowledgeItemType
-  file?: FileMetadata
-  metadata?: Record<string, any>
-}
+export const KnowledgeReferenceSchema = z.object({
+  id: z.number(),
+  content: z.string(),
+  sourceUrl: z.string(),
+  type: KnowledgeItemTypeSchema,
+  file: FileMetadataSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+})
+
+export type KnowledgeReference = z.infer<typeof KnowledgeReferenceSchema>
 
 export interface KnowledgeSearchResult {
   pageContent: string

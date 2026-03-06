@@ -3,7 +3,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
@@ -27,7 +27,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
 
   // 消息块
   const msgBlock = messageBlocksSelectors.selectById(store.getState(), blockId)
-  const isStreaming = useMemo(() => msgBlock?.status === MessageBlockStatus.STREAMING, [msgBlock?.status])
+  const isStreaming = useMemo(() => msgBlock?.status === MESSAGE_BLOCK_STATUS.STREAMING, [msgBlock?.status])
 
   const handleSave = useCallback(
     (newContent: string) => {

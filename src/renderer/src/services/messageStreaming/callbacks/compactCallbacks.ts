@@ -3,7 +3,7 @@ import type { AppDispatch, RootState } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 
 import type { BlockManager } from '../BlockManager'
@@ -103,7 +103,7 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
         updateOneBlock({
           id: currentMainTextBlockId,
           changes: {
-            status: MessageBlockStatus.PROCESSING
+            status: MESSAGE_BLOCK_STATUS.PROCESSING
           }
         })
       )
@@ -129,10 +129,10 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
         updateOneBlock({
           id: summaryBlockId,
           changes: {
-            type: MessageBlockType.COMPACT,
+            type: MESSAGE_BLOCK_TYPE.COMPACT,
             content: compactState.summaryText,
             compactedContent: compactedContent,
-            status: MessageBlockStatus.SUCCESS
+            status: MESSAGE_BLOCK_STATUS.SUCCESS
           }
         })
       )
@@ -142,14 +142,14 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
         newMessagesActions.upsertBlockReference({
           messageId: assistantMsgId,
           blockId: summaryBlockId,
-          status: MessageBlockStatus.SUCCESS,
-          blockType: MessageBlockType.COMPACT
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
+          blockType: MESSAGE_BLOCK_TYPE.COMPACT
         })
       )
 
       // Clear active block info and update lastBlockType since the compact block is now complete
       blockManager.activeBlockInfo = null
-      blockManager.lastBlockType = MessageBlockType.COMPACT
+      blockManager.lastBlockType = MESSAGE_BLOCK_TYPE.COMPACT
 
       // Remove the current block (the one with XML tags) from message.blocks
       const currentState = getState()

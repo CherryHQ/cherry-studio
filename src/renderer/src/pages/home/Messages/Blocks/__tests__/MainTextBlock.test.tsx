@@ -2,7 +2,7 @@ import { configureStore } from '@reduxjs/toolkit'
 import type { Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -121,8 +121,8 @@ describe('MainTextBlock', () => {
   const createMainTextBlock = (overrides: Partial<MainTextMessageBlock> = {}): MainTextMessageBlock => ({
     id: 'test-block-1',
     messageId: 'test-message-1',
-    type: MessageBlockType.MAIN_TEXT,
-    status: MessageBlockStatus.SUCCESS,
+    type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
+    status: MESSAGE_BLOCK_STATUS.SUCCESS,
     createdAt: new Date().toISOString(),
     content: 'Test content',
     ...overrides

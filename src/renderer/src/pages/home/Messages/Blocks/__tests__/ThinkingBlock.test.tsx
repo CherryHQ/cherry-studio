@@ -1,5 +1,5 @@
 import type { ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -154,8 +154,8 @@ describe('ThinkingBlock', () => {
   const createThinkingBlock = (overrides: Partial<ThinkingMessageBlock> = {}): ThinkingMessageBlock => ({
     id: 'test-thinking-block-1',
     messageId: 'test-message-1',
-    type: MessageBlockType.THINKING,
-    status: MessageBlockStatus.SUCCESS,
+    type: MESSAGE_BLOCK_TYPE.THINKING,
+    status: MESSAGE_BLOCK_STATUS.SUCCESS,
     createdAt: new Date().toISOString(),
     content: 'I need to think about this carefully...',
     thinking_millsec: 5000,
@@ -194,13 +194,13 @@ describe('ThinkingBlock', () => {
 
     it('should show copy button only when thinking is complete', () => {
       // When thinking (streaming)
-      const thinkingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const thinkingBlock = createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.STREAMING })
       const { rerender } = renderThinkingBlock(thinkingBlock)
 
       expect(getCopyButton()).not.toBeInTheDocument()
 
       // When thinking is complete
-      const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+      const completedBlock = createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.SUCCESS })
       rerender(<ThinkingBlock block={completedBlock} />)
 
       expect(getCopyButton()).toBeInTheDocument()
@@ -218,7 +218,7 @@ describe('ThinkingBlock', () => {
       // Completed thinking
       const completedBlock = createThinkingBlock({
         thinking_millsec: 3500,
-        status: MessageBlockStatus.SUCCESS
+        status: MESSAGE_BLOCK_STATUS.SUCCESS
       })
       const { unmount } = renderThinkingBlock(completedBlock)
 
@@ -230,7 +230,7 @@ describe('ThinkingBlock', () => {
       // Active thinking
       const thinkingBlock = createThinkingBlock({
         thinking_millsec: 1000,
-        status: MessageBlockStatus.STREAMING
+        status: MESSAGE_BLOCK_STATUS.STREAMING
       })
       renderThinkingBlock(thinkingBlock)
 
@@ -248,7 +248,7 @@ describe('ThinkingBlock', () => {
       testCases.forEach(({ thinking_millsec, expectedTime }) => {
         const block = createThinkingBlock({
           thinking_millsec,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         })
         const { unmount } = renderThinkingBlock(block)
         expect(getThinkingTimeText()).toHaveTextContent(expectedTime)
@@ -262,7 +262,7 @@ describe('ThinkingBlock', () => {
       testCases.forEach((thinking_millsec) => {
         const block = createThinkingBlock({
           thinking_millsec: thinking_millsec as any,
-          status: MessageBlockStatus.SUCCESS
+          status: MESSAGE_BLOCK_STATUS.SUCCESS
         })
         const { unmount } = renderThinkingBlock(block)
         expect(getThinkingTimeText()).toHaveTextContent('0.1s')
@@ -307,14 +307,14 @@ describe('ThinkingBlock', () => {
         thoughtAutoCollapse: true
       })
 
-      const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const streamingBlock = createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.STREAMING })
       const { rerender } = renderThinkingBlock(streamingBlock)
 
       // With thoughtAutoCollapse enabled, it should be collapsed even while thinking
       expect(getThinkingContent()).not.toBeInTheDocument()
 
       // Stop thinking
-      const completedBlock = createThinkingBlock({ status: MessageBlockStatus.SUCCESS })
+      const completedBlock = createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.SUCCESS })
       rerender(<ThinkingBlock block={completedBlock} />)
 
       // Should remain collapsed after thinking completes
@@ -375,13 +375,13 @@ describe('ThinkingBlock', () => {
     })
 
     it('should handle rapid status changes gracefully', () => {
-      const block = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
+      const block = createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.STREAMING })
       const { rerender } = renderThinkingBlock(block)
 
       // Rapidly toggle between states
       for (let i = 0; i < 3; i++) {
-        rerender(<ThinkingBlock block={createThinkingBlock({ status: MessageBlockStatus.STREAMING })} />)
-        rerender(<ThinkingBlock block={createThinkingBlock({ status: MessageBlockStatus.SUCCESS })} />)
+        rerender(<ThinkingBlock block={createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.STREAMING })} />)
+        rerender(<ThinkingBlock block={createThinkingBlock({ status: MESSAGE_BLOCK_STATUS.SUCCESS })} />)
       }
 
       // Should still render correctly

@@ -1,13 +1,19 @@
 import * as z from 'zod'
 
-export type ToolType = 'builtin' | 'provider' | 'mcp'
+const ToolTypeSchema = z.enum(['builtin', 'provider', 'mcp'])
 
-export interface BaseTool {
-  id: string
-  name: string
-  description?: string
-  type: ToolType
+export type ToolType = z.infer<typeof ToolTypeSchema>
+
+const BaseToolSchemaConfig = {
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  type: ToolTypeSchema
 }
+
+export const BaseToolSchema = z.object(BaseToolSchemaConfig)
+
+export type BaseTool = z.infer<typeof BaseToolSchema>
 
 // export interface ToolCallResponse {
 //   id: string
@@ -44,19 +50,23 @@ export const MCPToolInputSchema = z
     return schema
   })
 
-export interface BuiltinTool extends BaseTool {
-  inputSchema: z.infer<typeof MCPToolInputSchema>
-  type: 'builtin'
-}
+const BuiltinToolSchema = z.object({
+  ...BaseToolSchemaConfig,
+  type: z.literal('builtin'),
+  inputSchema: MCPToolInputSchema
+})
 
-export interface MCPTool extends BaseTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: z.infer<typeof MCPToolInputSchema>
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
-  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
-  type: 'mcp'
-}
+export type BuiltinTool = z.infer<typeof BuiltinToolSchema>
+
+export const MCPToolSchema = z.object({
+  ...BaseToolSchemaConfig,
+  type: z.literal('mcp'),
+  serverId: z.string(),
+  serverName: z.string(),
+  inputSchema: MCPToolInputSchema,
+  outputSchema: MCPToolOutputSchema.optional(),
+  /** Identifies whether it's a built-in tool. Built-in tools don't need to be called via the MCP protocol */
+  isBuiltIn: z.boolean().optional()
+})
+
+export type MCPTool = z.infer<typeof MCPToolSchema>

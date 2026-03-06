@@ -1,172 +1,267 @@
 import type { CompletionUsage } from '@cherrystudio/openai/resources'
 import type { ProviderMetadata } from 'ai'
+import * as z from 'zod'
 
-import type {
-  Assistant,
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  MCPServer,
-  MCPToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  NormalToolResponse,
-  Topic,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
+import {
+  type Assistant,
+  type FileMetadata,
+  FileMetadataSchema,
+  type GenerateImageResponse,
+  GenerateImageResponseSchema,
+  KnowledgeReferenceSchema,
+  type MCPServer,
+  type MCPToolResponse,
+  MCPToolResponseSchema,
+  MemoryItemSchema,
+  type Metrics,
+  type Model,
+  ModelSchema,
+  NormalToolResponseSchema,
+  objectValues,
+  type Topic,
+  type Usage,
+  type WebSearchResponse,
+  WebSearchResponseSchema,
+  WebSearchSourceSchema
 } from '.'
-import type { SerializedError } from './error'
+import { SerializedErrorSchema } from './error'
 
-// MessageBlock 类型枚举 - 根据实际API返回特性优化
-export enum MessageBlockType {
-  UNKNOWN = 'unknown', // 未知类型，用于返回之前
-  MAIN_TEXT = 'main_text', // 主要文本内容
-  THINKING = 'thinking', // 思考过程（Claude、OpenAI-o系列等）
-  TRANSLATION = 'translation', // Re-added
-  IMAGE = 'image', // 图片内容
-  CODE = 'code', // 代码块
-  TOOL = 'tool', // Added unified tool block type
-  FILE = 'file', // 文件内容
-  ERROR = 'error', // 错误信息
-  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
-  VIDEO = 'video', // 视频内容
-  COMPACT = 'compact' // Compact command response
-}
+// MessageBlock type enum - optimized based on actual API return characteristics
+export const MESSAGE_BLOCK_TYPE = {
+  /** Unknown type, used before returning */
+  UNKNOWN: 'unknown',
+  /** Main text content */
+  MAIN_TEXT: 'main_text',
+  /** Thinking process (Claude, OpenAI-o series, etc.) */
+  THINKING: 'thinking',
+  /** Translation */
+  TRANSLATION: 'translation',
+  /** Image content */
+  IMAGE: 'image',
+  /** Code block */
+  CODE: 'code',
+  /** Added unified tool block type */
+  TOOL: 'tool',
+  /** File content */
+  FILE: 'file',
+  /** Error information */
+  ERROR: 'error',
+  /** Citation type (Now includes web search, grounding, etc.) */
+  CITATION: 'citation',
+  /** Video content */
+  VIDEO: 'video',
+  /** Compact command response */
+  COMPACT: 'compact'
+} as const
+
+export const MessageBlockTypeSchema = z.enum(objectValues(MESSAGE_BLOCK_TYPE))
+
+export type MessageBlockType = z.infer<typeof MessageBlockTypeSchema>
 
 // 块状态定义
-export enum MessageBlockStatus {
-  PENDING = 'pending', // 等待处理
-  PROCESSING = 'processing', // 正在处理，等待接收
-  STREAMING = 'streaming', // 正在流式接收
-  SUCCESS = 'success', // 处理成功
-  ERROR = 'error', // 处理错误
-  PAUSED = 'paused' // 处理暂停
+export const MESSAGE_BLOCK_STATUS = {
+  PENDING: 'pending', // 等待处理
+  PROCESSING: 'processing', // 正在处理，等待接收
+  STREAMING: 'streaming', // 正在流式接收
+  SUCCESS: 'success', // 处理成功
+  ERROR: 'error', // 处理错误
+  PAUSED: 'paused' // 处理暂停
+} as const
+
+export const MessageBlockStatusSchema = z.enum(objectValues(MESSAGE_BLOCK_STATUS))
+
+export type MessageBlockStatus = z.infer<typeof MessageBlockStatusSchema>
+
+export const BaseMessageBlockSchemaConfig = {
+  /** Block ID */
+  id: z.string(),
+  /** ID of the message this block belongs to */
+  messageId: z.string(),
+  /** Type of the block */
+  type: MessageBlockTypeSchema,
+  /** Creation time */
+  createdAt: z.string(),
+  /** Last update time */
+  updatedAt: z.string().optional(),
+  /** Status of the block */
+  status: MessageBlockStatusSchema,
+  /** Model used for this block */
+  model: ModelSchema.optional(),
+  /** General metadata */
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  /** Serializable error object instead of AISDKError */
+  error: SerializedErrorSchema.optional()
 }
 
-// BaseMessageBlock 基础类型 - 更简洁，只包含必要通用属性
-export interface BaseMessageBlock {
-  id: string // 块ID
-  messageId: string // 所属消息ID
-  type: MessageBlockType // 块类型
-  createdAt: string // 创建时间
-  updatedAt?: string // 更新时间
-  status: MessageBlockStatus // 块状态
-  model?: Model // 使用的模型
-  metadata?: Record<string, any> // 通用元数据
-  error?: SerializedError // Serializable error object instead of AISDKError
-}
+const BaseMessageBlockSchema = z.object(BaseMessageBlockSchemaConfig)
 
-export interface PlaceholderMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.UNKNOWN
-}
+// BaseMessageBlock base type - more concise, containing only essential common properties
+export type BaseMessageBlock = z.infer<typeof BaseMessageBlockSchema>
+
+const PlaceholderMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.UNKNOWN)
+})
+
+export type PlaceholderMessageBlock = z.infer<typeof PlaceholderMessageBlockSchema>
 
 // 主文本块 - 核心内容
-export interface MainTextMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.MAIN_TEXT
-  content: string
-  knowledgeBaseIds?: string[]
-  // Citation references
-  citationReferences?: {
-    citationBlockId?: string
-    citationBlockSource?: WebSearchSource
-  }[]
-}
+const MainTextMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.MAIN_TEXT),
+  content: z.string(),
+  knowledgeBaseIds: z.array(z.string()).optional(),
+  citationReferences: z
+    .array(
+      z.object({
+        citationBlockId: z.string().optional(),
+        citationBlockSource: WebSearchSourceSchema.optional()
+      })
+    )
+    .optional()
+})
+
+export type MainTextMessageBlock = z.infer<typeof MainTextMessageBlockSchema>
 
 // 思考块 - 模型推理过程
-export interface ThinkingMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.THINKING
-  content: string
-  thinking_millsec: number
-}
+const ThinkingMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.THINKING),
+  content: z.string(),
+  thinking_millsec: z.number()
+})
+
+export type ThinkingMessageBlock = z.infer<typeof ThinkingMessageBlockSchema>
 
 // 翻译块
-export interface TranslationMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.TRANSLATION
-  content: string
-  sourceBlockId?: string // Optional: ID of the block that was translated
-  sourceLanguage?: string
-  targetLanguage: string
-}
+const TranslationMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.TRANSLATION),
+  content: z.string(),
+  /** ID of the block that was translated */
+  sourceBlockId: z.string().optional(),
+  sourceLanguage: z.string().optional(),
+  targetLanguage: z.string()
+})
+
+export type TranslationMessageBlock = z.infer<typeof TranslationMessageBlockSchema>
 
 // 代码块 - 专门处理代码
-export interface CodeMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.CODE
-  content: string
-  language: string // 代码语言
-}
+const CodeMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.CODE),
+  content: z.string(),
+  /** Coding language */
+  language: z.string()
+})
 
-export interface ImageMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.IMAGE
-  url?: string // For generated images or direct links
-  file?: FileMetadata // For user uploaded image files
-  metadata?: BaseMessageBlock['metadata'] & {
-    prompt?: string
-    negativePrompt?: string
-    generateImageResponse?: GenerateImageResponse
-  }
-}
+export type CodeMessageBlock = z.infer<typeof CodeMessageBlockSchema>
+
+const ImageMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.IMAGE),
+  url: z.string().optional(),
+  file: FileMetadataSchema.optional(),
+  metadata: z
+    .object({
+      prompt: z.string().optional(),
+      negativePrompt: z.string().optional(),
+      generateImageResponse: GenerateImageResponseSchema.optional()
+    })
+    .catchall(z.unknown())
+    .optional()
+})
+
+// Added unified ImageBlock
+export type ImageMessageBlock = z.infer<typeof ImageMessageBlockSchema>
+
+const ToolMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.TOOL),
+  toolId: z.string(),
+  toolName: z.string().optional(),
+  arguments: z.record(z.string(), z.unknown()).optional(),
+  content: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+  metadata: z
+    .object({
+      rawMcpToolResponse: z.union([MCPToolResponseSchema, NormalToolResponseSchema]).optional()
+    })
+    .catchall(z.unknown())
+    .optional()
+})
 
 // Added unified ToolBlock
-export interface ToolMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.TOOL
-  toolId: string
-  toolName?: string
-  arguments?: Record<string, any>
-  content?: string | object
-  metadata?: BaseMessageBlock['metadata'] & {
-    rawMcpToolResponse?: MCPToolResponse | NormalToolResponse
-  }
-}
+export type ToolMessageBlock = z.infer<typeof ToolMessageBlockSchema>
 
 // Consolidated and Enhanced Citation Block
-export interface CitationMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.CITATION
-  response?: WebSearchResponse
-  knowledge?: KnowledgeReference[]
-  memories?: MemoryItem[]
-}
+const CitationMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.CITATION),
+  response: WebSearchResponseSchema.optional(),
+  knowledge: z.array(KnowledgeReferenceSchema).optional(),
+  memories: z.array(MemoryItemSchema).optional()
+})
+
+export type CitationMessageBlock = z.infer<typeof CitationMessageBlockSchema>
 
 // 文件块
-export interface FileMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.FILE
-  file: FileMetadata // 文件信息
-}
+const FileMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.FILE),
+  file: FileMetadataSchema
+})
+
+export type FileMessageBlock = z.infer<typeof FileMessageBlockSchema>
 
 // 视频块
-export interface VideoMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.VIDEO
-  url?: string // For generated video or direct links
-  filePath?: string // For user uploaded video files
-}
+const VideoMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.VIDEO),
+  // For generated video or direct links
+  url: z.string().optional(),
+  // For user uploaded video files
+  filePath: z.string().optional()
+})
+
+export type VideoMessageBlock = z.infer<typeof VideoMessageBlockSchema>
 
 // 错误块
-export interface ErrorMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.ERROR
-}
+const ErrorMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.ERROR)
+})
+
+export type ErrorMessageBlock = z.infer<typeof ErrorMessageBlockSchema>
 
 // Compact块 - 用于显示 /compact 命令的响应
-export interface CompactMessageBlock extends BaseMessageBlock {
-  type: MessageBlockType.COMPACT
-  content: string // 总结消息
-  compactedContent: string // 从 <local-command-stdout> 提取的内容
-}
+const CompactMessageBlockSchema = z.object({
+  ...BaseMessageBlockSchemaConfig,
+  type: z.literal(MESSAGE_BLOCK_TYPE.COMPACT),
+  // 总结消息
+  content: z.string(),
+  // 从 <local-command-stdout> 提取的内容
+  compactedContent: z.string()
+})
+
+export type CompactMessageBlock = z.infer<typeof CompactMessageBlockSchema>
 
 // MessageBlock 联合类型
-export type MessageBlock =
-  | PlaceholderMessageBlock
-  | MainTextMessageBlock
-  | ThinkingMessageBlock
-  | TranslationMessageBlock
-  | CodeMessageBlock
-  | ImageMessageBlock
-  | ToolMessageBlock
-  | FileMessageBlock
-  | ErrorMessageBlock
-  | CitationMessageBlock
-  | VideoMessageBlock
-  | CompactMessageBlock
+const MessageBlockSchema = z.discriminatedUnion('type', [
+  PlaceholderMessageBlockSchema,
+  MainTextMessageBlockSchema,
+  ThinkingMessageBlockSchema,
+  TranslationMessageBlockSchema,
+  CodeMessageBlockSchema,
+  ImageMessageBlockSchema,
+  ToolMessageBlockSchema,
+  FileMessageBlockSchema,
+  ErrorMessageBlockSchema,
+  CitationMessageBlockSchema,
+  VideoMessageBlockSchema,
+  CompactMessageBlockSchema
+])
+
+export type MessageBlock = z.infer<typeof MessageBlockSchema>
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

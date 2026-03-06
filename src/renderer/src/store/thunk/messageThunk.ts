@@ -37,7 +37,7 @@ import type {
 } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -490,7 +490,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
   const getBlocksFiles = async (blockIds: string[]) => {
     const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
     const files = blocks
-      .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+      .filter((block) => block.type === MESSAGE_BLOCK_TYPE.FILE || block.type === MESSAGE_BLOCK_TYPE.IMAGE)
       .map((block) => block.file)
       .filter((file): file is FileMetadata => file !== undefined)
     return isEmpty(files) ? [] : files
@@ -1394,7 +1394,7 @@ export const initiateTranslationThunk =
         '', // Start with empty content
         targetLanguage,
         {
-          status: MessageBlockStatus.STREAMING, // Set to STREAMING
+          status: MESSAGE_BLOCK_STATUS.STREAMING, // Set to STREAMING
           sourceBlockId,
           sourceLanguage
         }
@@ -1433,7 +1433,7 @@ export const updateTranslationBlockThunk =
   async (dispatch: AppDispatch) => {
     // Logger.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
     try {
-      const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
+      const status = isComplete ? MESSAGE_BLOCK_STATUS.SUCCESS : MESSAGE_BLOCK_STATUS.STREAMING
       const changes: Partial<MessageBlock> = {
         content: accumulatedText,
         status: status
@@ -1630,7 +1630,7 @@ export const cloneMessagesToNewTopicThunk =
               clonedBlocks.push(newBlock)
               newBlockIds.push(newBlockId)
 
-              if (newBlock.type === MessageBlockType.FILE || newBlock.type === MessageBlockType.IMAGE) {
+              if (newBlock.type === MESSAGE_BLOCK_TYPE.FILE || newBlock.type === MESSAGE_BLOCK_TYPE.IMAGE) {
                 const fileInfo = (newBlock as FileMessageBlock | ImageMessageBlock).file
                 if (fileInfo) {
                   filesToUpdateCount.push(fileInfo)

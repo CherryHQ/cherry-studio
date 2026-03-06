@@ -19,7 +19,7 @@ import {
 } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
@@ -347,6 +347,7 @@ export function processKnowledgeReferences(
           type: ChunkType.VIDEO_SEARCHED,
           video: {
             type: 'path',
+            // @ts-ignore FIXME: type validation is bypassed
             content: metadata.source
           },
           metadata
@@ -469,11 +470,11 @@ export const createKnowledgeReferencesBlock = async ({
   const citationBlock = createCitationBlock(
     assistantMsgId,
     { knowledge: knowledgeReferences },
-    { status: MessageBlockStatus.SUCCESS }
+    { status: MESSAGE_BLOCK_STATUS.SUCCESS }
   )
 
   // 处理引用块
-  blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+  blockManager.handleBlockTransition(citationBlock, MESSAGE_BLOCK_TYPE.CITATION)
 
   // 设置引用块ID
   setCitationBlockId(citationBlock.id)

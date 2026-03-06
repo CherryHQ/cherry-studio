@@ -123,6 +123,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   // Format tool responses for collapse items
   const getCollapseItems = (): { key: string; label: React.ReactNode; children: React.ReactNode }[] => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
+    // @ts-ignore FIXME: type validation is bypassed
     const hasError = response?.isError === true
     const result = {
       params: toolResponse.arguments,

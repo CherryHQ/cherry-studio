@@ -1,7 +1,7 @@
 import 'katex/dist/katex.min.css'
 
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS, MESSAGE_BLOCK_TYPE } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -169,8 +169,8 @@ describe('Markdown', () => {
   const createMainTextBlock = (overrides: Partial<MainTextMessageBlock> = {}): MainTextMessageBlock => ({
     id: 'test-block-1',
     messageId: 'test-message-1',
-    type: MessageBlockType.MAIN_TEXT,
-    status: MessageBlockStatus.SUCCESS,
+    type: MESSAGE_BLOCK_TYPE.MAIN_TEXT,
+    status: MESSAGE_BLOCK_STATUS.SUCCESS,
     createdAt: new Date().toISOString(),
     content: '# Test Markdown\n\nThis is **bold** text.',
     ...overrides
@@ -203,7 +203,7 @@ describe('Markdown', () => {
     it('should show paused message when content is empty and status is paused', () => {
       const block = createMainTextBlock({
         content: '',
-        status: MessageBlockStatus.PAUSED
+        status: MESSAGE_BLOCK_STATUS.PAUSED
       })
       render(<Markdown block={block} />)
 
@@ -214,7 +214,7 @@ describe('Markdown', () => {
     it('should prioritize actual content over paused status', () => {
       const block = createMainTextBlock({
         content: 'Real content',
-        status: MessageBlockStatus.PAUSED
+        status: MESSAGE_BLOCK_STATUS.PAUSED
       })
       render(<Markdown block={block} />)
 
@@ -241,8 +241,8 @@ describe('Markdown', () => {
         block: {
           id: 'thinking-1',
           messageId: 'msg-1',
-          type: MessageBlockType.THINKING,
-          status: MessageBlockStatus.SUCCESS,
+          type: MESSAGE_BLOCK_TYPE.THINKING,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           createdAt: new Date().toISOString(),
           content: 'Thinking content',
           thinking_millsec: 5000
@@ -254,8 +254,8 @@ describe('Markdown', () => {
         block: {
           id: 'translation-1',
           messageId: 'msg-1',
-          type: MessageBlockType.TRANSLATION,
-          status: MessageBlockStatus.SUCCESS,
+          type: MESSAGE_BLOCK_TYPE.TRANSLATION,
+          status: MESSAGE_BLOCK_STATUS.SUCCESS,
           createdAt: new Date().toISOString(),
           content: 'Translated content',
           targetLanguage: 'en'

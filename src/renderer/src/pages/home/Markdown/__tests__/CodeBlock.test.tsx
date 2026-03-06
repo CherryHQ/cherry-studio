@@ -1,4 +1,4 @@
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,7 +84,7 @@ describe('CodeBlock', () => {
     mocks.isOpenFenceBlock.mockReturnValue(false)
     mocks.selectById.mockReturnValue({
       id: 'test-msg-block-id',
-      status: MessageBlockStatus.SUCCESS
+      status: MESSAGE_BLOCK_STATUS.SUCCESS
     })
   })
 

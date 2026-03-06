@@ -3,7 +3,7 @@ import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
-import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
+import { type CitationMessageBlock, MESSAGE_BLOCK_STATUS } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -52,7 +52,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     }
   }
 
-  if (block.status === MessageBlockStatus.PROCESSING) {
+  if (block.status === MESSAGE_BLOCK_STATUS.PROCESSING) {
     return <Spinner text={getWebSearchStatusText(userMessageId)} />
   }
 
@@ -62,7 +62,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
 
   return (
     <>
-      {block.status === MessageBlockStatus.SUCCESS &&
+      {block.status === MESSAGE_BLOCK_STATUS.SUCCESS &&
         (hasGeminiBlock ? (
           <>
             <CitationsList citations={formattedCitations} />
