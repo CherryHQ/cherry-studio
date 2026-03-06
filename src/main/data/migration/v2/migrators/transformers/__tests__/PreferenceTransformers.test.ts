@@ -218,7 +218,7 @@ describe('PreferenceTransformers', () => {
 
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
-        tavily: { apiKey: 'key1', apiHost: 'https://api.tavily.com' }
+        tavily: { apiKey: 'key1' }
       })
     })
 
@@ -244,6 +244,29 @@ describe('PreferenceTransformers', () => {
           basicAuthUsername: 'user',
           basicAuthPassword: 'pass'
         }
+      })
+    })
+
+    it('should omit apiHost when it matches preset default host', () => {
+      const result = migrateWebSearchProviders({
+        providers: [
+          { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
+          { id: 'local-baidu', name: 'Baidu', url: 'https://www.baidu.com/s?wd=%s' }
+        ]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({})
+    })
+
+    it('should keep apiHost for unknown providers without presets', () => {
+      const result = migrateWebSearchProviders({
+        providers: [{ id: 'custom-provider', name: 'Custom', apiHost: 'https://custom.example.com/search' }]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        'custom-provider': { apiHost: 'https://custom.example.com/search' }
       })
     })
   })

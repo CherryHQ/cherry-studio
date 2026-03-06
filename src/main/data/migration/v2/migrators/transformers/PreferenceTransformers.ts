@@ -153,7 +153,11 @@
  * ```
  */
 
-import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
+import {
+  PRESETS_WEB_SEARCH_PROVIDERS,
+  type WebSearchProviderOverride,
+  type WebSearchProviderOverrides
+} from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
@@ -285,31 +289,29 @@ interface OldWebSearchProvider {
 }
 
 /**
- * Migrate websearch providers array, adding missing fields.
+ * Migrate websearch providers array into layered provider overrides.
  *
- * The old Redux data doesn't have 'type' field, which is required by the new system.
- * This function:
- * - Adds 'type' field based on provider id (local-* = 'local', exa-mcp = 'mcp', others = 'api')
- * - Adds missing fields with default values (engines, usingBrowser, etc.)
+ * This function keeps only user-customized values that differ from preset defaults.
+ * Fields that match preset values are dropped to keep `provider_overrides` minimal.
  *
  * @example
  * Input: {
  *   providers: [
- *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: '...' },
- *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: '...' },
- *     { id: 'local-google', name: 'Google', url: '...' }
+ *     { id: 'tavily', name: 'Tavily', apiKey: '...', apiHost: 'https://api.tavily.com' },
+ *     { id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' },
+ *     { id: 'local-google', name: 'Google', url: 'https://custom.google.proxy/search?q=%s' }
  *   ]
  * }
  * Output: {
  *   'chat.web_search.provider_overrides': {
- *     tavily: { apiKey: '...', apiHost: '...' },
- *     'exa-mcp': { apiHost: '...' },
- *     'local-google': { apiHost: '...' }
+ *     tavily: { apiKey: '...' },
+ *     'local-google': { apiHost: 'https://custom.google.proxy/search?q=%s' }
  *   }
  * }
  */
 export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
   const providers = sources.providers
+  const presetById = new Map(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => [preset.id, preset]))
 
   if (!providers || !Array.isArray(providers)) {
     return {
@@ -321,6 +323,7 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
   providers.forEach((provider) => {
     const override: WebSearchProviderOverride = {}
+    const preset = presetById.get(provider.id)
 
     const apiKey = provider.apiKey?.trim()
     if (apiKey) {
@@ -329,7 +332,7 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
     const apiHost = rawApiHost?.trim()
-    if (apiHost) {
+    if (apiHost && (!preset || apiHost !== preset.defaultApiHost)) {
       override.apiHost = apiHost
     }
 
