@@ -1,4 +1,4 @@
-import { EndpointType, ModelCapability } from '@cherrystudio/provider-catalog'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
 import type { Model as LegacyModel, Provider as LegacyProvider, ProviderType as LegacyProviderType } from '@types'
 import { describe, expect, it } from 'vitest'
 
@@ -48,13 +48,13 @@ describe('transformProvider', () => {
     expect(result.providerId).toBe('openai')
     expect(result.presetProviderId).toBe('openai')
     expect(result.name).toBe('OpenAI')
-    expect(result.defaultChatEndpoint).toBe(EndpointType.CHAT_COMPLETIONS)
+    expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.CHAT_COMPLETIONS)
     expect(result.isEnabled).toBe(true)
     expect(result.sortOrder).toBe(0)
 
     // baseUrls should map apiHost to the correct endpoint key
     expect(result.baseUrls).toEqual({
-      [EndpointType.CHAT_COMPLETIONS]: 'https://api.openai.com/v1'
+      [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.openai.com/v1'
     })
 
     // apiKeys should be parsed from the comma-separated string
@@ -75,9 +75,9 @@ describe('transformProvider', () => {
 
     const result = transformProvider(legacy, {}, 1)
 
-    expect(result.defaultChatEndpoint).toBe(EndpointType.MESSAGES)
+    expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.MESSAGES)
     // anthropicApiHost should override the messages endpoint
-    expect(result.baseUrls?.[EndpointType.MESSAGES]).toBe('https://custom-anthropic.example.com')
+    expect(result.baseUrls?.[ENDPOINT_TYPE.MESSAGES]).toBe('https://custom-anthropic.example.com')
   })
 
   it('should split comma-separated API keys', () => {
@@ -332,13 +332,13 @@ describe('transformProvider', () => {
 
   describe('endpoint mapping', () => {
     const cases: Array<[LegacyProviderType, EndpointType]> = [
-      ['openai', EndpointType.CHAT_COMPLETIONS],
-      ['openai-response', EndpointType.RESPONSES],
-      ['anthropic', EndpointType.MESSAGES],
-      ['gemini', EndpointType.GENERATE_CONTENT],
-      ['ollama', EndpointType.OLLAMA_CHAT],
-      ['new-api', EndpointType.CHAT_COMPLETIONS],
-      ['gateway', EndpointType.CHAT_COMPLETIONS]
+      ['openai', ENDPOINT_TYPE.CHAT_COMPLETIONS],
+      ['openai-response', ENDPOINT_TYPE.RESPONSES],
+      ['anthropic', ENDPOINT_TYPE.MESSAGES],
+      ['gemini', ENDPOINT_TYPE.GENERATE_CONTENT],
+      ['ollama', ENDPOINT_TYPE.OLLAMA_CHAT],
+      ['new-api', ENDPOINT_TYPE.CHAT_COMPLETIONS],
+      ['gateway', ENDPOINT_TYPE.CHAT_COMPLETIONS]
     ]
 
     it.each(cases)('should map provider type "%s" to endpoint %s', (type, expectedEndpoint) => {
@@ -397,11 +397,11 @@ describe('transformModel', () => {
     const result = transformModel(legacy, 'test', 0)
 
     expect(result.capabilities).toEqual([
-      ModelCapability.IMAGE_RECOGNITION,
-      ModelCapability.REASONING,
-      ModelCapability.FUNCTION_CALL,
-      ModelCapability.EMBEDDING,
-      ModelCapability.WEB_SEARCH
+      MODEL_CAPABILITY.IMAGE_RECOGNITION,
+      MODEL_CAPABILITY.REASONING,
+      MODEL_CAPABILITY.FUNCTION_CALL,
+      MODEL_CAPABILITY.EMBEDDING,
+      MODEL_CAPABILITY.WEB_SEARCH
     ])
   })
 
@@ -412,7 +412,7 @@ describe('transformModel', () => {
 
     const result = transformModel(legacy, 'test', 0)
 
-    expect(result.capabilities).toEqual([ModelCapability.IMAGE_RECOGNITION])
+    expect(result.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
   })
 
   it('should return null capabilities when empty or absent', () => {
@@ -427,7 +427,7 @@ describe('transformModel', () => {
 
     const result = transformModel(legacy, 'test', 0)
 
-    expect(result.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS, EndpointType.MESSAGES])
+    expect(result.endpointTypes).toEqual([ENDPOINT_TYPE.CHAT_COMPLETIONS, ENDPOINT_TYPE.MESSAGES])
   })
 
   it('should fall back to single endpoint_type when supported_endpoint_types is absent', () => {
@@ -438,7 +438,7 @@ describe('transformModel', () => {
 
     const result = transformModel(legacy, 'test', 0)
 
-    expect(result.endpointTypes).toEqual([EndpointType.GENERATE_CONTENT])
+    expect(result.endpointTypes).toEqual([ENDPOINT_TYPE.GENERATE_CONTENT])
   })
 
   it('should return null endpointTypes when none set', () => {

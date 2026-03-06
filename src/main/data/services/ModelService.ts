@@ -45,7 +45,7 @@ function rowToRuntimeModel(row: UserModel): Model {
     endpointTypes: (row.endpointTypes ?? undefined) as EndpointType[] | undefined,
     supportsStreaming: row.supportsStreaming ?? true,
     reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
-    parameters: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
+    parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: (row.pricing ?? undefined) as RuntimeModelPricing | undefined,
     isEnabled: row.isEnabled ?? true,
     isHidden: row.isHidden ?? false
@@ -167,7 +167,7 @@ export class ModelService {
         maxOutputTokens: merged.maxOutputTokens ?? null,
         supportsStreaming: merged.supportsStreaming,
         reasoning: merged.reasoning ?? null,
-        parameters: merged.parameters ?? null,
+        parameters: merged.parameterSupport ?? null,
         pricing: merged.pricing ?? null
       }
 
@@ -193,7 +193,7 @@ export class ModelService {
         maxOutputTokens: dto.maxOutputTokens ?? null,
         supportsStreaming: dto.supportsStreaming ?? null,
         reasoning: dto.reasoning ?? null,
-        parameters: dto.parameters ?? null,
+        parameters: dto.parameterSupport ?? null,
         pricing: dto.pricing ?? null
       }
 

@@ -58,7 +58,7 @@ export const ProviderModelOverrideSchema = z.object({
     .optional(),
   pricing: ModelPricingSchema.partial().optional(),
   reasoning: ReasoningSchema.optional(),
-  parameters: ParameterSupportSchema.partial().optional(),
+  parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)
   endpointTypes: z.array(EndpointTypeSchema).optional(),

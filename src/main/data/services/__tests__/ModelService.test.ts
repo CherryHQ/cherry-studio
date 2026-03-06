@@ -108,7 +108,7 @@ function makeMergedModel(providerId = 'openai', modelId = 'gpt-4o') {
     endpointTypes: undefined,
     supportsStreaming: true,
     reasoning: undefined,
-    parameters: undefined,
+    parameterSupport: undefined,
     pricing: undefined,
     isEnabled: true,
     isHidden: false
@@ -616,7 +616,7 @@ describe('ModelService', () => {
         maxOutputTokens: 4096,
         supportsStreaming: true,
         reasoning: { type: 'enabled', budgetToken: 1024 } as any,
-        parameters: { temperature: { min: 0, max: 2, default: 1 } } as any,
+        parameterSupport: { temperature: { min: 0, max: 2, default: 1 } } as any,
         pricing: { inputTokens: 0.01, outputTokens: 0.03 } as any
       })
 
@@ -678,13 +678,13 @@ describe('ModelService', () => {
         ...makeMergedModel(),
         description: 'Merged description',
         group: 'Merged Group',
-        inputModalities: ['TEXT', 'VISION'],
+        inputModalities: ['TEXT', 'IMAGE'],
         outputModalities: ['TEXT'],
         endpointTypes: ['chat'],
         contextWindow: 200000,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 2048 },
-        parameters: { temperature: { min: 0, max: 2, default: 0.7 } },
+        parameterSupport: { temperature: { min: 0, max: 2, default: 0.7 } },
         pricing: { inputTokens: 0.005, outputTokens: 0.015 }
       }
 
@@ -705,7 +705,7 @@ describe('ModelService', () => {
       const v = insertValues as Record<string, unknown>
       expect(v.description).toBe('Merged description')
       expect(v.group).toBe('Merged Group')
-      expect(v.inputModalities).toEqual(['TEXT', 'VISION'])
+      expect(v.inputModalities).toEqual(['TEXT', 'IMAGE'])
       expect(v.outputModalities).toEqual(['TEXT'])
       expect(v.endpointTypes).toEqual(['chat'])
       expect(v.contextWindow).toBe(200000)
@@ -1200,15 +1200,15 @@ describe('ModelService', () => {
       expect(model.reasoning).toEqual(reasoningConfig)
     })
 
-    it('maps parameters to undefined when null in DB', async () => {
+    it('maps parameterSupport to undefined when null in DB', async () => {
       const model = await getModelFromRow({ parameters: null })
-      expect(model.parameters).toBeUndefined()
+      expect(model.parameterSupport).toBeUndefined()
     })
 
-    it('maps parameters when set', async () => {
+    it('maps parameterSupport when set', async () => {
       const params = { temperature: { min: 0, max: 2, default: 1 } }
       const model = await getModelFromRow({ parameters: params })
-      expect(model.parameters).toEqual(params)
+      expect(model.parameterSupport).toEqual(params)
     })
 
     it('maps pricing when set', async () => {

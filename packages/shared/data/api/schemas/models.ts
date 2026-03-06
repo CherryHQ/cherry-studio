@@ -56,7 +56,7 @@ const CreateModelDtoSchema = z.object({
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support (DB form) */
-  parameters: ParameterSupportDbSchema.optional(),
+  parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })

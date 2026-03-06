@@ -47,7 +47,7 @@ function mapInputModalities(modalities: string[]): string[] {
         mapped.push('TEXT')
         break
       case 'image':
-        mapped.push('VISION')
+        mapped.push('IMAGE')
         break
       case 'audio':
         mapped.push('AUDIO')
@@ -71,7 +71,7 @@ function mapOutputModalities(modalities: string[]): string[] {
         mapped.push('TEXT')
         break
       case 'image':
-        mapped.push('VISION')
+        mapped.push('IMAGE')
         break
       case 'audio':
         mapped.push('AUDIO')

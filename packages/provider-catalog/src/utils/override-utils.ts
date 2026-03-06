@@ -70,8 +70,8 @@ export function applyOverrides(baseModel: ModelConfig, override: ProviderModelOv
     // Apply reasoning override
     ...(override.reasoning && { reasoning: override.reasoning }),
     // Apply parameter support overrides (merge with base)
-    ...(override.parameters && {
-      parameters: { ...baseModel.parameters, ...override.parameters }
+    ...(override.parameterSupport && {
+      parameterSupport: { ...baseModel.parameterSupport, ...override.parameterSupport }
     })
   }
 }
@@ -179,9 +179,9 @@ export function generateOverride(
   }
 
   // Compare parameters
-  const paramsDiff = compareParameters(baseModel.parameters, providerModel.parameters)
+  const paramsDiff = compareParameters(baseModel.parameterSupport, providerModel.parameterSupport)
   if (paramsDiff) {
-    override.parameters = paramsDiff
+    override.parameterSupport = paramsDiff
     hasChanges = true
   }
 
@@ -322,7 +322,7 @@ export function mergeOverrides(
     limits: existing.limits || generated.limits,
     pricing: isManual ? existing.pricing : generated.pricing, // Pricing always from latest unless manual
     reasoning: existing.reasoning || generated.reasoning,
-    parameters: { ...generated.parameters, ...existing.parameters },
+    parameterSupport: { ...generated.parameterSupport, ...existing.parameterSupport },
 
     disabled: existing.disabled,
     replaceWith: existing.replaceWith,
@@ -375,7 +375,7 @@ function isOverrideRedundant(override: ProviderModelOverride, base: ModelConfig)
   }
   if (override.pricing && !deepEqual(override.pricing, base.pricing)) hasNonMatchingField = true
   if (override.reasoning && !deepEqual(override.reasoning, base.reasoning)) hasNonMatchingField = true
-  if (override.parameters) hasNonMatchingField = true
+  if (override.parameterSupport) hasNonMatchingField = true
 
   return !hasNonMatchingField
 }

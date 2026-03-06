@@ -29512,7 +29512,7 @@
         "contextWindow": 1048576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29524,7 +29524,7 @@
         "contextWindow": 1048576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29536,7 +29536,7 @@
         "contextWindow": 1048576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29548,7 +29548,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29561,7 +29561,7 @@
         "maxOutputTokens": 4096
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29577,7 +29577,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29593,7 +29593,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29609,7 +29609,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29625,7 +29625,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29706,7 +29706,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29719,7 +29719,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29742,7 +29742,7 @@
         "maxOutputTokens": 4096
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29755,7 +29755,7 @@
         "contextWindow": 10000000
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29801,7 +29801,7 @@
         "maxOutputTokens": 4096
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29816,7 +29816,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29828,7 +29828,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29868,7 +29868,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29896,7 +29896,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -29970,7 +29970,7 @@
         "maxOutputTokens": 4096
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["AUDIO", "VISION", "TEXT"],
+      "inputModalities": ["AUDIO", "IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -31565,7 +31565,7 @@
         "contextWindow": 32768
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "hyperbolic",
@@ -31606,7 +31606,7 @@
         "contextWindow": 32768
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "hyperbolic",
@@ -31618,7 +31618,7 @@
         "contextWindow": 32768
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "hyperbolic",
@@ -32754,7 +32754,7 @@
       "modelId": "devstral-small-latest",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32764,7 +32764,7 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32781,7 +32781,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32794,7 +32794,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32804,7 +32804,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32814,7 +32814,7 @@
         "type": "openai-chat"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32826,7 +32826,7 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32838,7 +32838,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32850,7 +32850,7 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32862,7 +32862,7 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32874,7 +32874,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32886,7 +32886,7 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32898,7 +32898,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32930,28 +32930,28 @@
         "contextWindow": 262144
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
       "modelId": "mistral-large-latest",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
       "modelId": "mistral-large-pixtral-2411",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
       "modelId": "mistral-medium-2505",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32961,7 +32961,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32971,7 +32971,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -32989,19 +32989,19 @@
       "providerId": "mistral",
       "modelId": "mistral-ocr-2505",
       "priority": 0,
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
       "modelId": "mistral-ocr-2512",
       "priority": 0,
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
       "modelId": "mistral-ocr-latest",
       "priority": 0,
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -33011,7 +33011,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -33021,7 +33021,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -33049,7 +33049,7 @@
       "modelId": "mistral-vibe-cli-with-tools",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -33070,7 +33070,7 @@
       "modelId": "pixtral-large-2411",
       "priority": 0,
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -33080,7 +33080,7 @@
         "contextWindow": 131072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "mistral",
@@ -39863,8 +39863,8 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
-      "outputModalities": ["TEXT", "VISION"]
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
+      "outputModalities": ["TEXT", "IMAGE"]
     },
     {
       "providerId": "openrouter",
@@ -39952,7 +39952,7 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -39972,7 +39972,7 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -39984,7 +39984,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -39997,7 +39997,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40009,7 +40009,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40032,7 +40032,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40044,7 +40044,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40056,7 +40056,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40079,7 +40079,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40105,7 +40105,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40121,7 +40121,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40147,7 +40147,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40174,7 +40174,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40886,7 +40886,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40902,7 +40902,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40925,7 +40925,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40948,7 +40948,7 @@
         "contextWindow": 1048576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40965,7 +40965,7 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -40991,7 +40991,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "AUDIO", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41011,8 +41011,8 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
-      "outputModalities": ["VISION", "TEXT"]
+      "inputModalities": ["IMAGE", "TEXT"],
+      "outputModalities": ["IMAGE", "TEXT"]
     },
     {
       "providerId": "openrouter",
@@ -41034,7 +41034,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41061,7 +41061,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41084,7 +41084,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41096,7 +41096,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "AUDIO"],
+      "inputModalities": ["IMAGE", "TEXT", "AUDIO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41122,7 +41122,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41152,7 +41152,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["AUDIO", "VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["AUDIO", "IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41178,7 +41178,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41205,8 +41205,8 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
-      "outputModalities": ["VISION", "TEXT"]
+      "inputModalities": ["IMAGE", "TEXT"],
+      "outputModalities": ["IMAGE", "TEXT"]
     },
     {
       "providerId": "openrouter",
@@ -41232,7 +41232,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "AUDIO", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "AUDIO", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41316,7 +41316,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41341,7 +41341,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41368,7 +41368,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41393,7 +41393,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41417,7 +41417,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41442,7 +41442,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41629,7 +41629,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41712,7 +41712,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41926,7 +41926,7 @@
         "contextWindow": 1047576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41949,7 +41949,7 @@
         "contextWindow": 1047576
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41975,7 +41975,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -41999,7 +41999,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42020,7 +42020,7 @@
       "priority": 0,
       "apiModelId": "openai/gpt-4o",
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42041,7 +42041,7 @@
         "maxOutputTokens": 64000
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42058,7 +42058,7 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42067,7 +42067,7 @@
       "priority": 0,
       "apiModelId": "openai/gpt-4o-2024-08-06",
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42076,7 +42076,7 @@
       "priority": 0,
       "apiModelId": "openai/gpt-4o-2024-11-20",
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42105,7 +42105,7 @@
         }
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42114,7 +42114,7 @@
       "priority": 0,
       "apiModelId": "openai/gpt-4o-mini-2024-07-18",
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42171,7 +42171,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42194,7 +42194,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42206,7 +42206,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42232,7 +42232,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42258,7 +42258,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42285,7 +42285,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42297,7 +42297,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42320,7 +42320,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42343,7 +42343,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42363,7 +42363,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42386,7 +42386,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42409,7 +42409,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42432,8 +42432,8 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
-      "outputModalities": ["VISION", "TEXT"]
+      "inputModalities": ["IMAGE", "TEXT"],
+      "outputModalities": ["IMAGE", "TEXT"]
     },
     {
       "providerId": "openrouter",
@@ -42444,8 +42444,8 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
-      "outputModalities": ["VISION", "TEXT"]
+      "inputModalities": ["IMAGE", "TEXT"],
+      "outputModalities": ["IMAGE", "TEXT"]
     },
     {
       "providerId": "openrouter",
@@ -42467,7 +42467,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42490,7 +42490,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42513,7 +42513,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42770,7 +42770,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42793,7 +42793,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -42816,7 +42816,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43103,7 +43103,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43264,7 +43264,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43664,7 +43664,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43793,7 +43793,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43809,7 +43809,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -43870,7 +43870,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44035,7 +44035,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44189,7 +44189,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44213,7 +44213,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44237,7 +44237,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44382,7 +44382,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44402,7 +44402,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44425,7 +44425,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44490,7 +44490,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44511,7 +44511,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44528,7 +44528,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44615,7 +44615,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44840,7 +44840,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44868,7 +44868,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44899,7 +44899,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44911,7 +44911,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44935,7 +44935,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44958,7 +44958,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44973,7 +44973,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -44996,7 +44996,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45023,7 +45023,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45035,7 +45035,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45088,7 +45088,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45111,7 +45111,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45135,7 +45135,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45147,7 +45147,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45301,7 +45301,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45392,7 +45392,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45535,7 +45535,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45558,7 +45558,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45606,7 +45606,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45630,7 +45630,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45773,7 +45773,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -45796,7 +45796,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION", "VIDEO"],
+      "inputModalities": ["TEXT", "IMAGE", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46295,7 +46295,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46322,7 +46322,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46346,7 +46346,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46371,7 +46371,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46395,7 +46395,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46419,7 +46419,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46435,7 +46435,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46573,7 +46573,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46588,7 +46588,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT", "VIDEO"],
+      "inputModalities": ["IMAGE", "TEXT", "VIDEO"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46637,7 +46637,7 @@
         "contextWindow": 127072
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46664,7 +46664,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46677,7 +46677,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46692,7 +46692,7 @@
         "type": "openrouter"
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["TEXT", "VISION"],
+      "inputModalities": ["TEXT", "IMAGE"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46716,7 +46716,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {
@@ -46895,7 +46895,7 @@
         "add": ["web_search"]
       },
       "endpointTypes": ["chat_completions"],
-      "inputModalities": ["VISION", "TEXT"],
+      "inputModalities": ["IMAGE", "TEXT"],
       "outputModalities": ["TEXT"]
     },
     {

@@ -14,7 +14,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { EndpointType, type ProviderConfig } from '../src/schemas'
+import { ENDPOINT_TYPE, type EndpointType, type ProviderConfig } from '../src/schemas'
 
 type CherryStudioProviderType =
   | 'openai'
@@ -190,12 +190,12 @@ function buildBaseUrls(cherryProvider: CherryStudioProvider): Record<string, str
   const apiHost = cherryProvider.apiHost.replace(/\/$/, '')
 
   // Map the default endpoint type based on provider type
-  const defaultEndpoint = getDefaultChatEndpoint(cherryProvider) ?? EndpointType.CHAT_COMPLETIONS
+  const defaultEndpoint = getDefaultChatEndpoint(cherryProvider) ?? ENDPOINT_TYPE.CHAT_COMPLETIONS
   baseUrls[defaultEndpoint] = apiHost
 
   // If provider has anthropicApiHost, MESSAGES endpoint uses different host
   if (cherryProvider.anthropicApiHost) {
-    baseUrls[EndpointType.MESSAGES] = cherryProvider.anthropicApiHost.replace(/\/$/, '')
+    baseUrls[ENDPOINT_TYPE.MESSAGES] = cherryProvider.anthropicApiHost.replace(/\/$/, '')
   }
 
   return baseUrls
@@ -207,17 +207,17 @@ function buildBaseUrls(cherryProvider: CherryStudioProvider): Record<string, str
 function getDefaultChatEndpoint(cherryProvider: CherryStudioProvider): EndpointType | undefined {
   switch (cherryProvider.type) {
     case 'openai':
-      return EndpointType.CHAT_COMPLETIONS
+      return ENDPOINT_TYPE.CHAT_COMPLETIONS
     case 'openai-response':
-      return EndpointType.RESPONSES
+      return ENDPOINT_TYPE.RESPONSES
     case 'anthropic':
-      return EndpointType.MESSAGES
+      return ENDPOINT_TYPE.MESSAGES
     case 'gemini':
-      return EndpointType.GENERATE_CONTENT
+      return ENDPOINT_TYPE.GENERATE_CONTENT
     case 'ollama':
-      return EndpointType.OLLAMA_CHAT
+      return ENDPOINT_TYPE.OLLAMA_CHAT
     default:
-      return EndpointType.CHAT_COMPLETIONS
+      return ENDPOINT_TYPE.CHAT_COMPLETIONS
   }
 }
 

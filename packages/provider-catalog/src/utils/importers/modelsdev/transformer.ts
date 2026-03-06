@@ -4,7 +4,7 @@
  */
 
 import type { ModelConfig, ProviderConfig } from '../../../schemas'
-import { EndpointType, Modality, ModelCapability } from '../../../schemas/enums'
+import { ENDPOINT_TYPE, MODALITY, type Modality, MODEL_CAPABILITY, type ModelCapability } from '../../../schemas/enums'
 
 type ModelCapabilityType = ModelCapability
 import { BaseCatalogTransformer, CAPABILITY_PATTERNS, inferPublisherFromModelId } from '../base/base-transformer'
@@ -47,11 +47,11 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
    * Publishers known for specific capabilities
    */
   private static readonly PUBLISHER_CAPABILITIES: Record<string, ModelCapabilityType[]> = {
-    jina: [ModelCapability.EMBEDDING, ModelCapability.RERANK],
-    voyage: [ModelCapability.EMBEDDING, ModelCapability.RERANK],
-    cohere: [ModelCapability.EMBEDDING, ModelCapability.RERANK],
-    stability: [ModelCapability.IMAGE_GENERATION],
-    baai: [ModelCapability.EMBEDDING, ModelCapability.RERANK]
+    jina: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK],
+    voyage: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK],
+    cohere: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK],
+    stability: [MODEL_CAPABILITY.IMAGE_GENERATION],
+    baai: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK]
   }
 
   /**
@@ -66,7 +66,7 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
       name: apiProvider.name,
       description: `Provider from models.dev catalog`,
       baseUrls: baseUrls,
-      defaultChatEndpoint: EndpointType.CHAT_COMPLETIONS,
+      defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS,
       metadata: {
         source: 'modelsdev',
         envVars: apiProvider.env,
@@ -101,10 +101,10 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
     const capabilities = this.inferCapabilities(apiModel, publisher)
     const inputModalities = apiModel.modalities
       ? this.mapModalities(apiModel.modalities.input)
-      : ([Modality.TEXT] as Modality[])
+      : ([MODALITY.TEXT] as Modality[])
     const outputModalities = apiModel.modalities
       ? this.mapOutputModalities(apiModel.modalities.output)
-      : ([Modality.TEXT] as Modality[])
+      : ([MODALITY.TEXT] as Modality[])
     const pricing = apiModel.cost ? this.convertPricing(apiModel.cost) : undefined
     const variant = this.getModelVariant(apiModel.id)
     const alias = this.getAlias(apiModel.id)
@@ -175,7 +175,7 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
 
     // Map to chat_completions endpoint type (most common for models.dev providers)
     return {
-      [EndpointType.CHAT_COMPLETIONS]: baseUrl
+      [ENDPOINT_TYPE.CHAT_COMPLETIONS]: baseUrl
     }
   }
 
@@ -188,22 +188,22 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
 
     // Reasoning/thinking support
     if (apiModel.reasoning) {
-      caps.add(ModelCapability.REASONING)
+      caps.add(MODEL_CAPABILITY.REASONING)
     }
 
     // Function/tool calling
     if (apiModel.tool_call) {
-      caps.add(ModelCapability.FUNCTION_CALL)
+      caps.add(MODEL_CAPABILITY.FUNCTION_CALL)
     }
 
     // Structured output (JSON mode)
     if (apiModel.structured_output) {
-      caps.add(ModelCapability.STRUCTURED_OUTPUT)
+      caps.add(MODEL_CAPABILITY.STRUCTURED_OUTPUT)
     }
 
     // File/attachment support implies file input
     if (apiModel.attachment) {
-      caps.add(ModelCapability.FILE_INPUT)
+      caps.add(MODEL_CAPABILITY.FILE_INPUT)
     }
 
     // Check input modalities (skip if not provided)
@@ -212,31 +212,31 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
 
     // Image capabilities
     if (inputMods.includes('image')) {
-      caps.add(ModelCapability.IMAGE_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.IMAGE_RECOGNITION)
     }
     if (outputMods.includes('image')) {
-      caps.add(ModelCapability.IMAGE_GENERATION)
+      caps.add(MODEL_CAPABILITY.IMAGE_GENERATION)
     }
 
     // Audio capabilities
     if (inputMods.includes('audio')) {
-      caps.add(ModelCapability.AUDIO_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.AUDIO_RECOGNITION)
     }
     if (outputMods.includes('audio')) {
-      caps.add(ModelCapability.AUDIO_GENERATION)
+      caps.add(MODEL_CAPABILITY.AUDIO_GENERATION)
     }
 
     // Video capabilities
     if (inputMods.includes('video')) {
-      caps.add(ModelCapability.VIDEO_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.VIDEO_RECOGNITION)
     }
     if (outputMods.includes('video')) {
-      caps.add(ModelCapability.VIDEO_GENERATION)
+      caps.add(MODEL_CAPABILITY.VIDEO_GENERATION)
     }
 
     // Embedding capability
     if (outputMods.includes('embedding') || outputMods.includes('embeddings')) {
-      caps.add(ModelCapability.EMBEDDING)
+      caps.add(MODEL_CAPABILITY.EMBEDDING)
     }
 
     // Infer capabilities from model ID patterns
@@ -252,20 +252,20 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
 
       // Add EMBEDDING if model name suggests it's an embedding model
       if (
-        publisherCaps.includes(ModelCapability.EMBEDDING) &&
+        publisherCaps.includes(MODEL_CAPABILITY.EMBEDDING) &&
         (modelId.includes('embed') || modelId.includes('e5') || modelId.includes('bge'))
       ) {
-        caps.add(ModelCapability.EMBEDDING)
+        caps.add(MODEL_CAPABILITY.EMBEDDING)
       }
 
       // Add RERANK only if model name explicitly contains 'rerank'
-      if (publisherCaps.includes(ModelCapability.RERANK) && modelId.includes('rerank')) {
-        caps.add(ModelCapability.RERANK)
+      if (publisherCaps.includes(MODEL_CAPABILITY.RERANK) && modelId.includes('rerank')) {
+        caps.add(MODEL_CAPABILITY.RERANK)
       }
 
       // Add IMAGE_GENERATION for stability models (they're all image gen)
-      if (publisherCaps.includes(ModelCapability.IMAGE_GENERATION)) {
-        caps.add(ModelCapability.IMAGE_GENERATION)
+      if (publisherCaps.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
+        caps.add(MODEL_CAPABILITY.IMAGE_GENERATION)
       }
     }
 
@@ -283,26 +283,26 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
       const normalized = m.toLowerCase()
       switch (normalized) {
         case 'text':
-          modalities.add(Modality.TEXT)
+          modalities.add(MODALITY.TEXT)
           break
         case 'image':
-          modalities.add(Modality.VISION)
+          modalities.add(MODALITY.IMAGE)
           break
         case 'audio':
-          modalities.add(Modality.AUDIO)
+          modalities.add(MODALITY.AUDIO)
           break
         case 'video':
-          modalities.add(Modality.VIDEO)
+          modalities.add(MODALITY.VIDEO)
           break
         case 'embedding':
         case 'embeddings':
-          modalities.add(Modality.VECTOR)
+          modalities.add(MODALITY.VECTOR)
           break
       }
     }
 
     const result = Array.from(modalities)
-    return result.length > 0 ? result : [Modality.TEXT]
+    return result.length > 0 ? result : [MODALITY.TEXT]
   }
 
   /**

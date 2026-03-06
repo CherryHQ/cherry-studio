@@ -29,7 +29,8 @@ import * as path from 'path'
 import {
   type EndpointType,
   type Modality,
-  ModelCapability,
+  MODEL_CAPABILITY,
+  type ModelCapability,
   type ModelConfig,
   type ProviderConfig,
   type ProviderModelOverride
@@ -427,7 +428,7 @@ function generateReasoningConfig(
   providerId: string
 ): ProviderModelOverride['reasoning'] | null {
   // Check if model has REASONING capability (from import-stage inference or provider API)
-  const isReasoning = hasReasoning || baseModel.capabilities?.includes(ModelCapability.REASONING)
+  const isReasoning = hasReasoning || baseModel.capabilities?.includes(MODEL_CAPABILITY.REASONING)
   if (!isReasoning) return null
 
   // Look up provider's reasoning type
@@ -540,13 +541,13 @@ function generateCapabilityOverrides(
 
   if (
     PROVIDERS_WITH_UNIVERSAL_WEB_SEARCH.has(providerId) &&
-    !model.capabilities?.includes(ModelCapability.WEB_SEARCH)
+    !model.capabilities?.includes(MODEL_CAPABILITY.WEB_SEARCH)
   ) {
-    additions.push(ModelCapability.WEB_SEARCH)
+    additions.push(MODEL_CAPABILITY.WEB_SEARCH)
   }
 
-  if (PROVIDERS_WITH_FILE_INPUT.has(providerId) && !model.capabilities?.includes(ModelCapability.FILE_INPUT)) {
-    additions.push(ModelCapability.FILE_INPUT)
+  if (PROVIDERS_WITH_FILE_INPUT.has(providerId) && !model.capabilities?.includes(MODEL_CAPABILITY.FILE_INPUT)) {
+    additions.push(MODEL_CAPABILITY.FILE_INPUT)
   }
 
   return additions.length > 0 ? { add: additions } : null
@@ -560,8 +561,8 @@ function createNewModel(providerModel: ProviderModelEntry, providerId: string): 
   const inferredCapabilities = inferCapabilitiesFromModelId(providerModel.normalizedId)
 
   // Also check if provider data indicates reasoning capability
-  if (providerModel.hasReasoning && !inferredCapabilities.includes(ModelCapability.REASONING)) {
-    inferredCapabilities.push(ModelCapability.REASONING)
+  if (providerModel.hasReasoning && !inferredCapabilities.includes(MODEL_CAPABILITY.REASONING)) {
+    inferredCapabilities.push(MODEL_CAPABILITY.REASONING)
   }
 
   const model: ModelConfig = {

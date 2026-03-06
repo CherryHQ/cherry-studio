@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ModelConfig, ProviderModelOverride } from '../schemas'
-import { ModelCapability } from '../schemas/enums'
+import { MODEL_CAPABILITY } from '../schemas/enums'
 import { cleanupRedundantOverrides, deduplicateOverrides } from '../utils/override-utils'
 
 describe('deduplicateOverrides', () => {
@@ -171,7 +171,7 @@ describe('cleanupRedundantOverrides', () => {
     {
       id: 'gpt-4',
       name: 'GPT-4',
-      capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING],
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
       contextWindow: 8192,
       maxOutputTokens: 4096,
       pricing: {
@@ -183,7 +183,7 @@ describe('cleanupRedundantOverrides', () => {
     {
       id: 'claude-3-opus',
       name: 'Claude 3 Opus',
-      capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING, ModelCapability.IMAGE_RECOGNITION],
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
       contextWindow: 200000,
       maxOutputTokens: 4096,
       metadata: {}
@@ -248,7 +248,7 @@ describe('cleanupRedundantOverrides', () => {
         providerId: 'openrouter',
         modelId: 'gpt-4',
         capabilities: {
-          add: [ModelCapability.IMAGE_RECOGNITION]
+          add: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
         },
         priority: 0
       }
@@ -317,8 +317,8 @@ describe('cleanupRedundantOverrides', () => {
       {
         providerId: 'openrouter',
         modelId: 'gpt-4',
-        parameters: {
-          temperature: { supported: true, min: 0, max: 1 }
+        parameterSupport: {
+          temperature: { supported: true, range: { min: 0, max: 1 } }
         },
         priority: 0
       }

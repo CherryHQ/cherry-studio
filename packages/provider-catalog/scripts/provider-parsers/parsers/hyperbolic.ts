@@ -34,7 +34,7 @@ function inferInputModalities(m: HyperbolicModel): string[] | undefined {
   if (!m.supports_chat) return undefined
   const modalities: string[] = ['TEXT']
   if (m.supports_image_input) {
-    modalities.push('VISION')
+    modalities.push('IMAGE')
   }
   return modalities
 }

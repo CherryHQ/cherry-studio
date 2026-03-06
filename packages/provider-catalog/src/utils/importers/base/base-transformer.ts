@@ -4,7 +4,7 @@
  */
 
 import type { ModelCapabilityType, ModelConfig } from '../../../schemas'
-import { Modality, ModelCapability } from '../../../schemas/enums'
+import { MODALITY, type Modality, MODEL_CAPABILITY } from '../../../schemas/enums'
 
 /**
  * Generic transformer interface
@@ -169,29 +169,29 @@ const COMPUTER_USE_EXCLUDE = /\b(?:embed|rerank|tts-|dall-e|stable-diffusion|sdx
  */
 export const CAPABILITY_PATTERNS: [RegExp, RegExp | null, ModelCapabilityType][] = [
   // Reasoning/thinking models
-  [REASONING_MATCH, REASONING_EXCLUDE, ModelCapability.REASONING],
+  [REASONING_MATCH, REASONING_EXCLUDE, MODEL_CAPABILITY.REASONING],
   // Function calling
-  [FUNCTION_CALL_MATCH, FUNCTION_CALL_EXCLUDE, ModelCapability.FUNCTION_CALL],
+  [FUNCTION_CALL_MATCH, FUNCTION_CALL_EXCLUDE, MODEL_CAPABILITY.FUNCTION_CALL],
   // Embedding models
-  [/(embed|embedding|bge-|e5-|gte-)/, null, ModelCapability.EMBEDDING],
+  [/(embed|embedding|bge-|e5-|gte-)/, null, MODEL_CAPABILITY.EMBEDDING],
   // Reranker models
-  [/(rerank|reranker)/, null, ModelCapability.RERANK],
+  [/(rerank|reranker)/, null, MODEL_CAPABILITY.RERANK],
   // Vision/multimodal models
-  [VISION_MATCH, VISION_EXCLUDE, ModelCapability.IMAGE_RECOGNITION],
+  [VISION_MATCH, VISION_EXCLUDE, MODEL_CAPABILITY.IMAGE_RECOGNITION],
   // File/document input (PDF, etc.) — narrow regex, most detection via models.dev + provider overrides
-  [FILE_INPUT_MATCH, null, ModelCapability.FILE_INPUT],
+  [FILE_INPUT_MATCH, null, MODEL_CAPABILITY.FILE_INPUT],
   // Image generation models
-  [/(dall-e|stable-diffusion|sd3|sdxl|flux|image|imagen|midjourney|ideogram)/, null, ModelCapability.IMAGE_GENERATION],
+  [/(dall-e|stable-diffusion|sd3|sdxl|flux|image|imagen|midjourney|ideogram)/, null, MODEL_CAPABILITY.IMAGE_GENERATION],
   // Video generation models
-  [/(sora|runway|pika|kling|veo|luma|gen-3|video|vidu|wan)/, null, ModelCapability.VIDEO_GENERATION],
+  [/(sora|runway|pika|kling|veo|luma|gen-3|video|vidu|wan)/, null, MODEL_CAPABILITY.VIDEO_GENERATION],
   // Audio transcription models
-  [/(whisper)/, null, ModelCapability.AUDIO_TRANSCRIPT],
+  [/(whisper)/, null, MODEL_CAPABILITY.AUDIO_TRANSCRIPT],
   // TTS models
-  [/(tts-)/, null, ModelCapability.AUDIO_GENERATION],
+  [/(tts-)/, null, MODEL_CAPABILITY.AUDIO_GENERATION],
   // Web search models
-  [WEB_SEARCH_MATCH, WEB_SEARCH_EXCLUDE, ModelCapability.WEB_SEARCH],
+  [WEB_SEARCH_MATCH, WEB_SEARCH_EXCLUDE, MODEL_CAPABILITY.WEB_SEARCH],
   // Computer use / desktop interaction
-  [COMPUTER_USE_MATCH, COMPUTER_USE_EXCLUDE, ModelCapability.COMPUTER_USE]
+  [COMPUTER_USE_MATCH, COMPUTER_USE_EXCLUDE, MODEL_CAPABILITY.COMPUTER_USE]
 ]
 
 /**
@@ -421,16 +421,16 @@ export function mapModalityString(modality: string): Modality | undefined {
 
   switch (normalized) {
     case 'text':
-      return Modality.TEXT
+      return MODALITY.TEXT
     case 'image':
-      return Modality.VISION
+      return MODALITY.IMAGE
     case 'audio':
-      return Modality.AUDIO
+      return MODALITY.AUDIO
     case 'video':
-      return Modality.VIDEO
+      return MODALITY.VIDEO
     case 'embedding':
     case 'embeddings':
-      return Modality.VECTOR
+      return MODALITY.VECTOR
     default:
       return undefined
   }
@@ -451,7 +451,7 @@ export function mapModalities(modalityList: string[]): Modality[] {
   }
 
   const result = Array.from(modalities)
-  return result.length > 0 ? result : [Modality.TEXT]
+  return result.length > 0 ? result : [MODALITY.TEXT]
 }
 
 /**
@@ -658,8 +658,8 @@ export class OpenAICompatibleTransformer implements ITransformer {
       description: apiModel.description,
 
       capabilities: this.inferCapabilities(apiModel),
-      inputModalities: [Modality.TEXT], // Default to text
-      outputModalities: [Modality.TEXT], // Default to text
+      inputModalities: [MODALITY.TEXT], // Default to text
+      outputModalities: [MODALITY.TEXT], // Default to text
 
       contextWindow: apiModel.context_length || apiModel.context_window || undefined,
       maxOutputTokens: apiModel.max_tokens || apiModel.max_output_tokens || undefined,
@@ -684,13 +684,13 @@ export class OpenAICompatibleTransformer implements ITransformer {
 
     // Check for common capability indicators
     if (apiModel.supports_tools || apiModel.function_calling) {
-      capabilities.push(ModelCapability.FUNCTION_CALL)
+      capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
     }
     if (apiModel.supports_vision || apiModel.vision) {
-      capabilities.push(ModelCapability.IMAGE_RECOGNITION)
+      capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
     }
     if (apiModel.supports_json_output || apiModel.response_format) {
-      capabilities.push(ModelCapability.STRUCTURED_OUTPUT)
+      capabilities.push(MODEL_CAPABILITY.STRUCTURED_OUTPUT)
     }
 
     return capabilities.length > 0 ? capabilities : undefined

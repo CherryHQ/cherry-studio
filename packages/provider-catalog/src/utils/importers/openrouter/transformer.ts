@@ -4,7 +4,7 @@
  */
 
 import type { ModelConfig } from '../../../schemas'
-import { Modality, ModelCapability } from '../../../schemas/enums'
+import { MODALITY, type Modality, MODEL_CAPABILITY, type ModelCapability } from '../../../schemas/enums'
 
 type ModelCapabilityType = ModelCapability
 import { BaseCatalogTransformer } from '../base/base-transformer'
@@ -88,7 +88,7 @@ export class OpenRouterTransformer extends BaseCatalogTransformer<OpenRouterMode
 
     // Embedding models
     if (outputMods.includes('embeddings')) {
-      caps.add(ModelCapability.EMBEDDING)
+      caps.add(MODEL_CAPABILITY.EMBEDDING)
       // Embeddings models don't have other capabilities, return early
       return Array.from(caps)
     }
@@ -98,22 +98,22 @@ export class OpenRouterTransformer extends BaseCatalogTransformer<OpenRouterMode
 
     // Function calling support
     if (params.includes('tools') || params.includes('tool_choice')) {
-      caps.add(ModelCapability.FUNCTION_CALL)
+      caps.add(MODEL_CAPABILITY.FUNCTION_CALL)
     }
 
     // Structured output support
     if (params.includes('response_format') || params.includes('structured_outputs')) {
-      caps.add(ModelCapability.STRUCTURED_OUTPUT)
+      caps.add(MODEL_CAPABILITY.STRUCTURED_OUTPUT)
     }
 
     // Reasoning support
     if (params.includes('reasoning') || params.includes('include_reasoning')) {
-      caps.add(ModelCapability.REASONING)
+      caps.add(MODEL_CAPABILITY.REASONING)
     }
 
     // Web search (check if pricing > 0)
     if (parseFloat(apiModel.pricing?.web_search || '0') > 0) {
-      caps.add(ModelCapability.WEB_SEARCH)
+      caps.add(MODEL_CAPABILITY.WEB_SEARCH)
     }
 
     // Check architecture modality for media capabilities
@@ -121,26 +121,26 @@ export class OpenRouterTransformer extends BaseCatalogTransformer<OpenRouterMode
 
     // Image capabilities
     if (inputMods.includes('image')) {
-      caps.add(ModelCapability.IMAGE_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.IMAGE_RECOGNITION)
     }
     if (outputMods.includes('image')) {
-      caps.add(ModelCapability.IMAGE_GENERATION)
+      caps.add(MODEL_CAPABILITY.IMAGE_GENERATION)
     }
 
     // Audio capabilities
     if (inputMods.includes('audio')) {
-      caps.add(ModelCapability.AUDIO_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.AUDIO_RECOGNITION)
     }
     if (outputMods.includes('audio')) {
-      caps.add(ModelCapability.AUDIO_GENERATION)
+      caps.add(MODEL_CAPABILITY.AUDIO_GENERATION)
     }
 
     // Video capabilities
     if (inputMods.includes('video')) {
-      caps.add(ModelCapability.VIDEO_RECOGNITION)
+      caps.add(MODEL_CAPABILITY.VIDEO_RECOGNITION)
     }
     if (outputMods.includes('video')) {
-      caps.add(ModelCapability.VIDEO_GENERATION)
+      caps.add(MODEL_CAPABILITY.VIDEO_GENERATION)
     }
 
     return Array.from(caps)
@@ -157,20 +157,20 @@ export class OpenRouterTransformer extends BaseCatalogTransformer<OpenRouterMode
       const normalized = m.toLowerCase()
       switch (normalized) {
         case 'text':
-          modalities.add(Modality.TEXT)
+          modalities.add(MODALITY.TEXT)
           break
         case 'image':
-          modalities.add(Modality.VISION)
+          modalities.add(MODALITY.IMAGE)
           break
         case 'audio':
-          modalities.add(Modality.AUDIO)
+          modalities.add(MODALITY.AUDIO)
           break
         case 'video':
-          modalities.add(Modality.VIDEO)
+          modalities.add(MODALITY.VIDEO)
           break
         case 'embeddings':
           // Embeddings is an output-only modality, treat input as TEXT
-          modalities.add(Modality.TEXT)
+          modalities.add(MODALITY.TEXT)
           break
       }
     }
@@ -179,7 +179,7 @@ export class OpenRouterTransformer extends BaseCatalogTransformer<OpenRouterMode
 
     // Default to TEXT if no modalities found
     if (result.length === 0) {
-      return [Modality.TEXT]
+      return [MODALITY.TEXT]
     }
 
     return result

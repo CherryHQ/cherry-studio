@@ -5,7 +5,13 @@
  * the correct priority order.
  */
 
-import type { EndpointType, Modality, ModelConfig, ProviderConfig, ProviderModelOverride } from '@cherrystudio/provider-catalog'
+import type {
+  EndpointType,
+  Modality,
+  ModelConfig,
+  ProviderConfig,
+  ProviderModelOverride
+} from '@cherrystudio/provider-catalog'
 import type { ModelCapability } from '@cherrystudio/provider-catalog'
 import * as z from 'zod'
 
@@ -95,7 +101,7 @@ const UserModelRowSchema = z.object({
   maxOutputTokens: z.number().nullish(),
   supportsStreaming: z.boolean().nullish(),
   reasoning: z.record(z.string(), z.unknown()).nullish(),
-  parameters: z.record(z.string(), z.unknown()).nullish(),
+  parameterSupport: z.record(z.string(), z.unknown()).nullish(),
   isEnabled: z.boolean().nullish(),
   isHidden: z.boolean().nullish(),
   sortOrder: z.number().nullish(),

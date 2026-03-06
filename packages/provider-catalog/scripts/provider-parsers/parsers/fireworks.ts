@@ -52,7 +52,7 @@ function inferEndpointTypes(m: FireworksModel): string[] | undefined {
 function inferInputModalities(m: FireworksModel): string[] | undefined {
   const modalities: string[] = ['TEXT']
   if (m.supports_image_input) {
-    modalities.push('VISION')
+    modalities.push('IMAGE')
   }
   return modalities
 }

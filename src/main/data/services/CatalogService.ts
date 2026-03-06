@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
-  EndpointType,
+  ENDPOINT_TYPE,
   type ModelConfig,
   type ProviderConfig,
   ProviderListSchema,
@@ -163,7 +163,7 @@ export class CatalogService {
         maxOutputTokens: merged.maxOutputTokens ?? null,
         supportsStreaming: merged.supportsStreaming,
         reasoning: merged.reasoning ?? null,
-        parameters: merged.parameters ?? null,
+        parameters: merged.parameterSupport ?? null,
         isEnabled: merged.isEnabled,
         isHidden: merged.isHidden
       })
@@ -233,9 +233,9 @@ export class CatalogService {
       providerId: 'cherryai',
       name: 'CherryAI',
       baseUrls: {
-        [EndpointType.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+        [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
       },
-      defaultChatEndpoint: EndpointType.CHAT_COMPLETIONS
+      defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS
     })
 
     await providerService.batchUpsert(dbRows)

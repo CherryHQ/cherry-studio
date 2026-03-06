@@ -43,7 +43,7 @@ function mapModalities(modalities: string[] | undefined): string[] | undefined {
         mapped.push('TEXT')
         break
       case 'image':
-        mapped.push('VISION')
+        mapped.push('IMAGE')
         break
       case 'audio':
         mapped.push('AUDIO')

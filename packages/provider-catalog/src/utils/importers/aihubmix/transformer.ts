@@ -4,7 +4,7 @@
  */
 
 import type { ModelConfig } from '../../../schemas'
-import { Modality, ModelCapability } from '../../../schemas/enums'
+import { MODALITY, type Modality, MODEL_CAPABILITY, type ModelCapability } from '../../../schemas/enums'
 
 type ModelCapabilityType = ModelCapability
 import { BaseCatalogTransformer, CAPABILITY_PATTERNS } from '../base/base-transformer'
@@ -79,18 +79,18 @@ export class AiHubMixTransformer extends BaseCatalogTransformer<AiHubMixModel> {
     for (const feature of featureList) {
       switch (feature) {
         case 'thinking':
-          caps.add(ModelCapability.REASONING)
+          caps.add(MODEL_CAPABILITY.REASONING)
           break
         case 'function_calling':
         case 'tools':
-          caps.add(ModelCapability.FUNCTION_CALL)
+          caps.add(MODEL_CAPABILITY.FUNCTION_CALL)
           break
         case 'structured_outputs':
-          caps.add(ModelCapability.STRUCTURED_OUTPUT)
+          caps.add(MODEL_CAPABILITY.STRUCTURED_OUTPUT)
           break
         case 'web':
         case 'deepsearch':
-          caps.add(ModelCapability.WEB_SEARCH)
+          caps.add(MODEL_CAPABILITY.WEB_SEARCH)
           break
       }
     }
@@ -104,10 +104,10 @@ export class AiHubMixTransformer extends BaseCatalogTransformer<AiHubMixModel> {
     for (const type of typeList) {
       switch (type) {
         case 'image_generation':
-          caps.add(ModelCapability.IMAGE_GENERATION)
+          caps.add(MODEL_CAPABILITY.IMAGE_GENERATION)
           break
         case 'video':
-          caps.add(ModelCapability.VIDEO_GENERATION)
+          caps.add(MODEL_CAPABILITY.VIDEO_GENERATION)
           break
       }
     }
@@ -137,16 +137,16 @@ export class AiHubMixTransformer extends BaseCatalogTransformer<AiHubMixModel> {
     for (const m of modalityList) {
       switch (m) {
         case 'TEXT':
-          modalities.add(Modality.TEXT)
+          modalities.add(MODALITY.TEXT)
           break
         case 'IMAGE':
-          modalities.add(Modality.VISION)
+          modalities.add(MODALITY.IMAGE)
           break
         case 'AUDIO':
-          modalities.add(Modality.AUDIO)
+          modalities.add(MODALITY.AUDIO)
           break
         case 'VIDEO':
-          modalities.add(Modality.VIDEO)
+          modalities.add(MODALITY.VIDEO)
           break
       }
     }
@@ -155,7 +155,7 @@ export class AiHubMixTransformer extends BaseCatalogTransformer<AiHubMixModel> {
 
     // Default to TEXT if no modalities found
     if (result.length === 0) {
-      return [Modality.TEXT]
+      return [MODALITY.TEXT]
     }
 
     return result
@@ -171,14 +171,14 @@ export class AiHubMixTransformer extends BaseCatalogTransformer<AiHubMixModel> {
       .filter(Boolean)
 
     if (typeList.includes('image_generation')) {
-      return [Modality.VISION]
+      return [MODALITY.IMAGE]
     }
     if (typeList.includes('video')) {
-      return [Modality.VIDEO]
+      return [MODALITY.VIDEO]
     }
 
     // Default to TEXT for LLMs
-    return [Modality.TEXT]
+    return [MODALITY.TEXT]
   }
 
   /**

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ProviderModelOverride } from '../schemas'
-import { ModelCapability } from '../schemas/enums'
+import { MODEL_CAPABILITY } from '../schemas/enums'
 import { mergeOverrides } from '../utils/override-utils'
 
 describe('mergeOverrides', () => {
@@ -128,8 +128,8 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.FUNCTION_CALL],
-        remove: [ModelCapability.REASONING]
+        add: [MODEL_CAPABILITY.FUNCTION_CALL],
+        remove: [MODEL_CAPABILITY.REASONING]
       },
       priority: 50
     }
@@ -138,8 +138,8 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.IMAGE_RECOGNITION],
-        remove: [ModelCapability.AUDIO_RECOGNITION]
+        add: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        remove: [MODEL_CAPABILITY.AUDIO_RECOGNITION]
       },
       priority: 0
     }
@@ -147,10 +147,10 @@ describe('mergeOverrides', () => {
     const result = mergeOverrides(existing, generated)
 
     expect(result.capabilities?.add).toEqual(
-      expect.arrayContaining([ModelCapability.FUNCTION_CALL, ModelCapability.IMAGE_RECOGNITION])
+      expect.arrayContaining([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION])
     )
     expect(result.capabilities?.remove).toEqual(
-      expect.arrayContaining([ModelCapability.REASONING, ModelCapability.AUDIO_RECOGNITION])
+      expect.arrayContaining([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.AUDIO_RECOGNITION])
     )
   })
 
@@ -159,7 +159,7 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.FUNCTION_CALL, ModelCapability.IMAGE_RECOGNITION]
+        add: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION]
       },
       priority: 50
     }
@@ -168,7 +168,7 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.FUNCTION_CALL, ModelCapability.AUDIO_RECOGNITION]
+        add: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.AUDIO_RECOGNITION]
       },
       priority: 0
     }
@@ -178,9 +178,9 @@ describe('mergeOverrides', () => {
     expect(result.capabilities?.add).toHaveLength(3)
     expect(result.capabilities?.add).toEqual(
       expect.arrayContaining([
-        ModelCapability.FUNCTION_CALL,
-        ModelCapability.IMAGE_RECOGNITION,
-        ModelCapability.AUDIO_RECOGNITION
+        MODEL_CAPABILITY.FUNCTION_CALL,
+        MODEL_CAPABILITY.IMAGE_RECOGNITION,
+        MODEL_CAPABILITY.AUDIO_RECOGNITION
       ])
     )
   })
@@ -190,7 +190,7 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        force: [ModelCapability.FUNCTION_CALL]
+        force: [MODEL_CAPABILITY.FUNCTION_CALL]
       },
       priority: 50
     }
@@ -199,14 +199,14 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        force: [ModelCapability.IMAGE_RECOGNITION]
+        force: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
       },
       priority: 0
     }
 
     const result = mergeOverrides(existing, generated)
 
-    expect(result.capabilities?.force).toEqual([ModelCapability.FUNCTION_CALL])
+    expect(result.capabilities?.force).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
   })
 
   it('should preserve existing reasoning if present', () => {
@@ -257,12 +257,12 @@ describe('mergeOverrides', () => {
     expect(result.reasoning).toEqual(generated.reasoning)
   })
 
-  it('should merge parameters with existing taking precedence', () => {
+  it('should merge parameterSupport with existing taking precedence', () => {
     const existing: ProviderModelOverride = {
       providerId: 'openrouter',
       modelId: 'gpt-4',
-      parameters: {
-        temperature: { supported: true, min: 0, max: 1 }
+      parameterSupport: {
+        temperature: { supported: true, range: { min: 0, max: 1 } }
       },
       priority: 50
     }
@@ -270,17 +270,17 @@ describe('mergeOverrides', () => {
     const generated: ProviderModelOverride = {
       providerId: 'openrouter',
       modelId: 'gpt-4',
-      parameters: {
-        temperature: { supported: true, min: 0, max: 2 },
-        topP: { supported: true, min: 0, max: 1 }
+      parameterSupport: {
+        temperature: { supported: true, range: { min: 0, max: 2 } },
+        topP: { supported: true, range: { min: 0, max: 1 } }
       },
       priority: 0
     }
 
     const result = mergeOverrides(existing, generated)
 
-    expect(result.parameters?.temperature).toEqual(existing.parameters?.temperature)
-    expect(result.parameters?.topP).toEqual(generated.parameters?.topP)
+    expect(result.parameterSupport?.temperature).toEqual(existing.parameterSupport?.temperature)
+    expect(result.parameterSupport?.topP).toEqual(generated.parameterSupport?.topP)
   })
 
   it('should preserve disabled and replaceWith status', () => {
@@ -370,7 +370,7 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.IMAGE_RECOGNITION]
+        add: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
       },
       priority: 0
     }
@@ -395,13 +395,13 @@ describe('mergeOverrides', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.IMAGE_RECOGNITION]
+        add: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
       },
       priority: 0
     }
 
     const result = mergeOverrides(existing, generated)
 
-    expect(result.capabilities?.add).toEqual([ModelCapability.IMAGE_RECOGNITION])
+    expect(result.capabilities?.add).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
   })
 })

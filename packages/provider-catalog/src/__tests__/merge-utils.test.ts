@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ModelConfig } from '../schemas'
-import { Modality, ModelCapability } from '../schemas/enums'
+import { MODALITY, MODEL_CAPABILITY } from '../schemas/enums'
 import { deduplicateModels, mergeModelsList, MergeStrategies } from '../utils/merge-utils'
 
 describe('Merge Utilities', () => {
@@ -15,23 +15,23 @@ describe('Merge Utilities', () => {
         {
           id: 'gpt-4',
           name: 'GPT-4 First',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000
         },
         {
           id: 'gpt-4',
           name: 'GPT-4 Second',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 128000,
           description: 'Second model'
         },
         {
           id: 'claude-3',
           name: 'Claude 3',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 200000
         }
       ]
@@ -50,15 +50,15 @@ describe('Merge Utilities', () => {
         {
           id: 'GPT-4',
           name: 'GPT-4',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000
         },
         {
           id: 'gpt-4',
           name: 'gpt-4 lowercase',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 128000
         }
       ]
@@ -74,15 +74,15 @@ describe('Merge Utilities', () => {
         {
           id: 'model-1',
           name: 'Model 1',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT]
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT]
           // No contextWindow, no description
         },
         {
           id: 'model-1',
           name: 'Model 1 Duplicate',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000,
           description: 'From duplicate'
         }
@@ -104,16 +104,16 @@ describe('Merge Utilities', () => {
           id: 'GPT-4',
           name: 'GPT-4',
           description: 'Existing description',
-          capabilities: [ModelCapability.FUNCTION_CALL],
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000
         },
         {
           id: 'claude-3-opus',
           name: 'Claude 3 Opus',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 200000
         }
       ]
@@ -123,9 +123,9 @@ describe('Merge Utilities', () => {
           id: 'gpt-4',
           name: 'GPT-4 Updated',
           description: 'New description',
-          capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING],
-          inputModalities: [Modality.TEXT, Modality.VISION],
-          outputModalities: [Modality.TEXT],
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+          inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 128000
         }
       ]
@@ -153,22 +153,22 @@ describe('Merge Utilities', () => {
         {
           id: 'GPT-4',
           name: 'GPT-4',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000
         },
         {
           id: 'Claude-3-Opus',
           name: 'Claude 3 Opus',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 200000
         },
         {
           id: 'Gemini-Pro',
           name: 'Gemini Pro',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 32000
         }
       ]
@@ -187,8 +187,8 @@ describe('Merge Utilities', () => {
         {
           id: 'gpt-4-turbo',
           name: 'GPT-4 Turbo',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 128000,
           pricing: {
             input: { perMillionTokens: 10 },
@@ -201,8 +201,8 @@ describe('Merge Utilities', () => {
         {
           id: 'GPT-4-Turbo',
           name: 'GPT-4 Turbo Updated',
-          inputModalities: [Modality.TEXT, Modality.VISION],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 128000,
           pricing: {
             input: { perMillionTokens: 5 },
@@ -229,8 +229,8 @@ describe('Merge Utilities', () => {
         {
           id: 'NEW-MODEL',
           name: 'New Model',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 4000
         }
       ]
@@ -246,8 +246,8 @@ describe('Merge Utilities', () => {
         {
           id: 'GPT-4',
           name: 'GPT-4 Existing',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000,
           description: 'Existing model'
         }
@@ -257,16 +257,16 @@ describe('Merge Utilities', () => {
         {
           id: 'gpt-4',
           name: 'GPT-4 Incoming',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000,
           maxOutputTokens: 4096
         },
         {
           id: 'Gpt-4',
           name: 'GPT-4 Another',
-          inputModalities: [Modality.TEXT],
-          outputModalities: [Modality.TEXT],
+          inputModalities: [MODALITY.TEXT],
+          outputModalities: [MODALITY.TEXT],
           contextWindow: 8000
         }
       ]

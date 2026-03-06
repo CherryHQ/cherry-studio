@@ -6,14 +6,14 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ModelConfig, ProviderModelOverride } from '../schemas'
-import { ModelCapability } from '../schemas/enums'
+import { MODEL_CAPABILITY } from '../schemas/enums'
 import { generateOverride, validateOverrideEnhanced } from '../utils/override-utils'
 
 describe('generateOverride', () => {
   const baseModel: ModelConfig = {
     id: 'gpt-4',
     name: 'GPT-4',
-    capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
     contextWindow: 8192,
     maxOutputTokens: 4096,
     pricing: {
@@ -51,43 +51,43 @@ describe('generateOverride', () => {
   it('should generate override for capability additions', () => {
     const providerModel: ModelConfig = {
       ...baseModel,
-      capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING, ModelCapability.IMAGE_RECOGNITION]
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION]
     }
 
     const result = generateOverride(baseModel, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
     expect(result?.capabilities).toEqual({
-      add: [ModelCapability.IMAGE_RECOGNITION]
+      add: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
     })
   })
 
   it('should generate override for capability removals', () => {
     const providerModel: ModelConfig = {
       ...baseModel,
-      capabilities: [ModelCapability.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     const result = generateOverride(baseModel, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
     expect(result?.capabilities).toEqual({
-      remove: [ModelCapability.REASONING]
+      remove: [MODEL_CAPABILITY.REASONING]
     })
   })
 
   it('should generate override for capability add and remove', () => {
     const providerModel: ModelConfig = {
       ...baseModel,
-      capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.IMAGE_RECOGNITION]
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION]
     }
 
     const result = generateOverride(baseModel, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
     expect(result?.capabilities).toEqual({
-      add: [ModelCapability.IMAGE_RECOGNITION],
-      remove: [ModelCapability.REASONING]
+      add: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      remove: [MODEL_CAPABILITY.REASONING]
     })
   })
 
@@ -158,32 +158,32 @@ describe('generateOverride', () => {
   it('should generate override for parameter support changes', () => {
     const baseModelWithParams: ModelConfig = {
       ...baseModel,
-      parameters: {
-        temperature: { supported: true, min: 0, max: 2 }
+      parameterSupport: {
+        temperature: { supported: true, range: { min: 0, max: 2 } }
       }
     }
 
     const providerModel: ModelConfig = {
       ...baseModelWithParams,
-      parameters: {
-        temperature: { supported: true, min: 0, max: 1 },
-        topP: { supported: true, min: 0, max: 1 }
+      parameterSupport: {
+        temperature: { supported: true, range: { min: 0, max: 1 } },
+        topP: { supported: true, range: { min: 0, max: 1 } }
       }
     }
 
     const result = generateOverride(baseModelWithParams, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
-    expect(result?.parameters).toEqual({
-      temperature: { supported: true, min: 0, max: 1 },
-      topP: { supported: true, min: 0, max: 1 }
+    expect(result?.parameterSupport).toEqual({
+      temperature: { supported: true, range: { min: 0, max: 1 } },
+      topP: { supported: true, range: { min: 0, max: 1 } }
     })
   })
 
   it('should generate override with multiple differences', () => {
     const providerModel: ModelConfig = {
       ...baseModel,
-      capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING, ModelCapability.IMAGE_RECOGNITION],
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
       contextWindow: 128000,
       pricing: {
         input: { perMillionTokens: 25 },
@@ -194,7 +194,7 @@ describe('generateOverride', () => {
     const result = generateOverride(baseModel, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
-    expect(result?.capabilities).toEqual({ add: [ModelCapability.IMAGE_RECOGNITION] })
+    expect(result?.capabilities).toEqual({ add: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
     expect(result?.limits).toEqual({ contextWindow: 128000 })
     expect(result?.pricing).toEqual(providerModel.pricing)
   })
@@ -230,13 +230,13 @@ describe('generateOverride', () => {
     }
     const providerModel: ModelConfig = {
       ...baseModelNoCapabilities,
-      capabilities: [ModelCapability.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     const result = generateOverride(baseModelNoCapabilities, providerModel, 'openrouter')
 
     expect(result).toBeDefined()
-    expect(result?.capabilities).toEqual({ add: [ModelCapability.FUNCTION_CALL] })
+    expect(result?.capabilities).toEqual({ add: [MODEL_CAPABILITY.FUNCTION_CALL] })
   })
 
   it('should handle provider model with no capabilities', () => {
@@ -249,7 +249,7 @@ describe('generateOverride', () => {
 
     expect(result).toBeDefined()
     expect(result?.capabilities).toEqual({
-      remove: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING]
+      remove: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
     })
   })
 })
@@ -258,7 +258,7 @@ describe('validateOverrideEnhanced', () => {
   const baseModel: ModelConfig = {
     id: 'gpt-4',
     name: 'GPT-4',
-    capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
     contextWindow: 8192,
     maxOutputTokens: 4096,
     pricing: {
@@ -321,8 +321,8 @@ describe('validateOverrideEnhanced', () => {
       providerId: 'openrouter',
       modelId: 'gpt-4',
       capabilities: {
-        add: [ModelCapability.FUNCTION_CALL, ModelCapability.IMAGE_RECOGNITION],
-        remove: [ModelCapability.FUNCTION_CALL] // Conflict: in both add and remove
+        add: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        remove: [MODEL_CAPABILITY.FUNCTION_CALL] // Conflict: in both add and remove
       },
       priority: 0
     }

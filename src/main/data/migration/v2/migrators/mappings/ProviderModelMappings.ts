@@ -8,7 +8,12 @@
  * - Target: SQLite `user_provider` + `user_model` tables
  */
 
-import { EndpointType, ModelCapability } from '@cherrystudio/provider-catalog'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  MODEL_CAPABILITY,
+  type ModelCapability
+} from '@cherrystudio/provider-catalog'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import type { ApiCompatibility, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
@@ -44,12 +49,12 @@ export interface OldLlmSettings {
 /** Map legacy capability type → new ModelCapability enum */
 const CAPABILITY_MAP: Record<string, ModelCapability | undefined> = {
   text: undefined, // Base capability, not mapped
-  vision: ModelCapability.IMAGE_RECOGNITION,
-  reasoning: ModelCapability.REASONING,
-  function_calling: ModelCapability.FUNCTION_CALL,
-  embedding: ModelCapability.EMBEDDING,
-  web_search: ModelCapability.WEB_SEARCH,
-  rerank: ModelCapability.RERANK
+  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  reasoning: MODEL_CAPABILITY.REASONING,
+  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
+  embedding: MODEL_CAPABILITY.EMBEDDING,
+  web_search: MODEL_CAPABILITY.WEB_SEARCH,
+  rerank: MODEL_CAPABILITY.RERANK
 }
 
 /**
@@ -60,15 +65,15 @@ const CAPABILITY_MAP: Record<string, ModelCapability | undefined> = {
  * get their endpoint config from the catalog preset — no mapping needed here.
  */
 const ENDPOINT_MAP: Record<string, EndpointType> = {
-  openai: EndpointType.CHAT_COMPLETIONS,
-  'openai-response': EndpointType.RESPONSES,
-  anthropic: EndpointType.MESSAGES,
-  gemini: EndpointType.GENERATE_CONTENT,
-  'image-generation': EndpointType.IMAGE_GENERATION,
-  'jina-rerank': EndpointType.RERANK,
-  'new-api': EndpointType.CHAT_COMPLETIONS,
-  gateway: EndpointType.CHAT_COMPLETIONS,
-  ollama: EndpointType.OLLAMA_CHAT
+  openai: ENDPOINT_TYPE.CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.RESPONSES,
+  anthropic: ENDPOINT_TYPE.MESSAGES,
+  gemini: ENDPOINT_TYPE.GENERATE_CONTENT,
+  'image-generation': ENDPOINT_TYPE.IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.RERANK,
+  'new-api': ENDPOINT_TYPE.CHAT_COMPLETIONS,
+  gateway: ENDPOINT_TYPE.CHAT_COMPLETIONS,
+  ollama: ENDPOINT_TYPE.OLLAMA_CHAT
 }
 
 /** System provider IDs that should have presetProviderId set */
@@ -182,7 +187,7 @@ function buildBaseUrls(legacy: LegacyProvider, endpointType: EndpointType | unde
   }
 
   if (legacy.anthropicApiHost) {
-    urls[EndpointType.MESSAGES] = legacy.anthropicApiHost
+    urls[ENDPOINT_TYPE.MESSAGES] = legacy.anthropicApiHost
   }
 
   return Object.keys(urls).length > 0 ? urls : null

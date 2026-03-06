@@ -19,18 +19,22 @@
           "perMillionTokens": 2
         }
       },
-      "parameters": {
+      "parameterSupport": {
         "temperature": {
           "supported": true,
-          "min": 0,
-          "max": 2
+          "range": {
+            "min": 0,
+            "max": 2
+          }
         },
         "maxTokens": true,
         "systemMessage": true,
         "topP": {
           "supported": true,
-          "min": 0,
-          "max": 1
+          "range": {
+            "min": 0,
+            "max": 1
+          }
         }
       },
       "endpointTypes": ["CHAT_COMPLETIONS"],

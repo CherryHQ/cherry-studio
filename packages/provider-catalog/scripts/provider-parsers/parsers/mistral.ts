@@ -55,7 +55,7 @@ function inferEndpointTypes(caps: MistralModel['capabilities'], type: string): s
 function inferInputModalities(caps: MistralModel['capabilities']): string[] | undefined {
   const modalities: string[] = ['TEXT']
   if (caps.vision || caps.ocr) {
-    modalities.push('VISION')
+    modalities.push('IMAGE')
   }
   if (caps.audio || caps.audio_transcription) {
     modalities.push('AUDIO')
