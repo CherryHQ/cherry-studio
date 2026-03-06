@@ -28,7 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
-import type { WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
+import type { WebSearchProviderId, WebSearchProviderOverrides } from '@shared/data/presets/web-search-providers'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
@@ -196,7 +196,7 @@ export interface PreferenceSchemas {
     // redux/websearch/compressionRagRerankProviderId
     'chat.web_search.compression.rag_rerank_provider_id': string | null
     // redux/websearch/defaultProvider
-    'chat.web_search.default_provider': string
+    'chat.web_search.default_provider': WebSearchProviderId
     // redux/websearch/excludeDomains
     'chat.web_search.exclude_domains': string[]
     // redux/websearch/maxResults

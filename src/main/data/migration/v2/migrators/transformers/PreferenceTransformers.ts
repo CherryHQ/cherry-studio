@@ -329,7 +329,9 @@ interface OldWebSearchProvider {
  */
 export function migrateWebSearchProviders(sources: { providers?: OldWebSearchProvider[] }): TransformResult {
   const providers = sources.providers
-  const presetById = new Map(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => [preset.id, preset]))
+  const presetById = new Map<string, (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number]>(
+    PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => [preset.id, preset])
+  )
 
   if (!providers || !Array.isArray(providers)) {
     return {

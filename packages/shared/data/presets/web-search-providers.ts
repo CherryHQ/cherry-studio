@@ -1,6 +1,6 @@
 export type WebSearchProviderType = 'api' | 'local' | 'mcp'
 
-export interface WebSearchProviderPreset {
+type WebSearchProviderPresetDefinition = {
   id: string
   name: string
   type: WebSearchProviderType
@@ -18,7 +18,7 @@ export type WebSearchProviderOverride = Partial<{
 
 export type WebSearchProviderOverrides = Record<string, WebSearchProviderOverride>
 
-export const PRESETS_WEB_SEARCH_PROVIDERS: WebSearchProviderPreset[] = [
+export const PRESETS_WEB_SEARCH_PROVIDERS = [
   {
     id: 'zhipu',
     name: 'Zhipu',
@@ -82,4 +82,10 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: WebSearchProviderPreset[] = [
     usingBrowser: true,
     defaultApiHost: 'https://www.baidu.com/s?wd=%s'
   }
-]
+] as const satisfies readonly WebSearchProviderPresetDefinition[]
+
+export type WebSearchProviderId = (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number]['id']
+
+export interface WebSearchProviderPreset extends WebSearchProviderPresetDefinition {
+  id: WebSearchProviderId
+}
