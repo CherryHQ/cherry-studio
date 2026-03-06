@@ -33,14 +33,14 @@ export const StringRangeSchema = z.object({
 })
 
 // Supported currencies for pricing
-export const CurrencySchema = z.enum(['USD', 'CNY']).default('USD').optional()
+export const ZodCurrencySchema = z.enum(['USD', 'CNY']).default('USD').optional()
 
 // Price per token schema
 // Default currency is USD if not specified
 // Allow null for perMillionTokens to handle incomplete pricing data from APIs
 export const PricePerTokenSchema = z.object({
   perMillionTokens: z.number().nonnegative().nullable(),
-  currency: CurrencySchema
+  currency: ZodCurrencySchema
 })
 
 // Generic metadata schema
@@ -53,6 +53,6 @@ export type Version = z.infer<typeof VersionSchema>
 export type ISOTimestamp = z.infer<typeof ISOTimestampSchema>
 export type NumericRange = z.infer<typeof NumericRangeSchema>
 export type StringRange = z.infer<typeof StringRangeSchema>
-export type Currency = z.infer<typeof CurrencySchema>
+export type ZodCurrency = z.infer<typeof ZodCurrencySchema>
 export type PricePerToken = z.infer<typeof PricePerTokenSchema>
 export type Metadata = z.infer<typeof MetadataSchema>

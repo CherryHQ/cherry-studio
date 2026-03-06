@@ -6,12 +6,12 @@
 import * as z from 'zod'
 
 import {
-  CurrencySchema,
   MetadataSchema,
   ModelIdSchema,
   NumericRangeSchema,
   PricePerTokenSchema,
-  VersionSchema
+  VersionSchema,
+  ZodCurrencySchema
 } from './common'
 import { MODALITY, MODEL_CAPABILITY, objectValues } from './enums'
 
@@ -208,7 +208,7 @@ export const ModelPricingSchema = z.object({
   perImage: z
     .object({
       price: z.number(),
-      currency: CurrencySchema,
+      currency: ZodCurrencySchema,
       unit: z.enum(['image', 'pixel']).optional()
     })
     .optional(),
@@ -216,7 +216,7 @@ export const ModelPricingSchema = z.object({
   perMinute: z
     .object({
       price: z.number(),
-      currency: CurrencySchema
+      currency: ZodCurrencySchema
     })
     .optional()
 })
