@@ -15,9 +15,6 @@ export {
   ReasoningEffort
 } from './schemas/enums'
 
-// Protobuf utilities (enum mapping helpers, file I/O)
-export * from './proto-utils'
-
 // Proto types (source of truth)
 export type { ModelCatalog, ModelConfig, ModelConfig as ProtoModelConfig } from './gen/v1/model_pb'
 export type {
