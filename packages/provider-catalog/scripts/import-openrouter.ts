@@ -6,6 +6,7 @@ import * as path from 'path'
 import { OpenRouterTransformer } from '../src/utils/importers/openrouter/transformer'
 import type { OpenRouterResponse } from '../src/utils/importers/openrouter/types'
 import { deduplicateModels, mergeModelsList, MergeStrategies } from '../src/utils/merge-utils'
+import { readModels, writeModels } from './shared/catalog-io'
 
 async function importOpenRouterModels() {
   console.log('Fetching models from OpenRouter API...')
@@ -57,11 +58,12 @@ async function importOpenRouterModels() {
     fs.writeFileSync(openrouterOutputPath, JSON.stringify(openrouterOutput, null, 2) + '\n', 'utf-8')
     console.log(`✓ Saved ${deduplicatedModels.length} unique OpenRouter models to ${openrouterOutputPath}`)
 
-    // Merge with main models.json (create if not exists)
-    const mainModelsPath = path.join(__dirname, '../data/models.json')
+    // Merge with main models.pb (create if not exists)
+    const mainModelsPbPath = path.join(__dirname, '../data/models.pb')
+    const mainModelsJsonPath = path.join(__dirname, '../data/models.json')
     const version = new Date().toISOString().split('T')[0].replace(/-/g, '.')
-    if (fs.existsSync(mainModelsPath)) {
-      const mainModelsData = JSON.parse(fs.readFileSync(mainModelsPath, 'utf-8'))
+    if (fs.existsSync(mainModelsPbPath)) {
+      const mainModelsData = readModels(mainModelsPbPath)
 
       // Deduplicate existing models first (in case of legacy duplicates)
       const existingDeduped = deduplicateModels(mainModelsData.models || [])
@@ -73,16 +75,19 @@ async function importOpenRouterModels() {
       // Save
       mainModelsData.models = mergedModels
       mainModelsData.version = version
-      fs.writeFileSync(mainModelsPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
+      writeModels(mainModelsPbPath, mainModelsData)
+      // Also write JSON for debugging
+      fs.writeFileSync(mainModelsJsonPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
 
-      console.log(`✓ Merged models.json: ${mergedModels.length} total models`)
+      console.log(`✓ Merged models.pb: ${mergedModels.length} total models`)
       console.log(`  - Preserved existing non-undefined values`)
       console.log(`  - Filled in undefined values from OpenRouter`)
     } else {
-      console.log('Creating models.json...')
+      console.log('Creating models.pb...')
       const mainModelsData = { version, models: deduplicatedModels }
-      fs.writeFileSync(mainModelsPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
-      console.log(`✓ Created models.json with ${deduplicatedModels.length} unique models`)
+      writeModels(mainModelsPbPath, mainModelsData)
+      fs.writeFileSync(mainModelsJsonPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
+      console.log(`✓ Created models.pb with ${deduplicatedModels.length} unique models`)
     }
 
     console.log(`\n✓ Import complete!`)

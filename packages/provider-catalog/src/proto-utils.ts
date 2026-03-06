@@ -71,7 +71,8 @@ const REASONING_EFFORT_MAP: Record<string, ReasoningEffort> = {
   low: ReasoningEffort.LOW,
   medium: ReasoningEffort.MEDIUM,
   high: ReasoningEffort.HIGH,
-  xhigh: ReasoningEffort.XHIGH
+  xhigh: ReasoningEffort.XHIGH,
+  auto: ReasoningEffort.AUTO
 }
 
 export function toEndpointType(s: string): EndpointType {
@@ -93,6 +94,50 @@ export function toCurrency(s: string | undefined): Currency {
 
 export function toReasoningEffort(s: string): ReasoningEffort {
   return REASONING_EFFORT_MAP[s] ?? ReasoningEffort.UNSPECIFIED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reverse mappings: proto number → JSON string
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ENDPOINT_TYPE_REVERSE = Object.fromEntries(Object.entries(ENDPOINT_TYPE_MAP).map(([k, v]) => [v, k])) as Record<
+  EndpointType,
+  string
+>
+
+const CAPABILITY_REVERSE = Object.fromEntries(Object.entries(CAPABILITY_MAP).map(([k, v]) => [v, k])) as Record<
+  ModelCapability,
+  string
+>
+
+const MODALITY_REVERSE = Object.fromEntries(Object.entries(MODALITY_MAP).map(([k, v]) => [v, k])) as Record<
+  Modality,
+  string
+>
+
+const REASONING_EFFORT_REVERSE = Object.fromEntries(
+  Object.entries(REASONING_EFFORT_MAP).map(([k, v]) => [v, k])
+) as Record<ReasoningEffort, string>
+
+export function fromEndpointType(n: EndpointType): string {
+  return ENDPOINT_TYPE_REVERSE[n] ?? ''
+}
+
+export function fromCapability(n: ModelCapability): string {
+  return CAPABILITY_REVERSE[n] ?? ''
+}
+
+export function fromModality(n: Modality): string {
+  return MODALITY_REVERSE[n] ?? ''
+}
+
+export function fromCurrency(n: Currency): string {
+  if (n === Currency.CNY) return 'CNY'
+  return 'USD'
+}
+
+export function fromReasoningEffort(n: ReasoningEffort): string {
+  return REASONING_EFFORT_REVERSE[n] ?? ''
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

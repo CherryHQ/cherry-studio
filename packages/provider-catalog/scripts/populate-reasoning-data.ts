@@ -13,6 +13,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { readModels, writeModels } from './shared/catalog-io'
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -287,9 +289,9 @@ function buildReasoningConfig(modelId: string): ReasoningConfig | null {
 async function main() {
   const isDryRun = process.argv.includes('--dry-run')
 
-  const modelsPath = path.resolve(__dirname, '../data/models.json')
-  const raw = fs.readFileSync(modelsPath, 'utf-8')
-  const data = JSON.parse(raw) as { version: string; models: ModelEntry[] }
+  const modelsPbPath = path.resolve(__dirname, '../data/models.pb')
+  const modelsJsonPath = path.resolve(__dirname, '../data/models.json')
+  const data = readModels(modelsPbPath) as { version: string; models: ModelEntry[] }
 
   let populated = 0
   let capAdded = 0
@@ -372,8 +374,10 @@ async function main() {
   console.log(`Skipped (no REASONING capability): ${skippedNoReasoning}`)
 
   if (!isDryRun && (populated > 0 || interleavedAdded > 0)) {
-    fs.writeFileSync(modelsPath, JSON.stringify(data, null, 2) + '\n')
-    console.log(`\nWritten to ${modelsPath}`)
+    writeModels(modelsPbPath, data)
+    // Also write JSON for debugging
+    fs.writeFileSync(modelsJsonPath, JSON.stringify(data, null, 2) + '\n')
+    console.log(`\nWritten to ${modelsPbPath}`)
   } else if (isDryRun) {
     console.log('\n[dry-run] No changes written.')
   } else {

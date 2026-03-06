@@ -68,6 +68,7 @@ enum ReasoningEffort {
   REASONING_EFFORT_MEDIUM = 4;
   REASONING_EFFORT_HIGH = 5;
   REASONING_EFFORT_XHIGH = 6;
+  REASONING_EFFORT_AUTO = 7;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

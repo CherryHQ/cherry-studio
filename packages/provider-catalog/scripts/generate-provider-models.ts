@@ -53,6 +53,7 @@ import {
 } from './provider-parsers'
 // Import shared API key configuration
 import { getApiKey, getAuthHeaders } from './shared/api-keys'
+import { readModels, readProviderModels, readProviders, writeModels, writeProviderModels } from './shared/catalog-io'
 
 const DATA_DIR = path.join(__dirname, '../data')
 
@@ -635,22 +636,23 @@ function printApiKeysSummary(providerIds: string[]): void {
 async function generateProviderModels() {
   console.log('Generating provider-models.json from provider APIs...\n')
 
-  // Read authoritative models.json
+  // Read authoritative data files
   console.log('Reading data files:')
-  const modelsPath = path.join(DATA_DIR, 'models.json')
-  const providersPath = path.join(DATA_DIR, 'providers.json')
+  const modelsPbPath = path.join(DATA_DIR, 'models.pb')
+  const providersPbPath = path.join(DATA_DIR, 'providers.pb')
+  const modelsJsonPath = path.join(DATA_DIR, 'models.json')
 
-  if (!fs.existsSync(modelsPath)) {
-    console.error('Error: models.json not found')
+  if (!fs.existsSync(modelsPbPath)) {
+    console.error('Error: models.pb not found')
     process.exit(1)
   }
-  if (!fs.existsSync(providersPath)) {
-    console.error('Error: providers.json not found')
+  if (!fs.existsSync(providersPbPath)) {
+    console.error('Error: providers.pb not found')
     process.exit(1)
   }
 
-  const modelsData: ModelsDataFile = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'))
-  const providersData: ProvidersDataFile = JSON.parse(fs.readFileSync(providersPath, 'utf-8'))
+  const modelsData: ModelsDataFile = readModels(modelsPbPath) as ModelsDataFile
+  const providersData: ProvidersDataFile = readProviders(providersPbPath) as ProvidersDataFile
 
   console.log(`  - models.json: ${modelsData.models.length} models`)
   console.log(`  - providers.json: ${providersData.providers.length} providers`)
@@ -877,12 +879,12 @@ async function generateProviderModels() {
   }
 
   // Load existing manual overrides (priority >= 100) to preserve them
-  const existingPath = path.join(DATA_DIR, 'provider-models.json')
+  const existingPbPath = path.join(DATA_DIR, 'provider-models.pb')
   let existingManualOverrides: ProviderModelOverride[] = []
 
-  if (fs.existsSync(existingPath)) {
+  if (fs.existsSync(existingPbPath)) {
     try {
-      const existingData = JSON.parse(fs.readFileSync(existingPath, 'utf-8'))
+      const existingData = readProviderModels(existingPbPath)
       existingManualOverrides = (existingData.overrides || []).filter(
         (o: ProviderModelOverride) => (o.priority ?? 0) >= 100
       )
@@ -914,23 +916,28 @@ async function generateProviderModels() {
     return (a.modelVariant || '').localeCompare(b.modelVariant || '')
   })
 
-  // Add new models to models.json
+  // Add new models to models.pb
   if (newModels.length > 0) {
-    console.log(`\nAdding ${newModels.length} new models to models.json...`)
+    console.log(`\nAdding ${newModels.length} new models to models.pb...`)
     modelsData.models.push(...newModels)
     modelsData.version = new Date().toISOString().split('T')[0].replace(/-/g, '.')
-    fs.writeFileSync(modelsPath, JSON.stringify(modelsData, null, 2) + '\n', 'utf-8')
-    console.log(`  ✓ Updated models.json (${modelsData.models.length} total models)`)
+    writeModels(modelsPbPath, modelsData)
+    // Also write JSON for debugging
+    fs.writeFileSync(modelsJsonPath, JSON.stringify(modelsData, null, 2) + '\n', 'utf-8')
+    console.log(`  ✓ Updated models.pb (${modelsData.models.length} total models)`)
   }
 
-  // Write provider-models.json
+  // Write provider-models.pb
   const output = {
     version: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
     overrides: finalOverrides
   }
 
-  const outputPath = path.join(DATA_DIR, 'provider-models.json')
-  fs.writeFileSync(outputPath, JSON.stringify(output, null, 2) + '\n', 'utf-8')
+  const providerModelsPbPath = path.join(DATA_DIR, 'provider-models.pb')
+  writeProviderModels(providerModelsPbPath, output)
+  // Also write JSON for debugging
+  const providerModelsJsonPath = path.join(DATA_DIR, 'provider-models.json')
+  fs.writeFileSync(providerModelsJsonPath, JSON.stringify(output, null, 2) + '\n', 'utf-8')
 
   // Summary
   console.log('\n' + '='.repeat(60))
@@ -940,7 +947,7 @@ async function generateProviderModels() {
   console.log(`  New models added to models.json: ${totals.newModelsAdded}`)
   console.log(`  Overrides generated: ${totals.overridesGenerated}`)
   console.log(`  Manual overrides preserved: ${existingManualOverrides.length}`)
-  console.log(`\n✓ Generated ${outputPath}`)
+  console.log(`\n✓ Generated ${providerModelsPbPath}`)
   console.log(`  - Total entries: ${finalOverrides.length}`)
 }
 

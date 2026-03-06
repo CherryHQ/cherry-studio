@@ -26,6 +26,7 @@ import * as path from 'path'
 
 import type { ProviderConfig } from '../src/schemas'
 import { getApiKey, getAuthHeaders } from './shared/api-keys'
+import { readProviders } from './shared/catalog-io'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Utilities
@@ -166,15 +167,15 @@ async function main() {
   console.log('Fetches actual API responses to help create accurate schemas.')
   console.log('')
 
-  // Load providers from providers.json
-  const providersPath = path.join(__dirname, '../data/providers.json')
-  if (!fs.existsSync(providersPath)) {
-    console.error('Error: data/providers.json not found')
+  // Load providers from providers.pb
+  const providersPbPath = path.join(__dirname, '../data/providers.pb')
+  if (!fs.existsSync(providersPbPath)) {
+    console.error('Error: data/providers.pb not found')
     console.error('Run `npx tsx scripts/generate-providers.ts` first')
     process.exit(1)
   }
 
-  const providersData = JSON.parse(fs.readFileSync(providersPath, 'utf-8'))
+  const providersData = readProviders(providersPbPath)
   const allProviders: ProviderConfig[] = providersData.providers
 
   // Filter providers with modelsApiUrls

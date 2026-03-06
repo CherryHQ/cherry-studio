@@ -11,6 +11,7 @@ import * as path from 'path'
 import { ModelsDevTransformer } from '../src/utils/importers/modelsdev/transformer'
 import { type ModelsDevResponse, ModelsDevResponseSchema } from '../src/utils/importers/modelsdev/types'
 import { deduplicateModels, mergeModelsList, MergeStrategies } from '../src/utils/merge-utils'
+import { readModels, writeModels } from './shared/catalog-io'
 
 const API_URL = 'https://models.dev/api.json'
 
@@ -93,11 +94,12 @@ async function importModelsDevData() {
     )
     console.log(`✓ Saved ${deduplicatedModels.length} unique models to ${modelsdevModelsPath}`)
 
-    // Merge with main models.json (create if not exists)
-    const mainModelsPath = path.join(dataDir, 'models.json')
-    if (fs.existsSync(mainModelsPath)) {
-      console.log('\nMerging with existing models.json...')
-      const mainModelsData = JSON.parse(fs.readFileSync(mainModelsPath, 'utf-8'))
+    // Merge with main models.pb (create if not exists)
+    const mainModelsPbPath = path.join(dataDir, 'models.pb')
+    const mainModelsJsonPath = path.join(dataDir, 'models.json')
+    if (fs.existsSync(mainModelsPbPath)) {
+      console.log('\nMerging with existing models.pb...')
+      const mainModelsData = readModels(mainModelsPbPath)
 
       // Deduplicate existing models first (in case of legacy duplicates)
       const existingDeduped = deduplicateModels(mainModelsData.models || [])
@@ -110,16 +112,19 @@ async function importModelsDevData() {
 
       mainModelsData.models = mergedModels
       mainModelsData.version = version
-      fs.writeFileSync(mainModelsPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
+      writeModels(mainModelsPbPath, mainModelsData)
+      // Also write JSON for debugging
+      fs.writeFileSync(mainModelsJsonPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
 
-      console.log(`✓ Merged models.json: ${mergedModels.length} total models`)
+      console.log(`✓ Merged models.pb: ${mergedModels.length} total models`)
       console.log(`  - Preserved existing non-undefined values`)
       console.log(`  - Filled in undefined values from models.dev`)
     } else {
-      console.log('\nCreating models.json...')
+      console.log('\nCreating models.pb...')
       const mainModelsData = { version, models: deduplicatedModels }
-      fs.writeFileSync(mainModelsPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
-      console.log(`✓ Created models.json with ${deduplicatedModels.length} unique models`)
+      writeModels(mainModelsPbPath, mainModelsData)
+      fs.writeFileSync(mainModelsJsonPath, JSON.stringify(mainModelsData, null, 2) + '\n', 'utf-8')
+      console.log(`✓ Created models.pb with ${deduplicatedModels.length} unique models`)
     }
 
     // Print summary by provider

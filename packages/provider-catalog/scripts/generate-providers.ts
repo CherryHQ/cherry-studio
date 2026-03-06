@@ -15,6 +15,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { ENDPOINT_TYPE, type EndpointType, type ProviderConfig } from '../src/schemas'
+import { writeProviders } from './shared/catalog-io'
 
 type CherryStudioProviderType =
   | 'openai'
@@ -379,10 +380,15 @@ async function generateProvidersJson() {
     providers
   }
 
-  const outputPath = path.join(__dirname, '../data/providers.json')
-  await fs.promises.writeFile(outputPath, JSON.stringify(output, null, 2) + '\n', 'utf-8')
+  // Write protobuf binary
+  const pbOutputPath = path.join(__dirname, '../data/providers.pb')
+  writeProviders(pbOutputPath, output)
 
-  console.log(`✓ Saved to ${outputPath}`)
+  // Also write JSON for debugging/inspection
+  const jsonOutputPath = path.join(__dirname, '../data/providers.json')
+  await fs.promises.writeFile(jsonOutputPath, JSON.stringify(output, null, 2) + '\n', 'utf-8')
+
+  console.log(`✓ Saved to ${pbOutputPath} and ${jsonOutputPath}`)
 
   // List providers with modelsApiUrls
   console.log('\nProviders with modelsApiUrls:')
