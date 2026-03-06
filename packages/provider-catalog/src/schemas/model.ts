@@ -5,13 +5,20 @@
 
 import * as z from 'zod'
 
-import { CurrencySchema, MetadataSchema, ModelIdSchema, PricePerTokenSchema, VersionSchema } from './common'
-import { Modality, ModelCapability } from './enums'
+import {
+  CurrencySchema,
+  MetadataSchema,
+  ModelIdSchema,
+  NumericRangeSchema,
+  PricePerTokenSchema,
+  VersionSchema
+} from './common'
+import { MODALITY, MODEL_CAPABILITY, objectValues } from './enums'
 
-export const ModalitySchema = z.enum(Modality)
+export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
 
-export const ModelCapabilityTypeSchema = z.enum(ModelCapability)
+export const ModelCapabilityTypeSchema = z.enum(objectValues(MODEL_CAPABILITY))
 export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
 
 // Thinking token limits schema (shared across reasoning types)
@@ -21,11 +28,14 @@ export const ThinkingTokenLimitsSchema = z.object({
   default: z.number().nonnegative().optional()
 })
 
+/** Reasoning effort levels shared across providers */
+export const ReasoningEffortSchema = z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(z.string()).optional(),
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
   interleaved: z.boolean().optional()
 }
 
@@ -37,7 +47,7 @@ export const ReasoningSchema = z.discriminatedUnion('type', [
     type: z.literal('openai-chat'),
     params: z
       .object({
-        reasoningEffort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional()
+        reasoningEffort: ReasoningEffortSchema.optional()
       })
       .optional(),
     ...commonReasoningFields
@@ -47,7 +57,7 @@ export const ReasoningSchema = z.discriminatedUnion('type', [
     params: z
       .object({
         reasoning: z.object({
-          effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional(),
+          effort: ReasoningEffortSchema.optional(),
           summary: z.enum(['auto', 'concise', 'detailed']).optional()
         })
       })
@@ -58,8 +68,9 @@ export const ReasoningSchema = z.discriminatedUnion('type', [
     type: z.literal('anthropic'),
     params: z
       .object({
-        type: z.union([z.literal('enabled'), z.literal('disabled')]),
-        budgetTokens: z.number().optional()
+        type: z.union([z.literal('enabled'), z.literal('disabled'), z.literal('adaptive')]),
+        budgetTokens: z.number().optional(),
+        effort: ReasoningEffortSchema.optional()
       })
       .optional(),
     ...commonReasoningFields
@@ -78,7 +89,7 @@ export const ReasoningSchema = z.discriminatedUnion('type', [
           .optional(),
         z
           .object({
-            thinkingLevel: z.enum(['low', 'medium', 'high']).optional()
+            thinkingLevel: z.enum(['minimal', 'low', 'medium', 'high']).optional()
           })
           .optional()
       ])
@@ -161,24 +172,21 @@ export const ParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
-      min: z.number().min(0).max(2).optional(),
-      max: z.number().min(0).max(2).optional()
+      range: NumericRangeSchema.optional()
     })
     .optional(),
 
   topP: z
     .object({
       supported: z.boolean(),
-      min: z.number().min(0).max(1).optional(),
-      max: z.number().min(0).max(1).optional()
+      range: NumericRangeSchema.optional()
     })
     .optional(),
 
   topK: z
     .object({
       supported: z.boolean(),
-      min: z.number().positive().optional(),
-      max: z.number().positive().optional()
+      range: NumericRangeSchema.optional()
     })
     .optional(),
 
@@ -186,7 +194,13 @@ export const ParameterSupportSchema = z.object({
   presencePenalty: z.boolean().optional(),
   maxTokens: z.boolean().optional(),
   stopSequences: z.boolean().optional(),
-  systemMessage: z.boolean().optional()
+  systemMessage: z.boolean().optional(),
+
+  /**
+   * Groups of parameter names that cannot be specified simultaneously.
+   * e.g. [["temperature", "topP"]] means only one can be set at a time (Claude, etc.)
+   */
+  mutuallyExclusive: z.array(z.array(z.string())).optional()
 })
 
 // Model pricing configuration
@@ -220,7 +234,7 @@ export const ModelConfigSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
 
-  // Capabilities (can be empty for embedding/rerank models)
+  // Capabilities
   capabilities: z
     .array(ModelCapabilityTypeSchema)
     .refine((arr) => new Set(arr).size === arr.length, {
@@ -254,7 +268,7 @@ export const ModelConfigSchema = z.object({
   reasoning: ReasoningSchema.optional(),
 
   // Parameter support
-  parameters: ParameterSupportSchema.optional(),
+  parameterSupport: ParameterSupportSchema.optional(),
 
   // Model family (e.g., "GPT-4", "Claude 3")
   family: z.string().optional(),

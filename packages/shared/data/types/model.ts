@@ -12,16 +12,18 @@
 
 import {
   CommonReasoningFieldsSchema,
-  EndpointType,
-  Modality,
-  ModelCapability,
+  ENDPOINT_TYPE,
+  MODALITY,
+  MODEL_CAPABILITY,
+  objectValues,
   ParameterSupportSchema as CatalogParameterSupportSchema,
   PricePerTokenSchema,
   ThinkingTokenLimitsSchema
 } from '@cherrystudio/provider-catalog/schemas'
 
-// Re-export enums for consumers
-export { EndpointType, Modality, ModelCapability }
+// Re-export const objects and types for consumers
+export { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY }
+export type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-catalog/schemas'
 import * as z from 'zod'
 
 /** Separator used in UniqueModelId */
@@ -72,16 +74,16 @@ export function isUniqueModelId(value: string): value is UniqueModelId {
 
 /** Capabilities surfaced as filter tags in the UI */
 export const UI_CAPABILITY_TAGS = [
-  ModelCapability.IMAGE_RECOGNITION,
-  ModelCapability.IMAGE_GENERATION,
-  ModelCapability.AUDIO_RECOGNITION,
-  ModelCapability.AUDIO_GENERATION,
-  ModelCapability.VIDEO_GENERATION,
-  ModelCapability.EMBEDDING,
-  ModelCapability.REASONING,
-  ModelCapability.FUNCTION_CALL,
-  ModelCapability.WEB_SEARCH,
-  ModelCapability.RERANK
+  MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  MODEL_CAPABILITY.IMAGE_GENERATION,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.AUDIO_GENERATION,
+  MODEL_CAPABILITY.VIDEO_GENERATION,
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.REASONING,
+  MODEL_CAPABILITY.FUNCTION_CALL,
+  MODEL_CAPABILITY.WEB_SEARCH,
+  MODEL_CAPABILITY.RERANK
 ] as const
 
 /** A capability that is shown as a UI tag */
@@ -146,7 +148,9 @@ export const RuntimeParameterSupportSchema = z.object({
   presencePenalty: z.boolean().optional(),
   maxTokens: z.boolean(),
   stopSequences: z.boolean(),
-  systemMessage: z.boolean()
+  systemMessage: z.boolean(),
+  /** Groups of parameter names that cannot be specified simultaneously */
+  mutuallyExclusive: z.array(z.array(z.string())).optional()
 })
 export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSchema>
 
@@ -195,11 +199,11 @@ export const ModelSchema = z.object({
 
   // Capabilities
   /** Final capability list after all merges */
-  capabilities: z.array(z.enum(ModelCapability)),
+  capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
   /** Supported input modalities */
-  inputModalities: z.array(z.enum(Modality)).optional(),
+  inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Supported output modalities */
-  outputModalities: z.array(z.enum(Modality)).optional(),
+  outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
 
   // Configuration
   /** Context window size */
@@ -209,13 +213,13 @@ export const ModelSchema = z.object({
   /** Maximum input tokens */
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
-  endpointTypes: z.array(z.enum(EndpointType)).optional(),
+  endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support */
-  parameters: RuntimeParameterSupportSchema.optional(),
+  parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
 
