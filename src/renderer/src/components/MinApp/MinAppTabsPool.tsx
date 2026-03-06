@@ -103,8 +103,7 @@ const MinAppTabsPool: React.FC = () => {
       {apps.map((app) => (
         <WebviewWrapper key={app.id} $active={app.id === currentMinappId}>
           <WebviewContainer
-            appid={app.id}
-            url={app.url}
+            app={app}
             onSetRefCallback={handleSetRef}
             onLoadedCallback={handleLoaded}
             onNavigateCallback={handleNavigate}
