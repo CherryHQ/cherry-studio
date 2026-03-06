@@ -10,9 +10,19 @@ export * from './schemas'
 // Protobuf utilities (enum mapping helpers)
 export * from './proto-utils'
 
-// Catalog reader (read .pb files and return typed JSON objects)
-export { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from './catalog-reader'
+// Proto types (source of truth)
+// Note: ModelConfig, ProviderConfig, ProviderModelOverride also exported from ./schemas (Zod-inferred).
+// After Zod schemas are removed (Task 10), these will be the only source.
+export type { ModelCatalog } from './gen/v1/model_pb'
+export type { ProviderModelCatalog } from './gen/v1/provider_models_pb'
+export type { ProviderCatalog } from './gen/v1/provider_pb'
 
-// Proto-generated types are available via direct imports:
-//   import { ModelCatalogSchema } from '@cherrystudio/provider-catalog/gen/v1/model_pb'
-// Not re-exported here to avoid name conflicts with legacy Zod types.
+// Proto message types — exported with 'Proto' prefix to avoid conflict with Zod-inferred types
+// After Zod schemas are removed, these can be re-exported without prefix
+export type { ModelConfig as ProtoModelConfig } from './gen/v1/model_pb'
+export type { ModelPricing as ProtoModelPricing, Reasoning as ProtoReasoning } from './gen/v1/model_pb'
+export type { ProviderModelOverride as ProtoProviderModelOverride } from './gen/v1/provider_models_pb'
+export type { ProviderConfig as ProtoProviderConfig } from './gen/v1/provider_pb'
+
+// Catalog reader (read .pb files and return proto Message types)
+export { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from './catalog-reader'
