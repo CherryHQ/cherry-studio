@@ -27,7 +27,7 @@
  */
 export interface SourceDefinition {
   /** Data source type */
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings'
   /** Key path to read from source */
   key: string
   /** Redux category (required for redux source) */
