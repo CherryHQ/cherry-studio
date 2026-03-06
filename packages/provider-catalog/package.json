@@ -22,6 +22,7 @@
     "sync:all": "tsx scripts/generate-providers.ts",
     "generate:provider-models": "tsx scripts/generate-provider-models.ts",
     "populate:reasoning": "tsx scripts/populate-reasoning-data.ts",
+    "migrate:json-to-pb": "tsx scripts/migrate-json-to-pb.ts",
     "pipeline": "pnpm import:all && pnpm sync:all && pnpm generate:provider-models && pnpm populate:reasoning"
   },
   "author": "Cherry Studio",
