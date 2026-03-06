@@ -41,6 +41,13 @@
       "description": "Translate language auto detection method."
     },
     {
+      "targetKey": "feature.translate.page.bidirectional_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable bidirectional translation mode on main translate page (v2 new, migrated from Dexie settings 'translate:bidirectional:enabled')."
+    },
+    {
       "targetKey": "feature.translate.page.bidirectional_pair",
       "type": "PreferenceTypes.TranslateBidirectionalPair",
       "defaultValue": ["zh-cn", "en-us"],
