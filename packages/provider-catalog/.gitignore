@@ -7,6 +7,9 @@
 dist/
 *.tsbuildinfo
 
+# Generated protobuf TypeScript
+src/gen/
+
 # Node modules
 node_modules/
 
