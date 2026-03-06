@@ -19,6 +19,7 @@ import MinAppsPage from './pages/minapps/MinAppsPage'
 import NotesPage from './pages/notes/NotesPage'
 import OpenClawPage from './pages/openclaw/OpenClawPage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
+import PromptPage from './pages/prompt/PromptPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPresetsPage'
 import TranslatePage from './pages/translate/TranslatePage'
@@ -34,6 +35,7 @@ const Router: FC = () => {
           <Route path="/store" element={<AssistantPresetsPage />} />
           <Route path="/paintings/*" element={<PaintingsRoutePage />} />
           <Route path="/translate" element={<TranslatePage />} />
+          <Route path="/prompt" element={<PromptPage />} />
           <Route path="/files" element={<FilesPage />} />
           <Route path="/notes" element={<NotesPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />

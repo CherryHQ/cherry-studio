@@ -9,6 +9,7 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
   'store',
   'paintings',
   'translate',
+  'prompt',
   'minapp',
   'knowledge',
   'files',
