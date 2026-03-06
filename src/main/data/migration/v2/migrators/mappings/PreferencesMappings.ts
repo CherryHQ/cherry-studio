@@ -855,6 +855,10 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   websearch: [
     {
+      originalKey: 'defaultProvider',
+      targetKey: 'chat.web_search.default_provider'
+    },
+    {
       originalKey: 'searchWithTime',
       targetKey: 'chat.web_search.search_with_time'
     },
@@ -874,9 +878,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 205
+ * - Redux Store项: 206
  * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note, websearch
- * - 总配置项: 206
+ * - 总配置项: 207
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

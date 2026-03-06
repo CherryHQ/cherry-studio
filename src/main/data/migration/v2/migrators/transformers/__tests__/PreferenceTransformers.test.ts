@@ -186,6 +186,30 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
     })
 
+    it('should fallback to default method when method is invalid', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'invalid-method',
+          cutoffUnit: 'token'
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('none')
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
+    })
+
+    it('should fallback to default cutoff unit when unit is invalid', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'rag',
+          cutoffUnit: 'sentence'
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('rag')
+      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
+    })
+
     it('should handle null embeddingModel and rerankModel', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {

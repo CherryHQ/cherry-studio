@@ -195,6 +195,8 @@ export interface PreferenceSchemas {
     'chat.web_search.compression.rag_rerank_model_id': string | null
     // redux/websearch/compressionRagRerankProviderId
     'chat.web_search.compression.rag_rerank_provider_id': string | null
+    // redux/websearch/defaultProvider
+    'chat.web_search.default_provider': string
     // redux/websearch/excludeDomains
     'chat.web_search.exclude_domains': string[]
     // redux/websearch/maxResults
@@ -556,6 +558,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.compression.rag_embedding_provider_id': null,
     'chat.web_search.compression.rag_rerank_model_id': null,
     'chat.web_search.compression.rag_rerank_provider_id': null,
+    'chat.web_search.default_provider': 'local-bing',
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
     'chat.web_search.provider_overrides': {},
@@ -758,8 +761,8 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 216
+ * - 总配置项: 217
  * - electronStore项: 1
- * - redux项: 215
+ * - redux项: 216
  * - localStorage项: 0
  */

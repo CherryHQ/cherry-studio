@@ -219,6 +219,21 @@ interface WebSearchCompressionConfigSource {
   rerankModel?: { id?: string; provider?: string } | null
 }
 
+const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff', 'rag'] as const
+const WEB_SEARCH_CUTOFF_UNITS = ['char', 'token'] as const
+
+function isStringInList<const T extends readonly string[]>(value: unknown, list: T): value is T[number] {
+  return typeof value === 'string' && (list as readonly string[]).includes(value)
+}
+
+function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESSION_METHODS)[number] {
+  return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
+}
+
+function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
+  return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
+}
+
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
@@ -261,10 +276,13 @@ export function flattenCompressionConfig(sources: {
     }
   }
 
+  const method = normalizeCompressionMethod(config.method)
+  const cutoffUnit = normalizeCutoffUnit(config.cutoffUnit)
+
   return {
-    'chat.web_search.compression.method': config.method ?? 'none',
+    'chat.web_search.compression.method': method,
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
-    'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char',
+    'chat.web_search.compression.cutoff_unit': cutoffUnit,
     'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
     'chat.web_search.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
     'chat.web_search.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,

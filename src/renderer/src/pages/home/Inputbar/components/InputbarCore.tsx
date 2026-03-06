@@ -135,7 +135,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [searching, setSearching] = useCache('chat.websearch.searching')
+  const [searching, setSearching] = useCache('chat.web_search.searching')
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
   const { t } = useTranslation()
