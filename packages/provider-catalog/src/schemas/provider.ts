@@ -6,9 +6,9 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { ENDPOINT_TYPE, objectValues } from './enums'
+import { EndpointType } from './enums'
 
-export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
+export const EndpointTypeSchema = z.enum(EndpointType)
 
 /** API compatibility flags for provider-specific behaviors */
 export const ApiCompatibilitySchema = z.object({
@@ -82,7 +82,6 @@ export const ProviderListSchema = z.object({
   providers: z.array(ProviderConfigSchema)
 })
 
-export type { EndpointType } from './enums'
 export { ENDPOINT_TYPE } from './enums'
 export type ApiCompatibility = z.infer<typeof ApiCompatibilitySchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>

@@ -13,17 +13,19 @@
 import {
   CommonReasoningFieldsSchema,
   ENDPOINT_TYPE,
+  EndpointType,
   MODALITY,
+  Modality,
   MODEL_CAPABILITY,
-  objectValues,
+  ModelCapability,
   ParameterSupportSchema as CatalogParameterSupportSchema,
   PricePerTokenSchema,
+  ReasoningEffort,
   ThinkingTokenLimitsSchema
 } from '@cherrystudio/provider-catalog/schemas'
 
 // Re-export const objects and types for consumers
-export { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY }
-export type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-catalog/schemas'
+export { ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
 import * as z from 'zod'
 
 /** Separator used in UniqueModelId */
@@ -112,7 +114,7 @@ export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>
 /** Runtime form: extends DB form — supportedEfforts required, adds defaultEffort */
 export const RuntimeReasoningSchema = ReasoningConfigSchema.required({ supportedEfforts: true }).extend({
   /** Default effort level */
-  defaultEffort: z.string().optional()
+  defaultEffort: z.enum(ReasoningEffort).optional()
 })
 
 export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
@@ -199,11 +201,11 @@ export const ModelSchema = z.object({
 
   // Capabilities
   /** Final capability list after all merges */
-  capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
+  capabilities: z.array(z.enum(ModelCapability)),
   /** Supported input modalities */
-  inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
+  inputModalities: z.array(z.enum(Modality)).optional(),
   /** Supported output modalities */
-  outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
+  outputModalities: z.array(z.enum(Modality)).optional(),
 
   // Configuration
   /** Context window size */
@@ -213,7 +215,7 @@ export const ModelSchema = z.object({
   /** Maximum input tokens */
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
-  endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  endpointTypes: z.array(z.enum(EndpointType)).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
