@@ -1,8 +1,8 @@
 syntax = "proto3";
 package catalog.v1;
 
-import "catalog/v1/common.proto";
-import "catalog/v1/model.proto";
+import "v1/common.proto";
+import "v1/model.proto";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Capability Override

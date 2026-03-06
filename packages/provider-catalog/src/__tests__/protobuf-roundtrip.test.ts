@@ -1,9 +1,9 @@
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { describe, expect, it } from 'vitest'
 
-import { ModelCatalogSchema, ModelConfigSchema } from '../gen/catalog/v1/model_pb'
-import { ProviderModelCatalogSchema } from '../gen/catalog/v1/provider_models_pb'
-import { ProviderCatalogSchema, ProviderConfigSchema } from '../gen/catalog/v1/provider_pb'
+import { ModelCatalogSchema, ModelConfigSchema } from '../gen/v1/model_pb'
+import { ProviderModelCatalogSchema } from '../gen/v1/provider_models_pb'
+import { ProviderCatalogSchema, ProviderConfigSchema } from '../gen/v1/provider_pb'
 
 describe('protobuf roundtrip', () => {
   it('ModelCatalog roundtrips through binary', () => {
