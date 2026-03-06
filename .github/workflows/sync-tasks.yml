@@ -1,0 +1,64 @@
+name: Sync Tasks
+
+on:
+  # PR events -> incremental update
+  pull_request:
+    types: [opened, closed, reopened]
+    branches: [main, v2]
+
+  # Manual -> full audit + sync
+  workflow_dispatch:
+    inputs:
+      milestone:
+        description: 'Milestone to sync (leave empty for all active milestones)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  id-token: write
+
+jobs:
+  refresh-token:
+    runs-on: ubuntu-latest
+    outputs:
+      tenant_token: ${{ steps.auth.outputs.tenant_token }}
+    steps:
+      - name: Get Feishu Tenant Token
+        id: auth
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal" \
+            -H "Content-Type: application/json" \
+            -d "{\"app_id\": \"${{ secrets.FEISHU_APP_ID }}\", \"app_secret\": \"${{ secrets.FEISHU_APP_SECRET }}\"}")
+          TOKEN=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['tenant_access_token'])")
+          echo "::add-mask::$TOKEN"
+          echo "tenant_token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+  sync:
+    needs: refresh-token
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync Tasks via Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          claude_args: '--allowed-tools "Bash(python3:*),Bash(gh:*),Read,Glob,Grep"'
+          prompt: |
+            Read .agents/skills/sync-tasks/SKILL.md and follow the workflow.
+
+            Context:
+            - Trigger: ${{ github.event_name }}
+            - Milestone filter: ${{ github.event.inputs.milestone || 'all' }}
+            - PR event: ${{ github.event.pull_request.number || 'N/A' }}
+
+            This is CI mode - skip all interactive confirmations.
+            Apply deterministic changes directly. For audit findings that
+            require judgment (sub-task creation), apply recommendations automatically.
+        env:
+          FEISHU_TENANT_TOKEN: ${{ needs.refresh-token.outputs.tenant_token }}

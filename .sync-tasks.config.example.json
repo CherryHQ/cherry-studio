@@ -1,0 +1,21 @@
+{
+  "feishu": {
+    "wiki_token": "<your-wiki-token>",
+    "table_id": "<your-table-id>"
+  },
+  "github": {
+    "repo": "CherryHQ/cherry-studio"
+  },
+  "field_mapping": {
+    "task_name": "任务描述",
+    "status": "进展",
+    "pr": "对应 PR",
+    "assignee": "任务执行人",
+    "parent": "父记录",
+    "dependency": "依赖于",
+    "version": "版本",
+    "summary": "任务情况总结"
+  },
+  "status_options": ["已停滞", "待开始", "进行中", "已完成", "审核中", "存在冲突"],
+  "task_pr_overrides": {}
+}

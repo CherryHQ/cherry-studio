@@ -13,3 +13,5 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
+!sync-tasks/
+!sync-tasks/**
