@@ -201,7 +201,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         return {
           extra_body: {
             // Poe platform does not currently support the 'medium' parameter on gemini 3.0/3.1.
-            reasoning_effort: reasoningEffort === 'auto' ? 'low' : (reasoningEffort === 'medium' ? 'high' : reasoningEffort)
+            thinking_level: reasoningEffort === 'auto' ? 'low' : reasoningEffort === 'medium' ? 'high' : reasoningEffort
           }
         }
       } else {
