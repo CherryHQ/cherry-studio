@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-01-23T10:31:39.499Z
+ * Generated at: 2026-03-06T08:38:10.558Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -811,6 +811,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  translate: [
+    {
+      originalKey: 'settings.autoCopy',
+      targetKey: 'translate.settings.auto_copy'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',
@@ -860,9 +866,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 204
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, note
+ * - 总配置项: 205
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

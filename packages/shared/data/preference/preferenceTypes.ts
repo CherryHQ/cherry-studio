@@ -1,3 +1,5 @@
+import type { TranslateLanguageCode } from '@types'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -104,3 +106,10 @@ export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+export type TargetLangs = {
+  firstTarget: TranslateLanguageCode
+  secondTarget: TranslateLanguageCode
+}

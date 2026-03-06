@@ -32,6 +32,37 @@
       "defaultValue": 600,
       "status": "pending",
       "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "translate.settings.auto_detection_method",
+      "type": "PreferenceTypes.AutoDetectionMethod",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate language auto detection method."
+    },
+    {
+      "targetKey": "translate.settings.enable_markdown",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable Markdown rendering in translate output."
+    },
+    {
+      "targetKey": "translate.settings.scroll_sync",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable scroll synchronization between source and translate output."
+    },
+    {
+      "targetKey": "translate.settings.target_langs",
+      "type": "PreferenceTypes.TargetLangs",
+      "defaultValue": {
+        "firstTarget": "zh-cn",
+        "secondTarget": "en-us"
+      },
+      "status": "classified",
+      "description": "Translate target languages."
     }
   ]
 }
