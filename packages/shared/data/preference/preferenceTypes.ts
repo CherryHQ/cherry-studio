@@ -1,4 +1,8 @@
-import type { WebSearchProviderId, WebSearchProviderType } from '../presets/web-search-providers'
+import type {
+  WebSearchProviderId as PresetWebSearchProviderId,
+  WebSearchProviderOverrides as PresetWebSearchProviderOverrides,
+  WebSearchProviderType
+} from '../presets/web-search-providers'
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -109,6 +113,10 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // ============================================================================
 // WebSearch Types
 // ============================================================================
+
+export type WebSearchProviderId = PresetWebSearchProviderId
+
+export type WebSearchProviderOverrides = PresetWebSearchProviderOverrides
 
 /**
  * Full WebSearch Provider configuration
