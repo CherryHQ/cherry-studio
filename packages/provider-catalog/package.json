@@ -44,6 +44,8 @@
     }
   },
   "devDependencies": {
+    "@bufbuild/buf": "^1.66.0",
+    "@bufbuild/protoc-gen-es": "^2.11.0",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
@@ -52,10 +54,9 @@
     "vitest": "^4.0.13",
     "zod": "^4.1.12"
   },
-  "peerDependencies": {
-    "zod": "^4.1.12"
-  },
+  "peerDependencies": {},
   "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
     "class-variance-authority": "^0.7.1",
     "json-schema": "^0.4.0",
     "lucide-react": "^0.563.0"
