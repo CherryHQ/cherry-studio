@@ -8,11 +8,10 @@
  * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
  * 6. 部分类型应迁移到 packages/shared/data/types/ 以便 main/renderer 进程共享
  */
-import type { LanguageModelV2Source } from '@ai-sdk/provider'
+import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
@@ -38,6 +37,7 @@ export * from './notification'
 export * from './ocr'
 export * from './plugin'
 export * from './provider'
+export * from './serialize'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -124,6 +124,7 @@ const ThinkModelTypes = [
   'gemini2_pro',
   'gemini3_flash',
   'gemini3_pro',
+  'gemini3_1_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -135,7 +136,7 @@ const ThinkModelTypes = [
   'perplexity',
   'deepseek_hybrid',
   'kimi_k2_5',
-  'opus46'
+  'claude46'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
@@ -519,8 +520,8 @@ export type MinAppType = {
   name: string
   /** i18n key for translatable names */
   nameKey?: string
-  /** Locale codes where this app should be visible (e.g., ['zh-CN', 'zh-TW']) */
-  locales?: LanguageVarious[]
+  /** Regions where this app is available. If includes 'Global', shown to international users. */
+  supportedRegions?: MinAppRegion[]
   logo?: string
   url: string
   // FIXME: It should be `bordered`
@@ -529,6 +530,17 @@ export type MinAppType = {
   style?: CSSProperties
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
+}
+
+/** Region types for miniapps visibility */
+export type MinAppRegion = 'CN' | 'Global'
+
+export type MinAppRegionFilter = 'auto' | MinAppRegion
+
+export enum ThemeMode {
+  light = 'light',
+  dark = 'dark',
+  system = 'system'
 }
 
 /** 有限的UI语言 */
@@ -716,7 +728,7 @@ export type WebSearchProviderResponse = {
   results: WebSearchProviderResult[]
 }
 
-export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
+export type AISDKWebSearchResult = Omit<Extract<LanguageModelV3Source, { sourceType: 'url' }>, 'sourceType'>
 
 export type WebSearchResults =
   | WebSearchProviderResponse
@@ -727,20 +739,24 @@ export type WebSearchResults =
   | AISDKWebSearchResult[]
   | any[]
 
-export enum WebSearchSource {
-  WEBSEARCH = 'websearch',
-  OPENAI = 'openai',
-  OPENAI_RESPONSE = 'openai-response',
-  OPENROUTER = 'openrouter',
-  ANTHROPIC = 'anthropic',
-  GEMINI = 'gemini',
-  PERPLEXITY = 'perplexity',
-  QWEN = 'qwen',
-  HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu',
-  GROK = 'grok',
-  AISDK = 'ai-sdk'
-}
+export const WEB_SEARCH_SOURCE = {
+  WEBSEARCH: 'websearch',
+  OPENAI: 'openai',
+  OPENAI_RESPONSE: 'openai-response',
+  OPENROUTER: 'openrouter',
+  ANTHROPIC: 'anthropic',
+  GEMINI: 'gemini',
+  PERPLEXITY: 'perplexity',
+  QWEN: 'qwen',
+  HUNYUAN: 'hunyuan',
+  ZHIPU: 'zhipu',
+  GROK: 'grok',
+  AISDK: 'ai-sdk'
+} as const
+
+export const WebSearchSourceSchema = z.enum(objectValues(WEB_SEARCH_SOURCE))
+
+export type WebSearchSource = z.infer<typeof WebSearchSourceSchema>
 
 export type WebSearchResponse = {
   results?: WebSearchResults

@@ -12,7 +12,7 @@
  */
 
 import { loggerService } from '@logger'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
@@ -68,7 +68,7 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
       const citationBlock = citationBlockId
         ? (streamingService.getBlock(citationBlockId) as CitationMessageBlock | null)
         : null
-      const citationBlockSource = citationBlock?.response?.source ?? WebSearchSource.WEBSEARCH
+      const citationBlockSource = citationBlock?.response?.source ?? WEB_SEARCH_SOURCE.WEBSEARCH
 
       if (text) {
         const blockChanges: Partial<MessageBlock> = {

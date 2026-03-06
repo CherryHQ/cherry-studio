@@ -52,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
     // 返回结果，但不包含文件对象，因为文件已经直接保存到 ImageStorage
     const result = {
-      name,
+      name: name.trim(),
       type,
       logo: logo || undefined
     }
@@ -65,10 +65,10 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const onClose = () => {
-    resolve({ name, type, logo: logo || undefined })
+    resolve({ name: name.trim(), type, logo: logo || undefined })
   }
 
-  const buttonDisabled = name.length === 0
+  const buttonDisabled = name.trim().length === 0
 
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
@@ -234,7 +234,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         <Form.Item label={t('settings.provider.add.name.label')} style={{ marginBottom: 8 }}>
           <Input
             value={name}
-            onChange={(e) => setName(e.target.value.trim())}
+            onChange={(e) => setName(e.target.value)}
             placeholder={t('settings.provider.add.name.placeholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) {

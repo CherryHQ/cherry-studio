@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-// import type { Topic, WebSearchStatus } from '@renderer/types'
+import type { MinAppRegion } from '@renderer/types'
 
 // export interface ChatState {
 //   isMultiSelectMode: boolean
@@ -72,6 +72,8 @@ export interface RuntimeState {
   // chat: ChatState
   // websearch: WebSearchState
   placeHolder: string
+  /** Detected region from IP lookup (not persisted, re-detected on each app start) */
+  detectedRegion: MinAppRegion | null
 }
 
 // export interface ExportState {
@@ -115,7 +117,8 @@ const initialState: RuntimeState = {
   // websearch: {
   //   activeSearches: {}
   // },
-  placeHolder: ''
+  placeHolder: '',
+  detectedRegion: null
 }
 
 const runtimeSlice = createSlice({
@@ -209,6 +212,9 @@ const runtimeSlice = createSlice({
     // }
     setPlaceholder: (state, action: PayloadAction<string>) => {
       state.placeHolder = action.payload
+    },
+    setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
+      state.detectedRegion = action.payload
     }
   }
 })
@@ -240,7 +246,9 @@ export const {
   // // WebSearch related actions
   // setActiveSearches,
   // setWebSearchStatus,
-  setPlaceholder
+  setPlaceholder,
+  // Region detection
+  setDetectedRegion
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

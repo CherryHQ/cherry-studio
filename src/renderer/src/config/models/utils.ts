@@ -284,11 +284,13 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
   return false
 }
 
+// major version, including 3.x
 export const isGemini3Model = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini-3')
 }
 
+// major version, including 3.x
 export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return isGemini3Model(model) && !modelId.includes('image')
@@ -297,7 +299,7 @@ export const isGemini3ThinkingTokenModel = (model: Model) => {
 /**
  * Check if the model is a Gemini 3 Flash model
  * Matches: gemini-3-flash, gemini-3-flash-preview, gemini-3-flash-preview-09-2025, gemini-flash-latest (alias)
- * Excludes: gemini-3-flash-image-preview
+ * Excludes: gemini-3-flash-image-preview, 3.x flash versions
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Flash model
  */
@@ -317,7 +319,7 @@ export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
 /**
  * Check if the model is a Gemini 3 Pro model
  * Matches: gemini-3-pro, gemini-3-pro-preview, gemini-3-pro-preview-09-2025, gemini-pro-latest (alias)
- * Excludes: gemini-3-pro-image-preview
+ * Excludes: gemini-3-pro-image-preview, 3.x pro versions
  * @param model - The model to check
  * @returns true if the model is a Gemini 3 Pro model
  */
@@ -326,12 +328,29 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  // Check for gemini-pro-latest alias (currently points to gemini-3-pro, may change in future)
+
+  // Check for gemini-3-pro with optional suffixes, excluding image variants
+  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is a Gemini 3.1 Pro model
+ * Matches: gemini-3.1-pro, gemini-3.1-pro-preview, gemini-3.1-pro-preview-09-2025, gemini-3.1-pro-latest (alias)
+ * Excludes: gemini-3.1-pro-image-preview
+ * @param model - The model to check
+ * @returns
+ */
+export const isGemini31ProModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  // Check for gemini-pro-latest alias (currently points to gemini-3.1-pro, may change in future)
   if (modelId === 'gemini-pro-latest') {
     return true
   }
-  // Check for gemini-3-pro with optional suffixes, excluding image variants
-  return /gemini-3-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+  // Check for gemini-3.1-pro with optional suffixes, excluding image variants
+  return /gemini-3.1-pro(?!-image)(?:-[\w-]+)*$/i.test(modelId)
 }
 
 /**
@@ -341,9 +360,9 @@ export const isGemini3ProModel = (model: Model | undefined | null): boolean => {
  * - AWS Bedrock: anthropic.claude-opus-4-6-v1
  * - GCP Vertex AI: claude-opus-4-6
  * @param model - The model to check
- * @returns true if the model is Claude Opus 4.6
+ * @returns true if the model is Claude 4.6 series model
  */
-export function isOpus46Model(model: Model | undefined | null): boolean {
+export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
@@ -352,6 +371,6 @@ export function isOpus46Model(model: Model | undefined | null): boolean {
   // - Direct API: claude-opus-4-6, claude-opus-4.6
   // - AWS Bedrock: anthropic.claude-opus-4-6-v1
   // - GCP Vertex AI: claude-opus-4-6
-  const regex = /(?:anthropic\.)?claude-opus-4[.-]6(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }

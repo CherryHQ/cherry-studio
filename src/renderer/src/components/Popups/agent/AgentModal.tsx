@@ -19,7 +19,6 @@ import type {
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select } from 'antd'
-import { AlertTriangleIcon } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -420,16 +419,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     <PermissionOptionWrapper>
                       <div className="title">{t(item.titleKey, item.titleFallback)}</div>
                       <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
-                      <div className="behavior">{t(item.behaviorKey, item.behaviorFallback)}</div>
-                      {item.caution && (
-                        <div className="caution">
-                          <AlertTriangleIcon size={12} />
-                          {t(
-                            'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                            'Use with caution — all tools will run without asking for approval.'
-                          )}
-                        </div>
-                      )}
                     </PermissionOptionWrapper>
                   </Select.Option>
                 ))}

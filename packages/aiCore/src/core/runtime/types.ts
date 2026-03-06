@@ -1,8 +1,8 @@
 /**
  * Runtime 层类型定义
  */
-import type { ImageModelV2 } from '@ai-sdk/provider'
-import type { experimental_generateImage, generateObject, generateText, streamObject, streamText } from 'ai'
+import type { ImageModelV3 } from '@ai-sdk/provider'
+import type { generateImage, generateText, streamText } from 'ai'
 
 import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'
@@ -17,10 +17,8 @@ export interface RuntimeConfig<T extends ProviderId = ProviderId> {
   plugins?: AiPlugin[]
 }
 
-export type generateImageParams = Omit<Parameters<typeof experimental_generateImage>[0], 'model'> & {
-  model: string | ImageModelV2
+export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
+  model: string | ImageModelV3
 }
-export type generateObjectParams = Parameters<typeof generateObject>[0]
 export type generateTextParams = Parameters<typeof generateText>[0]
-export type streamObjectParams = Parameters<typeof streamObject>[0]
 export type streamTextParams = Parameters<typeof streamText>[0]

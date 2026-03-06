@@ -470,7 +470,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'MiniMax',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.minimaxi.com/v1',
+    apiHost: 'https://api.minimaxi.com/v1/',
     anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
