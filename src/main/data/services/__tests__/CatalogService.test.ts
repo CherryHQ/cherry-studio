@@ -1,8 +1,19 @@
-import { readFileSync } from 'node:fs'
-
 import type { ModelConfig, ProviderModelOverride } from '@cherrystudio/provider-catalog'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Mock catalog reader functions
+vi.mock('@cherrystudio/provider-catalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/provider-catalog')>()
+  return {
+    ...actual,
+    readModelCatalog: vi.fn(),
+    readProviderCatalog: vi.fn(),
+    readProviderModelCatalog: vi.fn()
+  }
+})
+
+import { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from '@cherrystudio/provider-catalog'
 
 // Mock sibling services
 vi.mock('../ModelService', () => ({
@@ -38,26 +49,6 @@ function makeProviderModelOverride(
   }
 }
 
-function makeModelsJson(models: ModelConfig[]) {
-  return JSON.stringify({ models })
-}
-
-function makeProviderModelsJson(overrides: ProviderModelOverride[]) {
-  return JSON.stringify({ overrides })
-}
-
-function makeProvidersJson(
-  providers: Array<{ id: string; name: string; metadata?: Record<string, unknown>; [k: string]: unknown }>
-) {
-  return JSON.stringify({
-    version: '1.0',
-    providers: providers.map((p) => ({
-      metadata: { website: {} },
-      ...p
-    }))
-  })
-}
-
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
 describe('CatalogService', () => {
@@ -71,15 +62,27 @@ describe('CatalogService', () => {
     vi.restoreAllMocks()
   })
 
-  // Helper to set up readFileSync responses
-  function mockFileSystem(files: Record<string, string>) {
-    vi.mocked(readFileSync).mockImplementation((path: any) => {
-      const p = String(path)
-      for (const [key, value] of Object.entries(files)) {
-        if (p.includes(key)) return value
-      }
-      throw new Error(`ENOENT: no such file: ${p}`)
-    })
+  // Helper to set up catalog reader mock responses
+  function mockCatalogData(opts: {
+    models?: ModelConfig[]
+    overrides?: ProviderModelOverride[]
+    providers?: Array<{ id: string; name: string; metadata?: Record<string, unknown>; [k: string]: unknown }>
+  }) {
+    if (opts.models !== undefined) {
+      vi.mocked(readModelCatalog).mockReturnValue({ version: '1.0', models: opts.models })
+    }
+    if (opts.overrides !== undefined) {
+      vi.mocked(readProviderModelCatalog).mockReturnValue({ version: '1.0', overrides: opts.overrides })
+    }
+    if (opts.providers !== undefined) {
+      vi.mocked(readProviderCatalog).mockReturnValue({
+        version: '1.0',
+        providers: opts.providers.map((p) => ({
+          metadata: { website: {} },
+          ...p
+        }))
+      })
+    }
   }
 
   // ─── Singleton ─────────────────────────────────────────────────────────────
@@ -99,25 +102,25 @@ describe('CatalogService', () => {
       const models = [makeModelConfig({ id: 'model-a', name: 'Model A' })]
       const overrides = [makeProviderModelOverride({ providerId: 'p1', modelId: 'model-a' })]
 
-      mockFileSystem({
-        'models.json': makeModelsJson(models),
-        'provider-models.json': makeProviderModelsJson(overrides)
-      })
+      mockCatalogData({ models, overrides })
 
       const svc = CatalogService.getInstance()
 
       // First call loads from file
       svc.lookupModel('p1', 'model-a')
-      expect(readFileSync).toHaveBeenCalledTimes(2) // models.json + provider-models.json
+      expect(readModelCatalog).toHaveBeenCalledTimes(1)
+      expect(readProviderModelCatalog).toHaveBeenCalledTimes(1)
 
       // Second call uses cache
       svc.lookupModel('p1', 'model-a')
-      expect(readFileSync).toHaveBeenCalledTimes(2)
+      expect(readModelCatalog).toHaveBeenCalledTimes(1)
+      expect(readProviderModelCatalog).toHaveBeenCalledTimes(1)
 
       // After clearCache, next call reads files again
       svc.clearCache()
       svc.lookupModel('p1', 'model-a')
-      expect(readFileSync).toHaveBeenCalledTimes(4)
+      expect(readModelCatalog).toHaveBeenCalledTimes(2)
+      expect(readProviderModelCatalog).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -128,10 +131,7 @@ describe('CatalogService', () => {
       const preset = makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' })
       const override = makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o' })
 
-      mockFileSystem({
-        'models.json': makeModelsJson([preset]),
-        'provider-models.json': makeProviderModelsJson([override])
-      })
+      mockCatalogData({ models: [preset], overrides: [override] })
 
       const result = CatalogService.getInstance().lookupModel('openai', 'gpt-4o')
       expect(result.presetModel).toEqual(preset)
@@ -139,10 +139,7 @@ describe('CatalogService', () => {
     })
 
     it('returns null for both when model is not in catalog', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().lookupModel('openai', 'nonexistent')
       expect(result.presetModel).toBeNull()
@@ -153,10 +150,7 @@ describe('CatalogService', () => {
       const preset = makeModelConfig({ id: 'gpt-4o', name: 'GPT-4o' })
       const override = makeProviderModelOverride({ providerId: 'azure', modelId: 'gpt-4o' })
 
-      mockFileSystem({
-        'models.json': makeModelsJson([preset]),
-        'provider-models.json': makeProviderModelsJson([override])
-      })
+      mockCatalogData({ models: [preset], overrides: [override] })
 
       const result = CatalogService.getInstance().lookupModel('openai', 'gpt-4o')
       expect(result.presetModel).toEqual(preset)
@@ -179,10 +173,7 @@ describe('CatalogService', () => {
         modelId: 'gpt-4o'
       })
 
-      mockFileSystem({
-        'models.json': makeModelsJson([preset]),
-        'provider-models.json': makeProviderModelsJson([override])
-      })
+      mockCatalogData({ models: [preset], overrides: [override] })
 
       const result = await CatalogService.getInstance().initializeProvider('openai')
 
@@ -199,9 +190,9 @@ describe('CatalogService', () => {
     })
 
     it('returns empty array when no overrides exist for the provider', async () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([makeModelConfig({ id: 'gpt-4o' })]),
-        'provider-models.json': makeProviderModelsJson([])
+      mockCatalogData({
+        models: [makeModelConfig({ id: 'gpt-4o' })],
+        overrides: []
       })
 
       const result = await CatalogService.getInstance().initializeProvider('openai')
@@ -216,10 +207,7 @@ describe('CatalogService', () => {
         modelId: 'missing-model'
       })
 
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([override])
-      })
+      mockCatalogData({ models: [], overrides: [override] })
 
       const result = await CatalogService.getInstance().initializeProvider('openai')
 
@@ -238,10 +226,7 @@ describe('CatalogService', () => {
         makeProviderModelOverride({ providerId: 'openai', modelId: 'gpt-4o-mini' })
       ]
 
-      mockFileSystem({
-        'models.json': makeModelsJson(presets),
-        'provider-models.json': makeProviderModelsJson(overrides)
-      })
+      mockCatalogData({ models: presets, overrides })
 
       const result = await CatalogService.getInstance().initializeProvider('openai')
 
@@ -253,16 +238,16 @@ describe('CatalogService', () => {
   // ─── initializePresetProviders ─────────────────────────────────────────────
 
   describe('initializePresetProviders', () => {
-    it('reads providers.json and batch upserts provider rows including cherryai', async () => {
-      mockFileSystem({
-        'providers.json': makeProvidersJson([
+    it('reads providers.pb and batch upserts provider rows including cherryai', async () => {
+      mockCatalogData({
+        providers: [
           {
             id: 'openai',
             name: 'OpenAI',
             baseUrls: { [ENDPOINT_TYPE.CHAT_COMPLETIONS]: 'https://api.openai.com/v1' },
             defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS
           }
-        ])
+        ]
       })
 
       await CatalogService.getInstance().initializePresetProviders()
@@ -284,8 +269,8 @@ describe('CatalogService', () => {
     })
 
     it('maps provider website metadata correctly', async () => {
-      mockFileSystem({
-        'providers.json': makeProvidersJson([
+      mockCatalogData({
+        providers: [
           {
             id: 'openai',
             name: 'OpenAI',
@@ -298,7 +283,7 @@ describe('CatalogService', () => {
               }
             }
           }
-        ])
+        ]
       })
 
       await CatalogService.getInstance().initializePresetProviders()
@@ -314,8 +299,8 @@ describe('CatalogService', () => {
     })
 
     it('sets websites to null when no website metadata', async () => {
-      mockFileSystem({
-        'providers.json': makeProvidersJson([{ id: 'custom', name: 'Custom' }])
+      mockCatalogData({
+        providers: [{ id: 'custom', name: 'Custom' }]
       })
 
       await CatalogService.getInstance().initializePresetProviders()
@@ -325,18 +310,8 @@ describe('CatalogService', () => {
       expect(custom.websites).toBeNull()
     })
 
-    it('returns early when providers.json fails schema validation', async () => {
-      mockFileSystem({
-        'providers.json': JSON.stringify({ invalid: true })
-      })
-
-      await CatalogService.getInstance().initializePresetProviders()
-
-      expect(providerService.batchUpsert).not.toHaveBeenCalled()
-    })
-
-    it('returns early when providers.json cannot be read', async () => {
-      vi.mocked(readFileSync).mockImplementation(() => {
+    it('returns early when providers.pb cannot be read', async () => {
+      vi.mocked(readProviderCatalog).mockImplementation(() => {
         throw new Error('ENOENT')
       })
 
@@ -350,8 +325,8 @@ describe('CatalogService', () => {
 
   describe('initializeAllPresetProviders', () => {
     it('delegates to initializePresetProviders', async () => {
-      mockFileSystem({
-        'providers.json': makeProvidersJson([{ id: 'openai', name: 'OpenAI' }])
+      mockCatalogData({
+        providers: [{ id: 'openai', name: 'OpenAI' }]
       })
 
       const svc = CatalogService.getInstance()
@@ -378,10 +353,7 @@ describe('CatalogService', () => {
         modelId: 'gpt-4o'
       })
 
-      mockFileSystem({
-        'models.json': makeModelsJson([preset]),
-        'provider-models.json': makeProviderModelsJson([override])
-      })
+      mockCatalogData({ models: [preset], overrides: [override] })
 
       const result = CatalogService.getInstance().resolveModels('openai', [{ modelId: 'gpt-4o', name: 'GPT-4o' }])
 
@@ -392,10 +364,7 @@ describe('CatalogService', () => {
     })
 
     it('returns custom models for entries not in catalog', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('custom-provider', [
         { modelId: 'my-custom-model', name: 'My Model' }
@@ -407,10 +376,7 @@ describe('CatalogService', () => {
     })
 
     it('deduplicates models by modelId', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [
         { modelId: 'model-a', name: 'First' },
@@ -424,10 +390,7 @@ describe('CatalogService', () => {
     })
 
     it('skips entries with empty modelId', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [
         { modelId: '', name: 'Empty' },
@@ -439,10 +402,7 @@ describe('CatalogService', () => {
     })
 
     it('uses modelId as name when raw name is not provided', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [{ modelId: 'my-model' }])
 
@@ -451,10 +411,7 @@ describe('CatalogService', () => {
     })
 
     it('passes raw endpointTypes through userRow', () => {
-      mockFileSystem({
-        'models.json': makeModelsJson([]),
-        'provider-models.json': makeProviderModelsJson([])
-      })
+      mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [
         { modelId: 'my-model', endpointTypes: [ENDPOINT_TYPE.MESSAGES] }
@@ -468,8 +425,11 @@ describe('CatalogService', () => {
   // ─── Error handling in catalog loading ─────────────────────────────────────
 
   describe('error handling', () => {
-    it('returns empty models when models.json cannot be read', () => {
-      vi.mocked(readFileSync).mockImplementation(() => {
+    it('returns empty models when models.pb cannot be read', () => {
+      vi.mocked(readModelCatalog).mockImplementation(() => {
+        throw new Error('ENOENT')
+      })
+      vi.mocked(readProviderModelCatalog).mockImplementation(() => {
         throw new Error('ENOENT')
       })
 
@@ -477,15 +437,12 @@ describe('CatalogService', () => {
       expect(result.presetModel).toBeNull()
     })
 
-    it('returns empty overrides when provider-models.json cannot be read', () => {
-      let callCount = 0
-      vi.mocked(readFileSync).mockImplementation(() => {
-        callCount++
-        if (callCount === 1) {
-          // models.json succeeds
-          return makeModelsJson([makeModelConfig({ id: 'gpt-4o' })])
-        }
-        // provider-models.json fails
+    it('returns empty overrides when provider-models.pb cannot be read', () => {
+      vi.mocked(readModelCatalog).mockReturnValue({
+        version: '1.0',
+        models: [makeModelConfig({ id: 'gpt-4o' })]
+      })
+      vi.mocked(readProviderModelCatalog).mockImplementation(() => {
         throw new Error('ENOENT')
       })
 

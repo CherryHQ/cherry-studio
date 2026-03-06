@@ -12,8 +12,8 @@ import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import { ModelCatalogSchema } from '../../src/gen/v1/model_pb'
 import { ProviderModelCatalogSchema } from '../../src/gen/v1/provider_models_pb'
 import { ProviderCatalogSchema } from '../../src/gen/v1/provider_pb'
+import { protoModelToJson, protoOverrideToJson, protoProviderToJson } from '../../src/utils/proto-to-json'
 import { convertModelConfig, convertProviderConfig, convertProviderModelOverride } from './json-to-proto'
-import { protoModelToJson, protoOverrideToJson, protoProviderToJson } from './proto-to-json'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Models catalog

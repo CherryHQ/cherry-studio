@@ -8,3 +8,6 @@ export * from './schemas'
 
 // Export protobuf utilities (enum mapping helpers, file I/O)
 export * from './proto-utils'
+
+// Export catalog reader (read .pb files and return typed JSON objects)
+export { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from './catalog-reader'

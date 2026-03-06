@@ -1,23 +1,24 @@
 /**
- * Catalog Service - imports catalog JSON data into SQLite
+ * Catalog Service - imports catalog data into SQLite
  *
  * Responsible for:
- * - Reading catalog JSON files (models.json, provider-models.json, providers.json)
+ * - Reading catalog protobuf files (models.pb, provider-models.pb, providers.pb)
  * - Merging configurations using mergeModelConfig/mergeProviderConfig
  * - Writing resolved data to user_model / user_provider tables
  *
  * Called during app initialization or when a user adds a preset provider.
  */
 
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
   ENDPOINT_TYPE,
   type ModelConfig,
   type ProviderConfig,
-  ProviderListSchema,
-  type ProviderModelOverride
+  type ProviderModelOverride,
+  readModelCatalog,
+  readProviderCatalog,
+  readProviderModelCatalog
 } from '@cherrystudio/provider-catalog'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
@@ -30,14 +31,6 @@ import { modelService } from './ModelService'
 import { providerService } from './ProviderService'
 
 const logger = loggerService.withContext('DataApi:CatalogService')
-
-interface CatalogModelsJson {
-  models: ModelConfig[]
-}
-
-interface CatalogProviderModelsJson {
-  overrides: ProviderModelOverride[]
-}
 
 export class CatalogService {
   private static instance: CatalogService
@@ -66,39 +59,37 @@ export class CatalogService {
   }
 
   /**
-   * Load and cache catalog models from models.json
+   * Load and cache catalog models from models.pb
    */
   private loadCatalogModels(): ModelConfig[] {
     if (this.catalogModels) return this.catalogModels
 
     try {
       const dataPath = this.getCatalogDataPath()
-      const raw = readFileSync(join(dataPath, 'models.json'), 'utf-8')
-      const data = JSON.parse(raw) as CatalogModelsJson
+      const data = readModelCatalog(join(dataPath, 'models.pb'))
       this.catalogModels = data.models ?? []
       logger.info('Loaded catalog models', { count: this.catalogModels.length })
       return this.catalogModels
     } catch (error) {
-      logger.warn('Failed to load catalog models.json', { error })
+      logger.warn('Failed to load catalog models.pb', { error })
       return []
     }
   }
 
   /**
-   * Load and cache provider-model overrides from provider-models.json
+   * Load and cache provider-model overrides from provider-models.pb
    */
   private loadProviderModels(): ProviderModelOverride[] {
     if (this.catalogProviderModels) return this.catalogProviderModels
 
     try {
       const dataPath = this.getCatalogDataPath()
-      const raw = readFileSync(join(dataPath, 'provider-models.json'), 'utf-8')
-      const data = JSON.parse(raw) as CatalogProviderModelsJson
+      const data = readProviderModelCatalog(join(dataPath, 'provider-models.pb'))
       this.catalogProviderModels = data.overrides ?? []
       logger.info('Loaded catalog provider-models', { count: this.catalogProviderModels.length })
       return this.catalogProviderModels
     } catch (error) {
-      logger.warn('Failed to load catalog provider-models.json', { error })
+      logger.warn('Failed to load catalog provider-models.pb', { error })
       return []
     }
   }
@@ -191,15 +182,10 @@ export class CatalogService {
     let rawProviders: ProviderConfig[] = []
 
     try {
-      const raw = readFileSync(join(dataPath, 'providers.json'), 'utf-8')
-      const result = ProviderListSchema.safeParse(JSON.parse(raw))
-      if (!result.success) {
-        logger.warn('providers.json failed schema validation', { error: result.error })
-        return
-      }
-      rawProviders = result.data.providers
+      const data = readProviderCatalog(join(dataPath, 'providers.pb'))
+      rawProviders = data.providers
     } catch (error) {
-      logger.warn('Failed to load providers.json for provider import', { error })
+      logger.warn('Failed to load providers.pb for provider import', { error })
       return
     }
 

@@ -15,11 +15,11 @@ import {
   convertProviderConfig,
   convertProviderModelOverride
 } from '../../scripts/shared/json-to-proto'
-// Import converters directly for testing
-import { protoModelToJson, protoOverrideToJson, protoProviderToJson } from '../../scripts/shared/proto-to-json'
 import { ModelCatalogSchema } from '../gen/v1/model_pb'
 import { ProviderModelCatalogSchema } from '../gen/v1/provider_models_pb'
 import { ProviderCatalogSchema } from '../gen/v1/provider_pb'
+// Import converters directly for testing
+import { protoModelToJson, protoOverrideToJson, protoProviderToJson } from '../utils/proto-to-json'
 
 const DATA_DIR = resolve(import.meta.dirname, '../../data')
 
