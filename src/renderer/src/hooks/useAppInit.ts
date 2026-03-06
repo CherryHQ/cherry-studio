@@ -20,6 +20,7 @@ import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
@@ -253,12 +254,147 @@ export function useAppInit() {
       }
     }
 
+    // Define type for ExitPlanMode approval payload
+    interface ExitPlanModeApprovalRequestPayload {
+      requestId: string
+      plan: string
+      currentPermissionMode: string
+      toolCallId: string
+      createdAt: number
+      expiresAt: number
+    }
+
+    // Listener for ExitPlanMode approval requests
+    const exitPlanModeApprovalListener = async (
+      _event: Electron.IpcRendererEvent,
+      payload: ExitPlanModeApprovalRequestPayload
+    ) => {
+      logger.debug('Renderer received ExitPlanMode approval request', {
+        requestId: payload.requestId,
+        currentPermissionMode: payload.currentPermissionMode
+      })
+
+      // Use antd Modal directly to show the approval dialog
+      const { Button } = await import('antd') // Dynamically import Button to avoid top-level import issues
+
+      window.modal?.confirm?.({
+        title: 'Approve Plan and Continue',
+        width: 800,
+        closable: true,
+        maskClosable: false,
+        content: React.createElement(
+          'div',
+          {},
+          React.createElement(
+            'p',
+            {},
+            'Current permission mode: ',
+            React.createElement('strong', {}, payload.currentPermissionMode)
+          ),
+          React.createElement('p', { style: { fontWeight: 'bold' } }, 'Plan Details:'),
+          React.createElement(
+            'div',
+            {
+              style: {
+                backgroundColor: '#f6f8fa',
+                padding: '12px',
+                borderRadius: '4px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                marginBottom: '16px'
+              }
+            },
+            React.createElement('pre', { style: { margin: 0, fontSize: '12px' } }, payload.plan)
+          ),
+          React.createElement('p', { style: { fontWeight: 'bold' } }, 'How would you like to proceed?')
+        ),
+        footer: [
+          React.createElement(
+            Button,
+            {
+              key: 'reject',
+              onClick: async () => {
+                try {
+                  const response = await window.api.agentTools.respondToExitPlanModeApproval({
+                    requestId: payload.requestId,
+                    behavior: 'deny',
+                    message: 'User rejected ExitPlanMode'
+                  })
+
+                  if (!response?.success) {
+                    logger.error('ExitPlanMode rejection response rejected by main process')
+                  }
+                } catch (error) {
+                  logger.error('Failed to send ExitPlanMode rejection response', error as Error)
+                }
+              }
+            },
+            '❌ No, enter something else'
+          ),
+
+          React.createElement(
+            Button,
+            {
+              key: 'accept-default',
+              onClick: async () => {
+                try {
+                  const response = await window.api.agentTools.respondToExitPlanModeApproval({
+                    requestId: payload.requestId,
+                    behavior: 'allow',
+                    updatedInput: { targetMode: 'default' }
+                  })
+
+                  if (!response?.success) {
+                    logger.error('ExitPlanMode approval response rejected by main process')
+                  }
+                } catch (error) {
+                  logger.error('Failed to send ExitPlanMode approval response', error as Error)
+                }
+              }
+            },
+            '✅ Yes, manually approve'
+          ),
+
+          React.createElement(
+            Button,
+            {
+              key: 'accept-edits',
+              type: 'primary',
+              onClick: async () => {
+                try {
+                  const response = await window.api.agentTools.respondToExitPlanModeApproval({
+                    requestId: payload.requestId,
+                    behavior: 'allow',
+                    updatedInput: { targetMode: 'acceptEdits' }
+                  })
+
+                  if (!response?.success) {
+                    logger.error('ExitPlanMode approval response rejected by main process')
+                  }
+                } catch (error) {
+                  logger.error('Failed to send ExitPlanMode approval response', error as Error)
+                }
+              }
+            },
+            '✅ Yes, allow edits'
+          )
+        ]
+      })
+    }
+
     const removeListeners = [
       window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener),
-      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener),
+      window.electron.ipcRenderer.on(IpcChannel.AgentExitPlanModeApproval_Request, exitPlanModeApprovalListener)
     ]
 
-    return () => removeListeners.forEach((removeListener) => removeListener())
+    // Return cleanup function that properly removes all listeners
+    return () => {
+      logger.debug('Cleaning up ExitPlanMode approval listeners', {
+        listenerCount: removeListeners.length
+      })
+      removeListeners.forEach((removeListener) => removeListener())
+    }
   }, [dispatch, t])
 
   useEffect(() => {
