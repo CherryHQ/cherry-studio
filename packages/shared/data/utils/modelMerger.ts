@@ -6,13 +6,18 @@
  */
 
 import type {
+  ProtoModelConfig,
+  ProtoProviderConfig,
+  ProtoProviderModelOverride,
+  ProtoReasoning
+} from '@cherrystudio/provider-catalog'
+import type {
   EndpointType,
   Modality,
-  ModelConfig,
-  ProviderConfig,
-  ProviderModelOverride
+  ModelCapability,
+  ReasoningEffort as ReasoningEffortType
 } from '@cherrystudio/provider-catalog'
-import type { ModelCapability } from '@cherrystudio/provider-catalog'
+import { ReasoningEffort } from '@cherrystudio/provider-catalog'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
@@ -26,10 +31,7 @@ import {
   ProviderSettingsSchema
 } from '../types/provider'
 
-export type {
-  ModelConfig as CatalogModel,
-  ProviderModelOverride as CatalogProviderModelOverride
-} from '@cherrystudio/provider-catalog'
+export type { ProtoModelConfig as CatalogModel, ProtoProviderModelOverride as CatalogProviderModelOverride }
 
 export { DEFAULT_API_COMPATIBILITY, DEFAULT_PROVIDER_SETTINGS }
 
@@ -41,9 +43,9 @@ export { DEFAULT_API_COMPATIBILITY, DEFAULT_PROVIDER_SETTINGS }
  * @returns Merged capability list
  */
 export function applyCapabilityOverride(
-  base: string[],
-  override: { add?: string[]; remove?: string[]; force?: string[] } | null | undefined
-): string[] {
+  base: ModelCapability[],
+  override: { add: ModelCapability[]; remove: ModelCapability[]; force: ModelCapability[] } | null | undefined
+): ModelCapability[] {
   if (!override) {
     return [...base]
   }
@@ -56,12 +58,12 @@ export function applyCapabilityOverride(
   let result = [...base]
 
   // Add new capabilities
-  if (override.add) {
+  if (override.add.length) {
     result = Array.from(new Set([...result, ...override.add]))
   }
 
   // Remove capabilities
-  if (override.remove) {
+  if (override.remove.length) {
     const removeSet = new Set(override.remove)
     result = result.filter((c) => !removeSet.has(c))
   }
@@ -92,10 +94,10 @@ const UserModelRowSchema = z.object({
   name: z.string().nullish(),
   description: z.string().nullish(),
   group: z.string().nullish(),
-  capabilities: z.array(z.string()).nullish(),
-  inputModalities: z.array(z.string()).nullish(),
-  outputModalities: z.array(z.string()).nullish(),
-  endpointTypes: z.array(z.string()).nullish(),
+  capabilities: z.array(z.number()).nullish(),
+  inputModalities: z.array(z.number()).nullish(),
+  outputModalities: z.array(z.number()).nullish(),
+  endpointTypes: z.array(z.number()).nullish(),
   customEndpointUrl: z.string().nullish(),
   contextWindow: z.number().nullish(),
   maxOutputTokens: z.number().nullish(),
@@ -123,8 +125,8 @@ type UserModelRow = z.infer<typeof UserModelRowSchema>
  */
 export function mergeModelConfig(
   userModel: UserModelRow | null,
-  catalogOverride: ProviderModelOverride | null,
-  presetModel: ModelConfig | null,
+  catalogOverride: ProtoProviderModelOverride | null,
+  presetModel: ProtoModelConfig | null,
   providerId: string
 ): Model {
   // Case 1: Fully custom user model (no preset association)
@@ -150,18 +152,20 @@ export function mergeModelConfig(
 
   // Case 2: Preset model (may have catalog override and user override)
   if (!presetModel) {
-    throw new Error(`Preset model not found for merge`)
+    throw new Error('Preset model not found for merge')
   }
 
   const modelId = presetModel.id
 
   // Start from preset
-  let capabilities: string[] = [...(presetModel.capabilities ?? [])]
-  let inputModalities: string[] | undefined = presetModel.inputModalities ? [...presetModel.inputModalities] : undefined
-  let outputModalities: string[] | undefined = presetModel.outputModalities
+  let capabilities: ModelCapability[] = [...presetModel.capabilities]
+  let inputModalities: Modality[] | undefined = presetModel.inputModalities.length
+    ? [...presetModel.inputModalities]
+    : undefined
+  let outputModalities: Modality[] | undefined = presetModel.outputModalities.length
     ? [...presetModel.outputModalities]
     : undefined
-  let endpointTypes: string[] | undefined = undefined
+  let endpointTypes: EndpointType[] | undefined = undefined
   let name = presetModel.name ?? presetModel.id
   let description = presetModel.description
   let contextWindow = presetModel.contextWindow
@@ -171,37 +175,32 @@ export function mergeModelConfig(
   let pricing: RuntimeModelPricing | undefined
   let replaceWith: string | undefined
 
-  // Extract reasoning config
+  // Extract reasoning config from proto Reasoning type
   if (presetModel.reasoning) {
-    reasoning = {
-      type: presetModel.reasoning.type,
-      supportedEfforts: extractEfforts(presetModel.reasoning),
-      thinkingTokenLimits: presetModel.reasoning.thinkingTokenLimits,
-      interleaved: presetModel.reasoning.interleaved
-    }
+    reasoning = extractRuntimeReasoning(presetModel.reasoning)
   }
 
   // Extract pricing
   if (presetModel.pricing) {
     pricing = {
       input: {
-        perMillionTokens: presetModel.pricing.input.perMillionTokens,
-        currency: presetModel.pricing.input.currency ?? 'USD'
+        perMillionTokens: presetModel.pricing.input?.perMillionTokens ?? null,
+        currency: presetModel.pricing.input?.currency
       },
       output: {
-        perMillionTokens: presetModel.pricing.output.perMillionTokens,
-        currency: presetModel.pricing.output.currency ?? 'USD'
+        perMillionTokens: presetModel.pricing.output?.perMillionTokens ?? null,
+        currency: presetModel.pricing.output?.currency
       },
       cacheRead: presetModel.pricing.cacheRead
         ? {
-            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens,
-            currency: presetModel.pricing.cacheRead.currency ?? 'USD'
+            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens ?? null,
+            currency: presetModel.pricing.cacheRead.currency
           }
         : undefined,
       cacheWrite: presetModel.pricing.cacheWrite
         ? {
-            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens,
-            currency: presetModel.pricing.cacheWrite.currency ?? 'USD'
+            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens ?? null,
+            currency: presetModel.pricing.cacheWrite.currency
           }
         : undefined
     }
@@ -222,21 +221,20 @@ export function mergeModelConfig(
       maxInputTokens = catalogOverride.limits.maxInputTokens
     }
     if (catalogOverride.reasoning) {
+      const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning)
       reasoning = {
-        type: catalogOverride.reasoning.type,
-        supportedEfforts: extractEfforts(catalogOverride.reasoning),
-        thinkingTokenLimits:
-          catalogOverride.reasoning.thinkingTokenLimits ?? presetModel.reasoning?.thinkingTokenLimits,
-        interleaved: catalogOverride.reasoning.interleaved ?? presetModel.reasoning?.interleaved
+        ...overrideReasoning,
+        thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
+        interleaved: overrideReasoning.interleaved ?? reasoning?.interleaved
       }
     }
-    if (catalogOverride.endpointTypes) {
+    if (catalogOverride.endpointTypes.length) {
       endpointTypes = [...catalogOverride.endpointTypes]
     }
-    if (catalogOverride.inputModalities) {
+    if (catalogOverride.inputModalities.length) {
       inputModalities = [...catalogOverride.inputModalities]
     }
-    if (catalogOverride.outputModalities) {
+    if (catalogOverride.outputModalities.length) {
       outputModalities = [...catalogOverride.outputModalities]
     }
     if (catalogOverride.replaceWith) {
@@ -247,16 +245,16 @@ export function mergeModelConfig(
   // Apply user override
   if (userModel) {
     if (userModel.capabilities) {
-      capabilities = [...userModel.capabilities]
+      capabilities = [...userModel.capabilities] as ModelCapability[]
     }
     if (userModel.endpointTypes) {
-      endpointTypes = [...userModel.endpointTypes]
+      endpointTypes = [...userModel.endpointTypes] as EndpointType[]
     }
     if (userModel.inputModalities) {
-      inputModalities = [...userModel.inputModalities]
+      inputModalities = [...userModel.inputModalities] as Modality[]
     }
     if (userModel.outputModalities) {
-      outputModalities = [...userModel.outputModalities]
+      outputModalities = [...userModel.outputModalities] as Modality[]
     }
     if (userModel.name) {
       name = userModel.name
@@ -285,13 +283,13 @@ export function mergeModelConfig(
     group: userModel?.group ?? undefined,
     family: presetModel.family,
     ownedBy: presetModel.ownedBy,
-    capabilities: capabilities as ModelCapability[],
-    inputModalities: inputModalities as Modality[] | undefined,
-    outputModalities: outputModalities as Modality[] | undefined,
+    capabilities,
+    inputModalities,
+    outputModalities,
     contextWindow,
     maxOutputTokens,
     maxInputTokens,
-    endpointTypes: endpointTypes as EndpointType[] | undefined,
+    endpointTypes,
     supportsStreaming: userModel?.supportsStreaming ?? true,
     reasoning,
     pricing,
@@ -316,7 +314,7 @@ export function mergeModelConfig(
  */
 export function mergeProviderConfig(
   userProvider: UserProviderRow | null,
-  presetProvider: ProviderConfig | null
+  presetProvider: ProtoProviderConfig | null
 ): Provider {
   if (!userProvider && !presetProvider) {
     throw new Error('At least one of userProvider or presetProvider must be provided')
@@ -324,9 +322,15 @@ export function mergeProviderConfig(
 
   const providerId = userProvider?.providerId ?? presetProvider!.id
 
-  // Merge baseUrls
+  // Merge baseUrls — proto uses map<int32, string>, convert to Record<string, string>
+  const presetBaseUrls: Record<string, string> = {}
+  if (presetProvider?.baseUrls) {
+    for (const [k, v] of Object.entries(presetProvider.baseUrls)) {
+      presetBaseUrls[k] = v
+    }
+  }
   const baseUrls: Record<string, string> = {
-    ...presetProvider?.baseUrls,
+    ...presetBaseUrls,
     ...userProvider?.baseUrls
   }
 
@@ -377,26 +381,58 @@ export function mergeProviderConfig(
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Map proto Reasoning.params.case to runtime reasoning type string */
+const CASE_TO_TYPE: Record<string, string> = {
+  openaiChat: 'openai-chat',
+  openaiResponses: 'openai-responses',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  openrouter: 'openrouter',
+  qwen: 'qwen',
+  doubao: 'doubao',
+  dashscope: 'dashscope',
+  selfHosted: 'self-hosted'
+}
+
+/** Default effort levels per reasoning type (when not specified in catalog) */
+const DEFAULT_EFFORTS: Record<string, ReasoningEffortType[]> = {
+  'openai-chat': [
+    ReasoningEffort.NONE,
+    ReasoningEffort.MINIMAL,
+    ReasoningEffort.LOW,
+    ReasoningEffort.MEDIUM,
+    ReasoningEffort.HIGH
+  ],
+  'openai-responses': [
+    ReasoningEffort.NONE,
+    ReasoningEffort.MINIMAL,
+    ReasoningEffort.LOW,
+    ReasoningEffort.MEDIUM,
+    ReasoningEffort.HIGH
+  ],
+  anthropic: [],
+  gemini: [ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
+  qwen: [],
+  doubao: []
+}
+
 /**
- * Extract effort levels from reasoning config
- *
- * Priority: explicit supported_efforts > fallback by type
+ * Convert proto Reasoning message to runtime RuntimeReasoning
  */
-function extractEfforts(reasoning: { type: string; params?: object; supportedEfforts?: string[] }): string[] {
-  // Prefer explicit supportedEfforts from catalog data
-  if (reasoning.supportedEfforts && reasoning.supportedEfforts.length > 0) {
-    return reasoning.supportedEfforts
+function extractRuntimeReasoning(reasoning: ProtoReasoning): RuntimeReasoning {
+  const type = CASE_TO_TYPE[reasoning.params.case ?? ''] ?? ''
+  const common = reasoning.common
+
+  // Get supported efforts from common, with fallback
+  let supportedEfforts: ReasoningEffortType[] = common?.supportedEfforts ?? []
+  if (supportedEfforts.length === 0) {
+    supportedEfforts = DEFAULT_EFFORTS[type] ?? []
   }
 
-  // Fallback: infer default efforts by reasoning type
-  const defaultEfforts: Record<string, string[]> = {
-    'openai-chat': ['none', 'minimal', 'low', 'medium', 'high'],
-    'openai-responses': ['none', 'minimal', 'low', 'medium', 'high'],
-    anthropic: ['enabled', 'disabled'],
-    gemini: ['low', 'medium', 'high'],
-    qwen: ['enabled', 'disabled'],
-    doubao: ['enabled', 'disabled', 'auto']
+  return {
+    type,
+    supportedEfforts,
+    thinkingTokenLimits: common?.thinkingTokenLimits,
+    interleaved: common?.interleaved
   }
-
-  return defaultEfforts[reasoning.type] ?? []
 }
