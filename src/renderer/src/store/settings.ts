@@ -38,8 +38,8 @@ import type {
   OpenAIReasoningSummary,
   OpenAIVerbosity
 } from '@renderer/types/aiCoreTypes'
-import { uuid } from '@renderer/utils'
 import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
+import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
 
