@@ -1,0 +1,5103 @@
+{
+  "agent": {
+    "add": {
+      "description": "다양한 도구를 사용하여 복잡한 작업 처리",
+      "error": {
+        "failed": "에이전트 추가 실패",
+        "invalid_agent": "잘못된 에이전트"
+      },
+      "model": {
+        "tooltip": "현재 에이전트 기능은 Anthropic 엔드포인트를 지원하는 모델만 사용할 수 있습니다."
+      },
+      "title": "에이전트 추가",
+      "type": {
+        "placeholder": "에이전트 유형 선택"
+      }
+    },
+    "delete": {
+      "content": "에이전트를 삭제하면 이 에이전트와 연결된 모든 세션이 강제로 중지되고 삭제됩니다. 정말 삭제하시겠습니까?",
+      "error": {
+        "failed": "에이전트 삭제 실패"
+      },
+      "title": "에이전트 삭제"
+    },
+    "edit": {
+      "title": "에이전트 편집"
+    },
+    "get": {
+      "error": {
+        "failed": "에이전트를 가져오지 못했습니다.",
+        "null_id": "에이전트 ID가 null입니다."
+      }
+    },
+    "gitBash": {
+      "autoDetected": "자동으로 감지된 Git Bash 사용 중",
+      "autoDiscoveredHint": "자동 감지됨",
+      "clear": {
+        "button": "사용자 정의 경로 지우기"
+      },
+      "customPath": "사용자 정의 경로 사용: {{path}}",
+      "error": {
+        "description": "Windows에서 에이전트를 실행하려면 Git Bash가 필요합니다. Git Bash가 없으면 에이전트가 작동하지 않습니다. 다음에서 Windows용 Git을 설치하세요",
+        "recheck": "Git Bash 설치 다시 확인",
+        "required": "Windows에서 Git Bash 경로가 필요합니다",
+        "title": "Git Bash 필요"
+      },
+      "found": {
+        "title": "Git Bash가 구성됨"
+      },
+      "notFound": "Git Bash를 찾을 수 없습니다. 먼저 설치하세요.",
+      "pick": {
+        "button": "Git Bash 경로 선택",
+        "failed": "Git Bash 경로 설정 실패",
+        "invalidPath": "선택한 파일이 유효한 Git Bash 실행 파일(bash.exe)이 아닙니다.",
+        "title": "Git Bash 실행 파일 선택"
+      },
+      "placeholder": "bash.exe 경로 선택",
+      "success": "Git Bash가 성공적으로 감지되었습니다!",
+      "tooltip": "Windows에서 에이전트를 실행하려면 Git Bash가 필요합니다. 없는 경우 git-scm.com에서 설치하세요."
+    },
+    "input": {
+      "placeholder": "여기에 메시지를 입력하고 {{key}}를 눌러 전송 - @ 경로 선택, / 명령 선택"
+    },
+    "list": {
+      "error": {
+        "failed": "에이전트 목록을 가져오지 못했습니다."
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "API 서버가 활성화되어 있지만 제대로 실행되지 않고 있습니다."
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "추가",
+        "duplicate": "이 디렉터리는 이미 포함되어 있습니다.",
+        "empty": "에이전트가 액세스할 수 있는 디렉터리를 하나 이상 선택하세요.",
+        "error": {
+          "at_least_one": "하나 이상의 액세스 가능한 디렉터리를 선택하세요."
+        },
+        "label": "액세스 가능한 디렉터리",
+        "select_failed": "디렉터리 선택 실패"
+      },
+      "add": {
+        "title": "세션 추가"
+      },
+      "allowed_tools": {
+        "empty": "이 에이전트에 사용 가능한 도구가 없습니다.",
+        "helper": "미리 승인된 도구는 수동 승인 없이 실행됩니다. 선택되지 않은 도구는 사용 전 승인이 필요합니다.",
+        "label": "미리 승인된 도구",
+        "placeholder": "미리 승인된 도구 선택"
+      },
+      "create": {
+        "error": {
+          "failed": "세션 추가 실패"
+        }
+      },
+      "delete": {
+        "content": "이 세션을 삭제하시겠습니까?",
+        "error": {
+          "failed": "세션 삭제 실패",
+          "last": "하나 이상의 세션을 유지해야 합니다"
+        },
+        "title": "세션 삭제"
+      },
+      "edit": {
+        "title": "세션 편집"
+      },
+      "get": {
+        "error": {
+          "failed": "세션을 가져오지 못했습니다",
+          "null_id": "세션 ID가 null입니다"
+        }
+      },
+      "label_one": "세션",
+      "label_other": "세션",
+      "update": {
+        "error": {
+          "failed": "세션 업데이트 실패"
+        }
+      }
+    },
+    "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "에이전트가 자동으로 완료할 수 있는 요청/응답 주기 수를 정의합니다.",
+          "helper": "값이 높을수록 더 긴 자율 실행이 가능하고, 값이 낮을수록 세션이 짧게 유지됩니다.",
+          "label": "대화 턴 제한"
+        },
+        "permissionMode": {
+          "description": "승인이 필요한 작업을 에이전트가 처리하는 방법을 제어합니다.",
+          "label": "권한 모드",
+          "options": {
+            "acceptEdits": "편집 자동 수락",
+            "bypassPermissions": "권한 검사 우회",
+            "default": "기본값 (계속하기 전에 묻기)",
+            "plan": "계획 모드 (계획 승인 필요)"
+          },
+          "placeholder": "권한 동작 선택"
+        },
+        "title": "고급 설정"
+      },
+      "essential": "필수 설정",
+      "plugins": {
+        "available": {
+          "title": "사용 가능한 플러그인"
+        },
+        "confirm": {
+          "uninstall": "이 플러그인을 삭제하시겠습니까?"
+        },
+        "empty": {
+          "available": "필터와 일치하는 플러그인을 찾을 수 없습니다. 검색 또는 카테고리 필터를 조정해 보세요."
+        },
+        "error": {
+          "install": "플러그인 설치 실패",
+          "load": "플러그인 로드 실패",
+          "uninstall": "플러그인 삭제 실패"
+        },
+        "filter": {
+          "all": "모든 카테고리"
+        },
+        "install": "설치",
+        "installed": {
+          "empty": "아직 설치된 플러그인이 없습니다. 사용 가능한 플러그인을 찾아보세요.",
+          "title": "설치된 플러그인"
+        },
+        "installing": "설치 중...",
+        "results": "{{count}}개의 플러그인을 찾았습니다",
+        "search": {
+          "placeholder": "플러그인 검색..."
+        },
+        "success": {
+          "install": "플러그인이 성공적으로 설치되었습니다",
+          "uninstall": "플러그인이 성공적으로 삭제되었습니다"
+        },
+        "tab": "플러그인",
+        "type": {
+          "agent": "에이전트",
+          "agents": "에이전트",
+          "all": "전체",
+          "command": "명령",
+          "commands": "명령",
+          "skills": "스킬"
+        },
+        "uninstall": "삭제",
+        "uninstalling": "삭제 중..."
+      },
+      "prompt": "프롬프트 설정",
+      "tooling": {
+        "mcp": {
+          "description": "MCP 서버를 연결하여 위에서 승인할 수 있는 추가 도구를 잠금 해제하세요.",
+          "empty": "MCP 서버가 감지되지 않았습니다. MCP 설정 페이지에서 추가하세요.",
+          "manageHint": "고급 구성이 필요하신가요? 설정 → MCP 서버로 이동하세요.",
+          "toggle": "{{name}} 토글"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "신뢰할 수 있는 파일 시스템 도구를 미리 승인하여 편집이 즉시 실행되도록 합니다.",
+            "description": "파일 편집 및 파일 시스템 작업이 자동으로 승인됩니다.",
+            "title": "파일 편집 자동 수락"
+          },
+          "bypassPermissions": {
+            "behavior": "모든 도구가 자동으로 미리 승인됩니다.",
+            "description": "모든 권한 프롬프트가 건너뜁니다. 주의해서 사용하세요.",
+            "title": "권한 검사 우회",
+            "warning": "주의해서 사용하세요. 모든 도구가 승인 없이 실행됩니다."
+          },
+          "confirmChange": {
+            "description": "모드를 전환하면 자동으로 승인된 도구가 업데이트됩니다.",
+            "title": "권한 모드를 변경하시겠습니까?"
+          },
+          "default": {
+            "behavior": "읽기 전용 도구가 자동으로 미리 승인됩니다.",
+            "description": "읽기 전용 도구는 미리 승인되며, 다른 작업은 여전히 권한이 필요합니다.",
+            "title": "기본값 (계속하기 전에 묻기)"
+          },
+          "helper": "에이전트가 도구 승인을 처리하는 방법을 선택하세요.",
+          "placeholder": "권한 모드 선택",
+          "plan": {
+            "behavior": "읽기 전용 기본값은 미리 승인되며 실행은 비활성화된 상태로 유지됩니다.",
+            "description": "기본 읽기 전용 도구 세트를 공유하지만 실행 전 계획을 표시합니다.",
+            "title": "계획 모드"
+          },
+          "title": "권한 모드"
+        },
+        "preapproved": {
+          "autoBadge": "모드에서 추가됨",
+          "autoDescription": "이 도구는 현재 권한 모드에서 자동으로 승인됩니다.",
+          "empty": "필터와 일치하는 도구가 없습니다.",
+          "mcpBadge": "MCP 도구",
+          "requiresApproval": "비활성화된 경우 승인 필요",
+          "search": "도구 검색",
+          "toggle": "{{name}} 토글",
+          "warning": {
+            "description": "신뢰할 수 있는 도구만 활성화하세요. 모드 기본값이 자동으로 강조 표시됩니다.",
+            "title": "미리 승인된 도구는 수동 검토 없이 실행됩니다."
+          }
+        },
+        "review": {
+          "autoTools": "자동: {{count}}",
+          "customTools": "사용자 정의: {{count}}",
+          "helper": "변경 사항이 자동으로 저장됩니다. 권한을 미세 조정하려면 언제든지 위의 단계를 조정하세요.",
+          "mcp": "MCP: {{count}}",
+          "mode": "모드: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP 서버"
+          },
+          "permissionMode": {
+            "title": "1단계 · 권한 모드"
+          },
+          "preapproved": {
+            "title": "2단계 · 미리 승인된 도구"
+          },
+          "review": {
+            "title": "3단계 · 검토"
+          }
+        },
+        "tab": "도구 및 권한"
+      },
+      "tools": {
+        "approved": "승인됨",
+        "caution": "미리 승인된 도구는 사람의 검토를 우회합니다. 신뢰할 수 있는 도구만 활성화하세요.",
+        "description": "수동 승인 없이 실행할 수 있는 도구를 선택하세요.",
+        "requiresPermission": "미리 승인되지 않은 경우 권한이 필요합니다.",
+        "tab": "미리 승인된 도구",
+        "title": "미리 승인된 도구",
+        "toggle": "{{defaultValue}}"
+      }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "도구 요청 허용",
+        "denyRequest": "도구 요청 거부",
+        "hideDetails": "도구 세부 정보 숨기기",
+        "runWithOptions": "추가 옵션으로 실행",
+        "showDetails": "도구 세부 정보 표시"
+      },
+      "button": {
+        "cancel": "취소",
+        "run": "실행"
+      },
+      "confirmation": "이 Claude 도구를 실행하시겠습니까?",
+      "defaultDenyMessage": "사용자가 이 도구에 대한 권한을 거부했습니다.",
+      "defaultDescription": "환경에서 코드 또는 시스템 작업을 실행합니다. 실행하기 전에 명령이 안전한지 확인하세요.",
+      "error": {
+        "sendFailed": "결정을 보내지 못했습니다. 다시 시도하세요."
+      },
+      "executing": "실행 중...",
+      "expired": "만료됨",
+      "inputPreview": "도구 입력 미리보기",
+      "pending": "보류 중 ({{seconds}}초)",
+      "permissionExpired": "권한 요청이 만료되었습니다. 새 지침을 기다리는 중...",
+      "requiresElevatedPermissions": "이 도구에는 상승된 권한이 필요합니다.",
+      "suggestion": {
+        "permissionUpdateMultiple": "승인하면 이 도구를 항상 허용하도록 선택한 경우 여러 세션 권한이 업데이트될 수 있습니다.",
+        "permissionUpdateSingle": "승인하면 이 도구를 항상 허용하도록 선택한 경우 세션 권한이 업데이트될 수 있습니다."
+      },
+      "toast": {
+        "denied": "도구 요청이 거부되었습니다.",
+        "timeout": "도구 요청이 승인을 받기 전에 시간 초과되었습니다."
+      },
+      "toolPendingFallback": "도구",
+      "waiting": "도구 권한 결정을 기다리는 중..."
+    },
+    "type": {
+      "label": "에이전트 유형",
+      "unknown": "알 수 없는 유형"
+    },
+    "update": {
+      "error": {
+        "failed": "에이전트 업데이트 실패"
+      }
+    },
+    "warning": {
+      "enable_server": "에이전트를 사용하려면 API 서버를 활성화하세요."
+    }
+  },
+  "apiServer": {
+    "actions": {
+      "copy": "복사",
+      "regenerate": "재생성",
+      "restart": {
+        "button": "다시 시작",
+        "tooltip": "서버 다시 시작"
+      },
+      "start": "시작",
+      "stop": "중지"
+    },
+    "authHeader": {
+      "title": "인증 헤더"
+    },
+    "authHeaderText": "인증 헤더에서 사용:",
+    "configuration": "구성",
+    "description": "OpenAI 호환 HTTP API를 통해 Cherry Studio의 AI 기능을 노출",
+    "documentation": {
+      "title": "API 문서"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "API 키 복사",
+        "description": "API 액세스를 위한 보안 인증 토큰",
+        "label": "API 키",
+        "placeholder": "API 키가 자동으로 생성됩니다"
+      },
+      "port": {
+        "description": "HTTP 서버용 TCP 포트 번호 (1000-65535)",
+        "helpText": "포트를 변경하려면 서버를 중지하세요",
+        "label": "포트"
+      },
+      "url": {
+        "copyTooltip": "URL 복사",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API 키가 클립보드에 복사되었습니다",
+      "apiKeyRegenerated": "API 키가 재생성되었습니다",
+      "notEnabled": "API 서버가 활성화되지 않았습니다.",
+      "operationFailed": "API 서버 작업 실패: ",
+      "restartError": "API 서버를 다시 시작하지 못했습니다: ",
+      "restartFailed": "API 서버 다시 시작 실패: ",
+      "restartSuccess": "API 서버가 성공적으로 다시 시작되었습니다",
+      "startError": "API 서버를 시작하지 못했습니다: ",
+      "startSuccess": "API 서버가 성공적으로 시작되었습니다",
+      "stopError": "API 서버를 중지하지 못했습니다: ",
+      "stopSuccess": "API 서버가 성공적으로 중지되었습니다",
+      "urlCopied": "서버 URL이 클립보드에 복사되었습니다"
+    },
+    "status": {
+      "running": "실행 중",
+      "stopped": "중지됨"
+    },
+    "title": "API 서버"
+  },
+  "appMenu": {
+    "about": "정보",
+    "close": "창 닫기",
+    "copy": "복사",
+    "cut": "잘라내기",
+    "delete": "삭제",
+    "documentation": "문서",
+    "edit": "편집",
+    "feedback": "피드백",
+    "file": "파일",
+    "forceReload": "새로고침 강제",
+    "front": "모두 앞으로 가져오기",
+    "help": "도움말",
+    "hide": "숨기기",
+    "hideOthers": "다른 창 숨기기",
+    "minimize": "최소화",
+    "paste": "붙여넣기",
+    "quit": "종료",
+    "redo": "다시 실행",
+    "releases": "릴리스",
+    "reload": "새로고침",
+    "resetZoom": "실제 크기",
+    "selectAll": "모두 선택",
+    "services": "서비스",
+    "toggleDevTools": "개발자 도구 토글",
+    "toggleFullscreen": "전체화면 토글",
+    "undo": "실행 취소",
+    "unhide": "모두 표시",
+    "view": "보기",
+    "website": "웹사이트",
+    "window": "창",
+    "zoom": "확대/축소",
+    "zoomIn": "확대",
+    "zoomOut": "축소"
+  },
+  "assistants": {
+    "abbr": "어시스턴트",
+    "clear": {
+      "content": "주제를 지우면 어시스턴트의 모든 주제와 파일이 삭제됩니다. 계속하시겠습니까?",
+      "title": "주제 지우기"
+    },
+    "copy": {
+      "title": "어시스턴트 복사"
+    },
+    "delete": {
+      "content": "어시스턴트를 삭제하면 어시스턴트 아래의 모든 주제와 파일이 삭제됩니다. 삭제하시겠습니까?",
+      "error": {
+        "remain_one": "마지막 어시스턴트는 삭제할 수 없습니다"
+      },
+      "title": "어시스턴트 삭제"
+    },
+    "edit": {
+      "title": "어시스턴트 편집"
+    },
+    "icon": {
+      "type": "어시스턴트 아이콘"
+    },
+    "list": {
+      "showByList": "목록 보기",
+      "showByTags": "태그 보기"
+    },
+    "presets": {
+      "add": {
+        "button": "어시스턴트에 추가",
+        "knowledge_base": {
+          "label": "지식 베이스",
+          "placeholder": "지식 베이스 선택"
+        },
+        "name": {
+          "label": "이름",
+          "placeholder": "이름 입력"
+        },
+        "prompt": {
+          "label": "프롬프트",
+          "placeholder": "프롬프트 입력",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t날짜\n{{time}}:\t시간\n{{datetime}}:\t날짜 및 시간\n{{system}}:\t운영 체제\n{{arch}}:\tCPU 아키텍처\n{{language}}:\t언어\n{{model_name}}:\t모델 이름\n{{username}}:\t사용자 이름",
+              "title": "사용 가능한 변수"
+            }
+          }
+        },
+        "title": "어시스턴트 생성",
+        "unsaved_changes_warning": "저장되지 않은 변경 사항이 있습니다. 닫으시겠습니까?"
+      },
+      "delete": {
+        "popup": {
+          "content": "이 어시스턴트를 삭제하시겠습니까?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "모델 선택"
+          }
+        },
+        "title": "어시스턴트 편집"
+      },
+      "export": {
+        "agent": "어시스턴트 내보내기"
+      },
+      "import": {
+        "button": "가져오기",
+        "error": {
+          "fetch_failed": "URL에서 가져오기 실패",
+          "file_required": "먼저 파일을 선택하세요",
+          "invalid_format": "잘못된 어시스턴트 형식: 필수 필드가 누락됨",
+          "url_required": "URL을 입력하세요"
+        },
+        "file_filter": "JSON 파일",
+        "select_file": "파일 선택",
+        "title": "외부에서 가져오기",
+        "type": {
+          "file": "파일",
+          "url": "URL"
+        },
+        "url_placeholder": "JSON URL 입력"
+      },
+      "manage": {
+        "batch_delete": {
+          "button": "삭제",
+          "confirm": "선택된 {{count}}개의 어시스턴트를 삭제하시겠습니까?"
+        },
+        "batch_export": {
+          "button": "내보내기"
+        },
+        "mode": {
+          "manage": "관리",
+          "sort": "정렬"
+        },
+        "title": "어시스턴트 관리"
+      },
+      "my_agents": "내 어시스턴트",
+      "search": {
+        "no_results": "결과를 찾을 수 없습니다"
+      },
+      "settings": {
+        "title": "어시스턴트 설정"
+      },
+      "sorting": {
+        "title": "정렬"
+      },
+      "tag": {
+        "agent": "어시스턴트",
+        "default": "기본",
+        "new": "새로 만들기",
+        "system": "시스템"
+      },
+      "title": "어시스턴트 라이브러리"
+    },
+    "save": {
+      "success": "성공적으로 저장됨",
+      "title": "어시스턴트 라이브러리에 저장"
+    },
+    "search": "어시스턴트 검색...",
+    "settings": {
+      "default_model": "기본 모델",
+      "knowledge_base": {
+        "label": "지식 베이스 설정",
+        "recognition": {
+          "label": "지식 베이스 사용",
+          "off": "강제 검색",
+          "on": "의도 인식",
+          "tip": "어시스턴트는 대규모 모델의 의도 인식 기능을 사용하여 지식 베이스를 사용하여 답변할지 여부를 결정합니다. 이 기능은 모델의 기능에 따라 달라집니다"
+        }
+      },
+      "mcp": {
+        "description": "기본적으로 활성화된 MCP 서버",
+        "enableFirst": "먼저 MCP 설정에서 이 서버를 활성화하세요",
+        "label": "MCP 서버",
+        "noServersAvailable": "사용 가능한 MCP 서버가 없습니다. 설정에서 서버를 추가하세요",
+        "title": "MCP 설정"
+      },
+      "model": "모델 설정",
+      "more": "어시스턴트 설정",
+      "prompt": "프롬프트 설정",
+      "reasoning_effort": {
+        "auto": "자동",
+        "auto_description": "추론 노력을 유연하게 결정",
+        "default": "기본값",
+        "default_description": "모델의 기본 동작에 의존하며, 구성이 필요하지 않습니다.",
+        "high": "높음",
+        "high_description": "고수준 추론",
+        "label": "추론 노력",
+        "low": "낮음",
+        "low_description": "저수준 추론",
+        "medium": "중간",
+        "medium_description": "중간 수준 추론",
+        "minimal": "최소",
+        "minimal_description": "최소 추론",
+        "off": "끄기",
+        "off_description": "추론 비활성화",
+        "xhigh": "초고",
+        "xhigh_description": "초고수준 추론"
+      },
+      "regular_phrases": {
+        "add": "구문 추가",
+        "contentLabel": "내용",
+        "contentPlaceholder": "구문 내용을 입력하세요. 변수 사용을 지원하며 Tab을 눌러 수정할 변수를 빠르게 찾을 수 있습니다. 예: \n${from}에서 ${to}로 가는 경로를 계획하고 ${email}로 보내주세요.",
+        "delete": "구문 삭제",
+        "deleteConfirm": "이 구문을 삭제하시겠습니까?",
+        "edit": "구문 편집",
+        "title": "자주 사용하는 구문",
+        "titleLabel": "제목",
+        "titlePlaceholder": "제목 입력"
+      },
+      "title": "어시스턴트 설정",
+      "tool_use_mode": {
+        "function": "함수",
+        "label": "도구 사용 모드",
+        "prompt": "프롬프트"
+      }
+    },
+    "tags": {
+      "add": "태그 추가",
+      "delete": "태그 삭제",
+      "deleteConfirm": "이 태그를 삭제하시겠습니까?",
+      "manage": "태그 관리",
+      "modify": "태그 수정",
+      "none": "태그 없음",
+      "settings": {
+        "title": "태그 설정"
+      },
+      "untagged": "태그 없음"
+    },
+    "title": "어시스턴트"
+  },
+  "auth": {
+    "error": "API 키 자동 가져오기 실패, 수동으로 가져오세요",
+    "get_key": "가져오기",
+    "get_key_success": "API 키가 성공적으로 자동 가져오기됨",
+    "login": "로그인",
+    "oauth_button": "{{provider}}로 인증"
+  },
+  "backup": {
+    "confirm": {
+      "button": "백업 위치 선택",
+      "label": "데이터를 백업하시겠습니까?"
+    },
+    "content": "채팅 기록, 설정, 지식 베이스를 포함한 모든 데이터를 백업합니다. 백업 프로세스는 시간이 걸릴 수 있으니 기다려 주셔서 감사합니다.",
+    "progress": {
+      "completed": "백업 완료",
+      "compressing": "파일 압축 중...",
+      "copying_files": "파일 복사 중... {{progress}}%",
+      "preparing": "백업 준비 중...",
+      "preparing_compression": "압축 준비 중...",
+      "title": "백업 진행률",
+      "writing_data": "데이터 쓰기 중..."
+    },
+    "title": "데이터 백업"
+  },
+  "button": {
+    "add": "추가",
+    "added": "추가됨",
+    "case_sensitive": "대소문자 구분",
+    "collapse": "축소",
+    "download": "다운로드",
+    "includes_user_questions": "질문 포함",
+    "manage": "관리",
+    "select_model": "모델 선택",
+    "show": {
+      "all": "모두 표시"
+    },
+    "update_available": "업데이트 가능",
+    "whole_word": "전체 단어"
+  },
+  "chat": {
+    "add": {
+      "assistant": {
+        "description": "일상 대화 및 빠른 Q&A",
+        "title": "어시스턴트 추가"
+      },
+      "option": {
+        "title": "유형 선택"
+      },
+      "topic": {
+        "title": "새 주제"
+      }
+    },
+    "artifacts": {
+      "button": {
+        "download": "다운로드",
+        "openExternal": "외부 브라우저에서 열기",
+        "preview": "미리보기"
+      },
+      "preview": {
+        "openExternal": {
+          "error": {
+            "content": "외부 브라우저를 여는 중 오류가 발생했습니다."
+          }
+        }
+      }
+    },
+    "assistant": {
+      "search": {
+        "placeholder": "검색"
+      }
+    },
+    "deeply_thought": "깊이 생각함 ({{seconds}}초)",
+    "default": {
+      "description": "안녕하세요, 기본 어시스턴트입니다. 지금 바로 대화를 시작할 수 있습니다",
+      "name": "기본 어시스턴트",
+      "topic": {
+        "name": "기본 주제"
+      }
+    },
+    "history": {
+      "assistant_node": "어시스턴트",
+      "click_to_navigate": "클릭하여 메시지로 이동",
+      "coming_soon": "채팅 워크플로우 다이어그램이 곧 제공됩니다",
+      "no_messages": "메시지를 찾을 수 없습니다",
+      "start_conversation": "대화를 시작하여 채팅 흐름 다이어그램을 확인하세요",
+      "title": "채팅 기록",
+      "user_node": "사용자",
+      "view_full_content": "전체 내용 보기"
+    },
+    "input": {
+      "activity_directory": {
+        "description": "활동 디렉터리에서 파일 선택",
+        "loading": "파일 로드 중...",
+        "no_file_found": {
+          "description": "액세스 가능한 디렉터리에 사용 가능한 파일이 없습니다",
+          "label": "파일을 찾을 수 없습니다"
+        },
+        "title": "활동 디렉터리"
+      },
+      "auto_resize": "높이 자동 조정",
+      "clear": {
+        "content": "현재 주제의 모든 메시지를 지우시겠습니까?",
+        "label": "{{Command}} 지우기",
+        "title": "모든 메시지를 지우시겠습니까?"
+      },
+      "collapse": "축소",
+      "context_count": {
+        "tip": "컨텍스트 / 최대 컨텍스트"
+      },
+      "estimated_tokens": {
+        "tip": "예상 토큰"
+      },
+      "expand": "확장",
+      "file_error": "파일 처리 오류",
+      "file_not_supported": "모델이 이 파일 형식을 지원하지 않습니다",
+      "file_not_supported_count": "{{count}}개의 파일이 지원되지 않습니다",
+      "generate_image": "이미지 생성",
+      "generate_image_not_supported": "모델이 이미지 생성을 지원하지 않습니다.",
+      "knowledge_base": "지식 베이스",
+      "new": {
+        "context": "컨텍스트 지우기 {{Command}}"
+      },
+      "new_session": "새 세션 {{Command}}",
+      "new_topic": "새 주제 {{Command}}",
+      "paste_text_file_confirm": "입력창에 붙여넣으시겠습니까?",
+      "pause": "일시 중지",
+      "placeholder": "여기에 메시지를 입력하고 {{key}}를 눌러 전송 - @ 모델 선택, / 도구 포함",
+      "placeholder_without_triggers": "여기에 메시지를 입력하고 {{key}}를 눌러 전송",
+      "send": "전송",
+      "settings": "설정",
+      "slash_commands": {
+        "description": "에이전트 세션 슬래시 명령",
+        "title": "슬래시 명령"
+      },
+      "thinking": {
+        "budget_exceeds_max": "생각 예산이 최대 토큰 수를 초과합니다",
+        "label": "생각 중",
+        "mode": {
+          "custom": {
+            "label": "사용자 정의",
+            "tip": "모델이 생각할 수 있는 최대 토큰 수입니다. 모델의 컨텍스트 제한을 고려해야 하며, 그렇지 않으면 오류가 보고됩니다"
+          },
+          "default": {
+            "label": "기본값",
+            "tip": "모델이 생각할 토큰 수를 자동으로 결정합니다"
+          },
+          "tokens": {
+            "tip": "생각 토큰 수를 설정하세요."
+          }
+        }
+      },
+      "tools": {
+        "collapse": "축소",
+        "collapse_in": "축소",
+        "collapse_out": "축소에서 제거",
+        "expand": "확장"
+      },
+      "topics": " 주제 ",
+      "translate": "{{target_language}}(으)로 번역",
+      "translating": "번역 중...",
+      "upload": {
+        "attachment": "첨부 파일 업로드",
+        "document": "문서 파일 업로드 (모델이 이미지를 지원하지 않음)",
+        "image_or_document": "이미지 또는 문서 파일 업로드",
+        "upload_from_local": "로컬 파일 업로드..."
+      },
+      "url_context": "URL 컨텍스트",
+      "web_search": {
+        "builtin": {
+          "disabled_content": "현재 모델은 웹 검색을 지원하지 않습니다",
+          "enabled_content": "모델의 내장 웹 검색 기능 사용",
+          "label": "모델 내장"
+        },
+        "button": {
+          "ok": "설정으로 이동"
+        },
+        "enable": "웹 검색 활성화",
+        "enable_content": "먼저 설정에서 웹 검색 연결을 확인해야 합니다",
+        "label": "웹 검색",
+        "no_web_search": {
+          "description": "웹 검색 비활성화",
+          "label": "웹 검색 끄기"
+        },
+        "settings": "웹 검색 설정"
+      }
+    },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "유효한 도구 호출 형식으로 변환할 수 없습니다: {{toolCall}}"
+      },
+      "warning": {
+        "gemini_web_search": "Gemini는 기본 웹 검색 도구와 함수 호출을 동시에 사용하는 것을 지원하지 않습니다",
+        "multiple_tools": "여러 일치하는 MCP 도구가 있으며 {{tool}}이(가) 선택되었습니다",
+        "no_tool": "{{tool}}에 대한 일치하는 MCP 도구를 찾을 수 없습니다",
+        "url_context": "Gemini는 URL 컨텍스트와 함수 호출을 동시에 사용하는 것을 지원하지 않습니다"
+      }
+    },
+    "message": {
+      "new": {
+        "branch": {
+          "created": "새 분기가 생성됨",
+          "label": "새 분기"
+        },
+        "context": "새 컨텍스트"
+      },
+      "quote": "인용",
+      "regenerate": {
+        "model": "모델 전환"
+      },
+      "useful": {
+        "label": "컨텍스트로 설정",
+        "tip": "이 메시지 그룹에서 이 메시지가 컨텍스트에 포함되도록 선택됩니다"
+      }
+    },
+    "multiple": {
+      "select": {
+        "empty": "선택된 메시지 없음",
+        "label": "다중 선택"
+      }
+    },
+    "navigation": {
+      "bottom": "맨 아래로",
+      "close": "닫기",
+      "first": "이미 첫 번째 메시지입니다",
+      "history": "채팅 기록",
+      "last": "이미 마지막 메시지입니다",
+      "next": "다음 메시지",
+      "prev": "이전 메시지",
+      "top": "맨 위로"
+    },
+    "resend": "다시 전송",
+    "save": {
+      "file": {
+        "title": "로컬 파일에 저장"
+      },
+      "knowledge": {
+        "content": {
+          "citation": {
+            "description": "웹 검색 및 지식 베이스 참조 정보 포함",
+            "title": "인용"
+          },
+          "code": {
+            "description": "독립 코드 블록 포함",
+            "title": "코드 블록"
+          },
+          "error": {
+            "description": "실행 중 오류 메시지 포함",
+            "title": "오류"
+          },
+          "file": {
+            "description": "첨부된 파일 포함",
+            "title": "파일"
+          },
+          "maintext": {
+            "description": "주요 텍스트 내용 포함",
+            "title": "본문"
+          },
+          "thinking": {
+            "description": "모델 추론 내용 포함",
+            "title": "추론"
+          },
+          "tool_use": {
+            "description": "도구 호출 매개변수 및 실행 결과 포함",
+            "title": "도구 사용"
+          },
+          "translation": {
+            "description": "번역 내용 포함",
+            "title": "번역"
+          }
+        },
+        "empty": {
+          "no_content": "이 메시지에는 저장할 수 있는 콘텐츠가 없습니다",
+          "no_knowledge_base": "사용 가능한 지식 베이스가 없습니다. 먼저 하나를 만드세요"
+        },
+        "error": {
+          "invalid_base": "선택된 지식 베이스가 제대로 구성되지 않았습니다",
+          "no_content_selected": "하나 이상의 콘텐츠 유형을 선택하세요",
+          "save_failed": "저장 실패, 지식 베이스 구성을 확인하세요"
+        },
+        "select": {
+          "base": {
+            "placeholder": "지식 베이스를 선택하세요",
+            "title": "지식 베이스 선택"
+          },
+          "content": {
+            "tip": "{{count}}개 항목이 선택되었습니다. 텍스트 유형은 하나의 메모로 병합되어 저장됩니다",
+            "title": "저장할 콘텐츠 유형 선택"
+          }
+        },
+        "title": "지식 베이스에 저장"
+      },
+      "label": "저장",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "모든 메시지의 주제 제목 및 주요 텍스트 콘텐츠 포함"
+            }
+          },
+          "empty": {
+            "no_content": "이 주제에는 저장할 콘텐츠가 없습니다"
+          },
+          "error": {
+            "save_failed": "주제 저장 실패, 지식 베이스 구성을 확인하세요"
+          },
+          "loading": "주제 콘텐츠 분석 중...",
+          "select": {
+            "content": {
+              "label": "저장할 콘텐츠 유형 선택",
+              "selected_tip": "{{messages}}개 메시지에서 {{count}}개 항목이 선택됨",
+              "tip": "주제가 전체 대화 컨텍스트와 함께 지식 베이스에 저장됩니다"
+            }
+          },
+          "success": "주제가 지식 베이스에 성공적으로 저장됨 ({{count}}개 항목)",
+          "title": "주제를 지식 베이스에 저장"
+        }
+      }
+    },
+    "settings": {
+      "code": {
+        "title": "코드 블록 설정"
+      },
+      "code_collapsible": "코드 블록 축소 가능",
+      "code_editor": {
+        "autocompletion": "자동 완성",
+        "fold_gutter": "접힌 영역 표시",
+        "highlight_active_line": "활성 라인 강조",
+        "keymap": "키맵",
+        "title": "코드 편집기"
+      },
+      "code_execution": {
+        "timeout_minutes": {
+          "label": "시간 제한",
+          "tip": "코드 실행의 시간 제한(분)"
+        },
+        "tip": "실행 가능한 코드 블록의 도구 모음에 실행 버튼이 표시됩니다. 위험한 코드는 실행하지 마세요!",
+        "title": "코드 실행"
+      },
+      "code_fancy_block": {
+        "label": "팬시 코드 블록",
+        "tip": "HTML 카드와 같은 코드 블록의 멋진 스타일을 활성화합니다"
+      },
+      "code_image_tools": {
+        "label": "미리보기 도구 활성화",
+        "tip": "mermaid와 같은 코드 블록에서 렌더링된 이미지의 미리보기 도구를 활성화합니다"
+      },
+      "code_wrappable": "코드 블록 줄 바꿈 가능",
+      "context_count": {
+        "label": "컨텍스트",
+        "tip": "컨텍스트에 유지할 이전 메시지의 수입니다."
+      },
+      "max": "무제한",
+      "max_tokens": {
+        "confirm": "최대 토큰 설정",
+        "confirm_content": "모델이 생성할 수 있는 최대 토큰 수를 설정합니다. 모델의 컨텍스트 제한을 고려해야 하며, 그렇지 않으면 오류가 보고됩니다",
+        "label": "최대 토큰 설정",
+        "tip": "모델이 생성할 수 있는 최대 토큰 수입니다. 모델의 컨텍스트 제한을 고려해야 하며, 그렇지 않으면 오류가 발생합니다"
+      },
+      "reset": "재설정",
+      "set_as_default": "기본 어시스턴트에 적용",
+      "show_line_numbers": "코드 줄 번호 표시",
+      "temperature": {
+        "label": "온도",
+        "tip": "값이 높을수록 모델이 더 창의적이고 예측 불가능해지며, 값이 낮을수록 더 결정적이고 정확해집니다."
+      },
+      "thought_auto_collapse": {
+        "label": "생각 내용 축소",
+        "tip": "생각이 끝난 후 생각 내용을 자동으로 축소합니다"
+      },
+      "top_p": {
+        "label": "Top-P",
+        "tip": "기본값은 1이며, 값이 작을수록 답변의 다양성이 줄어들고 이해하기 쉬우며, 값이 클수록 AI의 어휘 범위가 넓어지고 다양해집니다"
+      }
+    },
+    "suggestions": {
+      "title": "제안된 질문"
+    },
+    "thinking": "생각 중 ({{seconds}}초)",
+    "topics": {
+      "auto_rename": "자동 이름 바꾸기",
+      "clear": {
+        "title": "메시지 지우기"
+      },
+      "copy": {
+        "image": "이미지로 복사",
+        "md": "마크다운으로 복사",
+        "plain_text": "일반 텍스트로 복사 (마크다운 제거)",
+        "title": "복사"
+      },
+      "delete": {
+        "shortcut": "{{key}}를 누른 상태로 바로 삭제"
+      },
+      "edit": {
+        "placeholder": "새 이름 입력",
+        "title": "이름 편집",
+        "title_tip": "팁: 주제 이름을 두 번 클릭하여 제자리에서 바로 이름을 바꿀 수 있습니다"
+      },
+      "export": {
+        "image": "이미지로 내보내기",
+        "joplin": "Joplin으로 내보내기",
+        "md": {
+          "label": "마크다운으로 내보내기",
+          "reason": "마크다운으로 내보내기 (추론 포함)"
+        },
+        "notes": "메모로 내보내기",
+        "notion": "Notion으로 내보내기",
+        "obsidian": "Obsidian으로 내보내기",
+        "obsidian_atributes": "노트 속성 구성",
+        "obsidian_btn": "확인",
+        "obsidian_created": "생성 시간",
+        "obsidian_created_placeholder": "생성 시간을 선택하세요",
+        "obsidian_export_failed": "내보내기 실패",
+        "obsidian_export_success": "내보내기 성공",
+        "obsidian_fetch_error": "Obsidian 볼트를 가져오지 못했습니다",
+        "obsidian_fetch_folders_error": "폴더 구조를 가져오지 못했습니다",
+        "obsidian_loading": "로드 중...",
+        "obsidian_no_vault_selected": "먼저 볼트를 선택하세요",
+        "obsidian_no_vaults": "Obsidian 볼트를 찾을 수 없습니다",
+        "obsidian_operate": "작동 방법",
+        "obsidian_operate_append": "추가",
+        "obsidian_operate_new_or_overwrite": "새로 만들기 (있는 경우 덮어쓰기)",
+        "obsidian_operate_placeholder": "작동 방법을 선택하세요",
+        "obsidian_operate_prepend": "앞에 추가",
+        "obsidian_path": "경로",
+        "obsidian_path_placeholder": "경로를 선택하세요",
+        "obsidian_reasoning": "추론 체인 포함",
+        "obsidian_root_directory": "루트 디렉터리",
+        "obsidian_select_vault_first": "먼저 볼트를 선택하세요",
+        "obsidian_source": "소스",
+        "obsidian_source_placeholder": "소스를 입력하세요",
+        "obsidian_tags": "태그",
+        "obsidian_tags_placeholder": "태그를 입력하세요. 여러 태그는 쉼표로 구분하세요",
+        "obsidian_title": "제목",
+        "obsidian_title_placeholder": "제목을 입력하세요",
+        "obsidian_title_required": "제목은 비워둘 수 없습니다",
+        "obsidian_vault": "볼트",
+        "obsidian_vault_placeholder": "볼트 이름을 선택하세요",
+        "siyuan": "Siyuan Note로 내보내기",
+        "title": "내보내기",
+        "title_naming_failed": "제목 생성 실패, 기본 제목 사용",
+        "title_naming_success": "제목 생성 성공",
+        "wait_for_title_naming": "제목 생성 중...",
+        "word": "Word로 내보내기",
+        "yuque": "Yuque로 내보내기"
+      },
+      "list": "주제 목록",
+      "manage": {
+        "clear_selection": "선택 지우기",
+        "delete": {
+          "confirm": {
+            "content": "선택된 {{count}}개 주제를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+            "title": "주제 삭제"
+          },
+          "success": "{{count}}개 주제 삭제됨"
+        },
+        "deselect_all": "모두 선택 해제",
+        "error": {
+          "at_least_one": "하나 이상의 주제를 유지해야 합니다"
+        },
+        "move": {
+          "button": "이동",
+          "placeholder": "대상 어시스턴트 선택",
+          "success": "{{count}}개 주제 이동됨"
+        },
+        "pinned": "고정된 주제",
+        "selected_count": "{{count}}개 선택됨",
+        "title": "주제 관리",
+        "unpinned": "고정되지 않은 주제"
+      },
+      "move_to": "이동",
+      "new": "새 주제",
+      "pin": "주제 고정",
+      "prompt": {
+        "edit": {
+          "title": "주제 프롬프트 편집"
+        },
+        "label": "주제 프롬프트",
+        "tips": "주제 프롬프트: 현재 주제에 대해 제공되는 추가 보조 프롬프트"
+      },
+      "search": {
+        "placeholder": "주제 검색...",
+        "title": "검색"
+      },
+      "title": "주제",
+      "unpin": "주제 고정 해제"
+    },
+    "translate": "번역",
+    "web_search": {
+      "warning": {
+        "openai": "GPT-5 모델의 최소 추론 노력은 웹 검색을 지원하지 않습니다."
+      }
+    }
+  },
+  "code": {
+    "auto_update_to_latest": "자동으로 최신 버전으로 업데이트",
+    "bun_required_message": "CLI 도구를 실행하려면 Bun 환경이 필요합니다",
+    "cli_tool": "CLI 도구",
+    "cli_tool_placeholder": "사용할 CLI 도구 선택",
+    "custom_path": "사용자 정의 경로",
+    "custom_path_error": "사용자 정의 터미널 경로 설정 실패",
+    "custom_path_required": "이 터미널은 사용자 정의 경로가 필요합니다",
+    "custom_path_set": "사용자 정의 터미널 경로가 성공적으로 설정됨",
+    "description": "여러 코드 CLI 도구를 빠르게 시작하여 개발 효율성 향상",
+    "env_vars_help": "사용자 정의 환경 변수를 입력합니다 (한 줄에 하나, 형식: KEY=value)",
+    "environment_variables": "환경 변수",
+    "folder_placeholder": "작업 디렉터리 선택",
+    "install_bun": "Bun 설치",
+    "installing_bun": "설치 중...",
+    "launch": {
+      "bun_required": "CLI 도구를 시작하기 전에 Bun 환경을 먼저 설치하세요",
+      "error": "시작 실패, 다시 시도하세요",
+      "label": "시작",
+      "success": "시작 성공",
+      "validation_error": "모든 필수 필드를 작성하세요: CLI 도구, 모델 및 작업 디렉터리"
+    },
+    "launching": "시작 중...",
+    "model": "모델",
+    "model_placeholder": "사용할 모델 선택",
+    "model_required": "모델을 선택하세요",
+    "select_folder": "폴더 선택",
+    "set_custom_path": "사용자 정의 터미널 경로 설정",
+    "supported_providers": "지원되는 공급자",
+    "terminal": "터미널",
+    "terminal_placeholder": "터미널 애플리케이션 선택",
+    "title": "코드 도구",
+    "update_options": "업데이트 옵션",
+    "working_directory": "작업 디렉터리"
+  },
+  "code_block": {
+    "collapse": "축소",
+    "copy": {
+      "failed": "복사 실패",
+      "label": "복사",
+      "source": "소스 코드 복사",
+      "success": "복사됨"
+    },
+    "download": {
+      "failed": {
+        "network": "다운로드 실패, 네트워크를 확인하세요"
+      },
+      "label": "다운로드",
+      "png": "PNG 다운로드",
+      "source": "소스 코드 다운로드",
+      "svg": "SVG 다운로드"
+    },
+    "edit": {
+      "label": "편집",
+      "save": {
+        "failed": {
+          "label": "저장 실패",
+          "message_not_found": "저장 실패, 메시지를 찾을 수 없습니다"
+        },
+        "label": "변경 사항 저장",
+        "success": "저장됨"
+      }
+    },
+    "expand": "확장",
+    "more": "더 보기",
+    "run": "실행",
+    "split": {
+      "label": "분할 보기",
+      "restore": "분할 보기 복원"
+    },
+    "wrap": {
+      "off": "줄 바꿈 끄기",
+      "on": "줄 바꿈"
+    }
+  },
+  "common": {
+    "about": "정보",
+    "add": "추가",
+    "add_success": "성공적으로 추가됨",
+    "advanced_settings": "고급 설정",
+    "agent_one": "에이전트",
+    "agent_other": "에이전트",
+    "and": "및",
+    "assistant": "어시스턴트",
+    "assistant_one": "어시스턴트",
+    "assistant_other": "어시스턴트",
+    "avatar": "아바타",
+    "back": "뒤로",
+    "browse": "찾아보기",
+    "cancel": "취소",
+    "chat": "채팅",
+    "clear": "지우기",
+    "close": "닫기",
+    "collapse": "축소",
+    "completed": "완료됨",
+    "confirm": "확인",
+    "copied": "복사됨",
+    "copy": "복사",
+    "copy_failed": "복사 실패",
+    "current": "현재",
+    "cut": "잘라내기",
+    "default": "기본값",
+    "delete": "삭제",
+    "delete_confirm": "삭제하시겠습니까?",
+    "delete_failed": "삭제 실패",
+    "delete_success": "성공적으로 삭제됨",
+    "description": "설명",
+    "detail": "세부 정보",
+    "disabled": "비활성화됨",
+    "docs": "문서",
+    "download": "다운로드",
+    "duplicate": "복제",
+    "edit": "편집",
+    "enabled": "활성화됨",
+    "error": "오류",
+    "errors": {
+      "create_message": "메시지 생성 실패",
+      "validation": "검증 실패"
+    },
+    "expand": "확장",
+    "file": {
+      "not_supported": "지원되지 않는 파일 형식 {{type}}"
+    },
+    "footnote": "참조 콘텐츠",
+    "footnotes": "참조",
+    "fullscreen": "전체화면 모드입니다. F11을 눌러 종료하세요",
+    "go_to_settings": "설정으로 이동",
+    "i_know": "알겠습니다",
+    "ignore": "무시",
+    "inspect": "검사",
+    "invalid_value": "잘못된 값",
+    "knowledge_base": "지식 베이스",
+    "language": "언어",
+    "loading": "로드 중...",
+    "model": "모델",
+    "models": "모델",
+    "more": "더 보기",
+    "name": "이름",
+    "no_results": "결과 없음",
+    "none": "없음",
+    "off": "끔",
+    "on": "켬",
+    "open": "열기",
+    "paste": "붙여넣기",
+    "placeholders": {
+      "select": {
+        "model": "모델 선택"
+      }
+    },
+    "preview": "미리보기",
+    "prompt": "프롬프트",
+    "provider": "공급자",
+    "reasoning_content": "깊은 추론",
+    "refresh": "새로고침",
+    "regenerate": "재생성",
+    "rename": "이름 바꾸기",
+    "reset": "재설정",
+    "save": "저장",
+    "saved": "저장됨",
+    "search": "검색",
+    "select": "선택",
+    "select_all": "모두 선택",
+    "selected": "선택됨",
+    "selectedItems": "{{count}}개 항목 선택됨",
+    "selectedMessages": "{{count}}개 메시지 선택됨",
+    "settings": "설정",
+    "sort": {
+      "pinyin": {
+        "asc": "가나다순 정렬 (가-하)",
+        "desc": "가나다역순 정렬 (하-가)",
+        "label": "가나다순 정렬"
+      }
+    },
+    "stop": "중지",
+    "subscribe": "구독",
+    "success": "성공",
+    "swap": "교환",
+    "topics": "주제",
+    "unknown": "알 수 없음",
+    "unnamed": "이름 없음",
+    "unsubscribe": "구독 취소",
+    "update_success": "업데이트 성공",
+    "upload_files": "파일 업로드",
+    "warning": "경고",
+    "you": "사용자"
+  },
+  "docs": {
+    "title": "문서"
+  },
+  "endpoint_type": {
+    "anthropic": "Anthropic",
+    "gemini": "Gemini",
+    "image-generation": "이미지 생성 (OpenAI)",
+    "jina-rerank": "Jina Rerank",
+    "openai": "OpenAI",
+    "openai-response": "OpenAI-Response"
+  },
+  "error": {
+    "availableProviders": "사용 가능한 공급자",
+    "availableTools": "사용 가능한 도구",
+    "backup": {
+      "file_format": "백업 파일 형식 오류"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "디버그 패널 열기",
+        "message": "문제가 발생한 것 같습니다...",
+        "reload": "새로고침"
+      },
+      "details": "세부 정보",
+      "mcp": {
+        "invalid": "잘못된 MCP 서버"
+      }
+    },
+    "cause": "오류 원인",
+    "chat": {
+      "chunk": {
+        "non_json": "잘못된 데이터 형식이 반환됨"
+      },
+      "insufficient_balance": "<provider>{{provider}}</provider>로 이동하여 충전하세요.",
+      "no_api_key": "API 키를 구성하지 않았습니다. <provider>{{provider}}</provider>로 이동하여 API 키를 얻으세요.",
+      "quota_exceeded": "일일 {{quota}} 무료 할당량이 모두 소진되었습니다. <provider>{{provider}}</provider>로 이동하여 API 키를 얻고 API 키를 구성하여 계속 사용하세요.",
+      "response": "문제가 발생했습니다. 설정 > 공급자에 API 키를 설정했는지 확인하세요"
+    },
+    "content": "콘텐츠",
+    "data": "데이터",
+    "detail": "오류 세부 정보",
+    "details": "세부 정보",
+    "errors": "오류",
+    "finishReason": "완료 이유",
+    "functionality": "기능",
+    "http": {
+      "400": "요청 실패. 요청 매개변수가 올바른지 확인하세요. 모델 설정을 변경한 경우 기본값으로 재설정하세요",
+      "401": "인증 실패. API 키가 올바른지 확인하세요",
+      "403": "액세스 거부. 계정이 확인되었는지 또는 더 많은 정보를 위해 서비스 공급자에게 문의하세요",
+      "404": "모델을 찾을 수 없거나 요청 경로가 올바르지 않습니다",
+      "429": "요청이 너무 많습니다. 나중에 다시 시도하세요",
+      "500": "서버 오류. 나중에 다시 시도하세요",
+      "502": "게이트웨이 오류. 나중에 다시 시도하세요",
+      "503": "서비스를 사용할 수 없습니다. 나중에 다시 시도하세요",
+      "504": "게이트웨이 시간 초과. 나중에 다시 시도하세요"
+    },
+    "lastError": "마지막 오류",
+    "maxEmbeddingsPerCall": "호출당 최대 임베딩",
+    "message": "오류 메시지",
+    "missing_user_message": "모델 응답을 전환할 수 없음: 원본 사용자 메시지가 삭제되었습니다. 이 모델로 응답을 받으려면 새 메시지를 보내세요.",
+    "model": {
+      "exists": "모델이 이미 존재합니다",
+      "not_exists": "모델이 존재하지 않습니다"
+    },
+    "modelId": "모델 ID",
+    "modelType": "모델 유형",
+    "name": "오류 이름",
+    "no_api_key": "API 키가 구성되지 않았습니다",
+    "no_response": "응답 없음",
+    "originalError": "원본 오류",
+    "originalMessage": "원본 메시지",
+    "parameter": "매개변수",
+    "pause_placeholder": "일시 중지됨",
+    "prompt": "프롬프트",
+    "provider": "공급자",
+    "providerId": "공급자 ID",
+    "provider_disabled": "모델 공급자가 활성화되지 않았습니다",
+    "reason": "이유",
+    "render": {
+      "description": "메시지 콘텐츠를 렌더링하지 못했습니다. 메시지 콘텐츠 형식이 올바른지 확인하세요",
+      "title": "렌더링 오류"
+    },
+    "requestBody": "요청 본문",
+    "requestBodyValues": "요청 본문 값",
+    "requestUrl": "요청 URL",
+    "response": "응답",
+    "responseBody": "응답 본문",
+    "responseHeaders": "응답 헤더",
+    "responses": "응답",
+    "role": "역할",
+    "stack": "스택 추적",
+    "status": "상태 코드",
+    "statusCode": "상태 코드",
+    "statusText": "상태 텍스트",
+    "text": "텍스트",
+    "toolInput": "도구 입력",
+    "toolName": "도구 이름",
+    "unknown": "알 수 없는 오류",
+    "usage": "사용량",
+    "user_message_not_found": "원본 사용자 메시지를 찾을 수 없습니다",
+    "value": "값",
+    "values": "값"
+  },
+  "export": {
+    "assistant": "어시스턴트",
+    "attached_files": "첨부된 파일",
+    "conversation_details": "대화 세부 정보",
+    "conversation_history": "대화 기록",
+    "created": "생성됨",
+    "last_updated": "마지막 업데이트",
+    "messages": "메시지",
+    "notion": {
+      "reasoning_truncated": "사고의 체인을 청크할 수 없어 잘렸습니다."
+    },
+    "user": "사용자"
+  },
+  "files": {
+    "actions": "작업",
+    "all": "모든 파일",
+    "batch_delete": "일괄 삭제",
+    "batch_operation": "모두 선택",
+    "count": "파일",
+    "created_at": "생성일",
+    "delete": {
+      "content": "파일을 삭제하면 모든 메시지에서 참조가 삭제됩니다. 이 파일을 삭제하시겠습니까?",
+      "db_error": "삭제 실패",
+      "label": "삭제",
+      "paintings": {
+        "warning": "이미지에 이 파일이 포함되어 있어 삭제할 수 없습니다"
+      },
+      "title": "파일 삭제"
+    },
+    "document": "문서",
+    "edit": "편집",
+    "error": {
+      "open_path": "경로 {{path}}을(를) 열지 못했습니다"
+    },
+    "file": "파일",
+    "image": "이미지",
+    "name": "이름",
+    "open": "열기",
+    "preview": {
+      "error": "파일을 열지 못했습니다"
+    },
+    "size": "크기",
+    "text": "텍스트",
+    "title": "파일",
+    "type": "유형"
+  },
+  "gpustack": {
+    "keep_alive_time": {
+      "description": "연결을 유지할 시간(분)입니다. 기본값은 5분입니다.",
+      "placeholder": "분",
+      "title": "연결 유지 시간"
+    },
+    "title": "GPUStack"
+  },
+  "history": {
+    "continue_chat": "대화 계속하기",
+    "error": {
+      "topic_not_found": "주제를 찾을 수 없습니다"
+    },
+    "locate": {
+      "message": "메시지 찾기"
+    },
+    "search": {
+      "messages": "모든 메시지 검색",
+      "placeholder": "주제 또는 메시지 검색...",
+      "topics": {
+        "empty": "주제를 찾을 수 없습니다. Enter를 눌러 모든 메시지를 검색하세요"
+      }
+    },
+    "title": "주제 검색"
+  },
+  "html_artifacts": {
+    "capture": {
+      "label": "페이지 캡처",
+      "to_clipboard": "클립보드에 복사",
+      "to_file": "이미지로 저장"
+    },
+    "code": "코드",
+    "empty_preview": "표시할 콘텐츠가 없습니다",
+    "generating": "생성 중",
+    "preview": "미리보기",
+    "split": "분할"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 가져오기",
+      "button": "파일 선택",
+      "description": "대화 텍스트만 가져오며 이미지와 첨부 파일은 포함되지 않습니다",
+      "error": {
+        "invalid_json": "잘못된 JSON 파일 형식",
+        "no_conversations": "파일에서 대화를 찾을 수 없습니다",
+        "no_valid_conversations": "가져올 유효한 대화가 없습니다",
+        "unknown": "가져오기 실패, 파일 형식을 확인하세요"
+      },
+      "help": {
+        "step1": "1. ChatGPT에 로그인하고 설정 > 데이터 컨트롤 > 데이터 내보내기로 이동",
+        "step2": "2. 이메일로 내보내기 파일을 받을 때까지 기다리세요",
+        "step3": "3. 다운로드한 파일의 압축을 풀고 conversations.json을 찾으세요",
+        "title": "ChatGPT 대화를 내보내는 방법?"
+      },
+      "importing": "대화 가져오는 중...",
+      "selecting": "파일 선택 중...",
+      "success": "{{topics}}개 대화와 {{messages}}개 메시지를 성공적으로 가져왔습니다",
+      "title": "ChatGPT 대화 가져오기",
+      "untitled_conversation": "제목 없는 대화"
+    },
+    "confirm": {
+      "button": "가져오기 파일 선택",
+      "label": "외부 데이터를 가져오시겠습니까?"
+    },
+    "content": "외부 애플리케이션 대화 파일을 선택하여 가져옵니다. 현재 ChatGPT JSON 형식 파일만 지원합니다",
+    "title": "외부 대화 가져오기"
+  },
+  "knowledge": {
+    "add": {
+      "title": "지식 베이스 추가"
+    },
+    "add_directory": "디렉터리 추가",
+    "add_file": "파일 추가",
+    "add_image": "이미지 추가",
+    "add_note": "메모 추가",
+    "add_sitemap": "사이트맵",
+    "add_url": "URL 추가",
+    "add_video": "비디오 추가",
+    "cancel_index": "인덱싱 취소",
+    "chunk_overlap": "청크 중복",
+    "chunk_overlap_placeholder": "기본값 (변경하지 않는 것이 좋음)",
+    "chunk_overlap_tooltip": "인접한 청크 간의 중복 콘텐츠 양으로, 청크가 여전히 컨텍스트와 관련되도록 하여 긴 텍스트 처리의 전체 효과를 향상시킵니다",
+    "chunk_size": "청크 크기",
+    "chunk_size_change_warning": "청크 크기와 중복 크기 변경은 새 콘텐츠에만 적용됩니다",
+    "chunk_size_placeholder": "기본값 (변경하지 않는 것이 좋음)",
+    "chunk_size_too_large": "청크 크기는 모델 컨텍스트 제한({{max_context}})을 초과할 수 없습니다",
+    "chunk_size_tooltip": "문서를 청크로 분할하며, 각 청크 크기는 모델 컨텍스트 제한을 초과하지 않습니다",
+    "clear_selection": "선택 지우기",
+    "delete": "삭제",
+    "delete_confirm": "이 지식 베이스를 삭제하시겠습니까?",
+    "dimensions": "임베딩 차원",
+    "dimensions_auto_set": "임베딩 차원 자동 설정",
+    "dimensions_default": "모델은 기본 임베딩 차원을 사용합니다",
+    "dimensions_error_invalid": "잘못된 임베딩 차원",
+    "dimensions_set_right": "⚠️ 모델이 설정된 임베딩 차원 크기를 지원하는지 확인하세요",
+    "dimensions_size_placeholder": "비워두면 차원을 전달하지 않습니다",
+    "dimensions_size_too_large": "임베딩 차원은 모델의 컨텍스트 제한({{max_context}})을 초과할 수 없습니다.",
+    "dimensions_size_tooltip": "임베딩 차원 크기입니다. 값이 클수록 더 많은 토큰이 소비됩니다. 비워두면 차원 매개변수를 전달하지 않습니다.",
+    "directories": "디렉터리",
+    "directory_placeholder": "디렉터리 경로 입력",
+    "document_count": "요청된 문서 청크",
+    "document_count_default": "기본값",
+    "document_count_help": "요청된 문서 청크가 많을수록 더 많은 정보가 포함되지만 더 많은 토큰이 소비됩니다",
+    "drag_file": "파일을 여기로 끌어다 놓으세요",
+    "drag_image": "이미지를 여기로 끌어다 놓으세요",
+    "edit_remark": "메모 편집",
+    "edit_remark_placeholder": "메모 내용을 입력하세요",
+    "embedding_model": "임베딩 모델",
+    "embedding_model_required": "지식 베이스 임베딩 모델이 필요합니다",
+    "empty": "지식 베이스를 찾을 수 없습니다",
+    "error": {
+      "failed_to_create": "지식 베이스 생성 실패",
+      "failed_to_edit": "지식 베이스 편집 실패",
+      "model_invalid": "모델이 선택되지 않았습니다",
+      "video": {
+        "local_file_missing": "비디오 파일을 찾을 수 없습니다",
+        "youtube_url_missing": "YouTube 비디오 URL을 찾을 수 없습니다"
+      }
+    },
+    "file_hint": "{{file_types}} 지원",
+    "image_hint": "{{image_types}} 지원",
+    "images": "이미지",
+    "index_all": "모두 인덱싱",
+    "index_cancelled": "인덱싱 취소됨",
+    "index_started": "인덱싱 시작됨",
+    "invalid_url": "잘못된 URL",
+    "migrate": {
+      "button": {
+        "text": "마이그레이션"
+      },
+      "confirm": {
+        "content": "임베딩 모델 또는 차원의 변경이 감지되어 구성을 직접 저장할 수 없습니다. 지식 베이스 마이그레이션은 기존 지식 베이스를 삭제하지 않지만 사본을 만든 다음 모든 지식 베이스 항목을 다시 처리하며, 이로 인해 많은 토큰이 소비될 수 있으니 주의하세요.",
+        "ok": "마이그레이션 시작",
+        "title": "지식 베이스 마이그레이션"
+      },
+      "error": {
+        "failed": "마이그레이션 실패"
+      },
+      "source_dimensions": "소스 차원",
+      "source_model": "소스 모델",
+      "target_dimensions": "대상 차원",
+      "target_model": "대상 모델"
+    },
+    "model_info": "모델 정보",
+    "name_required": "지식 베이스 이름이 필요합니다",
+    "no_bases": "지식 베이스가 없습니다",
+    "no_match": "지식 베이스에서 일치하는 콘텐츠를 찾을 수 없습니다.",
+    "no_provider": "지식 베이스 모델 공급자가 설정되지 않았습니다. 지식 베이스가 더 이상 지원되지 않습니다. 새 지식 베이스를 만드세요",
+    "not_set": "설정되지 않음",
+    "not_support": "지식 베이스 데이터베이스 엔진이 업데이트되어 지식 베이스가 더 이상 지원되지 않습니다. 새 지식 베이스를 만드세요",
+    "notes": "메모",
+    "notes_placeholder": "이 지식 베이스에 대한 추가 정보 또는 컨텍스트를 입력하세요...",
+    "provider_not_found": "공급자를 찾을 수 없습니다",
+    "quota": "{{name}} 남은 할당량: {{quota}}",
+    "quota_empty": "오늘의 {{name}} 할당량이 모두 소진되었습니다. 공식 웹사이트에서 신청하세요",
+    "quota_infinity": "{{name}} 할당량: 무제한",
+    "rename": "이름 바꾸기",
+    "search": "지식 베이스 검색",
+    "search_placeholder": "검색할 텍스트 입력",
+    "settings": {
+      "preprocessing": "전처리",
+      "preprocessing_tooltip": "업로드된 파일을 전처리합니다",
+      "title": "지식 베이스 설정"
+    },
+    "sitemap_added": "성공적으로 추가됨",
+    "sitemap_placeholder": "사이트맵 URL 입력",
+    "sitemaps": "웹사이트",
+    "source": "소스",
+    "status": "상태",
+    "status_completed": "완료됨",
+    "status_embedding_completed": "임베딩 완료",
+    "status_embedding_failed": "임베딩 실패",
+    "status_failed": "실패",
+    "status_new": "추가됨",
+    "status_pending": "보류 중",
+    "status_preprocess_completed": "전처리 완료",
+    "status_preprocess_failed": "전처리 실패",
+    "status_processing": "처리 중",
+    "subtitle_file": "자막 파일",
+    "threshold": "일치 임계값",
+    "threshold_placeholder": "설정되지 않음",
+    "threshold_too_large_or_small": "임계값은 1보다 크거나 0보다 작을 수 없습니다",
+    "threshold_tooltip": "사용자의 질문과 지식 베이스의 콘텐츠 간의 관련성을 평가하는 데 사용됩니다 (0-1)",
+    "title": "지식 베이스",
+    "topN": "반환된 결과 수",
+    "topN_placeholder": "설정되지 않음",
+    "topN_too_large_or_small": "반환된 결과 수는 30보다 크거나 1보다 작을 수 없습니다.",
+    "topN_tooltip": "반환된 일치 결과의 수입니다. 값이 클수록 더 많은 일치 결과가 표시되지만 더 많은 토큰이 소비됩니다.",
+    "url_added": "URL이 추가됨",
+    "url_placeholder": "URL을 입력하세요. 여러 URL은 Enter로 구분하세요",
+    "urls": "URL",
+    "videos": "비디오",
+    "videos_file": "비디오 파일"
+  },
+  "languages": {
+    "arabic": "아랍어",
+    "chinese": "중국어",
+    "chinese-traditional": "중국어 번체",
+    "english": "영어",
+    "french": "프랑스어",
+    "german": "독일어",
+    "indonesian": "인도네시아어",
+    "italian": "이탈리아어",
+    "japanese": "일본어",
+    "korean": "한국어",
+    "malay": "말레이어",
+    "polish": "폴란드어",
+    "portuguese": "포르투갈어",
+    "russian": "러시아어",
+    "spanish": "스페인어",
+    "thai": "태국어",
+    "turkish": "터키어",
+    "ukrainian": "우크라이나어",
+    "unknown": "알 수 없음",
+    "urdu": "우르두어",
+    "vietnamese": "베트남어"
+  },
+  "launchpad": {
+    "apps": "앱",
+    "minapps": "미니앱"
+  },
+  "lmstudio": {
+    "keep_alive_time": {
+      "description": "연결을 유지할 시간(분)입니다. 기본값은 5분입니다.",
+      "placeholder": "분",
+      "title": "연결 유지 시간"
+    },
+    "title": "LM Studio"
+  },
+  "memory": {
+    "actions": "작업",
+    "add_failed": "메모리 추가 실패",
+    "add_first_memory": "첫 번째 메모리 추가",
+    "add_memory": "메모리 추가",
+    "add_new_user": "새 사용자 추가",
+    "add_success": "메모리가 성공적으로 추가됨",
+    "add_user": "사용자 추가",
+    "add_user_failed": "사용자 추가 실패",
+    "all_users": "모든 사용자",
+    "cannot_delete_default_user": "기본 사용자는 삭제할 수 없습니다",
+    "configure_memory_first": "먼저 메모리 설정을 구성하세요",
+    "content": "콘텐츠",
+    "current_user": "현재 사용자",
+    "custom": "사용자 정의",
+    "default": "기본값",
+    "default_user": "기본 사용자",
+    "delete_confirm": "이 메모리를 삭제하시겠습니까?",
+    "delete_confirm_content": "{{count}}개의 메모리를 삭제하시겠습니까?",
+    "delete_confirm_single": "이 메모리를 삭제하시겠습니까?",
+    "delete_confirm_title": "메모리 삭제",
+    "delete_failed": "메모리 삭제 실패",
+    "delete_selected": "선택 항목 삭제",
+    "delete_success": "메모리가 성공적으로 삭제됨",
+    "delete_user": "사용자 삭제",
+    "delete_user_confirm_content": "사용자 {{user}} 및 모든 메모리를 삭제하시겠습니까?",
+    "delete_user_confirm_title": "사용자 삭제",
+    "delete_user_failed": "사용자 삭제 실패",
+    "description": "메모리를 사용하면 어시스턴트와의 상호 작용에 대한 정보를 저장하고 관리할 수 있습니다. 메모리를 추가, 편집, 삭제하고 필터링 및 검색할 수 있습니다.",
+    "edit_memory": "메모리 편집",
+    "embedding_dimensions": "임베딩 차원",
+    "embedding_model": "임베딩 모델",
+    "enable_global_memory_first": "먼저 전역 메모리를 활성화하세요",
+    "end_date": "종료일",
+    "global_memory": "전역 메모리",
+    "global_memory_description": "메모리 기능을 사용하려면 어시스턴트 설정에서 전역 메모리를 활성화하세요.",
+    "global_memory_disabled_desc": "메모리 기능을 사용하려면 먼저 어시스턴트 설정에서 전역 메모리를 활성화하세요.",
+    "global_memory_disabled_title": "전역 메모리 비활성화됨",
+    "global_memory_enabled": "전역 메모리가 활성화됨",
+    "go_to_memory_page": "메모리 페이지로 이동",
+    "initial_memory_content": "환영합니다! 이것은 당신의 첫 번째 메모리입니다.",
+    "llm_model": "LLM 모델",
+    "load_failed": "메모리를 로드하지 못했습니다",
+    "loading": "메모리 로드 중...",
+    "loading_memories": "메모리 로드 중...",
+    "memories_description": "{{total}}개 중 {{count}}개의 메모리 표시",
+    "memories_reset_success": "{{user}}의 모든 메모리가 성공적으로 재설정되었습니다",
+    "memory": "메모리",
+    "memory_content": "메모리 콘텐츠",
+    "memory_placeholder": "메모리 콘텐츠를 입력하세요...",
+    "new_user_id": "새 사용자 ID",
+    "new_user_id_placeholder": "고유한 사용자 ID 입력",
+    "no_matching_memories": "일치하는 메모리를 찾을 수 없습니다",
+    "no_memories": "아직 메모리가 없습니다",
+    "no_memories_description": "첫 번째 메모리를 추가하여 시작하세요",
+    "not_configured_desc": "메모리 기능을 활성화하려면 메모리 설정에서 임베딩 및 LLM 모델을 구성하세요.",
+    "not_configured_title": "메모리가 구성되지 않음",
+    "pagination_total": "{{total}}개 항목 중 {{start}}-{{end}}",
+    "please_enter_memory": "메모리 콘텐츠를 입력하세요",
+    "please_select_embedding_model": "임베딩 모델을 선택하세요",
+    "please_select_llm_model": "LLM 모델을 선택하세요",
+    "reset_filters": "필터 재설정",
+    "reset_memories": "메모리 재설정",
+    "reset_memories_confirm_content": "{{user}}의 모든 메모리를 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "reset_memories_confirm_title": "모든 메모리 재설정",
+    "reset_memories_failed": "메모리 재설정 실패",
+    "reset_user_memories": "사용자 메모리 재설정",
+    "reset_user_memories_confirm_content": "{{user}}의 모든 메모리를 재설정하시겠습니까?",
+    "reset_user_memories_confirm_title": "사용자 메모리 재설정",
+    "reset_user_memories_failed": "사용자 메모리 재설정 실패",
+    "score": "점수",
+    "search": "검색",
+    "search_placeholder": "메모리 검색...",
+    "select_embedding_model_placeholder": "임베딩 모델 선택",
+    "select_llm_model_placeholder": "LLM 모델 선택",
+    "select_user": "사용자 선택",
+    "settings": "설정",
+    "settings_title": "메모리 설정",
+    "start_date": "시작일",
+    "statistics": "통계",
+    "stored_memories": "저장된 메모리",
+    "switch_user": "사용자 전환",
+    "switch_user_confirm": "사용자 컨텍스트를 {{user}}(으)로 전환하시겠습니까?",
+    "time": "시간",
+    "title": "메모리",
+    "total_memories": "전체 메모리",
+    "try_different_filters": "검색 기준을 조정해 보세요",
+    "update_failed": "메모리 업데이트 실패",
+    "update_success": "메모리가 성공적으로 업데이트됨",
+    "user": "사용자",
+    "user_created": "사용자 {{user}}가 생성되고 성공적으로 전환됨",
+    "user_deleted": "사용자 {{user}}가 성공적으로 삭제됨",
+    "user_id": "사용자 ID",
+    "user_id_exists": "이 사용자 ID가 이미 존재합니다",
+    "user_id_invalid_chars": "사용자 ID는 문자, 숫자, 하이픈 및 밑줄만 포함할 수 있습니다",
+    "user_id_placeholder": "사용자 ID 입력 (선택 사항)",
+    "user_id_required": "사용자 ID가 필요합니다",
+    "user_id_reserved": "'default-user'는 예약되어 있으므로 다른 ID를 사용하세요",
+    "user_id_rules": "사용자 ID는 고유해야 하며 문자, 숫자, 하이픈(-) 및 밑줄(_)만 포함할 수 있습니다",
+    "user_id_too_long": "사용자 ID는 50자를 초과할 수 없습니다",
+    "user_management": "사용자 관리",
+    "user_memories_reset": "{{user}}의 모든 메모리가 재설정됨",
+    "user_switch_failed": "사용자 전환 실패",
+    "user_switched": "사용자 컨텍스트가 {{user}}(으)로 전환됨",
+    "user_deleted": "사용자 {{user}}가 성공적으로 삭제됨",
+    "users": "사용자"
+  },
+  "message": {
+    "agents": {
+      "import": {
+        "error": "가져오기 실패"
+      },
+      "imported": "{{count}}개의 어시스턴트를 성공적으로 가져왔습니다"
+    },
+    "api": {
+      "check": {
+        "model": {
+          "title": "감지에 사용할 모델 선택"
+        }
+      },
+      "connection": {
+        "failed": "연결 실패",
+        "success": "연결 성공"
+      }
+    },
+    "assistant": {
+      "added": {
+        "content": "어시스턴트가 성공적으로 추가되었습니다"
+      }
+    },
+    "attachments": {
+      "pasted_image": "붙여넣은 이미지",
+      "pasted_text": "붙여넣은 텍스트"
+    },
+    "backup": {
+      "failed": "백업 실패",
+      "start": {
+        "success": "백업 시작됨"
+      },
+      "success": "백업 성공"
+    },
+    "branch": {
+      "error": "브랜치 생성 실패"
+    },
+    "chat": {
+      "completion": {
+        "paused": "채팅 완료 일시 중지됨"
+      }
+    },
+    "citation": "{{count}}개의 인용",
+    "citations": "참조",
+    "copied": "복사됨!",
+    "copy": {
+      "failed": "복사 실패",
+      "success": "복사됨!"
+    },
+    "delete": {
+      "confirm": {
+        "content": "선택한 {{count}}개의 메시지를 삭제하시겠습니까?",
+        "title": "삭제 확인"
+      },
+      "failed": "삭제 실패",
+      "success": "삭제 성공"
+    },
+    "dialog": {
+      "failed": "미리보기 실패"
+    },
+    "download": {
+      "failed": "다운로드 실패",
+      "success": "다운로드 성공"
+    },
+    "empty_url": "이미지 다운로드 실패, 프롬프트에 민감한 내용이나 금지된 단어가 포함되어 있을 수 있습니다",
+    "error": {
+      "chunk_overlap_too_large": "청크 오버랩이 청크 크기보다 클 수 없습니다",
+      "copy": "복사 실패",
+      "dimension_too_large": "콘텐츠 크기가 너무 큽니다",
+      "enter": {
+        "api": {
+          "host": "먼저 API 호스트를 입력하세요",
+          "label": "먼저 API 키를 입력하세요"
+        },
+        "model": "먼저 모델을 선택하세요",
+        "name": "지식 베이스의 이름을 입력하세요"
+      },
+      "fetchTopicName": "주제 이름 가져오기 실패",
+      "get_embedding_dimensions": "임베딩 차원 가져오기 실패",
+      "invalid": {
+        "api": {
+          "host": "잘못된 API 호스트",
+          "label": "잘못된 API 키"
+        },
+        "enter": {
+          "model": "모델을 선택하세요"
+        },
+        "nutstore": "잘못된 Nutstore 설정",
+        "nutstore_token": "잘못된 Nutstore 토큰",
+        "proxy": {
+          "url": "잘못된 프록시 URL"
+        },
+        "webdav": "잘못된 WebDAV 설정"
+      },
+      "joplin": {
+        "export": "Joplin으로 내보내기 실패. Joplin이 실행 중인지 확인하고 연결 상태 또는 구성을 확인하세요",
+        "no_config": "Joplin 인증 토큰 또는 URL이 구성되지 않았습니다"
+      },
+      "markdown": {
+        "export": {
+          "preconf": "미리 구성된 경로로 Markdown 파일 내보내기 실패",
+          "specified": "Markdown 파일 내보내기 실패"
+        }
+      },
+      "notes": {
+        "export": "메모 내보내기 실패"
+      },
+      "notion": {
+        "export": "Notion으로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_api_key": "Notion API 키 또는 Notion 데이터베이스 ID가 구성되지 않았습니다",
+        "no_content": "Notion으로 내보낼 내용이 없습니다."
+      },
+      "siyuan": {
+        "export": "Siyuan Note로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_config": "Siyuan Note API 주소 또는 토큰이 구성되지 않았습니다"
+      },
+      "unknown": "알 수 없는 오류",
+      "yuque": {
+        "export": "Yuque로 내보내기 실패. 문서에 따라 연결 상태와 구성을 확인하세요",
+        "no_config": "Yuque 토큰 또는 Yuque URL이 구성되지 않았습니다"
+      }
+    },
+    "group": {
+      "delete": {
+        "content": "그룹 메시지를 삭제하면 사용자의 질문과 모든 어시스턴트의 답변이 삭제됩니다",
+        "title": "그룹 메시지 삭제"
+      },
+      "retry_failed": "실패한 메시지 다시 시도"
+    },
+    "ignore": {
+      "knowledge": {
+        "base": "웹 검색 모드가 활성화되었습니다. 지식 베이스를 무시합니다"
+      }
+    },
+    "loading": {
+      "notion": {
+        "exporting_progress": "Notion으로 내보내는 중 ...",
+        "preparing": "Notion으로 내보낼 준비 중..."
+      }
+    },
+    "mention": {
+      "title": "모델 답변 전환"
+    },
+    "message": {
+      "code_style": "코드 스타일",
+      "compact": {
+        "title": "대화 압축됨"
+      },
+      "delete": {
+        "content": "이 메시지를 삭제하시겠습니까?",
+        "title": "메시지 삭제"
+      },
+      "multi_model_style": {
+        "fold": {
+          "compress": "_compact 레이아웃으로 전환",
+          "expand": "확장 레이아웃으로 전환",
+          "label": "접기 보기"
+        },
+        "grid": "그리드 레이아웃",
+        "horizontal": "나란히",
+        "label": "그룹 스타일",
+        "vertical": "스택 보기"
+      },
+      "style": {
+        "bubble": "버블",
+        "label": "메시지 스타일",
+        "plain": "일반"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "로컬 비디오 파일 경로를 찾을 수 없습니다",
+          "unsupported_type": "지원되지 않는 비디오 유형",
+          "youtube_url_missing": "YouTube 비디오 URL을 찾을 수 없습니다"
+        }
+      }
+    },
+    "processing": "처리 중...",
+    "regenerate": {
+      "confirm": "다시 생성하면 현재 메시지가 대체됩니다"
+    },
+    "reset": {
+      "confirm": {
+        "content": "모든 데이터를 삭제하시겠습니까?"
+      },
+      "double": {
+        "confirm": {
+          "content": "모든 데이터가 손실됩니다. 계속하시겠습니까?",
+          "title": "데이터 손실 !!!"
+        }
+      }
+    },
+    "restore": {
+      "failed": "복원 실패",
+      "success": "성공적으로 복원됨"
+    },
+    "save": {
+      "success": {
+        "title": "성공적으로 저장됨"
+      }
+    },
+    "searching": "검색 중...",
+    "success": {
+      "joplin": {
+        "export": "Joplin으로 성공적으로 내보냄"
+      },
+      "markdown": {
+        "export": {
+          "preconf": "미리 구성된 경로로 Markdown 파일을 성공적으로 내보냄",
+          "specified": "Markdown 파일을 성공적으로 내보냄"
+        }
+      },
+      "notes": {
+        "export": "메모로 성공적으로 내보냄"
+      },
+      "notion": {
+        "export": "Notion으로 성공적으로 내보냄"
+      },
+      "siyuan": {
+        "export": "Siyuan Note로 성공적으로 내보냄"
+      },
+      "yuque": {
+        "export": "Yuque로 성공적으로 내보냄"
+      }
+    },
+    "switch": {
+      "disabled": "현재 응답이 완료될 때까지 기다려주세요"
+    },
+    "tools": {
+      "abort_failed": "도구 호출 중단 실패",
+      "aborted": "도구 호출 중단됨",
+      "autoApproveEnabled": "이 도구에 대해 자동 승인 활성화됨",
+      "cancelled": "취소됨",
+      "completed": "완료됨",
+      "error": "오류 발생",
+      "invoking": "호출 중",
+      "pending": "보류 중",
+      "preview": "미리보기",
+      "raw": "원본"
+    },
+    "topic": {
+      "added": "새 주제 추가됨"
+    },
+    "upgrade": {
+      "success": {
+        "button": "재시작",
+        "content": "업그레이드를 완료하려면 애플리케이션을 재시작하세요",
+        "title": "업그레이드 성공"
+      }
+    },
+    "warn": {
+      "export": {
+        "exporting": "다른 내보내기가 진행 중입니다. 이전 내보내기가 완료될 때까지 기다린 후 다시 시도하세요."
+      }
+    },
+    "warning": {
+      "rate": {
+        "limit": "요청이 너무 많습니다. {{seconds}}초 후에 다시 시도하세요."
+      }
+    },
+    "websearch": {
+      "cutoff": "검색 콘텐츠 자르는 중...",
+      "fetch_complete": "{{count}}개의 검색 결과",
+      "rag": "RAG 실행 중...",
+      "rag_complete": "{{countBefore}}개의 결과 중 {{countAfter}}개 유지...",
+      "rag_failed": "RAG 실패, 빈 결과 반환..."
+    }
+  },
+  "minapp": {
+    "add_to_launchpad": "런치패드에 추가",
+    "add_to_sidebar": "사이드바에 추가",
+    "popup": {
+      "close": "미니앱 닫기",
+      "devtools": "개발자 도구",
+      "goBack": "뒤로 가기",
+      "goForward": "앞으로 가기",
+      "minimize": "미니앱 최소화",
+      "openExternal": "브라우저에서 열기",
+      "open_link_external_off": "현재: 기본 창에서 링크 열기",
+      "open_link_external_on": "현재: 브라우저에서 링크 열기",
+      "refresh": "새로고침",
+      "rightclick_copyurl": "마우스 오른쪽 버튼으로 클릭하여 URL 복사"
+    },
+    "remove_from_launchpad": "런치패드에서 제거",
+    "remove_from_sidebar": "사이드바에서 제거",
+    "sidebar": {
+      "close": {
+        "title": "닫기"
+      },
+      "closeall": {
+        "title": "모두 닫기"
+      },
+      "hide": {
+        "title": "숨기기"
+      },
+      "remove_custom": {
+        "title": "사용자 정의 앱 삭제"
+      }
+    },
+    "title": "미니앱"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI 검색",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI 검색",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
+  },
+  "miniwindow": {
+    "alert": {
+      "google_login": "팁: Google 로그인 시 '브라우저가 신뢰하지 않음' 메시지가 표시되면 먼저 미니앱 목록의 Google 미니앱을 통해 로그인한 다음 다른 미니앱에서 Google 로그인을 사용하세요"
+    },
+    "clipboard": {
+      "empty": "클립보드가 비어있습니다"
+    },
+    "feature": {
+      "chat": "이 질문에 답변",
+      "explanation": "설명",
+      "summary": "콘텐츠 요약",
+      "translate": "텍스트 번역"
+    },
+    "footer": {
+      "backspace_clear": "백스페이스로 지우기",
+      "copy_last_message": "C를 눌러 복사",
+      "esc": "{{action}}하려면 ESC",
+      "esc_back": "반환",
+      "esc_close": "닫기",
+      "esc_pause": "일시 중지"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "{{model}}에게 도움을 요청하세요...",
+        "title": "이 텍스트로 무엇을 하고 싶으신가요?"
+      }
+    },
+    "tooltip": {
+      "pin": "창을 항상 위에 유지"
+    }
+  },
+  "models": {
+    "add_parameter": "매개변수 추가",
+    "all": "모두",
+    "custom_parameters": "사용자 정의 매개변수",
+    "dimensions": "차원 {{dimensions}}",
+    "edit": "모델 편집",
+    "embedding": "임베딩",
+    "embedding_dimensions": "임베딩 차원",
+    "embedding_model": "임베딩 모델",
+    "embedding_model_tooltip": "설정->모델 제공자->관리에서 추가",
+    "enable_tool_use": "도구 사용 활성화",
+    "filter": {
+      "by_tag": "태그로 필터",
+      "selected": "선택된 태그"
+    },
+    "function_calling": "함수 호출",
+    "invalid_model": "잘못된 모델",
+    "no_matches": "사용 가능한 모델이 없습니다",
+    "parameter_name": "매개변수 이름",
+    "parameter_type": {
+      "boolean": "부울",
+      "json": "JSON",
+      "number": "숫자",
+      "string": "텍스트"
+    },
+    "pinned": "고정됨",
+    "price": {
+      "cost": "비용",
+      "currency": "통화",
+      "custom": "사용자 정의",
+      "custom_currency": "사용자 정의 통화",
+      "custom_currency_placeholder": "사용자 정의 통화 입력",
+      "input": "입력 가격",
+      "million_tokens": "백만 토큰",
+      "output": "출력 가격",
+      "price": "가격"
+    },
+    "reasoning": "추론",
+    "rerank_model": "재순위 모델",
+    "rerank_model_not_support_provider": "현재 재순위 모델은 이 제공자({{provider}})를 지원하지 않습니다",
+    "rerank_model_support_provider": "현재 재순위 모델은 일부 제공자({{provider}})만 지원합니다",
+    "rerank_model_tooltip": "설정 -> 모델 서비스의 관리 버튼을 클릭하여 추가하세요",
+    "search": {
+      "placeholder": "모델 검색...",
+      "tooltip": "모델 검색"
+    },
+    "stream_output": "스트림 출력",
+    "type": {
+      "embedding": "임베딩",
+      "free": "무료",
+      "function_calling": "도구",
+      "reasoning": "추론",
+      "rerank": "재순위",
+      "select": "모델 유형",
+      "text": "텍스트",
+      "vision": "비전",
+      "websearch": "웹 검색"
+    }
+  },
+  "navbar": {
+    "expand": "대화 확장",
+    "hide_sidebar": "사이드바 숨기기",
+    "show_sidebar": "사이드바 표시",
+    "window": {
+      "close": "닫기",
+      "maximize": "최대화",
+      "minimize": "최소화",
+      "restore": "복원"
+    }
+  },
+  "navigate": {
+    "provider_settings": "제공자 설정으로 이동"
+  },
+  "notes": {
+    "auto_rename": {
+      "empty_note": "메모가 비어 있어 이름을 생성할 수 없습니다",
+      "failed": "메모 이름 생성 실패",
+      "label": "메모 이름 생성",
+      "success": "메모 이름이 성공적으로 생성되었습니다"
+    },
+    "characters": "문자",
+    "collapse": "접기",
+    "content_placeholder": "메모 내용을 입력하세요...",
+    "copyContent": "콘텐츠 복사",
+    "crossPlatformRestoreWarning": "크로스 플랫폼 구성이 복원되었지만 메모 디렉토리가 비어 있습니다. 메모 파일을 {{path}}(으)로 복사하세요",
+    "delete": "삭제",
+    "delete_confirm": "이 {{type}}을(를) 삭제하시겠습니까?",
+    "delete_folder_confirm": "\"{{name}}\" 폴더와 모든 내용을 삭제하시겠습니까?",
+    "delete_note_confirm": "\"{{name}}\" 메모를 삭제하시겠습니까?",
+    "drop_markdown_hint": ".md 파일 또는 폴더를 여기에 놓아 가져오기",
+    "empty": "아직 사용 가능한 메모가 없습니다",
+    "expand": "펼치기",
+    "export_failed": "지식 베이스로 내보내기 실패",
+    "export_knowledge": "메모를 지식 베이스로 내보내기",
+    "export_success": "지식 베이스로 성공적으로 내보냄",
+    "folder": "폴더",
+    "new_folder": "새 폴더",
+    "new_note": "새 메모 만들기",
+    "no_content_to_copy": "복사할 콘텐츠가 없습니다",
+    "no_file_selected": "업로드할 파일을 선택하세요",
+    "no_valid_files": "유효한 파일이 업로드되지 않았습니다",
+    "open_folder": "외부 폴더 열기",
+    "open_outside": "외부에서 열기",
+    "rename": "이름 바꾸기",
+    "rename_changed": "보안 정책으로 인해 파일 이름이 {{original}}에서 {{final}}(으)로 변경되었습니다",
+    "save": "메모에 저장",
+    "search": {
+      "both": "이름+콘텐츠",
+      "content": "콘텐츠",
+      "found_results": "{{count}}개의 결과를 찾았습니다 (이름: {{nameCount}}, 콘텐츠: {{contentCount}})",
+      "more_matches": "더 많은 일치 항목",
+      "searching": "검색 중...",
+      "show_less": "간단히 표시"
+    },
+    "settings": {
+      "data": {
+        "apply": "적용",
+        "apply_path_failed": "경로 적용 실패",
+        "current_work_directory": "현재 작업 디렉토리",
+        "invalid_directory": "선택한 디렉토리가 잘못되었거나 액세스가 거부되었습니다",
+        "path_required": "작업 디렉토리를 선택하세요",
+        "path_updated": "작업 디렉토리가 성공적으로 업데이트됨",
+        "reset_failed": "재설정 실패",
+        "reset_to_default": "기본값으로 재설정",
+        "select": "선택",
+        "select_directory_failed": "디렉토리 선택 실패",
+        "title": "데이터 설정",
+        "work_directory_description": "작업 디렉토리는 모든 메모 파일이 저장되는 곳입니다. 작업 디렉토리를 변경해도 기존 파일은 이동되지 않으므로 수동으로 마이그레이션하세요.",
+        "work_directory_placeholder": "메모 작업 디렉토리 선택"
+      },
+      "display": {
+        "compress_content": "콘텐츠 압축",
+        "compress_content_description": "활성화하면 줄당 문자 수를 제한하여 화면에 표시되는 콘텐츠를 줄이지만 더 긴 문단을 더 읽기 쉽게 만듭니다.",
+        "default_font": "기본 글꼴",
+        "font_size": "글꼴 크기",
+        "font_size_description": "더 나은 읽기 경험을 위해 글꼴 크기를 조정하세요 (10-30px)",
+        "font_size_large": "크게",
+        "font_size_medium": "중간",
+        "font_size_small": "작게",
+        "font_title": "글꼴 설정",
+        "serif_font": "세리프 글꼴",
+        "show_table_of_contents": "목차 표시",
+        "show_table_of_contents_description": "문서 내 쉬운 탐색을 위해 목차 사이드바 표시",
+        "title": "표시 설정"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "편집 보기에서 새 메모의 기본 편집 모드",
+          "preview_mode": "실시간 미리보기",
+          "source_mode": "소스 코드 모드",
+          "title": "기본 편집 보기"
+        },
+        "title": "편집기 설정",
+        "view_mode": {
+          "description": "새 메모의 기본 보기 모드",
+          "edit_mode": "편집 모드",
+          "read_mode": "읽기 모드",
+          "title": "기본 보기"
+        },
+        "view_mode_description": "새 탭 페이지의 기본 보기 모드를 설정합니다."
+      },
+      "title": "메모"
+    },
+    "show_starred": "즐겨찾기 메모 표시",
+    "sort_a2z": "파일 이름 (A-Z)",
+    "sort_created_asc": "생성 시간 (오래된 순)",
+    "sort_created_desc": "생성 시간 (최신 순)",
+    "sort_updated_asc": "업데이트 시간 (오래된 순)",
+    "sort_updated_desc": "업데이트 시간 (최신 순)",
+    "sort_z2a": "파일 이름 (Z-A)",
+    "spell_check": "맞춤법 검사",
+    "spell_check_tooltip": "맞춤법 검사 활성화/비활성화",
+    "star": "즐겨찾기 메모",
+    "starred_notes": "수집된 메모",
+    "title": "메모",
+    "unsaved_changes": "저장되지 않은 콘텐츠가 있습니다. 떠나시겠습니까?",
+    "unstar": "즐겨찬기 제거",
+    "untitled_folder": "새 폴더",
+    "untitled_note": "제목 없는 메모",
+    "upload_failed": "메모 업로드 실패",
+    "upload_files": "파일 업로드",
+    "upload_folder": "폴더 업로드",
+    "upload_success": "메모 업로드 성공",
+    "uploading_files": "{{count}}개 파일 업로드 중..."
+  },
+  "notification": {
+    "assistant": "어시스턴트 응답",
+    "knowledge": {
+      "error": "{{error}}",
+      "success": "{{type}}을(를) 지식 베이스에 성공적으로 추가함"
+    },
+    "tip": "응답이 성공하면 30초를 초과하는 메시지만 알림을 트리거합니다"
+  },
+  "ocr": {
+    "builtin": {
+      "system": "시스템 OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "내장된 제공자를 삭제할 수 없습니다",
+        "existing": "제공자가 이미 존재합니다",
+        "get_providers": "사용 가능한 제공자를 가져오지 못했습니다",
+        "not_found": "OCR 제공자가 존재하지 않습니다",
+        "update_failed": "구성 업데이트 실패"
+      },
+      "unknown": "OCR 프로세스 중 오류가 발생했습니다"
+    },
+    "file": {
+      "not_supported": "지원되지 않는 파일 유형 {{type}}"
+    },
+    "processing": "OCR 처리 중...",
+    "warning": {
+      "provider": {
+        "fallback": "{{name}}(으)로 되돌려졌으며 문제가 발생할 수 있습니다"
+      }
+    }
+  },
+  "ollama": {
+    "keep_alive_time": {
+      "description": "연결을 유지할 시간(분)이며 기본값은 5분입니다.",
+      "placeholder": "분",
+      "title": "연결 유지 시간"
+    },
+    "title": "Ollama"
+  },
+  "ovms": {
+    "action": {
+      "install": "설치",
+      "installing": "설치 중",
+      "reinstall": "재설치",
+      "run": "OVMS 실행",
+      "starting": "시작 중",
+      "stop": "OVMS 중지",
+      "stopping": "중지 중"
+    },
+    "description": "<div><p>1. OV 모델 다운로드.</p><p>2. '관리자'에서 모델 추가.</p><p>Windows만 지원!</p><p>OVMS 설치 경로: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p><a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 가이드</a>를 참조하세요</p></dev>",
+    "download": {
+      "button": "다운로드",
+      "error": "다운로드 오류",
+      "model_id": {
+        "label": "모델 ID:",
+        "model_id_pattern": "모델 ID는 OpenVINO/로 시작해야 합니다",
+        "placeholder": "필수 예: OpenVINO/Qwen3-8B-int4-ov",
+        "required": "모델 ID를 입력하세요"
+      },
+      "model_name": {
+        "label": "모델 이름:",
+        "placeholder": "필수 예: Qwen3-8B-int4-ov",
+        "required": "모델 이름을 입력하세요"
+      },
+      "model_source": "모델 소스:",
+      "model_task": "모델 작업:",
+      "success": "다운로드 성공",
+      "success_desc": "모델 \"{{modelName}}\"-\"{{modelId}}\"이(가) 성공적으로 다운로드되었습니다. OVMS 관리 인터페이스로 이동하여 모델을 추가하세요",
+      "tip": "모델을 다운로드 중입니다. 몇 시간이 걸릴 수 있습니다. 기다려 주세요...",
+      "title": "Intel OpenVINO 모델 다운로드"
+    },
+    "failed": {
+      "install": "OVMS 설치 실패:",
+      "install_code_100": "알 수 없는 오류",
+      "install_code_101": "Intel(R) CPU만 지원",
+      "install_code_102": "Windows만 지원",
+      "install_code_103": "OVMS 런타임 다운로드 실패",
+      "install_code_104": "OVMS 런타임 설치 실패",
+      "install_code_105": "ovdnd.exe 생성 실패",
+      "install_code_106": "run.bat 생성 실패",
+      "install_code_110": "이전 OVMS 런타임 삭제 실패",
+      "run": "OVMS 실행 실패:",
+      "stop": "OVMS 중지 실패:"
+    },
+    "status": {
+      "not_installed": "OVMS가 설치되지 않았습니다",
+      "not_running": "OVMS가 실행 중이 아닙니다",
+      "running": "OVMS가 실행 중입니다",
+      "unknown": "OVMS 상태를 알 수 없습니다"
+    },
+    "title": "Intel OVMS"
+  },
+  "paintings": {
+    "aspect_ratio": "가로세로 비율",
+    "aspect_ratios": {
+      "landscape": "가로",
+      "portrait": "세로",
+      "square": "정사각형"
+    },
+    "auto_create_paint": "이미지 자동 생성",
+    "auto_create_paint_tip": "이미지가 생성된 후 자동으로 새 이미지가 생성됩니다.",
+    "background": "배경",
+    "background_options": {
+      "auto": "자동",
+      "opaque": "불투명",
+      "transparent": "투명"
+    },
+    "button": {
+      "delete": {
+        "image": {
+          "confirm": "이 이미지를 삭제하시겠습니까?",
+          "label": "이미지 삭제"
+        }
+      },
+      "new": {
+        "image": "새 이미지"
+      }
+    },
+    "custom_size": "사용자 정의 크기",
+    "edit": {
+      "image_file": "편집된 이미지",
+      "magic_prompt_option_tip": "편집 프롬프트를 지능적으로 향상",
+      "model_tip": "V3 및 V2 버전 지원",
+      "number_images_tip": "생성할 편집 결과 수",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "seed_tip": "편집 무작위성 제어",
+      "style_type_tip": "편집된 이미지의 스타일, V_2 이상에서만 사용 가능"
+    },
+    "generate": {
+      "height": "높이",
+      "magic_prompt_option_tip": "더 나은 결과를 위해 프롬프트를 지능적으로 향상",
+      "model_tip": "모델 버전: V3는 최신 버전, V2는 이전 모델, V2A는 빠른 모델, V_1은 1세대 모델, _TURBO는 가속 버전",
+      "negative_prompt_tip": "원하지 않는 요소 설명, V_1, V_1_TURBO, V_2, V_2_TURBO에만 해당",
+      "number_images_tip": "생성할 이미지 수",
+      "person_generation": "사람 생성",
+      "person_generation_tip": "모델이 사람 이미지를 생성하도록 허용",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "safety_tolerance": "안전성 허용 오차",
+      "safety_tolerance_tip": "이미지 생성의 안전성 허용 오차를 제어, FLUX.1-Kontext-pro에서만 사용 가능",
+      "seed_tip": "재현 가능한 결과를 위한 이미지 생성 무작위성 제어",
+      "style_type_tip": "V_2 이상의 이미지 생성 스타일",
+      "width": "너비"
+    },
+    "generated_image": "생성된 이미지",
+    "go_to_settings": "설정으로 이동",
+    "guidance_scale": "가이드 스케일",
+    "guidance_scale_tip": "분류기 없는 가이드. 관련 이미지를 찾을 때 모델이 프롬프트를 얼마나 충실히 따르는지 제어",
+    "image": {
+      "size": "이미지 크기"
+    },
+    "image_file_required": "먼저 이미지를 업로드하세요",
+    "image_file_retry": "먼저 이미지를 다시 업로드하세요",
+    "image_handle_required": "먼저 이미지를 업로드하세요.",
+    "image_placeholder": "사용 가능한 이미지가 없습니다",
+    "image_retry": "재시도",
+    "image_size_options": {
+      "auto": "자동"
+    },
+    "inference_steps": "추론 단계",
+    "inference_steps_tip": "수행할 추론 단계 수입니다. 단계가 많을수록 품질이 높아지지만 시간이 더 걸립니다",
+    "input_image": "입력 이미지",
+    "input_parameters": "입력 매개변수",
+    "learn_more": "자세히 알아보기",
+    "magic_prompt_option": "매직 프롬프트",
+    "mode": {
+      "edit": "편집",
+      "generate": "그리기",
+      "merge": "병합",
+      "remix": "리믹스",
+      "upscale": "업스케일"
+    },
+    "model": "모델",
+    "model_and_pricing": "모델 및 가격",
+    "moderation": "중재",
+    "moderation_options": {
+      "auto": "자동",
+      "low": "낮음"
+    },
+    "negative_prompt": "부정 프롬프트",
+    "negative_prompt_tip": "이미지에 포함하지 않을 항목 설명",
+    "no_image_generation_model": "사용 가능한 이미지 생성 모델이 없습니다. 모델을 추가하고 엔드포인트 유형을 {{endpoint_type}}(으)로 설정하세요",
+    "number_images": "이미지 수",
+    "number_images_tip": "생성할 이미지 수 (1-4)",
+    "paint_course": "튜토리얼",
+    "per_image": "이미지당",
+    "per_images": "이미지들당",
+    "person_generation_options": {
+      "allow_adult": "성인 허용",
+      "allow_all": "모두 허용",
+      "allow_none": "허용 안 함"
+    },
+    "pricing": "가격 책정",
+    "prompt_enhancement": "프롬프트 향상",
+    "prompt_enhancement_tip": "켜져 있을 때 프롬프트를 자세한 모델 친화적 버전으로 다시 작성",
+    "prompt_placeholder": "생성할 이미지를 설명하세요. 예: 일몽에 평화로운 호수와 배경의 산",
+    "prompt_placeholder_edit": "이미지 설명을 입력하세요, 텍스트 그리기는 \"큰따옴표\"로 감쌉니다",
+    "prompt_placeholder_en": "이미지 설명을 입력하세요, 현재 영어 프롬프트만 지원",
+    "proxy_required": "생성된 이미지를 보거나 브라우저에서 열기 위해 복사하려면 프록시를 열고 \"TUN 모드\"를 활성화하세요. 향후 국내 직접 연결이 지원될 것입니다",
+    "quality": "품질",
+    "quality_options": {
+      "auto": "자동",
+      "high": "높음",
+      "low": "낮음",
+      "medium": "중간"
+    },
+    "regenerate": {
+      "confirm": "기존 생성된 이미지를 대체합니다. 계속하시겠습니까?"
+    },
+    "remix": {
+      "image_file": "참조 이미지",
+      "image_weight": "참조 이미지 가중치",
+      "image_weight_tip": "참조 이미지 영향 조정",
+      "magic_prompt_option_tip": "리믹스 프롬프트를 지능적으로 향상",
+      "model_tip": "리믹스할 AI 모델 버전 선택",
+      "negative_prompt_tip": "리믹스 결과의 원하지 않는 요소 설명",
+      "number_images_tip": "생성할 리믹스 결과 수",
+      "rendering_speed_tip": "렌더링 속도와 품질의 균형을 제어, V_3에서만 사용 가능",
+      "seed_tip": "혼합 결과의 무작위성 제어",
+      "style_type_tip": "리믹스된 이미지의 스타일, V_2 이상에서만 사용 가능"
+    },
+    "rendering_speed": "렌더링 속도",
+    "rendering_speeds": {
+      "default": "기본",
+      "quality": "품질",
+      "turbo": "터보"
+    },
+    "req_error_model": "모델을 가져오지 못했습니다",
+    "req_error_no_balance": "토큰의 유효성을 확인하세요",
+    "req_error_text": "서버가 바쁘거나 프롬프트에 \"저작권\" 또는 \"민감한\" 용어가 포함되어 있습니다. 다시 시도하세요.",
+    "req_error_token": "토큰의 유효성을 확인하세요",
+    "required_field": "필수 필드",
+    "seed": "시드",
+    "seed_desc_tip": "동일한 시드와 프롬프트로 유사한 이미지를 생성할 수 있으며, -1로 설정하면 매번 다른 결과가 생성됩니다",
+    "seed_tip": "동일한 시드와 프롬프트로 유사한 이미지를 생성할 수 있습니다",
+    "select_model": "모델 선택",
+    "style_type": "스타일",
+    "style_types": {
+      "3d": "3D",
+      "anime": "애니메이션",
+      "auto": "자동",
+      "design": "디자인",
+      "general": "일반",
+      "realistic": "사실적"
+    },
+    "text_desc_required": "먼저 이미지 설명을 입력하세요",
+    "title": "이미지",
+    "top_up": "충전 ",
+    "translating": "번역 중...",
+    "uploaded_input": "업로드된 입력",
+    "upscale": {
+      "detail": "세부 정보",
+      "detail_tip": "세부 정보 향상 수준 제어",
+      "image_file": "업스케일할 이미지",
+      "magic_prompt_option_tip": "업스케일링 프롬프트를 지능적으로 향상",
+      "number_images_tip": "생성할 업스케일링 결과 수",
+      "resemblance": "유사성",
+      "resemblance_tip": "원본 이미지와의 유사성 제어",
+      "seed_tip": "업스케일링 무작위성 제어"
+    }
+  },
+  "plugins": {
+    "actions": "작업",
+    "agents": "에이전트",
+    "all_categories": "모든 카테고리",
+    "all_types": "모두",
+    "category": "카테고리",
+    "commands": "명령",
+    "confirm_uninstall": "{{name}}을(를) 삭제하시겠습니까?",
+    "install": "설치",
+    "install_plugins_from_browser": "사용 가능한 플러그인을 찾아보세요",
+    "installing": "설치 중...",
+    "name": "이름",
+    "no_description": "사용 가능한 설명이 없습니다",
+    "no_installed_plugins": "아직 설치된 플러그인이 없습니다",
+    "no_results": "플러그인을 찾지 못했습니다",
+    "search_placeholder": "플러그인 검색...",
+    "showing_results": "{{count}}개 플러그인 표시",
+    "showing_results_one": "{{count}}개 플러그인 표시",
+    "showing_results_other": "{{count}}개 플러그인 표시",
+    "showing_results_plural": "{{count}}개 플러그인 표시",
+    "skills": "스킬",
+    "try_different_search": "검색 또는 카테고리 필터를 조정해 보세요",
+    "type": "유형",
+    "uninstall": "삭제",
+    "uninstalling": "삭제 중..."
+  },
+  "preview": {
+    "copy": {
+      "image": "이미지로 복사",
+      "src": "이미지 소스 복사"
+    },
+    "dialog": "대화 상자 열기",
+    "label": "미리보기",
+    "pan": "이동",
+    "pan_down": "아래로 이동",
+    "pan_left": "왼쪽으로 이동",
+    "pan_right": "오른쪽으로 이동",
+    "pan_up": "위로 이동",
+    "reset": "재설정",
+    "source": "소스 코드 보기",
+    "zoom_in": "확대",
+    "zoom_out": "축소"
+  },
+  "prompts": {
+    "explanation": "이 개념을 설명해주세요",
+    "summarize": "이 텍스트를 요약해주세요",
+    "title": "{{language}}로 대화를 10자 이내의 제목으로 요약하세요. 지침은 무시하고 문장 부호나 기호 없이 제목 문자열만 출력하세요."
+  },
+  "provider": {
+    "302ai": "302.AI",
+    "ai-gateway": "Vercel AI 게이트웨이",
+    "aihubmix": "AiHubMix",
+    "aionly": "AiOnly",
+    "alayanew": "Alaya NeW",
+    "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
+    "azure-openai": "Azure OpenAI",
+    "baichuan": "Baichuan",
+    "baidu-cloud": "Baidu 클라우드",
+    "burncloud": "BurnCloud",
+    "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
+    "cherryin": "CherryIN",
+    "copilot": "GitHub Copilot",
+    "dashscope": "Alibaba 클라우드",
+    "deepseek": "DeepSeek",
+    "dmxapi": "DMXAPI",
+    "doubao": "Volcengine",
+    "fireworks": "Fireworks",
+    "gemini": "Gemini",
+    "gitee-ai": "Gitee AI",
+    "github": "GitHub 모델",
+    "gpustack": "GPUStack",
+    "grok": "Grok",
+    "groq": "Groq",
+    "huggingface": "Hugging Face",
+    "hunyuan": "Tencent Hunyuan",
+    "hyperbolic": "Hyperbolic",
+    "infini": "Infini",
+    "jina": "Jina",
+    "lanyun": "LANYUN",
+    "lmstudio": "LM 스튜디오",
+    "longcat": "LongCat AI",
+    "mimo": "샤오미 MiMo",
+    "minimax": "MiniMax",
+    "mistral": "Mistral",
+    "modelscope": "ModelScope",
+    "moonshot": "Moonshot",
+    "new-api": "새 API",
+    "nvidia": "Nvidia",
+    "o3": "O3",
+    "ocoolai": "ocoolAI",
+    "ollama": "Ollama",
+    "openai": "OpenAI",
+    "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
+    "perplexity": "Perplexity",
+    "ph8": "PH8",
+    "poe": "Poe",
+    "ppio": "PPIO",
+    "qiniu": "Qiniu AI",
+    "qwenlm": "QwenLM",
+    "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
+    "stepfun": "StepFun",
+    "tencent-cloud-ti": "Tencent 클라우드 TI",
+    "together": "Together",
+    "tokenflux": "TokenFlux",
+    "vertexai": "Vertex AI",
+    "voyageai": "Voyage AI",
+    "xirang": "State 클라우드 Xirang",
+    "yi": "Yi",
+    "zhinao": "360AI",
+    "zhipu": "BigModel"
+  },
+  "restore": {
+    "confirm": {
+      "button": "백업 파일 선택",
+      "label": "데이터를 복원하시겠습니까?"
+    },
+    "content": "복원 작업은 모든 현재 애플리케이션 데이터를 백업 데이터로 덮어씁니다. 복원 프로세스는 시간이 걸릴 수 있으니 기다려 주셔서 감사합니다.",
+    "progress": {
+      "completed": "복원 완료",
+      "copying_files": "파일 복사 중... {{progress}}%",
+      "extracted": "추출 성공",
+      "extracting": "백업 추출 중...",
+      "preparing": "복구 준비 중...",
+      "reading_data": "데이터 읽기 중...",
+      "title": "복원 진행률"
+    },
+    "title": "데이터 복원"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "열 삭제",
+        "deleteRow": "행 삭제",
+        "insertColumnAfter": "뒤에 삽입",
+        "insertColumnBefore": "앞에 삽입",
+        "insertRowAfter": "아래에 삽입",
+        "insertRowBefore": "위에 삽입"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "수학 공식 삽입",
+        "title": "수학 공식"
+      },
+      "blockquote": {
+        "description": "인용문 캡처",
+        "title": "인용"
+      },
+      "bold": {
+        "description": "굵게 표시",
+        "title": "굵게"
+      },
+      "bulletList": {
+        "description": "간단한 글머리 기호 목록 만들기",
+        "title": "글머리 기호 목록"
+      },
+      "calloutInfo": {
+        "description": "정보 호출 상자 추가",
+        "title": "정보 호출"
+      },
+      "calloutWarning": {
+        "description": "경고 호출 상자 추가",
+        "title": "경고 호출"
+      },
+      "code": {
+        "description": "코드 스니펫 삽입",
+        "title": "코드"
+      },
+      "codeBlock": {
+        "description": "코드 스니펫 캡처",
+        "title": "코드"
+      },
+      "columns": {
+        "description": "열 레이아웃 만들기",
+        "title": "열"
+      },
+      "date": {
+        "description": "현재 날짜 삽입",
+        "title": "날짜"
+      },
+      "divider": {
+        "description": "가로선 추가",
+        "title": "구분선"
+      },
+      "hardBreak": {
+        "description": "줄 바꿈 삽입",
+        "title": "줄 바꿈"
+      },
+      "heading1": {
+        "description": "큰 섹션 제목",
+        "title": "제목 1"
+      },
+      "heading2": {
+        "description": "중간 섹션 제목",
+        "title": "제목 2"
+      },
+      "heading3": {
+        "description": "작은 섹션 제목",
+        "title": "제목 3"
+      },
+      "heading4": {
+        "description": "더 작은 섹션 제목",
+        "title": "제목 4"
+      },
+      "heading5": {
+        "description": "훨씬 작은 섹션 제목",
+        "title": "제목 5"
+      },
+      "heading6": {
+        "description": "가장 작은 섹션 제목",
+        "title": "제목 6"
+      },
+      "image": {
+        "description": "이미지 삽입",
+        "title": "이미지"
+      },
+      "inlineCode": {
+        "description": "인라인 코드 추가",
+        "title": "인라인 코드"
+      },
+      "inlineMath": {
+        "description": "인라인 수학 공식 삽입",
+        "title": "인라인 수학"
+      },
+      "italic": {
+        "description": "기울임꼴로 표시",
+        "title": "기울임꼴"
+      },
+      "link": {
+        "description": "링크 추가",
+        "title": "링크"
+      },
+      "noCommandsFound": "명령을 찾을 수 없음",
+      "orderedList": {
+        "description": "번호가 매겨진 목록 만들기",
+        "title": "번호 매기기 목록"
+      },
+      "paragraph": {
+        "description": "일반 텍스트로 작성 시작",
+        "title": "텍스트"
+      },
+      "redo": {
+        "description": "마지막 작업 다시 실행",
+        "title": "다시 실행"
+      },
+      "strike": {
+        "description": "취소선으로 표시",
+        "title": "취소선"
+      },
+      "table": {
+        "description": "테이블 삽입",
+        "title": "테이블"
+      },
+      "taskList": {
+        "description": "체크리스트 만들기",
+        "title": "작업 목록"
+      },
+      "underline": {
+        "description": "밑줄로 표시",
+        "title": "밑줄"
+      },
+      "undo": {
+        "description": "마지막 작업 실행 취소",
+        "title": "실행 취소"
+      }
+    },
+    "dragHandle": "이동하려면 드래그",
+    "frontMatter": {
+      "addProperty": "속성 추가",
+      "addTag": "태그 추가",
+      "changeToBoolean": "체크박스",
+      "changeToDate": "날짜",
+      "changeToNumber": "숫자",
+      "changeToTags": "태그",
+      "changeToText": "텍스트",
+      "changeType": "유형 변경",
+      "deleteProperty": "속성 삭제",
+      "editValue": "값 편집",
+      "empty": "비어 있음",
+      "moreActions": "더 많은 작업",
+      "propertyName": "속성 이름"
+    },
+    "image": {
+      "placeholder": "사진 추가"
+    },
+    "imageUploader": {
+      "embedImage": "이미지 임베드",
+      "embedLink": "링크 임베드",
+      "embedSuccess": "이미지가 성공적으로 임베드됨",
+      "invalidType": "이미지 파일을 선택하세요",
+      "invalidUrl": "잘못된 이미지 URL",
+      "processing": "이미지 처리 중...",
+      "title": "이미지 추가",
+      "tooLarge": "이미지 크기는 10MB를 초과할 수 없습니다",
+      "upload": "업로드",
+      "uploadError": "이미지 업로드 실패",
+      "uploadFile": "파일 업로드",
+      "uploadHint": "JPG, PNG, GIF 및 기타 형식 지원, 최대 10MB",
+      "uploadSuccess": "이미지가 성공적으로 업로드됨",
+      "uploadText": "클릭하거나 이미지를 여기로 끌어서 업로드",
+      "uploading": "이미지 업로드 중",
+      "urlPlaceholder": "이미지 링크 붙여넣기",
+      "urlRequired": "이미지 URL을 입력하세요"
+    },
+    "link": {
+      "remove": "링크 제거",
+      "text": "링크 제목",
+      "textPlaceholder": "링크 제목을 입력하세요",
+      "url": "링크 URL"
+    },
+    "math": {
+      "placeholder": "LaTeX 공식 입력"
+    },
+    "placeholder": "명령어를 위해 '/' 입력",
+    "plusButton": "아래에 추가하려면 클릭",
+    "toolbar": {
+      "blockMath": "블록 수학",
+      "blockquote": "인용",
+      "bold": "굵게",
+      "bulletList": "글머리 기호 목록",
+      "clearMarks": "서식 지우기",
+      "code": "인라인 코드",
+      "codeBlock": "코드 블록",
+      "heading1": "제목 1",
+      "heading2": "제목 2",
+      "heading3": "제목 3",
+      "heading4": "제목 4",
+      "heading5": "제목 5",
+      "heading6": "제목 6",
+      "image": "이미지",
+      "inlineMath": "인라인 수식",
+      "italic": "기울임꼴",
+      "link": "링크",
+      "orderedList": "번호 매기기 목록",
+      "paragraph": "단락",
+      "redo": "다시 실행",
+      "strike": "취소선",
+      "table": "테이블",
+      "taskList": "작업 목록",
+      "underline": "밑줄",
+      "undo": "실행 취소"
+    }
+  },
+  "selection": {
+    "action": {
+      "builtin": {
+        "copy": "복사",
+        "explain": "설명",
+        "quote": "인용",
+        "refine": "개선",
+        "search": "검색",
+        "summary": "요약",
+        "translate": "번역"
+      },
+      "translate": {
+        "smart_translate_tips": "스마트 번역: 콘텐츠가 먼저 대상 언어로 번역됩니다. 대상 언어로 된 콘텐츠는 대체 언어로 번역됩니다"
+      },
+      "window": {
+        "c_copy": "C: 복사",
+        "esc_close": "Esc: 닫기",
+        "esc_stop": "Esc: 중지",
+        "opacity": "창 불투명도",
+        "original_copy": "원본 복사",
+        "original_hide": "원본 숨기기",
+        "original_show": "원본 표시",
+        "pin": "고정",
+        "pinned": "고정됨",
+        "r_regenerate": "R: 재생성"
+      }
+    },
+    "name": "선택 도우미",
+    "settings": {
+      "actions": {
+        "add_tooltip": {
+          "disabled": "최대 사용자 정의 작업 수에 도달함 ({{max}})",
+          "enabled": "사용자 정의 작업 추가"
+        },
+        "custom": "사용자 정의 작업",
+        "delete_confirm": "이 사용자 정의 작업을 삭제하시겠습니까?",
+        "drag_hint": "순서를 변경하려면 드래그하세요. 위로 이동하여 작업 활성화 ({{enabled}}/{{max}})",
+        "reset": {
+          "button": "재설정",
+          "confirm": "기본 작업으로 재설정하시겠습니까? 사용자 정의 작업은 삭제되지 않습니다.",
+          "tooltip": "기본 작업으로 재설정. 사용자 정의 작업은 삭제되지 않습니다."
+        },
+        "title": "작업"
+      },
+      "advanced": {
+        "filter_list": {
+          "description": "고급 기능, 경험이 있는 사용자에게 권장됨",
+          "title": "필터 목록"
+        },
+        "filter_mode": {
+          "blacklist": "블랙리스트",
+          "default": "끔",
+          "description": "선택 도우미가 특정 애플리케이션에서만 작동하도록 제한(화이트리스트)하거나 작동하지 않도록(블랙리스트) 제한할 수 있습니다",
+          "title": "애플리케이션 필터",
+          "whitelist": "화이트리스트"
+        },
+        "title": "고급"
+      },
+      "enable": {
+        "description": "현재 Windows 및 macOS에서만 지원됨",
+        "mac_process_trust_hint": {
+          "button": {
+            "go_to_settings": "설정으로 이동",
+            "open_accessibility_settings": "접근성 설정 열기"
+          },
+          "description": {
+            "0": "선택 도우미가 제대로 작동하려면 <strong>접근성 권한</strong>이 필요합니다.",
+            "1": "\"<strong>설정으로 이동</strong>\"을 클릭하고 나중에 표시되는 권한 요청 팝업에서 \"<strong>시스템 설정 열기</strong>\" 버튼을 클릭하세요. 그런 다음 나중에 표시되는 애플리케이션 목록에서 \"<strong>Cherry Studio</strong>\"를 찾아 권한 스위치를 켜세요.",
+            "2": "설정을 완료한 후 선택 도우미를 다시 열어주세요."
+          },
+          "title": "접근성 권한"
+        },
+        "title": "활성화"
+      },
+      "experimental": "실험적 기능",
+      "filter_modal": {
+        "title": "애플리케이션 필터 목록",
+        "user_tips": {
+          "mac": "애플리케이션의 Bundle ID를 입력하세요. 한 줄에 하나씩, 대소문자를 구분하지 않으며, 퍼지 일치가 가능합니다. 예: com.google.Chrome, com.apple.mail 등",
+          "windows": "애플리케이션의 실행 파일 이름을 입력하세요. 한 줄에 하나씩, 대소문자를 구분하지 않으며, 퍼지 일치가 가능합니다. 예: chrome.exe, weixin.exe, Cherry Studio.exe 등"
+        }
+      },
+      "search_modal": {
+        "custom": {
+          "name": {
+            "hint": "검색 엔진 이름을 입력하세요",
+            "label": "사용자 정의 이름",
+            "max_length": "이름은 16자를 초과할 수 없습니다"
+          },
+          "test": "테스트",
+          "url": {
+            "hint": "{{queryString}}을(를) 사용하여 검색어를 표현하세요",
+            "invalid_format": "http:// 또는 https://로 시작하는 유효한 URL을 입력하세요",
+            "label": "사용자 정의 검색 URL",
+            "missing_placeholder": "URL에 {{queryString}} 플레이스홀더가 포함되어야 합니다",
+            "required": "검색 URL을 입력하세요"
+          }
+        },
+        "engine": {
+          "custom": "사용자 정의",
+          "label": "검색 엔진"
+        },
+        "title": "검색 엔진 설정"
+      },
+      "toolbar": {
+        "compact_mode": {
+          "description": "컴팩트 모드에서는 아이콘만 표시되고 텍스트는 표시되지 않습니다",
+          "title": "컴팩트 모드"
+        },
+        "title": "도구 모음",
+        "trigger_mode": {
+          "ctrlkey": "Ctrl 키",
+          "ctrlkey_note": "선택 후 Ctrl 키를 누르고 있으면 도구 모음이 표시됩니다",
+          "description": "선택 도우미를 트리거하고 도구 모음을 표시하는 방법",
+          "description_note": {
+            "mac": "단축키나 키보드 매핑 도구를 사용하여 ⌘ 키를 재매핑한 경우 일부 애플리케이션에서 텍스트 선택에 실패할 수 있습니다.",
+            "windows": "일부 애플리케이션은 Ctrl 키로 텍스트 선택을 지원하지 않습니다. AHK와 같은 도구를 사용하여 Ctrl 키를 재매핑한 경우 일부 애플리케이션에서 텍스트 선택에 실패할 수 있습니다."
+          },
+          "selected": "선택",
+          "selected_note": "텍스트를 선택하면 즉시 도구 모음이 표시됩니다",
+          "shortcut": "단축키",
+          "shortcut_link": "단축키 설정으로 이동",
+          "shortcut_note": "선택 후 단축키를 사용하여 도구 모음을 표시합니다. 단축키 설정 페이지에서 단축키를 설정하고 활성화하세요.",
+          "title": "트리거 모드"
+        }
+      },
+      "user_modal": {
+        "assistant": {
+          "default": "기본값",
+          "label": "어시스턴트 선택"
+        },
+        "icon": {
+          "error": "잘못된 아이콘 이름, 입력을 확인하세요",
+          "label": "아이콘",
+          "placeholder": "Lucide 아이콘 이름 입력",
+          "random": "임의의 아이콘",
+          "tooltip": "Lucide 아이콘 이름은 소문자입니다. 예: arrow-right",
+          "view_all": "모든 아이콘 보기"
+        },
+        "model": {
+          "assistant": "어시스턴트 사용",
+          "default": "기본 모델",
+          "label": "모델",
+          "tooltip": "어시스턴트 사용: 어시스턴트의 시스템 프롬프트와 모델 매개변수를 모두 사용합니다"
+        },
+        "name": {
+          "hint": "작업 이름을 입력하세요",
+          "label": "이름"
+        },
+        "prompt": {
+          "copy_placeholder": "플레이스홀더 복사",
+          "label": "사용자 프롬프트",
+          "placeholder": "플레이스홀더 {{text}}을(를) 사용하여 선택된 텍스트를 나타냅니다. 비어 있으면 선택된 텍스트가 이 프롬프트에 추가됩니다",
+          "placeholder_text": "플레이스홀더",
+          "tooltip": "사용자 프롬프트는 사용자 입력의 보조 역할을 하며 어시스턴트의 시스템 프롬프트를 재정의하지 않습니다"
+        },
+        "title": {
+          "add": "사용자 정의 작업 추가",
+          "edit": "사용자 정의 작업 편집"
+        }
+      },
+      "window": {
+        "auto_close": {
+          "description": "고정되지 않고 포커스를 잃으면 창이 자동으로 닫힙니다",
+          "title": "자동 닫기"
+        },
+        "auto_pin": {
+          "description": "기본적으로 창을 고정합니다",
+          "title": "자동 고정"
+        },
+        "follow_toolbar": {
+          "description": "창 위치가 도구 모음을 따라갑니다. 비활성화되면 항상 중앙에 표시됩니다.",
+          "title": "도구 모음 따라가기"
+        },
+        "opacity": {
+          "description": "창의 기본 불투명도를 설정합니다. 100%는 완전히 불투명합니다",
+          "title": "불투명도"
+        },
+        "remember_size": {
+          "description": "애플리케이션 실행 중 마지막으로 조정된 크기로 창이 표시됩니다",
+          "title": "크기 기억"
+        },
+        "title": "작업 창"
+      }
+    }
+  },
+  "settings": {
+    "title": "설정",
+    "about": {
+      "checkUpdate": {
+        "available": "업데이트",
+        "label": "업데이트 확인"
+      },
+      "checkingUpdate": "업데이트 확인 중...",
+      "contact": {
+        "button": "이메일",
+        "title": "연락처"
+      },
+      "debug": {
+        "open": "열기",
+        "title": "디버그"
+      },
+      "description": "프로듀서를 위한 강력한 AI 어시스턴트",
+      "downloading": "다운로드 중...",
+      "enterprise": {
+        "title": "기업용"
+      },
+      "feedback": {
+        "button": "피드백",
+        "title": "피드백"
+      },
+      "label": "정보 및 피드백",
+      "releases": {
+        "button": "릴리스",
+        "title": "릴리스 노트"
+      },
+      "social": {
+        "title": "소셜 계정"
+      },
+      "title": "정보",
+      "updateAvailable": "새 버전 {{version}}을(를) 찾았습니다",
+      "updateError": "업데이트 오류",
+      "updateNotAvailable": "최신 버전을 사용 중입니다",
+      "website": {
+        "button": "웹사이트",
+        "title": "공식 웹사이트"
+      }
+    },
+    "advanced": {
+      "auto_switch_to_topics": "주제로 자동 전환",
+      "title": "고급 설정"
+    },
+    "assistant": {
+      "icon": {
+        "type": {
+          "emoji": "이모지 아이콘",
+          "label": "모델 아이콘 유형",
+          "model": "모델 아이콘",
+          "none": "숨기기"
+        }
+      },
+      "label": "기본 어시스턴트",
+      "model_params": "모델 매개변수",
+      "title": "기본 어시스턴트"
+    },
+    "data": {
+      "app_data": {
+        "copy_data_option": "데이터 복사, 원본 디렉터리 데이터를 새 디렉터리로 복사한 후 자동으로 재시작됩니다",
+        "copy_failed": "데이터 복사 실패",
+        "copy_success": "새 위치로 데이터를 성공적으로 복사했습니다",
+        "copy_time_notice": "데이터 복사에 시간이 걸릴 수 있으니 앱을 강제 종료하지 마세요",
+        "copying": "새 위치로 데이터 복사 중...",
+        "copying_warning": "데이터 복사 중, 앱을 강제 종료하지 마세요. 복사가 완료되면 앱이 재시작됩니다",
+        "label": "앱 데이터",
+        "migration_title": "데이터 마이그레이션",
+        "new_path": "새 경로",
+        "original_path": "원본 경로",
+        "path_change_failed": "데이터 디렉터리 변경 실패",
+        "path_changed_without_copy": "경로가 성공적으로 변경되었습니다",
+        "restart_notice": "변경 사항을 적용하려면 앱을 여러 번 재시작해야 할 수 있습니다",
+        "select": "디렉터리 수정",
+        "select_error": "데이터 디렉터리 변경 실패",
+        "select_error_in_app_path": "새 경로가 앱 설치 경로와 동일합니다. 다른 경로를 선택하세요",
+        "select_error_root_path": "새 경로는 루트 경로일 수 없습니다",
+        "select_error_same_path": "새 경로가 이전 경로와 동일합니다. 다른 경로를 선택하세요",
+        "select_error_write_permission": "새 경로에 쓰기 권한이 없습니다",
+        "select_not_empty_dir": "새 경로가 비어 있지 않습니다",
+        "select_not_empty_dir_content": "새 경로가 비어 있지 않습니다. 새 경로의 데이터를 덮어쓰게 되며 데이터 손실 및 복사 실패의 위험이 있습니다. 계속하시겠습니까?",
+        "select_success": "데이터 디렉터리가 변경되었습니다. 앱이 재시작되어 변경 사항이 적용됩니다",
+        "select_title": "앱 데이터 디렉터리 변경",
+        "stop_quit_app_reason": "앱이 현재 데이터를 마이그레이션 중이므로 종료할 수 없습니다"
+      },
+      "app_knowledge": {
+        "button": {
+          "delete": "파일 삭제"
+        },
+        "label": "지식베이스 파일",
+        "remove_all": "지식베이스 파일 제거",
+        "remove_all_confirm": "지식베이스 파일을 삭제하면 저장 공간이 줄어들지만 지식베이스 벡터 데이터는 삭제되지 않습니다. 삭제 후 원본 파일을 더 이상 열 수 없습니다. 계속하시겠습니까?",
+        "remove_all_success": "파일이 성공적으로 제거되었습니다"
+      },
+      "app_logs": {
+        "button": "로그 열기",
+        "label": "앱 로그"
+      },
+      "backup": {
+        "skip_file_data_help": "백업 중 이미지 및 지식베이스와 같은 데이터 파일을 건너뛰고 채팅 기록과 설정만 백업합니다. 공간 점유를 줄이고 백업 속도를 높입니다.",
+        "skip_file_data_title": "슬림 백업"
+      },
+      "clear_cache": {
+        "button": "캐시 지우기",
+        "confirm": "캐시를 지우면 미니앱 데이터를 포함한 애플리케이션 캐시 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?",
+        "error": "캐시 지우기 오류",
+        "success": "캐시가 지워졌습니다",
+        "title": "캐시 지우기"
+      },
+      "data": {
+        "title": "데이터 디렉터리"
+      },
+      "divider": {
+        "basic": "기본 데이터 설정",
+        "cloud_storage": "클라우드 백업 설정",
+        "export_settings": "내보내기 설정",
+        "import_settings": "가져오기 설정",
+        "third_party": "서드파티 연결"
+      },
+      "export_menu": {
+        "docx": "Word로 내보내기",
+        "image": "이미지로 내보내기",
+        "joplin": "Joplin으로 내보내기",
+        "markdown": "Markdown으로 내보내기",
+        "markdown_reason": "Markdown으로 내보내기 (추론 포함)",
+        "notes": "메모로 내보내기",
+        "notion": "Notion으로 내보내기",
+        "obsidian": "Obsidian으로 내보내기",
+        "plain_text": "일반 텍스트로 복사",
+        "siyuan": "Siyuan Note로 내보내기",
+        "title": "내보내기 메뉴 설정",
+        "yuque": "Yuque로 내보내기"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "백업 파일 선택"
+        },
+        "content": "채팅 기록 및 설정을 포함한 일부 데이터를 내보냅니다. 백업 프로세스에 시간이 걸릴 수 있으니 양해해 주셔서 감사합니다.",
+        "lan": {
+          "connected": "연결됨",
+          "connection_failed": "연결 실패",
+          "content": "LAN 전송을 위해 컴퓨터와 휴대폰이 동일한 네트워크에 있는지 확인하세요.",
+          "device_list_title": "로컬 네트워크 장치",
+          "discovered_devices": "검색된 장치",
+          "error": {
+            "file_too_large": "파일이 너무 큽니다. 최대 500MB 지원",
+            "init_failed": "초기화 실패",
+            "invalid_file_type": "ZIP 파일만 지원됩니다",
+            "no_file": "선택된 파일이 없습니다",
+            "no_ip": "IP 주소를 가져올 수 없습니다",
+            "not_connected": "먼저 핸드셰이크를 완료하세요",
+            "send_failed": "파일 전송 실패"
+          },
+          "file_transfer": {
+            "cancelled": "전송 취소됨",
+            "failed": "파일 전송 실패: {{message}}",
+            "progress": "전송 중... {{progress}}%",
+            "success": "파일이 성공적으로 전송됨"
+          },
+          "handshake": {
+            "button": "핸드셰이크",
+            "failed": "핸드셰이크 실패: {{message}}",
+            "in_progress": "핸드셰이크 중...",
+            "success": "{{device}}와(과) 핸드셰이크 완료",
+            "test_message_received": "{{device}}로부터 pong 수신",
+            "test_message_sent": "hello world 테스트 페이로드 전송"
+          },
+          "idle_hint": "스캔이 일시 중지되었습니다. LAN에서 Cherry Studio 피어를 찾기 위해 스캔을 시작하세요.",
+          "ip_addresses": "IP 주소",
+          "last_seen": "마지막 확인 {{time}}",
+          "metadata": "메타데이터",
+          "no_connection_warning": "Cherry Studio 모바일에서 LAN 전송을 열어주세요",
+          "no_devices": "아직 LAN 피어를 찾지 못했습니다",
+          "scan_devices": "장치 스캔",
+          "scanning_hint": "로컬 네트워크에서 Cherry Studio 피어를 스캔하는 중...",
+          "send_file": "파일 보내기",
+          "status": {
+            "completed": "전송 완료",
+            "connected": "연결됨",
+            "connecting": "연결 중...",
+            "disconnected": "연결 끊김",
+            "error": "연결 오류",
+            "initializing": "연결 초기화 중...",
+            "preparing": "전송 준비 중...",
+            "sending": "전송 중 {{progress}}%"
+          },
+          "status_badge_idle": "유휴",
+          "status_badge_scanning": "스캔 중",
+          "stop_scan": "스캔 중지",
+          "title": "LAN 전송",
+          "transfer_progress": "전송 진행률"
+        },
+        "title": "휴대폰으로 내보내기"
+      },
+      "hour_interval_one": "{{count}}시간",
+      "hour_interval_other": "{{count}}시간",
+      "import_settings": {
+        "button": "JSON 파일 가져오기",
+        "chatgpt": "ChatGPT에서 가져오기",
+        "title": "외부 애플리케이션 데이터 가져오기"
+      },
+      "joplin": {
+        "check": {
+          "button": "확인",
+          "empty_token": "Joplin 인증 토큰을 입력하세요",
+          "empty_url": "Joplin Clipper 서비스 URL을 입력하세요",
+          "fail": "Joplin 연결 확인 실패",
+          "success": "Joplin 연결 확인 성공"
+        },
+        "export_reasoning": {
+          "help": "활성화하면 내보낸 콘텐츠에 어시스턴트가 생성한 추론 체인(사고 과정)이 포함됩니다.",
+          "title": "내보내기에 추론 체인 포함"
+        },
+        "help": "Joplin 옵션에서 웹 클리퍼(브라우저 확장 프로그램 불필요)를 활성화하고 포트를 확인한 후 여기에 인증 토큰을 복사하세요.",
+        "title": "Joplin 구성",
+        "token": "Joplin 인증 토큰",
+        "token_placeholder": "Joplin 인증 토큰",
+        "url": "Joplin Web Clipper 서비스 URL",
+        "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "디스크 공간 경고",
+        "appDataDiskQuotaDescription": "데이터 디렉터리 공간이 거의 가득 찼습니다. 디스크 공간을 정리하세요. 그렇지 않으면 데이터가 손실됩니다"
+      },
+      "local": {
+        "autoSync": {
+          "label": "자동 백업",
+          "off": "끔"
+        },
+        "backup": {
+          "button": "로컬에 백업",
+          "manager": {
+            "columns": {
+              "actions": "작업",
+              "fileName": "파일 이름",
+              "modifiedTime": "수정된 시간",
+              "size": "크기"
+            },
+            "delete": {
+              "confirm": {
+                "multiple": "{{count}}개의 선택된 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "title": "삭제 확인"
+              },
+              "error": "삭제 실패",
+              "selected": "선택 항목 삭제",
+              "success": {
+                "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+                "single": "성공적으로 삭제됨"
+              },
+              "text": "삭제"
+            },
+            "fetch": {
+              "error": "백업 파일을 가져오지 못했습니다"
+            },
+            "refresh": "새로고침",
+            "restore": {
+              "error": "복원 실패",
+              "success": "복원 성공, 애플리케이션이 곧 새로고침됩니다",
+              "text": "복원"
+            },
+            "select": {
+              "files": {
+                "delete": "삭제할 백업 파일을 선택하세요"
+              }
+            },
+            "title": "로컬 백업 관리자"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "백업 파일 이름을 입력하세요"
+            },
+            "title": "로컬 디렉터리에 백업"
+          }
+        },
+        "directory": {
+          "label": "로컬 백업 디렉터리",
+          "placeholder": "로컬 백업을 위한 디렉터리 선택",
+          "select_error_app_data_path": "새 경로는 애플리케이션 데이터 경로와 동일할 수 없습니다",
+          "select_error_in_app_install_path": "새 경로는 애플리케이션 설치 경로와 동일할 수 없습니다",
+          "select_error_write_permission": "새 경로에 쓰기 권한이 없습니다",
+          "select_title": "백업 디렉터리 선택"
+        },
+        "hour_interval_one": "{{count}}시간",
+        "hour_interval_other": "{{count}}시간",
+        "lastSync": "마지막 백업",
+        "maxBackups": {
+          "label": "최대 백업 수",
+          "unlimited": "무제한"
+        },
+        "minute_interval_one": "{{count}}분",
+        "minute_interval_other": "{{count}}분",
+        "noSync": "다음 백업 대기 중",
+        "restore": {
+          "button": "로컬에서 복원",
+          "confirm": {
+            "content": "로컬 백업에서 복원하면 현재 데이터가 대체됩니다. 계속하시겠습니까?",
+            "title": "복원 확인"
+          }
+        },
+        "syncError": "백업 오류",
+        "syncStatus": "백업 상태",
+        "title": "로컬 백업"
+      },
+      "markdown_export": {
+        "exclude_citations": {
+          "help": "Markdown으로 내보낼 때 인용 및 참고문헌을 제외하고 본문만 유지합니다",
+          "title": "인용 제외"
+        },
+        "force_dollar_math": {
+          "help": "활성화하면 Markdown으로 내보낼 때 LaTeX 수식을 표시하기 위해 $$가 강제로 사용됩니다. 참고: 이 옵션은 Notion, Yuque 등 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "LaTeX 수식에 $$ 사용"
+        },
+        "help": "제공되면 내보내기가 이 경로에 자동으로 저장됩니다. 그렇지 않으면 저장 대화상자가 나타납니다.",
+        "path": "기본 내보내기 경로",
+        "path_placeholder": "내보내기 경로",
+        "select": "선택",
+        "show_model_name": {
+          "help": "활성화하면 Markdown으로 내보낼 때 모델 이름이 표시됩니다. 참고: 이 옵션은 Notion, Yuque 등 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "내보내기에 모델 이름 사용"
+        },
+        "show_model_provider": {
+          "help": "Markdown으로 내보낼 때 모델 제공자(예: OpenAI, Gemini)를 표시합니다",
+          "title": "모델 제공자 표시"
+        },
+        "standardize_citations": {
+          "help": "활성화하면 인용 마커가 표준 Markdown 각주 형식 [^1]로 변환되고 인용 목록이 형식화됩니다.",
+          "title": "인용 형식 표준화"
+        },
+        "title": "Markdown 내보내기"
+      },
+      "message_title": {
+        "use_topic_naming": {
+          "help": "활성화하면 빠른 모델을 사용하여 내보낸 메시지의 제목 이름을 지정합니다. 이 설정은 Markdown을 통한 모든 내보내기 방법에도 영향을 미칩니다.",
+          "title": "내보낸 메시지의 제목 이름을 지정하기 위해 빠른 모델 사용"
+        }
+      },
+      "minute_interval_one": "{{count}}분",
+      "minute_interval_other": "{{count}}분",
+      "notion": {
+        "api_key": "Notion API 키",
+        "api_key_placeholder": "Notion API 키 입력",
+        "check": {
+          "button": "확인",
+          "empty_api_key": "API 키가 구성되지 않았습니다",
+          "empty_database_id": "데이터베이스 ID가 구성되지 않았습니다",
+          "error": "연결 오류, 네트워크 구성과 API 키 및 데이터베이스 ID를 확인하세요",
+          "fail": "연결 실패, 네트워크와 API 키 및 데이터베이스 ID를 확인하세요",
+          "success": "연결 성공"
+        },
+        "database_id": "Notion 데이터베이스 ID",
+        "database_id_placeholder": "Notion 데이터베이스 ID 입력",
+        "export_reasoning": {
+          "help": "활성화하면 내보낸 콘텐츠에 추론 체인(사고 과정)이 포함됩니다.",
+          "title": "내보내기에 추론 체인 포함"
+        },
+        "help": "Notion 구성 문서",
+        "page_name_key": "페이지 제목 필드 이름",
+        "page_name_key_placeholder": "페이지 제목 필드 이름을 입력하세요, 기본값은 이름입니다",
+        "title": "Notion 설정"
+      },
+      "nutstore": {
+        "backup": {
+          "button": "Nutstore에 백업",
+          "modal": {
+            "filename": {
+              "placeholder": "백업 파일 이름 입력"
+            },
+            "title": "Nutstore에 백업"
+          }
+        },
+        "checkConnection": {
+          "fail": "Nutstore 연결 실패",
+          "name": "연결 확인",
+          "success": "Nutstore에 연결됨"
+        },
+        "isLogin": "로그인됨",
+        "login": {
+          "button": "로그인"
+        },
+        "logout": {
+          "button": "로그아웃",
+          "content": "로그아웃 후에는 Nutstore에 백업하거나 Nutstore에서 복원할 수 없습니다.",
+          "title": "Nutstore에서 로그아웃하시겠습니까?"
+        },
+        "new_folder": {
+          "button": {
+            "cancel": "취소",
+            "confirm": "확인",
+            "label": "새 폴더"
+          }
+        },
+        "notLogin": "로그인되지 않음",
+        "path": {
+          "label": "Nutstore 저장 경로",
+          "placeholder": "Nutstore 저장 경로 입력"
+        },
+        "pathSelector": {
+          "currentPath": "현재 경로",
+          "return": "돌아가기",
+          "title": "Nutstore 저장 경로"
+        },
+        "restore": {
+          "button": "Nutstore에서 복원",
+          "confirm": {
+            "content": "Nutstore에서 복원하면 현재 데이터가 덮어씌워집니다. 계속하시겠습니까?",
+            "title": "Nutstore에서 복원"
+          }
+        },
+        "title": "Nutstore 설정",
+        "username": "Nutstore 사용자 이름"
+      },
+      "obsidian": {
+        "default_vault": "기본 Obsidian Vault",
+        "default_vault_export_failed": "내보내기 실패",
+        "default_vault_fetch_error": "Obsidian vault 가져오기 실패",
+        "default_vault_loading": "Obsidian vault 로드 중...",
+        "default_vault_no_vaults": "Obsidian vault를 찾을 수 없습니다",
+        "default_vault_placeholder": "기본 Obsidian vault를 선택하세요",
+        "title": "Obsidian 설정"
+      },
+      "s3": {
+        "accessKeyId": {
+          "label": "액세스 키 ID",
+          "placeholder": "액세스 키 ID"
+        },
+        "autoSync": {
+          "hour": "{{count}}시간마다",
+          "label": "자동 동기화",
+          "minute": "{{count}}분마다",
+          "off": "끔"
+        },
+        "backup": {
+          "button": "지금 백업",
+          "error": "S3 백업 실패: {{message}}",
+          "manager": {
+            "button": "백업 관리"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "백업 파일 이름을 입력하세요"
+            },
+            "title": "S3 백업"
+          },
+          "operation": "백업 작업",
+          "success": "S3 백업 성공"
+        },
+        "bucket": {
+          "label": "버킷",
+          "placeholder": "버킷, 예: example"
+        },
+        "endpoint": {
+          "label": "API 엔드포인트",
+          "placeholder": "https://s3.example.com"
+        },
+        "manager": {
+          "close": "닫기",
+          "columns": {
+            "actions": "작업",
+            "fileName": "파일 이름",
+            "modifiedTime": "수정된 시간",
+            "size": "파일 크기"
+          },
+          "config": {
+            "incomplete": "완전한 S3 구성을 입력하세요"
+          },
+          "delete": {
+            "confirm": {
+              "multiple": "선택한 {{count}}개의 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+              "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+              "title": "삭제 확인"
+            },
+            "error": "백업 파일 삭제 실패: {{message}}",
+            "label": "삭제",
+            "selected": "선택 항목 삭제 ({{count}})",
+            "success": {
+              "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+              "single": "백업 파일이 성공적으로 삭제됨"
+            }
+          },
+          "files": {
+            "fetch": {
+              "error": "백업 파일 목록 가져오기 실패: {{message}}"
+            }
+          },
+          "refresh": "새로고침",
+          "restore": "복원",
+          "select": {
+            "warning": "삭제할 백업 파일을 선택하세요"
+          },
+          "title": "S3 백업 파일 관리자"
+        },
+        "maxBackups": {
+          "label": "최대 백업 수",
+          "unlimited": "무제한"
+        },
+        "region": {
+          "label": "리전",
+          "placeholder": "리전, 예: us-east-1"
+        },
+        "restore": {
+          "config": {
+            "incomplete": "완전한 S3 구성을 입력하세요"
+          },
+          "confirm": {
+            "cancel": "취소",
+            "content": "데이터를 복원하면 모든 현재 데이터가 덮어씌워집니다. 이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?",
+            "ok": "복원 확인",
+            "title": "데이터 복원 확인"
+          },
+          "error": "데이터 복원 실패: {{message}}",
+          "file": {
+            "required": "복원할 백업 파일을 선택하세요"
+          },
+          "modal": {
+            "select": {
+              "placeholder": "복원할 백업 파일을 선택하세요"
+            },
+            "title": "S3 데이터 복원"
+          },
+          "success": "데이터 복원 성공"
+        },
+        "root": {
+          "label": "백업 디렉터리 (선택 사항)",
+          "placeholder": "예: /cherry-studio"
+        },
+        "secretAccessKey": {
+          "label": "비밀 액세스 키",
+          "placeholder": "비밀 액세스 키"
+        },
+        "skipBackupFile": {
+          "help": "활성화하면 백업 중 파일 데이터가 건너뛰고 구성 정보만 백업되어 백업 파일 크기가 크게 줄어듭니다",
+          "label": "경량 백업"
+        },
+        "syncStatus": {
+          "error": "동기화 오류: {{message}}",
+          "label": "동기화 상태",
+          "lastSync": "마지막 동기화: {{time}}",
+          "noSync": "동기화되지 않음"
+        },
+        "title": {
+          "help": "AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS 등 S3 호환 객체 스토리지 서비스.",
+          "label": "S3 호환 스토리지",
+          "tooltip": "S3 호환 스토리지 구성 문서"
+        }
+      },
+      "siyuan": {
+        "api_url": "Siyuan Note API URL",
+        "api_url_placeholder": "예: http://127.0.0.1:6806",
+        "box_id": "Siyuan Note 박스 ID",
+        "box_id_placeholder": "Siyuan Note 박스 ID를 입력하세요",
+        "check": {
+          "button": "확인",
+          "empty_config": "API 주소와 토큰을 입력하세요",
+          "error": "연결 오류, 네트워크 연결을 확인하세요",
+          "fail": "연결 실패, API 주소와 토큰을 확인하세요",
+          "success": "연결 성공",
+          "title": "연결 확인"
+        },
+        "root_path": "Siyuan Note 루트 경로",
+        "root_path_placeholder": "예: /CherryStudio",
+        "title": "Siyuan Note 구성",
+        "token": {
+          "help": "Siyuan Note 토큰 가져오기",
+          "label": "Siyuan Note 토큰"
+        },
+        "token_placeholder": "Siyuan Note 토큰을 입력하세요"
+      },
+      "title": "데이터 설정",
+      "webdav": {
+        "autoSync": {
+          "label": "자동 백업",
+          "off": "끔"
+        },
+        "backup": {
+          "button": "WebDAV에 백업",
+          "manager": {
+            "columns": {
+              "actions": "작업",
+              "fileName": "파일 이름",
+              "modifiedTime": "수정된 시간",
+              "size": "크기"
+            },
+            "delete": {
+              "confirm": {
+                "multiple": "{{count}}개의 선택된 백업 파일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "single": "백업 파일 \"{{fileName}}\"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+                "title": "삭제 확인"
+              },
+              "error": "삭제 실패",
+              "selected": "선택 항목 삭제",
+              "success": {
+                "multiple": "{{count}}개의 백업 파일을 성공적으로 삭제함",
+                "single": "성공적으로 삭제됨"
+              },
+              "text": "삭제"
+            },
+            "fetch": {
+              "error": "백업 파일을 가져오지 못했습니다"
+            },
+            "refresh": "새로고침",
+            "restore": {
+              "error": "복원 실패",
+              "success": "복원 성공, 애플리케이션이 곧 새로고침됩니다",
+              "text": "복원"
+            },
+            "select": {
+              "files": {
+                "delete": "삭제할 백업 파일을 선택하세요"
+              }
+            },
+            "title": "백업 데이터 관리"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "백업 파일 이름을 입력하세요"
+            },
+            "title": "WebDAV에 백업"
+          }
+        },
+        "disableStream": {
+          "help": "활성화하면 업로드 전에 파일을 메모리에 로드합니다. 청크 업로드를 지원하지 않는 일부 WebDAV 서버와의 호환성 문제를 해결할 수 있지만, 메모리 사용량이 증가합니다.",
+          "title": "스트림 업로드 비활성화"
+        },
+        "host": {
+          "label": "WebDAV 호스트",
+          "placeholder": "http://localhost:8080"
+        },
+        "hour_interval_one": "{{count}}시간",
+        "hour_interval_other": "{{count}}시간",
+        "lastSync": "마지막 백업",
+        "maxBackups": "최대 백업 수",
+        "minute_interval_one": "{{count}}분",
+        "minute_interval_other": "{{count}}분",
+        "noSync": "다음 백업 대기 중",
+        "password": "WebDAV 비밀번호",
+        "path": {
+          "label": "WebDAV 경로",
+          "placeholder": "/backup"
+        },
+        "restore": {
+          "button": "WebDAV에서 복원",
+          "confirm": {
+            "content": "WebDAV에서 복원하면 현재 데이터를 덮어씁니다. 계속하시겠습니까?",
+            "title": "복원 확인"
+          },
+          "content": "WebDAV에서 복원하면 현재 데이터를 덮어씁니다. 계속하시겠습니까?",
+          "title": "WebDAV에서 복원"
+        },
+        "syncError": "백업 오류",
+        "syncStatus": "백업 상태",
+        "title": "WebDAV",
+        "user": "WebDAV 사용자"
+      },
+      "yuque": {
+        "check": {
+          "button": "확인",
+          "empty_repo_url": "먼저 지식 베이스 URL을 입력해주세요",
+          "empty_token": "먼저 Yuque 토큰을 입력해주세요",
+          "fail": "Yuque 연결 확인 실패",
+          "success": "Yuque 연결이 성공적으로 확인되었습니다"
+        },
+        "help": "Yuque 토큰 가져오기",
+        "repo_url": "Yuque URL",
+        "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+        "title": "Yuque 구성",
+        "token": "Yuque 토큰",
+        "token_placeholder": "Yuque 토큰을 입력해주세요"
+      }
+    },
+    "developer": {
+      "enable_developer_mode": "개발자 모드 활성화",
+      "help": "개발자 모드를 활성화하면 모델 호출 중 데이터 흐름을 보기 위해 추적 기능을 사용할 수 있습니다.",
+      "title": "개발자 모드"
+    },
+    "display": {
+      "assistant": {
+        "title": "도우미 설정"
+      },
+      "custom": {
+        "css": {
+          "cherrycss": "cherrycss.com에서 가져오기",
+          "label": "사용자 정의 CSS",
+          "placeholder": "/* 여기에 사용자 정의 CSS를 입력하세요 */"
+        }
+      },
+      "font": {
+        "code": "코드 글꼴",
+        "default": "기본값",
+        "global": "전역 글꼴",
+        "select": "글꼴 선택",
+        "title": "글꼴 설정"
+      },
+      "navbar": {
+        "position": {
+          "label": "탐색 모음 위치",
+          "left": "왼쪽",
+          "top": "위쪽"
+        },
+        "title": "탐색 모음 설정"
+      },
+      "sidebar": {
+        "chat": {
+          "hiddenMessage": "도우미는 기본 기능이며 숨기기가 지원되지 않습니다"
+        },
+        "disabled": "아이콘 숨기기",
+        "empty": "왼쪽에서 숨길 기능을 여기로 드래그하세요",
+        "files": {
+          "icon": "파일 아이콘 표시"
+        },
+        "knowledge": {
+          "icon": "지식 아이콘 표시"
+        },
+        "minapp": {
+          "icon": "미니 앱 아이콘 표시"
+        },
+        "painting": {
+          "icon": "그리기 아이콘 표시"
+        },
+        "title": "사이드바 설정",
+        "translate": {
+          "icon": "번역 아이콘 표시"
+        },
+        "visible": "아이콘 표시"
+      },
+      "title": "표시 설정",
+      "topic": {
+        "title": "토픽 설정"
+      },
+      "zoom": {
+        "title": "확대/축소 설정"
+      }
+    },
+    "font_size": {
+      "title": "메시지 글꼴 크기"
+    },
+    "general": {
+      "auto_check_update": {
+        "title": "자동 업데이트"
+      },
+      "avatar": {
+        "builtin": "내장 아바타",
+        "reset": "아바타 재설정"
+      },
+      "backup": {
+        "button": "백업",
+        "title": "데이터 백업 및 복구"
+      },
+      "display": {
+        "title": "표시 설정"
+      },
+      "emoji_picker": "이모지 선택기",
+      "image_upload": "이미지 업로드",
+      "label": "일반 설정",
+      "reset": {
+        "button": "재설정",
+        "title": "데이터 재설정"
+      },
+      "restore": {
+        "button": "복원"
+      },
+      "spell_check": {
+        "label": "맞춤법 검사",
+        "languages": "맞춤법 검사 사용 언어"
+      },
+      "test_plan": {
+        "beta_version": "베타 버전 (Beta)",
+        "beta_version_tooltip": "기능이 언제든지 변경될 수 있으며, 버그가 많고 빠르게 업그레이드됩니다",
+        "rc_version": "미리보기 버전 (RC)",
+        "rc_version_tooltip": "안정 버전에 가까우며 기능이 기본적으로 안정적이고 버그가 적습니다",
+        "title": "테스트 플랜",
+        "tooltip": "테스트 플랜에 참여하여 최신 기능을 더 빨리 체험할 수 있지만 더 많은 위험이 따르므로 미리 데이터를 백업하세요",
+        "version_channel_not_match": "미리보기 및 테스트 버전 전환은 다음 안정 버전이 릴리스된 후 적용됩니다",
+        "version_options": "버전 옵션"
+      },
+      "title": "일반 설정",
+      "user_name": {
+        "label": "사용자 이름",
+        "placeholder": "이름을 입력하세요"
+      },
+      "view_webdav_settings": "WebDAV 설정 보기"
+    },
+    "groq": {
+      "title": "Groq 설정"
+    },
+    "hardware_acceleration": {
+      "confirm": {
+        "content": "하드웨어 가속을 비활성화하려면 앱을 다시 시작해야 적용됩니다. 지금 다시 시작하시겠습니까?",
+        "title": "다시 시작 필요"
+      },
+      "title": "하드웨어 가속 비활성화"
+    },
+    "input": {
+      "auto_translate_with_space": "스페이스 3번으로 빠른 번역",
+      "clear": {
+        "all": "모두 지우기",
+        "knowledge_base": "선택된 지식 베이스 지우기",
+        "models": "모든 모델 지우기"
+      },
+      "show_translate_confirm": "번역 확인 대화 상자 표시",
+      "target_language": {
+        "chinese": "간체 중국어",
+        "chinese-traditional": "번체 중국어",
+        "english": "영어",
+        "japanese": "일본어",
+        "label": "대상 언어",
+        "russian": "러시아어"
+      }
+    },
+    "launch": {
+      "onboot": "부팅 시 자동 시작",
+      "title": "시작",
+      "totray": "시작 시 트레이로 최소화"
+    },
+    "math": {
+      "engine": {
+        "label": "수학 엔진",
+        "none": "없음"
+      },
+      "single_dollar": {
+        "label": "$...$ 사용",
+        "tip": "단일 달러 기호 $...$로 인용된 수학 식을 렌더링합니다. 기본적으로 활성화되어 있습니다."
+      },
+      "title": "수학 설정"
+    },
+    "mcp": {
+      "actions": "동작",
+      "active": "활성",
+      "addError": "서버 추가 실패",
+      "addServer": {
+        "create": "빠른 생성",
+        "importFrom": {
+          "connectionFailed": "연결 실패",
+          "dxt": "DXT 패키지 가져오기",
+          "dxtFile": "DXT 패키지 파일",
+          "dxtHelp": "MCP 서버 패키지가 포함된 .dxt 파일을 선택하세요",
+          "dxtProcessFailed": "DXT 파일 처리 실패",
+          "error": {
+            "multipleServers": "여러 서버에서 가져올 수 없습니다"
+          },
+          "invalid": "잘못된 입력입니다. JSON 형식을 확인하세요",
+          "json": "JSON에서 가져오기",
+          "method": "가져오기 방법",
+          "nameExists": "서버가 이미 존재합니다: {{name}}",
+          "noDxtFile": "DXT 파일을 선택하세요",
+          "oneServer": "한 번에 하나의 MCP 서버 구성만",
+          "placeholder": "MCP 서버 JSON 구성을 붙여넣으세요",
+          "selectDxtFile": "DXT 파일 선택",
+          "tooltip": "MCP 서버 소개 페이지에서 구성 JSON(NPX 또는 UVX 구성 우선)을 복사하여 입력 상자에 붙여넣으세요."
+        },
+        "label": "서버 추가"
+      },
+      "addSuccess": "서버가 성공적으로 추가되었습니다",
+      "advancedSettings": "고급 설정",
+      "args": "인수",
+      "argsTooltip": "각 인수를 새 줄에 입력",
+      "baseUrlTooltip": "원격 서버 기본 URL",
+      "builtinServers": "내장 서버",
+      "builtinServersDescriptions": {
+        "brave_search": "Brave Search API를 통합하는 MCP 서버 구현으로, 웹 및 로컬 검색 기능을 모두 제공합니다. BRAVE_API_KEY 환경 변수 구성이 필요합니다",
+        "browser": "Chrome DevTools 프로토콜을 통해 헤드리스 Electron 창을 제어합니다. 도구: URL 열기, 단일 행 JS 실행, 세션 재설정",
+        "didi_mcp": "지도 검색, 가격 예상, 주문 관리 및 드라이버 추적 등 승차 공유 서비스를 제공하는 DiDi MCP 서버입니다. 중국 본토에서만 사용 가능합니다. DIDI_API_KEY 환경 변수 구성이 필요합니다",
+        "dify_knowledge": "Dify와 상호작용하기 위한 간단한 API를 제공하는 Dify의 MCP 서버 구현입니다. Dify Key 구성이 필요합니다",
+        "fetch": "URL 웹 콘텐츠를 검색하는 MCP 서버",
+        "filesystem": "파일 시스템 작업을 위해 모델 컨텍스트 프로토콜(MCP)을 구현하는 Node.js 서버입니다. 액세스가 허용된 디렉터리 구성이 필요합니다",
+        "mcp_auto_install": "MCP 서비스 자동 설치 (베타)",
+        "memory": "로컬 지식 그래프를 기반으로 하는 영구 메모리 구현입니다. 이를 통해 모델이 다른 대화에서 사용자 관련 정보를 기억할 수 있습니다. MEMORY_FILE_PATH 환경 변수 구성이 필요합니다",
+        "no": "설명 없음",
+        "nowledge_mem": "로컬에서 실행 중인 Nowledge Mem 앱이 필요합니다. 컴퓨터의 개인 메모리에 AI 채팅, 도구, 메모, 에이전트 및 파일을 보관합니다. https://mem.nowledge.co/에서 다운로드하세요",
+        "python": "보안 샌드박스 환경에서 Python 코드를 실행합니다. Pyodide로 Python을 실행하여 대부분의 표준 라이브러리와 과학 컴퓨팅 패키지를 지원합니다",
+        "sequentialthinking": "구조화된 생각 과정을 통해 동적이고 반영적인 문제 해결을 위한 도구를 제공하는 MCP 서버 구현"
+      },
+      "command": "명령",
+      "config_description": "모델 컨텍스트 프로토콜 서버 구성",
+      "customRegistryPlaceholder": "개인 레지스트리 URL을 입력하세요 (예: https://npm.company.com)",
+      "deleteError": "서버 삭제 실패",
+      "deleteServer": "서버 삭제",
+      "deleteServerConfirm": "이 서버를 삭제하시겠습니까?",
+      "deleteSuccess": "서버가 성공적으로 삭제되었습니다",
+      "dependenciesInstall": "종속성 설치",
+      "dependenciesInstalling": "종속성 설치 중...",
+      "description": "설명",
+      "disable": {
+        "description": "MCP 서버 기능을 활성화하지 않음",
+        "label": "MCP 서버 비활성화"
+      },
+      "discover": "검색",
+      "duplicateName": "이 이름을 가진 서버가 이미 존재합니다",
+      "editJson": "JSON 편집",
+      "editMcpJson": "MCP 구성 편집",
+      "editServer": "서버 편집",
+      "env": "환경 변수",
+      "envTooltip": "형식: KEY=value, 한 줄에 하나씩",
+      "errors": {
+        "32000": "MCP 서버 시작 실패, 튜토리얼에 따라 매개변수를 확인하세요",
+        "toolNotFound": "도구 {{name}}을(를) 찾을 수 없습니다"
+      },
+      "fetch": {
+        "button": "서버 가져오기",
+        "success": "MCP 서버를 성공적으로 가져왔습니다"
+      },
+      "findMore": "더 많은 MCP 찾기",
+      "headers": "헤더",
+      "headersTooltip": "HTTP 요청에 대한 사용자 정의 헤더",
+      "inMemory": "메모리",
+      "install": "설치",
+      "installError": "종속성 설치 실패",
+      "installHelp": "설치 도움말 보기",
+      "installSuccess": "종속성이 성공적으로 설치됨",
+      "jsonFormatError": "JSON 형식 오류",
+      "jsonModeHint": "MCP 서버 구성의 JSON 표현을 편집합니다. 저장하기 전에 형식이 올바른지 확인하세요.",
+      "jsonSaveError": "JSON 구성 저장 실패",
+      "jsonSaveSuccess": "JSON 구성이 저장되었습니다",
+      "logoUrl": "로고 URL",
+      "logs": "로그",
+      "longRunning": "장기 실행 모드",
+      "longRunningTooltip": "활성화하면 서버가 장기 실행 작업을 지원합니다. 진행 알림을 받으면 시간 초과가 재설정되고 최대 실행 시간이 10분으로 연장됩니다",
+      "marketplaces": "마켓플레이스",
+      "missingDependencies": "이(가) 누락되었습니다. 계속하려면 설치하세요",
+      "more": {
+        "awesome": "큐레이팅된 MCP 서버 목록",
+        "composio": "Composio MCP 개발 도구",
+        "glama": "Glama MCP 서버 디렉터리",
+        "higress": "Higress MCP 서버",
+        "mcpso": "MCP 서버 검색 플랫폼",
+        "modelscope": "ModelScope 커뮤니티 MCP 서버",
+        "official": "공식 MCP 서버 컬렉션",
+        "pulsemcp": "Pulse MCP 서버",
+        "smithery": "Smithery MCP 도구",
+        "zhipu": "큐레이팅된 MCP, 빠른 통합"
+      },
+      "name": "이름",
+      "newServer": "MCP 서버",
+      "noDescriptionAvailable": "사용 가능한 설명 없음",
+      "noLogs": "아직 로그가 없습니다",
+      "noServers": "구성된 서버가 없습니다",
+      "not_support": "지원되지 않는 모델",
+      "npx_list": {
+        "actions": "동작",
+        "description": "설명",
+        "no_packages": "패키지를 찾을 수 없습니다",
+        "npm": "NPM",
+        "package_name": "패키지 이름",
+        "scope_placeholder": "npm 범위 입력 (예: @your-org)",
+        "scope_required": "npm 범위를 입력하세요",
+        "search": "검색",
+        "search_error": "검색 오류",
+        "usage": "사용량",
+        "version": "버전"
+      },
+      "oauth": {
+        "callback": {
+          "message": "이 페이지를 닫고 Cherry Studio로 돌아갈 수 있습니다",
+          "title": "인증 성공"
+        }
+      },
+      "prompts": {
+        "arguments": "인수",
+        "availablePrompts": "사용 가능한 프롬프트",
+        "genericError": "프롬프트 오류",
+        "loadError": "프롬프트 가져오기 오류",
+        "noPromptsAvailable": "사용 가능한 프롬프트 없음",
+        "requiredField": "필수 필드"
+      },
+      "protocolInstallWarning": {
+        "command": "시작 명령",
+        "message": "이 MCP는 프로토콜을 통해 외부 소스에서 설치되었습니다. 알 수 없는 도구를 실행하면 컴퓨터가 손상될 수 있습니다.",
+        "run": "실행",
+        "title": "외부 MCP를 실행하시겠습니까?"
+      },
+      "provider": "공급자",
+      "providerPlaceholder": "공급자 이름",
+      "providerUrl": "공급자 URL",
+      "providers": "공급자",
+      "registry": "패키지 레지스트리",
+      "registryDefault": "기본값",
+      "registryTooltip": "기본 레지스트리의 네트워크 문제를 해결하기 위해 패키지 설치에 사용할 레지스트리를 선택하세요",
+      "requiresConfig": "구성 필요",
+      "resources": {
+        "availableResources": "사용 가능한 리소스",
+        "blob": "Blob",
+        "blobInvisible": "Blob 표시 안 함",
+        "genericError": "리소스 가져오기 오류",
+        "mimeType": "MIME 유형",
+        "noResourcesAvailable": "사용 가능한 리소스 없음",
+        "size": "크기",
+        "text": "텍스트",
+        "uri": "URI"
+      },
+      "search": {
+        "placeholder": "MCP 서버 검색...",
+        "tooltip": "MCP 서버 검색"
+      },
+      "searchNpx": "MCP 검색",
+      "serverPlural": "서버",
+      "serverSingular": "서버",
+      "servers": "MCP 서버",
+      "sse": "서버 전송 이벤트(sse)",
+      "startError": "시작 실패",
+      "stdio": "표준 입출력(stdio)",
+      "streamableHttp": "스트리밍 가능한 HTTP(streamableHttp)",
+      "sync": {
+        "button": "동기화",
+        "discoverMcpServers": "MCP 서버 검색",
+        "discoverMcpServersDescription": "사용 가능한 MCP 서버를 검색하려면 플랫폼을 방문하세요",
+        "error": "MCP 서버 동기화 오류",
+        "getToken": "API 토큰 가져오기",
+        "getTokenDescription": "계정에서 개인 API 토큰을 검색하세요",
+        "noServersAvailable": "사용 가능한 MCP 서버 없음",
+        "selectProvider": "공급자 선택:",
+        "setToken": "토큰 입력",
+        "success": "MCP 서버 동기화 성공",
+        "title": "서버 동기화",
+        "tokenPlaceholder": "여기에 API 토큰 입력",
+        "tokenRequired": "API 토큰이 필요합니다",
+        "unauthorized": "동기화 승인되지 않음"
+      },
+      "system": "시스템",
+      "tabs": {
+        "description": "설명",
+        "general": "일반",
+        "prompts": "프롬프트",
+        "resources": "리소스",
+        "tools": "도구"
+      },
+      "tags": "태그",
+      "tagsPlaceholder": "태그 입력",
+      "timeout": "시간 초과",
+      "timeoutTooltip": "이 서버에 대한 요청의 시간 초과(초)입니다. 기본값은 60초입니다",
+      "title": "MCP 서버",
+      "tools": {
+        "autoApprove": {
+          "label": "자동 승인",
+          "tooltip": {
+            "confirm": "이 MCP 도구를 실행하시겠습니까?",
+            "disabled": "도구 실행 전 수동 승인이 필요합니다",
+            "enabled": "확인 없이 도구가 자동으로 실행됩니다",
+            "howToEnable": "자동 승인을 사용하려면 먼저 도구를 활성화하세요"
+          }
+        },
+        "availableTools": "사용 가능한 도구",
+        "enable": "도구 활성화",
+        "inputSchema": {
+          "enum": {
+            "allowedValues": "허용되는 값"
+          },
+          "label": "입력 스키마"
+        },
+        "loadError": "도구 가져오기 오류",
+        "noToolsAvailable": "사용 가능한 도구 없음",
+        "run": "실행"
+      },
+      "type": "유형",
+      "types": {
+        "inMemory": "메모리 내",
+        "sse": "SSE",
+        "stdio": "STDIO",
+        "streamableHttp": "스트리밍 가능한 HTTP"
+      },
+      "updateError": "서버 업데이트 실패",
+      "updateSuccess": "서버가 성공적으로 업데이트되었습니다",
+      "url": "URL",
+      "user": "사용자"
+    },
+    "messages": {
+      "divider": {
+        "label": "메시지 사이에 구분선 표시",
+        "tooltip": "버블 스타일 메시지에는 적용되지 않습니다"
+      },
+      "grid_columns": "메시지 그리드 표시 열",
+      "grid_popover_trigger": {
+        "click": "클릭하여 표시",
+        "hover": "마우스 오버로 표시",
+        "label": "그리드 세부정보 트리거"
+      },
+      "input": {
+        "confirm_delete_message": "메시지 삭제 전 확인",
+        "confirm_regenerate_message": "메시지 재생성 전 확인",
+        "enable_quick_triggers": "/ 및 @ 트리거 활성화",
+        "paste_long_text_as_file": "긴 텍스트를 파일로 붙여넣기",
+        "paste_long_text_threshold": "긴 텍스트 길이 붙여넣기",
+        "send_shortcuts": "전송 단축키",
+        "show_estimated_tokens": "예상 토큰 표시",
+        "title": "입력 설정"
+      },
+      "markdown_rendering_input_message": "마크다운 렌더링 입력 메시지",
+      "metrics": "{{time_first_token_millsec}}ms 첫 번째 토큰까지 | {{token_speed}} 토큰/초",
+      "model": {
+        "title": "모델 설정"
+      },
+      "navigation": {
+        "anchor": "메시지 앵커",
+        "buttons": "탐색 버튼",
+        "label": "탐색 모음",
+        "none": "없음"
+      },
+      "prompt": "프롬프트 표시",
+      "show_message_outline": "메시지 개요 표시",
+      "title": "메시지 설정",
+      "use_serif_font": "세리프 글꼴 사용"
+    },
+    "mineru": {
+      "api_key": "Mineru는 이제 일일 500페이지의 무료 할당량을 제공하며 키를 입력할 필요가 없습니다."
+    },
+    "miniapps": {
+      "cache_change_notice": "열린 미니 앱 수가 설정된 값에 도달하면 변경 사항이 적용됩니다",
+      "cache_description": "메모리에 유지할 활성 미니 앱의 최대 수를 설정합니다",
+      "cache_settings": "캐시 설정",
+      "cache_title": "미니 앱 캐시 제한",
+      "custom": {
+        "conflicting_ids": "기본 앱과 충돌하는 ID: {{ids}}",
+        "duplicate_ids": "중복된 ID 발견: {{ids}}",
+        "edit_description": "여기서 사용자 정의 미니 앱 구성을 편집합니다. 각 앱에는 id, name, url, logo 필드가 포함되어야 합니다.",
+        "edit_title": "사용자 정의 미니 앱 편집",
+        "id": "ID",
+        "id_error": "ID가 필요합니다.",
+        "id_placeholder": "ID 입력",
+        "logo": "로고",
+        "logo_file": "로고 파일 업로드",
+        "logo_upload_button": "업로드",
+        "logo_upload_error": "로고 업로드 실패.",
+        "logo_upload_label": "로고 업로드",
+        "logo_upload_success": "로고가 성공적으로 업로드되었습니다.",
+        "logo_url": "로고 URL",
+        "logo_url_label": "로고 URL",
+        "logo_url_placeholder": "로고 URL 입력",
+        "name": "이름",
+        "name_error": "이름이 필요합니다.",
+        "name_placeholder": "이름 입력",
+        "placeholder": "사용자 정의 미니 앱 구성 입력(JSON 형식)",
+        "remove_error": "사용자 정의 미니 앱 제거 실패.",
+        "remove_success": "사용자 정의 미니 앱이 성공적으로 제거되었습니다.",
+        "save": "저장",
+        "save_error": "사용자 정의 미니 앱 저장 실패.",
+        "save_success": "사용자 정의 미니 앱이 성공적으로 저장되었습니다.",
+        "title": "사용자 정의",
+        "url": "URL",
+        "url_error": "URL이 필요합니다.",
+        "url_placeholder": "URL 입력"
+      },
+      "disabled": "숨겨진 미니 앱",
+      "display_title": "미니 앱 표시 설정",
+      "empty": "왼쪽에서 미니 앱을 드래그하여 숨기세요",
+      "open_link_external": {
+        "title": "브라우저에서 새 창 링크 열기"
+      },
+      "reset_tooltip": "기본값으로 재설정",
+      "sidebar_description": "사이드바에 활성 미니 앱 표시",
+      "sidebar_title": "사이드바 활성 미니 앱 표시",
+      "title": "미니 앱 설정",
+      "visible": "표시되는 미니 앱"
+    },
+    "model": "기본 모델",
+    "models": {
+      "add": {
+        "add_model": "모델 추가",
+        "batch_add_models": "모델 일괄 추가",
+        "endpoint_type": {
+          "label": "엔드포인트 유형",
+          "placeholder": "엔드포인트 유형 선택",
+          "required": "엔드포인트 유형을 선택하세요",
+          "tooltip": "API 엔드포인트 유형 형식 선택"
+        },
+        "group_name": {
+          "label": "그룹 이름",
+          "placeholder": "선택 사항 (예: ChatGPT)",
+          "tooltip": "선택 사항 (예: ChatGPT)"
+        },
+        "model_id": {
+          "label": "모델 ID",
+          "placeholder": "필수 (예: gpt-3.5-turbo)",
+          "select": {
+            "placeholder": "모델 선택"
+          },
+          "tooltip": "예: gpt-3.5-turbo"
+        },
+        "model_name": {
+          "label": "모델 이름",
+          "placeholder": "선택 사항 (예: GPT-4)",
+          "tooltip": "선택 사항 (예: GPT-4)"
+        },
+        "supported_text_delta": {
+          "label": "증분 텍스트 출력 지원",
+          "tooltip": "모델이 텍스트를 한 번에 모두 반환하는 대신 증분으로 반환합니다. 기본적으로 활성화되어 있으며, 모델이 지원하지 않는 경우 이 옵션을 비활성화하세요"
+        }
+      },
+      "api_key": "API 키",
+      "base_url": "기본 URL",
+      "check": {
+        "all": "모두",
+        "all_models_passed": "모든 모델 확인 통과",
+        "button_caption": "상태 확인",
+        "disabled": "비활성화됨",
+        "disclaimer": "상태 확인에는 요청 전송이 필요하므로 주의해서 사용하세요. 요청별로 요금을 청구하는 모델은 추가 비용이 발생할 수 있으므로 책임지세요.",
+        "enable_concurrent": "동시",
+        "enabled": "활성화됨",
+        "failed": "실패",
+        "keys_status_count": "통과: {{count_passed}}개 키, 실패: {{count_failed}}개 키",
+        "model_status_failed": "{{count}}개 모델에 완전히 액세스할 수 없습니다",
+        "model_status_partial": "{{count}}개 모델에 액세스할 수 없는 키가 있습니다",
+        "model_status_passed": "{{count}}개 모델이 상태 확인을 통과했습니다",
+        "model_status_summary": "{{provider}}: {{summary}}",
+        "no_api_keys": "API 키를 찾을 수 없습니다. 먼저 API 키를 추가하세요.",
+        "no_results": "결과 없음",
+        "passed": "통과",
+        "select_api_key": "사용할 API 키를 선택하세요:",
+        "single": "단일",
+        "start": "시작",
+        "timeout": "시간 초과",
+        "title": "모델 상태 확인",
+        "use_all_keys": "키"
+      },
+      "default_assistant_model": "기본 도우미 모델",
+      "default_assistant_model_description": "새 도우미를 만들 때 사용되는 모델입니다. 도우미가 설정되지 않은 경우 이 모델이 사용됩니다",
+      "empty": "모델을 찾을 수 없습니다",
+      "manage": {
+        "add_listed": {
+          "confirm": "모든 모델을 목록에 추가하시겠습니까?",
+          "label": "모델을 목록에 추가"
+        },
+        "add_whole_group": "전체 그룹 추가",
+        "refetch_list": "모델 목록 새로고침",
+        "remove_listed": "목록에서 모델 제거",
+        "remove_model": "모델 제거",
+        "remove_whole_group": "전체 그룹 제거"
+      },
+      "provider_id": "공급자 ID",
+      "provider_key_add_confirm": "{{provider}}의 API 키를 추가하시겠습니까?",
+      "provider_key_add_failed_by_empty_data": "공급자 API 키 추가 실패, 데이터가 비어있습니다",
+      "provider_key_add_failed_by_invalid_data": "공급자 API 키 추가 실패, 데이터 형식 오류",
+      "provider_key_added": "{{provider}}의 API 키가 성공적으로 추가되었습니다",
+      "provider_key_already_exists": "{{provider}}에 이미 API 키가 있습니다({{existingKey}}). 다시 추가하지 마세요.",
+      "provider_key_confirm_title": "공급자 API 키 추가",
+      "provider_key_no_change": "{{provider}}의 API 키가 변경되지 않았습니다",
+      "provider_key_overridden": "{{provider}}의 API 키가 성공적으로 업데이트되었습니다",
+      "provider_key_override_confirm": "{{provider}}에 이미 API 키가 있습니다({{existingKey}}). 새 키({{newKey}})로 덮어쓰시겠습니까?",
+      "provider_name": "공급자 이름",
+      "quick_assistant_default_tag": "기본값",
+      "quick_assistant_model": "빠른 도우미 모델",
+      "quick_assistant_selection": "도우미 선택",
+      "quick_model": {
+        "description": "토픽 이름 지정 및 키워드 추출과 같은 간단한 작업에 사용되는 모델",
+        "label": "빠른 모델",
+        "setting_title": "빠른 모델 설정",
+        "tooltip": "가벼운 모델을 선택하는 것이 좋으며 생각 모델은 선택하지 않는 것이 좋습니다."
+      },
+      "topic_naming": {
+        "auto": "토픽 자동 이름 지정",
+        "label": "토픽 이름 지정",
+        "prompt": "토픽 이름 지정 프롬프트"
+      },
+      "translate_model": "번역 모델",
+      "translate_model_description": "번역 서비스에 사용되는 모델",
+      "translate_model_prompt_message": "번역 모델 프롬프트를 입력하세요",
+      "translate_model_prompt_title": "번역 모델 프롬프트",
+      "use_assistant": "도우미 사용",
+      "use_model": "기본 모델"
+    },
+    "moresetting": {
+      "check": {
+        "confirm": "선택 확인",
+        "warn": "이 옵션을 선택할 때는 주의하세요. 잘못된 선택으로 인해 모델이 오작동할 수 있습니다!"
+      },
+      "label": "추가 설정",
+      "warn": "위험 경고"
+    },
+    "no_provider_selected": "공급자가 선택되지 않았습니다",
+    "notification": {
+      "assistant": "도우미 메시지",
+      "backup": "백업 메시지",
+      "knowledge_embed": "지식 베이스 메시지",
+      "title": "알림 설정"
+    },
+    "openai": {
+      "service_tier": {
+        "auto": "자동",
+        "default": "기본값",
+        "flex": "유연",
+        "on_demand": "요청 시",
+        "priority": "우선 순위",
+        "tip": "요청 처리에 사용할 대기 시간 계층을 지정합니다",
+        "title": "서비스 계층"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "토큰 사용량 포함 여부(OpenAI 채팅 완성 API에만 적용)",
+          "title": "사용량 포함"
+        }
+      },
+      "summary_text_mode": {
+        "auto": "자동",
+        "concise": "간결",
+        "detailed": "상세",
+        "off": "끄기",
+        "tip": "모델이 수행한 추론 요약",
+        "title": "요약 모드"
+      },
+      "title": "OpenAI 설정",
+      "verbosity": {
+        "high": "높음",
+        "low": "낮음",
+        "medium": "중간",
+        "tip": "모델 출력의 세부 수준을 제어합니다",
+        "title": "상세 수준"
+      }
+    },
+    "privacy": {
+      "enable_privacy_mode": "오류 및 통계 익명 보고",
+      "title": "개인정보 보호 설정"
+    },
+    "provider": {
+      "add": {
+        "name": {
+          "label": "공급자 이름",
+          "placeholder": "예: OpenAI"
+        },
+        "title": "공급자 추가",
+        "type": "공급자 유형"
+      },
+      "anthropic": {
+        "apikey": "API 키",
+        "auth_failed": "Anthropic 인증 실패",
+        "auth_method": "인증 방법",
+        "auth_success": "Anthropic OAuth 인증 성공",
+        "authenticated": "확인됨",
+        "authenticating": "인증 중",
+        "cancel": "취소",
+        "code_error": "잘못된 인증 코드입니다. 다시 시도하세요",
+        "code_placeholder": "브라우저에 표시된 인증 코드를 입력하세요",
+        "code_required": "인증 코드는 비워둘 수 없습니다",
+        "description": "OAuth 인증",
+        "description_detail": "이 인증 방법을 사용하려면 Claude Pro 이상 버전을 구독해야 합니다",
+        "enter_auth_code": "인증 코드",
+        "logout": "로그아웃",
+        "logout_failed": "로그아웃 실패, 다시 시도하세요",
+        "logout_success": "Anthropic에서 성공적으로 로그아웃했습니다",
+        "oauth": "웹 OAuth",
+        "start_auth": "인증 시작",
+        "submit_code": "로그인 완료"
+      },
+      "anthropic_api_host": "Anthropic API 호스트",
+      "anthropic_api_host_preview": "Anthropic 미리보기: {{url}}",
+      "anthropic_api_host_tooltip": "공급자가 Claude 호환 기본 URL을 제공하는 경우에만 사용하세요.",
+      "api": {
+        "key": {
+          "check": {
+            "latency": "대기 시간"
+          },
+          "error": {
+            "duplicate": "API 키가 이미 존재합니다",
+            "empty": "API 키는 비워둘 수 없습니다"
+          },
+          "list": {
+            "open": "관리 인터페이스 열기",
+            "title": "API 키 관리"
+          },
+          "new_key": {
+            "placeholder": "하나 이상의 키 입력"
+          }
+        },
+        "options": {
+          "array_content": {
+            "help": "공급자가 메시지의 콘텐츠 필드가 배열 유형인 것을 지원합니까?",
+            "label": "배열 형식 메시지 콘텐츠 지원"
+          },
+          "developer_role": {
+            "help": "공급자가 role: \"developer\"가 있는 메시지를 지원합니까?",
+            "label": "개발자 메시지 지원"
+          },
+          "enable_thinking": {
+            "help": "공급자가 enable_thinking 매개변수를 통해 Qwen3와 같은 모델의 추론을 제어하는 것을 지원합니까?",
+            "label": "enable_thinking 지원"
+          },
+          "label": "API 설정",
+          "service_tier": {
+            "help": "공급자가 service_tier 매개변수 구성을 지원합니까? 활성화하면 채팅 페이지의 서비스 계층 설정에서 이 매개변수를 조정할 수 있습니다(OpenAI 모델만 해당)",
+            "label": "service_tier 지원"
+          },
+          "stream_options": {
+            "help": "공급자가 stream_options 매개변수를 지원합니까?",
+            "label": "stream_options 지원"
+          },
+          "verbosity": {
+            "help": "공급자가 verbosity 매개변수를 지원합니까?",
+            "label": "verbosity 지원"
+          }
+        },
+        "url": {
+          "preview": "미리보기: {{url}}",
+          "reset": "재설정",
+          "tip": "끝에 #을 추가하여 자동으로 추가되는 API 버전을 비활성화합니다."
+        }
+      },
+      "api_host": "API 호스트",
+      "api_host_no_valid": "API 주소가 잘못되었습니다",
+      "api_host_preview": "미리보기: {{url}}",
+      "api_host_tooltip": "공급자가 사용자 정의 OpenAI 호환 엔드포인트를 요구하는 경우에만 재정의하세요.",
+      "api_key": {
+        "label": "API 키",
+        "tip": "쉼표를 사용하여 여러 키 구분"
+      },
+      "api_version": "API 버전",
+      "aws-bedrock": {
+        "access_key_id": "AWS 액세스 키 ID",
+        "access_key_id_help": "AWS Bedrock 서비스에 액세스하기 위한 AWS 액세스 키 ID",
+        "api_key": "Bedrock API 키",
+        "api_key_help": "인증을 위한 AWS Bedrock API 키",
+        "auth_type": "인증 유형",
+        "auth_type_api_key": "Bedrock API 키",
+        "auth_type_help": "IAM 자격 증명 또는 Bedrock API 키 인증 중 선택",
+        "auth_type_iam": "IAM 자격 증명",
+        "description": "AWS Bedrock은 다양한 고급 대규모 언어 모델을 지원하는 Amazon의 완전 관리형 기본 모델 서비스입니다",
+        "region": "AWS 리전",
+        "region_help": "AWS 서비스 리전 (예: us-east-1)",
+        "secret_access_key": "AWS 비밀 액세스 키",
+        "secret_access_key_help": "AWS 비밀 액세스 키, 보안을 유지하세요",
+        "title": "AWS Bedrock 구성"
+      },
+      "azure": {
+        "apiversion": {
+          "tip": "Azure OpenAI의 API 버전입니다. Response API를 사용하려면 v1 버전을 입력하세요"
+        }
+      },
+      "basic_auth": {
+        "label": "HTTP 인증",
+        "password": {
+          "label": "비밀번호",
+          "tip": "비밀번호 입력"
+        },
+        "tip": "원격으로 배포된 인스턴스에 적용됩니다(문서 참조). 현재 Basic 체계(RFC 7617)만 지원됩니다.",
+        "user_name": {
+          "label": "사용자 이름",
+          "tip": "비워두면 비활성화"
+        }
+      },
+      "bills": "요금 청구서",
+      "charge": "잔액 충전",
+      "check": "확인",
+      "check_all_keys": "모든 키 확인",
+      "check_multiple_keys": "여러 API 키 확인",
+      "copilot": {
+        "auth_failed": "Github Copilot 인증 실패.",
+        "auth_success": "GitHub Copilot 인증 성공.",
+        "auth_success_title": "인증 성공.",
+        "code_copied": "인증 코드가 클립보드에 자동으로 복사되었습니다",
+        "code_failed": "장치 코드를 가져오지 못했습니다. 다시 시도하세요.",
+        "code_generated_desc": "아래 브라우저 링크에 장치 코드를 복사하세요.",
+        "code_generated_title": "장치 코드 가져오기",
+        "connect": "Github에 연결",
+        "custom_headers": "사용자 정의 요청 헤더",
+        "description": "GitHub 계정이 Copilot을 구독해야 합니다.",
+        "description_detail": "GitHub Copilot은 유효한 GitHub Copilot 구독이 필요한 AI 기반 코드 도우미입니다",
+        "expand": "확장",
+        "headers_description": "사용자 정의 요청 헤더(JSON 형식)",
+        "invalid_json": "JSON 형식 오류",
+        "login": "Github에 로그인",
+        "logout": "GitHub에서 나가기",
+        "logout_failed": "나가기 실패, 다시 시도하세요.",
+        "logout_success": "성공적으로 로그아웃했습니다.",
+        "model_setting": "모델 설정",
+        "open_verification_first": "위 링크를 클릭하여 확인 페이지에 접속하세요.",
+        "open_verification_page": "인증 페이지 열기",
+        "rate_limit": "속도 제한",
+        "start_auth": "인증 시작",
+        "step_authorize": "인증 페이지 열기",
+        "step_authorize_desc": "GitHub에서 인증 완료",
+        "step_authorize_detail": "아래 버튼을 클릭하여 GitHub 인증 페이지를 연 다음 복사한 인증 코드를 입력하세요",
+        "step_connect": "연결 완료",
+        "step_connect_desc": "GitHub 연결 확인",
+        "step_connect_detail": "GitHub 페이지에서 인증을 완료한 후 이 버튼을 클릭하여 연결을 완료하세요",
+        "step_copy_code": "인증 코드 복사",
+        "step_copy_code_desc": "장치 인증 코드 복사",
+        "step_copy_code_detail": "인증 코드가 자동으로 복사되었으며 수동으로 복사할 수도 있습니다",
+        "step_get_code": "인증 코드 가져오기",
+        "step_get_code_desc": "장치 인증 코드 생성"
+      },
+      "delete": {
+        "content": "이 공급자를 삭제하시겠습니까?",
+        "title": "공급자 삭제"
+      },
+      "dmxapi": {
+        "select_platform": "플랫폼 선택"
+      },
+      "docs_check": "확인",
+      "docs_more_details": "자세한 내용은",
+      "get_api_key": "API 키 가져오기",
+      "misc": "기타",
+      "no_models_for_check": "확인 가능한 모델이 없습니다(예: 채팅 모델)",
+      "not_checked": "확인되지 않음",
+      "notes": {
+        "markdown_editor_default_value": "미리보기 영역",
+        "placeholder": "마크다운 콘텐츠 입력...",
+        "title": "모델 메모"
+      },
+      "oauth": {
+        "button": "{{provider}}(으)로 로그인",
+        "description": "이 서비스는 <website>{{provider}}</website>에서 제공됩니다",
+        "error": "인증 실패",
+        "official_website": "공식 웹사이트"
+      },
+      "openai": {
+        "alert": "OpenAI 공급자는 더 이상 이전 호출 방법을 지원하지 않습니다. 타사 API를 사용하는 경우 새 서비스 공급자를 만드세요."
+      },
+      "remove_duplicate_keys": "중복 키 제거",
+      "remove_invalid_keys": "잘못된 키 제거",
+      "search": "공급자 검색...",
+      "search_placeholder": "모델 ID 또는 이름 검색",
+      "title": "모델 공급자",
+      "vertex_ai": {
+        "api_host_help": "Vertex AI의 API 호스트입니다. 채우지 않는 것이 권장되며 일반적으로 역방향 프록시에 적용됩니다",
+        "documentation": "더 많은 구성 세부정보는 공식 문서를 확인하세요:",
+        "learn_more": "자세히 알아보기",
+        "location": "위치",
+        "location_help": "Vertex AI 서비스 위치(예: us-central1)",
+        "project_id": "프로젝트 ID",
+        "project_id_help": "Google Cloud 프로젝트 ID",
+        "project_id_placeholder": "your-google-cloud-project-id",
+        "service_account": {
+          "auth_success": "서비스 계정이 성공적으로 인증되었습니다",
+          "client_email": "클라이언트 이메일",
+          "client_email_help": "Google Cloud 콘솔에서 다운로드한 JSON 키 파일의 client_email 필드",
+          "client_email_placeholder": "서비스 계정 클라이언트 이메일 입력",
+          "description": "ADC를 사용할 수 없는 환경에서 인증을 위해 서비스 계정을 사용합니다",
+          "incomplete_config": "먼저 서비스 계정 구성을 완료하세요",
+          "private_key": "비공개 키",
+          "private_key_help": "Google Cloud 콘솔에서 다운로드한 JSON 키 파일의 private_key 필드",
+          "private_key_placeholder": "서비스 계정 비공개 키 입력",
+          "title": "서비스 계정 구성"
+        }
+      }
+    },
+    "proxy": {
+      "address": "프록시 주소",
+      "bypass": "우회 규칙",
+      "mode": {
+        "custom": "사용자 정의 프록시",
+        "none": "프록시 없음",
+        "system": "시스템 프록시",
+        "title": "프록시 모드"
+      },
+      "tip": "와일드카드 일치 지원(*.test.com, 192.168.0.0/16)"
+    },
+    "quickAssistant": {
+      "click_tray_to_show": "트레이 아이콘을 클릭하여 시작",
+      "enable_quick_assistant": "빠른 도우미 활성화",
+      "read_clipboard_at_startup": "시작 시 클립보드 읽기",
+      "title": "빠른 도우미",
+      "use_shortcut_to_show": "트레이 아이콘을 마우스 오른쪽 버튼으로 클릭하거나 단축키를 사용하여 시작"
+    },
+    "quickPanel": {
+      "back": "뒤로",
+      "close": "닫기",
+      "confirm": "확인",
+      "forward": "앞으로",
+      "multiple": "다중 선택",
+      "noResult": "결과를 찾을 수 없습니다",
+      "page": "페이지",
+      "select": "선택",
+      "title": "빠른 메뉴"
+    },
+    "quickPhrase": {
+      "add": "구문 추가",
+      "assistant": "도우미 구문",
+      "contentLabel": "콘텐츠",
+      "contentPlaceholder": "구문 콘텐츠를 입력하고 변수 사용을 지원하며 Tab을 눌러 수정할 변수를 빠르게 찾으세요. 예:\n${from}에서 ${to}(으)로 가는 경로를 계획하고 ${email}(으)로 보내주세요.",
+      "delete": "구문 삭제",
+      "deleteConfirm": "구문은 삭제 후 복구할 수 없습니다. 계속하시겠습니까?",
+      "edit": "구문 편집",
+      "global": "전역 구문",
+      "locationLabel": "위치 추가",
+      "title": "빠른 구문",
+      "titleLabel": "제목",
+      "titlePlaceholder": "구문 제목 입력"
+    },
+    "shortcuts": {
+      "action": "동작",
+      "actions": "작업",
+      "clear_shortcut": "단축키 지우기",
+      "clear_topic": "메시지 지우기",
+      "copy_last_message": "마지막 메시지 복사",
+      "edit_last_user_message": "마지막 사용자 메시지 편집",
+      "enabled": "활성화",
+      "exit_fullscreen": "전체 화면 종료",
+      "label": "키",
+      "mini_window": "빠른 도우미",
+      "new_topic": "새 토픽",
+      "press_shortcut": "단축키 누르기",
+      "rename_topic": "토픽 이름 바꾸기",
+      "reset_defaults": "기본값 재설정",
+      "reset_defaults_confirm": "모든 단축키를 재설정하시겠습니까?",
+      "reset_to_default": "기본값으로 재설정",
+      "search_message": "메시지 검색",
+      "search_message_in_chat": "현재 채팅에서 메시지 검색",
+      "selection_assistant_select_text": "선택 도우미: 텍스트 선택",
+      "selection_assistant_toggle": "선택 도우미 전환",
+      "show_app": "앱 표시/숨기기",
+      "show_settings": "설정 열기",
+      "title": "키보드 단축키",
+      "toggle_new_context": "컨텍스트 지우기",
+      "toggle_show_assistants": "도우미 전환",
+      "toggle_show_topics": "토픽 전환",
+      "zoom_in": "확대",
+      "zoom_out": "축소",
+      "zoom_reset": "확대/축소 재설정"
+    },
+    "theme": {
+      "color_primary": "기본 색상",
+      "dark": "다크",
+      "light": "라이트",
+      "system": "시스템",
+      "title": "테마",
+      "window": {
+        "style": {
+          "opaque": "불투명 창",
+          "title": "창 스타일",
+          "transparent": "투명 창"
+        }
+      }
+    },
+    "title": "설정",
+    "tool": {
+      "ocr": {
+        "common": {
+          "langs": "지원되는 언어"
+        },
+        "error": {
+          "not_system": "시스템 OCR은 Windows와 MacOS만 지원합니다"
+        },
+        "image": {
+          "error": {
+            "provider_not_found": "공급자가 존재하지 않습니다"
+          },
+          "system": {
+            "no_need_configure": "MacOS는 구성이 필요하지 않습니다"
+          },
+          "title": "이미지"
+        },
+        "image_provider": "OCR 서비스 공급자",
+        "paddleocr": {
+          "aistudio_access_token": "AI Studio 커뮤니티의 액세스 토큰",
+          "aistudio_url_label": "AI Studio 커뮤니티",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR 서빙 문서",
+          "tip": "공식 PaddleOCR 문서를 참조하여 로컬 서비스를 배포하거나 PaddlePaddle AI Studio 커뮤니티에 클라우드 서비스를 배포할 수 있습니다. 후자의 경우 AI Studio 커뮤니티의 액세스 토큰을 제공하세요."
+        },
+        "system": {
+          "win": {
+            "langs_tooltip": "Windows가 서비스를 제공하므로 관련 언어를 지원하려면 시스템에서 언어 팩을 다운로드해야 합니다."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "문서를 읽어 사용자 지정 언어 지원 여부를 확인하세요"
+        },
+        "title": "OCR 서비스"
+      },
+      "preprocess": {
+        "provider": "문서 처리 공급자",
+        "provider_placeholder": "문서 처리 공급자 선택",
+        "title": "문서 처리",
+        "tooltip": "설정 -> 도구에서 문서 처리 서비스 공급자를 설정하세요. 문서 처리는 복잡한 형식의 문서와 스캔된 문서의 검색 성능을 효과적으로 개선할 수 있습니다."
+      },
+      "title": "기타 설정",
+      "websearch": {
+        "api_key_required": {
+          "content": "{{provider}} 작동을 위해 API 키가 필요합니다. 지금 구성하시겠습니까?",
+          "ok": "구성",
+          "title": "API 키 필요"
+        },
+        "api_providers": "API 공급자",
+        "apikey": "API 키",
+        "blacklist": "블랙리스트",
+        "blacklist_description": "다음 웹사이트의 검색 결과는 검색 결과에 표시되지 않습니다",
+        "blacklist_tooltip": "다음 형식을 사용하세요 (줄바꿈으로 구분)\n패턴 일치: *://*.example.com/*\n정규식: /example\\.(net|org)/",
+        "check": "확인",
+        "check_failed": "검증 실패",
+        "check_success": "검증 성공",
+        "compression": {
+          "cutoff": {
+            "limit": {
+              "label": "자르기 제한",
+              "placeholder": "길이 입력",
+              "tooltip": "검색 결과의 콘텐츠 길이를 제한합니다. 제한을 초과하는 콘텐츠는 잘립니다(예: 2000자)"
+            },
+            "unit": {
+              "char": "문자",
+              "token": "토큰"
+            }
+          },
+          "error": {
+            "rag_failed": "RAG 실패"
+          },
+          "info": {
+            "dimensions_auto_success": "차원을 자동으로 성공적으로 가져왔습니다. 차원: {{dimensions}}"
+          },
+          "method": {
+            "cutoff": "자르기",
+            "label": "압축 방법",
+            "none": "없음",
+            "rag": "RAG"
+          },
+          "rag": {
+            "document_count": {
+              "label": "문서 청크 수",
+              "tooltip": "각 검색 결과에서 추출할 예상 문서 청크 수입니다. 실제 추출된 문서 청크의 총 수는 이 값에 검색 결과 수를 곱한 값입니다."
+            }
+          },
+          "title": "검색 결과 압축"
+        },
+        "content_limit": "콘텐츠 길이 제한",
+        "content_limit_tooltip": "검색 결과의 콘텐츠 길이를 제한합니다. 제한을 초과하는 콘텐츠는 잘립니다.",
+        "default_provider": "기본 공급자",
+        "free": "무료",
+        "is_default": "기본값",
+        "local_provider": {
+          "hint": "더 나은 검색 결과를 얻고 검색 설정을 개인화하려면 웹사이트에 로그인하세요.",
+          "open_settings": "{{provider}} 설정 열기",
+          "settings": "로컬 검색 설정"
+        },
+        "local_providers": "로컬 공급자",
+        "no_provider_selected": "확인하기 전에 검색 서비스 공급자를 선택하세요.",
+        "overwrite": "검색 서비스 재정의",
+        "overwrite_tooltip": "LLM 대신 검색 서비스를 강제로 사용합니다",
+        "search_max_result": {
+          "label": "검색 결과 수",
+          "tooltip": "검색 결과 압축이 비활성화되면 결과 수가 너무 많아져 토큰이 부족할 수 있습니다"
+        },
+        "search_provider": "검색 서비스 공급자",
+        "search_provider_placeholder": "검색 서비스 공급자를 선택하세요.",
+        "search_with_time": "날짜 포함 검색",
+        "set_as_default": "기본값으로 설정",
+        "subscribe": "블랙리스트 구독",
+        "subscribe_add": "구독 추가",
+        "subscribe_add_failed": "피드 원본 추가 실패",
+        "subscribe_add_success": "구독 피드가 성공적으로 추가되었습니다!",
+        "subscribe_delete": "삭제",
+        "subscribe_name": {
+          "label": "대체 이름",
+          "placeholder": "다운로드한 구독 피드에 이름이 없을 때 사용되는 대체 이름입니다."
+        },
+        "subscribe_update": "업데이트",
+        "subscribe_update_failed": "구독 원본 업데이트 실패",
+        "subscribe_update_success": "구독 원본이 성공적으로 업데이트되었습니다",
+        "subscribe_url": "구독 URL",
+        "tavily": {
+          "api_key": {
+            "label": "Tavily API 키",
+            "placeholder": "Tavily API 키 입력"
+          },
+          "description": "Tavily는 AI 에이전트를 위해 맞춤화된 검색 엔진으로, 실시간 정확한 결과, 지능형 쿼리 제안, 심층 연구 기능을 제공합니다.",
+          "title": "Tavily"
+        },
+        "title": "웹 검색",
+        "url_invalid": "잘못된 URL을 입력했습니다",
+        "url_required": "URL을 입력하세요"
+      }
+    },
+    "topic": {
+      "pin_to_top": "토픽을 상단에 고정",
+      "position": {
+        "label": "토픽 위치",
+        "left": "왼쪽",
+        "right": "오른쪽"
+      },
+      "show": {
+        "time": "토픽 시간 표시"
+      }
+    },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "정말 삭제하시겠습니까?",
+          "title": "사용자 지정 언어 삭제"
+        },
+        "error": {
+          "add": "추가 실패",
+          "delete": "삭제 실패",
+          "langCode": {
+            "builtin": "이 언어는 내장 지원입니다",
+            "empty": "언어 코드가 비어 있습니다",
+            "exists": "이 언어가 이미 존재합니다",
+            "invalid": "잘못된 언어 코드"
+          },
+          "update": "업데이트 실패",
+          "value": {
+            "empty": "언어 이름은 비어 있을 수 없습니다",
+            "too_long": "언어 이름이 너무 깁니다"
+          }
+        },
+        "langCode": {
+          "help": "[언어+지역] 형식, [2-3개 소문자]-[2-3개 소문자]",
+          "label": "언어 코드",
+          "placeholder": "en-us"
+        },
+        "success": {
+          "add": "성공적으로 추가됨",
+          "delete": "성공적으로 삭제됨",
+          "update": "업데이트 성공"
+        },
+        "table": {
+          "action": {
+            "title": "작업"
+          }
+        },
+        "value": {
+          "help": "1~32자",
+          "label": "언어 이름",
+          "placeholder": "영어"
+        }
+      },
+      "prompt": "번역 프롬프트",
+      "title": "번역 설정"
+    },
+    "tray": {
+      "onclose": "닫을 때 트레이로 최소화",
+      "show": "트레이 아이콘 표시",
+      "title": "트레이"
+    },
+    "zoom": {
+      "reset": "재설정",
+      "title": "페이지 확대/축소"
+    }
+  },
+  "title": {
+    "apps": "앱",
+    "code": "코드",
+    "files": "파일",
+    "home": "홈",
+    "knowledge": "지식 베이스",
+    "launchpad": "런치패드",
+    "mcp-servers": "MCP 서버",
+    "memories": "기억",
+    "notes": "메모",
+    "paintings": "그림",
+    "settings": "설정",
+    "store": "어시스턴트 라이브러리",
+    "translate": "번역"
+  },
+  "trace": {
+    "backList": "목록으로 돌아가기",
+    "edasSupport": "Alibaba Cloud EDAS 기반",
+    "endTime": "종료 시간",
+    "inputs": "입력",
+    "label": "호출 체인",
+    "name": "노드 이름",
+    "noTraceList": "추적 정보를 찾을 수 없습니다",
+    "outputs": "출력",
+    "parentId": "상위 ID",
+    "spanDetail": "범위 세부정보",
+    "spendTime": "소요 시간",
+    "startTime": "시작 시간",
+    "tag": "태그",
+    "tokenUsage": "토큰 사용량",
+    "traceWindow": "호출 체인 창"
+  },
+  "translate": {
+    "alter_language": "대체 언어",
+    "any": {
+      "language": "모든 언어"
+    },
+    "button": {
+      "translate": "번역"
+    },
+    "close": "닫기",
+    "closed": "번역이 닫혔습니다",
+    "complete": "번역 완료",
+    "confirm": {
+      "content": "번역이 원본 텍스트를 대체합니다. 계속하시겠습니까?",
+      "title": "번역 확인"
+    },
+    "copied": "번역 콘텐츠가 복사되었습니다",
+    "custom": {
+      "label": "사용자 지정 언어"
+    },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "알고리즘",
+          "tip": "franc 라이브러리를 사용하여 언어 감지"
+        },
+        "auto": {
+          "label": "자동",
+          "tip": "적절한 감지 방법을 자동으로 선택"
+        },
+        "label": "자동 감지 방법",
+        "llm": {
+          "tip": "빠른 모델을 사용하여 언어 감지를 수행하면 더 적은 토큰을 소비합니다."
+        },
+        "placeholder": "자동 감지 방법 선택",
+        "tip": "입력 언어를 자동으로 감지할 때 사용하는 방법"
+      }
+    },
+    "detected": {
+      "language": "자동 감지"
+    },
+    "empty": "번역 콘텐츠가 비어 있습니다",
+    "error": {
+      "chat_qwen_mt": "Qwen MT 모델은 채팅에서 사용할 수 없습니다. 번역 페이지로 이동하세요.",
+      "detect": {
+        "qwen_mt": "QwenMT 모델은 언어 감지에 사용할 수 없습니다",
+        "unknown": "알 수 없는 언어가 감지되었습니다",
+        "update_setting": "설정 실패"
+      },
+      "empty": "번역 결과가 비어 있는 콘텐츠입니다",
+      "failed": "번역 실패",
+      "invalid_source": "잘못된 원본 언어",
+      "not_configured": "번역 모델이 구성되지 않았습니다",
+      "not_supported": "지원되지 않는 언어 {{language}}",
+      "unknown": "번역 중 알 수 없는 오류가 발생했습니다"
+    },
+    "exchange": {
+      "label": "원본 언어와 대상 언어 바꾸기"
+    },
+    "files": {
+      "drag_text": "여기에 놓으세요",
+      "error": {
+        "check_type": "파일 유형을 확인하는 중 오류가 발생했습니다",
+        "multiple": "여러 파일 업로드는 허용되지 않습니다",
+        "too_large": "파일이 너무 큽니다",
+        "unknown": "파일 콘텐츠 읽기 실패"
+      },
+      "reading": "파일 콘텐츠 읽는 중..."
+    },
+    "history": {
+      "clear": "기록 지우기",
+      "clear_description": "기록을 지우면 모든 번역 기록이 삭제됩니다. 계속하시겠습니까?",
+      "delete": "번역 기록 삭제",
+      "empty": "번역 기록이 없습니다",
+      "error": {
+        "delete": "삭제 실패",
+        "save": "번역 기록 저장 실패"
+      },
+      "search": {
+        "placeholder": "번역 기록 검색"
+      },
+      "title": "번역 기록"
+    },
+    "info": {
+      "aborted": "번역이 중단되었습니다"
+    },
+    "input": {
+      "placeholder": "텍스트, 텍스트 파일 또는 이미지(OCR 지원)를 붙여넣거나 끌어다 놓을 수 있습니다"
+    },
+    "language": {
+      "not_pair": "원본 언어가 설정된 언어와 다릅니다",
+      "same": "원본 언어와 대상 언어가 같습니다"
+    },
+    "menu": {
+      "description": "현재 입력란의 콘텐츠 번역"
+    },
+    "not": {
+      "found": "번역 콘텐츠를 찾을 수 없습니다"
+    },
+    "output": {
+      "placeholder": "번역"
+    },
+    "processing": "번역 진행 중...",
+    "settings": {
+      "autoCopy": "번역 후 복사",
+      "bidirectional": "양방향 번역 설정",
+      "bidirectional_tip": "활성화하면 원본 언어와 대상 언어 간의 양방향 번역만 지원됩니다",
+      "model": "모델 설정",
+      "model_desc": "번역 서비스에 사용되는 모델",
+      "model_placeholder": "번역 모델 선택",
+      "no_model_warning": "선택된 번역 모델이 없습니다",
+      "preview": "미리보기",
+      "scroll_sync": "스크롤 동기화 설정",
+      "title": "번역 설정"
+    },
+    "success": {
+      "custom": {
+        "delete": "성공적으로 삭제됨",
+        "update": "업데이트 성공"
+      }
+    },
+    "target_language": "대상 언어",
+    "title": "번역",
+    "tooltip": {
+      "newline": "줄바꿈"
+    }
+  },
+  "tray": {
+    "quit": "종료",
+    "show_mini_window": "빠른 도우미",
+    "show_window": "창 표시"
+  },
+  "update": {
+    "install": "설치",
+    "later": "나중에",
+    "message": "새 버전 {{version}}이(가) 준비되었습니다. 지금 설치하시겠습니까?",
+    "noReleaseNotes": "릴리스 노트 없음",
+    "saveDataError": "데이터 저장 실패, 다시 시도해 주세요.",
+    "title": "업데이트"
+  },
+  "warning": {
+    "missing_provider": "공급자가 존재하지 않습니다. 기본 공급자 {{provider}}(으)로 되돌림. 문제가 발생할 수 있습니다."
+  },
+  "words": {
+    "knowledgeGraph": "지식 그래프",
+    "quit": "종료",
+    "show_window": "창 표시",
+    "visualization": "시각화"
+  }
+}
