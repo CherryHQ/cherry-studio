@@ -245,7 +245,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   },
   // Fallback to medium
   {
-    validator: () => true,
+    validator: isGPT5FamilyModel,
     values: ['medium']
   }
 ]
