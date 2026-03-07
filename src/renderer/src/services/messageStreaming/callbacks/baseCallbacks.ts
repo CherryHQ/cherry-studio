@@ -158,8 +158,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      // Clean up any pending tool permission requests from this stream
-      dispatch(toolPermissionsActions.clearAll())
+      // Clean up pending/submitting tool permission requests from this stream.
+      // Preserve 'invoking' entries as they may belong to concurrent streams.
+      dispatch(toolPermissionsActions.clearPending())
 
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)

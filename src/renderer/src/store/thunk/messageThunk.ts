@@ -421,7 +421,10 @@ const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>(
 const blockUpdateRafs = new LRUCache<string, number>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (rafId) => {
+    cancelAnimationFrame(rafId)
+  }
 })
 
 /**

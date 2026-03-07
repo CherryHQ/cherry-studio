@@ -110,6 +110,13 @@ const toolPermissionsSlice = createSlice({
     clearAll: (state) => {
       state.requests = {}
       state.resolvedInputs = {}
+    },
+    clearPending: (state) => {
+      for (const [key, entry] of Object.entries(state.requests)) {
+        if (entry.status === 'pending' || entry.status === 'submitting-allow' || entry.status === 'submitting-deny') {
+          delete state.requests[key]
+        }
+      }
     }
   }
 })
