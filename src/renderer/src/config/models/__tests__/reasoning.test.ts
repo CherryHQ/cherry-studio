@@ -673,7 +673,36 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
   })
 
-  describe('GPT-5 series models', () => {
+  describe('GPT-5.2 series models', () => {
+    it('should return gpt5_2 for GPT-5.2 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-preview' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for GPT-5.2 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro-preview' }))).toBe('gpt52pro')
+    })
+  })
+
+  describe('GPT-5.x future sub-version fallback', () => {
+    it('should return gpt5_2 for future GPT-5.x models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-mini' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for future GPT-5.x Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro-preview' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9-pro' }))).toBe('gpt52pro')
+    })
+  })
+
+  describe('GPT-5 base series models', () => {
     it('should return gpt5_codex for GPT-5 codex models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex' }))).toBe('gpt5_codex')
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex-mini' }))).toBe('gpt5_codex')

@@ -9,12 +9,11 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
+  isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT51CodexMaxModel,
   isGPT51SeriesModel,
-  isGPT52ProModel,
-  isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
@@ -40,6 +39,13 @@ export const REASONING_REGEX =
 // TODO: refactor this. too many identical options
 export const MODEL_SUPPORTED_REASONING_EFFORT = {
   default: ['low', 'medium', 'high'] as const,
+  // Constrains effort on reasoning for reasoning models. Currently supported values are (none, minimal, low, medium, high, and xhigh).
+  // Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.
+  // • (gpt-5.1) defaults to none, which does not perform reasoning.
+  //   The supported reasoning values for (gpt-5.1) are (none, low, medium, and high). Tool calls are supported for all reasoning values in (gpt-5.1).
+  // • All models before (gpt-5.1) default to medium reasoning effort, and do not support (none).
+  // • The (gpt-5-pro) model defaults to (and only supports) (high reasoning effort).
+  // • xhigh is supported for all models after (gpt-5.1-codex-max).
   o: ['low', 'medium', 'high'] as const,
   openai_deep_research: ['medium'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
@@ -55,6 +61,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   grok4_fast: ['auto'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
   gemini2_pro: ['low', 'medium', 'high', 'auto'] as const,
+  // Also Gemini 3.1 Flash(-lite)
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
@@ -114,27 +121,30 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
-  } else if (isGPT51SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_1_codex'
-      if (isGPT51CodexMaxModel(model)) {
-        thinkingModelType = 'gpt5_1_codex_max'
+  } else if (isGPT5FamilyModel(model)) {
+    if (isGPT51SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_1_codex'
+        if (isGPT51CodexMaxModel(model)) {
+          thinkingModelType = 'gpt5_1_codex_max'
+        }
+      } else {
+        thinkingModelType = 'gpt5_1'
+      }
+    } else if (isGPT5SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_codex'
+      } else {
+        thinkingModelType = 'gpt5'
+        if (isGPT5ProModel(model)) {
+          thinkingModelType = 'gpt5pro'
+        }
       }
     } else {
-      thinkingModelType = 'gpt5_1'
-    }
-  } else if (isGPT52SeriesModel(model)) {
-    thinkingModelType = 'gpt5_2'
-    if (isGPT52ProModel(model)) {
-      thinkingModelType = 'gpt52pro'
-    }
-  } else if (isGPT5SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_codex'
-    } else {
-      thinkingModelType = 'gpt5'
-      if (isGPT5ProModel(model)) {
-        thinkingModelType = 'gpt5pro'
+      // Fallback for GPT-5.x sub-versions (5.2, 5.3, 5.4, ...)
+      thinkingModelType = 'gpt5_2'
+      if (modelId.includes('-pro')) {
+        thinkingModelType = 'gpt52pro'
       }
     }
   } else if (isOpenAIOpenWeightModel(model)) {
