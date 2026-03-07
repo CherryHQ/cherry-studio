@@ -49,6 +49,25 @@ describe('Moonshot Web Search', () => {
     console.log('Result tools:', JSON.stringify(result.tools, null, 2))
   })
 
+  it('should return arguments unchanged in moonshot builtin execute fallback', async () => {
+    const plugin = webSearchPlugin({ moonshot: true })
+    const params = {
+      model: 'kimi-k2-0711-preview',
+      messages: [{ role: 'user', content: 'Search for something' }]
+    }
+    const context = { providerId: 'moonshot' }
+    const result = await plugin.transformParams!(params, context as any)
+
+    const execute = (result.tools as any).$web_search.execute
+    const argumentsPayload = {
+      search_result: { search_id: 'search_123' },
+      usage: { total_tokens: 42 }
+    }
+    const executeResult = await execute(argumentsPayload)
+
+    expect(executeResult).toEqual(argumentsPayload)
+  })
+
   it('should handle tools as empty array', async () => {
     const plugin = webSearchPlugin({ moonshot: true })
 

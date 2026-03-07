@@ -48,7 +48,8 @@ describe('BuiltinToolStreamManager', () => {
       expect(result[0]).toMatchObject({
         id: 'call_123',
         name: '$web_search',
-        arguments: {}
+        arguments: {},
+        rawArguments: '{}'
       })
     })
 
@@ -71,6 +72,28 @@ describe('BuiltinToolStreamManager', () => {
         id: 'call_456',
         name: '$web_search',
         arguments: { query: 'test' }
+      })
+    })
+
+    it('should handle invalid JSON arguments without throwing', () => {
+      const manager = new BuiltinToolStreamManager()
+      const chunk = {
+        toolCalls: [
+          {
+            id: 'call_invalid',
+            function: { name: '$web_search', arguments: '{"search_result":' }
+          }
+        ]
+      }
+
+      const result = manager.extractToolCallsFromChunk(chunk)
+
+      expect(result).toHaveLength(1)
+      expect(result[0]).toMatchObject({
+        id: 'call_invalid',
+        name: '$web_search',
+        arguments: '{"search_result":',
+        rawArguments: '{"search_result":'
       })
     })
 
@@ -126,7 +149,8 @@ describe('BuiltinToolStreamManager', () => {
         toolCalls: [
           {
             id: 'call_789',
-            function: { name: '$web_search', arguments: '{}' }
+            type: 'builtin_function',
+            function: { name: '$web_search', arguments: '{"search_result":{"search_id":"search_123"}}' }
           }
         ]
       }
@@ -143,10 +167,10 @@ describe('BuiltinToolStreamManager', () => {
         tool_calls: [
           {
             id: 'call_789',
-            type: 'function',
+            type: 'builtin_function',
             function: {
               name: '$web_search',
-              arguments: '{}'
+              arguments: '{"search_result":{"search_id":"search_123"}}'
             }
           }
         ]
@@ -157,7 +181,7 @@ describe('BuiltinToolStreamManager', () => {
         role: 'tool',
         tool_call_id: 'call_789',
         name: '$web_search',
-        content: JSON.stringify({ status: 'completed' })
+        content: '{"search_result":{"search_id":"search_123"}}'
       })
     })
 

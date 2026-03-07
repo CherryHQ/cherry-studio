@@ -152,4 +152,85 @@ describe('normalizeMoonshotBuiltinSearchTool', () => {
       function: { name: '$web_search' }
     })
   })
+
+  it('fills role=tool name from assistant tool_calls for moonshot payload', () => {
+    const request: ChatCompletionCreateParams = {
+      ...createBaseRequest(),
+      messages: [
+        ...createBaseRequest().messages,
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 't-web-search-1',
+              type: 'builtin_function',
+              function: {
+                name: '$web_search',
+                arguments: '{"search_result":{"search_id":"search_123"}}'
+              }
+            }
+          ]
+        } as any,
+        {
+          role: 'tool',
+          tool_call_id: 't-web-search-1',
+          content: '{"search_result":{"search_id":"search_123"}}'
+        } as any
+      ]
+    }
+    const provider = createProvider('moonshot')
+
+    const normalized = normalizeMoonshotBuiltinSearchTool(request, provider)
+    const toolMessage = normalized.messages.find((message: any) => message.role === 'tool') as any
+
+    expect(toolMessage).toMatchObject({
+      role: 'tool',
+      tool_call_id: 't-web-search-1',
+      name: '$web_search',
+      content: '{"search_result":{"search_id":"search_123"}}'
+    })
+  })
+
+  it('normalizes assistant tool_call type to builtin_function for moonshot payload', () => {
+    const request: ChatCompletionCreateParams = {
+      ...createBaseRequest(),
+      messages: [
+        ...createBaseRequest().messages,
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 't-web-search-2',
+              type: 'function',
+              function: {
+                name: '$web_search',
+                arguments: '{"search_result":{"search_id":"search_234"}}'
+              }
+            }
+          ]
+        } as any,
+        {
+          role: 'tool',
+          tool_call_id: 't-web-search-2',
+          name: '$web_search',
+          content: '{"search_result":{"search_id":"search_234"}}'
+        } as any
+      ]
+    }
+    const provider = createProvider('moonshot')
+
+    const normalized = normalizeMoonshotBuiltinSearchTool(request, provider)
+    const assistantMessage = normalized.messages.find((message: any) => message.role === 'assistant') as any
+
+    expect(assistantMessage.tool_calls[0]).toMatchObject({
+      id: 't-web-search-2',
+      type: 'builtin_function',
+      function: {
+        name: '$web_search',
+        arguments: '{"search_result":{"search_id":"search_234"}}'
+      }
+    })
+  })
 })

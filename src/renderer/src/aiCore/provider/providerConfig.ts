@@ -487,6 +487,92 @@ function isMoonshotBuiltinWebSearchTool(tool: unknown): boolean {
   return candidate.type === 'builtin_function' && candidate.function?.name === '$web_search'
 }
 
+function normalizeMoonshotMessages(messages: unknown[]): { messages: unknown[]; hasChanges: boolean } {
+  const toolCallNameById = new Map<string, string>()
+
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') {
+      continue
+    }
+
+    const candidate = message as { tool_calls?: unknown }
+    if (!Array.isArray(candidate.tool_calls)) {
+      continue
+    }
+
+    for (const toolCall of candidate.tool_calls) {
+      if (!toolCall || typeof toolCall !== 'object') {
+        continue
+      }
+      const parsedToolCall = toolCall as { id?: unknown; function?: { name?: unknown } }
+      if (typeof parsedToolCall.id === 'string' && typeof parsedToolCall.function?.name === 'string') {
+        toolCallNameById.set(parsedToolCall.id, parsedToolCall.function.name)
+      }
+    }
+  }
+
+  let hasChanges = false
+  const normalizedMessages = messages.map((message) => {
+    if (!message || typeof message !== 'object') {
+      return message
+    }
+
+    const candidate = message as {
+      role?: unknown
+      tool_calls?: unknown
+      name?: unknown
+      tool_call_id?: unknown
+    }
+
+    if (candidate.role === 'assistant' && Array.isArray(candidate.tool_calls)) {
+      let assistantHasChanges = false
+      const normalizedToolCalls = candidate.tool_calls.map((toolCall) => {
+        if (!toolCall || typeof toolCall !== 'object') {
+          return toolCall
+        }
+
+        const parsedToolCall = toolCall as {
+          type?: unknown
+          function?: { name?: unknown }
+        }
+
+        if (parsedToolCall.function?.name === '$web_search' && parsedToolCall.type !== 'builtin_function') {
+          assistantHasChanges = true
+          return {
+            ...parsedToolCall,
+            type: 'builtin_function'
+          }
+        }
+
+        return toolCall
+      })
+
+      if (assistantHasChanges) {
+        hasChanges = true
+        return {
+          ...candidate,
+          tool_calls: normalizedToolCalls
+        }
+      }
+    }
+
+    if (candidate.role === 'tool' && typeof candidate.name !== 'string' && typeof candidate.tool_call_id === 'string') {
+      const toolName = toolCallNameById.get(candidate.tool_call_id)
+      if (toolName) {
+        hasChanges = true
+        return {
+          ...candidate,
+          name: toolName
+        }
+      }
+    }
+
+    return message
+  })
+
+  return { messages: normalizedMessages, hasChanges }
+}
+
 function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof fetch {
   const baseFetch = originalFetch ?? fetch
   return async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -494,13 +580,23 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
     if (options?.body && typeof options.body === 'string') {
       try {
         const body = JSON.parse(options.body)
+        let hasChanges = false
 
         // Only apply to chat-completions style payloads.
         if (Array.isArray(body.messages) && body.tool_choice !== 'none') {
+          const normalizedMessages = normalizeMoonshotMessages(body.messages)
+          if (normalizedMessages.hasChanges) {
+            body.messages = normalizedMessages.messages
+            hasChanges = true
+          }
+
           const currentTools = Array.isArray(body.tools) ? [...body.tools] : []
           const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
           if (!hasBuiltinWebSearch) {
             body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL]
+            hasChanges = true
+          }
+          if (hasChanges) {
             options = {
               ...options,
               body: JSON.stringify(body)
