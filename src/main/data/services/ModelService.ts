@@ -91,7 +91,8 @@ export class ModelService {
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability) {
       const cap = query.capability
-      models = models.filter((m) => m.capabilities.includes(cap as ModelCapability))
+      const capNum = Number(cap) as ModelCapability
+      models = models.filter((m) => m.capabilities.includes(capNum))
     }
 
     return models
@@ -159,10 +160,10 @@ export class ModelService {
         name: merged.name,
         description: merged.description ?? null,
         group: merged.group ?? null,
-        capabilities: merged.capabilities as string[],
-        inputModalities: (merged.inputModalities as string[]) ?? null,
-        outputModalities: (merged.outputModalities as string[]) ?? null,
-        endpointTypes: (merged.endpointTypes as string[]) ?? null,
+        capabilities: merged.capabilities,
+        inputModalities: merged.inputModalities ?? null,
+        outputModalities: merged.outputModalities ?? null,
+        endpointTypes: merged.endpointTypes ?? null,
         contextWindow: merged.contextWindow ?? null,
         maxOutputTokens: merged.maxOutputTokens ?? null,
         supportsStreaming: merged.supportsStreaming,

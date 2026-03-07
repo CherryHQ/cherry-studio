@@ -11,13 +11,8 @@ import type {
   ProtoProviderModelOverride,
   ProtoReasoning
 } from '@cherrystudio/provider-catalog'
-import type {
-  EndpointType,
-  Modality,
-  ModelCapability,
-  ReasoningEffort as ReasoningEffortType
-} from '@cherrystudio/provider-catalog'
-import { ReasoningEffort } from '@cherrystudio/provider-catalog'
+import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-catalog'
+import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-catalog'
 import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
@@ -76,7 +71,7 @@ const UserProviderRowSchema = z.object({
   presetProviderId: z.string().nullish(),
   name: z.string(),
   baseUrls: z.record(z.string(), z.string()).nullish(),
-  defaultChatEndpoint: z.string().nullish(),
+  defaultChatEndpoint: z.nativeEnum(EndpointType).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
   apiCompatibility: ApiCompatibilitySchema.nullish(),

@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
 import type { Model as LegacyModel, Provider as LegacyProvider, ProviderType as LegacyProviderType } from '@types'
 import { describe, expect, it } from 'vitest'
 

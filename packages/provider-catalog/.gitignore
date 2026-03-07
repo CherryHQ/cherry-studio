@@ -7,8 +7,8 @@
 dist/
 *.tsbuildinfo
 
-# Generated protobuf TypeScript
-src/gen/
+# Generated protobuf TypeScript (committed for CI — regenerate with `pnpm proto:generate`)
+# src/gen/
 
 # Node modules
 node_modules/

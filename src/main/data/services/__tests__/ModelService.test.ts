@@ -32,6 +32,8 @@ vi.mock('@shared/data/utils/modelMerger', () => ({
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
+import type { ProviderModelOverride } from '@cherrystudio/provider-catalog'
+import { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-catalog'
 import { dbService } from '@main/data/db/DbService'
 import { ErrorCode } from '@shared/data/api'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
@@ -54,7 +56,7 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
     name: 'GPT-4o',
     description: null,
     group: null,
-    capabilities: ['FUNCTION_CALL'] as string[],
+    capabilities: [ModelCapability.FUNCTION_CALL] as ModelCapability[],
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,
@@ -83,7 +85,7 @@ function makePresetModel(overrides: Record<string, unknown> = {}) {
     id: 'gpt-4o',
     name: 'GPT-4o',
     metadata: {},
-    capabilities: ['FUNCTION_CALL'],
+    capabilities: [ModelCapability.FUNCTION_CALL],
     contextWindow: 128_000,
     ...overrides
   }
@@ -100,7 +102,7 @@ function makeMergedModel(providerId = 'openai', modelId = 'gpt-4o') {
     name: 'GPT-4o',
     description: undefined,
     group: undefined,
-    capabilities: ['FUNCTION_CALL'],
+    capabilities: [ModelCapability.FUNCTION_CALL],
     inputModalities: undefined,
     outputModalities: undefined,
     contextWindow: 128_000,
@@ -261,14 +263,17 @@ describe('ModelService', () => {
 
     it('post-filters by capability after SQL query', async () => {
       const rows = [
-        makeDbRow({ modelId: 'gpt-4o', capabilities: ['FUNCTION_CALL', 'REASONING'] }),
-        makeDbRow({ modelId: 'embed-small', capabilities: ['EMBEDDING'] })
+        makeDbRow({
+          modelId: 'gpt-4o',
+          capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING]
+        }),
+        makeDbRow({ modelId: 'embed-small', capabilities: [ModelCapability.EMBEDDING] })
       ]
       const mockDb = buildMockDb({ selectRows: rows })
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
 
       const svc = ModelService.getInstance()
-      const result = await svc.list({ capability: 'REASONING' })
+      const result = await svc.list({ capability: ModelCapability.REASONING as unknown as string })
 
       // Only the first row has REASONING
       expect(result).toHaveLength(1)
@@ -276,12 +281,12 @@ describe('ModelService', () => {
     })
 
     it('returns empty array when capability filter matches no models', async () => {
-      const rows = [makeDbRow({ capabilities: ['FUNCTION_CALL'] })]
+      const rows = [makeDbRow({ capabilities: [ModelCapability.FUNCTION_CALL] })]
       const mockDb = buildMockDb({ selectRows: rows })
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
 
       const svc = ModelService.getInstance()
-      const result = await svc.list({ capability: 'EMBEDDING' })
+      const result = await svc.list({ capability: ModelCapability.EMBEDDING as unknown as string })
 
       expect(result).toHaveLength(0)
     })
@@ -371,11 +376,15 @@ describe('ModelService', () => {
   describe('create', () => {
     it('uses mergeModelConfig enrichment when catalog returns a preset model', async () => {
       const presetModel = makePresetModel()
-      const catalogOverride = { providerId: 'openai', modelId: 'gpt-4o', priority: 0 }
+      const catalogOverride = {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        priority: 0
+      } as unknown as ProviderModelOverride
       const mergedModel = makeMergedModel()
       const insertedRow = makeDbRow({
         name: mergedModel.name,
-        capabilities: mergedModel.capabilities as string[]
+        capabilities: mergedModel.capabilities
       })
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
@@ -427,7 +436,12 @@ describe('ModelService', () => {
 
     it('uses catalogOverride.apiModelId for modelApiId when available', async () => {
       const presetModel = makePresetModel()
-      const catalogOverride = { providerId: 'openai', modelId: 'gpt-4o', apiModelId: 'gpt-4o-2024', priority: 0 }
+      const catalogOverride = {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        apiModelId: 'gpt-4o-2024',
+        priority: 0
+      } as unknown as ProviderModelOverride
       const mergedModel = makeMergedModel()
       const insertedRow = makeDbRow({ modelApiId: 'gpt-4o-2024' })
 
@@ -449,7 +463,11 @@ describe('ModelService', () => {
 
     it('sets modelApiId to null when catalogOverride has no apiModelId', async () => {
       const presetModel = makePresetModel()
-      const catalogOverride = { providerId: 'openai', modelId: 'gpt-4o', priority: 0 }
+      const catalogOverride = {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        priority: 0
+      } as unknown as ProviderModelOverride
       const mergedModel = makeMergedModel()
       const insertedRow = makeDbRow({ modelApiId: null })
 
@@ -505,7 +523,7 @@ describe('ModelService', () => {
       const insertedRow = makeDbRow({
         providerId: 'custom',
         modelId: 'my-model',
-        capabilities: ['EMBEDDING'],
+        capabilities: [ModelCapability.EMBEDDING],
         contextWindow: 8192,
         supportsStreaming: false
       })
@@ -516,14 +534,14 @@ describe('ModelService', () => {
       await svc.create({
         providerId: 'custom',
         modelId: 'my-model',
-        capabilities: ['EMBEDDING'],
+        capabilities: [ModelCapability.EMBEDDING],
         contextWindow: 8192,
         supportsStreaming: false
       })
 
       const [insertValues] = vi.mocked(mockDb.insertChain.values).mock.calls[0]
       const v = insertValues as Record<string, unknown>
-      expect(v.capabilities).toEqual(['EMBEDDING'])
+      expect(v.capabilities).toEqual([ModelCapability.EMBEDDING])
       expect(v.contextWindow).toBe(8192)
       expect(v.supportsStreaming).toBe(false)
     })
@@ -588,10 +606,10 @@ describe('ModelService', () => {
         modelId: 'full-model',
         description: 'A full model',
         group: 'Custom Group',
-        capabilities: ['FUNCTION_CALL'],
+        capabilities: [ModelCapability.FUNCTION_CALL],
         inputModalities: ['TEXT', 'IMAGE'],
         outputModalities: ['TEXT'],
-        endpointTypes: ['chat'],
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
         contextWindow: 32768,
         maxOutputTokens: 4096,
         supportsStreaming: true,
@@ -608,10 +626,10 @@ describe('ModelService', () => {
         modelId: 'full-model',
         description: 'A full model',
         group: 'Custom Group',
-        capabilities: ['FUNCTION_CALL'],
-        inputModalities: ['TEXT', 'IMAGE'],
-        outputModalities: ['TEXT'],
-        endpointTypes: ['chat'],
+        capabilities: [ModelCapability.FUNCTION_CALL],
+        inputModalities: [Modality.TEXT, Modality.IMAGE],
+        outputModalities: [Modality.TEXT],
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
         contextWindow: 32768,
         maxOutputTokens: 4096,
         supportsStreaming: true,
@@ -624,9 +642,9 @@ describe('ModelService', () => {
       const v = insertValues as Record<string, unknown>
       expect(v.description).toBe('A full model')
       expect(v.group).toBe('Custom Group')
-      expect(v.inputModalities).toEqual(['TEXT', 'IMAGE'])
-      expect(v.outputModalities).toEqual(['TEXT'])
-      expect(v.endpointTypes).toEqual(['chat'])
+      expect(v.inputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
+      expect(v.outputModalities).toEqual([Modality.TEXT])
+      expect(v.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS])
       expect(v.maxOutputTokens).toBe(4096)
       expect(v.reasoning).toEqual({ type: 'enabled', budgetToken: 1024 })
       expect(v.parameters).toEqual({ temperature: { min: 0, max: 2, default: 1 } })
@@ -635,7 +653,11 @@ describe('ModelService', () => {
 
     it('passes optional DTO fields into userRow for catalog-match path', async () => {
       const presetModel = makePresetModel()
-      const catalogOverride = { providerId: 'openai', modelId: 'gpt-4o', priority: 0 }
+      const catalogOverride = {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        priority: 0
+      } as unknown as ProviderModelOverride
       const mergedModel = makeMergedModel()
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
@@ -655,7 +677,7 @@ describe('ModelService', () => {
         name: 'My Custom Name',
         description: 'Custom desc',
         group: 'My Group',
-        capabilities: ['REASONING'],
+        capabilities: [ModelCapability.REASONING],
         contextWindow: 64000,
         supportsStreaming: false
       })
@@ -666,21 +688,25 @@ describe('ModelService', () => {
       expect(u.name).toBe('My Custom Name')
       expect(u.description).toBe('Custom desc')
       expect(u.group).toBe('My Group')
-      expect(u.capabilities).toEqual(['REASONING'])
+      expect(u.capabilities).toEqual([ModelCapability.REASONING])
       expect(u.contextWindow).toBe(64000)
       expect(u.supportsStreaming).toBe(false)
     })
 
     it('uses mergeModelConfig output fields for insert values in catalog path', async () => {
       const presetModel = makePresetModel()
-      const catalogOverride = { providerId: 'openai', modelId: 'gpt-4o', priority: 0 }
+      const catalogOverride = {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        priority: 0
+      } as unknown as ProviderModelOverride
       const mergedModel = {
         ...makeMergedModel(),
         description: 'Merged description',
         group: 'Merged Group',
-        inputModalities: ['TEXT', 'IMAGE'],
-        outputModalities: ['TEXT'],
-        endpointTypes: ['chat'],
+        inputModalities: [Modality.TEXT, Modality.IMAGE],
+        outputModalities: [Modality.TEXT],
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
         contextWindow: 200000,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 2048 },
@@ -705,9 +731,9 @@ describe('ModelService', () => {
       const v = insertValues as Record<string, unknown>
       expect(v.description).toBe('Merged description')
       expect(v.group).toBe('Merged Group')
-      expect(v.inputModalities).toEqual(['TEXT', 'IMAGE'])
-      expect(v.outputModalities).toEqual(['TEXT'])
-      expect(v.endpointTypes).toEqual(['chat'])
+      expect(v.inputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
+      expect(v.outputModalities).toEqual([Modality.TEXT])
+      expect(v.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS])
       expect(v.contextWindow).toBe(200000)
       expect(v.maxOutputTokens).toBe(8192)
       expect(v.reasoning).toEqual({ type: 'enabled', budgetToken: 2048 })
@@ -822,8 +848,8 @@ describe('ModelService', () => {
       const updatedRow = makeDbRow({
         description: 'Updated desc',
         group: 'New Group',
-        capabilities: ['REASONING', 'FUNCTION_CALL'],
-        endpointTypes: ['chat', 'completion'],
+        capabilities: [ModelCapability.REASONING, ModelCapability.FUNCTION_CALL],
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS],
         supportsStreaming: false,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 4096 },
@@ -837,8 +863,8 @@ describe('ModelService', () => {
       await svc.update('openai', 'gpt-4o', {
         description: 'Updated desc',
         group: 'New Group',
-        capabilities: ['REASONING', 'FUNCTION_CALL'],
-        endpointTypes: ['chat', 'completion'],
+        capabilities: [ModelCapability.REASONING, ModelCapability.FUNCTION_CALL],
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS],
         supportsStreaming: false,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 4096 } as any,
@@ -849,8 +875,8 @@ describe('ModelService', () => {
       const updates = setArg as Record<string, unknown>
       expect(updates.description).toBe('Updated desc')
       expect(updates.group).toBe('New Group')
-      expect(updates.capabilities).toEqual(['REASONING', 'FUNCTION_CALL'])
-      expect(updates.endpointTypes).toEqual(['chat', 'completion'])
+      expect(updates.capabilities).toEqual([ModelCapability.REASONING, ModelCapability.FUNCTION_CALL])
+      expect(updates.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS])
       expect(updates.supportsStreaming).toBe(false)
       expect(updates.maxOutputTokens).toBe(8192)
       expect(updates.reasoning).toEqual({ type: 'enabled', budgetToken: 4096 })
@@ -981,7 +1007,7 @@ describe('ModelService', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet',
         name: 'Claude 3.5 Sonnet',
-        capabilities: ['FUNCTION_CALL', 'REASONING']
+        capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING]
       })
 
       const svc = ModelService.getInstance()
@@ -1000,7 +1026,7 @@ describe('ModelService', () => {
       const model = makeDbRow({
         modelId: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: ['FUNCTION_CALL'],
+        capabilities: [ModelCapability.FUNCTION_CALL],
         contextWindow: 128_000
       })
 
@@ -1085,8 +1111,10 @@ describe('ModelService', () => {
     })
 
     it('casts capabilities to ModelCapability array', async () => {
-      const model = await getModelFromRow({ capabilities: ['FUNCTION_CALL', 'REASONING'] })
-      expect(model.capabilities).toEqual(['FUNCTION_CALL', 'REASONING'])
+      const model = await getModelFromRow({
+        capabilities: [ModelCapability.FUNCTION_CALL, ModelCapability.REASONING]
+      })
+      expect(model.capabilities).toEqual([ModelCapability.FUNCTION_CALL, ModelCapability.REASONING])
     })
 
     it('defaults capabilities to empty array when null in DB', async () => {
@@ -1100,8 +1128,8 @@ describe('ModelService', () => {
     })
 
     it('maps inputModalities when set', async () => {
-      const model = await getModelFromRow({ inputModalities: ['TEXT', 'IMAGE'] })
-      expect(model.inputModalities).toEqual(['TEXT', 'IMAGE'])
+      const model = await getModelFromRow({ inputModalities: [Modality.TEXT, Modality.IMAGE] })
+      expect(model.inputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
     })
 
     it('maps outputModalities to undefined when null in DB', async () => {
@@ -1180,8 +1208,8 @@ describe('ModelService', () => {
     })
 
     it('maps outputModalities when set', async () => {
-      const model = await getModelFromRow({ outputModalities: ['TEXT', 'IMAGE'] })
-      expect(model.outputModalities).toEqual(['TEXT', 'IMAGE'])
+      const model = await getModelFromRow({ outputModalities: [Modality.TEXT, Modality.IMAGE] })
+      expect(model.outputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
     })
 
     it('maps maxOutputTokens to number when set', async () => {
@@ -1190,8 +1218,10 @@ describe('ModelService', () => {
     })
 
     it('maps endpointTypes when set', async () => {
-      const model = await getModelFromRow({ endpointTypes: ['chat', 'completion'] })
-      expect(model.endpointTypes).toEqual(['chat', 'completion'])
+      const model = await getModelFromRow({
+        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS]
+      })
+      expect(model.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS])
     })
 
     it('maps reasoning when set', async () => {

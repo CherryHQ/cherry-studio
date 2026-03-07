@@ -65,9 +65,10 @@ export class CatalogService {
     try {
       const dataPath = this.getCatalogDataPath()
       const data = readModelCatalog(join(dataPath, 'models.pb'))
-      this.catalogModels = data.models ?? []
-      logger.info('Loaded catalog models', { count: this.catalogModels.length })
-      return this.catalogModels
+      const models = data.models ?? []
+      this.catalogModels = models
+      logger.info('Loaded catalog models', { count: models.length })
+      return models
     } catch (error) {
       logger.warn('Failed to load catalog models.pb', { error })
       return []
@@ -83,9 +84,10 @@ export class CatalogService {
     try {
       const dataPath = this.getCatalogDataPath()
       const data = readProviderModelCatalog(join(dataPath, 'provider-models.pb'))
-      this.catalogProviderModels = data.overrides ?? []
-      logger.info('Loaded catalog provider-models', { count: this.catalogProviderModels.length })
-      return this.catalogProviderModels
+      const overrides = data.overrides ?? []
+      this.catalogProviderModels = overrides
+      logger.info('Loaded catalog provider-models', { count: overrides.length })
+      return overrides
     } catch (error) {
       logger.warn('Failed to load catalog provider-models.pb', { error })
       return []
@@ -188,8 +190,8 @@ export class CatalogService {
     }
 
     const dbRows: NewUserProvider[] = rawProviders.map((p) => {
-      // Map catalog metadata.website to runtime websites field
-      const catalogWebsite = p.metadata?.website
+      // Map catalog website to runtime websites field
+      const catalogWebsite = p.website
       const websites =
         catalogWebsite &&
         (catalogWebsite.official || catalogWebsite.docs || catalogWebsite.apiKey || catalogWebsite.models)
@@ -205,18 +207,39 @@ export class CatalogService {
       const baseUrls: Record<string, string> = {}
       if (p.baseUrls) {
         for (const [k, v] of Object.entries(p.baseUrls)) {
-          baseUrls[String(k)] = v
+          baseUrls[String(k)] = v as string
         }
       }
+
+      // Convert proto message types to plain objects for DB storage
+      const modelsApiUrls: Record<string, string> | null = p.modelsApiUrls
+        ? {
+            ...(p.modelsApiUrls.default ? { default: p.modelsApiUrls.default } : {}),
+            ...(p.modelsApiUrls.embedding ? { embedding: p.modelsApiUrls.embedding } : {}),
+            ...(p.modelsApiUrls.reranker ? { reranker: p.modelsApiUrls.reranker } : {})
+          }
+        : null
+
+      const apiCompatibility = p.apiCompatibility
+        ? {
+            arrayContent: p.apiCompatibility.arrayContent,
+            streamOptions: p.apiCompatibility.streamOptions,
+            developerRole: p.apiCompatibility.developerRole,
+            serviceTier: p.apiCompatibility.serviceTier,
+            verbosity: p.apiCompatibility.verbosity,
+            enableThinking: p.apiCompatibility.enableThinking,
+            requiresApiKey: p.apiCompatibility.requiresApiKey
+          }
+        : null
 
       return {
         providerId: p.id,
         presetProviderId: p.id,
         name: p.name,
         baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
-        modelsApiUrls: p.modelsApiUrls ?? null,
+        modelsApiUrls: Object.keys(modelsApiUrls ?? {}).length > 0 ? modelsApiUrls : null,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        apiCompatibility: p.apiCompatibility ?? null,
+        apiCompatibility,
         websites
       }
     })

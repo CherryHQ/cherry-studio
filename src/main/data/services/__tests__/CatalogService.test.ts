@@ -84,9 +84,9 @@ describe('CatalogService', () => {
       vi.mocked(readProviderCatalog).mockReturnValue({
         version: '1.0',
         providers: opts.providers.map((p) => ({
-          metadata: { website: {} },
+          baseUrls: {},
           ...p
-        }))
+        })) as any
       })
     }
   }
@@ -280,13 +280,11 @@ describe('CatalogService', () => {
           {
             id: 'openai',
             name: 'OpenAI',
-            metadata: {
-              website: {
-                official: 'https://openai.com',
-                docs: 'https://platform.openai.com/docs',
-                apiKey: 'https://platform.openai.com/api-keys',
-                models: null
-              }
+            website: {
+              official: 'https://openai.com',
+              docs: 'https://platform.openai.com/docs',
+              apiKey: 'https://platform.openai.com/api-keys',
+              models: null
             }
           }
         ]

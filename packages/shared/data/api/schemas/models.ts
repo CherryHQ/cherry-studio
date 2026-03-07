@@ -39,14 +39,14 @@ const CreateModelDtoSchema = z.object({
   description: z.string().optional(),
   /** UI grouping */
   group: z.string().optional(),
-  /** Capabilities */
-  capabilities: z.array(z.string()).optional(),
-  /** Input modalities */
-  inputModalities: z.array(z.string()).optional(),
-  /** Output modalities */
-  outputModalities: z.array(z.string()).optional(),
+  /** Capabilities (numeric ModelCapability enum values) */
+  capabilities: z.array(z.number()).optional(),
+  /** Input modalities (numeric Modality enum values) */
+  inputModalities: z.array(z.number()).optional(),
+  /** Output modalities (numeric Modality enum values) */
+  outputModalities: z.array(z.number()).optional(),
   /** Endpoint types */
-  endpointTypes: z.array(z.string()).optional(),
+  endpointTypes: z.array(z.number()).optional(),
   /** Context window size */
   contextWindow: z.number().optional(),
   /** Maximum output tokens */
@@ -88,7 +88,7 @@ const ResolveModelsDtoSchema = z.object({
       name: z.string().optional(),
       group: z.string().optional(),
       description: z.string().optional(),
-      endpointTypes: z.array(z.string()).optional()
+      endpointTypes: z.array(z.number()).optional()
     })
   )
 })

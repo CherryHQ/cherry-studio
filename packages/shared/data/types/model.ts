@@ -11,6 +11,7 @@
  */
 
 import {
+  Currency,
   ENDPOINT_TYPE,
   EndpointType,
   MODALITY,
@@ -22,7 +23,7 @@ import {
 import * as z from 'zod'
 
 // Re-export const objects and types for consumers
-export { ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
+export { Currency, ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, ModelCapability, ReasoningEffort }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Zod schemas (formerly in provider-catalog/schemas, now owned by shared)
@@ -31,7 +32,7 @@ export { ENDPOINT_TYPE, EndpointType, MODALITY, Modality, MODEL_CAPABILITY, Mode
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({
   perMillionTokens: z.number().nonnegative().nullable(),
-  currency: z.enum(['USD', 'CNY']).default('USD').optional()
+  currency: z.nativeEnum(Currency).default(Currency.USD).optional()
 })
 
 /** Thinking token limits */

@@ -151,7 +151,7 @@ export class ProviderService {
     if (dto.baseUrls !== undefined) updates.baseUrls = dto.baseUrls
     if (dto.modelsApiUrls !== undefined) updates.modelsApiUrls = dto.modelsApiUrls
     if (dto.defaultChatEndpoint !== undefined)
-      updates.defaultChatEndpoint = dto.defaultChatEndpoint as NewUserProvider['defaultChatEndpoint']
+      updates.defaultChatEndpoint = dto.defaultChatEndpoint as unknown as NewUserProvider['defaultChatEndpoint']
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiCompatibility !== undefined)
