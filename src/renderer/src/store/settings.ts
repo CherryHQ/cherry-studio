@@ -172,6 +172,7 @@ export interface SettingsState {
   notionExportReasoning: boolean
   excludeCitationsInExport: boolean
   standardizeCitationsInExport: boolean
+  showTimestampInMarkdown: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
