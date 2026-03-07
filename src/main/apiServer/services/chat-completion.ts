@@ -1,10 +1,10 @@
 import OpenAI from '@cherrystudio/openai'
 import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import {
+  asMoonshotBuiltinWebSearchTool,
   isMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_PROVIDER_ID,
-  MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
   normalizeMoonshotBuiltinToolMessages
 } from '@shared/utils'
@@ -55,7 +55,7 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
     return normalizedRequest
   }
 
-  const normalizedTools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as unknown as ChatCompletionTool]
+  const normalizedTools = [...currentTools, asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
   logger.debug('Moonshot builtin web search tool injected', {
     providerId: provider.id,
     toolCountAfter: normalizedTools.length

@@ -1,26 +1,26 @@
 /**
- * 流事件管理器
+ * Stream event manager.
  *
- * 负责处理 AI SDK 流事件的发送和管理
- * 从 promptToolUsePlugin.ts 中提取出来以降低复杂度
+ * Handles AI SDK stream events and recursion flow.
+ * Extracted from promptToolUsePlugin.ts to reduce complexity.
  */
 import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { EmbeddingModelUsage, ImageModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { AiSdkUsage } from '../../../providers/types'
 import type { AiRequestContext, StreamTextParams, StreamTextResult } from '../../types'
+import type { BuiltinLoopMessage } from './BuiltinToolStreamManager'
 import type { StreamController } from './ToolExecutor'
 
 /**
- * 类型守卫：检查对象是否是有效的流结果（包含 ReadableStream 类型的 fullStream）
+ * Type guard: checks whether object contains a valid ReadableStream `fullStream`.
  */
 function hasFullStream(obj: unknown): obj is StreamTextResult & { fullStream: ReadableStream } {
   return typeof obj === 'object' && obj !== null && 'fullStream' in obj && obj.fullStream instanceof ReadableStream
 }
 
 /**
- * 类型守卫：检查 usage 是否是 LanguageModelUsage
- * LanguageModelUsage 包含 totalTokens, inputTokens, outputTokens 等字段
+ * Type guard for LanguageModelUsage.
  */
 function isLanguageModelUsage(usage: unknown): usage is LanguageModelUsage {
   return (
@@ -31,9 +31,8 @@ function isLanguageModelUsage(usage: unknown): usage is LanguageModelUsage {
 }
 
 /**
- * 类型守卫：检查 usage 是否是 ImageModelUsage
- * ImageModelUsage 包含 inputTokens, outputTokens, totalTokens 字段
- * but lacks inputTokenDetails/outputTokenDetails which are present in LanguageModelUsage
+ * Type guard for ImageModelUsage.
+ * It includes input/output/total token fields, but no token detail fields.
  */
 function isImageModelUsage(usage: unknown): usage is ImageModelUsage {
   return (
@@ -47,26 +46,25 @@ function isImageModelUsage(usage: unknown): usage is ImageModelUsage {
 }
 
 /**
- * 类型守卫：检查 usage 是否是 EmbeddingModelUsage
- * EmbeddingModelUsage 只包含 tokens 字段
+ * Type guard for EmbeddingModelUsage.
  */
 function isEmbeddingModelUsage(usage: unknown): usage is EmbeddingModelUsage {
   return (
     typeof usage === 'object' &&
     usage !== null &&
     'tokens' in usage &&
-    // 确保只有 tokens 字段（没有 inputTokens, outputTokens 等）
+    // Ensure only embedding usage shape is accepted.
     !('inputTokens' in usage) &&
     !('outputTokens' in usage)
   )
 }
 
 /**
- * 流事件管理器类
+ * Stream event manager class.
  */
 export class StreamEventManager {
   /**
-   * 发送工具调用步骤开始事件
+   * Emits start-step event.
    */
   sendStepStartEvent(controller: StreamController): void {
     controller.enqueue({
@@ -77,7 +75,7 @@ export class StreamEventManager {
   }
 
   /**
-   * 发送步骤完成事件
+   * Emits finish-step event.
    */
   sendStepFinishEvent(
     controller: StreamController,
@@ -89,7 +87,7 @@ export class StreamEventManager {
     context: AiRequestContext,
     finishReason: string = 'stop'
   ): void {
-    // 累加当前步骤的 usage
+    // Accumulate usage for this step.
     if (chunk.usage && context.accumulatedUsage) {
       this.accumulateUsage(context.accumulatedUsage, chunk.usage)
     }
@@ -104,7 +102,7 @@ export class StreamEventManager {
   }
 
   /**
-   * 处理递归调用并将结果流接入当前流
+   * Executes recursive call and pipes recursive stream into current controller.
    */
   async handleRecursiveCall<TParams extends StreamTextParams>(
     controller: StreamController,
@@ -112,7 +110,7 @@ export class StreamEventManager {
     context: AiRequestContext<TParams, StreamTextResult>
   ): Promise<void> {
     // try {
-    // 重置工具执行状态，准备处理新的步骤
+    // Reset tool execution state before processing next step.
     context.hasExecutedToolsInCurrentStep = false
 
     const recursiveResult = await context.recursiveCall(recursiveParams)
@@ -128,7 +126,7 @@ export class StreamEventManager {
   }
 
   /**
-   * 将递归流的数据传递到当前流
+   * Pipes recursive stream chunks to current stream.
    */
   private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
     const reader = recursiveStream.getReader()
@@ -154,7 +152,7 @@ export class StreamEventManager {
   }
 
   /**
-   * 构建递归调用的参数
+   * Builds recursive params for plain tool-result continuation.
    */
   buildRecursiveParams<TParams extends StreamTextParams>(
     context: AiRequestContext<TParams, StreamTextResult>,
@@ -164,10 +162,10 @@ export class StreamEventManager {
   ): Partial<TParams> {
     const params = context.originalParams
 
-    // 构建新的对话消息
+    // Build the new message chain.
     const newMessages: ModelMessage[] = [
       ...(params.messages || []),
-      // 只有当 textBuffer 有内容时才添加 assistant 消息，避免空消息导致 API 错误
+      // Add assistant message only when text exists to avoid empty-message API errors.
       ...(textBuffer ? [{ role: 'assistant' as const, content: textBuffer }] : []),
       {
         role: 'user',
@@ -175,7 +173,7 @@ export class StreamEventManager {
       }
     ]
 
-    // 递归调用，继续对话，重新传递 tools
+    // Continue conversation and pass tools forward.
     const recursiveParams = {
       ...params,
       messages: newMessages,
@@ -186,17 +184,17 @@ export class StreamEventManager {
   }
 
   /**
-   * 构建带自定义消息的递归调用参数
-   * 用于内置工具调用（如 Moonshot 的 $web_search）
+   * Builds recursive params with prebuilt messages for provider built-in tools
+   * (for example Moonshot `$web_search`).
    */
   buildRecursiveParamsWithMessages<TParams extends StreamTextParams>(
     context: AiRequestContext<TParams, StreamTextResult>,
-    messages: any[],
+    messages: BuiltinLoopMessage[],
     tools: Record<string, unknown>
   ): Partial<TParams> {
     const params = context.originalParams
 
-    // 递归调用，使用提供的完整消息链
+    // Reuse the full message chain prepared by builtin tool manager.
     const recursiveParams = {
       ...params,
       messages: [...(params.messages || []), ...messages],
@@ -207,9 +205,9 @@ export class StreamEventManager {
   }
 
   /**
-   * 累加 usage 数据
+   * Accumulates usage data.
    *
-   * 使用类型守卫来处理不同类型的 usage（LanguageModelUsage, ImageModelUsage, EmbeddingModelUsage）
+   * Handles different usage variants via type guards.
    * - LanguageModelUsage: inputTokens, outputTokens, totalTokens
    * - ImageModelUsage: inputTokens, outputTokens, totalTokens
    * - EmbeddingModelUsage: tokens
@@ -263,7 +261,7 @@ export class StreamEventManager {
       return
     }
 
-    // ⚠️ 未知类型或类型不匹配，不进行累加
+    // Unknown usage type or mismatched usage shape; skip accumulation.
     console.warn('[StreamEventManager] Unable to accumulate usage - type mismatch or unknown type', {
       target,
       source

@@ -20,6 +20,16 @@ type ChunkLike = {
 
 type ParseToolArgumentsErrorHandler = (rawArguments: string, error: unknown) => void
 
+type BuiltinToolEntryLike = {
+  isBuiltin?: unknown
+  toolType?: unknown
+  definition?: {
+    type?: unknown
+  } | null
+}
+
+type BuiltinToolRegistry = Record<string, BuiltinToolEntryLike>
+
 export interface BuiltinToolCall {
   id: string
   name: string
@@ -48,7 +58,7 @@ type ToolResultMessage = {
   name: string
 }
 
-type BuiltinLoopMessage = AssistantToolCallMessage | ToolResultMessage
+export type BuiltinLoopMessage = AssistantToolCallMessage | ToolResultMessage
 
 function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -58,11 +68,44 @@ function isObjectLike(value: unknown): value is Record<string, unknown> {
  * Built-in tool stream manager for provider-side tools such as Moonshot `$web_search`.
  */
 export class BuiltinToolStreamManager {
+  private getBuiltinToolRegistry(context: AiRequestContext): BuiltinToolRegistry {
+    const rawRegistry = (context as { builtinTools?: unknown }).builtinTools
+    if (!isObjectLike(rawRegistry) || Array.isArray(rawRegistry)) {
+      return {}
+    }
+
+    const registry: BuiltinToolRegistry = {}
+    for (const [toolName, entry] of Object.entries(rawRegistry)) {
+      if (isObjectLike(entry)) {
+        registry[toolName] = entry
+      }
+    }
+
+    return registry
+  }
+
+  private isBuiltinToolCallFromRegistry(toolName: string, builtinTools: BuiltinToolRegistry): boolean {
+    return builtinTools[toolName]?.isBuiltin === true
+  }
+
+  private getBuiltinToolType(toolName: string, builtinTools: BuiltinToolRegistry): string | undefined {
+    const entry = builtinTools[toolName]
+    if (!entry) {
+      return undefined
+    }
+
+    const definitionType =
+      isObjectLike(entry.definition) && typeof entry.definition.type === 'string' ? entry.definition.type : undefined
+    const toolType = typeof entry.toolType === 'string' ? entry.toolType : undefined
+    return definitionType ?? toolType
+  }
+
   /**
    * Checks if the tool call targets a built-in provider tool.
    */
   isBuiltinToolCall(toolName: string, context: AiRequestContext): boolean {
-    return context.builtinTools?.[toolName]?.isBuiltin ?? false
+    const builtinTools = this.getBuiltinToolRegistry(context)
+    return this.isBuiltinToolCallFromRegistry(toolName, builtinTools)
   }
 
   /**
@@ -116,9 +159,9 @@ export class BuiltinToolStreamManager {
     chunk: ChunkLike,
     context: AiRequestContext
   ): Promise<{ shouldContinue: boolean; updatedMessages?: BuiltinLoopMessage[] }> {
-    const { builtinTools } = context
+    const builtinTools = this.getBuiltinToolRegistry(context)
 
-    if (!builtinTools || Object.keys(builtinTools).length === 0) {
+    if (Object.keys(builtinTools).length === 0) {
       return { shouldContinue: false }
     }
 
@@ -142,7 +185,7 @@ export class BuiltinToolStreamManager {
     let hasBuiltinTools = false
 
     for (const toolCall of toolCalls) {
-      if (this.isBuiltinToolCall(toolCall.name, context)) {
+      if (this.isBuiltinToolCallFromRegistry(toolCall.name, builtinTools)) {
         hasBuiltinTools = true
         builtinToolResults.push({
           tool_call_id: toolCall.id,
@@ -160,11 +203,7 @@ export class BuiltinToolStreamManager {
         tool_calls: toolCalls.map((tc) => ({
           id: tc.id,
           // Keep provider-emitted type first, then builtin registry metadata, then OpenAI default.
-          type:
-            tc.toolType ||
-            context.builtinTools?.[tc.name]?.definition?.type ||
-            context.builtinTools?.[tc.name]?.toolType ||
-            'function',
+          type: tc.toolType || this.getBuiltinToolType(tc.name, builtinTools) || 'function',
           function: {
             name: tc.name,
             arguments: tc.rawArguments ?? JSON.stringify(tc.arguments ?? {})
@@ -185,10 +224,13 @@ export class BuiltinToolStreamManager {
    * Checks whether the chunk includes at least one built-in tool call.
    */
   hasBuiltinToolCalls(chunk: ChunkLike, context: AiRequestContext): boolean {
+    const builtinTools = this.getBuiltinToolRegistry(context)
+    if (Object.keys(builtinTools).length === 0) return false
+
     const toolCalls = this.extractToolCallsFromChunk(chunk)
     if (toolCalls.length === 0) return false
 
-    return toolCalls.some((tc) => this.isBuiltinToolCall(tc.name, context))
+    return toolCalls.some((tc) => this.isBuiltinToolCallFromRegistry(tc.name, builtinTools))
   }
 
   private getToolCalls(chunk: ChunkLike): ToolCallLike[] {
