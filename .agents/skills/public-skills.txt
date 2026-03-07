@@ -5,3 +5,4 @@ prepare-release
 create-skill
 gh-create-issue
 gh-pr-review
+sync-tasks
