@@ -2521,6 +2521,9 @@
   "notification": {
     "assistant": "Assistant Response",
     "knowledge": {
+      "batch_error": "{{failed}} items failed to process",
+      "batch_mixed": "{{succeeded}} items succeeded, {{failed}} items failed",
+      "batch_success": "{{succeeded}} items processed successfully",
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },

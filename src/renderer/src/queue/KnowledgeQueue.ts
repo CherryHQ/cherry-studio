@@ -51,6 +51,9 @@ class KnowledgeQueue {
 
     this.processing.set(baseId, true)
 
+    let succeeded = 0
+    let failed = 0
+
     try {
       const state = store.getState()
       const base = state.knowledge.bases.find((b) => b.id === baseId)
@@ -75,10 +78,16 @@ class KnowledgeQueue {
 
       let processableItem = findProcessableItem()
       while (processableItem) {
-        await this.processItem(baseId, processableItem)
+        const result = await this.processItem(baseId, processableItem)
+        if (result) {
+          succeeded++
+        } else {
+          failed++
+        }
         processableItem = findProcessableItem()
       }
     } finally {
+      this.sendBatchNotification(succeeded, failed)
       logger.info(`Finished processing queue for base ${baseId}`)
       this.processing.set(baseId, false)
     }
@@ -94,8 +103,36 @@ class KnowledgeQueue {
     }
   }
 
-  private async processItem(baseId: string, item: KnowledgeItem): Promise<void> {
-    const notificationService = NotificationService.getInstance()
+  private sendBatchNotification(succeeded: number, failed: number): void {
+    const total = succeeded + failed
+    if (total === 0) return
+
+    let type: 'success' | 'error' | 'warning'
+    let message: string
+
+    if (failed === 0) {
+      type = 'success'
+      message = t('notification.knowledge.batch_success', { succeeded })
+    } else if (succeeded === 0) {
+      type = 'error'
+      message = t('notification.knowledge.batch_error', { failed })
+    } else {
+      type = 'warning'
+      message = t('notification.knowledge.batch_mixed', { succeeded, failed })
+    }
+
+    NotificationService.getInstance().send({
+      id: uuid(),
+      type,
+      title: t('common.knowledge_base'),
+      message,
+      silent: false,
+      timestamp: Date.now(),
+      source: 'knowledge'
+    })
+  }
+
+  private async processItem(baseId: string, item: KnowledgeItem): Promise<boolean> {
     const userId = getStoreSetting('userId')
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
@@ -103,15 +140,6 @@ class KnowledgeQueue {
           ? `Max retries exceeded: ${item.processingError}`
           : 'Max retries exceeded'
         logger.warn(`Item ${item.id} has reached max retries, marking as failed`)
-        notificationService.send({
-          id: uuid(),
-          type: 'error',
-          title: t('common.knowledge_base'),
-          message: t('notification.knowledge.error', { error: errorMessage }),
-          silent: false,
-          timestamp: Date.now(),
-          source: 'knowledge'
-        })
         store.dispatch(
           updateItemProcessingStatus({
             baseId,
@@ -120,7 +148,7 @@ class KnowledgeQueue {
             error: errorMessage
           })
         )
-        return
+        return false
       }
 
       logger.info(`Starting to process item ${item.id} (${item.type})`)
@@ -190,16 +218,6 @@ class KnowledgeQueue {
 
       logger.info(`Successfully completed processing item ${item.id}`)
 
-      notificationService.send({
-        id: uuid(),
-        type: 'success',
-        title: t('knowledge.status_completed'),
-        message: t('notification.knowledge.success', { type: item.type }),
-        silent: false,
-        timestamp: Date.now(),
-        source: 'knowledge'
-      })
-
       store.dispatch(
         updateItemProcessingStatus({
           baseId,
@@ -228,19 +246,9 @@ class KnowledgeQueue {
       logger.info(`Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
+      return true
     } catch (error) {
       logger.error(`Error processing item ${item.id}: `, error as Error)
-      notificationService.send({
-        id: uuid(),
-        type: 'error',
-        title: t('common.knowledge_base'),
-        message: t('notification.knowledge.error', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }),
-        silent: false,
-        timestamp: Date.now(),
-        source: 'knowledge'
-      })
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -251,6 +259,7 @@ class KnowledgeQueue {
           retryCount: (item.retryCount || 0) + 1
         })
       )
+      return false
     }
   }
 }
