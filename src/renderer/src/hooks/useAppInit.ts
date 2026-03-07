@@ -180,7 +180,6 @@ export function useAppInit() {
       logger.debug('Renderer received tool permission request', {
         requestId: payload.requestId,
         toolName: payload.toolName,
-        expiresAt: payload.expiresAt,
         suggestionCount: payload.suggestions.length,
         autoApprove: payload.autoApprove
       })

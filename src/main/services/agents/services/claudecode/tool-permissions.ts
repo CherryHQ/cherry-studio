@@ -47,7 +47,6 @@ type RendererPermissionRequestPayload = {
   input: Record<string, unknown>
   inputPreview: string
   createdAt: number
-  expiresAt: number
   suggestions: PermissionUpdate[]
   autoApprove?: boolean
 }
@@ -260,8 +259,6 @@ export async function promptForToolApproval(
 
   const requestId = randomUUID()
   const createdAt = Date.now()
-  const expiresAt = createdAt + TOOL_APPROVAL_TIMEOUT_MS
-
   logger.info('Requesting user approval for tool usage', {
     requestId,
     toolName,
@@ -279,7 +276,6 @@ export async function promptForToolApproval(
     input: sanitizedInput,
     inputPreview,
     createdAt,
-    expiresAt,
     suggestions: sanitizedSuggestions,
     autoApprove: options.autoApprove
   }

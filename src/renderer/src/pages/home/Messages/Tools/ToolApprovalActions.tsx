@@ -23,7 +23,6 @@ export interface ToolApprovalActionsProps extends ToolApprovalState, ToolApprova
 export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   isWaiting,
   isExecuting,
-  isExpired,
   isSubmitting,
   confirm,
   cancel,
@@ -42,15 +41,6 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
 
   // Nothing to show if not waiting and not executing
   if (!isWaiting && !isExecuting) return null
-
-  // Expired state for agent tools
-  if (isExpired && !isExecuting) {
-    return (
-      <ExpiredBadge $compact={compact} onClick={(e) => e.stopPropagation()}>
-        {t('agent.toolPermission.expired')}
-      </ExpiredBadge>
-    )
-  }
 
   // Executing state - show loading or abort button
   if (isExecuting) {
@@ -128,14 +118,6 @@ const ActionsContainer = styled.div<{ $compact: boolean }>`
     padding: ${(props) => (props.$compact ? '0 6px' : '0 8px')};
     font-size: ${(props) => (props.$compact ? '12px' : '13px')};
   }
-`
-
-const ExpiredBadge = styled.span<{ $compact: boolean }>`
-  font-size: ${(props) => (props.$compact ? '11px' : '12px')};
-  color: var(--color-status-error, #ff4d4f);
-  padding: ${(props) => (props.$compact ? '2px 6px' : '4px 8px')};
-  background: var(--color-status-error-bg, rgba(255, 77, 79, 0.1));
-  border-radius: 4px;
 `
 
 const LoadingIndicator = styled.div`

@@ -11,10 +11,6 @@ export interface ToolApprovalState {
   isWaiting: boolean
   /** Whether the tool is currently executing after approval */
   isExecuting: boolean
-  /** Expiration timestamp (Agent only) */
-  expiresAt?: number
-  /** Whether the request has expired (Agent only) */
-  isExpired: boolean
   /** Whether a submission is in progress (Agent only) */
   isSubmitting: boolean
   /** Tool input from permission request (Agent only) */

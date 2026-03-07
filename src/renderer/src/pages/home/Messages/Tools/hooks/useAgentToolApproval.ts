@@ -34,10 +34,6 @@ export function useAgentToolApproval(
 
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolCallId))
 
-  // isExpired is not actively tracked — the main process handles the 600s timeout
-  // and removes the request from Redux when it fires.
-  const isExpired = false
-
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
   const isSubmitting = isSubmittingAllow || isSubmittingDeny
@@ -111,8 +107,8 @@ export function useAgentToolApproval(
     }
   }, [handleDecision, request?.suggestions])
 
-  // Determine isWaiting - only when pending and not expired
-  const isWaiting = !!request && isPending && !isExpired
+  // Determine isWaiting - only when pending
+  const isWaiting = !!request && isPending
   // isExecuting - when invoking or submitting allow
   const isExecuting = isInvoking || isSubmittingAllow
 
@@ -120,8 +116,6 @@ export function useAgentToolApproval(
     // State
     isWaiting,
     isExecuting,
-    expiresAt: undefined,
-    isExpired,
     isSubmitting,
     // Agent-specific: input from permission request
     input: request?.input,

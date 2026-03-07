@@ -101,7 +101,6 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     // State
     isWaiting,
     isExecuting,
-    isExpired: false,
     isSubmitting: false,
     input: undefined,
 
