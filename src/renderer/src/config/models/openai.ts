@@ -84,9 +84,7 @@ export const isGPT52SeriesModel = (model: Model) => {
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
-  return (
-    (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) && !modelId.includes('chat')
-  )
+  return isGPT5FamilyModel(model) && !modelId.includes('chat') && !modelId.includes('codex')
 }
 
 /**
@@ -113,7 +111,11 @@ export function isSupportVerbosityModel(model: Model): boolean {
 export function isSupportNoneReasoningEffortModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return (
-    (isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) && !modelId.includes('chat') && !modelId.includes('pro')
+    isGPT5FamilyModel(model) &&
+    !isGPT5SeriesModel(model) &&
+    !modelId.includes('chat') &&
+    !modelId.includes('pro') &&
+    !modelId.includes('codex')
   )
 }
 
@@ -143,7 +145,7 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
     modelId.includes('o3') ||
     modelId.includes('o4') ||
     modelId.includes('gpt-oss') ||
-    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) && !modelId.includes('chat'))
+    (isGPT5FamilyModel(model) && !modelId.includes('chat'))
   )
 }
 
