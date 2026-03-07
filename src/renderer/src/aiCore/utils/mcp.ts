@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import store from '@renderer/store'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { requestToolConfirmation } from '@renderer/utils/userConfirmation'
@@ -91,7 +92,29 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
       execute: async (params, { toolCallId }) => {
         // 检查是否启用自动批准
         const server = getMcpServerByTool(mcpTool)
-        const isAutoApproveEnabled = isToolAutoApproved(mcpTool, server, allowedTools)
+        let isAutoApproveEnabled = isToolAutoApproved(mcpTool, server, allowedTools)
+
+        // For hub invoke/exec, resolve the underlying tool and check its server's auto-approve config
+        if (
+          !isAutoApproveEnabled &&
+          mcpTool.serverId === 'hub' &&
+          (mcpTool.name === 'invoke' || mcpTool.name === 'exec')
+        ) {
+          const underlyingToolName = (params as Record<string, unknown>)?.name as string | undefined
+          if (underlyingToolName) {
+            try {
+              const resolved = await window.api.mcp.resolveHubTool(underlyingToolName)
+              if (resolved) {
+                const underlyingServer = store.getState().mcp.servers.find((s) => s.id === resolved.serverId)
+                if (underlyingServer) {
+                  isAutoApproveEnabled = !underlyingServer.disabledAutoApproveTools?.includes(resolved.toolName)
+                }
+              }
+            } catch (err) {
+              logger.warn('Failed to resolve hub tool for auto-approve check', err as Error)
+            }
+          }
+        }
 
         let confirmed = true
 
