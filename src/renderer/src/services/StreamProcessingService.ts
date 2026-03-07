@@ -83,11 +83,11 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
           break
         }
         case ChunkType.TEXT_DELTA: {
-          if (callbacks.onTextChunk) callbacks.onTextChunk(data.text, (data as any).providerMetadata)
+          if (callbacks.onTextChunk) callbacks.onTextChunk(data.text, data.providerMetadata)
           break
         }
         case ChunkType.TEXT_COMPLETE: {
-          if (callbacks.onTextComplete) callbacks.onTextComplete(data.text, (data as any).providerMetadata)
+          if (callbacks.onTextComplete) callbacks.onTextComplete(data.text, data.providerMetadata)
           break
         }
         case ChunkType.THINKING_START: {
