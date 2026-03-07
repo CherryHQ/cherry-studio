@@ -729,7 +729,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
-        // All Moonshot models support built-in web search
+        // Layer 3/3 (legacy OpenAI client fallback):
+        // keep this injection for legacy call paths that bypass the main server/fetch-wrapper pipeline.
+        // All Moonshot models support built-in web search.
         logger.debug('Moonshot web search check', {
           enableWebSearch,
           providerId: this.provider.id,

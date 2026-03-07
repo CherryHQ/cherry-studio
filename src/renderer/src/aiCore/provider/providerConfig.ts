@@ -471,6 +471,9 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
         const body = JSON.parse(options.body)
         let hasChanges = false
 
+        // Layer 2/3 (renderer outbound safety net):
+        // keep request normalization and tool injection here because not all calls go through main API server.
+        // This must stay behaviorally aligned with main and legacy client layers.
         // Only apply to chat-completions style payloads.
         if (Array.isArray(body.messages) && body.tool_choice !== 'none') {
           const normalizedMessages = normalizeMoonshotBuiltinToolMessages(body.messages, MOONSHOT_WEB_SEARCH_TOOL_NAME)
