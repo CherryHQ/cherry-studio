@@ -68,6 +68,8 @@ type BaseProvider = {
   }
 }
 
+const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
+
 /**
  * 基础 Providers 定义
  * 作为唯一数据源，避免重复维护
@@ -178,7 +180,7 @@ export const baseProviders = [
     creator: (options: OpenAICompatibleProviderSettings) => {
       return createOpenAICompatible({
         ...options,
-        baseURL: options.baseURL || 'https://api.moonshot.cn/v1',
+        baseURL: options.baseURL || MOONSHOT_DEFAULT_BASE_URL,
         name: 'moonshot'
       })
     },

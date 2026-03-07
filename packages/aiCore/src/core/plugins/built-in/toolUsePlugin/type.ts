@@ -3,8 +3,7 @@ import type { Tool, ToolSet } from 'ai'
 import type { AiRequestContext } from '../..'
 
 /**
- * 解析结果类型
- * 表示从AI响应中解析出的工具使用意图
+ * Parsed tool-use intent extracted from model output.
  */
 export interface ToolUseResult {
   id: string
@@ -18,19 +17,20 @@ export interface BaseToolUsePluginConfig {
 }
 
 export interface PromptToolUseConfig extends BaseToolUsePluginConfig {
-  // 自定义系统提示符构建函数（可选，有默认实现）
+  // Optional custom system prompt builder.
   buildSystemPrompt?: (userSystemPrompt: string, tools: ToolSet) => string
-  // 自定义工具解析函数（可选，有默认实现）
+  // Optional custom tool-use parser.
   parseToolUse?: (content: string, tools: ToolSet) => { results: ToolUseResult[]; content: string }
   mcpMode?: string
 }
 
 /**
- * 内置工具类型
- * 支持 Provider 内置工具（如 Moonshot 的 $web_search）
+ * Built-in provider tool shape.
+ * Important: keep type='provider' for AI SDK compatibility.
+ * The outbound request layer maps definition.type='builtin_function' when required by provider APIs.
  */
 export type BuiltinTool = Tool & {
-  type: 'provider' | 'builtin'
+  type: 'provider'
   toolType?: 'builtin_function'
   isBuiltin?: boolean
   definition?: {
@@ -40,12 +40,12 @@ export type BuiltinTool = Tool & {
 }
 
 /**
- * 扩展工具集合，支持标准工具和内置工具
+ * Extended tool registry including built-in provider tools.
  */
 export type ExtendedToolSet = Record<string, BuiltinTool>
 
 /**
- * 扩展的 AI 请求上下文，支持 MCP 工具存储
+ * Extended request context with prompt tools and built-in tools.
  */
 export interface ToolUseRequestContext extends AiRequestContext {
   mcpTools: ToolSet
