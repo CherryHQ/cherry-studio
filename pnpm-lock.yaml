@@ -307,13 +307,13 @@ importers:
         version: 3.1.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@40.6.1)
+        version: 3.0.2(electron@40.8.0)
       '@electron-toolkit/tsconfig':
         specifier: ^1.0.1
         version: 1.0.1(@types/node@24.10.4)
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@40.6.1)
+        version: 3.0.0(electron@40.8.0)
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0
@@ -723,8 +723,8 @@ importers:
         specifier: ^0.44.5
         version: 0.44.7(@libsql/client@0.14.0)(@opentelemetry/api@1.9.0)
       electron:
-        specifier: 40.6.1
-        version: 40.6.1
+        specifier: 40.8.0
+        version: 40.8.0
       electron-builder:
         specifier: 26.8.1
         version: 26.8.1(electron-builder-squirrel-windows@26.1.0)
@@ -7007,8 +7007,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@40.6.1:
-    resolution: {integrity: sha512-u9YfoixttdauciHV9Ut9Zf3YipJoU093kR1GSYTTXTAXqhiXI0G1A0NnL/f0O2m2UULCXaXMf2W71PloR6V9pQ==}
+  electron@40.8.0:
+    resolution: {integrity: sha512-WoPq0Nr9Yx3g7T6VnJXdwa/rr2+VRyH3a+K+ezfMKBlf6WjxE/LmhMQabKbb6yjm9RbZhJBRcYyoLph421O2mQ==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -7575,6 +7575,10 @@ packages:
 
   fs-extra@11.3.3:
     resolution: {integrity: sha512-VWSRii4t0AFm6ixFFmLLx1t7wS1gh+ckoa84aOeapGum0h+EZd1EhEumSB+ZdDLnEPuucsVB9oB7cxJHap6Afg==}
+    engines: {node: '>=14.14'}
+
+  fs-extra@11.3.4:
+    resolution: {integrity: sha512-CTXd6rk/M3/ULNQj8FBqBWHYBVYybQ3VPBw0xGKFe3tuH7ytT6ACnvzpIQ3UZtB8yvUKC2cXn1a+x+5EVQLovA==}
     engines: {node: '>=14.14'}
 
   fs-extra@7.0.1:
@@ -9862,6 +9866,9 @@ packages:
 
   pump@3.0.3:
     resolution: {integrity: sha512-todwxLMY7/heScKmntwQG8CXVkWUOdYxIvY2s0VWAAMh/nd8SoYiRaKjlr7+iCs984f2P8zvrfWcDDYVb73NfA==}
+
+  pump@3.0.4:
+    resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
   punycode.js@2.3.1:
     resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
@@ -13655,17 +13662,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@40.6.1)':
+  '@electron-toolkit/preload@3.0.2(electron@40.8.0)':
     dependencies:
-      electron: 40.6.1
+      electron: 40.8.0
 
   '@electron-toolkit/tsconfig@1.0.1(@types/node@24.10.4)':
     dependencies:
       '@types/node': 24.10.4
 
-  '@electron-toolkit/utils@3.0.0(electron@40.6.1)':
+  '@electron-toolkit/utils@3.0.0(electron@40.8.0)':
     dependencies:
-      electron: 40.6.1
+      electron: 40.8.0
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -13739,7 +13746,7 @@ snapshots:
       node-gyp: 11.5.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.7.1
+      semver: 7.7.2
       tar: 6.2.1
       yargs: 17.7.2
     transitivePeerDependencies:
@@ -13779,7 +13786,7 @@ snapshots:
     dependencies:
       cross-dirname: 0.1.0
       debug: 4.4.3
-      fs-extra: 11.3.3
+      fs-extra: 11.3.4
       minimist: 1.2.8
       postject: 1.0.0-alpha.6
     transitivePeerDependencies:
@@ -14736,7 +14743,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.1
+      semver: 7.7.3
 
   '@open-draft/deferred-promise@2.2.0': {}
 
@@ -19007,7 +19014,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@40.6.1:
+  electron@40.8.0:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 24.10.4
@@ -19723,6 +19730,13 @@ snapshots:
       jsonfile: 6.2.0
       universalify: 2.0.1
 
+  fs-extra@11.3.4:
+    dependencies:
+      graceful-fs: 4.2.11
+      jsonfile: 6.2.0
+      universalify: 2.0.1
+    optional: true
+
   fs-extra@7.0.1:
     dependencies:
       graceful-fs: 4.2.11
@@ -19841,7 +19855,7 @@ snapshots:
 
   get-stream@5.2.0:
     dependencies:
-      pump: 3.0.3
+      pump: 3.0.4
 
   get-stream@6.0.1: {}
 
@@ -22501,6 +22515,11 @@ snapshots:
       punycode: 2.3.1
 
   pump@3.0.3:
+    dependencies:
+      end-of-stream: 1.4.5
+      once: 1.4.0
+
+  pump@3.0.4:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0

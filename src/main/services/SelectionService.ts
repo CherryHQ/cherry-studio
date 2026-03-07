@@ -1196,24 +1196,6 @@ export class SelectionService {
     // Get a window from the preloaded queue or create a new one if empty
     const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
 
-    // [Windows] Workaround for Electron 40+ (Chromium 144) native crash.
-    // Calling close() on a visible transparent frameless window triggers DestroyWindow
-    // while the compositor still holds references to the transparent layer, causing a
-    // use-after-free crash. Hide first to release compositor resources, then destroy
-    // on the next tick.
-    if (isWin) {
-      actionWindow.on('close', (event) => {
-        if (!actionWindow.isVisible()) return
-        event.preventDefault()
-        actionWindow.hide()
-        setImmediate(() => {
-          if (!actionWindow.isDestroyed()) {
-            actionWindow.close()
-          }
-        })
-      })
-    }
-
     // Set up event listeners for this instance
     actionWindow.on('closed', () => {
       this.actionWindows.delete(actionWindow)
