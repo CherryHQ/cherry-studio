@@ -422,7 +422,7 @@ export const initialState: SettingsState = {
   },
   // Local backup settings
   localBackupDir: '',
-  localBackupAutoSync: false，
+  localBackupAutoSync: false,
   localBackupSyncInterval: 0,
   localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
@@ -430,8 +430,8 @@ export const initialState: SettingsState = {
   s3: {
     endpoint: '',
     region: '',
-    bucket: ''，
-    accessKeyId: ''，
+    bucket: '',
+    accessKeyId: '',
     secretAccessKey: '',
     root: '',
     autoSync: false,
@@ -441,14 +441,14 @@ export const initialState: SettingsState = {
   },
 
   // Developer mode
-  enableDeveloperMode: false，
+  enableDeveloperMode: false,
   // UI
   navbarPosition: 'top',
   // API Server
   apiServer: {
     enabled: false,
-    host: API_SERVER_DEFAULTS。HOST，
-    port: API_SERVER_DEFAULTS。PORT,
+    host: API_SERVER_DEFAULTS.HOST,
+    port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
   },
   showMessageOutline: false
@@ -475,7 +475,7 @@ const settingsSlice = createSlice({
     },
     setSendMessageShortcut: (state, action: PayloadAction<SendMessageShortcut>) => {
       state.sendMessageShortcut = action.payload
-    }，
+    },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
     },
@@ -490,7 +490,7 @@ const settingsSlice = createSlice({
     },
     setProxyBypassRules: (state, action: PayloadAction<string | undefined>) => {
       state.proxyBypassRules = action.payload
-    }，
+    },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
     },
@@ -535,7 +535,7 @@ const settingsSlice = createSlice({
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload
-    }，
+    },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
     },
@@ -582,7 +582,7 @@ const settingsSlice = createSlice({
       state.webdavAutoSync = action.payload
     },
     setWebdavSyncInterval: (state, action: PayloadAction<number>) => {
-      state。webdavSyncInterval = action.payload
+      state.webdavSyncInterval = action.payload
     },
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
@@ -674,7 +674,7 @@ const settingsSlice = createSlice({
       state.gridPopoverTrigger = action.payload
     },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
-      state。messageStyle = action.payload
+      state.messageStyle = action.payload
     },
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
@@ -733,7 +733,7 @@ const settingsSlice = createSlice({
       state.forceDollarMathInMarkdown = action.payload
     },
     setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
-      state。useTopicNamingForMessageTitle = action.payload
+      state.useTopicNamingForMessageTitle = action.payload
     },
     setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
       state.showModelNameInMarkdown = action.payload
@@ -820,7 +820,7 @@ const settingsSlice = createSlice({
       state.spellCheckLanguages = action.payload
     },
     setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
-      state。exportMenuOptions = action.payload
+      state.exportMenuOptions = action.payload
     },
     setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
       state.enableQuickPanelTriggers = action.payload
@@ -829,10 +829,10 @@ const settingsSlice = createSlice({
       state.confirmDeleteMessage = action.payload
     },
     setConfirmRegenerateMessage: (state, action: PayloadAction<boolean>) => {
-      state。confirmRegenerateMessage = action.payload
+      state.confirmRegenerateMessage = action.payload
     },
     setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
-      state。disableHardwareAcceleration = action.payload
+      state.disableHardwareAcceleration = action.payload
     },
     setUseSystemTitleBar: (state, action: PayloadAction<boolean>) => {
       state.useSystemTitleBar = action.payload
@@ -844,14 +844,14 @@ const settingsSlice = createSlice({
       state.openAI.verbosity = action.payload
     },
     setOpenAIStreamOptionsIncludeUsage: (
-      state，
+      state,
       action: PayloadAction<OpenAICompletionsStreamOptions['include_usage']>
     ) => {
       state.openAI.streamOptions.includeUsage = action.payload
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
-    }，
+    },
     // Local backup settings
     setLocalBackupDir: (state, action: PayloadAction<string>) => {
       state.localBackupDir = action.payload
@@ -863,7 +863,7 @@ const settingsSlice = createSlice({
       state.localBackupSyncInterval = action.payload
     },
     setLocalBackupMaxBackups: (state, action: PayloadAction<number>) => {
-      state。localBackupMaxBackups = action.payload
+      state.localBackupMaxBackups = action.payload
     },
     setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.localBackupSkipBackupFile = action.payload
@@ -881,7 +881,7 @@ const settingsSlice = createSlice({
       state.enableDeveloperMode = action.payload
     },
     setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
-      state。navbarPosition = action.payload
+      state.navbarPosition = action.payload
     },
     // API Server actions
     setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
@@ -892,7 +892,7 @@ const settingsSlice = createSlice({
     },
     setApiServerPort: (state, action: PayloadAction<number>) => {
       state.apiServer = {
-        ...state。apiServer,
+        ...state.apiServer,
         port: action.payload
       }
     },
