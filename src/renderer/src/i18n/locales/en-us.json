@@ -58,7 +58,7 @@
       "found": {
         "title": "Git Bash configured"
       },
-      "notFound": "Git Bash not found. Please install it first.",
+      "notFound": "Git Bash not found. Please install it first."，
       "pick": {
         "button": "Select Git Bash Path",
         "failed": "Failed to set Git Bash path",
@@ -84,7 +84,7 @@
     },
     "session": {
       "accessible_paths": {
-        "add": "Add directory",
+        "add": "Add directory"，
         "default_hint": "A default workspace will be created automatically if not specified.",
         "duplicate": "This directory is already included.",
         "empty": "Select at least one directory that the agent can access.",
@@ -3543,7 +3543,7 @@
     "advanced": {
       "auto_switch_to_topics": "Auto switch to topic",
       "title": "Advanced Settings"
-    },
+    }，
     "assistant": {
       "icon": {
         "type": {
@@ -3828,6 +3828,10 @@
         "standardize_citations": {
           "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
           "title": "Standardize Citation Format"
+        },
+        "show_timestamp": {  
+          "title": "Show message timestamps on export",  
+          "help": "When enabled, the creation time of each message will be appended to its heading in the format YYYY-MM-DD HH:mm."  
         },
         "title": "Markdown Export"
       },
