@@ -34,7 +34,14 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { defaultAppHeaders } from '@shared/utils'
+import {
+  defaultAppHeaders,
+  isMoonshotBuiltinWebSearchTool,
+  isMoonshotProviderLike,
+  MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
+  MOONSHOT_WEB_SEARCH_TOOL_NAME,
+  normalizeMoonshotBuiltinToolMessages
+} from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
@@ -277,6 +284,12 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     _fetch = createDeveloperToSystemFetch(fetch)
   }
 
+  // Moonshot requires builtin_function.$web_search in tools for built-in web search.
+  // Add a final outbound safeguard so the request body sent to Moonshot is never tools: [] when tool_choice is not none.
+  if (isMoonshotProviderLike(actualProvider, SystemProviderIds.moonshot)) {
+    _fetch = createMoonshotBuiltinSearchFetch(_fetch ?? fetch)
+  }
+
   const baseExtraOptions = {
     fetch: _fetch,
     endpoint,
@@ -439,6 +452,47 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
           options = {
             ...options,
             body: JSON.stringify(body)
+          }
+        }
+      } catch {
+        // If parsing fails, just use original body
+      }
+    }
+    return baseFetch(input, options)
+  }
+}
+
+function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof fetch {
+  const baseFetch = originalFetch ?? fetch
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let options = init
+    if (options?.body && typeof options.body === 'string') {
+      try {
+        const body = JSON.parse(options.body)
+        let hasChanges = false
+
+        // Layer 2/3 (renderer outbound safety net):
+        // keep request normalization and tool injection here because not all calls go through main API server.
+        // This must stay behaviorally aligned with main and legacy client layers.
+        // Only apply to chat-completions style payloads.
+        if (Array.isArray(body.messages) && body.tool_choice !== 'none') {
+          const normalizedMessages = normalizeMoonshotBuiltinToolMessages(body.messages, MOONSHOT_WEB_SEARCH_TOOL_NAME)
+          if (normalizedMessages.hasChanges) {
+            body.messages = normalizedMessages.messages
+            hasChanges = true
+          }
+
+          const currentTools = Array.isArray(body.tools) ? [...body.tools] : []
+          const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
+          if (!hasBuiltinWebSearch) {
+            body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL_DEFINITION]
+            hasChanges = true
+          }
+          if (hasChanges) {
+            options = {
+              ...options,
+              body: JSON.stringify(body)
+            }
           }
         }
       } catch {

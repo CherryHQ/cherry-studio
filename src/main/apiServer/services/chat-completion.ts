@@ -1,5 +1,13 @@
 import OpenAI from '@cherrystudio/openai'
 import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
+import {
+  asMoonshotBuiltinWebSearchTool,
+  isMoonshotBuiltinWebSearchTool,
+  isMoonshotProviderLike,
+  MOONSHOT_PROVIDER_ID,
+  MOONSHOT_WEB_SEARCH_TOOL_NAME,
+  normalizeMoonshotBuiltinToolMessages
+} from '@shared/utils'
 import type { Provider } from '@types'
 
 import { loggerService } from '../../services/LoggerService'
@@ -7,6 +15,57 @@ import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
+
+type ChatCompletionTool = NonNullable<ChatCompletionCreateParams['tools']>[number]
+
+export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreateParams>(
+  request: T,
+  provider: Provider
+): T {
+  // Layer 1/3 (main API server):
+  // normalize tool-call messages and inject the builtin tool in the server path.
+  // Renderer and legacy client keep equivalent fallbacks for non-server request paths.
+  if (!isMoonshotProviderLike(provider, MOONSHOT_PROVIDER_ID)) {
+    return request
+  }
+
+  const normalizedMessages = normalizeMoonshotBuiltinToolMessages(request.messages, MOONSHOT_WEB_SEARCH_TOOL_NAME)
+  let normalizedRequest = request
+  if (normalizedMessages.hasChanges) {
+    normalizedRequest = {
+      ...request,
+      messages: normalizedMessages.messages
+    } as T
+  }
+
+  const currentTools = Array.isArray(normalizedRequest.tools) ? [...normalizedRequest.tools] : []
+  const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
+  const shouldInject = normalizedRequest.tool_choice !== 'none' && !hasBuiltinWebSearch
+
+  logger.debug('Moonshot builtin web search tool normalization', {
+    providerId: provider.id,
+    toolChoice: normalizedRequest.tool_choice,
+    toolCountBefore: currentTools.length,
+    hasBuiltinWebSearch,
+    shouldInject,
+    hasNormalizedMessages: normalizedMessages.hasChanges
+  })
+
+  if (!shouldInject) {
+    return normalizedRequest
+  }
+
+  const normalizedTools = [...currentTools, asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
+  logger.debug('Moonshot builtin web search tool injected', {
+    providerId: provider.id,
+    toolCountAfter: normalizedTools.length
+  })
+
+  return {
+    ...normalizedRequest,
+    tools: normalizedTools
+  }
+}
 
 export interface ValidationResult {
   isValid: boolean
@@ -106,12 +165,8 @@ export class ChatCompletionService {
       fullModelId: request.model
     })
 
-    return {
-      status: 'ok',
-      provider,
-      modelId,
-      client,
-      providerRequest: stream
+    const providerRequest = normalizeMoonshotBuiltinSearchTool(
+      stream
         ? {
             ...request,
             model: modelId,
@@ -121,7 +176,16 @@ export class ChatCompletionService {
             ...request,
             model: modelId,
             stream: false as const
-          }
+          },
+      provider
+    )
+
+    return {
+      status: 'ok',
+      provider,
+      modelId,
+      client,
+      providerRequest
     }
   }
 

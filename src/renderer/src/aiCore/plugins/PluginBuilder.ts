@@ -109,6 +109,12 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   // 1. 模型内置搜索
   if (config.enableWebSearch && config.webSearchPluginConfig) {
     plugins.push(webSearchPlugin(config.webSearchPluginConfig))
+    logger.debug('Added webSearchPlugin', config.webSearchPluginConfig)
+  } else {
+    logger.debug('Skipped webSearchPlugin', {
+      enableWebSearch: config.enableWebSearch,
+      hasConfig: !!config.webSearchPluginConfig
+    })
   }
   // 2. 支持工具调用时添加搜索插件
   if (config.isSupportedToolUse || config.isPromptToolUse) {
@@ -120,8 +126,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   //   plugins.push(reasoningTimePlugin)
   // }
 
-  // 4. 启用Prompt工具调用时添加工具插件
-  if (config.isPromptToolUse) {
+  const shouldEnableBuiltinPromptToolUse = config.enableWebSearch && !!config.webSearchPluginConfig?.moonshot
+
+  // 4. 启用 Prompt 工具调用时添加工具插件。
+  // Moonshot builtin web search also needs this plugin to preserve builtin tool-call semantics.
+  if (config.isPromptToolUse || shouldEnableBuiltinPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,

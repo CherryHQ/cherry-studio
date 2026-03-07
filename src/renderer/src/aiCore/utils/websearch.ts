@@ -115,6 +115,11 @@ export function buildProviderBuiltinWebSearchConfig(
         { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
       return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
     }
+    case 'moonshot': {
+      return {
+        moonshot: true
+      }
+    }
     default: {
       return {}
     }

@@ -84,6 +84,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
+import { asMoonshotBuiltinWebSearchTool } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -728,6 +729,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 
+        // Layer 3/3 (legacy OpenAI client fallback):
+        // keep this injection for legacy call paths that bypass the main server/fetch-wrapper pipeline.
+        // All Moonshot models support built-in web search.
+        logger.debug('Moonshot web search check', {
+          enableWebSearch,
+          providerId: this.provider.id,
+          isMoonshot: this.provider.id === SystemProviderIds.moonshot,
+          currentTools: commonParams.tools
+        })
+        if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot) {
+          commonParams.tools = [...(commonParams.tools ?? []), asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
+          logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
+        }
+
         const timeout = this.getTimeout(model)
 
         return { payload: commonParams, messages: reqMessages, metadata: { timeout } }
@@ -735,7 +750,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
   }
 
-  // 在RawSdkChunkToGenericChunkMiddleware中使用
+  // Used in RawSdkChunkToGenericChunkMiddleware.
   getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
     let hasEmittedWebSearchInProgress = false
@@ -1037,14 +1052,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 if ('index' in toolCall) {
                   const { id, index, function: fun } = toolCall
                   if (fun?.name) {
+                    const toolCallType = (toolCall as { type?: string }).type ?? 'function'
                     const toolCallObject = {
                       id: id || '',
                       function: {
                         name: fun.name,
                         arguments: fun.arguments || ''
                       },
-                      type: 'function' as const
-                    }
+                      type: toolCallType
+                    } as unknown as OpenAI.Chat.Completions.ChatCompletionMessageToolCall
 
                     if (index === -1) {
                       toolCalls.push(toolCallObject)
@@ -1052,7 +1068,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                       toolCalls[index] = toolCallObject
                     }
                   } else if (fun?.arguments) {
-                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                    if (toolCalls[index] && 'function' in toolCalls[index]) {
                       toolCalls[index].function.arguments += fun.arguments
                     }
                   }

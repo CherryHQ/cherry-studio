@@ -1,6 +1,6 @@
 /**
  * Web Search Plugin
- * 提供统一的网络搜索能力，支持多个 AI Provider
+ * Provides unified web-search capability across multiple AI providers.
  */
 
 import { definePlugin } from '../../'
@@ -8,9 +8,7 @@ import type { WebSearchPluginConfig } from './helper'
 import { DEFAULT_WEB_SEARCH_CONFIG, switchWebSearchTool } from './helper'
 
 /**
- * 网络搜索插件
- *
- * @param config - 在插件初始化时传入的静态配置
+ * @param config - Static configuration passed during plugin initialization.
  */
 export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEARCH_CONFIG) =>
   definePlugin({
@@ -37,8 +35,8 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
     }
   })
 
-// 导出类型定义供开发者使用
+// Export types for plugin consumers.
 export * from './helper'
 
-// 默认导出
+// Default export for convenience.
 export default webSearchPlugin

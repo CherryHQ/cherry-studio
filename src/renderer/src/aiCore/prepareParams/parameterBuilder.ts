@@ -146,8 +146,14 @@ export async function buildStreamTextParams(
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
+    logger.debug('Building webSearchPluginConfig', {
+      aiSdkProviderId,
+      isBaseProvider: isBaseProvider(aiSdkProviderId),
+      enableWebSearch
+    })
     if (isBaseProvider(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      logger.debug('Built webSearchPluginConfig for base provider', { aiSdkProviderId, webSearchPluginConfig })
     } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {
       const aiSdkProviderId = mapVertexAIGatewayModelToProviderId(model)
       if (aiSdkProviderId) {

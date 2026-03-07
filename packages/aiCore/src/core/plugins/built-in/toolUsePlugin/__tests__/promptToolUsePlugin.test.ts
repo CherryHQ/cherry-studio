@@ -92,6 +92,32 @@ describe('promptToolUsePlugin', () => {
       expect(context.mcpTools).toBeUndefined()
     })
 
+    it('should keep builtin provider tools as provider type for AI SDK compatibility', async () => {
+      const plugin = createPromptToolUsePlugin()
+      const context = createMockContext()
+      const params = createMockStreamParams({
+        tools: {
+          $web_search: {
+            type: 'provider',
+            toolType: 'builtin_function',
+            isBuiltin: true,
+            definition: {
+              type: 'builtin_function',
+              function: { name: '$web_search' }
+            },
+            execute: vi.fn()
+          } as any
+        }
+      })
+
+      const result = await Promise.resolve(plugin.transformParams!(params, context))
+
+      expect(result.tools).toBeDefined()
+      expect((result.tools as any).$web_search.type).toBe('provider')
+      expect((result.tools as any).$web_search.definition?.type).toBe('builtin_function')
+      expect(context.builtinTools?.$web_search).toBeDefined()
+    })
+
     it('should handle only prompt tools', async () => {
       const plugin = createPromptToolUsePlugin()
       const context = createMockContext()
@@ -522,6 +548,87 @@ describe('promptToolUsePlugin', () => {
       if (finishEvent && 'totalUsage' in finishEvent) {
         expect(finishEvent.totalUsage).toEqual(context.accumulatedUsage)
       }
+    })
+
+    it('should handle builtin tools even when mcpTools is empty', async () => {
+      const plugin = createPromptToolUsePlugin()
+      const context = createMockContext({
+        builtinTools: {
+          $web_search: {
+            type: 'provider',
+            toolType: 'builtin_function',
+            isBuiltin: true,
+            definition: {
+              type: 'builtin_function',
+              function: { name: '$web_search' }
+            }
+          }
+        },
+        recursiveCall: vi.fn().mockResolvedValue({
+          fullStream: simulateReadableStream<TextStreamPart<ToolSet>>({
+            chunks: [
+              { type: 'text-delta' as const, id: 'chunk-1', text: 'done' }
+            ] as unknown as TextStreamPart<ToolSet>[],
+            initialDelayInMs: 0,
+            chunkDelayInMs: 0
+          })
+        })
+      })
+
+      const inputChunks = [
+        {
+          type: 'finish-step' as const,
+          finishReason: 'tool_calls' as const,
+          toolCalls: [
+            {
+              id: 't-web-search-1',
+              type: 'builtin_function',
+              function: {
+                name: '$web_search',
+                arguments: '{"search_result":{"search_id":"search_123"}}'
+              }
+            }
+          ]
+        }
+      ]
+
+      const inputStream = simulateReadableStream<TextStreamPart<ToolSet>>({
+        chunks: inputChunks as unknown as TextStreamPart<ToolSet>[],
+        initialDelayInMs: 0,
+        chunkDelayInMs: 0
+      })
+
+      const transform = plugin.transformStream!(createMockStreamParams(), context)()
+      await convertReadableStreamToArray(inputStream.pipeThrough(transform))
+
+      expect(context.recursiveCall).toHaveBeenCalledTimes(1)
+      const recursiveParams = vi.mocked(context.recursiveCall).mock.calls[0][0] as {
+        messages: Array<{ role: string; tool_calls?: unknown[]; content?: string; tool_call_id?: string }>
+      }
+
+      const assistantMessage = recursiveParams.messages.find((message) => message.role === 'assistant')
+      const toolMessage = recursiveParams.messages.find((message) => message.role === 'tool')
+
+      expect(assistantMessage).toMatchObject({
+        role: 'assistant',
+        tool_calls: [
+          {
+            id: 't-web-search-1',
+            type: 'builtin_function',
+            function: {
+              name: '$web_search',
+              arguments: '{"search_result":{"search_id":"search_123"}}'
+            }
+          }
+        ]
+      })
+
+      expect(toolMessage).toMatchObject({
+        role: 'tool',
+        tool_call_id: 't-web-search-1',
+        name: '$web_search',
+        content: '{"search_result":{"search_id":"search_123"}}'
+      })
     })
   })
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
@@ -142,6 +142,26 @@ const createAzureProvider = (apiVersion: string): Provider => ({
   apiVersion,
   models: [],
   isSystem: true
+})
+
+const createMoonshotProvider = (): Provider => ({
+  id: 'moonshot',
+  type: 'openai',
+  name: 'Moonshot',
+  apiKey: 'test-key',
+  apiHost: 'https://api.moonshot.cn',
+  models: [],
+  isSystem: true
+})
+
+const createCustomMoonshotCompatibleProvider = (): Provider => ({
+  id: 'custom-moonshot',
+  type: 'openai',
+  name: 'Custom Moonshot',
+  apiKey: 'test-key',
+  apiHost: 'https://api.moonshot.cn/v1',
+  models: [],
+  isSystem: false
 })
 
 describe('Copilot responses routing', () => {
@@ -556,5 +576,250 @@ describe('Azure OpenAI traditional API routing', () => {
     expect(previewConfig.providerId).toBe('azure-responses')
     expect(previewConfig.options.apiVersion).toBe('preview')
     expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
+  })
+})
+
+describe('Moonshot outbound fetch normalization', () => {
+  const originalFetch = globalThis.fetch
+
+  beforeEach(() => {
+    ;(globalThis as any).window = {
+      ...(globalThis as any).window,
+      keyv: createWindowKeyv()
+    }
+    mockGetState.mockReturnValue({
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: undefined
+          }
+        }
+      }
+    })
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('injects builtin_function.$web_search when tools is empty array', async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    globalThis.fetch = mockedFetch as unknown as typeof fetch
+
+    const provider = createMoonshotProvider()
+    const model = createModel('kimi-k2-0711-preview', 'Kimi K2', provider.id)
+    const config = providerToAiSdkConfig(provider, model)
+
+    const requestBody = {
+      model: 'kimi-k2-0711-preview',
+      messages: [{ role: 'user', content: 'Search latest Qwen3.5 models' }],
+      tools: [],
+      tool_choice: 'auto',
+      stream: true
+    }
+
+    await config.options.fetch('https://api.moonshot.cn/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody)
+    } as RequestInit)
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1)
+    const [, requestInit] = mockedFetch.mock.calls[0]
+    const body = JSON.parse((requestInit as RequestInit).body as string)
+    expect(body.tools).toEqual([
+      {
+        type: 'builtin_function',
+        function: {
+          name: '$web_search'
+        }
+      }
+    ])
+  })
+
+  it('does not inject when tool_choice is none', async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    globalThis.fetch = mockedFetch as unknown as typeof fetch
+
+    const provider = createMoonshotProvider()
+    const model = createModel('kimi-k2-0711-preview', 'Kimi K2', provider.id)
+    const config = providerToAiSdkConfig(provider, model)
+
+    const requestBody = {
+      model: 'kimi-k2-0711-preview',
+      messages: [{ role: 'user', content: 'Search latest Qwen3.5 models' }],
+      tools: [],
+      tool_choice: 'none',
+      stream: true
+    }
+
+    await config.options.fetch('https://api.moonshot.cn/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody)
+    } as RequestInit)
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1)
+    const [, requestInit] = mockedFetch.mock.calls[0]
+    const body = JSON.parse((requestInit as RequestInit).body as string)
+    expect(body.tools).toEqual([])
+  })
+
+  it('injects builtin_function.$web_search for custom provider pointing to moonshot host', async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    globalThis.fetch = mockedFetch as unknown as typeof fetch
+
+    const provider = createCustomMoonshotCompatibleProvider()
+    const model = createModel('kimi-k2-0711-preview', 'Kimi K2', provider.id)
+    const config = providerToAiSdkConfig(provider, model)
+
+    const requestBody = {
+      model: 'kimi-k2-0711-preview',
+      messages: [{ role: 'user', content: 'Search latest Qwen3.5 models' }],
+      tools: [],
+      tool_choice: 'auto',
+      stream: true
+    }
+
+    await config.options.fetch('https://api.moonshot.cn/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody)
+    } as RequestInit)
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1)
+    const [, requestInit] = mockedFetch.mock.calls[0]
+    const body = JSON.parse((requestInit as RequestInit).body as string)
+    expect(body.tools).toEqual([
+      {
+        type: 'builtin_function',
+        function: {
+          name: '$web_search'
+        }
+      }
+    ])
+  })
+
+  it('fills tool message name from assistant tool_calls for moonshot', async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    globalThis.fetch = mockedFetch as unknown as typeof fetch
+
+    const provider = createMoonshotProvider()
+    const model = createModel('kimi-k2-0711-preview', 'Kimi K2', provider.id)
+    const config = providerToAiSdkConfig(provider, model)
+
+    const requestBody = {
+      model: 'kimi-k2-0711-preview',
+      messages: [
+        { role: 'user', content: '请你使用内置搜索，搜索并总结 Qwen3.5 系列的模型' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 't-web-search-1',
+              type: 'builtin_function',
+              function: {
+                name: '$web_search',
+                arguments: '{"search_result":{"search_id":"search_123"}}'
+              }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          tool_call_id: 't-web-search-1',
+          content: '{"search_result":{"search_id":"search_123"}}'
+        }
+      ],
+      tools: [
+        {
+          type: 'builtin_function',
+          function: {
+            name: '$web_search'
+          }
+        }
+      ],
+      tool_choice: 'auto',
+      stream: true
+    }
+
+    await config.options.fetch('https://api.moonshot.cn/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody)
+    } as RequestInit)
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1)
+    const [, requestInit] = mockedFetch.mock.calls[0]
+    const body = JSON.parse((requestInit as RequestInit).body as string)
+    const toolMessage = body.messages.find((message: { role?: string }) => message.role === 'tool')
+    expect(toolMessage).toMatchObject({
+      role: 'tool',
+      tool_call_id: 't-web-search-1',
+      name: '$web_search',
+      content: '{"search_result":{"search_id":"search_123"}}'
+    })
+  })
+
+  it('normalizes assistant tool_call type to builtin_function for moonshot', async () => {
+    const mockedFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    globalThis.fetch = mockedFetch as unknown as typeof fetch
+
+    const provider = createMoonshotProvider()
+    const model = createModel('kimi-k2-0711-preview', 'Kimi K2', provider.id)
+    const config = providerToAiSdkConfig(provider, model)
+
+    const requestBody = {
+      model: 'kimi-k2-0711-preview',
+      messages: [
+        { role: 'user', content: '请你使用内置搜索，搜索并总结 Qwen3.5 系列的模型' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 't-web-search-2',
+              type: 'function',
+              function: {
+                name: '$web_search',
+                arguments: '{"search_result":{"search_id":"search_234"}}'
+              }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          tool_call_id: 't-web-search-2',
+          name: '$web_search',
+          content: '{"search_result":{"search_id":"search_234"}}'
+        }
+      ],
+      tools: [
+        {
+          type: 'builtin_function',
+          function: {
+            name: '$web_search'
+          }
+        }
+      ],
+      tool_choice: 'auto',
+      stream: true
+    }
+
+    await config.options.fetch('https://api.moonshot.cn/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify(requestBody)
+    } as RequestInit)
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1)
+    const [, requestInit] = mockedFetch.mock.calls[0]
+    const body = JSON.parse((requestInit as RequestInit).body as string)
+    const assistantMessage = body.messages.find((message: { role?: string }) => message.role === 'assistant')
+    expect(assistantMessage.tool_calls[0]).toMatchObject({
+      id: 't-web-search-2',
+      type: 'builtin_function',
+      function: {
+        name: '$web_search',
+        arguments: '{"search_result":{"search_id":"search_234"}}'
+      }
+    })
   })
 })

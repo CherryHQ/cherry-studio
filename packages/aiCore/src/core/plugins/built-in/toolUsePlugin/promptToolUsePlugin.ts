@@ -7,10 +7,11 @@ import type { TextStreamPart, ToolSet } from 'ai'
 
 import { definePlugin } from '../../index'
 import type { AiPlugin, StreamTextParams, StreamTextResult } from '../../types'
+import { BuiltinToolStreamManager } from './BuiltinToolStreamManager'
 import { StreamEventManager } from './StreamEventManager'
 import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
-import type { PromptToolUseConfig, ToolUseResult } from './type'
+import type { ExtendedToolSet, PromptToolUseConfig, ToolUseResult } from './type'
 
 /**
  * 工具使用标签配置
@@ -297,23 +298,35 @@ export const createPromptToolUsePlugin = (
         return params
       }
 
-      // 分离 provider 和其他类型的工具
+      // 分离 provider 类型、内置工具和其他工具
       const providerDefinedTools: ToolSet = {}
+      const builtinTools: ExtendedToolSet = {}
       const promptTools: ToolSet = {}
 
-      for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
+      for (const [toolName, tool] of Object.entries(params.tools as ExtendedToolSet)) {
         if (tool.type === 'provider') {
-          // provider 类型的工具保留在 tools 参数中
-          providerDefinedTools[toolName] = tool
+          if (tool.isBuiltin) {
+            // 内置工具（如 Moonshot 的 $web_search）
+            builtinTools[toolName] = tool
+            // 保持 AI SDK 兼容：tools 只接受 function/provider，不能直接使用 builtin_function。
+            // Moonshot 的 builtin_function 由下游请求标准化层注入到最终 payload。
+            providerDefinedTools[toolName] = tool
+          } else {
+            // 普通 provider 工具
+            providerDefinedTools[toolName] = tool
+          }
         } else {
           // 其他工具转换为 prompt 模式
           promptTools[toolName] = tool
         }
       }
 
-      // 只有当有非 provider 工具时才保存到 context
+      // 保存工具到 context
       if (Object.keys(promptTools).length > 0) {
         context.mcpTools = promptTools
+      }
+      if (Object.keys(builtinTools).length > 0) {
+        context.builtinTools = builtinTools
       }
 
       // 递归调用时，不重新构建 system prompt，避免重复追加工具定义
@@ -343,8 +356,8 @@ export const createPromptToolUsePlugin = (
       let textBuffer = ''
       // let stepId = ''
 
-      // 如果没有需要 prompt 模式处理的工具，直接返回原始流
-      if (!context.mcpTools) {
+      // 如果没有需要处理的工具，直接返回原始流
+      if (!context.mcpTools && !context.builtinTools) {
         return new TransformStream()
       }
 
@@ -359,9 +372,10 @@ export const createPromptToolUsePlugin = (
         }
       }
 
-      // 创建工具执行器、流事件管理器和标签提取器
+      // 创建工具执行器、流事件管理器、内置工具管理器和标签提取器
       const toolExecutor = new ToolExecutor()
       const streamEventManager = new StreamEventManager()
+      const builtinToolManager = new BuiltinToolStreamManager()
       const tagExtractor = new TagExtractor(TOOL_USE_TAG_CONFIG)
 
       // 在context中初始化工具执行状态，避免递归调用时状态丢失
@@ -422,7 +436,30 @@ export const createPromptToolUsePlugin = (
           }
 
           if (chunk.type === 'finish-step') {
-            // 统一在finish-step阶段检查并执行工具调用
+            // 首先检查并处理内置工具调用（如 Moonshot 的 $web_search）
+            const builtinTools = context.builtinTools
+            if (builtinTools && Object.keys(builtinTools).length > 0 && !context.hasExecutedToolsInCurrentStep) {
+              const builtinResult = await builtinToolManager.handleFinishStepWithBuiltinTools(chunk, context)
+
+              if (builtinResult.shouldContinue && builtinResult.updatedMessages) {
+                context.hasExecutedToolsInCurrentStep = true
+
+                // 发送步骤完成事件
+                streamEventManager.sendStepFinishEvent(controller, chunk, context, 'tool-calls')
+
+                // 使用更新的消息进行递归调用
+                const recursiveParams = streamEventManager.buildRecursiveParamsWithMessages(
+                  context,
+                  builtinResult.updatedMessages,
+                  builtinTools
+                )
+
+                await streamEventManager.handleRecursiveCall(controller, recursiveParams, context)
+                return
+              }
+            }
+
+            // 然后检查并执行普通工具调用
             const tools = context.mcpTools
             if (tools && Object.keys(tools).length > 0 && !context.hasExecutedToolsInCurrentStep) {
               // 解析完整的textBuffer来检测工具调用
