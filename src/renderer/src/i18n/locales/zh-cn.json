@@ -58,7 +58,7 @@
       "found": {
         "title": "已配置 Git Bash"
       },
-      "notFound": "未找到 Git Bash。请先安装。",
+      "notFound": "未找到 Git Bash。请先安装。"，
       "pick": {
         "button": "选择 Git Bash 路径",
         "failed": "设置 Git Bash 路径失败",
@@ -2529,7 +2529,7 @@
   "ocr": {
     "builtin": {
       "system": "系统 OCR"
-    },
+    }，
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能删除内置提供商",
@@ -2987,7 +2987,7 @@
     "copy": {
       "image": "复制为图片",
       "src": "复制图片源"
-    },
+    }，
     "dialog": "打开预览窗口",
     "label": "预览",
     "pan": "移动",
@@ -3426,7 +3426,7 @@
           "description_note": {
             "mac": "若使用了快捷键或键盘映射工具对 ⌘ 键进行了重映射，可能导致部分应用无法划词。",
             "windows": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等按键映射工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。"
-          },
+          }，
           "selected": "划词",
           "selected_note": "划词后立即显示工具栏",
           "shortcut": "快捷键",
@@ -3828,6 +3828,10 @@
         "standardize_citations": {
           "help": "开启后，导出 Markdown 时会将引用标记转换为标准 Markdown 脚注格式 [^1]，并格式化引用列表",
           "title": "标准化引用格式"
+        },
+        "show_timestamp": {  
+          "title": "导出时显示消息时间戳",  
+          "help": "开启后，导出 Markdown 时每条消息标题后会附加发送时间，格式为 YYYY-MM-DD HH:mm"  
         },
         "title": "Markdown 导出"
       },
