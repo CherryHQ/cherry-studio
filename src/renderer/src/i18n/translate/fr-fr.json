@@ -2521,6 +2521,9 @@
   "notification": {
     "assistant": "Réponse de l'assistant",
     "knowledge": {
+      "batch_error": "[to be translated]:{{failed}} items failed to process",
+      "batch_mixed": "[to be translated]:{{succeeded}} items succeeded, {{failed}} items failed",
+      "batch_success": "[to be translated]:{{succeeded}} items processed successfully",
       "error": "{{error}}",
       "success": "{{type}} ajouté avec succès à la base de connaissances"
     },

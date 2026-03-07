@@ -2521,6 +2521,9 @@
   "notification": {
     "assistant": "助手响应",
     "knowledge": {
+      "batch_error": "{{failed}} 个项目处理失败",
+      "batch_mixed": "{{succeeded}} 个项目处理成功，{{failed}} 个项目处理失败",
+      "batch_success": "{{succeeded}} 个项目处理成功",
       "error": "{{error}}",
       "success": "成功添加 {{type}} 到知识库"
     },
