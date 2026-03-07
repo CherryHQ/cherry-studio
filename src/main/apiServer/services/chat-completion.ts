@@ -15,6 +15,7 @@ const MOONSHOT_WEB_SEARCH_TOOL = {
 } as const
 
 type ChatCompletionTool = NonNullable<ChatCompletionCreateParams['tools']>[number]
+type ChatCompletionMessage = NonNullable<ChatCompletionCreateParams['messages']>[number]
 
 function isMoonshotProvider(provider: Provider): boolean {
   if (provider.id === MOONSHOT_PROVIDER_ID) {
@@ -51,20 +52,30 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
     return request
   }
 
-  const currentTools = Array.isArray(request.tools) ? [...request.tools] : []
+  const normalizedMessages = normalizeMoonshotMessages(request.messages)
+  let normalizedRequest = request
+  if (normalizedMessages.hasChanges) {
+    normalizedRequest = {
+      ...request,
+      messages: normalizedMessages.messages
+    } as T
+  }
+
+  const currentTools = Array.isArray(normalizedRequest.tools) ? [...normalizedRequest.tools] : []
   const hasBuiltinWebSearch = currentTools.some(isMoonshotWebSearchTool)
-  const shouldInject = request.tool_choice !== 'none' && !hasBuiltinWebSearch
+  const shouldInject = normalizedRequest.tool_choice !== 'none' && !hasBuiltinWebSearch
 
   logger.debug('Moonshot builtin web search tool normalization', {
     providerId: provider.id,
-    toolChoice: request.tool_choice,
+    toolChoice: normalizedRequest.tool_choice,
     toolCountBefore: currentTools.length,
     hasBuiltinWebSearch,
-    shouldInject
+    shouldInject,
+    hasNormalizedMessages: normalizedMessages.hasChanges
   })
 
   if (!shouldInject) {
-    return request
+    return normalizedRequest
   }
 
   const normalizedTools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL as unknown as ChatCompletionTool]
@@ -74,8 +85,97 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
   })
 
   return {
-    ...request,
+    ...normalizedRequest,
     tools: normalizedTools
+  }
+}
+
+function normalizeMoonshotMessages(messages: ChatCompletionCreateParams['messages'] | undefined): {
+  messages: ChatCompletionMessage[]
+  hasChanges: boolean
+} {
+  if (!Array.isArray(messages)) {
+    return { messages: [], hasChanges: false }
+  }
+
+  const toolCallNameById = new Map<string, string>()
+  for (const message of messages) {
+    if (message.role !== 'assistant') {
+      continue
+    }
+    const toolCalls = (message as { tool_calls?: unknown }).tool_calls
+    if (!Array.isArray(toolCalls)) {
+      continue
+    }
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall || typeof toolCall !== 'object') {
+        continue
+      }
+      const candidate = toolCall as { id?: unknown; function?: { name?: unknown } }
+      if (typeof candidate.id === 'string' && typeof candidate.function?.name === 'string') {
+        toolCallNameById.set(candidate.id, candidate.function.name)
+      }
+    }
+  }
+
+  let hasChanges = false
+  const normalizedMessages = messages.map((message) => {
+    if (message.role === 'assistant') {
+      const toolCalls = (message as { tool_calls?: unknown }).tool_calls
+      if (Array.isArray(toolCalls)) {
+        let assistantHasChanges = false
+        const normalizedToolCalls = toolCalls.map((toolCall) => {
+          if (!toolCall || typeof toolCall !== 'object') {
+            return toolCall
+          }
+
+          const candidate = toolCall as { type?: unknown; function?: { name?: unknown } }
+          if (candidate.function?.name === MOONSHOT_WEB_SEARCH_TOOL_NAME && candidate.type !== 'builtin_function') {
+            assistantHasChanges = true
+            return {
+              ...candidate,
+              type: 'builtin_function'
+            }
+          }
+
+          return toolCall
+        })
+
+        if (assistantHasChanges) {
+          hasChanges = true
+          return {
+            ...message,
+            tool_calls: normalizedToolCalls
+          } as ChatCompletionMessage
+        }
+      }
+    }
+
+    if (message.role !== 'tool') {
+      return message
+    }
+
+    const candidate = message as { name?: unknown; tool_call_id?: unknown }
+    if (typeof candidate.name === 'string' || typeof candidate.tool_call_id !== 'string') {
+      return message
+    }
+
+    const toolName = toolCallNameById.get(candidate.tool_call_id)
+    if (!toolName) {
+      return message
+    }
+
+    hasChanges = true
+    return {
+      ...message,
+      name: toolName
+    } as ChatCompletionMessage
+  })
+
+  return {
+    messages: normalizedMessages,
+    hasChanges
   }
 }
 

@@ -183,10 +183,11 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
             name: '$web_search'
           }
         },
-        execute: async () => {
-          // Built-in tools are executed on the provider side
-          // Results are processed by the provider
-          return { status: 'completed' }
+        execute: async (argumentsPayload: unknown) => {
+          // Built-in tools are executed on the provider side.
+          // For Moonshot, caller should send back model-produced arguments unchanged.
+          // Keep this fallback compatible with default tool execution loops.
+          return argumentsPayload ?? {}
         }
       }
 

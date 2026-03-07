@@ -308,12 +308,9 @@ export const createPromptToolUsePlugin = (
           if (tool.isBuiltin) {
             // 内置工具（如 Moonshot 的 $web_search）
             builtinTools[toolName] = tool
-            // 同时添加到 providerDefinedTools 以透传到请求
-            // 保留原始的 type（如 'builtin_function'）
-            providerDefinedTools[toolName] = {
-              type: tool.definition?.type || 'function',
-              function: tool.definition?.function || { name: toolName }
-            } as any
+            // 保持 AI SDK 兼容：tools 只接受 function/provider，不能直接使用 builtin_function。
+            // Moonshot 的 builtin_function 由下游请求标准化层注入到最终 payload。
+            providerDefinedTools[toolName] = tool
           } else {
             // 普通 provider 工具
             providerDefinedTools[toolName] = tool
@@ -359,8 +356,8 @@ export const createPromptToolUsePlugin = (
       let textBuffer = ''
       // let stepId = ''
 
-      // 如果没有需要 prompt 模式处理的工具，直接返回原始流
-      if (!context.mcpTools) {
+      // 如果没有需要处理的工具，直接返回原始流
+      if (!context.mcpTools && !context.builtinTools) {
         return new TransformStream()
       }
 

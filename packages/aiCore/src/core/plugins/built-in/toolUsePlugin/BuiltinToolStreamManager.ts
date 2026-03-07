@@ -11,6 +11,8 @@ export interface BuiltinToolCall {
   id: string
   name: string
   arguments: any
+  rawArguments?: string
+  toolType?: string
 }
 
 /**
@@ -31,11 +33,26 @@ export class BuiltinToolStreamManager {
     const toolCalls = chunk.toolCalls || chunk.tool_calls
     if (!toolCalls) return []
 
-    return toolCalls.map((tc: any) => ({
-      id: tc.id,
-      name: tc.function?.name || tc.name,
-      arguments: typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.arguments || {}
-    }))
+    return toolCalls.map((tc: any) => {
+      const rawArguments = typeof tc.function?.arguments === 'string' ? tc.function.arguments : undefined
+      let parsedArguments = tc.arguments || {}
+
+      if (rawArguments) {
+        try {
+          parsedArguments = JSON.parse(rawArguments)
+        } catch {
+          parsedArguments = rawArguments
+        }
+      }
+
+      return {
+        id: tc.id,
+        name: tc.function?.name || tc.name,
+        arguments: parsedArguments,
+        rawArguments,
+        toolType: tc.type
+      }
+    })
   }
 
   /**
@@ -75,7 +92,7 @@ export class BuiltinToolStreamManager {
           tool_call_id: toolCall.id,
           role: 'tool',
           name: toolCall.name,
-          content: JSON.stringify({ status: 'completed' })
+          content: toolCall.rawArguments ?? JSON.stringify(toolCall.arguments ?? {})
         })
       }
     }
@@ -90,10 +107,14 @@ export class BuiltinToolStreamManager {
             content: chunk.content || '',
             tool_calls: toolCalls.map((tc) => ({
               id: tc.id,
-              type: 'function',
+              type:
+                tc.toolType ||
+                context.builtinTools?.[tc.name]?.definition?.type ||
+                context.builtinTools?.[tc.name]?.toolType ||
+                'function',
               function: {
                 name: tc.name,
-                arguments: JSON.stringify(tc.arguments)
+                arguments: tc.rawArguments ?? JSON.stringify(tc.arguments ?? {})
               }
             }))
           },

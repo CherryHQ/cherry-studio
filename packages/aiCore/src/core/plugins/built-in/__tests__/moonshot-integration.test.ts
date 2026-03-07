@@ -39,11 +39,16 @@ describe('Moonshot Integration Test', () => {
     expect(result.tools).toBeDefined()
     expect(result.tools).toHaveProperty('$web_search')
 
-    // Step 7: Verify tool has correct format for Moonshot
+    // Step 7: Verify tool keeps provider type in AI SDK params
+    // Moonshot builtin_function will be injected at final request payload layer.
     const webSearchTool = result.tools!['$web_search']
     expect(webSearchTool).toMatchObject({
-      type: 'builtin_function', // This is critical for Moonshot
-      function: { name: '$web_search' }
+      type: 'provider',
+      isBuiltin: true,
+      definition: {
+        type: 'builtin_function',
+        function: { name: '$web_search' }
+      }
     })
 
     // Step 8: Verify builtin tool is saved in context
@@ -80,7 +85,7 @@ describe('Moonshot Integration Test', () => {
     // Verify tools is object, not array
     expect(Array.isArray(result.tools)).toBe(false)
     expect(result.tools).toHaveProperty('$web_search')
-    expect(result.tools!['$web_search'].type).toBe('builtin_function')
+    expect(result.tools!['$web_search'].type).toBe('provider')
 
     console.log('=== Test Passed ===')
   })

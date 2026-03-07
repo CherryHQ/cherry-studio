@@ -1055,14 +1055,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 if ('index' in toolCall) {
                   const { id, index, function: fun } = toolCall
                   if (fun?.name) {
+                    const toolCallType = (toolCall as { type?: string }).type ?? 'function'
                     const toolCallObject = {
                       id: id || '',
                       function: {
                         name: fun.name,
                         arguments: fun.arguments || ''
                       },
-                      type: 'function' as const
-                    }
+                      type: toolCallType
+                    } as unknown as OpenAI.Chat.Completions.ChatCompletionMessageToolCall
 
                     if (index === -1) {
                       toolCalls.push(toolCallObject)
@@ -1070,7 +1071,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                       toolCalls[index] = toolCallObject
                     }
                   } else if (fun?.arguments) {
-                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                    if (toolCalls[index] && 'function' in toolCalls[index]) {
                       toolCalls[index].function.arguments += fun.arguments
                     }
                   }

@@ -126,8 +126,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   //   plugins.push(reasoningTimePlugin)
   // }
 
-  // 4. 启用Prompt工具调用时添加工具插件
-  if (config.isPromptToolUse) {
+  const shouldEnableBuiltinPromptToolUse = config.enableWebSearch && !!config.webSearchPluginConfig?.moonshot
+
+  // 4. 启用 Prompt 工具调用时添加工具插件。
+  // Moonshot builtin web search also needs this plugin to preserve builtin tool-call semantics.
+  if (config.isPromptToolUse || shouldEnableBuiltinPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
