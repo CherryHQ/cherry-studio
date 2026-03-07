@@ -34,7 +34,12 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { defaultAppHeaders } from '@shared/utils'
+import {
+  defaultAppHeaders,
+  isMoonshotProviderLike,
+  MOONSHOT_WEB_SEARCH_TOOL_NAME,
+  normalizeMoonshotBuiltinToolMessages
+} from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
@@ -185,26 +190,8 @@ type ExtraOptions = BedrockExtraOptions | AzureOpenAIExtraOptions | VertexExtraO
 
 const MOONSHOT_WEB_SEARCH_TOOL = {
   type: 'builtin_function',
-  function: { name: '$web_search' }
+  function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME }
 } as const
-
-function isMoonshotProvider(provider: Provider): boolean {
-  if (provider.id === SystemProviderIds.moonshot) {
-    return true
-  }
-
-  const apiHost = provider.apiHost
-  if (!apiHost || typeof apiHost !== 'string') {
-    return false
-  }
-
-  try {
-    const hostname = new URL(apiHost).hostname
-    return hostname === 'moonshot.cn' || hostname.endsWith('.moonshot.cn')
-  } catch {
-    return apiHost.includes('moonshot.cn')
-  }
-}
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
@@ -302,7 +289,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
 
   // Moonshot requires builtin_function.$web_search in tools for built-in web search.
   // Add a final outbound safeguard so the request body sent to Moonshot is never tools: [] when tool_choice is not none.
-  if (isMoonshotProvider(actualProvider)) {
+  if (isMoonshotProviderLike(actualProvider, SystemProviderIds.moonshot)) {
     _fetch = createMoonshotBuiltinSearchFetch(_fetch ?? fetch)
   }
 
@@ -484,93 +471,7 @@ function isMoonshotBuiltinWebSearchTool(tool: unknown): boolean {
   }
 
   const candidate = tool as { type?: unknown; function?: { name?: unknown } }
-  return candidate.type === 'builtin_function' && candidate.function?.name === '$web_search'
-}
-
-function normalizeMoonshotMessages(messages: unknown[]): { messages: unknown[]; hasChanges: boolean } {
-  const toolCallNameById = new Map<string, string>()
-
-  for (const message of messages) {
-    if (!message || typeof message !== 'object') {
-      continue
-    }
-
-    const candidate = message as { tool_calls?: unknown }
-    if (!Array.isArray(candidate.tool_calls)) {
-      continue
-    }
-
-    for (const toolCall of candidate.tool_calls) {
-      if (!toolCall || typeof toolCall !== 'object') {
-        continue
-      }
-      const parsedToolCall = toolCall as { id?: unknown; function?: { name?: unknown } }
-      if (typeof parsedToolCall.id === 'string' && typeof parsedToolCall.function?.name === 'string') {
-        toolCallNameById.set(parsedToolCall.id, parsedToolCall.function.name)
-      }
-    }
-  }
-
-  let hasChanges = false
-  const normalizedMessages = messages.map((message) => {
-    if (!message || typeof message !== 'object') {
-      return message
-    }
-
-    const candidate = message as {
-      role?: unknown
-      tool_calls?: unknown
-      name?: unknown
-      tool_call_id?: unknown
-    }
-
-    if (candidate.role === 'assistant' && Array.isArray(candidate.tool_calls)) {
-      let assistantHasChanges = false
-      const normalizedToolCalls = candidate.tool_calls.map((toolCall) => {
-        if (!toolCall || typeof toolCall !== 'object') {
-          return toolCall
-        }
-
-        const parsedToolCall = toolCall as {
-          type?: unknown
-          function?: { name?: unknown }
-        }
-
-        if (parsedToolCall.function?.name === '$web_search' && parsedToolCall.type !== 'builtin_function') {
-          assistantHasChanges = true
-          return {
-            ...parsedToolCall,
-            type: 'builtin_function'
-          }
-        }
-
-        return toolCall
-      })
-
-      if (assistantHasChanges) {
-        hasChanges = true
-        return {
-          ...candidate,
-          tool_calls: normalizedToolCalls
-        }
-      }
-    }
-
-    if (candidate.role === 'tool' && typeof candidate.name !== 'string' && typeof candidate.tool_call_id === 'string') {
-      const toolName = toolCallNameById.get(candidate.tool_call_id)
-      if (toolName) {
-        hasChanges = true
-        return {
-          ...candidate,
-          name: toolName
-        }
-      }
-    }
-
-    return message
-  })
-
-  return { messages: normalizedMessages, hasChanges }
+  return candidate.type === 'builtin_function' && candidate.function?.name === MOONSHOT_WEB_SEARCH_TOOL_NAME
 }
 
 function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof fetch {
@@ -584,7 +485,7 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
 
         // Only apply to chat-completions style payloads.
         if (Array.isArray(body.messages) && body.tool_choice !== 'none') {
-          const normalizedMessages = normalizeMoonshotMessages(body.messages)
+          const normalizedMessages = normalizeMoonshotBuiltinToolMessages(body.messages, MOONSHOT_WEB_SEARCH_TOOL_NAME)
           if (normalizedMessages.hasChanges) {
             body.messages = normalizedMessages.messages
             hasChanges = true

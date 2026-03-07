@@ -10,7 +10,7 @@ import type { AiRequestContext } from '../../'
 import type { OpenRouterSearchConfig } from './openrouter'
 
 /**
- * 从 AI SDK 的工具函数中提取参数类型，以确保类型安全。
+ * Extract input config types from AI SDK tools for type safety.
  */
 export type OpenAISearchConfig = NonNullable<Parameters<typeof openai.tools.webSearch>[0]>
 export type OpenAISearchPreviewConfig = NonNullable<Parameters<typeof openai.tools.webSearchPreview>[0]>
@@ -37,9 +37,8 @@ type OpenAIChatWebSearchTool = NormalizeTool<ReturnType<typeof openai.tools.webS
 type GoogleWebSearchTool = NormalizeTool<ReturnType<typeof google.tools.googleSearch>>
 
 /**
- * 插件初始化时接收的完整配置对象
- *
- * 其结构与 ProviderOptions 保持一致，方便上游统一管理配置
+ * Full plugin config accepted at initialization.
+ * Shape is aligned with provider options for easier upstream management.
  */
 export interface WebSearchPluginConfig {
   openai?: OpenAISearchConfig
@@ -52,7 +51,7 @@ export interface WebSearchPluginConfig {
 }
 
 /**
- * 插件的默认配置
+ * Default plugin config.
  */
 export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   google: {},
@@ -79,11 +78,11 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
 }
 
 export type WebSearchToolOutputSchema = {
-  // Anthropic 工具 - 手动定义
+  // Anthropic tool (manually defined)
   anthropic: InferToolOutput<AnthropicWebSearchTool>
 
-  // OpenAI 工具 - 基于实际输出
-  // TODO: 上游定义不规范,是unknown
+  // OpenAI tool output
+  // TODO: upstream typing is unknown
   // openai: InferToolOutput<ReturnType<typeof openai.tools.webSearch>>
   openai: {
     status: 'completed' | 'failed'
@@ -91,8 +90,8 @@ export type WebSearchToolOutputSchema = {
   'openai-chat': {
     status: 'completed' | 'failed'
   }
-  // Google 工具
-  // TODO: 上游定义不规范,是unknown
+  // Google tool output
+  // TODO: upstream typing is unknown
   // google: InferToolOutput<ReturnType<typeof google.tools.googleSearch>>
   google: {
     webSearchQueries?: string[]
@@ -109,27 +108,26 @@ export type WebSearchToolInputSchema = {
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
 }
 
+function getToolsObject(tools: unknown): Record<string, unknown> {
+  if (tools && typeof tools === 'object' && !Array.isArray(tools)) {
+    return tools as Record<string, unknown>
+  }
+  return {}
+}
+
 /**
- * Helper function to ensure params.tools object exists
- * Note: tools should be an object { toolName: toolDefinition }, not an array
+ * Applies tool-based web search configuration.
  */
-const ensureToolsObject = (params: any) => {
-  // If tools is falsy or is an array, reinitialize as object
-  if (!params.tools || Array.isArray(params.tools)) {
-    params.tools = {}
+const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) => {
+  const currentTools = getToolsObject(params.tools)
+  params.tools = {
+    ...currentTools,
+    [toolName]: toolInstance
   }
 }
 
 /**
- * Helper function to apply tool-based web search configuration
- */
-const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) => {
-  ensureToolsObject(params)
-  params.tools[toolName] = toolInstance
-}
-
-/**
- * Helper function to apply provider options-based web search configuration
+ * Applies provider-options-based web search configuration.
  */
 const applyProviderOptionsSearch = (params: any, searchOptions: any) => {
   params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
@@ -171,7 +169,7 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
 
       if (cfg === false) return // Explicitly disabled
 
-      // Moonshot uses builtin_function type
+      // Moonshot uses builtin_function at outbound payload level.
       const builtInTool = {
         type: 'provider',
         toolType: 'builtin_function',
@@ -184,9 +182,8 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
           }
         },
         execute: async (argumentsPayload: unknown) => {
-          // Built-in tools are executed on the provider side.
-          // For Moonshot, caller should send back model-produced arguments unchanged.
-          // Keep this fallback compatible with default tool execution loops.
+          // Built-in tools are executed on provider side.
+          // Keep local fallback as arguments passthrough for recursive loops.
           return argumentsPayload ?? {}
         }
       }
