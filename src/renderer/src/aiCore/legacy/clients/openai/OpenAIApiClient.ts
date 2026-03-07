@@ -84,6 +84,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
+import { MOONSHOT_WEB_SEARCH_TOOL_DEFINITION } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -91,12 +92,6 @@ import type { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransfo
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
-const KIMI_WEB_SEARCH_TOOL = {
-  type: 'builtin_function' as const,
-  function: {
-    name: '$web_search'
-  }
-}
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
@@ -742,7 +737,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           currentTools: commonParams.tools
         })
         if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot) {
-          commonParams.tools = [...(commonParams.tools ?? []), KIMI_WEB_SEARCH_TOOL as unknown as ChatCompletionTool]
+          commonParams.tools = [
+            ...(commonParams.tools ?? []),
+            MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as unknown as ChatCompletionTool
+          ]
           logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
         }
 

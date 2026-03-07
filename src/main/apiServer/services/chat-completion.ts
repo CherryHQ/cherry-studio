@@ -1,8 +1,10 @@
 import OpenAI from '@cherrystudio/openai'
 import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import {
+  isMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_PROVIDER_ID,
+  MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
   normalizeMoonshotBuiltinToolMessages
 } from '@shared/utils'
@@ -13,21 +15,8 @@ import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
-const MOONSHOT_WEB_SEARCH_TOOL = {
-  type: 'builtin_function',
-  function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME }
-} as const
 
 type ChatCompletionTool = NonNullable<ChatCompletionCreateParams['tools']>[number]
-
-function isMoonshotWebSearchTool(tool: unknown): boolean {
-  if (!tool || typeof tool !== 'object') {
-    return false
-  }
-
-  const candidate = tool as { type?: unknown; function?: { name?: unknown } }
-  return candidate.type === 'builtin_function' && candidate.function?.name === MOONSHOT_WEB_SEARCH_TOOL_NAME
-}
 
 export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreateParams>(
   request: T,
@@ -47,7 +36,7 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
   }
 
   const currentTools = Array.isArray(normalizedRequest.tools) ? [...normalizedRequest.tools] : []
-  const hasBuiltinWebSearch = currentTools.some(isMoonshotWebSearchTool)
+  const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
   const shouldInject = normalizedRequest.tool_choice !== 'none' && !hasBuiltinWebSearch
 
   logger.debug('Moonshot builtin web search tool normalization', {
@@ -63,7 +52,7 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
     return normalizedRequest
   }
 
-  const normalizedTools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL as unknown as ChatCompletionTool]
+  const normalizedTools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as unknown as ChatCompletionTool]
   logger.debug('Moonshot builtin web search tool injected', {
     providerId: provider.id,
     toolCountAfter: normalizedTools.length

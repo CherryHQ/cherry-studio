@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  isMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_DEFAULT_BASE_URL,
   MOONSHOT_PROVIDER_ID,
+  MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
   normalizeMoonshotBuiltinToolMessages
 } from '../utils'
@@ -101,6 +103,22 @@ describe('moonshot utils', () => {
       const normalized = normalizeMoonshotBuiltinToolMessages(messages)
       expect(normalized.hasChanges).toBe(false)
       expect(normalized.messages).toEqual(messages)
+    })
+  })
+
+  describe('isMoonshotBuiltinWebSearchTool', () => {
+    it('returns true for builtin web search tool definition', () => {
+      expect(isMoonshotBuiltinWebSearchTool(MOONSHOT_WEB_SEARCH_TOOL_DEFINITION)).toBe(true)
+    })
+
+    it('returns false for non-matching tool shape', () => {
+      expect(
+        isMoonshotBuiltinWebSearchTool({
+          type: 'function',
+          function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME }
+        })
+      ).toBe(false)
+      expect(isMoonshotBuiltinWebSearchTool(undefined)).toBe(false)
     })
   })
 })

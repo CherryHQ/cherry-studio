@@ -36,7 +36,9 @@ import {
 } from '@renderer/utils/provider'
 import {
   defaultAppHeaders,
+  isMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
+  MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
   normalizeMoonshotBuiltinToolMessages
 } from '@shared/utils'
@@ -187,11 +189,6 @@ interface CherryInExtraOptions extends BaseExtraOptions {
 }
 
 type ExtraOptions = BedrockExtraOptions | AzureOpenAIExtraOptions | VertexExtraOptions | CherryInExtraOptions
-
-const MOONSHOT_WEB_SEARCH_TOOL = {
-  type: 'builtin_function',
-  function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME }
-} as const
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
@@ -465,15 +462,6 @@ function createDeveloperToSystemFetch(originalFetch?: typeof fetch): typeof fetc
   }
 }
 
-function isMoonshotBuiltinWebSearchTool(tool: unknown): boolean {
-  if (!tool || typeof tool !== 'object') {
-    return false
-  }
-
-  const candidate = tool as { type?: unknown; function?: { name?: unknown } }
-  return candidate.type === 'builtin_function' && candidate.function?.name === MOONSHOT_WEB_SEARCH_TOOL_NAME
-}
-
 function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof fetch {
   const baseFetch = originalFetch ?? fetch
   return async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -494,7 +482,7 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
           const currentTools = Array.isArray(body.tools) ? [...body.tools] : []
           const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
           if (!hasBuiltinWebSearch) {
-            body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL]
+            body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL_DEFINITION]
             hasChanges = true
           }
           if (hasChanges) {

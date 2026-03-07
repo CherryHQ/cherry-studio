@@ -1,76 +1,121 @@
-/**
- * 内置工具流管理器
- * 处理 Provider 内置工具（如 Moonshot 的 $web_search）的流事件
- */
 import type { AiRequestContext } from '../../'
 
-/**
- * 工具调用结果
- */
+type ToolCallLike = {
+  id?: unknown
+  name?: unknown
+  type?: unknown
+  arguments?: unknown
+  function?: {
+    name?: unknown
+    arguments?: unknown
+  } | null
+}
+
+type ChunkLike = {
+  toolCalls?: unknown
+  tool_calls?: unknown
+  finishReason?: unknown
+  content?: unknown
+}
+
 export interface BuiltinToolCall {
   id: string
   name: string
-  arguments: any
+  arguments: unknown
   rawArguments?: string
   toolType?: string
 }
 
+type AssistantToolCallMessage = {
+  role: 'assistant'
+  content: string
+  tool_calls: Array<{
+    id: string
+    type: string
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
+}
+
+type ToolResultMessage = {
+  tool_call_id: string
+  role: 'tool'
+  content: string
+  name: string
+}
+
+type BuiltinLoopMessage = AssistantToolCallMessage | ToolResultMessage
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /**
- * 内置工具流管理器
+ * Built-in tool stream manager for provider-side tools such as Moonshot `$web_search`.
  */
 export class BuiltinToolStreamManager {
   /**
-   * 检查是否为内置工具调用
+   * Checks if the tool call targets a built-in provider tool.
    */
   isBuiltinToolCall(toolName: string, context: AiRequestContext): boolean {
     return context.builtinTools?.[toolName]?.isBuiltin ?? false
   }
 
   /**
-   * 从 chunk 中提取工具调用信息
+   * Extracts normalized tool calls from either `toolCalls` or `tool_calls`.
    */
-  extractToolCallsFromChunk(chunk: any): BuiltinToolCall[] {
-    const toolCalls = chunk.toolCalls || chunk.tool_calls
-    if (!toolCalls) return []
+  extractToolCallsFromChunk(chunk: ChunkLike): BuiltinToolCall[] {
+    const toolCalls = this.getToolCalls(chunk)
+    if (toolCalls.length === 0) {
+      return []
+    }
 
-    return toolCalls.map((tc: any) => {
-      const rawArguments = typeof tc.function?.arguments === 'string' ? tc.function.arguments : undefined
-      let parsedArguments = tc.arguments || {}
-
-      if (rawArguments) {
-        try {
-          parsedArguments = JSON.parse(rawArguments)
-        } catch {
-          parsedArguments = rawArguments
+    return toolCalls
+      .map<BuiltinToolCall | null>((tc) => {
+        const id = typeof tc.id === 'string' ? tc.id : undefined
+        const functionName = typeof tc.function?.name === 'string' ? tc.function.name : undefined
+        const name = functionName ?? (typeof tc.name === 'string' ? tc.name : undefined)
+        if (!id || !name) {
+          return null
         }
-      }
 
-      return {
-        id: tc.id,
-        name: tc.function?.name || tc.name,
-        arguments: parsedArguments,
-        rawArguments,
-        toolType: tc.type
-      }
-    })
+        const rawArguments = typeof tc.function?.arguments === 'string' ? tc.function.arguments : undefined
+        let parsedArguments: unknown = tc.arguments ?? {}
+
+        if (rawArguments) {
+          try {
+            parsedArguments = JSON.parse(rawArguments)
+          } catch {
+            parsedArguments = rawArguments
+          }
+        }
+
+        return {
+          id,
+          name,
+          arguments: parsedArguments,
+          rawArguments,
+          toolType: typeof tc.type === 'string' ? tc.type : undefined
+        }
+      })
+      .filter((toolCall): toolCall is BuiltinToolCall => toolCall !== null)
   }
 
   /**
-   * 处理 finish_step 事件，检查是否需要工具调用循环
-   * @returns shouldContinue - 是否需要继续递归调用
-   * @returns updatedMessages - 更新的消息数组（包含 tool results）
+   * Handles finish-step chunks and creates synthetic tool messages for built-in tools.
    */
   async handleFinishStepWithBuiltinTools(
-    chunk: any,
+    chunk: ChunkLike,
     context: AiRequestContext
-  ): Promise<{ shouldContinue: boolean; updatedMessages?: any[] }> {
+  ): Promise<{ shouldContinue: boolean; updatedMessages?: BuiltinLoopMessage[] }> {
     const { builtinTools } = context
 
     if (!builtinTools || Object.keys(builtinTools).length === 0) {
       return { shouldContinue: false }
     }
 
-    // 检查 finish_reason 是否为 tool_calls
     if (chunk.finishReason !== 'tool_calls') {
       return { shouldContinue: false }
     }
@@ -80,14 +125,12 @@ export class BuiltinToolStreamManager {
       return { shouldContinue: false }
     }
 
-    // 检查是否所有工具调用都是内置工具
-    const builtinToolResults: Array<{ tool_call_id: string; role: 'tool'; content: string; name: string }> = []
+    const builtinToolResults: ToolResultMessage[] = []
     let hasBuiltinTools = false
 
     for (const toolCall of toolCalls) {
       if (this.isBuiltinToolCall(toolCall.name, context)) {
         hasBuiltinTools = true
-        // 内置工具不需要本地执行，直接构造结果
         builtinToolResults.push({
           tool_call_id: toolCall.id,
           role: 'tool',
@@ -98,29 +141,27 @@ export class BuiltinToolStreamManager {
     }
 
     if (hasBuiltinTools && builtinToolResults.length > 0) {
+      const assistantMessage: AssistantToolCallMessage = {
+        role: 'assistant',
+        content: typeof chunk.content === 'string' ? chunk.content : '',
+        tool_calls: toolCalls.map((tc) => ({
+          id: tc.id,
+          // Keep provider-emitted type first, then builtin registry metadata, then OpenAI default.
+          type:
+            tc.toolType ||
+            context.builtinTools?.[tc.name]?.definition?.type ||
+            context.builtinTools?.[tc.name]?.toolType ||
+            'function',
+          function: {
+            name: tc.name,
+            arguments: tc.rawArguments ?? JSON.stringify(tc.arguments ?? {})
+          }
+        }))
+      }
+
       return {
         shouldContinue: true,
-        updatedMessages: [
-          // 添加 assistant 消息（包含 tool_calls）
-          {
-            role: 'assistant',
-            content: chunk.content || '',
-            tool_calls: toolCalls.map((tc) => ({
-              id: tc.id,
-              type:
-                tc.toolType ||
-                context.builtinTools?.[tc.name]?.definition?.type ||
-                context.builtinTools?.[tc.name]?.toolType ||
-                'function',
-              function: {
-                name: tc.name,
-                arguments: tc.rawArguments ?? JSON.stringify(tc.arguments ?? {})
-              }
-            }))
-          },
-          // 添加 tool 结果消息
-          ...builtinToolResults
-        ]
+        updatedMessages: [assistantMessage, ...builtinToolResults]
       }
     }
 
@@ -128,12 +169,21 @@ export class BuiltinToolStreamManager {
   }
 
   /**
-   * 检查 chunk 是否包含内置工具调用
+   * Checks whether the chunk includes at least one built-in tool call.
    */
-  hasBuiltinToolCalls(chunk: any, context: AiRequestContext): boolean {
+  hasBuiltinToolCalls(chunk: ChunkLike, context: AiRequestContext): boolean {
     const toolCalls = this.extractToolCallsFromChunk(chunk)
     if (toolCalls.length === 0) return false
 
     return toolCalls.some((tc) => this.isBuiltinToolCall(tc.name, context))
+  }
+
+  private getToolCalls(chunk: ChunkLike): ToolCallLike[] {
+    const toolCalls = Array.isArray(chunk.toolCalls)
+      ? chunk.toolCalls
+      : Array.isArray(chunk.tool_calls)
+        ? chunk.tool_calls
+        : []
+    return toolCalls.filter((toolCall): toolCall is ToolCallLike => isObjectLike(toolCall))
   }
 }
