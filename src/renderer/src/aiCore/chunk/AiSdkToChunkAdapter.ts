@@ -6,7 +6,7 @@
 import { loggerService } from '@logger'
 import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
@@ -94,7 +94,8 @@ export class AiSdkToChunkAdapter {
       text: '',
       reasoningContent: '',
       webSearchResults: [],
-      reasoningId: ''
+      reasoningId: '',
+      providerMetadata: undefined as ProviderMetadata | undefined
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -151,7 +152,13 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
+    final: {
+      text: string
+      reasoningContent: string
+      webSearchResults: AISDKWebSearchResult[]
+      reasoningId: string
+      providerMetadata: ProviderMetadata | undefined
+    }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -207,12 +214,25 @@ export class AiSdkToChunkAdapter {
           final.text = finalText
         }
 
+        // Extract thoughtSignature from providerMetadata.google and preserve it
+        const newSignature = chunk.providerMetadata?.google?.thoughtSignature as string | undefined
+        if (newSignature) {
+          final.providerMetadata = {
+            ...final.providerMetadata,
+            google: {
+              ...final.providerMetadata?.google,
+              thoughtSignature: newSignature
+            }
+          }
+        }
+
         // Only emit chunk if there's text to send
         if (finalText) {
           this.markFirstTokenIfNeeded()
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
-            text: this.accumulate ? final.text : finalText
+            text: this.accumulate ? final.text : finalText,
+            providerMetadata: final.providerMetadata
           })
         }
         break
@@ -220,9 +240,12 @@ export class AiSdkToChunkAdapter {
       case 'text-end':
         this.onChunk({
           type: ChunkType.TEXT_COMPLETE,
-          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? ''
+          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? '',
+          providerMetadata: final.providerMetadata
         })
         final.text = ''
+        // Clear providerMetadata for next text block
+        final.providerMetadata = undefined
         break
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {

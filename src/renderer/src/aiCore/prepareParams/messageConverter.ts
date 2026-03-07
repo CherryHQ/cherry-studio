@@ -7,10 +7,16 @@ import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type {
+  FileMessageBlock,
+  ImageMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock
+} from '@renderer/types/newMessage'
 import {
   findFileBlocks,
   findImageBlocks,
+  findMainTextBlocks,
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
@@ -42,10 +48,18 @@ export async function convertMessageToSdkParam(
   const fileBlocks = findFileBlocks(message)
   const imageBlocks = findImageBlocks(message)
   const reasoningBlocks = findThinkingBlocks(message)
+  const mainTextBlocks = findMainTextBlocks(message)
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, imageBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantModelMessage(
+      content,
+      fileBlocks,
+      imageBlocks,
+      reasoningBlocks,
+      mainTextBlocks,
+      model
+    )
   }
 }
 
@@ -163,6 +177,7 @@ async function convertMessageToAssistantModelMessage(
   fileBlocks: FileMessageBlock[],
   imageBlocks: ImageMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
+  mainTextBlocks: MainTextMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
@@ -173,9 +188,25 @@ async function convertMessageToAssistantModelMessage(
   }
 
   // Add text content after reasoning blocks, only if non-empty after trimming
+  // Also add thoughtSignature from MainTextBlock metadata for Gemini thought signature persistence
   const trimmedContent = content?.trim()
   if (trimmedContent) {
-    parts.push({ type: 'text', text: trimmedContent })
+    // Find the first MainTextBlock with thoughtSignature
+    const thoughtSignature = mainTextBlocks.find((block) => block.metadata?.thoughtSignature)?.metadata
+      ?.thoughtSignature
+
+    const textPart: TextPart = { type: 'text', text: trimmedContent }
+
+    // Add providerOptions with thoughtSignature if available (for Gemini)
+    if (thoughtSignature) {
+      textPart.providerOptions = {
+        google: {
+          thoughtSignature
+        }
+      }
+    }
+
+    parts.push(textPart)
   }
 
   for (const fileBlock of fileBlocks) {

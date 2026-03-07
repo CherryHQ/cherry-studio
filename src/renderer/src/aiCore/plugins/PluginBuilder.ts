@@ -7,7 +7,6 @@ import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
-import { getAiSdkProviderId } from '../provider/factory'
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
@@ -102,10 +101,9 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createOpenrouterGenerateImagePlugin())
   }
 
-  // 0.7 Skip Gemini3 thought signature
+  // 0.7 Skip Gemini3 thought signature for OpenAI-compatible API
   if (isGemini3Model(model)) {
-    const aiSdkId = getAiSdkProviderId(provider)
-    plugins.push(createSkipGeminiThoughtSignaturePlugin(aiSdkId))
+    plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }
 
   // 1. 模型内置搜索
