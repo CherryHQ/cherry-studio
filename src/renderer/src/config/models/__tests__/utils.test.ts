@@ -3,6 +3,7 @@ import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT5SeriesReasoningModel,
@@ -175,13 +176,46 @@ describe('model utils', () => {
   })
 
   describe('GPT-5 family detection', () => {
-    describe('isGPT5SeriesModel', () => {
-      it('returns true for GPT-5 models', () => {
-        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+    describe('isGPT5FamilyModel', () => {
+      it('returns true for GPT-5 base models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-pro' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-chat' }))).toBe(true)
       })
 
-      it('returns false for GPT-5.1 models', () => {
+      it('returns true for GPT-5.x sub-version models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.1' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.1-mini' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.2-pro' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-4.1' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'claude-3.5' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'o3-mini' }))).toBe(false)
+      })
+    })
+
+    describe('isGPT5SeriesModel', () => {
+      it('returns true for GPT-5 base models', () => {
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5' }))).toBe(true)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-pro' }))).toBe(true)
+      })
+
+      it('returns false for GPT-5.x sub-version models', () => {
         expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.2' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.4' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.9-turbo' }))).toBe(false)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-4.1' }))).toBe(false)
       })
     })
 
@@ -217,21 +251,59 @@ describe('model utils', () => {
         expect(isSupportVerbosityModel(createModel({ id: 'gpt-5' }))).toBe(true)
       })
 
-      it('returns false for GPT-5 chat models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
+      it('returns true for GPT-5.x sub-version models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.2' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
       })
 
-      it('returns true for GPT-5.1 models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      it('returns true for GPT-5 chat and codex models (granular exclusion handled by validators)', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(true)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-4o' }))).toBe(false)
       })
     })
 
     describe('getModelSupportedVerbosity', () => {
-      it('returns only "high" for GPT-5 Pro models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, null, 'high'])
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([
+      it('returns all levels for GPT-5 Pro models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([
           undefined,
           null,
+          'low',
+          'medium',
+          'high'
+        ])
+      })
+
+      it('returns medium only for GPT-5 chat models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-chat' }))).toEqual([undefined, null, 'medium'])
+      })
+
+      it('returns medium only for old codex models (5.1/5.2)', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex' }))).toEqual([undefined, null, 'medium'])
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-codex' }))).toEqual([undefined, null, 'medium'])
+      })
+
+      it('returns all levels for new codex models (5.3+)', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-codex' }))).toEqual([
+          undefined,
+          null,
+          'low',
+          'medium',
+          'high'
+        ])
+      })
+
+      it('returns all levels for GPT-5.2 base models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual([
+          undefined,
+          null,
+          'low',
+          'medium',
           'high'
         ])
       })
