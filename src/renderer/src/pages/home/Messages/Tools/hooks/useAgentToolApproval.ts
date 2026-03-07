@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
@@ -34,10 +34,9 @@ export function useAgentToolApproval(
 
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolCallId))
 
-  const isExpired = useMemo(() => {
-    if (!request) return false
-    return Date.now() >= request.expiresAt
-  }, [request])
+  // isExpired is not actively tracked — the main process handles the 600s timeout
+  // and removes the request from Redux when it fires.
+  const isExpired = false
 
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
@@ -121,8 +120,8 @@ export function useAgentToolApproval(
     // State
     isWaiting,
     isExecuting,
-    expiresAt: request?.expiresAt,
-    isExpired: !!request && isExpired,
+    expiresAt: undefined,
+    isExpired,
     isSubmitting,
     // Agent-specific: input from permission request
     input: request?.input,

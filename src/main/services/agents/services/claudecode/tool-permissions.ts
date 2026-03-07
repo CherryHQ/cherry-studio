@@ -10,6 +10,8 @@ import { builtinTools } from './tools'
 
 const logger = loggerService.withContext('ClaudeCodeService')
 
+// The Agent SDK requires a finite timeout; 600s is the maximum allowed.
+// The UI no longer shows a countdown — from the user's perspective, it waits indefinitely.
 // https://platform.claude.com/docs/en/agent-sdk/user-input#limitations
 const TOOL_APPROVAL_TIMEOUT_MS = 600_000
 const MAX_PREVIEW_LENGTH = 2_000
