@@ -111,6 +111,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  abliteration: {
+    id: 'abliteration',
+    name: 'Abliteration AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.abliteration.ai/v1',
+    models: SYSTEM_MODELS.abliteration,
+    isSystem: true,
+    enabled: false
+  },
   ovms: {
     id: 'ovms',
     name: 'OpenVINO Model Server',
@@ -735,6 +745,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   xirang: XirangProviderLogo,
   anthropic: AnthropicProviderLogo,
   aihubmix: AiHubMixProviderLogo,
+  abliteration: OpenAiProviderLogo,
   burncloud: BurnCloudProviderLogo,
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
@@ -1219,6 +1230,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://aihubmix.com?aff=SJyh',
       docs: 'https://doc.aihubmix.com/',
       models: 'https://aihubmix.com/models'
+    }
+  },
+  abliteration: {
+    api: {
+      url: 'https://api.abliteration.ai/v1'
+    },
+    websites: {
+      official: 'https://abliteration.ai',
+      apiKey: 'https://abliteration.ai',
+      docs: 'https://api.abliteration.ai/v1',
+      models: 'https://abliteration.ai'
     }
   },
   fireworks: {

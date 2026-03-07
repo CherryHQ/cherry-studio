@@ -89,6 +89,7 @@ https://docs.cherry-ai.com
 1. **多样化 LLM 服务支持**：
 
 - ☁️ 支持主流 LLM 云服务：OpenAI、Gemini、Anthropic、硅基流动等
+- 🆕 新增服务商支持：Abliteration AI（兼容 OpenAI 接口）
 - 🔗 集成流行 AI Web 服务：Claude、Perplexity、Poe、腾讯元宝、知乎直答等
 - 💻 支持 Ollama、LM Studio 本地模型部署
 

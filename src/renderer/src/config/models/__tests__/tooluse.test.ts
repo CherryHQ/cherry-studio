@@ -141,6 +141,10 @@ describe('isFunctionCallingModel', () => {
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
   })
 
+  it('supports abliteration models through abliteration-model regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'abliteration-model', provider: 'abliteration' }))).toBe(true)
+  })
+
   it('supports deepseek models through deepseek regex match', () => {
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-coder', provider: 'deepseek' }))).toBe(true)
