@@ -6,6 +6,7 @@ import { type Tool } from 'ai'
 
 import { createOpenRouterOptions, createXaiOptions, mergeProviderOptions } from '../../../options'
 import type { ProviderOptionsMap } from '../../../options/types'
+import type { TypedProviderOptions } from '../../../options/types'
 import type { AiRequestContext } from '../../'
 import type { OpenRouterSearchConfig } from './openrouter'
 
@@ -108,6 +109,14 @@ export type WebSearchToolInputSchema = {
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
 }
 
+type ToolBasedParams = {
+  tools?: unknown
+  providerOptions?: unknown
+  [key: string]: unknown
+}
+
+type ToolBasedSearchInstance = Tool<unknown, unknown> | Record<string, unknown>
+
 function getToolsObject(tools: unknown): Record<string, unknown> {
   if (tools && typeof tools === 'object' && !Array.isArray(tools)) {
     return tools as Record<string, unknown>
@@ -118,7 +127,7 @@ function getToolsObject(tools: unknown): Record<string, unknown> {
 /**
  * Applies tool-based web search configuration.
  */
-const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) => {
+const applyToolBasedSearch = (params: ToolBasedParams, toolName: string, toolInstance: ToolBasedSearchInstance) => {
   const currentTools = getToolsObject(params.tools)
   params.tools = {
     ...currentTools,
@@ -129,11 +138,16 @@ const applyToolBasedSearch = (params: any, toolName: string, toolInstance: any) 
 /**
  * Applies provider-options-based web search configuration.
  */
-const applyProviderOptionsSearch = (params: any, searchOptions: any) => {
-  params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+const applyProviderOptionsSearch = (params: ToolBasedParams, searchOptions: unknown) => {
+  const currentProviderOptions = (params.providerOptions ?? {}) as Partial<TypedProviderOptions>
+  params.providerOptions = mergeProviderOptions(currentProviderOptions, searchOptions as Partial<TypedProviderOptions>)
 }
 
-export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, context?: AiRequestContext) => {
+export const switchWebSearchTool = <T extends ToolBasedParams>(
+  config: WebSearchPluginConfig,
+  params: T,
+  context?: AiRequestContext
+) => {
   const providerId = context?.providerId
 
   // Provider-specific configuration map

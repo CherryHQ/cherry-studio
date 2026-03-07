@@ -18,6 +18,8 @@ type ChunkLike = {
   content?: unknown
 }
 
+type ParseToolArgumentsErrorHandler = (rawArguments: string, error: unknown) => void
+
 export interface BuiltinToolCall {
   id: string
   name: string
@@ -66,7 +68,10 @@ export class BuiltinToolStreamManager {
   /**
    * Extracts normalized tool calls from either `toolCalls` or `tool_calls`.
    */
-  extractToolCallsFromChunk(chunk: ChunkLike): BuiltinToolCall[] {
+  extractToolCallsFromChunk(
+    chunk: ChunkLike,
+    options?: { onParseToolArgumentsError?: ParseToolArgumentsErrorHandler }
+  ): BuiltinToolCall[] {
     const toolCalls = this.getToolCalls(chunk)
     if (toolCalls.length === 0) {
       return []
@@ -87,7 +92,8 @@ export class BuiltinToolStreamManager {
         if (rawArguments) {
           try {
             parsedArguments = JSON.parse(rawArguments)
-          } catch {
+          } catch (error) {
+            options?.onParseToolArgumentsError?.(rawArguments, error)
             parsedArguments = rawArguments
           }
         }
@@ -120,7 +126,14 @@ export class BuiltinToolStreamManager {
       return { shouldContinue: false }
     }
 
-    const toolCalls = this.extractToolCallsFromChunk(chunk)
+    const toolCalls = this.extractToolCallsFromChunk(chunk, {
+      onParseToolArgumentsError: (rawArguments, error) => {
+        this.logDebug(context, 'Failed to parse builtin tool arguments as JSON; fallback to raw string', {
+          error: error instanceof Error ? error.message : String(error),
+          rawArgumentsPreview: rawArguments.slice(0, 256)
+        })
+      }
+    })
     if (toolCalls.length === 0) {
       return { shouldContinue: false }
     }
@@ -185,5 +198,12 @@ export class BuiltinToolStreamManager {
         ? chunk.tool_calls
         : []
     return toolCalls.filter((toolCall): toolCall is ToolCallLike => isObjectLike(toolCall))
+  }
+
+  private logDebug(context: AiRequestContext, message: string, data?: Record<string, unknown>): void {
+    const logger = context.logger
+    if (typeof logger === 'function') {
+      logger('debug', message, data)
+    }
   }
 }

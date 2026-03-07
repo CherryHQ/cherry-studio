@@ -22,6 +22,9 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
   request: T,
   provider: Provider
 ): T {
+  // Layer 1/3 (main API server):
+  // normalize tool-call messages and inject the builtin tool in the server path.
+  // Renderer and legacy client keep equivalent fallbacks for non-server request paths.
   if (!isMoonshotProviderLike(provider, MOONSHOT_PROVIDER_ID)) {
     return request
   }
