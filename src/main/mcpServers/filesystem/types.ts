@@ -58,6 +58,7 @@ async function resolveRealOrNearestExistingPath(targetPath: string): Promise<str
       } catch {
         const parentPath = path.dirname(currentPath)
         if (parentPath === currentPath) {
+          logger.warn('Could not resolve any existing ancestor for path', { targetPath })
           return normalizePath(targetPath)
         }
         currentPath = parentPath
