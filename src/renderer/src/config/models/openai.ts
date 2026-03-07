@@ -50,9 +50,13 @@ export const isOpenAIOpenWeightModel = (model: Model) => {
   return modelId.includes('gpt-oss')
 }
 
+/**
+ * Checks if a model belongs to the GPT-5 base series (e.g. gpt-5, gpt-5-pro).
+ * Uses negative lookahead to exclude sub-versions like gpt-5.1, gpt-5.2, etc.
+ */
 export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1') && !modelId.includes('gpt-5.2')
+  return /gpt-5(?!\.\d)/.test(modelId)
 }
 
 export const isGPT5SeriesReasoningModel = (model: Model) => {
