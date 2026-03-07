@@ -120,7 +120,19 @@ app.get('/', (_req, res) => {
     name: 'Cherry Studio API',
     version: '1.0.0',
     endpoints: {
-      health: 'GET /health'
+      health: 'GET /health',
+      docs: 'GET /api-docs',
+      docs_json: 'GET /api-docs.json',
+      chat_completions: 'POST /v1/chat/completions',
+      models: 'GET /v1/models',
+      messages: 'POST /v1/messages',
+      messages_provider: 'POST /:provider/v1/messages',
+      mcps: 'GET /v1/mcps',
+      mcp_server: 'GET /v1/mcps/:server_id',
+      mcp_proxy: 'ALL /v1/mcps/:server_id/mcp',
+      agents: 'GET /v1/agents',
+      agent_sessions: 'GET /v1/agents/:agentId/sessions',
+      session_messages: 'GET /v1/agents/:agentId/sessions/:sessionId/messages'
     }
   })
 })
