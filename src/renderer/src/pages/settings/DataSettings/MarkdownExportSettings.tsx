@@ -1,10 +1,4 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import { Button, Switch } from 'antd'
-import Input from 'antd/es/input/Input'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
-
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { RootState } from '@renderer/store'
@@ -19,15 +13,13 @@ import {
   setStandardizeCitationsInExport,
   setUseTopicNamingForMessageTitle
 } from '@renderer/store/settings'
+import { Button, Switch } from 'antd'
+import Input from 'antd/es/input/Input'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingRow,
-  SettingRowTitle,
-  SettingTitle
-} from '..'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
