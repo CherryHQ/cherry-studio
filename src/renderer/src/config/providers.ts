@@ -29,6 +29,7 @@ import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import IntelOvmsLogo from '@renderer/assets/images/providers/intel.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
+import LlmApiProviderLogo from '@renderer/assets/images/providers/llmapi.svg'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
 import MiMoProviderLogo from '@renderer/assets/images/providers/mimo.svg'
@@ -708,6 +709,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  llmapi: {
+    id: 'llmapi',
+    name: 'LLM API',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.llmapi.ai',
+    models: SYSTEM_MODELS.llmapi,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -777,7 +788,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   sophnet: SophnetProviderLogo,
   gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo,
-  mimo: MiMoProviderLogo
+  mimo: MiMoProviderLogo,
+  llmapi: LlmApiProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1458,6 +1470,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  llmapi: {
+    api: {
+      url: 'https://api.llmapi.ai'
+    },
+    websites: {
+      official: 'https://llmapi.ai',
+      apiKey: 'https://app.llmapi.ai/signup',
+      docs: 'https://docs.llmapi.ai',
+      models: 'https://llmapi.ai'
     }
   }
 }
