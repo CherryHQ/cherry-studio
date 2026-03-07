@@ -58,7 +58,7 @@
       "found": {
         "title": "Git Bash configured"
       },
-      "notFound": "Git Bash not found. Please install it first."，
+      "notFound": "Git Bash not found. Please install it first.",
       "pick": {
         "button": "Select Git Bash Path",
         "failed": "Failed to set Git Bash path",
@@ -84,7 +84,7 @@
     },
     "session": {
       "accessible_paths": {
-        "add": "Add directory"，
+        "add": "Add directory",
         "default_hint": "A default workspace will be created automatically if not specified.",
         "duplicate": "This directory is already included.",
         "empty": "Select at least one directory that the agent can access.",
@@ -3543,7 +3543,7 @@
     "advanced": {
       "auto_switch_to_topics": "Auto switch to topic",
       "title": "Advanced Settings"
-    }，
+    },
     "assistant": {
       "icon": {
         "type": {
