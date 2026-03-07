@@ -90,8 +90,9 @@ export function isSupportVerbosityModel(model: Model): boolean {
 /**
  * Determines if a model supports the "none" reasoning effort parameter.
  *
- * This applies to GPT-5.1 and GPT-5.2 series reasoning models (non-chat, non-pro variants).
+ * This applies to GPT-5.x sub-version models (non-chat, non-pro variants).
  * These models allow setting reasoning_effort to "none" to skip reasoning steps.
+ * Codex variants are supported from GPT-5.3 onwards; GPT-5.1/5.2 codex models are excluded.
  *
  * @param model - The model to check
  * @returns true if the model supports "none" reasoning effort, false otherwise
@@ -101,21 +102,24 @@ export function isSupportVerbosityModel(model: Model): boolean {
  * // Returns true
  * isSupportNoneReasoningEffortModel({ id: 'gpt-5.1', provider: 'openai' })
  * isSupportNoneReasoningEffortModel({ id: 'gpt-5.2-mini', provider: 'openai' })
+ * isSupportNoneReasoningEffortModel({ id: 'gpt-5.3-codex', provider: 'openai' })
  *
  * // Returns false
  * isSupportNoneReasoningEffortModel({ id: 'gpt-5.1-pro', provider: 'openai' })
- * isSupportNoneReasoningEffortModel({ id: 'gpt-5.1-chat', provider: 'openai' })
+ * isSupportNoneReasoningEffortModel({ id: 'gpt-5.1-codex', provider: 'openai' })
  * isSupportNoneReasoningEffortModel({ id: 'gpt-5-pro', provider: 'openai' })
  * ```
  */
 export function isSupportNoneReasoningEffortModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
+  const isCodex = modelId.includes('codex')
+  const isOldCodex = isCodex && (isGPT51SeriesModel(model) || isGPT52SeriesModel(model))
   return (
     isGPT5FamilyModel(model) &&
     !isGPT5SeriesModel(model) &&
     !modelId.includes('chat') &&
     !modelId.includes('pro') &&
-    !modelId.includes('codex')
+    !isOldCodex
   )
 }
 
