@@ -23,7 +23,6 @@ export interface ToolApprovalActionsProps extends ToolApprovalState, ToolApprova
 export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   isWaiting,
   isExecuting,
-  remainingSeconds,
   isExpired,
   isSubmitting,
   confirm,
@@ -105,16 +104,12 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
             ]
           }}>
           <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
-          <CountdownText $compact={compact}>
-            {compact ? `${remainingSeconds}s` : `${t('settings.mcp.tools.run', 'Run')} (${remainingSeconds}s)`}
-          </CountdownText>
+          {t('settings.mcp.tools.run', 'Run')}
         </StyledDropdownButton>
       ) : (
         <Button size="small" type="primary" disabled={isSubmitting} onClick={(e) => handleClick(e, confirm)}>
           <CirclePlay size={compact ? 13 : 15} className="lucide-custom" />
-          <CountdownText $compact={compact}>
-            {compact ? `${remainingSeconds}s` : `${t('settings.mcp.tools.run', 'Run')} (${remainingSeconds}s)`}
-          </CountdownText>
+          {t('settings.mcp.tools.run', 'Run')}
         </Button>
       )}
     </ActionsContainer>
@@ -149,11 +144,6 @@ const LoadingIndicator = styled.div`
   gap: 6px;
   color: var(--color-primary);
   font-size: 12px;
-`
-
-const CountdownText = styled.span<{ $compact: boolean }>`
-  min-width: ${(props) => (props.$compact ? '24px' : '65px')};
-  text-align: left;
 `
 
 const StyledDropdownButton = styled(Dropdown.Button)`

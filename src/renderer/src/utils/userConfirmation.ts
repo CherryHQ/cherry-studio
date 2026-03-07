@@ -5,6 +5,19 @@ const toolConfirmResolvers = new Map<string, (value: boolean) => void>()
 // 存储每个工具的abort监听器清理函数
 const abortListeners = new Map<string, () => void>()
 
+// 订阅机制：当 pending 状态变化时通知组件
+type ToolPendingListener = (toolId: string) => void
+const pendingListeners = new Set<ToolPendingListener>()
+
+export function onToolPendingChange(listener: ToolPendingListener): () => void {
+  pendingListeners.add(listener)
+  return () => pendingListeners.delete(listener)
+}
+
+function notifyPendingChange(toolId: string) {
+  pendingListeners.forEach((listener) => listener(toolId))
+}
+
 const logger = loggerService.withContext('Utils:UserConfirmation')
 
 export function requestUserConfirmation(): Promise<boolean> {
@@ -22,6 +35,7 @@ export function requestToolConfirmation(toolId: string, abortSignal?: AbortSigna
     }
 
     toolConfirmResolvers.set(toolId, resolve)
+    notifyPendingChange(toolId)
 
     if (abortSignal) {
       const abortListener = () => {

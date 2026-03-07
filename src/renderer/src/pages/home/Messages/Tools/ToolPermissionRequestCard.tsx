@@ -30,10 +30,10 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
     }
     return {
       color: 'warning',
-      text: t('agent.toolPermission.pending', { seconds: approval.remainingSeconds }),
+      text: t('agent.toolPermission.pending'),
       showLoading: true
     }
-  }, [approval.isExecuting, approval.isExpired, approval.remainingSeconds, t])
+  }, [approval.isExecuting, approval.isExpired, t])
 
   const renderToolContent = useCallback((): React.ReactNode => {
     const toolName = toolResponse.tool?.name ?? ''

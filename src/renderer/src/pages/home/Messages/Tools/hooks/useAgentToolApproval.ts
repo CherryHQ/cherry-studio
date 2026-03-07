@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
@@ -34,36 +34,10 @@ export function useAgentToolApproval(
 
   const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolCallId))
 
-  const [now, setNow] = useState(() => Date.now())
-
-  // Update time every 500ms to track expiration
-  useEffect(() => {
-    if (!request) return
-
-    logger.debug('Tracking agent tool permission', {
-      requestId: request.requestId,
-      toolName: request.toolName,
-      expiresAt: request.expiresAt
-    })
-
-    setNow(Date.now())
-
-    const interval = window.setInterval(() => {
-      setNow(Date.now())
-    }, 500)
-
-    return () => {
-      window.clearInterval(interval)
-    }
+  const isExpired = useMemo(() => {
+    if (!request) return false
+    return Date.now() >= request.expiresAt
   }, [request])
-
-  const remainingMs = useMemo(() => {
-    if (!request) return 0
-    return Math.max(0, request.expiresAt - now)
-  }, [request, now])
-
-  const remainingSeconds = useMemo(() => Math.ceil(remainingMs / 1000), [remainingMs])
-  const isExpired = remainingMs <= 0
 
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
@@ -147,9 +121,7 @@ export function useAgentToolApproval(
     // State
     isWaiting,
     isExecuting,
-    countdown: undefined,
     expiresAt: request?.expiresAt,
-    remainingSeconds,
     isExpired: !!request && isExpired,
     isSubmitting,
     // Agent-specific: input from permission request

@@ -11,7 +11,7 @@ import { builtinTools } from './tools'
 const logger = loggerService.withContext('ClaudeCodeService')
 
 // https://platform.claude.com/docs/en/agent-sdk/user-input#limitations
-const TOOL_APPROVAL_TIMEOUT_MS = 60_000
+const TOOL_APPROVAL_TIMEOUT_MS = 600_000
 const MAX_PREVIEW_LENGTH = 2_000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
