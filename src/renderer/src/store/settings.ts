@@ -172,6 +172,7 @@ export interface SettingsState {
   notionExportReasoning: boolean
   excludeCitationsInExport: boolean
   standardizeCitationsInExport: boolean
+  showTimestampInMarkdown: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -361,6 +362,7 @@ export const initialState: SettingsState = {
   thoughtAutoCollapse: true,
   notionExportReasoning: false,
   excludeCitationsInExport: false,
+  showTimestampInMarkdown: false,
   standardizeCitationsInExport: false,
   yuqueToken: '',
   yuqueUrl: '',
@@ -739,6 +741,9 @@ const settingsSlice = createSlice({
     setShowModelProviderInMarkdown: (state, action: PayloadAction<boolean>) => {
       state.showModelProviderInMarkdown = action.payload
     },
+    setShowTimestampInMarkdown: (state, action: PayloadAction<boolean>) => {  
+      state.showTimestampInMarkdown = action.payload  
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -904,6 +909,7 @@ const settingsSlice = createSlice({
 })
 
 export const {
+  setShowTimestampInMarkdown,
   setShowModelNameInMarkdown,
   setShowModelProviderInMarkdown,
   setShowAssistants,

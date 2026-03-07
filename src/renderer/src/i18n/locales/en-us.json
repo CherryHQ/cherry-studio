@@ -3828,6 +3828,10 @@
           "help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
           "title": "Show Model Provider"
         },
+        "show_timestamp": {  
+          "title": "Show message timestamps on export",  
+          "help": "When enabled, the creation time of each message will be appended to its heading in the format YYYY-MM-DD HH:mm."  
+        },
         "standardize_citations": {
           "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
           "title": "Standardize Citation Format"
