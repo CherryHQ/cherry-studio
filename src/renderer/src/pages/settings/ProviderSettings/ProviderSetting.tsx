@@ -61,6 +61,7 @@ import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
+import MaxToolStepsSettings from './MaxToolStepsSettings/MaxToolStepsSettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
@@ -626,6 +627,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings />}
+      <MaxToolStepsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )
