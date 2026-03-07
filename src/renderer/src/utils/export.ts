@@ -42,7 +42,7 @@ const setExportingState = (isExporting: boolean) => {
  */
 const sanitizeReasoningContent = (content: string): string => {
   // 先处理换行符转换为 <br>
-  const contentWithBr = content.替换(/\n/g, '<br>')
+  const contentWithBr = content.replace(/\n/g, '<br>')
 
   // 使用 DOMPurify 清理内容，保留常用的安全标签和属性
   return DOMPurify.sanitize(contentWithBr, {
@@ -60,8 +60,8 @@ const sanitizeReasoningContent = (content: string): string => {
       'u',
       's',
       'del',
-      'mark'，
-      'small'，
+      'mark',
+      'small',
       // 上标下标（数学公式、引用等）
       'sup',
       'sub',
@@ -85,8 +85,8 @@ const sanitizeReasoningContent = (content: string): string => {
       'var',
       'samp',
       // 表格（AI输出中可能包含表格）
-      'table'，
-      'thead'，
+      'table',
+      'thead',
       'tbody',
       'tfoot',
       'tr',
@@ -94,7 +94,7 @@ const sanitizeReasoningContent = (content: string): string => {
       'th',
       // 分隔线
       'hr'
-    ]，
+    ],
     ALLOWED_ATTR: [
       // 安全的通用属性
       'class',
@@ -107,7 +107,7 @@ const sanitizeReasoningContent = (content: string): string => {
       'colspan',
       'rowspan',
       // 列表属性
-      'start'，
+      'start',
       'type'
     ],
     KEEP_CONTENT: true, // 保留被移除标签的文本内容
