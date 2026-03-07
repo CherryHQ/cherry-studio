@@ -222,6 +222,11 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
+  // Filter out models that do not support verbosity
+  {
+    validator: (model: Model) => !isSupportVerbosityModel(model),
+    values: []
+  },
   // Either only one value is supported(medium), or [low, medium, high]
   {
     validator: (model: Model) => {
