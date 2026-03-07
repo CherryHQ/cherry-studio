@@ -3,6 +3,7 @@ import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
+import iconv from 'iconv-lite'
 import os from 'os'
 import path from 'path'
 
@@ -241,11 +242,12 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   try {
     // Search without extension - where.exe returns all matches (npm, npm.cmd, npm.exe, etc.)
     // We then filter by allowed extensions below for security and precision
-    const result = execFileSync('where.exe', [name], {
-      encoding: 'utf8',
+    const resultBuf = execFileSync('where.exe', [name], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: options?.env
     })
+    // where.exe output is file paths (ASCII-safe), decode as utf8
+    const result = resultBuf.toString('utf8')
 
     // Handle both Windows (\r\n) and Unix (\n) line endings
     const paths = result.trim().split(/\r?\n/).filter(Boolean)
@@ -279,8 +281,11 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     }
 
     return null
-  } catch (error) {
-    logger.debug(`where.exe ${name} failed`, { error })
+  } catch (error: unknown) {
+    // On Chinese Windows, where.exe stderr is GBK-encoded and gets garbled as UTF-8.
+    // Log only the exit code to avoid mojibake in logs.
+    const code = error instanceof Error && 'status' in error ? (error as { status: unknown }).status : undefined
+    logger.debug(`where.exe ${name} not found (exit code ${code})`)
     return null
   }
 }
@@ -355,13 +360,12 @@ export function findViaMise(name: string, env: Record<string, string>): string |
  */
 function findMiseExecutable(env: Record<string, string>): string | null {
   try {
-    const result = execFileSync('where.exe', ['mise'], {
-      encoding: 'utf8',
+    const resultBuf = execFileSync('where.exe', ['mise'], {
       timeout: MISE_TIMEOUT_MS,
       stdio: ['pipe', 'pipe', 'pipe'],
       env
     })
-    const firstLine = result.trim().split(/\r?\n/)[0]?.trim()
+    const firstLine = resultBuf.toString('utf8').trim().split(/\r?\n/)[0]?.trim()
     if (firstLine && firstLine.toLowerCase().endsWith('.exe')) {
       return firstLine
     }
@@ -417,9 +421,35 @@ export function crossPlatformSpawn(
   options: SpawnOptions & { env: Record<string, string> }
 ): ChildProcess {
   if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    return spawn(command, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
+    // When shell: true, Node passes the command to cmd.exe as:
+    //   cmd /d /s /c "command arg1 arg2"
+    // If the command path contains spaces (e.g. C:\Program Files\nodejs\npm.cmd),
+    // cmd.exe splits on the space. Wrapping in quotes fixes this:
+    //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
+    const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
+    return spawn(quotedCommand, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
   }
   return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
+}
+
+/**
+ * Decode a Buffer from a shell process.
+ * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
+ * This function detects replacement characters (U+FFFD) from a naive UTF-8 decode
+ * and falls back to GBK decoding.
+ */
+export function decodeBufferFromShell(buf: Buffer): string {
+  if (!isWin) return buf.toString('utf8')
+  const utf8 = buf.toString('utf8')
+  // If the UTF-8 decode contains replacement characters, try GBK
+  if (utf8.includes('\uFFFD')) {
+    try {
+      return iconv.decode(buf, 'gbk')
+    } catch {
+      return utf8
+    }
+  }
+  return utf8
 }
 
 /**

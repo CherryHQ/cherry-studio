@@ -1,6 +1,5 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -8,21 +7,21 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
+import { crossPlatformSpawn, decodeBufferFromShell, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
+import type { OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
-import type { ChildProcess } from 'child_process'
 import semver from 'semver'
 
 import VertexAIService from './VertexAIService'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('OpenClawService')
-const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 
+const NPM_MIRROR_CN = 'https://registry.npmmirror.com'
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 // Original user config (read-only, used as template for first-time setup)
 const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
@@ -32,11 +31,11 @@ const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
+export type { OperationResult }
+
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-  uptime?: number
-  version?: string
 }
 
 export interface ChannelInfo {
@@ -116,13 +115,12 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 }
 
 class OpenClawService {
-  private gatewayProcess: ChildProcess | null = null
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
 
-  private get gatewayUrl(): string {
-    return `ws://127.0.0.1:${this.gatewayPort}`
+  public get gatewayUrl(): string {
+    return `ws://127.0.0.1:${this.gatewayPort}/ws`
   }
 
   constructor() {
@@ -230,154 +228,445 @@ class OpenClawService {
   }
 
   /**
-   * Install OpenClaw using npm with China mirror acceleration
-   * For users in China, install @qingchencloud/openclaw-zh package instead
+   * Run a command via crossPlatformSpawn, streaming output to sendInstallProgress().
+   * Returns { code, stderr } when the process exits.
    */
-  public async install(): Promise<{ success: boolean; message: string }> {
-    const inChina = await isUserInChina()
-
-    const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
-    const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
-
-    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
-
-    const npmArgs = ['install', '-g', packageName]
-    if (registryArg) npmArgs.push(registryArg)
-
-    // Keep the command string for logging and sudo retry
-    const npmCommand = `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
-
-    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
-    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
-    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
-
-    logger.info(`Installing OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
-
-    const spawnEnv = await getShellEnv()
-
+  private async runStreamingCommand(
+    command: string,
+    args: string[],
+    env?: Record<string, string>
+  ): Promise<{ code: number | null; stderr: string }> {
+    const resolvedEnv = env ?? (await getShellEnv())
     return new Promise((resolve) => {
-      try {
-        const installProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: spawnEnv })
+      const proc = crossPlatformSpawn(command, args, { env: resolvedEnv })
+      let stderr = ''
 
-        let stderr = ''
+      proc.stdout?.on('data', (data: Buffer) => {
+        const msg = decodeBufferFromShell(data).trim()
+        if (msg) {
+          logger.info(`[${command}] stdout:`, { output: msg })
+          this.sendInstallProgress(msg)
+        }
+      })
 
-        installProcess.stdout?.on('data', (data) => {
-          const msg = data.toString().trim()
-          if (msg) {
-            logger.info('OpenClaw install stdout:', msg)
-            this.sendInstallProgress(msg)
-          }
-        })
+      proc.stderr?.on('data', (data: Buffer) => {
+        const decoded = decodeBufferFromShell(data)
+        const msg = decoded.trim()
+        stderr += decoded
+        if (msg) {
+          logger.warn(`[${command}] stderr:`, { output: msg })
+          this.sendInstallProgress(msg, 'warn')
+        }
+      })
 
-        installProcess.stderr?.on('data', (data) => {
-          const msg = data.toString().trim()
-          stderr += data.toString()
-          if (msg) {
-            // npm warnings are not fatal errors
-            const isWarning = msg.includes('npm warn') || msg.includes('ExperimentalWarning')
-            logger.warn('OpenClaw install stderr:', msg)
-            this.sendInstallProgress(msg, isWarning ? 'warn' : 'info')
-          }
-        })
+      proc.on('error', (error) => {
+        logger.error(`[${command}] error:`, error)
+        resolve({ code: null, stderr: error.message })
+      })
 
-        installProcess.on('error', (error) => {
-          logger.error('OpenClaw install error:', error)
-          this.sendInstallProgress(error.message, 'error')
-          resolve({ success: false, message: error.message })
-        })
-
-        installProcess.on('exit', (code) => {
-          if (code === 0) {
-            logger.info('OpenClaw installed successfully')
-            this.sendInstallProgress('OpenClaw installed successfully!')
-            resolve({ success: true, message: 'OpenClaw installed successfully' })
-          } else {
-            logger.error(`OpenClaw install failed with code ${code}`)
-
-            // Detect EACCES permission error and retry with sudo
-            if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
-              logger.info('Permission denied, retrying with sudo-prompt...')
-              this.sendInstallProgress('Permission denied. Requesting administrator access...')
-
-              // Use full npm path since sudo runs in clean environment without user PATH
-              exec(npmCommand, { name: 'Cherry Studio' }, (error, stdout) => {
-                if (error) {
-                  logger.error('Sudo install failed:', error)
-                  this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
-                  resolve({ success: false, message: error.message })
-                } else {
-                  logger.info('OpenClaw installed successfully with sudo')
-                  if (stdout) {
-                    this.sendInstallProgress(stdout.toString())
-                  }
-                  this.sendInstallProgress('OpenClaw installed successfully!')
-                  resolve({ success: true, message: 'OpenClaw installed successfully' })
-                }
-              })
-            } else {
-              this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
-              resolve({
-                success: false,
-                message: stderr || `Installation failed with exit code ${code}`
-              })
-            }
-          }
-        })
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error('Failed to start OpenClaw installation:', error as Error)
-        this.sendInstallProgress(errorMessage, 'error')
-        resolve({ success: false, message: errorMessage })
-      }
+      proc.on('exit', (code) => {
+        resolve({ code, stderr })
+      })
     })
   }
 
   /**
-   * Uninstall OpenClaw using npm
-   * Uninstalls both the standard and Chinese packages to ensure clean removal
+   * Auto-install Node.js using platform-specific package managers.
+   * macOS: brew install node@22
+   * Linux: NodeSource setup_22.x + apt-get/dnf
+   * Windows: winget → choco → scoop
    */
-  public async uninstall(): Promise<{ success: boolean; message: string }> {
-    // First stop the gateway if running
+  private async installNode(): Promise<OperationResult> {
+    this.sendInstallProgress('Node.js not found or version too low. Installing Node.js...')
+    const shellEnv = await getShellEnv()
+
+    if (isMac) {
+      return this.installNodeMac(shellEnv)
+    } else if (isLinux) {
+      return this.installNodeLinux(shellEnv)
+    } else if (isWin) {
+      return this.installNodeWindows(shellEnv)
+    }
+    return { success: false, message: 'Unsupported platform for automatic Node.js installation' }
+  }
+
+  private async installNodeMac(env: Record<string, string>): Promise<OperationResult> {
+    const brewPath = await findExecutableInEnv('brew')
+    if (!brewPath) {
+      return { success: false, message: 'Homebrew not found. Install it first: https://brew.sh' }
+    }
+
+    this.sendInstallProgress('Installing Node.js via Homebrew...')
+    const installResult = await this.runStreamingCommand(brewPath, ['install', 'node@22'], env)
+    if (installResult.code !== 0 && installResult.code !== null) {
+      return { success: false, message: `brew install node@22 failed (exit ${installResult.code})` }
+    }
+
+    // Link node@22 so it's on PATH (matches install.sh pattern)
+    this.sendInstallProgress('Linking node@22...')
+    await this.runStreamingCommand(brewPath, ['link', 'node@22', '--overwrite', '--force'], env)
+
+    return { success: true }
+  }
+
+  private async installNodeLinux(env: Record<string, string>): Promise<OperationResult> {
+    // Arch Linux: pacman installs latest node directly, no NodeSource needed
+    const pacmanPath = await findExecutableInEnv('pacman')
+    if (pacmanPath) {
+      this.sendInstallProgress('Installing Node.js via pacman...')
+      const result = await this.runStreamingCommand('sudo', ['pacman', '-S', '--noconfirm', 'nodejs', 'npm'], env)
+      if (result.code !== 0) {
+        return { success: false, message: `pacman install failed (exit ${result.code})` }
+      }
+      return { success: true }
+    }
+
+    // Debian/Ubuntu and RHEL/Fedora: use NodeSource repository for Node.js 22
+    const aptPath = await findExecutableInEnv('apt-get')
+    const dnfPath = await findExecutableInEnv('dnf')
+
+    let setupUrl: string
+    let installArgs: string[]
+
+    if (aptPath) {
+      setupUrl = 'https://deb.nodesource.com/setup_22.x'
+      installArgs = ['apt-get', 'install', '-y', '-qq', 'nodejs']
+    } else if (dnfPath) {
+      setupUrl = 'https://rpm.nodesource.com/setup_22.x'
+      installArgs = ['dnf', 'install', '-y', '-q', 'nodejs']
+    } else {
+      return {
+        success: false,
+        message:
+          'No supported package manager found (pacman/apt-get/dnf). Install Node.js 22+ manually: https://nodejs.org'
+      }
+    }
+
+    // Download and run NodeSource setup script
+    this.sendInstallProgress('Configuring NodeSource repository...')
+    const curlPath = (await findExecutableInEnv('curl')) || 'curl'
+    const setupScript = '/tmp/nodesource_setup.sh'
+    const downloadResult = await this.runStreamingCommand(curlPath, ['-fsSL', setupUrl, '-o', setupScript], env)
+    if (downloadResult.code !== 0) {
+      return { success: false, message: 'Failed to download NodeSource setup script' }
+    }
+
+    const setupResult = await this.runStreamingCommand('sudo', ['bash', setupScript], env)
+    if (setupResult.code !== 0) {
+      return { success: false, message: 'Failed to configure NodeSource repository' }
+    }
+
+    // Install Node.js
+    this.sendInstallProgress('Installing Node.js...')
+    const installResult = await this.runStreamingCommand('sudo', installArgs, env)
+    if (installResult.code !== 0) {
+      return { success: false, message: `Node.js installation failed (exit ${installResult.code})` }
+    }
+
+    return { success: true }
+  }
+
+  private async installNodeWindows(env: Record<string, string>): Promise<OperationResult> {
+    // Try winget → choco → scoop (in order of availability)
+    const wingetPath = await findExecutableInEnv('winget')
+    if (wingetPath) {
+      this.sendInstallProgress('Installing Node.js via winget...')
+      const result = await this.runStreamingCommand(
+        wingetPath,
+        ['install', 'OpenJS.NodeJS.LTS', '--accept-package-agreements', '--accept-source-agreements'],
+        env
+      )
+      if (result.code === 0) return { success: true }
+      logger.warn(`winget install failed (exit ${result.code}), trying next...`)
+    }
+
+    const chocoPath = await findExecutableInEnv('choco')
+    if (chocoPath) {
+      this.sendInstallProgress('Installing Node.js via Chocolatey...')
+      const result = await this.runStreamingCommand(chocoPath, ['install', 'nodejs-lts', '-y'], env)
+      if (result.code === 0) return { success: true }
+      logger.warn(`choco install failed (exit ${result.code}), trying next...`)
+    }
+
+    // scoop is a PowerShell script — must invoke via powershell.exe
+    const scoopPath = await findExecutableInEnv('scoop')
+    if (scoopPath) {
+      this.sendInstallProgress('Installing Node.js via Scoop...')
+      const result = await this.runStreamingCommand(
+        'powershell.exe',
+        ['-NoProfile', '-Command', 'scoop install nodejs-lts'],
+        env
+      )
+      if (result.code === 0) return { success: true }
+      logger.warn(`scoop install failed (exit ${result.code})`)
+    }
+
+    return {
+      success: false,
+      message: 'No package manager found (winget/choco/scoop). Install Node.js 22+ manually: https://nodejs.org'
+    }
+  }
+
+  /**
+   * Ensure git is available (required by npm for some packages).
+   * Auto-installs via platform package manager if missing.
+   */
+  private async ensureGit(): Promise<void> {
+    const gitPath = await findExecutableInEnv('git')
+    if (gitPath) return
+
+    logger.info('Git not found, attempting auto-install')
+    this.sendInstallProgress('Git not found. Installing Git...')
+    const env = await getShellEnv()
+
+    if (isMac) {
+      const brewPath = await findExecutableInEnv('brew')
+      if (brewPath) {
+        await this.runStreamingCommand(brewPath, ['install', 'git'], env)
+      }
+    } else if (isLinux) {
+      const aptPath = await findExecutableInEnv('apt-get')
+      const dnfPath = await findExecutableInEnv('dnf')
+      const pacmanPath = await findExecutableInEnv('pacman')
+      if (aptPath) {
+        await this.runStreamingCommand('sudo', ['apt-get', 'install', '-y', '-qq', 'git'], env)
+      } else if (dnfPath) {
+        await this.runStreamingCommand('sudo', ['dnf', 'install', '-y', '-q', 'git'], env)
+      } else if (pacmanPath) {
+        await this.runStreamingCommand('sudo', ['pacman', '-S', '--noconfirm', 'git'], env)
+      }
+    } else if (isWin) {
+      const wingetPath = await findExecutableInEnv('winget')
+      if (wingetPath) {
+        await this.runStreamingCommand(
+          wingetPath,
+          ['install', 'Git.Git', '--accept-package-agreements', '--accept-source-agreements'],
+          env
+        )
+      }
+    }
+
+    // Best-effort: don't fail the whole install if git auto-install doesn't work
+    const gitAfter = await findExecutableInEnv('git')
+    if (gitAfter) {
+      this.sendInstallProgress('Git installed successfully')
+    } else {
+      logger.warn('Git auto-install may have failed; npm install will proceed anyway')
+      this.sendInstallProgress('Git installation may have failed. Continuing...', 'warn')
+    }
+  }
+
+  /**
+   * Install OpenClaw via npm. Auto-installs Node.js and Git if needed.
+   * Streams output in real-time. On macOS/Linux, retries with sudo-prompt on permission errors.
+   */
+  public async install(): Promise<OperationResult> {
+    try {
+      // Step 1: Refresh shell env and check Node.js
+      await refreshShellEnv()
+      const nodeCheck = await this.checkNodeVersion()
+
+      // Step 2: Auto-install Node.js if needed
+      if (nodeCheck.status !== 'ok') {
+        logger.info(`Node.js check: ${nodeCheck.status}, attempting auto-install`)
+        const nodeResult = await this.installNode()
+        if (!nodeResult.success) {
+          this.sendInstallProgress(nodeResult.message, 'error')
+          return nodeResult
+        }
+
+        // Refresh env after node install and re-check
+        await refreshShellEnv()
+        const recheck = await this.checkNodeVersion()
+        if (recheck.status !== 'ok') {
+          const msg = `Node.js still not available after install. Please install Node.js 22+ manually: ${this.getNodeDownloadUrl()}`
+          this.sendInstallProgress(msg, 'error')
+          return { success: false, message: msg }
+        }
+      }
+
+      // Step 3: Ensure git is available (npm may need it)
+      await this.ensureGit()
+
+      // Step 4: Find npm
+      const npmPath = await findExecutableInEnv('npm')
+      if (!npmPath) {
+        const msg = 'npm not found. Please install Node.js 22+ which includes npm.'
+        this.sendInstallProgress(msg, 'error')
+        return { success: false, message: msg }
+      }
+
+      // Step 5: Run npm install -g openclaw with streaming
+      const inChina = await isUserInChina()
+
+      const shellEnv = await getShellEnv()
+      const npmEnv: Record<string, string> = {
+        ...shellEnv,
+        SHARP_IGNORE_GLOBAL_LIBVIPS: '1',
+        NPM_CONFIG_LOGLEVEL: 'error',
+        NPM_CONFIG_UPDATE_NOTIFIER: 'false',
+        NPM_CONFIG_FUND: 'false',
+        NPM_CONFIG_AUDIT: 'false',
+        ...(isWin ? { NPM_CONFIG_SCRIPT_SHELL: 'cmd.exe' } : {})
+      }
+      const npmArgs = ['install', '-g', 'openclaw@latest']
+      if (inChina) npmArgs.push(`--registry=${NPM_MIRROR_CN}`)
+      const npmCommand = `"${npmPath}" ${npmArgs.join(' ')}`
+
+      logger.info(`Installing OpenClaw: ${npmCommand}`)
+      this.sendInstallProgress(`Running: npm ${npmArgs.join(' ')}`)
+
+      const { code, stderr } = await this.runStreamingCommand(npmPath, npmArgs, npmEnv)
+
+      if (code === 0) {
+        logger.info('OpenClaw installed successfully')
+        this.sendInstallProgress('OpenClaw installed successfully!')
+        await this.installGatewayService()
+        return { success: true }
+      }
+
+      // Step 6: EACCES retry with sudo-prompt (macOS/Linux only)
+      if (
+        !isWin &&
+        (stderr.includes('EACCES') || stderr.includes('permission denied') || stderr.includes('Permission denied'))
+      ) {
+        logger.info('Permission denied, retrying with sudo-prompt...')
+        this.sendInstallProgress('Permission denied. Requesting administrator access...')
+
+        return new Promise((resolve) => {
+          exec(npmCommand, { name: 'Cherry Studio' }, async (error, stdout) => {
+            if (error) {
+              logger.error('Sudo install failed:', error)
+              this.sendInstallProgress(`Installation failed: ${error.message}`, 'error')
+              resolve({ success: false, message: error.message })
+            } else {
+              logger.info('OpenClaw installed successfully with sudo')
+              if (stdout) {
+                this.sendInstallProgress(stdout.toString())
+              }
+              this.sendInstallProgress('OpenClaw installed successfully!')
+              await this.installGatewayService()
+              resolve({ success: true })
+            }
+          })
+        })
+      }
+
+      logger.error(`OpenClaw install failed with exit code ${code}`, { stderr: stderr.trim() })
+      this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
+      return {
+        success: false,
+        message: stderr.trim() || `Installation failed with exit code ${code}`
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to install OpenClaw:', error as Error)
+      this.sendInstallProgress(errorMessage, 'error')
+      return { success: false, message: errorMessage }
+    }
+  }
+
+  /**
+   * Register gateway as a system service (launchd/systemd) after npm install
+   */
+  private async installGatewayService(): Promise<void> {
+    try {
+      // Refresh shell env to pick up PATH changes from npm install
+      const shellEnv = await refreshShellEnv()
+      const openclawPath = await findExecutableInEnv('openclaw')
+      if (!openclawPath) {
+        logger.warn('Cannot install gateway service: openclaw binary not found')
+        return
+      }
+
+      this.sendInstallProgress('Registering gateway service...')
+      const { code, stderr } = await this.execOpenClawCommandWithResult(
+        openclawPath,
+        ['gateway', 'install', '--port', String(this.gatewayPort)],
+        shellEnv
+      )
+
+      if (code === 0) {
+        logger.info('Gateway service registered successfully')
+        this.sendInstallProgress('Gateway service registered')
+      } else {
+        logger.warn('Gateway service install returned non-zero:', { code, stderr: stderr.trim() })
+      }
+    } catch (error) {
+      logger.warn('Failed to register gateway service:', error as Error)
+    }
+  }
+
+  /**
+   * Ensure gateway service is registered (idempotent).
+   * Handles upgrade from older versions that only did `npm install -g` without `gateway install`.
+   */
+  private async ensureGatewayServiceInstalled(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
+    const { stdout } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'status'], shellEnv)
+    if (stdout.includes('not loaded') || stdout.includes('not installed')) {
+      logger.info('Gateway service not installed, registering now...')
+      await this.installGatewayService()
+    }
+  }
+
+  /**
+   * Unregister gateway system service before npm uninstall
+   */
+  private async uninstallGatewayService(): Promise<void> {
+    try {
+      const shellEnv = await getShellEnv()
+      const openclawPath = await findExecutableInEnv('openclaw')
+      if (!openclawPath) return
+
+      await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'uninstall'], shellEnv)
+      logger.info('Gateway service unregistered')
+    } catch (error) {
+      logger.warn('Failed to unregister gateway service:', error as Error)
+    }
+  }
+
+  /**
+   * Uninstall OpenClaw using npm
+   */
+  public async uninstall(): Promise<OperationResult> {
+    // Stop and unregister the gateway service before npm uninstall
     if (this.gatewayStatus === 'running') {
       await this.stopGateway()
     }
+    await this.uninstallGatewayService()
 
     const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
-    const npmArgs = ['uninstall', '-g', 'openclaw', '@qingchencloud/openclaw-zh']
+    const npmArgs = ['uninstall', '-g', 'openclaw']
 
     // Keep the command string for logging and sudo retry
-    const npmCommand = `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+    const npmCommand = `"${npmPath}" uninstall -g openclaw`
 
-    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
-    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
-    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
-
-    logger.info(`Uninstalling OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
-    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
+    logger.info(`Uninstalling OpenClaw: ${npmCommand}`)
+    this.sendInstallProgress(`Running: npm ${npmArgs.join(' ')}`)
 
     const shellEnv = await getShellEnv()
 
     return new Promise((resolve) => {
       try {
-        const uninstallProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: shellEnv })
+        const uninstallProcess = crossPlatformSpawn(npmPath, npmArgs, { env: shellEnv })
 
         let stderr = ''
 
-        uninstallProcess.stdout?.on('data', (data) => {
-          const msg = data.toString().trim()
+        uninstallProcess.stdout?.on('data', (data: Buffer) => {
+          const msg = decodeBufferFromShell(data).trim()
           if (msg) {
-            logger.info('OpenClaw uninstall stdout:', msg)
+            logger.info('OpenClaw uninstall stdout:', { output: msg })
             this.sendInstallProgress(msg)
           }
         })
 
-        uninstallProcess.stderr?.on('data', (data) => {
-          const msg = data.toString().trim()
-          stderr += data.toString()
+        uninstallProcess.stderr?.on('data', (data: Buffer) => {
+          const decoded = decodeBufferFromShell(data)
+          const msg = decoded.trim()
+          stderr += decoded
           if (msg) {
-            logger.warn('OpenClaw uninstall stderr:', msg)
+            logger.warn('OpenClaw uninstall stderr:', { output: msg })
             this.sendInstallProgress(msg, 'warn')
           }
         })
@@ -392,9 +681,9 @@ class OpenClawService {
           if (code === 0) {
             logger.info('OpenClaw uninstalled successfully')
             this.sendInstallProgress('OpenClaw uninstalled successfully!')
-            resolve({ success: true, message: 'OpenClaw uninstalled successfully' })
+            resolve({ success: true })
           } else {
-            logger.error(`OpenClaw uninstall failed with code ${code}`)
+            logger.error(`OpenClaw uninstall failed with code ${code}`, { stderr: stderr.trim() })
 
             // Detect EACCES permission error and retry with sudo
             if (stderr.includes('EACCES') || stderr.includes('permission denied')) {
@@ -412,7 +701,7 @@ class OpenClawService {
                     this.sendInstallProgress(stdout.toString())
                   }
                   this.sendInstallProgress('OpenClaw uninstalled successfully!')
-                  resolve({ success: true, message: 'OpenClaw uninstalled successfully' })
+                  resolve({ success: true })
                 }
               })
             } else {
@@ -436,10 +725,7 @@ class OpenClawService {
   /**
    * Start the OpenClaw Gateway
    */
-  public async startGateway(
-    _: Electron.IpcMainInvokeEvent,
-    port?: number
-  ): Promise<{ success: boolean; message: string }> {
+  public async startGateway(_: Electron.IpcMainInvokeEvent, port?: number): Promise<OperationResult> {
     this.gatewayPort = port ?? DEFAULT_GATEWAY_PORT
 
     // Prevent concurrent startup calls
@@ -457,23 +743,21 @@ class OpenClawService {
       }
     }
 
-    // Check if gateway is already running in the system (including external processes)
     const alreadyRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
     if (alreadyRunning) {
-      // Reuse existing gateway instead of trying to restart
       this.gatewayStatus = 'running'
       logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
-      return { success: true, message: 'Gateway is already running' }
+      return { success: true }
     }
 
-    // No gateway running, start a new one
     this.gatewayStatus = 'starting'
 
     try {
-      await this.spawnAndWaitForGateway(openclawPath, shellEnv)
+      await this.ensureGatewayServiceInstalled(openclawPath, shellEnv)
+      await this.startAndWaitForGateway(openclawPath, shellEnv)
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
-      return { success: true, message: `Gateway started on port ${this.gatewayPort}` }
+      return { success: true }
     } catch (error) {
       this.gatewayStatus = 'error'
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -483,176 +767,147 @@ class OpenClawService {
   }
 
   /**
-   * Spawn gateway process and wait for it to become ready
-   * Monitors process exit and stderr for early failure detection
+   * Start gateway via `openclaw gateway start` and wait for it to become ready
    */
-  private async spawnAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    // Track startup errors from stderr and process exit
-    let startupError: string | null = null
-    let processExited = false
+  private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
+    logger.info(`Starting gateway service: ${openclawPath} gateway start`)
+    const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
+      openclawPath,
+      ['gateway', 'start', '--force'],
+      shellEnv
+    )
+    logger.info('Gateway start result:', { code, stdout: stdout.trim(), stderr: stderr.trim() })
 
-    logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
-    this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
-      env: { ...shellEnv, OPENCLAW_CONFIG_PATH }
-    })
-    logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
-
-    // Monitor stderr for error messages
-    this.gatewayProcess.stderr?.on('data', (data) => {
-      const msg = data.toString()
-      logger.warn('Gateway stderr:', msg)
-
-      // Extract specific error messages for better user feedback
-      if (msg.includes('already running')) {
-        startupError = 'Gateway already running (port conflict)'
-      } else if (msg.includes('already in use')) {
-        startupError = `Port ${this.gatewayPort} is already in use`
-      }
-    })
-
-    this.gatewayProcess.stdout?.on('data', (data) => {
-      logger.info('Gateway stdout:', data.toString())
-    })
-
-    // Monitor process exit during startup
-    this.gatewayProcess.on('exit', (code) => {
-      logger.info(`Gateway process exited with code ${code}`)
-      processExited = true
-      if (code !== 0 && !startupError) {
-        startupError = `Process exited with code ${code}`
-      }
-      this.gatewayProcess = null
-    })
-
-    this.gatewayProcess.on('error', (err) => {
-      logger.error('Gateway process error:', err)
-      processExited = true
-      startupError = err.message
-    })
+    if (code !== 0) {
+      throw new Error(stderr.trim() || `gateway start exited with code ${code}`)
+    }
 
     // Wait for gateway to become ready (max 30 seconds)
     const maxWaitMs = 30000
     const pollIntervalMs = 1000
     const startTime = Date.now()
     let pollCount = 0
+    let lastError = ''
 
     while (Date.now() - startTime < maxWaitMs) {
-      // Fast fail if process has already exited
-      if (processExited) {
-        throw new Error(startupError || 'Gateway process exited unexpectedly')
-      }
-
       await new Promise((r) => setTimeout(r, pollIntervalMs))
       pollCount++
 
       logger.debug(`Polling gateway status (attempt ${pollCount})...`)
-      const isRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
-      if (isRunning) {
-        logger.info(`Gateway is running (verified via CLI after ${pollCount} polls)`)
+      const { running, error: statusError } = await this.checkGatewayStatusWithError(openclawPath, shellEnv)
+      if (running) {
+        logger.info(`Gateway is running (verified after ${pollCount} polls)`)
         return
       }
+      if (statusError) lastError = statusError
 
-      const portOpen = await this.checkPortOpen(this.gatewayPort)
-      if (portOpen) {
-        await new Promise((r) => setTimeout(r, 2000))
-        if (processExited) {
-          logger.info(`Spawned process exited but port ${this.gatewayPort} is open — reusing existing gateway`)
-          return
-        }
-        logger.info(`Gateway port ${this.gatewayPort} is open and process alive (verified after ${pollCount} polls)`)
+      const { status, error: healthError } = await this.probeGatewayHealthWithError(openclawPath, shellEnv)
+      if (status === 'healthy') {
+        logger.info(`Gateway port ${this.gatewayPort} is open (verified after ${pollCount} polls)`)
         return
       }
+      if (healthError) lastError = healthError
     }
 
-    // Timeout - process may still be starting but taking too long
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)`)
+    const detail = lastError ? `\n${lastError}` : ''
+    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
   /**
    * Stop the OpenClaw Gateway
-   * Handles both our process and external gateway processes
    */
-  public async stopGateway(): Promise<{ success: boolean; message: string }> {
+  public async stopGateway(): Promise<OperationResult> {
     try {
       const openclawPath = await findExecutableInEnv('openclaw')
-      if (openclawPath) {
-        const shellEnv = await getShellEnv()
-        await this.runGatewayStop(openclawPath, shellEnv)
-
-        // Verify stop was successful
-        const stillRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
-        if (stillRunning) {
-          // CLI stop failed — fall back to killing the process directly
-          if (this.gatewayProcess) {
-            logger.warn('Gateway still running after CLI stop, falling back to kill')
-            await this.killProcess(this.gatewayProcess)
-          } else {
-            logger.warn('Gateway still running after stop attempt and no process reference')
-            return {
-              success: false,
-              message: 'Failed to stop gateway. Try running: openclaw gateway stop'
-            }
-          }
-        }
-      } else if (this.gatewayProcess) {
-        // No CLI binary found — kill directly as last resort
-        logger.warn('OpenClaw binary not found, killing process directly')
-        await this.killProcess(this.gatewayProcess)
+      if (!openclawPath) {
+        this.gatewayStatus = 'error'
+        return { success: false, message: 'OpenClaw binary not found' }
       }
 
-      this.gatewayProcess = null
+      const shellEnv = await getShellEnv()
+      await this.runGatewayStop(openclawPath, shellEnv)
+
+      const stillRunning = await this.waitForGatewayStop(openclawPath, shellEnv)
+      if (stillRunning) {
+        this.gatewayStatus = 'error'
+        return { success: false, message: 'Failed to stop gateway. Try running: openclaw gateway stop' }
+      }
+
       this.gatewayStatus = 'stopped'
       logger.info('Gateway stopped')
-      return { success: true, message: 'Gateway stopped successfully' }
+      return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to stop gateway:', error as Error)
+      this.gatewayStatus = 'error'
       return { success: false, message: errorMessage }
     }
   }
 
   /**
-   * Kill a child process with SIGTERM, then SIGKILL after timeout
+   * Wait for gateway to actually stop, with retries.
+   * Returns true if gateway is still running after all retries.
    */
-  private async killProcess(proc: ChildProcess): Promise<void> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        proc.kill('SIGKILL')
-        resolve()
-      }, 5000)
-
-      proc.once('exit', () => {
-        clearTimeout(timeout)
-        resolve()
-      })
-
-      proc.kill('SIGTERM')
-    })
+  private async waitForGatewayStop(
+    openclawPath: string,
+    env: Record<string, string>,
+    maxRetries = 3,
+    intervalMs = 1000
+  ): Promise<boolean> {
+    for (let i = 0; i < maxRetries; i++) {
+      const stillRunning = await this.checkGatewayStatus(openclawPath, env)
+      if (!stillRunning) {
+        return false
+      }
+      if (i < maxRetries - 1) {
+        logger.debug(`Gateway still running after stop, retrying check (${i + 1}/${maxRetries})...`)
+        await new Promise((r) => setTimeout(r, intervalMs))
+      }
+    }
+    return true
   }
 
-  /**
-   * Run `openclaw gateway stop` command
-   */
   private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
+    await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'stop'], env)
+  }
+
+  private async execOpenClawCommandWithResult(
+    openclawPath: string,
+    args: string[],
+    env: Record<string, string>,
+    timeoutMs = 10000
+  ): Promise<{ code: number | null; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
-      const proc = crossPlatformSpawn(openclawPath, ['gateway', 'stop', '--url', this.gatewayUrl], {
+      const proc = crossPlatformSpawn(openclawPath, args, {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 
-      const timeout = setTimeout(() => {
-        proc.kill('SIGKILL')
-        resolve()
-      }, 5000)
+      let stdout = ''
+      let stderr = ''
 
-      proc.on('exit', () => {
-        clearTimeout(timeout)
-        // Wait for port to be released
-        setTimeout(resolve, 500)
+      proc.stdout?.on('data', (data) => {
+        stdout += data.toString()
+      })
+      proc.stderr?.on('data', (data) => {
+        stderr += data.toString()
       })
 
-      proc.on('error', () => {
+      const timeout = setTimeout(() => {
+        logger.warn(`Gateway command timed out: ${args.join(' ')}`)
+        proc.kill('SIGKILL')
+        resolve({ code: null, stdout, stderr })
+      }, timeoutMs)
+
+      proc.on('exit', (code) => {
         clearTimeout(timeout)
-        resolve()
+        logger.info(`Gateway command [${args.join(' ')}]:`, { code, stdout: stdout.trim(), stderr: stderr.trim() })
+        resolve({ code, stdout, stderr })
+      })
+
+      proc.on('error', (err) => {
+        clearTimeout(timeout)
+        logger.error(`Gateway command error [${args.join(' ')}]:`, err)
+        resolve({ code: null, stdout, stderr: err.message })
       })
     })
   }
@@ -660,15 +915,32 @@ class OpenClawService {
   /**
    * Restart the OpenClaw Gateway
    */
-  public async restartGateway(event: Electron.IpcMainInvokeEvent): Promise<{ success: boolean; message: string }> {
-    await this.stopGateway()
-    return this.startGateway(event, this.gatewayPort)
+  public async restartGateway(): Promise<OperationResult> {
+    const openclawPath = await findExecutableInEnv('openclaw')
+    if (!openclawPath) {
+      this.gatewayStatus = 'error'
+      return { success: false, message: 'OpenClaw binary not found' }
+    }
+    const shellEnv = await getShellEnv()
+    const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'restart'], shellEnv)
+    if (code !== 0) {
+      this.gatewayStatus = 'error'
+      return { success: false, message: stderr.trim() || `Restart failed with code ${code}` }
+    }
+    return { success: true }
   }
 
   /**
-   * Get Gateway status
+   * Get Gateway status. Probes the port when idle to detect externally-started gateways.
    */
-  public getStatus(): { status: GatewayStatus; port: number } {
+  public async getStatus(): Promise<{ status: GatewayStatus; port: number }> {
+    if (this.gatewayStatus === 'stopped' || this.gatewayStatus === 'error') {
+      const { status } = await this.probeGatewayHealth()
+      if (status === 'healthy') {
+        logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
+        this.gatewayStatus = 'running'
+      }
+    }
     return {
       status: this.gatewayStatus,
       port: this.gatewayPort
@@ -676,61 +948,36 @@ class OpenClawService {
   }
 
   /**
-   * Check Gateway health by verifying WebSocket connectivity
+   * Check Gateway health (public API).
+   * Returns unhealthy immediately if we know the gateway is not running.
    */
   public async checkHealth(): Promise<HealthInfo> {
-    // If we know the gateway is not running, return unhealthy immediately
-    if (this.gatewayStatus !== 'running' || !this.gatewayProcess) {
-      return {
-        status: 'unhealthy',
-        gatewayPort: this.gatewayPort
-      }
+    if (this.gatewayStatus !== 'running') {
+      return { status: 'unhealthy', gatewayPort: this.gatewayPort }
     }
-
-    try {
-      // Check if the WebSocket port is accepting connections
-      const isAlive = await this.checkPortOpen(this.gatewayPort)
-      if (isAlive) {
-        return {
-          status: 'healthy',
-          gatewayPort: this.gatewayPort
-        }
-      }
-    } catch (error) {
-      logger.debug('Health check failed:', error as Error)
-    }
-
-    return {
-      status: 'unhealthy',
-      gatewayPort: this.gatewayPort
-    }
+    return this.probeGatewayHealth()
   }
 
   /**
-   * Check if a port is open and accepting connections
+   * Probe gateway health by running `openclaw gateway health`.
+   * Does NOT check gatewayStatus — callers that need to detect
+   * externally-started gateways should call this directly.
    */
-  private async checkPortOpen(port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const socket = new Socket()
-      socket.setTimeout(2000)
-
-      socket.on('connect', () => {
-        socket.destroy()
-        resolve(true)
-      })
-
-      socket.on('timeout', () => {
-        socket.destroy()
-        resolve(false)
-      })
-
-      socket.on('error', () => {
-        socket.destroy()
-        resolve(false)
-      })
-
-      socket.connect(port, 'localhost')
-    })
+  private async probeGatewayHealth(): Promise<HealthInfo> {
+    try {
+      const openclawPath = await findExecutableInEnv('openclaw')
+      if (!openclawPath) {
+        return { status: 'unhealthy', gatewayPort: this.gatewayPort }
+      }
+      const shellEnv = await getShellEnv()
+      const { code } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], shellEnv)
+      if (code === 0) {
+        return { status: 'healthy', gatewayPort: this.gatewayPort }
+      }
+    } catch (error) {
+      logger.debug('Health probe failed:', error as Error)
+    }
+    return { status: 'unhealthy', gatewayPort: this.gatewayPort }
   }
 
   /**
@@ -759,7 +1006,7 @@ class OpenClawService {
     _: Electron.IpcMainInvokeEvent,
     provider: Provider,
     primaryModel: Model
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<OperationResult> {
     try {
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
@@ -849,12 +1096,49 @@ class OpenClawService {
       // Write config file
       fs.writeFileSync(OPENCLAW_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8')
 
+      // Also sync gateway config (mode, port, auth) to the default openclaw.json
+      // so that the system service / daemon (which doesn't inherit OPENCLAW_CONFIG_PATH)
+      // can read the auth token and bind settings.
+      this.syncGatewayConfigToDefault(config)
+
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
-      return { success: true, message: `Provider ${provider.name} synced to OpenClaw` }
+      return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to sync provider config:', error as Error)
       return { success: false, message: errorMessage }
+    }
+  }
+
+  /**
+   * Sync gateway-related config (mode, port, auth) to the default openclaw.json.
+   * The system service / daemon started by `openclaw gateway install` does NOT
+   * inherit the OPENCLAW_CONFIG_PATH env var, so it reads the default config.
+   * Without this, the gateway starts without auth → health checks fail with 1006.
+   */
+  private syncGatewayConfigToDefault(cherryConfig: OpenClawConfig): void {
+    try {
+      let defaultConfig: OpenClawConfig = {}
+      if (fs.existsSync(OPENCLAW_ORIGINAL_CONFIG_PATH)) {
+        try {
+          defaultConfig = JSON.parse(fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8'))
+        } catch {
+          // Corrupted file — overwrite with gateway config
+        }
+      }
+
+      // Only sync gateway settings, leave everything else untouched
+      defaultConfig.gateway = {
+        ...defaultConfig.gateway,
+        mode: cherryConfig.gateway?.mode,
+        port: cherryConfig.gateway?.port,
+        auth: cherryConfig.gateway?.auth
+      }
+
+      fs.writeFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, JSON.stringify(defaultConfig, null, 2), 'utf-8')
+      logger.debug('Synced gateway config to default openclaw.json')
+    } catch (error) {
+      logger.warn('Failed to sync gateway config to default openclaw.json:', error as Error)
     }
   }
 
@@ -884,7 +1168,7 @@ class OpenClawService {
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status', '--url', this.gatewayUrl], {
+      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status'], {
         env: { ...env, OPENCLAW_CONFIG_PATH }
       })
 
@@ -923,6 +1207,72 @@ class OpenClawService {
         doResolve(false)
       })
     })
+  }
+
+  /**
+   * Like checkGatewayStatus but also returns the stderr error message when not running.
+   */
+  private async checkGatewayStatusWithError(
+    openclawPath: string,
+    env: Record<string, string>
+  ): Promise<{ running: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const proc = crossPlatformSpawn(openclawPath, ['gateway', 'status'], {
+        env: { ...env, OPENCLAW_CONFIG_PATH }
+      })
+
+      let stdout = ''
+      let stderr = ''
+      let resolved = false
+
+      const doResolve = (value: { running: boolean; error?: string }) => {
+        if (resolved) return
+        resolved = true
+        resolve(value)
+      }
+
+      const timeoutId = setTimeout(() => {
+        const isRunning = stdout.toLowerCase().includes('listening')
+        proc.kill('SIGKILL')
+        doResolve({ running: isRunning, error: isRunning ? undefined : stderr.trim() || undefined })
+      }, 10_000)
+
+      proc.stdout?.on('data', (data) => {
+        stdout += data.toString()
+      })
+      proc.stderr?.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      proc.on('close', (code) => {
+        clearTimeout(timeoutId)
+        const isRunning = (code === 0 || code === null) && stdout.toLowerCase().includes('listening')
+        doResolve({ running: isRunning, error: isRunning ? undefined : stderr.trim() || stdout.trim() || undefined })
+      })
+
+      proc.on('error', (err) => {
+        clearTimeout(timeoutId)
+        doResolve({ running: false, error: err.message })
+      })
+    })
+  }
+
+  /**
+   * Like probeGatewayHealth but also returns stderr when unhealthy.
+   */
+  private async probeGatewayHealthWithError(
+    openclawPath: string,
+    env: Record<string, string>
+  ): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+    try {
+      const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], env)
+      if (code === 0) {
+        return { status: 'healthy' }
+      }
+      return { status: 'unhealthy', error: stderr.trim() || undefined }
+    } catch (error) {
+      return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   /**
