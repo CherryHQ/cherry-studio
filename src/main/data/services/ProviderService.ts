@@ -24,6 +24,7 @@ const logger = loggerService.withContext('DataApi:ProviderService')
  */
 function rowToRuntimeProvider(row: UserProvider): Provider {
   // Process API keys (strip actual key values for security)
+  // oxlint-disable-next-line no-unused-vars
   const apiKeys = (row.apiKeys ?? []).map(({ key: _key, ...rest }) => rest)
 
   // Determine auth type
