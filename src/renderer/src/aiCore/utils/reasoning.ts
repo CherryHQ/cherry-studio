@@ -196,20 +196,31 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // Gemini models use thinking_budget parameter in extra_body
     if (isSupportedThinkingTokenGeminiModel(model)) {
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
-      let budgetTokens: number | undefined
-      if (tokenLimit && reasoningEffort !== 'auto') {
-        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-      } else if (!tokenLimit && reasoningEffort !== 'auto') {
-        logger.warn(
-          `No token limit configuration found for Gemini model "${model.id}" on Poe provider. ` +
-            `Using auto (-1) instead of requested effort "${reasoningEffort}".`
-        )
-      }
-      return {
-        extra_body: {
-          thinking_budget: budgetTokens ?? -1
+      // for Gemini 3.0/3.1 Thinking Model
+      if (isGemini3ThinkingTokenModel(model)) {
+        return {
+          extra_body: {
+            // Poe platform does not currently support the 'medium' parameter on gemini 3.0/3.1.
+            thinking_level: reasoningEffort === 'auto' ? 'low' : reasoningEffort === 'medium' ? 'high' : reasoningEffort
+          }
+        }
+      } else {
+        // for Gemini 2.5 series
+        const effortRatio = EFFORT_RATIO[reasoningEffort]
+        const tokenLimit = findTokenLimit(model.id)
+        let budgetTokens: number | undefined
+        if (tokenLimit && reasoningEffort !== 'auto') {
+          budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+        } else if (!tokenLimit && reasoningEffort !== 'auto') {
+          logger.warn(
+            `No token limit configuration found for Gemini model "${model.id}" on Poe provider. ` +
+              `Using auto (-1) instead of requested effort "${reasoningEffort}".`
+          )
+        }
+        return {
+          extra_body: {
+            thinking_budget: budgetTokens ?? -1
+          }
         }
       }
     }
