@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { requestToolConfirmation } from '@renderer/utils/userConfirmation'
+import { requestToolConfirmation, sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
@@ -96,6 +96,9 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
         let confirmed = true
 
         if (!isAutoApproveEnabled) {
+          // Send system notification for tool approval
+          sendToolApprovalNotification(mcpTool.name)
+
           // 请求用户确认
           logger.debug(`Requesting user confirmation for tool: ${mcpTool.name}`)
           confirmed = await requestToolConfirmation(toolCallId)
