@@ -10,6 +10,7 @@ import {
   setShowModelNameInMarkdown,
   setShowModelProviderInMarkdown,
   setStandardizeCitationsInExport,
+  setShowTimestampInMarkdown,
   setUseTopicNamingForMessageTitle
 } from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
@@ -30,6 +31,7 @@ const MarkdownExportSettings: FC = () => {
   const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
   const showModelNameInExport = useSelector((state: RootState) => state.settings.showModelNameInMarkdown)
   const showModelProviderInMarkdown = useSelector((state: RootState) => state.settings.showModelProviderInMarkdown)
+  const showTimestampInMarkdown = useSelector((state: RootState) => state.settings.showTimestampInMarkdown)
   const excludeCitationsInExport = useSelector((state: RootState) => state.settings.excludeCitationsInExport)
   const standardizeCitationsInExport = useSelector((state: RootState) => state.settings.standardizeCitationsInExport)
 
@@ -59,7 +61,11 @@ const MarkdownExportSettings: FC = () => {
   const handleToggleShowModelProvider = (checked: boolean) => {
     dispatch(setShowModelProviderInMarkdown(checked))
   }
-
+  
+  const handleToggleShowTimestamp = (checked: boolean) => {  
+  dispatch(setShowTimestampInMarkdown(checked))  
+  }
+  
   const handleToggleExcludeCitations = (checked: boolean) => {
     dispatch(setExcludeCitationsInExport(checked))
   }
@@ -126,6 +132,14 @@ const MarkdownExportSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />  
+      <SettingRow>  
+        <SettingRowTitle>{t('settings.data.markdown_export.show_timestamp.title')}</SettingRowTitle>  
+        <Switch checked={showTimestampInMarkdown} onChange={handleToggleShowTimestamp} />  
+      </SettingRow>  
+      <SettingRow>  
+        <SettingHelpText>{t('settings.data.markdown_export.show_timestamp.help')}</SettingHelpText>  
       </SettingRow>
       <SettingDivider />
       <SettingRow>
