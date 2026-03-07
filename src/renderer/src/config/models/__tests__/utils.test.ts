@@ -298,6 +298,16 @@ describe('model utils', () => {
         ])
       })
 
+      it('returns all levels for GPT-5.2 base models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual([
+          undefined,
+          null,
+          'low',
+          'medium',
+          'high'
+        ])
+      })
+
       it('returns all levels for non-Pro GPT-5 models', () => {
         const previewModel = createModel({ id: 'gpt-5-preview' })
         expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, null, 'low', 'medium', 'high'])

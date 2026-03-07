@@ -52,8 +52,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
-  gpt5_1_codex: ['none', 'medium', 'high'] as const,
-  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_1_codex: ['medium', 'high'] as const,
+  gpt5_1_codex_max: ['medium', 'high', 'xhigh'] as const,
   gpt5_2_codex: ['low', 'medium', 'high', 'xhigh'] as const,
   // Fallback for GPT-5.2+ base models and GPT-5.3+ codex models
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,

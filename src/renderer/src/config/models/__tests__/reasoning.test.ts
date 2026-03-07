@@ -640,9 +640,13 @@ describe('Thinking model classification', () => {
 })
 
 describe('Reasoning option configuration', () => {
-  it('allows GPT-5.1 series models to disable reasoning', () => {
+  it('allows GPT-5.1 base models to disable reasoning', () => {
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1).toContain('none')
-    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).toContain('none')
+  })
+
+  it('does not allow GPT-5.1 codex models to disable reasoning', () => {
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).not.toContain('none')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex_max).not.toContain('none')
   })
 
   it('restricts GPT-5 Pro reasoning to high effort only', () => {
@@ -1944,13 +1948,11 @@ describe('getModelSupportedReasoningEffortOptions', () => {
     it('should return correct options for GPT-5.1 Codex models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
