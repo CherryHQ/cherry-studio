@@ -84,7 +84,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
-import { MOONSHOT_WEB_SEARCH_TOOL_DEFINITION } from '@shared/utils'
+import { asMoonshotBuiltinWebSearchTool } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -739,10 +739,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           currentTools: commonParams.tools
         })
         if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot) {
-          commonParams.tools = [
-            ...(commonParams.tools ?? []),
-            MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as unknown as ChatCompletionTool
-          ]
+          commonParams.tools = [...(commonParams.tools ?? []), asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
           logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
         }
 
@@ -753,7 +750,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
   }
 
-  // 在RawSdkChunkToGenericChunkMiddleware中使用
+  // Used in RawSdkChunkToGenericChunkMiddleware.
   getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
     let hasEmittedWebSearchInProgress = false

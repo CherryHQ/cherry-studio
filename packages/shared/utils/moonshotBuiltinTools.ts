@@ -5,6 +5,14 @@ export const MOONSHOT_WEB_SEARCH_TOOL_DEFINITION = {
   function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME }
 } as const
 
+/**
+ * Adapts Moonshot builtin web search tool definition to provider SDK tool type.
+ * This keeps unavoidable compatibility casts in a single shared place.
+ */
+export function asMoonshotBuiltinWebSearchTool<TTool>(): TTool {
+  return MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as unknown as TTool
+}
+
 type RecordLike = Record<string, unknown>
 
 function isRecord(value: unknown): value is RecordLike {
