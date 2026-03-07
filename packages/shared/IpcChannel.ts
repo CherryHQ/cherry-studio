@@ -245,7 +245,7 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Compress = 'zip:compress',
