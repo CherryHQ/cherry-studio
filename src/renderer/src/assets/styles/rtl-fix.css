@@ -1,0 +1,47 @@
+/*
+ * Experimental RTL/LTR mixed text rendering fix.
+ *
+ * Enabled by adding `experimental-rtl-text-fix` class to <body>.
+ * This intentionally targets only user-generated content areas and inputs,
+ * and keeps code/math blocks strictly LTR.
+ */
+
+body.experimental-rtl-text-fix textarea,
+body.experimental-rtl-text-fix input,
+body.experimental-rtl-text-fix [contenteditable='true'] {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+body.experimental-rtl-text-fix .markdown p,
+body.experimental-rtl-text-fix .markdown li,
+body.experimental-rtl-text-fix .markdown blockquote,
+body.experimental-rtl-text-fix .markdown h1,
+body.experimental-rtl-text-fix .markdown h2,
+body.experimental-rtl-text-fix .markdown h3,
+body.experimental-rtl-text-fix .markdown h4,
+body.experimental-rtl-text-fix .markdown h5,
+body.experimental-rtl-text-fix .markdown h6 {
+  text-align: start;
+}
+
+body.experimental-rtl-text-fix .markdown ul[dir='rtl'],
+body.experimental-rtl-text-fix .markdown ol[dir='rtl'] {
+  padding-right: 1.5em;
+  padding-left: 0;
+}
+
+body.experimental-rtl-text-fix pre,
+body.experimental-rtl-text-fix code,
+body.experimental-rtl-text-fix .code-block,
+body.experimental-rtl-text-fix .hljs,
+body.experimental-rtl-text-fix .shiki,
+body.experimental-rtl-text-fix .katex,
+body.experimental-rtl-text-fix .katex-display,
+body.experimental-rtl-text-fix .math,
+body.experimental-rtl-text-fix .math-inline,
+body.experimental-rtl-text-fix mjx-container {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
