@@ -26,7 +26,7 @@ export const globToolDefinition = {
 - Patterns with "/" (e.g., "src/*.ts") match relative to the search path
 - Pattern syntax: * (any chars), ** (any path), {a,b} (alternatives), ? (single char)
 - Results are limited to 100 files
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory
 - IMPORTANT: Omit the path field for the default directory (don't use "undefined" or "null")`,
   inputSchema: z.toJSONSchema(GlobToolSchema)

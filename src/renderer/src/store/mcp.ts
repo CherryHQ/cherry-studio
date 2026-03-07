@@ -19,6 +19,7 @@ import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
 import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
+const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
 export const initialState: MCPConfig = {
   servers: [],
@@ -170,7 +171,8 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     id: nanoid(),
     name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
+    args: ['/Users/username/Desktop'],
+    disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,
     provider: 'CherryAI',
@@ -240,6 +242,16 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
  * @param dispatch Redux dispatch function
  */
 export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (action: any) => void): void => {
+  const existingFilesystemServer = existingServers.find((server) => server.name === BuiltinMCPServerNames.filesystem)
+  if (existingFilesystemServer && existingFilesystemServer.disabledAutoApproveTools === undefined) {
+    dispatch(
+      updateMCPServer({
+        ...existingFilesystemServer,
+        disabledAutoApproveTools: [...filesystemManualApprovalTools]
+      })
+    )
+  }
+
   // Check if the existing servers already contain the built-in servers
   const serverIds = new Set(existingServers.map((server) => server.name))
 
