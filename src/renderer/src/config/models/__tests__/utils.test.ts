@@ -251,12 +251,24 @@ describe('model utils', () => {
         expect(isSupportVerbosityModel(createModel({ id: 'gpt-5' }))).toBe(true)
       })
 
-      it('returns false for GPT-5 chat models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
+      it('returns true for GPT-5.x sub-version models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.2' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
       })
 
-      it('returns true for GPT-5.1 models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      it('returns false for GPT-5 chat models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
+      })
+
+      it('returns false for GPT-5 codex models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(false)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe(false)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-4o' }))).toBe(false)
       })
     })
 

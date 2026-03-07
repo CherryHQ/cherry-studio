@@ -84,6 +84,30 @@ describe('OpenAI Model Detection', () => {
       })
     })
 
+    describe('should return true for future GPT-5.x sub-versions', () => {
+      it('returns true for GPT-5.4 models', () => {
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.4-mini' }))).toBe(true)
+      })
+
+      it('returns false for future GPT-5.x pro/chat/codex variants', () => {
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.4-pro' }))).toBe(false)
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.4-chat' }))).toBe(false)
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.4-codex' }))).toBe(false)
+      })
+    })
+
+    describe('should return false for codex variants', () => {
+      it('returns false for GPT-5.1 codex models', () => {
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(false)
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe(false)
+      })
+
+      it('returns false for GPT-5.2 codex models', () => {
+        expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5.2-codex' }))).toBe(false)
+      })
+    })
+
     describe('should return false for GPT-5 series (non-5.1/5.2)', () => {
       it('returns false for GPT-5 base model', () => {
         expect(isSupportNoneReasoningEffortModel(createModel({ id: 'gpt-5' }))).toBe(false)

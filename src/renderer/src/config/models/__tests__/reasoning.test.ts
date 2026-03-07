@@ -480,6 +480,16 @@ describe('GPT-5.1 Series Models', () => {
     it('should not support GPT-5.1 chat models', () => {
       expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
     })
+
+    it('should support future GPT-5.x sub-version models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-mini' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.9' }))).toBe(true)
+    })
+
+    it('should not support future GPT-5.x chat models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-chat' }))).toBe(false)
+    })
   })
 
   describe('isOpenAIReasoningModel', () => {
