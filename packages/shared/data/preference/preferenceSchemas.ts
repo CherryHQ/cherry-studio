@@ -350,6 +350,8 @@ export interface PreferenceSchemas {
     'feature.notes.show_workspace': boolean
     // redux/note/sortType
     'feature.notes.sort_type': string
+    // v2: quick assistant selected assistant ID
+    'feature.quick_assistant.assistant_id': string
     // redux/settings/clickTrayToShowQuickAssistant
     'feature.quick_assistant.click_tray_to_show': boolean
     // redux/settings/enableQuickAssistant
@@ -382,6 +384,12 @@ export interface PreferenceSchemas {
     'feature.translate.model_prompt': string
     // redux/settings/targetLanguage
     'feature.translate.target_language': string
+    // v2: default model reference (uniqueId or "providerId/modelId")
+    'model.default_id': string
+    // v2: quick assistant model reference
+    'model.quick_id': string
+    // v2: translate model reference
+    'model.translate_id': string
     // redux/shortcuts/shortcuts.exit_fullscreen
     'shortcut.app.exit_fullscreen': Record<string, unknown>
     // redux/shortcuts/shortcuts.search_message
@@ -607,6 +615,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.notes.show_table_of_contents': true,
     'feature.notes.show_workspace': true,
     'feature.notes.sort_type': 'sort_a2z',
+    'feature.quick_assistant.assistant_id': '',
     'feature.quick_assistant.click_tray_to_show': false,
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.read_clipboard_at_startup': true,
@@ -650,6 +659,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.selection.trigger_mode': PreferenceTypes.SelectionTriggerMode.Selected,
     'feature.translate.model_prompt': TRANSLATE_PROMPT,
     'feature.translate.target_language': 'en-us',
+    'model.default_id': '',
+    'model.quick_id': '',
+    'model.translate_id': '',
     'shortcut.app.exit_fullscreen': { editable: false, enabled: true, key: ['Escape'], system: true },
     'shortcut.app.search_message': {
       editable: true,
@@ -718,7 +730,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 204
+ * - 总配置项: 192
  * - electronStore项: 1
  * - redux项: 203
  * - localStorage项: 0

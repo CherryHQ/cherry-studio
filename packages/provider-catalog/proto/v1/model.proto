@@ -1,0 +1,205 @@
+syntax = "proto3";
+package catalog.v1;
+
+import "v1/common.proto";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reasoning Configuration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ThinkingTokenLimits {
+  optional uint32 min = 1;
+  optional uint32 max = 2;
+  optional uint32 default = 3;
+}
+
+// Common fields shared across all reasoning variants
+message ReasoningCommon {
+  ThinkingTokenLimits thinking_token_limits = 1;
+  repeated ReasoningEffort supported_efforts = 2;
+  optional bool interleaved = 3;
+}
+
+// --- Per-provider reasoning params ---
+
+message OpenAIChatReasoningParams {
+  optional ReasoningEffort reasoning_effort = 1;
+}
+
+enum ResponsesSummaryMode {
+  RESPONSES_SUMMARY_MODE_UNSPECIFIED = 0;
+  RESPONSES_SUMMARY_MODE_AUTO = 1;
+  RESPONSES_SUMMARY_MODE_CONCISE = 2;
+  RESPONSES_SUMMARY_MODE_DETAILED = 3;
+}
+
+message OpenAIResponsesReasoningParams {
+  optional ReasoningEffort effort = 1;
+  optional ResponsesSummaryMode summary = 2;
+}
+
+enum AnthropicThinkingType {
+  ANTHROPIC_THINKING_TYPE_UNSPECIFIED = 0;
+  ANTHROPIC_THINKING_TYPE_ENABLED = 1;
+  ANTHROPIC_THINKING_TYPE_DISABLED = 2;
+  ANTHROPIC_THINKING_TYPE_ADAPTIVE = 3;
+}
+
+message AnthropicReasoningParams {
+  optional AnthropicThinkingType type = 1;
+  optional uint32 budget_tokens = 2;
+  optional ReasoningEffort effort = 3;
+}
+
+message GeminiThinkingConfig {
+  optional bool include_thoughts = 1;
+  optional uint32 thinking_budget = 2;
+}
+
+enum GeminiThinkingLevel {
+  GEMINI_THINKING_LEVEL_UNSPECIFIED = 0;
+  GEMINI_THINKING_LEVEL_MINIMAL = 1;
+  GEMINI_THINKING_LEVEL_LOW = 2;
+  GEMINI_THINKING_LEVEL_MEDIUM = 3;
+  GEMINI_THINKING_LEVEL_HIGH = 4;
+}
+
+message GeminiReasoningParams {
+  oneof config {
+    GeminiThinkingConfig thinking_config = 1;
+    GeminiThinkingLevel thinking_level = 2;
+  }
+}
+
+message OpenRouterReasoningParams {
+  optional ReasoningEffort effort = 1;
+  optional uint32 max_tokens = 2;
+  optional bool exclude = 3;
+}
+
+message QwenReasoningParams {
+  optional bool enable_thinking = 1;
+  optional uint32 thinking_budget = 2;
+}
+
+enum DoubaoThinkingType {
+  DOUBAO_THINKING_TYPE_UNSPECIFIED = 0;
+  DOUBAO_THINKING_TYPE_ENABLED = 1;
+  DOUBAO_THINKING_TYPE_DISABLED = 2;
+  DOUBAO_THINKING_TYPE_AUTO = 3;
+}
+
+message DoubaoReasoningParams {
+  optional DoubaoThinkingType thinking_type = 1;
+}
+
+message DashscopeReasoningParams {
+  optional bool enable_thinking = 1;
+  optional bool incremental_output = 2;
+}
+
+message SelfHostedReasoningParams {
+  optional bool enable_thinking = 1;
+  optional bool thinking = 2;
+}
+
+// Discriminated union for reasoning configuration
+message Reasoning {
+  ReasoningCommon common = 1;
+  oneof params {
+    OpenAIChatReasoningParams openai_chat = 10;
+    OpenAIResponsesReasoningParams openai_responses = 11;
+    AnthropicReasoningParams anthropic = 12;
+    GeminiReasoningParams gemini = 13;
+    OpenRouterReasoningParams openrouter = 14;
+    QwenReasoningParams qwen = 15;
+    DoubaoReasoningParams doubao = 16;
+    DashscopeReasoningParams dashscope = 17;
+    SelfHostedReasoningParams self_hosted = 18;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Parameter Support
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message RangedParameterSupport {
+  bool supported = 1;
+  optional NumericRange range = 2;
+}
+
+message ParameterSupport {
+  optional RangedParameterSupport temperature = 1;
+  optional RangedParameterSupport top_p = 2;
+  optional RangedParameterSupport top_k = 3;
+  optional bool frequency_penalty = 4;
+  optional bool presence_penalty = 5;
+  optional bool max_tokens = 6;
+  optional bool stop_sequences = 7;
+  optional bool system_message = 8;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Pricing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum ImagePriceUnit {
+  IMAGE_PRICE_UNIT_UNSPECIFIED = 0;
+  IMAGE_PRICE_UNIT_IMAGE = 1;
+  IMAGE_PRICE_UNIT_PIXEL = 2;
+}
+
+message ImagePrice {
+  double price = 1;
+  Currency currency = 2;
+  ImagePriceUnit unit = 3;
+}
+
+message MinutePrice {
+  double price = 1;
+  Currency currency = 2;
+}
+
+message ModelPricing {
+  PricePerToken input = 1;
+  PricePerToken output = 2;
+  optional PricePerToken cache_read = 3;
+  optional PricePerToken cache_write = 4;
+  optional ImagePrice per_image = 5;
+  optional MinutePrice per_minute = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Model Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ModelConfig {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+
+  repeated ModelCapability capabilities = 4;
+  repeated Modality input_modalities = 5;
+  repeated Modality output_modalities = 6;
+
+  optional uint32 context_window = 7;
+  optional uint32 max_output_tokens = 8;
+  optional uint32 max_input_tokens = 9;
+
+  optional ModelPricing pricing = 10;
+  optional Reasoning reasoning = 11;
+  optional ParameterSupport parameter_support = 12;
+
+  optional string family = 13;
+  optional string owned_by = 14;
+  optional bool open_weights = 15;
+
+  repeated string alias = 16;
+  optional Metadata metadata = 17;
+}
+
+// Top-level container
+message ModelCatalog {
+  string version = 1;
+  repeated ModelConfig models = 2;
+}

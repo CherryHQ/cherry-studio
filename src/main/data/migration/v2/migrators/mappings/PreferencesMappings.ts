@@ -811,6 +811,20 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  assistants: [
+    {
+      originalKey: 'tagsOrder',
+      targetKey: 'assistant.tags_order'
+    },
+    {
+      originalKey: 'collapsedTags',
+      targetKey: 'assistant.collapsed_tags'
+    },
+    {
+      originalKey: 'unifiedListOrder',
+      targetKey: 'assistant.unified_list_order'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',

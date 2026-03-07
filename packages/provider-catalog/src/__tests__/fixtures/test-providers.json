@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "test-provider",
+      "name": "Test Provider",
+      "description": "A test provider for unit testing",
+      "baseUrls": {
+        "chat_completions": "https://api.test.com/v1"
+      },
+      "defaultChatEndpoint": "chat_completions",
+      "apiCompatibility": {
+        "arrayContent": true,
+        "streamOptions": false,
+        "developerRole": false,
+        "serviceTier": false
+      },
+      "metadata": {
+        "tags": ["test"],
+        "website": {
+          "official": "https://test.com",
+          "docs": "https://test.com/docs",
+          "apiKey": "https://test.com/api-keys"
+        }
+      }
+    }
+  ]
+}
