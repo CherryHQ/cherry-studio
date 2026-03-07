@@ -6,6 +6,7 @@
  * is performed by the ORM-derived Zod schema in userProvider.ts (main process).
  */
 
+import type { EndpointType } from '../../types/model'
 import type { ApiCompatibility, ApiKeyEntry, AuthConfig, Provider, ProviderSettings } from '../../types/provider'
 
 export interface ListProvidersQuery {
@@ -17,12 +18,12 @@ export interface ListProvidersQuery {
 interface ProviderMutableFields {
   /** Display name */
   name?: string
-  /** Base URL mapping (endpoint type or 'default' → baseURL) */
-  baseUrls?: Record<string, string>
+  /** Base URL mapping (EndpointType → baseURL) */
+  baseUrls?: Partial<Record<EndpointType, string>>
   /** Model list API URLs */
   modelsApiUrls?: Record<string, string>
-  /** Default text generation endpoint */
-  defaultChatEndpoint?: string
+  /** Default text generation endpoint (numeric EndpointType enum value) */
+  defaultChatEndpoint?: EndpointType
   /** API keys */
   apiKeys?: ApiKeyEntry[]
   /** Authentication configuration */

@@ -190,8 +190,8 @@ export class CatalogService {
     }
 
     const dbRows: NewUserProvider[] = rawProviders.map((p) => {
-      // Map catalog website to runtime websites field
-      const catalogWebsite = p.website
+      // Map catalog metadata.website to runtime websites field
+      const catalogWebsite = p.metadata?.website
       const websites =
         catalogWebsite &&
         (catalogWebsite.official || catalogWebsite.docs || catalogWebsite.apiKey || catalogWebsite.models)
@@ -207,7 +207,7 @@ export class CatalogService {
       const baseUrls: Record<string, string> = {}
       if (p.baseUrls) {
         for (const [k, v] of Object.entries(p.baseUrls)) {
-          baseUrls[String(k)] = v as string
+          baseUrls[String(k)] = v
         }
       }
 

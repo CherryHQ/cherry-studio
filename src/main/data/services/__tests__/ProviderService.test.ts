@@ -38,6 +38,7 @@ vi.mock('@shared/data/api', async () => {
 
 // ─── Imports after mocks ──────────────────────────────────────────────────────
 
+import { EndpointType } from '@cherrystudio/provider-catalog'
 import { CacheService } from '@data/CacheService'
 import { dbService } from '@data/db/DbService'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
@@ -241,7 +242,7 @@ describe('ProviderService', () => {
         providerId: 'mapped-provider',
         name: 'Mapped',
         presetProviderId: 'openai',
-        baseUrls: { chat_completions: 'https://api.example.com/v1' } as any,
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com/v1' } as any,
         isEnabled: false
       })
       const mockDb = buildMockDb([row])
@@ -322,7 +323,7 @@ describe('ProviderService', () => {
         providerId: 'custom',
         presetProviderId: 'openai',
         name: 'Custom OpenAI',
-        baseUrls: { chat_completions: 'https://custom.example.com' } as any
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://custom.example.com' } as any
       })
       const mockDb = buildMockDb([returnedRow])
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as any)
@@ -332,7 +333,7 @@ describe('ProviderService', () => {
         providerId: 'custom',
         presetProviderId: 'openai',
         name: 'Custom OpenAI',
-        baseUrls: { chat_completions: 'https://custom.example.com' }
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://custom.example.com' }
       })
 
       expect(result.id).toBe('custom')
@@ -367,7 +368,7 @@ describe('ProviderService', () => {
     it('passes all optional DTO fields to insert values', async () => {
       const returnedRow = makeDbRow({
         providerId: 'full-create',
-        baseUrls: { chat_completions: 'https://api.example.com' } as any,
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com' } as any,
         modelsApiUrls: { list: 'https://api.example.com/models' } as any,
         defaultChatEndpoint: '/v1/chat' as any,
         apiKeys: [{ id: 'k1', key: 'sk-test', isEnabled: true, createdAt: 1000 }],
@@ -382,7 +383,7 @@ describe('ProviderService', () => {
       const result = await svc.create({
         providerId: 'full-create',
         name: 'Full Provider',
-        baseUrls: { chat_completions: 'https://api.example.com' },
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com' },
         modelsApiUrls: { list: 'https://api.example.com/models' },
         defaultChatEndpoint: '/v1/chat' as any,
         apiKeys: [{ id: 'k1', key: 'sk-test', isEnabled: true, createdAt: 1000 }],
@@ -392,7 +393,7 @@ describe('ProviderService', () => {
       })
 
       expect(result.id).toBe('full-create')
-      expect(result.baseUrls).toEqual({ chat_completions: 'https://api.example.com' })
+      expect(result.baseUrls).toEqual({ [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com' })
       expect(result.authType).toBe('oauth')
     })
   })
@@ -460,7 +461,7 @@ describe('ProviderService', () => {
       const existingRow = makeDbRow({ providerId: 'full-update' })
       const afterUpdateRow = makeDbRow({
         providerId: 'full-update',
-        baseUrls: { chat_completions: 'https://new.api.com' } as any,
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://new.api.com' } as any,
         modelsApiUrls: { list: 'https://new.api.com/models' } as any,
         defaultChatEndpoint: '/v2/chat' as any,
         apiKeys: [{ id: 'k1', key: 'sk-new', isEnabled: true, createdAt: 1000 }],
@@ -475,7 +476,7 @@ describe('ProviderService', () => {
 
       const svc = ProviderService.getInstance()
       const result = await svc.update('full-update', {
-        baseUrls: { chat_completions: 'https://new.api.com' },
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://new.api.com' },
         modelsApiUrls: { list: 'https://new.api.com/models' },
         defaultChatEndpoint: '/v2/chat' as any,
         apiKeys: [{ id: 'k1', key: 'sk-new', isEnabled: true, createdAt: 1000 }],
@@ -485,7 +486,7 @@ describe('ProviderService', () => {
       })
 
       expect(result).toBeDefined()
-      expect(result.baseUrls).toEqual({ chat_completions: 'https://new.api.com' })
+      expect(result.baseUrls).toEqual({ [EndpointType.CHAT_COMPLETIONS]: 'https://new.api.com' })
       expect(result.authType).toBe('oauth')
     })
 
@@ -554,7 +555,7 @@ describe('ProviderService', () => {
         providerId: 'upsert-check',
         name: 'Upsert Provider',
         presetProviderId: 'openai',
-        baseUrls: { chat_completions: 'https://api.example.com' } as any,
+        baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com' } as any,
         modelsApiUrls: { list: 'https://api.example.com/models' } as any,
         defaultChatEndpoint: '/v1/chat' as any,
         apiCompatibility: { developerRole: true } as any,
@@ -1152,7 +1153,7 @@ describe('ProviderService', () => {
     })
 
     it('passes through baseUrls when non-null', async () => {
-      const urls = { chat_completions: 'https://api.example.com/v1' }
+      const urls = { [EndpointType.CHAT_COMPLETIONS]: 'https://api.example.com/v1' }
       const provider = await getProvider(makeDbRow({ baseUrls: urls as any }))
       expect(provider.baseUrls).toEqual(urls)
     })

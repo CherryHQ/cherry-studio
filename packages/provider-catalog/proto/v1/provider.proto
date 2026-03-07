@@ -39,6 +39,14 @@ message ModelsApiUrls {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Provider Metadata (wraps generic Metadata + provider-specific fields)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderMetadata {
+  optional ProviderWebsite website = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Provider Config
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -54,8 +62,7 @@ message ProviderConfig {
   optional ApiCompatibility api_compatibility = 6;
   optional ModelsApiUrls models_api_urls = 7;
 
-  optional Metadata metadata = 8;
-  optional ProviderWebsite website = 9;
+  optional ProviderMetadata metadata = 8;
 }
 
 // Top-level container

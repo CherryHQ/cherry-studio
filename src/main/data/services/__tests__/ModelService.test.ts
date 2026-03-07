@@ -273,7 +273,7 @@ describe('ModelService', () => {
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
 
       const svc = ModelService.getInstance()
-      const result = await svc.list({ capability: ModelCapability.REASONING as unknown as string })
+      const result = await svc.list({ capability: ModelCapability.REASONING })
 
       // Only the first row has REASONING
       expect(result).toHaveLength(1)
@@ -286,7 +286,7 @@ describe('ModelService', () => {
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
 
       const svc = ModelService.getInstance()
-      const result = await svc.list({ capability: ModelCapability.EMBEDDING as unknown as string })
+      const result = await svc.list({ capability: ModelCapability.EMBEDDING })
 
       expect(result).toHaveLength(0)
     })

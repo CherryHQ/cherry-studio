@@ -280,11 +280,13 @@ describe('CatalogService', () => {
           {
             id: 'openai',
             name: 'OpenAI',
-            website: {
-              official: 'https://openai.com',
-              docs: 'https://platform.openai.com/docs',
-              apiKey: 'https://platform.openai.com/api-keys',
-              models: null
+            metadata: {
+              website: {
+                official: 'https://openai.com',
+                docs: 'https://platform.openai.com/docs',
+                apiKey: 'https://platform.openai.com/api-keys',
+                models: null
+              }
             }
           }
         ]

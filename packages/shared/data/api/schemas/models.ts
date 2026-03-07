@@ -18,8 +18,8 @@ import {
 const ListModelsQuerySchema = z.object({
   /** Filter by provider ID */
   providerId: z.string().optional(),
-  /** Filter by capability */
-  capability: z.string().optional(),
+  /** Filter by capability (numeric ModelCapability enum value) */
+  capability: z.number().optional(),
   /** Filter by enabled status */
   enabled: z.boolean().optional()
 })

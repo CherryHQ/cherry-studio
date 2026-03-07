@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage } from '@bufbuild/protobuf/codegenv2'
 import { fileDesc, messageDesc } from '@bufbuild/protobuf/codegenv2'
-import type { EndpointType, Metadata } from './common_pb'
+import type { EndpointType } from './common_pb'
 import { file_v1_common } from './common_pb'
 import type { Message } from '@bufbuild/protobuf'
 
@@ -14,7 +14,7 @@ import type { Message } from '@bufbuild/protobuf'
 export const file_v1_provider: GenFile =
   /*@__PURE__*/
   fileDesc(
-    'ChF2MS9wcm92aWRlci5wcm90bxIKY2F0YWxvZy52MSLYAgoQQXBpQ29tcGF0aWJpbGl0eRIaCg1hcnJheV9jb250ZW50GAEgASgISACIAQESGwoOc3RyZWFtX29wdGlvbnMYAiABKAhIAYgBARIbCg5kZXZlbG9wZXJfcm9sZRgDIAEoCEgCiAEBEhkKDHNlcnZpY2VfdGllchgEIAEoCEgDiAEBEhYKCXZlcmJvc2l0eRgFIAEoCEgEiAEBEhwKD2VuYWJsZV90aGlua2luZxgGIAEoCEgFiAEBEh0KEHJlcXVpcmVzX2FwaV9rZXkYByABKAhIBogBAUIQCg5fYXJyYXlfY29udGVudEIRCg9fc3RyZWFtX29wdGlvbnNCEQoPX2RldmVsb3Blcl9yb2xlQg8KDV9zZXJ2aWNlX3RpZXJCDAoKX3ZlcmJvc2l0eUISChBfZW5hYmxlX3RoaW5raW5nQhMKEV9yZXF1aXJlc19hcGlfa2V5IpMBCg9Qcm92aWRlcldlYnNpdGUSFQoIb2ZmaWNpYWwYASABKAlIAIgBARIRCgRkb2NzGAIgASgJSAGIAQESFAoHYXBpX2tleRgDIAEoCUgCiAEBEhMKBm1vZGVscxgEIAEoCUgDiAEBQgsKCV9vZmZpY2lhbEIHCgVfZG9jc0IKCghfYXBpX2tleUIJCgdfbW9kZWxzInsKDU1vZGVsc0FwaVVybHMSFAoHZGVmYXVsdBgBIAEoCUgAiAEBEhYKCWVtYmVkZGluZxgCIAEoCUgBiAEBEhUKCHJlcmFua2VyGAMgASgJSAKIAQFCCgoIX2RlZmF1bHRCDAoKX2VtYmVkZGluZ0ILCglfcmVyYW5rZXIitAQKDlByb3ZpZGVyQ29uZmlnEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSGAoLZGVzY3JpcHRpb24YAyABKAlIAIgBARI7CgliYXNlX3VybHMYBCADKAsyKC5jYXRhbG9nLnYxLlByb3ZpZGVyQ29uZmlnLkJhc2VVcmxzRW50cnkSPAoVZGVmYXVsdF9jaGF0X2VuZHBvaW50GAUgASgOMhguY2F0YWxvZy52MS5FbmRwb2ludFR5cGVIAYgBARI8ChFhcGlfY29tcGF0aWJpbGl0eRgGIAEoCzIcLmNhdGFsb2cudjEuQXBpQ29tcGF0aWJpbGl0eUgCiAEBEjcKD21vZGVsc19hcGlfdXJscxgHIAEoCzIZLmNhdGFsb2cudjEuTW9kZWxzQXBpVXJsc0gDiAEBEisKCG1ldGFkYXRhGAggASgLMhQuY2F0YWxvZy52MS5NZXRhZGF0YUgEiAEBEjEKB3dlYnNpdGUYCSABKAsyGy5jYXRhbG9nLnYxLlByb3ZpZGVyV2Vic2l0ZUgFiAEBGi8KDUJhc2VVcmxzRW50cnkSCwoDa2V5GAEgASgFEg0KBXZhbHVlGAIgASgJOgI4AUIOCgxfZGVzY3JpcHRpb25CGAoWX2RlZmF1bHRfY2hhdF9lbmRwb2ludEIUChJfYXBpX2NvbXBhdGliaWxpdHlCEgoQX21vZGVsc19hcGlfdXJsc0ILCglfbWV0YWRhdGFCCgoIX3dlYnNpdGUiUQoPUHJvdmlkZXJDYXRhbG9nEg8KB3ZlcnNpb24YASABKAkSLQoJcHJvdmlkZXJzGAIgAygLMhouY2F0YWxvZy52MS5Qcm92aWRlckNvbmZpZ2IGcHJvdG8z',
+    'ChF2MS9wcm92aWRlci5wcm90bxIKY2F0YWxvZy52MSLYAgoQQXBpQ29tcGF0aWJpbGl0eRIaCg1hcnJheV9jb250ZW50GAEgASgISACIAQESGwoOc3RyZWFtX29wdGlvbnMYAiABKAhIAYgBARIbCg5kZXZlbG9wZXJfcm9sZRgDIAEoCEgCiAEBEhkKDHNlcnZpY2VfdGllchgEIAEoCEgDiAEBEhYKCXZlcmJvc2l0eRgFIAEoCEgEiAEBEhwKD2VuYWJsZV90aGlua2luZxgGIAEoCEgFiAEBEh0KEHJlcXVpcmVzX2FwaV9rZXkYByABKAhIBogBAUIQCg5fYXJyYXlfY29udGVudEIRCg9fc3RyZWFtX29wdGlvbnNCEQoPX2RldmVsb3Blcl9yb2xlQg8KDV9zZXJ2aWNlX3RpZXJCDAoKX3ZlcmJvc2l0eUISChBfZW5hYmxlX3RoaW5raW5nQhMKEV9yZXF1aXJlc19hcGlfa2V5IpMBCg9Qcm92aWRlcldlYnNpdGUSFQoIb2ZmaWNpYWwYASABKAlIAIgBARIRCgRkb2NzGAIgASgJSAGIAQESFAoHYXBpX2tleRgDIAEoCUgCiAEBEhMKBm1vZGVscxgEIAEoCUgDiAEBQgsKCV9vZmZpY2lhbEIHCgVfZG9jc0IKCghfYXBpX2tleUIJCgdfbW9kZWxzInsKDU1vZGVsc0FwaVVybHMSFAoHZGVmYXVsdBgBIAEoCUgAiAEBEhYKCWVtYmVkZGluZxgCIAEoCUgBiAEBEhUKCHJlcmFua2VyGAMgASgJSAKIAQFCCgoIX2RlZmF1bHRCDAoKX2VtYmVkZGluZ0ILCglfcmVyYW5rZXIiUQoQUHJvdmlkZXJNZXRhZGF0YRIxCgd3ZWJzaXRlGAEgASgLMhsuY2F0YWxvZy52MS5Qcm92aWRlcldlYnNpdGVIAIgBAUIKCghfd2Vic2l0ZSL9AwoOUHJvdmlkZXJDb25maWcSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIYCgtkZXNjcmlwdGlvbhgDIAEoCUgAiAEBEjsKCWJhc2VfdXJscxgEIAMoCzIoLmNhdGFsb2cudjEuUHJvdmlkZXJDb25maWcuQmFzZVVybHNFbnRyeRI8ChVkZWZhdWx0X2NoYXRfZW5kcG9pbnQYBSABKA4yGC5jYXRhbG9nLnYxLkVuZHBvaW50VHlwZUgBiAEBEjwKEWFwaV9jb21wYXRpYmlsaXR5GAYgASgLMhwuY2F0YWxvZy52MS5BcGlDb21wYXRpYmlsaXR5SAKIAQESNwoPbW9kZWxzX2FwaV91cmxzGAcgASgLMhkuY2F0YWxvZy52MS5Nb2RlbHNBcGlVcmxzSAOIAQESMwoIbWV0YWRhdGEYCCABKAsyHC5jYXRhbG9nLnYxLlByb3ZpZGVyTWV0YWRhdGFIBIgBARovCg1CYXNlVXJsc0VudHJ5EgsKA2tleRgBIAEoBRINCgV2YWx1ZRgCIAEoCToCOAFCDgoMX2Rlc2NyaXB0aW9uQhgKFl9kZWZhdWx0X2NoYXRfZW5kcG9pbnRCFAoSX2FwaV9jb21wYXRpYmlsaXR5QhIKEF9tb2RlbHNfYXBpX3VybHNCCwoJX21ldGFkYXRhIlEKD1Byb3ZpZGVyQ2F0YWxvZxIPCgd2ZXJzaW9uGAEgASgJEi0KCXByb3ZpZGVycxgCIAMoCzIaLmNhdGFsb2cudjEuUHJvdmlkZXJDb25maWdiBnByb3RvMw',
     [file_v1_common]
   )
 
@@ -122,6 +122,22 @@ export type ModelsApiUrls = Message<'catalog.v1.ModelsApiUrls'> & {
 export const ModelsApiUrlsSchema: GenMessage<ModelsApiUrls> = /*@__PURE__*/ messageDesc(file_v1_provider, 2)
 
 /**
+ * @generated from message catalog.v1.ProviderMetadata
+ */
+export type ProviderMetadata = Message<'catalog.v1.ProviderMetadata'> & {
+  /**
+   * @generated from field: optional catalog.v1.ProviderWebsite website = 1;
+   */
+  website?: ProviderWebsite
+}
+
+/**
+ * Describes the message catalog.v1.ProviderMetadata.
+ * Use `create(ProviderMetadataSchema)` to create a new message.
+ */
+export const ProviderMetadataSchema: GenMessage<ProviderMetadata> = /*@__PURE__*/ messageDesc(file_v1_provider, 3)
+
+/**
  * @generated from message catalog.v1.ProviderConfig
  */
 export type ProviderConfig = Message<'catalog.v1.ProviderConfig'> & {
@@ -165,21 +181,16 @@ export type ProviderConfig = Message<'catalog.v1.ProviderConfig'> & {
   modelsApiUrls?: ModelsApiUrls
 
   /**
-   * @generated from field: optional catalog.v1.Metadata metadata = 8;
+   * @generated from field: optional catalog.v1.ProviderMetadata metadata = 8;
    */
-  metadata?: Metadata
-
-  /**
-   * @generated from field: optional catalog.v1.ProviderWebsite website = 9;
-   */
-  website?: ProviderWebsite
+  metadata?: ProviderMetadata
 }
 
 /**
  * Describes the message catalog.v1.ProviderConfig.
  * Use `create(ProviderConfigSchema)` to create a new message.
  */
-export const ProviderConfigSchema: GenMessage<ProviderConfig> = /*@__PURE__*/ messageDesc(file_v1_provider, 3)
+export const ProviderConfigSchema: GenMessage<ProviderConfig> = /*@__PURE__*/ messageDesc(file_v1_provider, 4)
 
 /**
  * Top-level container
@@ -202,4 +213,4 @@ export type ProviderCatalog = Message<'catalog.v1.ProviderCatalog'> & {
  * Describes the message catalog.v1.ProviderCatalog.
  * Use `create(ProviderCatalogSchema)` to create a new message.
  */
-export const ProviderCatalogSchema: GenMessage<ProviderCatalog> = /*@__PURE__*/ messageDesc(file_v1_provider, 4)
+export const ProviderCatalogSchema: GenMessage<ProviderCatalog> = /*@__PURE__*/ messageDesc(file_v1_provider, 5)

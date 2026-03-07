@@ -89,10 +89,9 @@ export class ModelService {
     let models = rows.map(rowToRuntimeModel)
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
-    if (query.capability) {
+    if (query.capability !== undefined) {
       const cap = query.capability
-      const capNum = Number(cap) as ModelCapability
-      models = models.filter((m) => m.capabilities.includes(capNum))
+      models = models.filter((m) => m.capabilities.includes(cap))
     }
 
     return models

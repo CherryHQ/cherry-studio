@@ -121,11 +121,11 @@ export class ProviderService {
       name: dto.name,
       baseUrls: dto.baseUrls ?? null,
       modelsApiUrls: dto.modelsApiUrls ?? null,
-      defaultChatEndpoint: (dto.defaultChatEndpoint ?? null) as NewUserProvider['defaultChatEndpoint'],
+      defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
-      apiCompatibility: (dto.apiCompatibility ?? null) as NewUserProvider['apiCompatibility'],
-      providerSettings: (dto.providerSettings ?? null) as NewUserProvider['providerSettings']
+      apiCompatibility: dto.apiCompatibility ?? null,
+      providerSettings: dto.providerSettings ?? null
     }
 
     const [row] = await db.insert(userProviderTable).values(values).returning()
@@ -150,14 +150,11 @@ export class ProviderService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.baseUrls !== undefined) updates.baseUrls = dto.baseUrls
     if (dto.modelsApiUrls !== undefined) updates.modelsApiUrls = dto.modelsApiUrls
-    if (dto.defaultChatEndpoint !== undefined)
-      updates.defaultChatEndpoint = dto.defaultChatEndpoint as unknown as NewUserProvider['defaultChatEndpoint']
+    if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-    if (dto.apiCompatibility !== undefined)
-      updates.apiCompatibility = dto.apiCompatibility as NewUserProvider['apiCompatibility']
-    if (dto.providerSettings !== undefined)
-      updates.providerSettings = dto.providerSettings as NewUserProvider['providerSettings']
+    if (dto.apiCompatibility !== undefined) updates.apiCompatibility = dto.apiCompatibility
+    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
 
