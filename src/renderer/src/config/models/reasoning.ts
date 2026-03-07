@@ -14,6 +14,7 @@ import {
   isGPT5SeriesModel,
   isGPT51CodexMaxModel,
   isGPT51SeriesModel,
+  isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
@@ -53,8 +54,11 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
   gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_2_codex: ['low', 'medium', 'high', 'xhigh'] as const,
+  // 5.2 and after 5.x, 5.3-codex and after 5.x-codex
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  // 5.2-pro and after 5.x-pro
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
   gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
@@ -90,6 +94,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex] as const,
   gpt5_1: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1] as const,
   gpt5_1_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex] as const,
+  gpt5_2_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2_codex] as const,
   gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
   gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
   gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
@@ -131,6 +136,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       } else {
         thinkingModelType = 'gpt5_1'
       }
+    } else if (isGPT52SeriesModel(model) && modelId.includes('codex')) {
+      thinkingModelType = 'gpt5_2_codex'
     } else if (isGPT5SeriesModel(model)) {
       if (modelId.includes('codex')) {
         thinkingModelType = 'gpt5_codex'
@@ -141,10 +148,11 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
         }
       }
     } else {
-      // Fallback for GPT-5.x sub-versions (5.2, 5.3, 5.4, ...)
-      thinkingModelType = 'gpt5_2'
+      // Fallback for GPT-5.x sub-versions (5.2+)
       if (modelId.includes('-pro')) {
         thinkingModelType = 'gpt52pro'
+      } else {
+        thinkingModelType = 'gpt5_2'
       }
     }
   } else if (isOpenAIOpenWeightModel(model)) {

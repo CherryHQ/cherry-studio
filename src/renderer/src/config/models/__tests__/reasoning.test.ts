@@ -684,6 +684,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro' }))).toBe('gpt52pro')
       expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro-preview' }))).toBe('gpt52pro')
     })
+
+    it('should return gpt5_2_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_2_codex')
+    })
   })
 
   describe('GPT-5.x future sub-version fallback', () => {
@@ -692,6 +697,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5.4' }))).toBe('gpt5_2')
       expect(getThinkModelType(createModel({ id: 'gpt-5.4-mini' }))).toBe('gpt5_2')
       expect(getThinkModelType(createModel({ id: 'gpt-5.9' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt5_2 for future GPT-5.x codex models (5.3+, supports none)', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-codex' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-codex' }))).toBe('gpt5_2')
     })
 
     it('should return gpt52pro for future GPT-5.x Pro models', () => {
