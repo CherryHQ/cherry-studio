@@ -6,9 +6,7 @@ import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCo
 import { getLowerBaseModelName } from '@renderer/utils'
 
 import {
-  isGPT5ProModel,
-  isGPT5SeriesModel,
-  isGPT51SeriesModel,
+  isGPT5FamilyModel,
   isGPT52SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAIOpenWeightModel,
@@ -224,15 +222,21 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
-  // gpt-5-pro
-  { validator: isGPT5ProModel, values: ['high'] },
-  // gpt-5 except gpt-5-pro
+  // Either not configurable, or [low, medium, high]
   {
-    validator: (model: Model) => isGPT5SeriesModel(model) && !isGPT5ProModel(model),
+    validator: (model: Model) => {
+      const modelId = getLowerBaseModelName(model.id)
+      if (modelId.includes('codex') || modelId.includes('chat')) {
+        return false
+      }
+      // gpt-5.4-pro is configurable
+      if (modelId.includes('gpt-5-pro') || modelId.includes('gpt-5.2-pro')) {
+        return false
+      }
+      return isGPT5FamilyModel(model)
+    },
     values: ['low', 'medium', 'high']
-  },
-  // gpt-5.1
-  { validator: isGPT51SeriesModel, values: ['low', 'medium', 'high'] }
+  }
 ]
 
 /**
