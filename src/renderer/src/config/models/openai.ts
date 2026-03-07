@@ -82,10 +82,7 @@ export const isGPT52SeriesModel = (model: Model) => {
   return modelId.includes('gpt-5.2')
 }
 
-export function isSupportVerbosityModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return isGPT5FamilyModel(model) && !modelId.includes('chat') && !modelId.includes('codex')
-}
+export const isSupportVerbosityModel = isGPT5FamilyModel
 
 /**
  * Determines if a model supports the "none" reasoning effort parameter.

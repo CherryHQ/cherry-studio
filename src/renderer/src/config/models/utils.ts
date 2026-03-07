@@ -7,6 +7,8 @@ import { getLowerBaseModelName } from '@renderer/utils'
 
 import {
   isGPT5FamilyModel,
+  isGPT5SeriesModel,
+  isGPT51SeriesModel,
   isGPT52SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAIOpenWeightModel,
@@ -216,26 +218,35 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 }
 
 // Verbosity settings is only supported by GPT-5 and newer models
-// Specifically, GPT-5 and GPT-5.1 for now
-// gpt-5-pro only supports 'high', other GPT-5 models support all levels
 const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
-  // Either not configurable, or [low, medium, high]
+  // Either only one value is supported(medium), or [low, medium, high]
   {
     validator: (model: Model) => {
       const modelId = getLowerBaseModelName(model.id)
-      if (modelId.includes('codex') || modelId.includes('chat')) {
+      // chat variant: only medium is supported
+      if (modelId.includes('chat')) {
         return false
       }
-      // gpt-5.4-pro is configurable
-      if (modelId.includes('gpt-5-pro') || modelId.includes('gpt-5.2-pro')) {
-        return false
+      // codex variant: only medium is supported before 5.3-codex
+      // Since 5.3-codex, all levels are supported.
+      if (modelId.includes('codex')) {
+        if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
+          return false
+        }
+        return true
       }
+      // pro variant: all support
       return isGPT5FamilyModel(model)
     },
     values: ['low', 'medium', 'high']
+  },
+  // Fallback to medium
+  {
+    validator: () => true,
+    values: ['medium']
   }
 ]
 
