@@ -10,10 +10,6 @@ import { builtinTools } from './tools'
 
 const logger = loggerService.withContext('ClaudeCodeService')
 
-// The Agent SDK requires a finite timeout; 600s is the maximum allowed.
-// The UI no longer shows a countdown — from the user's perspective, it waits indefinitely.
-// https://platform.claude.com/docs/en/agent-sdk/user-input#limitations
-const TOOL_APPROVAL_TIMEOUT_MS = 600_000
 const MAX_PREVIEW_LENGTH = 2_000
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
@@ -29,7 +25,6 @@ type ToolPermissionResponsePayload = {
 
 type PendingPermissionRequest = {
   fulfill: (update: PermissionResult) => void
-  timeout: NodeJS.Timeout
   signal?: AbortSignal
   abortListener?: () => void
   originalInput: Record<string, unknown>
@@ -139,7 +134,6 @@ const finalizeRequest = (
   })
 
   pendingRequests.delete(requestId)
-  clearTimeout(pending.timeout)
 
   if (pending.signal && pending.abortListener) {
     pending.signal.removeEventListener('abort', pending.abortListener)
@@ -287,23 +281,12 @@ export async function promptForToolApproval(
     toolName,
     toolCallId: options.toolCallId,
     requiresPermissions: requestPayload.requiresPermissions,
-    timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
     suggestionCount: sanitizedSuggestions.length
   })
 
   return new Promise<PermissionResult>((resolve) => {
-    const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', {
-        requestId,
-        toolName,
-        toolCallId: options.toolCallId
-      })
-      finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
-    }, TOOL_APPROVAL_TIMEOUT_MS)
-
     const pending: PendingPermissionRequest = {
       fulfill: resolve,
-      timeout,
       originalInput: sanitizedInput,
       toolName,
       signal: options?.signal,
