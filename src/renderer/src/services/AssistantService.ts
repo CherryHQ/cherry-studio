@@ -25,6 +25,7 @@ import type {
   TranslateLanguage
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { CreateTopicDto } from '@shared/data/api/schemas/topics'
 
 const logger = loggerService.withContext('AssistantService')
 
@@ -170,6 +171,15 @@ export function getDefaultTopic(assistantId: string): Topic {
     name: i18n.t('chat.default.topic.name'),
     messages: [],
     isNameManuallyEdited: false
+  }
+}
+
+// TODO: remove it in v2
+export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
+  return {
+    name: topic.name,
+    assistantId: topic.assistantId,
+    prompt: topic.prompt
   }
 }
 
