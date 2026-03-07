@@ -13,14 +13,14 @@ export type {
 } from './types'
 import type { ImageModel, LanguageModel } from 'ai'
 
-import type { ProviderId } from '../providers'
+import type { RegisteredProviderId } from '../providers'
 import type { AiPlugin, AiRequestContext } from './types'
 
 // 插件管理器
 export { PluginManager } from './manager'
 
 // 工具函数
-export function createContext<T extends ProviderId, TParams = unknown, TResult = unknown>(
+export function createContext<T extends RegisteredProviderId | (string & {}), TParams = unknown, TResult = unknown>(
   providerId: T,
   model: LanguageModel | ImageModel,
   originalParams: TParams

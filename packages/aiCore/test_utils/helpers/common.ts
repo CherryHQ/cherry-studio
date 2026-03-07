@@ -1,12 +1,12 @@
 /**
- * Test Utilities
- * Helper functions for testing AI Core functionality
+ * Common Test Utilities
+ * General-purpose helper functions for testing
  */
 
 import { expect, vi } from 'vitest'
 
-import type { ProviderId } from '../fixtures/mock-providers'
-import { createMockImageModel, createMockLanguageModel, mockProviderConfigs } from '../fixtures/mock-providers'
+import type { ProviderId } from '../mocks/providers'
+import { createMockImageModel, createMockLanguageModel, mockProviderConfigs } from '../mocks/providers'
 
 /**
  * Creates a test provider with streaming support

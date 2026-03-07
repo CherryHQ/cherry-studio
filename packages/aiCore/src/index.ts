@@ -15,7 +15,7 @@ export {
 } from './core/runtime'
 
 // ==================== 高级API ====================
-export { isV2Model, isV3Model, globalModelResolver as modelResolver } from './core/models'
+export { isV2Model, isV3Model } from './core/models'
 
 // ==================== 插件系统 ====================
 export type {
@@ -53,7 +53,6 @@ export {
   ModelResolutionError,
   ParameterValidationError,
   PluginExecutionError,
-  ProviderConfigError,
   RecursiveDepthError,
   TemplateLoadError
 } from './core/errors'

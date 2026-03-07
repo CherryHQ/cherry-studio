@@ -1,4 +1,5 @@
 import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import { createMockContext, createMockTool } from '@test-utils'
 import type {
   EmbeddingModelUsage,
   ImageModelUsage,
@@ -10,7 +11,6 @@ import type {
 import { simulateReadableStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createMockContext, createMockTool } from '../../../../../__tests__'
 import { StreamEventManager } from '../StreamEventManager'
 import type { StreamController } from '../ToolExecutor'
 

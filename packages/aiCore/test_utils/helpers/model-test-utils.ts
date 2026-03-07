@@ -10,15 +10,13 @@ import type {
   LanguageModelV3Middleware,
   ProviderV3
 } from '@ai-sdk/provider'
+import type { ProviderId } from '@test-utils'
 import type { Tool, ToolSet } from 'ai'
 import { tool } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
+import type { AiRequestContext, StreamTextParams, StreamTextResult } from 'src/core/plugins/types'
 import { vi } from 'vitest'
 import * as z from 'zod'
-
-import type { StreamTextParams, StreamTextResult } from '../../core/plugins'
-import type { ProviderId } from '../../core/providers/types'
-import type { AiRequestContext } from '../../types'
 
 /**
  * Type for partial overrides that allows omitting the model field
