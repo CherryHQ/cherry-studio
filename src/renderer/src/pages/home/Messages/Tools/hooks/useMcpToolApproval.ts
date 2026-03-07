@@ -33,6 +33,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
   // to detect when the execution layer has registered a pending approval.
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0)
   useEffect(() => {
+    if (!id) return
     return onToolPendingChange((toolId) => {
       if (toolId === id) forceUpdate()
     })
@@ -42,7 +43,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
   // During streaming, the tool execution layer may have already called
   // requestToolConfirmation() before tool-input-end fires, so we check
   // isToolPending() to detect this race condition.
-  const isPending = status === 'pending' || (status === 'streaming' && isToolPending(id))
+  const isPending = status === 'pending' || (status === 'streaming' && !!id && isToolPending(id))
 
   const isAutoApproved = useMemo(() => {
     if (!tool) return false

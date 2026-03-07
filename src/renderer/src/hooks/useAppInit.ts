@@ -6,7 +6,6 @@ import db from '@renderer/databases'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
-import { NotificationService } from '@renderer/services/NotificationService'
 import { handleSaveData, useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
@@ -15,8 +14,9 @@ import {
   type ToolPermissionResultPayload,
   toolPermissionsActions
 } from '@renderer/store/toolPermissions'
-import { delay, runAsyncFunction, uuid } from '@renderer/utils'
+import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
+import { sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -217,15 +217,7 @@ export function useAppInit() {
       dispatch(toolPermissionsActions.requestReceived(payload))
 
       // Send system notification for agent tool approval
-      NotificationService.getInstance().send({
-        id: uuid(),
-        type: 'action',
-        title: i18n.t('notification.assistant'),
-        message: i18n.t('message.tools.approvalRequired', { tool: payload.toolName }),
-        timestamp: Date.now(),
-        channel: 'system',
-        source: 'assistant'
-      })
+      sendToolApprovalNotification(payload.toolName)
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {

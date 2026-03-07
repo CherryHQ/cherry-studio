@@ -1,10 +1,7 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
-import { NotificationService } from '@renderer/services/NotificationService'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { requestToolConfirmation } from '@renderer/utils/userConfirmation'
+import { requestToolConfirmation, sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
 import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
@@ -100,15 +97,7 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
 
         if (!isAutoApproveEnabled) {
           // Send system notification for tool approval
-          NotificationService.getInstance().send({
-            id: uuid(),
-            type: 'action',
-            title: i18n.t('notification.assistant'),
-            message: i18n.t('message.tools.approvalRequired', { tool: mcpTool.name }),
-            timestamp: Date.now(),
-            channel: 'system',
-            source: 'assistant'
-          })
+          sendToolApprovalNotification(mcpTool.name)
 
           // 请求用户确认
           logger.debug(`Requesting user confirmation for tool: ${mcpTool.name}`)

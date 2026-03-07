@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   cancelToolAction,
+  clearToolIdToNameMappings,
   confirmSameNameTools,
   confirmToolAction,
   getPendingToolIds,
@@ -23,6 +24,7 @@ describe('userConfirmation', () => {
     for (const id of getPendingToolIds()) {
       cancelToolAction(id)
     }
+    clearToolIdToNameMappings()
   })
 
   describe('requestToolConfirmation', () => {
