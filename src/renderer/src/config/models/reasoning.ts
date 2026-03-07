@@ -55,10 +55,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
   gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
   gpt5_2_codex: ['low', 'medium', 'high', 'xhigh'] as const,
-  // 5.2 and after 5.x, 5.3-codex and after 5.x-codex
+  // Fallback for GPT-5.2+ base models and GPT-5.3+ codex models
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
-  // 5.2-pro and after 5.x-pro
+  // Fallback for GPT-5.2+ pro models
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
   gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
@@ -148,7 +148,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
         }
       }
     } else {
-      // Fallback for GPT-5.x sub-versions (5.2+)
+      // GPT-5.2+ non-codex models (also serves as fallback for unknown future sub-versions)
       if (modelId.includes('-pro')) {
         thinkingModelType = 'gpt52pro'
       } else {

@@ -257,9 +257,14 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
 
 /**
  * Returns the list of supported verbosity levels for the given model.
- * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
- * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
- * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
+ * If the model is not a GPT-5 family model, only `[undefined]` is returned.
+ *
+ * Verbosity levels are version-aware:
+ * - GPT-5 pro: `[low, medium, high]`
+ * - GPT-5 chat / old codex (5.1/5.2): `[medium]` only
+ * - GPT-5.3+ codex: `[low, medium, high]`
+ * - Other GPT-5 family models: `[low, medium, high]`
+ *
  * @param model - The model to check
  * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
