@@ -64,6 +64,14 @@ export const isGPT5SeriesReasoningModel = (model: Model) => {
   return isGPT5SeriesModel(model) && !modelId.includes('chat')
 }
 
+/**
+ * Checks if a model belongs to the GPT-5 family (gpt-5, gpt-5.1, gpt-5.2, etc.).
+ */
+export const isGPT5FamilyModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5')
+}
+
 export const isGPT51SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5.1')
