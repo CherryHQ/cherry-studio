@@ -27,7 +27,7 @@ export const grepToolDefinition = {
 - Results are limited to 100 matches
 - Binary files are automatically skipped
 - Common directories (node_modules, .git, dist) are excluded
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(GrepToolSchema)
 }

@@ -39,27 +39,59 @@ export function expandHome(filepath: string): string {
   return filepath
 }
 
+function normalizeForComparison(filePath: string): string {
+  const normalizedPath = normalizePath(path.resolve(filePath))
+  return isWin ? normalizedPath.toLowerCase() : normalizedPath
+}
+
+async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
+  try {
+    return normalizePath(await fs.realpath(targetPath))
+  } catch {
+    let currentPath = path.dirname(targetPath)
+
+    while (true) {
+      try {
+        const realCurrentPath = await fs.realpath(currentPath)
+        const relativeSuffix = path.relative(currentPath, targetPath)
+        return normalizePath(path.join(realCurrentPath, relativeSuffix))
+      } catch {
+        const parentPath = path.dirname(currentPath)
+        if (parentPath === currentPath) {
+          return normalizePath(targetPath)
+        }
+        currentPath = parentPath
+      }
+    }
+  }
+}
+
+function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
+  const normalizedTargetPath = normalizeForComparison(targetPath)
+  const normalizedRootPath = normalizeForComparison(rootPath)
+
+  if (normalizedTargetPath === normalizedRootPath) {
+    return true
+  }
+
+  const relativePath = path.relative(normalizedRootPath, normalizedTargetPath)
+  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+}
+
 // Security validation
 export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
   const expandedPath = expandHome(requestedPath)
-  const root = baseDir ?? process.cwd()
+  const root = expandHome(baseDir ?? process.cwd())
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
-  // Handle symlinks by checking their real path
-  try {
-    const realPath = await fs.realpath(absolute)
-    return normalizePath(realPath)
-  } catch (error) {
-    // For new files that don't exist yet, verify parent directory
-    const parentDir = path.dirname(absolute)
-    try {
-      const realParentPath = await fs.realpath(parentDir)
-      normalizePath(realParentPath)
-      return normalizePath(absolute)
-    } catch {
-      return normalizePath(absolute)
-    }
+  const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
+  const resolvedPath = await resolveRealOrNearestExistingPath(absolute)
+
+  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
+    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
+
+  return resolvedPath
 }
 
 // ============================================================================

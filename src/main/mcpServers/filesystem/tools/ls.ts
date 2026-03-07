@@ -22,7 +22,7 @@ export const lsToolDefinition = {
 - Common directories (node_modules, dist, .git) are excluded
 - Hidden files (starting with .) are excluded except .env.example
 - Results are limited to 100 entries
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
   inputSchema: z.toJSONSchema(LsToolSchema)
 }
