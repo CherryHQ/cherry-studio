@@ -128,7 +128,7 @@ class PreferencesGenerator {
 
   extractPreferencesData(classification) {
     const allPreferencesData = []
-    const sources = ['electronStore', 'redux', 'localStorage']
+    const sources = ['electronStore', 'redux', 'localStorage', 'dexieSettings']
 
     // 递归提取项目，包括children
     const extractItems = (items, source, category, parentKey = '') => {
@@ -176,7 +176,7 @@ class PreferencesGenerator {
     })
 
     // 去重：按redux > localStorage > electronStore优先级选择
-    const sourcePriority = { redux: 3, localStorage: 2, electronStore: 1 }
+    const sourcePriority = { redux: 3, dexieSettings: 2, localStorage: 2, electronStore: 1 }
     const deduplicatedData = []
 
     Object.keys(targetKeyGroups).forEach((targetKey) => {
@@ -327,6 +327,7 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
  * - electronStore项: ${preferencesData.filter((p) => p.source === 'electronStore').length}
  * - redux项: ${preferencesData.filter((p) => p.source === 'redux').length}
  * - localStorage项: ${preferencesData.filter((p) => p.source === 'localStorage').length}
+ * - dexieSettings项: ${preferencesData.filter((p) => p.source === 'dexieSettings').length}
  */`
 
     return [header, interfaceCode, defaultsCode, footer].join('\n\n')
@@ -458,6 +459,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
     console.log(`- electronStore项: ${preferencesData.filter((p) => p.source === 'electronStore').length}`)
     console.log(`- redux项: ${preferencesData.filter((p) => p.source === 'redux').length}`)
     console.log(`- localStorage项: ${preferencesData.filter((p) => p.source === 'localStorage').length}`)
+    console.log(`- dexieSettings项: ${preferencesData.filter((p) => p.source === 'dexieSettings').length}`)
     console.log(`- 输出文件: ${this.targetFile}`)
 
     // 显示一些示例targetKey
