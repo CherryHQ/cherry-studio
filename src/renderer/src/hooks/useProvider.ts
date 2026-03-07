@@ -7,6 +7,7 @@ import {
   addProvider,
   removeModel,
   removeProvider,
+  setShowCherryAiModels,
   updateModel,
   updateProvider,
   updateProviders
@@ -30,12 +31,14 @@ function normalizeProvider<T extends Provider>(provider: T): T {
 }
 
 const selectProviders = (state: RootState) => state.llm.providers
+const selectShowCherryAiModels = (state: RootState) => state.llm.settings.showCherryAiModels
 
-const selectEnabledProviders = createSelector(selectProviders, (providers) =>
-  providers
-    .map(normalizeProvider)
-    .filter((p) => p.enabled)
-    .concat(CHERRYAI_PROVIDER)
+const selectEnabledProviders = createSelector(
+  [selectProviders, selectShowCherryAiModels],
+  (providers, showCherryAiModels) => {
+    const enabledProviders = providers.map(normalizeProvider).filter((p) => p.enabled)
+    return showCherryAiModels ? enabledProviders.concat(CHERRYAI_PROVIDER) : enabledProviders
+  }
 )
 
 const selectSystemProviders = createSelector(selectProviders, (providers) =>
@@ -48,8 +51,12 @@ const selectUserProviders = createSelector(selectProviders, (providers) =>
 
 const selectAllProviders = createSelector(selectProviders, (providers) => providers.map(normalizeProvider))
 
-const selectAllProvidersWithCherryAI = createSelector(selectProviders, (providers) =>
-  [...providers, CHERRYAI_PROVIDER].map(normalizeProvider)
+const selectAllProvidersWithCherryAI = createSelector(
+  [selectProviders, selectShowCherryAiModels],
+  (providers, showCherryAiModels) => {
+    const allProviders = providers.map(normalizeProvider)
+    return showCherryAiModels ? [...allProviders, normalizeProvider(CHERRYAI_PROVIDER)] : allProviders
+  }
 )
 
 export function useProviders() {
@@ -97,4 +104,14 @@ export function useProviderByAssistant(assistant: Assistant) {
   const model = assistant.model || defaultModel
   const { provider } = useProvider(model.provider)
   return provider
+}
+
+export function useCherryAiSettings() {
+  const showCherryAiModels = useAppSelector(selectShowCherryAiModels)
+  const dispatch = useAppDispatch()
+
+  return {
+    showCherryAiModels,
+    setShowCherryAiModels: (show: boolean) => dispatch(setShowCherryAiModels(show))
+  }
 }

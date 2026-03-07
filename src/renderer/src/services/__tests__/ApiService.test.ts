@@ -246,7 +246,8 @@ vi.mock('@renderer/store/llm.ts', () => {
       cherryIn: {
         accessToken: '',
         refreshToken: ''
-      }
+      },
+      showCherryAiModels: true
     }
   } satisfies LlmState
 
@@ -262,7 +263,14 @@ vi.mock('@renderer/store/llm.ts', () => {
 
 vi.mock('@renderer/store/mcp.ts', () => {
   const mockInitialState = {
-    servers: [{ id: 'mcp-server-1', name: 'mcp-server-1', isActive: true, disabledAutoApproveTools: [] }]
+    servers: [
+      {
+        id: 'mcp-server-1',
+        name: 'mcp-server-1',
+        isActive: true,
+        disabledAutoApproveTools: []
+      }
+    ]
   }
   return {
     default: (state = mockInitialState) => {
@@ -304,7 +312,11 @@ const geminiChunks: GeminiSdkRawChunk[] = [
     candidates: [
       {
         content: {
-          parts: [{ text: '！\n\n我是 Gemini 2.5 Pro，很高兴能为您服务。\n\n今天有什么可以帮您的吗？无论您是' }],
+          parts: [
+            {
+              text: '！\n\n我是 Gemini 2.5 Pro，很高兴能为您服务。\n\n今天有什么可以帮您的吗？无论您是'
+            }
+          ],
           role: 'model'
         },
         index: 0
@@ -331,7 +343,11 @@ const geminiChunks: GeminiSdkRawChunk[] = [
     candidates: [
       {
         content: {
-          parts: [{ text: '想寻找信息、进行创作，还是有任何其他问题，我都在这里准备好提供帮助。' }],
+          parts: [
+            {
+              text: '想寻找信息、进行创作，还是有任何其他问题，我都在这里准备好提供帮助。'
+            }
+          ],
           role: 'model'
         },
         finishReason: FinishReason.STOP,
@@ -598,7 +614,11 @@ const geminiThinkingChunks: GeminiSdkRawChunk[] = [
     candidates: [
       {
         content: {
-          parts: [{ text: '任务，并以有益和富有成效的方式与你互动。\n\n你有什么具体想让我做的吗？' }],
+          parts: [
+            {
+              text: '任务，并以有益和富有成效的方式与你互动。\n\n你有什么具体想让我做的吗？'
+            }
+          ],
           role: 'model'
         },
         index: 0,
@@ -651,7 +671,11 @@ const geminiToolUseChunks: GeminiSdkRawChunk[] = [
     candidates: [
       {
         content: {
-          parts: [{ text: '信息。\n\u003ctool_use\u003e\n  \u003cname\u003emcp-tool-1\u003c/name\u003e\n' }],
+          parts: [
+            {
+              text: '信息。\n\u003ctool_use\u003e\n  \u003cname\u003emcp-tool-1\u003c/name\u003e\n'
+            }
+          ],
           role: 'model'
         },
         index: 0
@@ -2641,24 +2665,12 @@ describe('ApiService', () => {
         system_fingerprint: '3000y'
       },
       {
-        choices: [{ delta: { reasoning_content: '开始', role: 'assistant' }, index: 0, finish_reason: null }],
-        created: 1754192522,
-        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
-        model: 'glm-4.5-flash',
-        object: 'chat.completion',
-        system_fingerprint: '3000y'
-      },
-      {
-        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
-        created: 1754192522,
-        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
-        model: 'glm-4.5-flash',
-        object: 'chat.completion',
-        system_fingerprint: '3000y'
-      },
-      {
         choices: [
-          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+          {
+            delta: { reasoning_content: '开始', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
         ],
         created: 1754192522,
         id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
@@ -2668,33 +2680,11 @@ describe('ApiService', () => {
       },
       {
         choices: [
-          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
-        ],
-        created: 1754192522,
-        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
-        model: 'glm-4.5-flash',
-        object: 'chat.completion',
-        system_fingerprint: '3000y'
-      },
-      {
-        choices: [{ delta: { reasoning_content: '再次', role: 'assistant' }, index: 0, finish_reason: null }],
-        created: 1754192522,
-        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
-        model: 'glm-4.5-flash',
-        object: 'chat.completion',
-        system_fingerprint: '3000y'
-      },
-      {
-        choices: [{ delta: { reasoning_content: '思考', role: 'assistant' }, index: 0, finish_reason: null }],
-        created: 1754192522,
-        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
-        model: 'glm-4.5-flash',
-        object: 'chat.completion',
-        system_fingerprint: '3000y'
-      },
-      {
-        choices: [
-          { delta: { content: '思考', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+          {
+            delta: { reasoning_content: '思考', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
         ],
         created: 1754192522,
         id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
@@ -2704,7 +2694,15 @@ describe('ApiService', () => {
       },
       {
         choices: [
-          { delta: { content: '完成', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: null }
+          {
+            delta: {
+              content: '思考',
+              reasoning_content: null,
+              role: 'assistant'
+            },
+            index: 0,
+            finish_reason: null
+          }
         ],
         created: 1754192522,
         id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
@@ -2714,7 +2712,93 @@ describe('ApiService', () => {
       },
       {
         choices: [
-          { delta: { content: '', reasoning_content: null, role: 'assistant' }, index: 0, finish_reason: 'stop' }
+          {
+            delta: {
+              content: '完成',
+              reasoning_content: null,
+              role: 'assistant'
+            },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          {
+            delta: { reasoning_content: '再次', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          {
+            delta: { reasoning_content: '思考', role: 'assistant' },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          {
+            delta: {
+              content: '思考',
+              reasoning_content: null,
+              role: 'assistant'
+            },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          {
+            delta: {
+              content: '完成',
+              reasoning_content: null,
+              role: 'assistant'
+            },
+            index: 0,
+            finish_reason: null
+          }
+        ],
+        created: 1754192522,
+        id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
+        model: 'glm-4.5-flash',
+        object: 'chat.completion',
+        system_fingerprint: '3000y'
+      },
+      {
+        choices: [
+          {
+            delta: { content: '', reasoning_content: null, role: 'assistant' },
+            index: 0,
+            finish_reason: 'stop'
+          }
         ],
         created: 1754192522,
         id: 'chat-network/glm-4.5-GLM-4.5-Flash-2025-08-03-11-42-02',
