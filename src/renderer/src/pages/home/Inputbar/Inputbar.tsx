@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -11,7 +12,6 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -24,7 +24,7 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -327,14 +327,19 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const addNewTopic = useCallback(async () => {
     const newTopic = getDefaultTopic(assistant.id)
 
-    await db.topics.add({ id: newTopic.id, messages: [] })
+    // Create topic via Data API and use server-returned data
+    const createdTopic = await dataApiService.post('/topics', {
+      body: mapLegacyTopicToDto(newTopic)
+    })
+
+    logger.silly('create topic in sqlite', createdTopic.id)
 
     if (assistant.defaultModel) {
       setModel(assistant.defaultModel)
     }
 
-    addTopic(newTopic)
-    setActiveTopic(newTopic)
+    addTopic(createdTopic)
+    setActiveTopic(createdTopic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
