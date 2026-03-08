@@ -89,6 +89,7 @@ class DbService implements MessageDataSource {
 
   async fetchMessages(
     topicId: string,
+    // oxlint-disable-next-line no-unused-vars -- interface requires this parameter
     _forceReload?: boolean
   ): Promise<{
     messages: Message[]
