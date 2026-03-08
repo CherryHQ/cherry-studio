@@ -772,16 +772,23 @@ class OpenClawService {
    * Start gateway via `openclaw gateway start` and wait for it to become ready
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    logger.info(`Starting gateway service: ${openclawPath} gateway start`)
-    const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
-      openclawPath,
-      ['gateway', 'start', '--force'],
-      shellEnv
-    )
-    logger.info('Gateway start result:', { code, stdout: stdout.trim(), stderr: stderr.trim() })
+    if (isWin) {
+      // On Windows we don't install a system service, so `gateway start` runs
+      // in foreground mode and never exits. Instead, spawn the gateway as a
+      // detached background process.
+      this.spawnGatewayDetached(openclawPath, shellEnv)
+    } else {
+      logger.info(`Starting gateway service: ${openclawPath} gateway start`)
+      const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
+        openclawPath,
+        ['gateway', 'start', '--force'],
+        shellEnv
+      )
+      logger.info('Gateway start result:', { code, stdout: stdout.trim(), stderr: stderr.trim() })
 
-    if (code !== 0) {
-      throw new Error(stderr.trim() || `gateway start exited with code ${code}`)
+      if (code !== 0) {
+        throw new Error(stderr.trim() || `gateway start exited with code ${code}`)
+      }
     }
 
     // Wait for gateway to become ready (max 30 seconds)
@@ -813,6 +820,22 @@ class OpenClawService {
 
     const detail = lastError ? `\n${lastError}` : ''
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+  }
+
+  /**
+   * Spawn gateway as a detached background process (Windows only).
+   * The process is unref'd so it survives if the parent exits.
+   */
+  private spawnGatewayDetached(openclawPath: string, env: Record<string, string>): void {
+    logger.info(`Spawning detached gateway: ${openclawPath} gateway --port ${this.gatewayPort}`)
+    const proc = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
+      env: { ...env, OPENCLAW_CONFIG_PATH },
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    })
+    proc.unref()
+    logger.info(`Detached gateway spawned with pid: ${proc.pid}`)
   }
 
   /**
