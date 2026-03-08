@@ -214,10 +214,8 @@ interface WebSearchCompressionConfigSource {
   cutoffLimit?: number | null
   cutoffUnit?: string
   documentCount?: number
-  embeddingModelId?: string | null
   embeddingModel?: { id?: string; provider?: string } | null
   embeddingDimensions?: number | null
-  rerankModelId?: string | null
   rerankModel?: { id?: string; provider?: string } | null
 }
 
@@ -235,11 +233,6 @@ function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESS
 function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
   return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
 }
-
-function normalizeCompressionModelId(value: unknown): string | null {
-  return isNonEmptyString(value) ? value.trim() : null
-}
-
 function buildCompressionModelId(model?: { id?: string; provider?: string } | null): string | null {
   const providerId = model?.provider?.trim()
   const modelId = model?.id?.trim()
@@ -261,8 +254,8 @@ function buildCompressionModelId(model?: { id?: string; provider?: string } | nu
  *   compressionConfig: {
  *     method: 'rag',
  *     documentCount: 5,
- *     embeddingModelId: 'openai::model-1',
- *     rerankModelId: 'cohere::rerank-1'
+ *     embeddingModel: { id: 'model-1', provider: 'openai' },
+ *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
  *   }
  * }
  * Output: {
@@ -298,11 +291,9 @@ export function flattenCompressionConfig(sources: {
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
     'chat.web_search.compression.cutoff_unit': cutoffUnit,
     'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id':
-      normalizeCompressionModelId(config.embeddingModelId) ?? buildCompressionModelId(config.embeddingModel),
+    'chat.web_search.compression.rag_embedding_model_id': buildCompressionModelId(config.embeddingModel),
     'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id':
-      normalizeCompressionModelId(config.rerankModelId) ?? buildCompressionModelId(config.rerankModel)
+    'chat.web_search.compression.rag_rerank_model_id': buildCompressionModelId(config.rerankModel)
   }
 }
 
