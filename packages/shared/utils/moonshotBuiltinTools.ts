@@ -116,3 +116,35 @@ export function normalizeMoonshotBuiltinToolMessages(
 
   return { messages: normalizedMessages, hasChanges }
 }
+
+/**
+ * Injects Moonshot builtin web search tool if conditions are met.
+ * Shared logic used by all three injection layers (API server, fetch wrapper, legacy client).
+ *
+ * @param tools - Current tools array (can be undefined)
+ * @param toolChoice - Current tool_choice value
+ * @param toolFactory - Factory function to create the tool instance
+ * @returns Object with updated tools array and injection status
+ */
+export function injectMoonshotBuiltinWebSearchTool<T>(
+  tools: T[] | undefined,
+  toolChoice: unknown,
+  toolFactory: () => T
+): { tools: T[]; injected: boolean } {
+  // Don't inject if tool_choice is explicitly 'none'
+  if (toolChoice === 'none') {
+    return { tools: tools ?? [], injected: false }
+  }
+
+  const currentTools = Array.isArray(tools) ? tools : []
+
+  // Don't inject if builtin web search tool already exists
+  if (currentTools.some(isMoonshotBuiltinWebSearchTool)) {
+    return { tools: currentTools, injected: false }
+  }
+
+  return {
+    tools: [...currentTools, toolFactory()],
+    injected: true
+  }
+}

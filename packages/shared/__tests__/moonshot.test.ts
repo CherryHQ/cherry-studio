@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  injectMoonshotBuiltinWebSearchTool,
   isMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_DEFAULT_BASE_URL,
@@ -123,6 +124,51 @@ describe('moonshot utils', () => {
         })
       ).toBe(false)
       expect(isMoonshotBuiltinWebSearchTool(undefined)).toBe(false)
+    })
+  })
+
+  describe('injectMoonshotBuiltinWebSearchTool', () => {
+    const toolFactory = () => MOONSHOT_WEB_SEARCH_TOOL_DEFINITION
+
+    it('does not inject when tool_choice is none', () => {
+      const result = injectMoonshotBuiltinWebSearchTool([], 'none', toolFactory)
+      expect(result.injected).toBe(false)
+      expect(result.tools).toHaveLength(0)
+    })
+
+    it('does not inject when tool already exists', () => {
+      const existingTool = { type: 'builtin_function', function: { name: MOONSHOT_WEB_SEARCH_TOOL_NAME } }
+      const result = injectMoonshotBuiltinWebSearchTool([existingTool], undefined, toolFactory)
+      expect(result.injected).toBe(false)
+      expect(result.tools).toHaveLength(1)
+    })
+
+    it('injects when conditions are met', () => {
+      const result = injectMoonshotBuiltinWebSearchTool([], undefined, toolFactory)
+      expect(result.injected).toBe(true)
+      expect(result.tools).toHaveLength(1)
+      expect(result.tools[0]).toEqual(MOONSHOT_WEB_SEARCH_TOOL_DEFINITION)
+    })
+
+    it('injects when tools is undefined', () => {
+      const result = injectMoonshotBuiltinWebSearchTool(undefined, undefined, toolFactory)
+      expect(result.injected).toBe(true)
+      expect(result.tools).toHaveLength(1)
+    })
+
+    it('preserves existing tools when injecting', () => {
+      const existingTool = { type: 'function', function: { name: 'other_tool' } }
+      const result = injectMoonshotBuiltinWebSearchTool([existingTool], undefined, toolFactory)
+      expect(result.injected).toBe(true)
+      expect(result.tools).toHaveLength(2)
+      expect(result.tools[0]).toEqual(existingTool)
+      expect(result.tools[1]).toEqual(MOONSHOT_WEB_SEARCH_TOOL_DEFINITION)
+    })
+
+    it('does not inject when tool_choice is none even with empty tools', () => {
+      const result = injectMoonshotBuiltinWebSearchTool(undefined, 'none', toolFactory)
+      expect(result.injected).toBe(false)
+      expect(result.tools).toHaveLength(0)
     })
   })
 })

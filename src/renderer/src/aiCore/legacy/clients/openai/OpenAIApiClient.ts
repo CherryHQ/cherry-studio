@@ -84,7 +84,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
-import { asMoonshotBuiltinWebSearchTool } from '@shared/utils'
+import { asMoonshotBuiltinWebSearchTool, injectMoonshotBuiltinWebSearchTool } from '@shared/utils'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -738,9 +738,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           isMoonshot: this.provider.id === SystemProviderIds.moonshot,
           currentTools: commonParams.tools
         })
+
         if (enableWebSearch && this.provider.id === SystemProviderIds.moonshot) {
-          commonParams.tools = [...(commonParams.tools ?? []), asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
-          logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
+          const result = injectMoonshotBuiltinWebSearchTool(commonParams.tools, commonParams.tool_choice, () =>
+            asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()
+          )
+
+          if (result.injected) {
+            commonParams.tools = result.tools
+            logger.debug('Moonshot web search tool injected', { tools: commonParams.tools })
+          }
         }
 
         const timeout = this.getTimeout(model)

@@ -11,6 +11,12 @@ import type { AiRequestContext } from '../../'
 import type { OpenRouterSearchConfig } from './openrouter'
 
 /**
+ * Moonshot built-in web search tool name.
+ * Kept in sync with packages/shared/utils/moonshotBuiltinTools.ts
+ */
+const MOONSHOT_WEB_SEARCH_TOOL_NAME = '$web_search'
+
+/**
  * Extract input config types from AI SDK tools for type safety.
  */
 export type OpenAISearchConfig = NonNullable<Parameters<typeof openai.tools.webSearch>[0]>
@@ -192,7 +198,7 @@ export const switchWebSearchTool = <T extends ToolBasedParams>(
         definition: {
           type: 'builtin_function',
           function: {
-            name: '$web_search'
+            name: MOONSHOT_WEB_SEARCH_TOOL_NAME
           }
         },
         execute: async (argumentsPayload: unknown) => {
@@ -202,7 +208,7 @@ export const switchWebSearchTool = <T extends ToolBasedParams>(
         }
       }
 
-      applyToolBasedSearch(params, '$web_search', builtInTool)
+      applyToolBasedSearch(params, MOONSHOT_WEB_SEARCH_TOOL_NAME, builtInTool)
     }
   }
 

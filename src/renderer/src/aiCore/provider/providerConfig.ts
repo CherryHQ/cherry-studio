@@ -36,7 +36,7 @@ import {
 } from '@renderer/utils/provider'
 import {
   defaultAppHeaders,
-  isMoonshotBuiltinWebSearchTool,
+  injectMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_WEB_SEARCH_TOOL_DEFINITION,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
@@ -482,12 +482,17 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
             hasChanges = true
           }
 
-          const currentTools = Array.isArray(body.tools) ? [...body.tools] : []
-          const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
-          if (!hasBuiltinWebSearch) {
-            body.tools = [...currentTools, MOONSHOT_WEB_SEARCH_TOOL_DEFINITION]
+          const result = injectMoonshotBuiltinWebSearchTool(
+            body.tools,
+            body.tool_choice,
+            () => MOONSHOT_WEB_SEARCH_TOOL_DEFINITION as (typeof body.tools)[number]
+          )
+
+          if (result.injected) {
+            body.tools = result.tools
             hasChanges = true
           }
+
           if (hasChanges) {
             options = {
               ...options,

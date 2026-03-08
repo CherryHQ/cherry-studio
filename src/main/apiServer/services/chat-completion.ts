@@ -2,7 +2,7 @@ import OpenAI from '@cherrystudio/openai'
 import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import {
   asMoonshotBuiltinWebSearchTool,
-  isMoonshotBuiltinWebSearchTool,
+  injectMoonshotBuiltinWebSearchTool,
   isMoonshotProviderLike,
   MOONSHOT_PROVIDER_ID,
   MOONSHOT_WEB_SEARCH_TOOL_NAME,
@@ -38,33 +38,26 @@ export function normalizeMoonshotBuiltinSearchTool<T extends ChatCompletionCreat
     } as T
   }
 
-  const currentTools = Array.isArray(normalizedRequest.tools) ? [...normalizedRequest.tools] : []
-  const hasBuiltinWebSearch = currentTools.some(isMoonshotBuiltinWebSearchTool)
-  const shouldInject = normalizedRequest.tool_choice !== 'none' && !hasBuiltinWebSearch
-
   logger.debug('Moonshot builtin web search tool normalization', {
     providerId: provider.id,
     toolChoice: normalizedRequest.tool_choice,
-    toolCountBefore: currentTools.length,
-    hasBuiltinWebSearch,
-    shouldInject,
+    toolCountBefore: Array.isArray(normalizedRequest.tools) ? normalizedRequest.tools.length : 0,
     hasNormalizedMessages: normalizedMessages.hasChanges
   })
 
-  if (!shouldInject) {
-    return normalizedRequest
+  const result = injectMoonshotBuiltinWebSearchTool(normalizedRequest.tools, normalizedRequest.tool_choice, () =>
+    asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()
+  )
+
+  if (result.injected) {
+    logger.debug('Moonshot builtin web search tool injected', {
+      providerId: provider.id,
+      toolCountAfter: result.tools.length
+    })
+    return { ...normalizedRequest, tools: result.tools }
   }
 
-  const normalizedTools = [...currentTools, asMoonshotBuiltinWebSearchTool<ChatCompletionTool>()]
-  logger.debug('Moonshot builtin web search tool injected', {
-    providerId: provider.id,
-    toolCountAfter: normalizedTools.length
-  })
-
-  return {
-    ...normalizedRequest,
-    tools: normalizedTools
-  }
+  return normalizedRequest
 }
 
 export interface ValidationResult {
