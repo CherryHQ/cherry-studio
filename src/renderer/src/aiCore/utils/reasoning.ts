@@ -9,6 +9,7 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
+  isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDoubaoSeed18Model,
   isDoubaoSeedAfter251015,
@@ -18,7 +19,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
-  isOpus46Model,
+  isQwen35Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -140,6 +141,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
+      }
+    }
+
+    // Qwen 3.5 without direct enable_thinking
+    // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
+    if (isQwen35Model(model)) {
+      return {
+        chat_template_kwargs: {
+          enable_thinking: false
+        }
       }
     }
 
@@ -371,11 +382,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const thinkConfig = {
-      enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
-      thinking_budget: budgetTokens
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
+    const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    if (supportEnableThinking) {
+      return {
+        ...enableThinkingConfig,
+        thinking_budget: budgetTokens
+      }
+    } else {
+      return {
+        thinking_budget: budgetTokens,
+        chat_template_kwargs: {
+          ...enableThinkingConfig
+        }
+      }
     }
-    return thinkConfig
   }
 
   // Hunyuan models, use enable_thinking
@@ -406,7 +427,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
     if (isGemini3ThinkingTokenModel(model)) {
       return {
-        reasoning_effort: reasoningEffort
+        reasoningEffort
       }
     }
     if (reasoningEffort === 'auto') {
@@ -529,7 +550,7 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
-export function getAnthropicThinkingBudget(
+export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
   modelId: string
@@ -559,7 +580,7 @@ export function getAnthropicThinkingBudget(
  * Extracted from AnthropicAPIClient logic.
  *
  * Returns different parameter shapes depending on the model:
- * - **Opus 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
+ * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
  *   Uses the new adaptive thinking API with effort-based control.
  * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
  *   Uses the classic thinking API with explicit token budget.
@@ -588,10 +609,10 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    // Opus 4.6 uses adaptive thinking + effort parameters
-    // Map reasoningEffort to Opus 4.6 supported effort values
-    if (isOpus46Model(model)) {
-      // Opus 4.6 supports: low, medium, high, max
+    // Claude 4.6 uses adaptive thinking + effort parameters
+    // Map reasoningEffort to Claude 4.6 supported effort values
+    if (isClaude46SeriesModel(model)) {
+      // Claude 4.6 supports: low, medium, high, max
       // Mapping rules: default/none -> no effort (uses default high)
       //                minimal/low -> low
       //                medium -> medium
@@ -612,7 +633,7 @@ export function getAnthropicReasoningParams(
 
     // Other Claude models continue using enabled + budgetTokens
     const { maxTokens } = getAssistantSettings(assistant)
-    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
       thinking: {
@@ -620,9 +641,12 @@ export function getAnthropicReasoningParams(
         budgetTokens: budgetTokens
       }
     }
+  } else {
+    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    const { maxTokens } = getAssistantSettings(assistant)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    return budgetTokens ? { thinking: { type: 'enabled', budgetTokens } } : { thinking: { type: 'enabled' } }
   }
-
-  return {}
 }
 
 type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
@@ -772,8 +796,8 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Opus 4.6 uses adaptive thinking + maxReasoningEffort
-  if (isOpus46Model(model)) {
+  // Claude 4.6 uses adaptive thinking + maxReasoningEffort
+  if (isClaude46SeriesModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',
@@ -793,7 +817,7 @@ export function getBedrockReasoningParams(
 
   // Other Claude models use enabled + budgetTokens
   const { maxTokens } = getAssistantSettings(assistant)
-  const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+  const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
     reasoningConfig: {
       type: 'enabled',
@@ -833,4 +857,22 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
       }
     }, {}) || {}
   )
+}
+
+/**
+ * Get reasoning tag name based on model ID
+ * Used for extractReasoningMiddleware configuration
+ */
+export function getReasoningTagName(modelId: string | undefined): string {
+  const tagName = {
+    reasoning: 'reasoning',
+    think: 'think',
+    thought: 'thought',
+    seedThink: 'seed:think'
+  }
+
+  if (modelId?.includes('gpt-oss')) return tagName.reasoning
+  if (modelId?.includes('gemini')) return tagName.thought
+  if (modelId?.includes('seed-oss-36b')) return tagName.seedThink
+  return tagName.think
 }

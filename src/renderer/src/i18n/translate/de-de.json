@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
+        "default_hint": "Standard: {{path}}",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
@@ -1100,6 +1101,7 @@
       },
       "export": {
         "image": "Als Bild exportieren",
+        "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {
           "label": "Als Markdown exportieren",
@@ -2519,6 +2521,9 @@
   "notification": {
     "assistant": "Assistenten-Antwort",
     "knowledge": {
+      "batch_error": "{{failed}} Elemente konnten nicht verarbeitet werden",
+      "batch_mixed": "{{succeeded}} Elemente erfolgreich, {{failed}} Elemente fehlgeschlagen",
+      "batch_success": "{{succeeded}} Elemente erfolgreich verarbeitet",
       "error": "{{error}}",
       "success": "{{type}} erfolgreich zur Wissensdatenbank hinzugefügt"
     },
@@ -2956,7 +2961,9 @@
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
     "no_results": "Keine Plugins gefunden",
+    "no_results_skills": "Keine Fähigkeiten gefunden",
     "search_placeholder": "Such-Plugins...",
+    "search_placeholder_skills": "Suchfähigkeiten...",
     "showing_results": "{{count}} Plugin anzeigen",
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
@@ -4651,6 +4658,13 @@
       "open_link_external": {
         "title": "Neue Fensterlinks im Browser öffnen"
       },
+      "region": {
+        "auto": "Automatische Erkennung",
+        "cn": "China",
+        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
+        "global": "global",
+        "title": "Bereichsfilterung für Mini-Programme"
+      },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
       "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
       "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
@@ -5129,6 +5143,7 @@
       "reset_to_default": "Auf Standard zurücksetzen",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
       "show_app": "App anzeigen/ausblenden",
@@ -5524,6 +5539,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
+    "stop": "Übersetzung stoppen",
     "success": {
       "custom": {
         "delete": "Erfolgreich gelöscht",

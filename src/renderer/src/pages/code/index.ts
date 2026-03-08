@@ -1,4 +1,4 @@
-import { getAnthropicThinkingBudget } from '@renderer/aiCore/utils/reasoning'
+import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -228,7 +228,7 @@ export const generateToolEnvironment = ({
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
         const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
-          ? getAnthropicThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
+          ? getThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
           : undefined
         const providerType = modelProvider.type
         const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))

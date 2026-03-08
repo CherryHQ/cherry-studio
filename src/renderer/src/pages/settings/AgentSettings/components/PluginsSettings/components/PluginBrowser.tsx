@@ -18,8 +18,8 @@ export type PluginFilterType = 'plugin' | 'skill'
 
 export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
-  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
-  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
+  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => Promise<void>
+  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => Promise<void>
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }
@@ -255,7 +255,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
       {/* Search and Sort */}
       <div className="flex gap-2">
         <AntInput
-          placeholder={t('plugins.search_placeholder')}
+          placeholder={t(activeType === 'skill' ? 'plugins.search_placeholder_skills' : 'plugins.search_placeholder')}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           prefix={<Search className="h-4 w-4 text-default-400" />}
@@ -325,7 +325,9 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
         </div>
       ) : entries.length === 0 && !isInitialLoading ? (
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-          <p className="text-default-400">{t('plugins.no_results')}</p>
+          <p className="text-default-400">
+            {t(activeType === 'skill' ? 'plugins.no_results_skills' : 'plugins.no_results')}
+          </p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
       ) : isInitialLoading ? (

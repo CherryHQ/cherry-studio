@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adaugă director",
+        "default_hint": "Implicit: {{path}}",
         "duplicate": "Acest director este deja inclus.",
         "empty": "Selectează cel puțin un director pe care agentul îl poate accesa.",
         "error": {
@@ -1100,6 +1101,7 @@
       },
       "export": {
         "image": "Exportă ca imagine",
+        "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
           "label": "Exportă ca markdown",
@@ -2519,6 +2521,9 @@
   "notification": {
     "assistant": "Răspuns asistent",
     "knowledge": {
+      "batch_error": "{{failed}} elemente nu au putut fi procesate",
+      "batch_mixed": "{{succeeded}} elemente au reușit, {{failed}} elemente au eșuat",
+      "batch_success": "{{succeeded}} elemente procesate cu succes",
       "error": "{{error}}",
       "success": "S-a adăugat cu succes {{type}} în baza de cunoștințe"
     },
@@ -2956,7 +2961,9 @@
     "no_description": "Nicio descriere disponibilă",
     "no_installed_plugins": "Niciun plugin instalat încă",
     "no_results": "Nu s-au găsit pluginuri",
+    "no_results_skills": "Nicio abilitate găsită",
     "search_placeholder": "Caută pluginuri...",
+    "search_placeholder_skills": "Abilități de căutare...",
     "showing_results": "Se afișează {{count}} plugin",
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
@@ -4651,6 +4658,13 @@
       "open_link_external": {
         "title": "Deschide în browser linkurile care deschid ferestre noi"
       },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
+        "global": "global",
+        "title": "Filtru zonă aplicație miniatură"
+      },
       "reset_tooltip": "Resetează la implicit",
       "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
       "sidebar_title": "Afișare mini-aplicații active în bara laterală",
@@ -5129,6 +5143,7 @@
       "reset_to_default": "Resetează la implicit",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
       "show_app": "Afișează/Ascunde aplicația",
@@ -5524,6 +5539,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "stop": "Oprește traducerea",
     "success": {
       "custom": {
         "delete": "Șters cu succes",

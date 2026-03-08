@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
+        "default_hint": "未指定時將自動建立預設工作目錄。",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
         "error": {
@@ -1100,6 +1101,7 @@
       },
       "export": {
         "image": "匯出為圖片",
+        "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {
           "label": "匯出為 Markdown",
@@ -2519,6 +2521,9 @@
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
+      "batch_error": "{{failed}} 個項目處理失敗",
+      "batch_mixed": "{{succeeded}} 個項目處理成功，{{failed}} 個項目處理失敗",
+      "batch_success": "{{succeeded}} 個項目處理成功",
       "error": "無法將 {{type}} 加入知識庫：{{error}}",
       "success": "成功將 {{type}} 新增至知識庫"
     },
@@ -2956,7 +2961,9 @@
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何外掛",
     "no_results": "未找到外掛",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜尋外掛...",
+    "search_placeholder_skills": "搜尋技能...",
     "showing_results": "顯示 {{count}} 個外掛",
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
@@ -4651,6 +4658,13 @@
       "open_link_external": {
         "title": "在瀏覽器中開啟新視窗連結"
       },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "根據所在地區篩選不支援的小程式",
+        "global": "全球",
+        "title": "小程式區域篩選"
+      },
       "reset_tooltip": "重設為預設值",
       "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
       "sidebar_title": "側邊欄活躍小程式顯示設定",
@@ -5129,6 +5143,7 @@
       "reset_to_default": "重設為預設",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
+      "select_model": "選擇模型",
       "selection_assistant_select_text": "劃詞助手：取詞",
       "selection_assistant_toggle": "開關劃詞助手",
       "show_app": "顯示 / 隱藏應用程式",
@@ -5524,6 +5539,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
+    "stop": "停止翻譯",
     "success": {
       "custom": {
         "delete": "刪除成功",

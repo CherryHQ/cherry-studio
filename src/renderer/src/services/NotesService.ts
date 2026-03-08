@@ -1,10 +1,13 @@
 import { loggerService } from '@logger'
+import store from '@renderer/store'
+import { setNotesPath } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 
 const logger = loggerService.withContext('NotesService')
 
 const MARKDOWN_EXT = '.md'
+let defaultNotesPathPromise: Promise<string> | null = null
 
 export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
@@ -37,7 +40,11 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 }
 
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
-  const basePath = normalizePath(parentPath)
+  const resolved = await resolveNotesPath(parentPath)
+  const basePath = resolved.path
+  if (resolved.isFallback) {
+    store.dispatch(setNotesPath(basePath))
+  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
@@ -49,11 +56,88 @@ export async function addNote(
   content: string = '',
   parentPath: string
 ): Promise<{ path: string; name: string }> {
-  const basePath = normalizePath(parentPath)
+  const resolved = await resolveNotesPath(parentPath)
+  const basePath = resolved.path
+  if (resolved.isFallback) {
+    store.dispatch(setNotesPath(basePath))
+  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
   return { path: notePath, name: safeName }
+}
+
+export interface ResolvedNotesPath {
+  path: string // Resolved valid notes path.
+  isFallback: boolean // Whether it falls back to the default notes path.
+}
+
+async function getDefaultNotesPath(): Promise<string> {
+  if (!defaultNotesPathPromise) {
+    defaultNotesPathPromise = window.api
+      .getAppInfo()
+      .then((appInfo) => normalizePath(appInfo.notesPath))
+      .catch((error) => {
+        defaultNotesPathPromise = null
+        throw error
+      })
+  }
+
+  return defaultNotesPathPromise
+}
+/**
+ * Validate and resolve a notes path, including cross-platform restore scenarios.
+ * This extracts NotesPage initialize logic to avoid duplicated path resolution code.
+ * @param parentPath
+ * @returns {ResolvedNotesPath} Resolved path and whether fallback to the default path occurred.
+ */
+export async function resolveNotesPath(parentPath: string): Promise<ResolvedNotesPath> {
+  const basePath = normalizePath(parentPath || '')
+  const defaultNotesPath = await getDefaultNotesPath()
+
+  if (!basePath) {
+    return {
+      path: defaultNotesPath,
+      isFallback: true
+    }
+  }
+
+  if (basePath === defaultNotesPath) {
+    return {
+      path: basePath,
+      isFallback: false
+    }
+  }
+
+  try {
+    const isValid = await window.api.file.validateNotesDirectory(basePath)
+    if (isValid) {
+      return {
+        path: basePath,
+        isFallback: false
+      }
+    }
+  } catch (error) {
+    logger.warn('Failed to validate notes directory, fallback to default', {
+      basePath,
+      error: (error as Error).message
+    })
+
+    return {
+      path: defaultNotesPath,
+      isFallback: true
+    }
+  }
+
+  logger.warn('Invalid notes path, fallback to default', {
+    invalidPath: basePath,
+    defaultNotesPath
+  })
+
+  return {
+    path: defaultNotesPath,
+    isFallback: true
+  }
 }
 
 export async function delNode(node: NotesTreeNode): Promise<void> {

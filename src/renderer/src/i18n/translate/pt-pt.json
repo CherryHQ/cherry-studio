@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adicionar diretório",
+        "default_hint": "Padrão: {{path}}",
         "duplicate": "Este diretório já está incluído.",
         "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
         "error": {
@@ -1100,6 +1101,7 @@
       },
       "export": {
         "image": "Exportar como imagem",
+        "image_saved": "Imagem salva com sucesso",
         "joplin": "Exportar para Joplin",
         "md": {
           "label": "Exportar como Markdown",
@@ -2519,6 +2521,9 @@
   "notification": {
     "assistant": "Resposta do assistente",
     "knowledge": {
+      "batch_error": "{{failed}} itens falharam ao ser processados",
+      "batch_mixed": "{{succeeded}} itens foram bem-sucedidos, {{failed}} itens falharam",
+      "batch_success": "{{succeeded}} itens processados com sucesso",
       "error": "{{error}}",
       "success": "Adicionado com sucesso {{type}} à base de conhecimento"
     },
@@ -2956,7 +2961,9 @@
     "no_description": "Sem descrição",
     "no_installed_plugins": "Nenhum plugin foi instalado ainda",
     "no_results": "Plugin não encontrado",
+    "no_results_skills": "Nenhuma habilidade encontrada",
     "search_placeholder": "Pesquisar plugin...",
+    "search_placeholder_skills": "Pesquisar habilidades...",
     "showing_results": "Exibir {{count}} extensões",
     "showing_results_one": "Mostrar {{count}} extensões",
     "showing_results_other": "Exibir {{count}} extensões",
@@ -4651,6 +4658,13 @@
       "open_link_external": {
         "title": "Abrir link em nova janela do navegador"
       },
+      "region": {
+        "auto": "Detecção automática",
+        "cn": "China",
+        "description": "A filtragem de mini programas não suportados com base na região não é suportada",
+        "global": "global",
+        "title": "Filtro de área do mini programa"
+      },
       "reset_tooltip": "Redefinir para os valores padrão",
       "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
       "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
@@ -5129,6 +5143,7 @@
       "reset_to_default": "Redefinir para padrão",
       "search_message": "Pesquisar mensagem",
       "search_message_in_chat": "Pesquisar mensagens nesta conversa",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Assistente de seleção de texto: selecionar texto",
       "selection_assistant_toggle": "Ativar/desativar assistente de seleção de texto",
       "show_app": "Exibir aplicativo",
@@ -5524,6 +5539,7 @@
       "scroll_sync": "Configuração de Sincronização de Rolagem",
       "title": "Configurações de Tradução"
     },
+    "stop": "Parar Tradução",
     "success": {
       "custom": {
         "delete": "Eliminação bem-sucedida",

@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
+        "default_hint": "デフォルト: {{path}}",
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
@@ -1100,6 +1101,7 @@
       },
       "export": {
         "image": "画像としてエクスポート",
+        "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
           "label": "Markdownとしてエクスポート",
@@ -2519,6 +2521,9 @@
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
+      "batch_error": "{{failed}}件のアイテムの処理に失敗しました",
+      "batch_mixed": "{{succeeded}}件が成功し、{{failed}}件が失敗しました",
+      "batch_success": "{{succeeded}} 個のアイテムが正常に処理されました",
       "error": "{{error}}",
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
@@ -2956,7 +2961,9 @@
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
     "no_results": "プラグインが見つかりません",
+    "no_results_skills": "スキルが見つかりません",
     "search_placeholder": "検索プラグイン...",
+    "search_placeholder_skills": "検索スキル…",
     "showing_results": "{{count}} 個のプラグインを表示",
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
@@ -4651,6 +4658,13 @@
       "open_link_external": {
         "title": "新視窗のリンクをブラウザで開く"
       },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニアプリをフィルタリングします",
+        "global": "世界中",
+        "title": "ミニアプリ地域絞り込み"
+      },
       "reset_tooltip": "デフォルト値にリセット",
       "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
       "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
@@ -5129,6 +5143,7 @@
       "reset_to_default": "デフォルトにリセット",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
       "show_app": "アプリを表示/非表示",
@@ -5524,6 +5539,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
+    "stop": "翻訳を停止",
     "success": {
       "custom": {
         "delete": "削除が成功しました",
