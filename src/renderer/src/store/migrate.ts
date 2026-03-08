@@ -3185,6 +3185,8 @@ const migrateConfig = {
           assistant.defaultModel = qwen3Next80BModel
         }
       })
+      // Initialize mini app region filter setting
+      state.settings.minAppRegion ??= 'auto'
       return state
     } catch (error) {
       logger.error('migrate 194 error', error as Error)
@@ -3236,14 +3238,37 @@ const migrateConfig = {
   '198': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
+        if (provider.id === 'minimax') {
+          provider.models = SYSTEM_MODELS['minimax']
+          provider.apiHost = 'https://api.minimaxi.com/v1/'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 198 error', error as Error)
+      return state
+    }
+  },
+  '199': (state: RootState) => {
+    try {
+      addShortcuts(state, ['select_model'], 'toggle_new_context')
+      return state
+    } catch (error) {
+      logger.error('migrate 199 error', error as Error)
+      return state
+    }
+  },
+  '200': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
         if (provider.type === 'ollama') {
           provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
         }
       })
-      logger.info('migrate 198 success')
+      logger.info('migrate 200 success')
       return state
     } catch (error) {
-      logger.error('migrate 198 error', error as Error)
+      logger.error('migrate 200 error', error as Error)
       return state
     }
   }

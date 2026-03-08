@@ -682,6 +682,41 @@ class KnowledgeService {
     return await new Reranker(base).rerank(search, results)
   }
 
+  /**
+   * Close all open database connections and clear cached instances.
+   * Used during factory reset and backup restore to release file handles.
+   */
+  public closeAll = async (): Promise<void> => {
+    const failed: string[] = []
+
+    for (const [id, db] of this.dbInstances) {
+      try {
+        // LibSqlDb's client is private; upstream should add a close() method.
+        // TODO: Remove this cast once LibSqlDb exposes close() natively.
+        const client = (db as any).client
+        if (client && typeof client.close === 'function') {
+          client.close()
+          logger.debug(`Closed database instance for id: ${id}`)
+        } else {
+          logger.error(`Cannot close database instance for id: ${id} — client not accessible`)
+          failed.push(id)
+        }
+      } catch (error) {
+        logger.error(`Failed to close database instance for id: ${id}`, error as Error)
+        failed.push(id)
+      }
+    }
+
+    this.dbInstances.clear()
+    this.ragApplications.clear()
+
+    if (failed.length > 0) {
+      throw new Error(`Failed to close KnowledgeBase connections: ${failed.join(', ')}`)
+    }
+
+    logger.info('All KnowledgeBase connections closed')
+  }
+
   public getStorageDir = (): string => {
     return this.storageDir
   }

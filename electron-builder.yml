@@ -140,68 +140,45 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.18 - New Features & Bug Fixes
+    Cherry Studio 1.7.24 - Features & Improvements
 
     ✨ New Features
-    - [Agent] Add AskUserQuestion tool renderer for agent tools
-    - [Models] Add Claude Opus 4.6 model support
-    - [Models] Add PPIO painting models
-    - [Chat] Add export to Excel button for markdown tables
-    - [Settings] Use CodeEditor for JSON custom parameters with lint feedback
-    - [Analytics] Integrate analytics-client for token usage tracking
-    - [OpenClaw] Improve install path display with copy button; isolate config to separate file
+    - [Agent] Agent creation no longer requires selecting a workspace folder - a default workspace is automatically created
+    - [Agent] Added thinking/reasoning effort control (low/medium/high/max/adaptive) for Claude Code agent sessions
 
     🐛 Bug Fixes
-    - [Windows] Avoid EPERM by removing .tmp+rename in PluginInstaller
-    - [Windows] Prevent MAX_PATH errors
-    - [Windows] Use refreshed shell environment for executable detection
-    - [Agent] Move agents.db into Data/ directory for backup consistency
-    - [Agent] Fix scroll to bottom when sending agent messages
-    - [Agent] Improve language instruction for Claude Code agent
-    - [Reasoning] Add qwen3-max to supported reasoning models
-    - [Reasoning] Normalize Fireworks model IDs for reasoning detection
-    - [Codeblock] Fix copy modified content after edit
-    - [Chat] Fall back to first message text when topic naming fails
-    - [Chat] Add block-level ErrorBoundary to prevent dirty data crashes
-    - [Models] Handle Gemini OpenAI-compatible thought signatures and missing tool_call index
-    - [Models] Correct openai-compatible strictJsonSchema patch
-    - [MCP] Escape double quotes in tool use prompt examples
-    - [OCR] Support PP-OCRv5 response and handle corrupted PDF in PaddleOCR
-    - [Build] Pin @uiw/codemirror-extensions-langs to 4.25.1 to fix production build
+    - [Tools] Fix prompt caching crash when using OpenRouter or other non-Anthropic providers
+    - [Models] Fix Gemini 3 models not sending reasoning_effort parameter when deep thinking mode is enabled
+    - [Editor] Fix CodeMirror highlight crash caused by version conflict
+    - [MCP] Fix MCP tool parameter parsing and nested schema display
+    - [MCP] Fix MCP tools not being auto-approved when configured through agent allowed_tools
+    - [UI] Fix duplicate error blocks in aborting
+    - [Plugins] Fix plugin size displaying as 0 in the plugin detail modal
+    - [UI] Fix PinnedTodoPanel ignoring narrow mode width setting
 
-    ⚡ Performance
-    - Remove unused Redux state cache in main process
-
+    💄 Improvements
+    - [Sessions] Implement infinite scroll for sessions list
+    - [Plugins] Improve plugin detail modal UI with better layout and styling
+    - [Performance] Fix renderer crash when agent streams large file writes by optimizing tool input delta handling
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.18 - 新功能与问题修复
+    Cherry Studio 1.7.24 - 功能与改进
 
     ✨ 新功能
-    - [智能体] 新增 AskUserQuestion 工具渲染器
-    - [模型] 新增 Claude Opus 4.6 模型支持
-    - [模型] 新增 PPIO 绘画模型
-    - [对话] Markdown 表格新增导出为 Excel 按钮
-    - [设置] 自定义 JSON 参数使用代码编辑器并支持 lint 反馈
-    - [分析] 集成 analytics-client 用于 Token 用量追踪
-    - [OpenClaw] 改进安装路径显示，新增复制按钮；配置独立为单独文件
+    - [智能体] 创建智能体不再需要选择工作区文件夹 - 会自动创建默认工作区
+    - [智能体] 为 Claude Code 智能体会话添加思考/推理强度控制（低/中/高/最大/自适应）
 
     🐛 问题修复
-    - [Windows] 修复 PluginInstaller 中 .tmp 重命名导致的 EPERM 错误
-    - [Windows] 修复 MAX_PATH 路径过长错误
-    - [Windows] 修复可执行文件检测时 shell 环境未刷新的问题
-    - [智能体] 将 agents.db 移至 Data/ 目录以保持备份一致性
-    - [智能体] 修复发送智能体消息时不自动滚动到底部的问题
-    - [智能体] 改进 Claude Code 智能体的语言指令
-    - [推理] 新增 qwen3-max 推理模型支持
-    - [推理] 修复 Fireworks 模型 ID 的推理检测规范化
-    - [代码块] 修复编辑后复制内容不正确的问题
-    - [对话] 话题命名失败时回退到首条消息文本
-    - [对话] 新增块级 ErrorBoundary 防止脏数据导致崩溃
-    - [模型] 修复 Gemini OpenAI 兼容模式下的思维签名和缺失的 tool_call index
-    - [模型] 修复 openai-compatible strictJsonSchema 补丁
-    - [MCP] 修复工具使用提示中双引号未转义的问题
-    - [OCR] 支持 PP-OCRv5 响应格式并处理 PaddleOCR 中损坏的 PDF
-    - [构建] 固定 @uiw/codemirror-extensions-langs 版本为 4.25.1 以修复生产构建
+    - [工具] 修复使用 OpenRouter 或其他非 Anthropic 提供商时的提示缓存崩溃问题
+    - [模型] 修复启用深度思考模式时 Gemini 3 模型不发送 reasoning_effort 参数的问题
+    - [编辑器] 修复由版本冲突导致的 CodeMirror 高亮崩溃
+    - [MCP] 修复 MCP 工具参数解析和嵌套架构显示问题
+    - [MCP] 修复通过智能体 allowed_tools 配置时 MCP 工具无法自动批准的问题
+    - [UI] 修复中止时出现重复错误块的问题
+    - [插件] 修复插件详情弹窗中插件大小显示为 0 的问题
+    - [UI] 修复 PinnedTodoPanel 忽略窄模式宽度设置的问题
 
-    ⚡ 性能优化
-    - 移除主进程中未使用的 Redux 状态缓存
+    💄 改进
+    - [会话] 实现会话列表的无限滚动
+    - [插件] 改进插件详情弹窗的 UI，布局和样式更优化
+    - [性能] 通过优化工具输入增量处理，修复智能体流式传输大文件时的渲染器崩溃
     <!--LANG:END-->

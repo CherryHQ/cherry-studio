@@ -9,7 +9,7 @@ import path from 'path'
 import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
-import getShellEnv, { refreshShellEnvCache } from './shell-env'
+import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -203,10 +203,8 @@ export async function findCommandInShellEnv(
 }
 
 export interface FindExecutableOptions {
-  /** File extensions to search for (default: ['.exe']) */
+  /** File extensions to search for (default: ['.exe', '.cmd']) */
   extensions?: string[]
-  /** Common paths to check as fallback */
-  commonPaths?: string[]
   /** Environment variables to use for where.exe lookup (default: process.env) */
   env?: Record<string, string>
 }
@@ -224,8 +222,7 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
     return null
   }
 
-  const extensions = options?.extensions ?? ['.exe']
-  const commonPaths = options?.commonPaths ?? []
+  const extensions = options?.extensions ?? ['.exe', '.cmd']
 
   // Special handling for git - check common installation paths first
   // Uses getCommonGitRoots() which includes ProgramFiles, ProgramFiles(x86), and LOCALAPPDATA
@@ -236,14 +233,6 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
         logger.debug(`Found ${name} at common path`, { path: gitPath })
         return gitPath
       }
-    }
-  }
-
-  // Check user-provided common paths first
-  for (const commonPath of commonPaths) {
-    if (fs.existsSync(commonPath)) {
-      logger.debug(`Found ${name} at common path`, { path: commonPath })
-      return commonPath
     }
   }
 
@@ -300,70 +289,145 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
 // Unified Shell Environment Utilities
 // ============================================================================
 
+/** Timeout for mise operations (in milliseconds) */
+const MISE_TIMEOUT_MS = 5000
+
 /**
- * Find an executable with automatic shell environment refresh.
- * Handles the full "refresh cache + get shell env + find command" flow.
- * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows.
+ * Find an executable via `mise which <name>` on Windows.
  *
- * @returns Both the found path and the shell env (callers often need the env for spawn)
+ * When Node.js is installed through mise, the shims are `.cmd` files that
+ * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
+ * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
+ *
+ * This function locates `mise.exe` via `where.exe` and asks it directly for
+ * the real binary path, bypassing shim/PATH issues entirely.
+ *
+ * @param name - Tool name to resolve (e.g. 'node', 'npm')
+ * @param env  - Environment variables for subprocess
+ * @returns Absolute path to the real executable, or null
  */
-export async function findExecutableInEnv(
-  name: string,
-  options?: {
-    /** Whether to refresh the shell env cache first (default: true) */
-    refreshCache?: boolean
-    /** Windows-only: file extensions to accept in findExecutable fallback */
-    extensions?: string[]
-    /** Windows-only: common paths to check as filesystem fallback */
-    commonPaths?: string[]
-  }
-): Promise<{ path: string | null; env: Record<string, string> }> {
-  if (options?.refreshCache !== false) {
-    refreshShellEnvCache()
+export function findViaMise(name: string, env: Record<string, string>): string | null {
+  if (!isWin) {
+    return null
   }
 
+  // Validate command name (reuse the same regex used by findCommandInShellEnv)
+  if (!VALID_COMMAND_NAME_REGEX.test(name)) {
+    return null
+  }
+
+  const misePath = findMiseExecutable(env)
+  if (!misePath) {
+    logger.debug('mise not found, skipping mise fallback')
+    return null
+  }
+
+  try {
+    const result = execFileSync(misePath, ['which', name], {
+      encoding: 'utf8',
+      timeout: MISE_TIMEOUT_MS,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env
+    })
+
+    const resolvedPath = result.trim().split(/\r?\n/)[0]?.trim()
+    if (!resolvedPath || !path.isAbsolute(resolvedPath)) {
+      logger.debug(`mise which ${name} returned non-absolute path: ${resolvedPath}`)
+      return null
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      logger.debug(`mise which ${name} returned non-existent path: ${resolvedPath}`)
+      return null
+    }
+
+    logger.debug(`Found ${name} via mise`, { path: resolvedPath })
+    return resolvedPath
+  } catch (error) {
+    // Expected when the tool is not managed by mise, or mise times out
+    logger.debug(`mise which ${name} failed`, { error })
+    return null
+  }
+}
+
+/**
+ * Locate `mise.exe` on the local machine via `where.exe`.
+ */
+function findMiseExecutable(env: Record<string, string>): string | null {
+  try {
+    const result = execFileSync('where.exe', ['mise'], {
+      encoding: 'utf8',
+      timeout: MISE_TIMEOUT_MS,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env
+    })
+    const firstLine = result.trim().split(/\r?\n/)[0]?.trim()
+    if (firstLine && firstLine.toLowerCase().endsWith('.exe')) {
+      return firstLine
+    }
+  } catch {
+    // mise not on PATH
+  }
+
+  return null
+}
+
+/**
+ * Find an executable in the user's shell environment.
+ * This is a pure query -- it reads the (possibly cached) shell env and searches for the command.
+ * It does NOT refresh the shell env cache. Callers that need a fresh environment should call
+ * refreshShellEnv() explicitly before calling this function.
+ *
+ * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
+ * and finally tries mise as a last resort on Windows.
+ */
+export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
 
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env)
   if (found) {
-    return { path: found, env }
+    return found
   }
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
-    const winPath = findExecutable(name, {
-      extensions: options?.extensions,
-      commonPaths: options?.commonPaths,
-      env
-    })
-    return { path: winPath, env }
+    const winFound = findExecutable(name, { env })
+    if (winFound) {
+      return winFound
+    }
+
+    // Last resort on Windows: ask mise for the real binary path
+    return findViaMise(name, env)
   }
 
-  return { path: null, env }
+  return null
 }
 
 /**
  * Spawn a process with proper Windows handling for .cmd files and npm shims.
- * On Windows, .cmd files and files without .exe extension are executed via cmd.exe.
+ * On Windows, .cmd/.bat files need `shell: true` so Node.js delegates quoting
+ * to cmd.exe via `/d /s /c "..."`. Manually constructing `cmd.exe /c` args
+ * breaks when both the command path and arguments contain spaces (cmd.exe's
+ * quote-stripping rule 2 kicks in and mangles the command line).
  */
-export function spawnWithEnv(
+export function crossPlatformSpawn(
   command: string,
   args: string[],
   options: SpawnOptions & { env: Record<string, string> }
 ): ChildProcess {
   if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    return spawn('cmd.exe', ['/c', command, ...args], { ...options, stdio: options.stdio ?? 'pipe' })
+    return spawn(command, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
   }
   return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
 }
 
 /**
  * Execute a command and return its output.
- * Uses spawnWithEnv internally for proper Windows .cmd handling.
+ * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
  * If no env is provided, automatically uses the shell environment.
  */
-export async function executeInEnv(
+export async function executeCommand(
   command: string,
   args: string[],
   options?: {
@@ -378,7 +442,7 @@ export async function executeInEnv(
   const env = options?.env ?? (await getShellEnv())
 
   return new Promise<string>((resolve, reject) => {
-    const child = spawnWithEnv(command, args, { env })
+    const child = crossPlatformSpawn(command, args, { env })
     let stdout = ''
     let stderr = ''
 
@@ -432,7 +496,8 @@ function getCommonGitRoots(): string[] {
  * @returns Object with availability status and path to git executable
  */
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-  const { path: gitPath } = await findExecutableInEnv('git')
+  await refreshShellEnv()
+  const gitPath = await findExecutableInEnv('git')
   logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
   return { available: gitPath !== null, path: gitPath }
 }

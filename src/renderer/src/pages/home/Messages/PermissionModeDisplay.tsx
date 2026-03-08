@@ -51,7 +51,7 @@ const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
     SessionSettingsPopup.show({
       agentId,
       sessionId: session.id,
-      tab: 'tooling'
+      tab: 'permission-mode'
     })
   }
 
@@ -70,8 +70,7 @@ const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
             {t(modeCard.titleKey, modeCard.titleFallback)}
           </div>
           <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--color-text-2)] leading-[1.4]">
-            {t(modeCard.descriptionKey, modeCard.descriptionFallback)}{' '}
-            {t(modeCard.behaviorKey, modeCard.behaviorFallback)}
+            {t(modeCard.descriptionKey, modeCard.descriptionFallback)}
           </div>
         </div>
       </div>
