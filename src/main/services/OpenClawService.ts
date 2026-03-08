@@ -32,8 +32,6 @@ const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
-export type { OperationResult }
-
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
