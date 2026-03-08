@@ -480,6 +480,16 @@ describe('GPT-5.1 Series Models', () => {
     it('should not support GPT-5.1 chat models', () => {
       expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
     })
+
+    it('should support future GPT-5.x sub-version models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-mini' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.9' }))).toBe(true)
+    })
+
+    it('should not support future GPT-5.x chat models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-chat' }))).toBe(false)
+    })
   })
 
   describe('isOpenAIReasoningModel', () => {
@@ -630,9 +640,13 @@ describe('Thinking model classification', () => {
 })
 
 describe('Reasoning option configuration', () => {
-  it('allows GPT-5.1 series models to disable reasoning', () => {
+  it('allows GPT-5.1 base models to disable reasoning', () => {
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1).toContain('none')
-    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).toContain('none')
+  })
+
+  it('does not allow GPT-5.1 codex models to disable reasoning', () => {
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).not.toContain('none')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex_max).not.toContain('none')
   })
 
   it('restricts GPT-5 Pro reasoning to high effort only', () => {
@@ -663,7 +677,46 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
   })
 
-  describe('GPT-5 series models', () => {
+  describe('GPT-5.2 series models', () => {
+    it('should return gpt5_2 for GPT-5.2 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-preview' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for GPT-5.2 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro-preview' }))).toBe('gpt52pro')
+    })
+
+    it('should return gpt5_2_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_2_codex')
+    })
+  })
+
+  describe('GPT-5.x future sub-version fallback', () => {
+    it('should return gpt5_2 for future GPT-5.x models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-mini' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt5_2 for future GPT-5.x codex models (5.3+, supports none)', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-codex' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-codex' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for future GPT-5.x Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro-preview' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9-pro' }))).toBe('gpt52pro')
+    })
+  })
+
+  describe('GPT-5 base series models', () => {
     it('should return gpt5_codex for GPT-5 codex models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex' }))).toBe('gpt5_codex')
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex-mini' }))).toBe('gpt5_codex')
@@ -1895,13 +1948,11 @@ describe('getModelSupportedReasoningEffortOptions', () => {
     it('should return correct options for GPT-5.1 Codex models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
