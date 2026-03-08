@@ -1,11 +1,12 @@
 /**
- * Data API based message data source for normal topics (non-agent sessions).
+ * TODO: Temporary compatibility layer — remove after message type migration.
  *
- * Reads messages from SQLite via the Data API (GET /topics/:topicId/messages)
- * and converts from shared format back to renderer format.
+ * This module bridges the Data API (shared types) and the renderer (legacy types)
+ * by converting SharedMessage → renderer Message + MessageBlock[].
  *
- * Block data in the DB was written from renderer format (with id/status/messageId stripped
- * by StreamingService.convertBlocksToDataFormat). This module restores those fields.
+ * Once the renderer adopts shared types directly (Message from @shared/data/types/message),
+ * this conversion layer and the separate MessageBlock store become unnecessary.
+ * The renderer should consume Data API responses as-is without re-shaping.
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
