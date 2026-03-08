@@ -502,6 +502,13 @@ class OpenClawService {
         NPM_CONFIG_UPDATE_NOTIFIER: 'false',
         NPM_CONFIG_FUND: 'false',
         NPM_CONFIG_AUDIT: 'false',
+        // Force git to use HTTPS instead of SSH for GitHub URLs.
+        // Users may have git configured with SSH (git@github.com:...),
+        // which fails if SSH keys aren't set up, breaking npm install
+        // for git-hosted dependencies.
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_KEY_0: 'url.https://github.com/.insteadOf',
+        GIT_CONFIG_VALUE_0: 'git@github.com:',
         ...(isWin ? { NPM_CONFIG_SCRIPT_SHELL: 'cmd.exe' } : {})
       }
       const npmArgs = ['install', '-g', 'openclaw@latest']
