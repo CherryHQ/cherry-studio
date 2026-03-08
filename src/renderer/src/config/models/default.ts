@@ -238,7 +238,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'llama'
     }
   ],
-
   burncloud: [
     { id: 'claude-opus-4-5-20251101', provider: 'burncloud', name: 'Claude 4.5 Opus', group: 'Claude 4.5' },
     { id: 'claude-sonnet-4-5-20250929', provider: 'burncloud', name: 'Claude 4.5 Sonnet', group: 'Claude 4.5' },
@@ -318,13 +317,15 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   alayanew: [],
   openai: [
-    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'GPT 5.1' },
-    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'GPT 5' },
-    { id: 'gpt-5-mini', provider: 'openai', name: ' GPT 5 Mini', group: 'GPT 5' },
-    { id: 'gpt-5-nano', provider: 'openai', name: ' GPT 5 Nano', group: 'GPT 5' },
-    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'GPT 5' },
-    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'GPT 5' },
-    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'GPT Image' }
+    { id: 'gpt-5.4', provider: 'openai', name: ' GPT 5.4', group: 'gpt-5.4' },
+    { id: 'gpt-5.4-pro', provider: 'openai', name: ' GPT 5.4 Pro', group: 'gpt-5.4' },
+    { id: 'gpt-5.2', provider: 'openai', name: ' GPT 5.2', group: 'gpt-5.2' },
+    { id: 'gpt-5.2-pro', provider: 'openai', name: ' GPT 5.2 Pro', group: 'gpt-5.2' },
+    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'gpt-5.1' },
+    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'gpt-5' },
+    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'gpt-5' },
+    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'gpt-5' },
+    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'gpt-image' }
   ],
   'azure-openai': [
     {

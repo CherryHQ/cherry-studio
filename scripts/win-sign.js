@@ -15,7 +15,7 @@ exports.default = async function (configuration) {
 
         console.log('Start code signing...')
         console.log('Signing file:', path)
-        const signCommand = `signtool sign /tr http://timestamp.comodoca.com /td sha256 /fd sha256 /v /f "${certPath}" /csp "${csp}" /k "${keyContainer}" "${path}"`
+        const signCommand = `signtool sign /tr http://timestamp.digicert.com /td sha256 /fd sha256 /v /f "${certPath}" /csp "${csp}" /k "${keyContainer}" "${path}"`
         execSync(signCommand, { stdio: 'inherit' })
         console.log('Code signing completed')
       } catch (error) {

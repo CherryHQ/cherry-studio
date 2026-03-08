@@ -2,8 +2,8 @@
  * 职责：提供原子化的、无状态的API调用函数
  */
 import { loggerService } from '@logger'
-import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -146,6 +146,7 @@ export async function transformMessagesAndFetch(
     assistantMsgId: string
     callbacks: StreamProcessorCallbacks
     topicId?: string // 添加 topicId 用于 trace
+    allowedTools?: string[]
     options: {
       signal?: AbortSignal
       timeout?: number
@@ -176,6 +177,7 @@ export async function transformMessagesAndFetch(
       messages: modelMessages,
       assistant: assistant,
       topicId: request.topicId,
+      allowedTools: request.allowedTools,
       requestOptions: request.options,
       uiMessages,
       onChunkReceived
@@ -192,7 +194,8 @@ export async function fetchChatCompletion({
   requestOptions,
   onChunkReceived,
   topicId,
-  uiMessages
+  uiMessages,
+  allowedTools
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
@@ -239,6 +242,7 @@ export async function fetchChatCompletion({
     webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
+    allowedTools,
     webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
@@ -251,7 +255,6 @@ export async function fetchChatCompletion({
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
-    model: assistant.model,
     enableReasoning: capabilities.enableReasoning,
     isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),

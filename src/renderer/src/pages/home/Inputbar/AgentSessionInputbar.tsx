@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -16,7 +17,7 @@ import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message } from '@renderer/types'
+import type { Assistant, Message, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
@@ -26,7 +27,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
@@ -40,6 +41,7 @@ import {
 } from './context/InputbarToolsProvider'
 import InputbarTools from './InputbarTools'
 import { getInputbarConfig } from './registry'
+import type { ToolContext } from './types'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
@@ -137,12 +139,7 @@ interface InnerProps {
   assistant: Assistant
   agentId: string
   sessionId: string
-  sessionData?: {
-    agentId?: string
-    sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
-    tools?: Array<{ id: string; name: string; type: string; description?: string }>
-  }
+  sessionData?: ToolContext['session']
   actionsRef: React.MutableRefObject<{
     resizeTextArea: () => void
     onTextChange: (updater: React.SetStateAction<string> | ((prev: string) => string)) => void
@@ -177,6 +174,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+
+  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
 
   const { files } = useInputbarToolsState()
   const { toolsRegistry, setIsExpanded, setFiles } = useInputbarToolsDispatch()
@@ -409,10 +408,18 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         usage
       })
 
+      const thinkingParams = assistant.model
+        ? getAnthropicReasoningParams(
+            { ...assistant, settings: { ...assistant.settings, reasoning_effort: reasoningEffort } },
+            assistant.model
+          )
+        : {}
+
       dispatch(
         dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
-          sessionId
+          sessionId,
+          ...thinkingParams
         })
       )
 
@@ -440,7 +447,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setTimeoutTimer,
     text,
     files,
-    focusTextarea
+    focusTextarea,
+    reasoningEffort
   ])
 
   useEffect(() => {
@@ -465,13 +473,18 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     return []
   }, [canAddImageFile, canAddTextFile])
 
+  const toolsSession = useMemo(() => {
+    if (!sessionData) return undefined
+    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
+  }, [sessionData, reasoningEffort])
+
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={sessionData} />}
+        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={toolsSession} />}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant.id, sessionData]
+    [config.showTools, scope, assistant.id, toolsSession]
   )
   const placeholderText = useMemo(
     () =>
