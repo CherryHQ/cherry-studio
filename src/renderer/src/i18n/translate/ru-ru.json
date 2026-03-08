@@ -2521,9 +2521,9 @@
   "notification": {
     "assistant": "Ответ ассистента",
     "knowledge": {
-      "batch_error": "[to be translated]:{{failed}} items failed to process",
-      "batch_mixed": "[to be translated]:{{succeeded}} items succeeded, {{failed}} items failed",
-      "batch_success": "[to be translated]:{{succeeded}} items processed successfully",
+      "batch_error": "{{failed}} элементов не удалось обработать",
+      "batch_mixed": "{{succeeded}} элементов выполнено успешно, {{failed}} элементов завершилось с ошибкой",
+      "batch_success": "{{succeeded}} элементов обработано успешно",
       "error": "{{error}}",
       "success": "Успешно добавлено {{type}} в базу знаний"
     },
