@@ -104,10 +104,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'chat.web_search.compression.cutoff_unit',
       'chat.web_search.compression.rag_document_count',
       'chat.web_search.compression.rag_embedding_model_id',
-      'chat.web_search.compression.rag_embedding_provider_id',
       'chat.web_search.compression.rag_embedding_dimensions',
-      'chat.web_search.compression.rag_rerank_model_id',
-      'chat.web_search.compression.rag_rerank_provider_id'
+      'chat.web_search.compression.rag_rerank_model_id'
     ],
     transform: flattenCompressionConfig
   }

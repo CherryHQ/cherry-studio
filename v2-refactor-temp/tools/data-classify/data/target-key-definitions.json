@@ -73,35 +73,14 @@
       "type": "string",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search RAG embedding model id (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_provider_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding provider id (from complex migration)"
+      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
     },
     {
       "targetKey": "chat.web_search.compression.rag_rerank_model_id",
       "type": "string",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search RAG rerank model id (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_rerank_provider_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG rerank provider id (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.default_provider",
-      "type": "PreferenceTypes.WebSearchProviderId",
-      "defaultValue": "local-bing",
-      "status": "classified",
-      "description": "Web search default provider (from complex migration)"
+      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
     },
     {
       "targetKey": "chat.web_search.exclude_domains",

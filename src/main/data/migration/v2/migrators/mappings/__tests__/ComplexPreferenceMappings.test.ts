@@ -68,7 +68,7 @@ describe('ComplexPreferenceMappings', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
       expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
-      expect(websearchMapping?.targetKeys.length).toBe(9)
+      expect(websearchMapping?.targetKeys.length).toBe(7)
     })
 
     it('should contain websearch providers migrate mapping', () => {
@@ -83,7 +83,7 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys.length).toBe(10) // 9 websearch compression keys + 1 overrides key
+      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
     })
 
     it('should flatten target keys from all mappings', () => {

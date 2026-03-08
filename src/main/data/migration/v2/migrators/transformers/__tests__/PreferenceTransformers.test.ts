@@ -142,10 +142,8 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
       expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
       expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
       expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBeNull()
       expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
     })
 
     it('should flatten compression config with all fields', () => {
@@ -155,9 +153,9 @@ describe('PreferenceTransformers', () => {
           cutoffLimit: 2000,
           cutoffUnit: 'token',
           documentCount: 10,
-          embeddingModel: { id: 'embed-model', provider: 'openai' },
+          embeddingModelId: 'openai::embed-model',
           embeddingDimensions: 1536,
-          rerankModel: { id: 'rerank-model', provider: 'cohere' }
+          rerankModelId: 'cohere::rerank-model'
         }
       })
 
@@ -165,11 +163,9 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
       expect(result['chat.web_search.compression.rag_document_count']).toBe(10)
-      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('embed-model')
-      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBe('openai')
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('openai::embed-model')
       expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBe(1536)
-      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('rerank-model')
-      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBe('cohere')
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('cohere::rerank-model')
     })
 
     it('should handle partial config with defaults', () => {
@@ -184,6 +180,19 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
       expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
+    })
+
+    it('should fallback to legacy model objects when composite ids are not present', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'rag',
+          embeddingModel: { id: 'embed-model', provider: 'openai' },
+          rerankModel: { id: 'rerank-model', provider: 'cohere' }
+        }
+      })
+
+      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('openai::embed-model')
+      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('cohere::rerank-model')
     })
 
     it('should fallback to default method when method is invalid', () => {
@@ -214,15 +223,13 @@ describe('PreferenceTransformers', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
           method: 'none',
-          embeddingModel: null,
-          rerankModel: null
+          embeddingModelId: null,
+          rerankModelId: null
         }
       })
 
       expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_embedding_provider_id']).toBeNull()
       expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_rerank_provider_id']).toBeNull()
     })
   })
 

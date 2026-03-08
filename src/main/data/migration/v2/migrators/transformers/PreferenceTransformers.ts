@@ -214,8 +214,10 @@ interface WebSearchCompressionConfigSource {
   cutoffLimit?: number | null
   cutoffUnit?: string
   documentCount?: number
+  embeddingModelId?: string | null
   embeddingModel?: { id?: string; provider?: string } | null
   embeddingDimensions?: number | null
+  rerankModelId?: string | null
   rerankModel?: { id?: string; provider?: string } | null
 }
 
@@ -234,25 +236,39 @@ function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[n
   return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
 }
 
+function normalizeCompressionModelId(value: unknown): string | null {
+  return isNonEmptyString(value) ? value.trim() : null
+}
+
+function buildCompressionModelId(model?: { id?: string; provider?: string } | null): string | null {
+  const providerId = model?.provider?.trim()
+  const modelId = model?.id?.trim()
+
+  if (!providerId || !modelId) {
+    return null
+  }
+
+  return `${providerId}::${modelId}`
+}
+
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
- * Transforms nested model objects (embeddingModel, rerankModel) into flat id/provider keys.
+ * Transforms model references into flat composite ids in the `provider::modelId` format.
  *
  * @example
  * Input: {
  *   compressionConfig: {
  *     method: 'rag',
  *     documentCount: 5,
- *     embeddingModel: { id: 'model-1', provider: 'openai' },
- *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
+ *     embeddingModelId: 'openai::model-1',
+ *     rerankModelId: 'cohere::rerank-1'
  *   }
  * }
  * Output: {
  *   'chat.web_search.compression.method': 'rag',
  *   'chat.web_search.compression.rag_document_count': 5,
- *   'chat.web_search.compression.rag_embedding_model_id': 'model-1',
- *   'chat.web_search.compression.rag_embedding_provider_id': 'openai',
+ *   'chat.web_search.compression.rag_embedding_model_id': 'openai::model-1',
  *   ...
  * }
  */
@@ -269,10 +285,8 @@ export function flattenCompressionConfig(sources: {
       'chat.web_search.compression.cutoff_unit': 'char',
       'chat.web_search.compression.rag_document_count': 5,
       'chat.web_search.compression.rag_embedding_model_id': null,
-      'chat.web_search.compression.rag_embedding_provider_id': null,
       'chat.web_search.compression.rag_embedding_dimensions': null,
-      'chat.web_search.compression.rag_rerank_model_id': null,
-      'chat.web_search.compression.rag_rerank_provider_id': null
+      'chat.web_search.compression.rag_rerank_model_id': null
     }
   }
 
@@ -284,11 +298,11 @@ export function flattenCompressionConfig(sources: {
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
     'chat.web_search.compression.cutoff_unit': cutoffUnit,
     'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id': config.embeddingModel?.id ?? null,
-    'chat.web_search.compression.rag_embedding_provider_id': config.embeddingModel?.provider ?? null,
+    'chat.web_search.compression.rag_embedding_model_id':
+      normalizeCompressionModelId(config.embeddingModelId) ?? buildCompressionModelId(config.embeddingModel),
     'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id': config.rerankModel?.id ?? null,
-    'chat.web_search.compression.rag_rerank_provider_id': config.rerankModel?.provider ?? null
+    'chat.web_search.compression.rag_rerank_model_id':
+      normalizeCompressionModelId(config.rerankModelId) ?? buildCompressionModelId(config.rerankModel)
   }
 }
 
