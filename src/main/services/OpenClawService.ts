@@ -310,20 +310,9 @@ class OpenClawService {
   }
 
   private async installNodeLinux(env: Record<string, string>): Promise<OperationResult> {
-    // Arch Linux: pacman installs latest node directly, no NodeSource needed
-    const pacmanPath = await findExecutableInEnv('pacman')
-    if (pacmanPath) {
-      this.sendInstallProgress('Installing Node.js via pacman...')
-      const result = await this.runStreamingCommand('sudo', ['pacman', '-S', '--noconfirm', 'nodejs', 'npm'], env)
-      if (result.code !== 0) {
-        return { success: false, message: `pacman install failed (exit ${result.code})` }
-      }
-      return { success: true }
-    }
-
-    // Debian/Ubuntu and RHEL/Fedora: use NodeSource repository for Node.js 22
     const aptPath = await findExecutableInEnv('apt-get')
     const dnfPath = await findExecutableInEnv('dnf')
+    const pacmanPath = await findExecutableInEnv('pacman')
 
     let setupUrl: string
     let installArgs: string[]
@@ -334,6 +323,13 @@ class OpenClawService {
     } else if (dnfPath) {
       setupUrl = 'https://rpm.nodesource.com/setup_22.x'
       installArgs = ['dnf', 'install', '-y', '-q', 'nodejs']
+    } else if (pacmanPath) {
+      this.sendInstallProgress('Installing Node.js via pacman...')
+      const result = await this.runStreamingCommand('sudo', ['pacman', '-S', '--noconfirm', 'nodejs', 'npm'], env)
+      if (result.code !== 0) {
+        return { success: false, message: `pacman install failed (exit ${result.code})` }
+      }
+      return { success: true }
     } else {
       return {
         success: false,
@@ -367,7 +363,6 @@ class OpenClawService {
   }
 
   private async installNodeWindows(env: Record<string, string>): Promise<OperationResult> {
-    // Try winget → choco → scoop (in order of availability)
     const wingetPath = await findExecutableInEnv('winget')
     if (wingetPath) {
       this.sendInstallProgress('Installing Node.js via winget...')
@@ -521,7 +516,7 @@ class OpenClawService {
       if (code === 0) {
         logger.info('OpenClaw installed successfully')
         this.sendInstallProgress('OpenClaw installed successfully!')
-        await this.installGatewayService()
+        if (!isWin) await this.installGatewayService()
         return { success: true }
       }
 
@@ -545,7 +540,7 @@ class OpenClawService {
                 this.sendInstallProgress(stdout.toString())
               }
               this.sendInstallProgress('OpenClaw installed successfully!')
-              await this.installGatewayService()
+              if (!isWin) await this.installGatewayService()
               resolve({ success: true })
             }
           })
@@ -582,7 +577,7 @@ class OpenClawService {
       this.sendInstallProgress('Registering gateway service...')
       const { code, stderr } = await this.execOpenClawCommandWithResult(
         openclawPath,
-        ['gateway', 'install', '--port', String(this.gatewayPort)],
+        ['gateway', 'install', '--port', String(this.gatewayPort), '--force'],
         shellEnv
       )
 
@@ -633,7 +628,7 @@ class OpenClawService {
     if (this.gatewayStatus === 'running') {
       await this.stopGateway()
     }
-    await this.uninstallGatewayService()
+    if (!isWin) await this.uninstallGatewayService()
 
     const npmPath = (await findExecutableInEnv('npm')) || 'npm'
 
@@ -753,7 +748,7 @@ class OpenClawService {
     this.gatewayStatus = 'starting'
 
     try {
-      await this.ensureGatewayServiceInstalled(openclawPath, shellEnv)
+      if (!isWin) await this.ensureGatewayServiceInstalled(openclawPath, shellEnv)
       await this.startAndWaitForGateway(openclawPath, shellEnv)
       this.gatewayStatus = 'running'
       logger.info(`Gateway started on port ${this.gatewayPort}`)
@@ -875,7 +870,7 @@ class OpenClawService {
     openclawPath: string,
     args: string[],
     env: Record<string, string>,
-    timeoutMs = 10000
+    timeoutMs = 20000
   ): Promise<{ code: number | null; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
       const proc = crossPlatformSpawn(openclawPath, args, {
