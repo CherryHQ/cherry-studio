@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
@@ -435,21 +436,19 @@ export function crossPlatformSpawn(
 /**
  * Decode a Buffer from a shell process.
  * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
- * This function detects replacement characters (U+FFFD) from a naive UTF-8 decode
- * and falls back to GBK decoding.
+ * Uses chardet to detect the actual encoding and iconv-lite to decode.
  */
 export function decodeBufferFromShell(buf: Buffer): string {
   if (!isWin) return buf.toString('utf8')
-  const utf8 = buf.toString('utf8')
-  // If the UTF-8 decode contains replacement characters, try GBK
-  if (utf8.includes('\uFFFD')) {
+  const detected = chardet.detect(buf)
+  if (detected && detected !== 'UTF-8') {
     try {
-      return iconv.decode(buf, 'gbk')
+      return iconv.decode(buf, detected)
     } catch {
-      return utf8
+      return buf.toString('utf8')
     }
   }
-  return utf8
+  return buf.toString('utf8')
 }
 
 /**
