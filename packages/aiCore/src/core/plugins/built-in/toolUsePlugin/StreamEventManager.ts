@@ -118,7 +118,9 @@ export class StreamEventManager {
     if (hasFullStream(recursiveResult)) {
       await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
     } else {
-      console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      this.logWithContext(context, 'warn', '[MCP Prompt] No fullstream found in recursive result', {
+        recursiveResult
+      })
     }
     // } catch (error) {
     //   this.handleRecursiveCallError(controller, error, stepId)
@@ -266,5 +268,25 @@ export class StreamEventManager {
       target,
       source
     })
+  }
+
+  private logWithContext(
+    context: AiRequestContext,
+    level: 'debug' | 'info' | 'warn' | 'error',
+    message: string,
+    data?: Record<string, unknown>
+  ): void {
+    if (typeof context.logger === 'function') {
+      context.logger(level, message, data)
+      return
+    }
+
+    if (level === 'warn') {
+      if (data) {
+        console.warn(message, data)
+      } else {
+        console.warn(message)
+      }
+    }
   }
 }

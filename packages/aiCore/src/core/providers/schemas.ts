@@ -49,23 +49,11 @@ export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
   return baseProviderIdSchema.safeParse(id).success
 }
 
-/**
- * Built-in tool configuration
- */
-export type BuiltinToolConfig = {
-  type: 'builtin_function'
-  function: { name: string }
-}
-
 type BaseProvider = {
   id: BaseProviderId
   name: string
   creator: (options: any) => ProviderV3
   supportsImageGeneration: boolean
-  supportsBuiltinTools?: boolean
-  builtinToolsConfig?: {
-    webSearch?: BuiltinToolConfig
-  }
 }
 
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
@@ -184,14 +172,7 @@ export const baseProviders = [
         name: 'moonshot'
       })
     },
-    supportsImageGeneration: false,
-    supportsBuiltinTools: true,
-    builtinToolsConfig: {
-      webSearch: {
-        type: 'builtin_function',
-        function: { name: '$web_search' }
-      }
-    }
+    supportsImageGeneration: false
   }
 ] as const satisfies BaseProvider[]
 

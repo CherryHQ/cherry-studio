@@ -106,29 +106,23 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }
 
-  // 1. 模型内置搜索
+  // 1. Model built-in web search
   if (config.enableWebSearch && config.webSearchPluginConfig) {
     plugins.push(webSearchPlugin(config.webSearchPluginConfig))
-    logger.debug('Added webSearchPlugin', config.webSearchPluginConfig)
-  } else {
-    logger.debug('Skipped webSearchPlugin', {
-      enableWebSearch: config.enableWebSearch,
-      hasConfig: !!config.webSearchPluginConfig
-    })
   }
-  // 2. 支持工具调用时添加搜索插件
+  // 2. Add search orchestration when tool use is supported.
   if (config.isSupportedToolUse || config.isPromptToolUse) {
     plugins.push(searchOrchestrationPlugin(config.assistant, config.topicId || ''))
   }
 
-  // 3. 推理模型时添加推理插件
+  // 3. Add reasoning plugin for reasoning models.
   // if (config.enableReasoning) {
   //   plugins.push(reasoningTimePlugin)
   // }
 
   const shouldEnableBuiltinPromptToolUse = config.enableWebSearch && !!config.webSearchPluginConfig?.moonshot
 
-  // 4. 启用 Prompt 工具调用时添加工具插件。
+  // 4. Add prompt tool-use plugin when enabled.
   // Moonshot builtin web search also needs this plugin to preserve builtin tool-call semantics.
   if (config.isPromptToolUse || shouldEnableBuiltinPromptToolUse) {
     plugins.push(

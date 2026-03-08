@@ -20,11 +20,15 @@ describe('moonshot utils', () => {
       expect(isMoonshotProviderLike({ apiHost: MOONSHOT_DEFAULT_BASE_URL })).toBe(true)
       expect(isMoonshotProviderLike({ apiHost: 'https://api.moonshot.cn/v1' })).toBe(true)
       expect(isMoonshotProviderLike({ apiHost: 'https://gateway.moonshot.cn/v1' })).toBe(true)
+      expect(isMoonshotProviderLike({ apiHost: 'api.moonshot.cn/v1' })).toBe(true)
     })
 
     it('returns false for non-moonshot providers', () => {
       expect(isMoonshotProviderLike({ id: 'openai', apiHost: 'https://api.openai.com/v1' })).toBe(false)
       expect(isMoonshotProviderLike({})).toBe(false)
+      expect(isMoonshotProviderLike({ apiHost: 'https://evil-moonshot.cn.evil.com/v1' })).toBe(false)
+      expect(isMoonshotProviderLike({ apiHost: 'moonshot.cn.evil.com/v1' })).toBe(false)
+      expect(isMoonshotProviderLike({ apiHost: 'not a valid url moonshot.cn' })).toBe(false)
     })
   })
 

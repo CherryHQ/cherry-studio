@@ -504,7 +504,7 @@ function createMoonshotBuiltinSearchFetch(originalFetch?: typeof fetch): typeof 
 }
 
 /**
- * 准备特殊provider的配置,主要用于异步处理的配置
+ * Prepare special provider configuration, mainly for async setup paths.
  */
 export async function prepareSpecialProviderConfig(
   provider: Provider,
@@ -527,7 +527,7 @@ export async function prepareSpecialProviderConfig(
     }
     case 'cherryai': {
       config.options.fetch = async (url, options) => {
-        // 在这里对最终参数进行签名
+        // Sign the final request payload here.
         const signature = await window.api.cherryai.generateSignature({
           method: 'POST',
           path: '/chat/completions',

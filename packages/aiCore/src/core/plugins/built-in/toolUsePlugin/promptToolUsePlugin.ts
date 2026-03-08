@@ -298,7 +298,7 @@ export const createPromptToolUsePlugin = (
         return params
       }
 
-      // 分离 provider 类型、内置工具和其他工具
+      // Split provider tools, provider builtin tools, and prompt-only tools.
       const providerDefinedTools: ToolSet = {}
       const builtinTools: ExtendedToolSet = {}
       const promptTools: ToolSet = {}
@@ -306,22 +306,22 @@ export const createPromptToolUsePlugin = (
       for (const [toolName, tool] of Object.entries(params.tools as ExtendedToolSet)) {
         if (tool.type === 'provider') {
           if (tool.isBuiltin) {
-            // 内置工具（如 Moonshot 的 $web_search）
+            // Provider built-in tools (for example Moonshot `$web_search`).
             builtinTools[toolName] = tool
-            // 保持 AI SDK 兼容：tools 只接受 function/provider，不能直接使用 builtin_function。
-            // Moonshot 的 builtin_function 由下游请求标准化层注入到最终 payload。
+            // Keep AI SDK compatibility: tools should remain function/provider in middleware.
+            // The outbound request normalizer maps this to provider-specific builtin_function payload.
             providerDefinedTools[toolName] = tool
           } else {
-            // 普通 provider 工具
+            // Normal provider tool.
             providerDefinedTools[toolName] = tool
           }
         } else {
-          // 其他工具转换为 prompt 模式
+          // Convert non-provider tools to prompt mode.
           promptTools[toolName] = tool
         }
       }
 
-      // 保存工具到 context
+      // Persist tool groups in context.
       if (Object.keys(promptTools).length > 0) {
         context.mcpTools = promptTools
       }
@@ -329,7 +329,7 @@ export const createPromptToolUsePlugin = (
         context.builtinTools = builtinTools
       }
 
-      // 递归调用时，不重新构建 system prompt，避免重复追加工具定义
+      // During recursive calls, avoid rebuilding system prompt to prevent duplicated tool definitions.
       if (context.isRecursiveCall) {
         const transformedParams = {
           ...params,
