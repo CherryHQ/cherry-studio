@@ -269,53 +269,47 @@ describe('model utils', () => {
     })
 
     describe('getModelSupportedVerbosity', () => {
-      it('returns all levels for GPT-5 Pro models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([
-          undefined,
-          null,
-          'low',
-          'medium',
-          'high'
-        ])
+      const allLevels = [undefined, null, 'low', 'medium', 'high']
+      const mediumOnly = [undefined, null, 'medium']
+
+      it('GPT-5 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-mini' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-nano' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-chat' }))).toEqual(mediumOnly)
       })
 
-      it('returns medium only for GPT-5 chat models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-chat' }))).toEqual([undefined, null, 'medium'])
+      it('GPT-5.1 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-chat-latest' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-max' }))).toEqual(mediumOnly)
       })
 
-      it('returns medium only for old codex models (5.1/5.2)', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex' }))).toEqual([undefined, null, 'medium'])
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-codex' }))).toEqual([undefined, null, 'medium'])
+      it('GPT-5.2 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-chat-latest' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for new codex models (5.3+)', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-codex' }))).toEqual([
-          undefined,
-          null,
-          'low',
-          'medium',
-          'high'
-        ])
+      it('GPT-5.3 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-chat-latest' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for GPT-5.2 base models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual([
-          undefined,
-          null,
-          'low',
-          'medium',
-          'high'
-        ])
+      it('GPT-5.4 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4-pro' }))).toEqual(allLevels)
       })
 
-      it('returns all levels for non-Pro GPT-5 models', () => {
-        const previewModel = createModel({ id: 'gpt-5-preview' })
-        expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, null, 'low', 'medium', 'high'])
-      })
-
-      it('returns all levels for GPT-5.1 models', () => {
-        const gpt51Model = createModel({ id: 'gpt-5.1-preview' })
-        expect(getModelSupportedVerbosity(gpt51Model)).toEqual([undefined, null, 'low', 'medium', 'high'])
+      it('future GPT-5.5+ models fallback correctly', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-chat-latest' }))).toEqual(mediumOnly)
       })
 
       it('returns only undefined for non-GPT-5 models', () => {
