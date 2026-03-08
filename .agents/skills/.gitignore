@@ -14,3 +14,9 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
+!v2-data-api/
+!v2-data-api/**
+!v2-migrator/
+!v2-migrator/**
+!v2-renderer/
+!v2-renderer/**
