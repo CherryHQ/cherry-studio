@@ -54,7 +54,7 @@ export abstract class BaseService {
   ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
     const legacyIdMap = new Map<string, string>()
-    if (agentType === 'claude-code') {
+    if (agentType === 'claude-code' || agentType === 'cherry-claw') {
       tools.push(...builtinTools)
     }
     if (ids && ids.length > 0) {
@@ -139,7 +139,7 @@ export abstract class BaseService {
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
-    if (agentType === 'claude-code') {
+    if (agentType === 'claude-code' || agentType === 'cherry-claw') {
       return builtinSlashCommands
     }
     return []
