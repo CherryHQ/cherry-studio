@@ -80,6 +80,7 @@
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
+    "cron-parser": "^5.5.0",
     "express": "5.1.0",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
