@@ -13,6 +13,7 @@ const logger = loggerService.withContext('DataApi:NoteService')
 
 function rowToNote(row: typeof noteTable.$inferSelect): Note {
   return {
+    id: row.id,
     path: row.path,
     isStarred: row.isStarred,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),

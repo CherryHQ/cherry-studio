@@ -1,15 +1,16 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * Note metadata table - stores metadata for note files
  *
- * Uses the file path as primary key since paths are unique identifiers
- * for notes in the filesystem. Extensible for future fields (AI tags, etc.).
+ * Uses UUID as primary key for future cloud sync compatibility.
+ * Path is unique per device; id is the stable cross-device identifier.
  */
 export const noteTable = sqliteTable('note', {
-  path: text().primaryKey(),
+  id: uuidPrimaryKey(),
+  path: text().notNull().unique(),
   isStarred: integer({ mode: 'boolean' }).notNull().default(false),
   ...createUpdateTimestamps
 })

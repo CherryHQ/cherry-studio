@@ -10,6 +10,7 @@
 // ============================================================================
 
 export interface Note {
+  id: string
   path: string
   isStarred: boolean
   createdAt: string
