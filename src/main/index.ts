@@ -16,6 +16,7 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { schedulerService } from './services/agents/services/SchedulerService'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
@@ -210,6 +211,9 @@ if (!app.requestSingleInstanceLock()) {
         if (shouldStart) {
           await apiServerService.start()
         }
+
+        // Restore CherryClaw schedulers after services are ready
+        await schedulerService.restoreSchedulers()
       } catch (error: any) {
         logger.error('Failed to check/start API server:', error)
       }
@@ -270,6 +274,7 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     try {
+      schedulerService.stopAll()
       await analyticsService.destroy()
       await openClawService.stopGateway()
       await mcpService.cleanup()
