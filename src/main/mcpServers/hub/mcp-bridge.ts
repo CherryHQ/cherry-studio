@@ -40,6 +40,25 @@ export function clearToolMap(): void {
 }
 
 /**
+ * Resolve a hub tool JS name (or namespaced id) to its original serverId and toolName.
+ * Returns null if the mapping is not initialized or the name cannot be resolved.
+ */
+export function resolveHubToolName(nameOrId: string): { serverId: string; toolName: string } | null {
+  if (!toolNameMapping) return null
+
+  const toolId = resolveToolId(toolNameMapping, nameOrId)
+  if (!toolId) return null
+
+  const separatorIndex = toolId.indexOf('__')
+  if (separatorIndex === -1) return null
+
+  return {
+    serverId: toolId.substring(0, separatorIndex),
+    toolName: toolId.substring(separatorIndex + 2)
+  }
+}
+
+/**
  * Call a tool by either:
  * - JS name (camelCase), e.g. "githubSearchRepos"
  * - original tool id (namespaced), e.g. "github__search_repos"
