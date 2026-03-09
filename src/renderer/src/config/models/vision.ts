@@ -112,7 +112,10 @@ const DEDICATED_IMAGE_MODELS = [
   'kandinsky(?:-[\\w-]+)?'
 ]
 
-const GEMINI_FLASH_IMAGE_MODELS = ['gemini-2.5-flash-image(?:-[\\w-]+)?', 'gemini-3(?:\\.\\d+)?-flash-image(?:-[\\w-]+)?']
+const GEMINI_FLASH_IMAGE_MODELS = [
+  'gemini-2.5-flash-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-flash-image(?:-[\\w-]+)?'
+]
 
 const GEMINI_PRO_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
 
@@ -130,11 +133,7 @@ const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join(
 const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
-const AUTO_ENABLE_IMAGE_MODELS = [
-  ...GEMINI_FLASH_IMAGE_MODELS,
-  ...GEMINI_PRO_IMAGE_MODELS,
-  ...DEDICATED_IMAGE_MODELS
-]
+const AUTO_ENABLE_IMAGE_MODELS = [...GEMINI_FLASH_IMAGE_MODELS, ...GEMINI_PRO_IMAGE_MODELS, ...DEDICATED_IMAGE_MODELS]
 
 const AUTO_ENABLE_IMAGE_MODELS_REGEX = new RegExp(AUTO_ENABLE_IMAGE_MODELS.join('|'), 'i')
 
