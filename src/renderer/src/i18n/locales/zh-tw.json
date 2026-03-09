@@ -26,6 +26,79 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "[to be translated]:Channels are coming soon. They will allow the agent to communicate via Slack, Discord, webhooks, and more.",
+        "tab": "[to be translated]:Channels",
+        "title": "[to be translated]:Channels"
+      },
+      "heartbeat": {
+        "description": "[to be translated]:The heartbeat message is sent to the agent's most recent session on each scheduler tick.",
+        "empty": "[to be translated]:No heartbeat file found. Create one in the workspace root.",
+        "enabled": "[to be translated]:Enable Heartbeat",
+        "enabledHelper": "[to be translated]:When enabled, the content of the heartbeat file is sent as a user message on each scheduler tick.",
+        "file": {
+          "helper": "[to be translated]:Path to the heartbeat file relative to the workspace root. Must be within accessible paths.",
+          "label": "[to be translated]:Heartbeat File",
+          "placeholder": "[to be translated]:heartbeat.md"
+        },
+        "preview": "[to be translated]:Heartbeat Preview",
+        "tab": "[to be translated]:Heartbeat",
+        "title": "[to be translated]:Heartbeat Configuration"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
+          "label": "[to be translated]:Cron Expression",
+          "placeholder": "[to be translated]:*/30 * * * *"
+        },
+        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
+        "enabled": "[to be translated]:Enable Scheduler",
+        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "errors": {
+          "invalidCron": "[to be translated]:Invalid cron expression",
+          "invalidDelay": "[to be translated]:Delay must be a positive number",
+          "invalidInterval": "[to be translated]:Interval must be a positive number"
+        },
+        "interval": {
+          "helper": "[to be translated]:How often the agent should run, in seconds.",
+          "label": "[to be translated]:Interval (seconds)"
+        },
+        "lastRun": "[to be translated]:Last Run",
+        "never": "[to be translated]:Never",
+        "nextRun": "[to be translated]:Next Run",
+        "oneTime": {
+          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
+          "label": "[to be translated]:Delay (seconds)"
+        },
+        "status": {
+          "running": "[to be translated]:Running",
+          "stopped": "[to be translated]:Stopped",
+          "tickInProgress": "[to be translated]:Tick in progress"
+        },
+        "tab": "[to be translated]:Scheduler",
+        "title": "[to be translated]:Scheduler Configuration",
+        "type": {
+          "cron": "[to be translated]:Cron Expression",
+          "interval": "[to be translated]:Fixed Interval",
+          "label": "[to be translated]:Schedule Type",
+          "one-time": "[to be translated]:One-Time Delay"
+        }
+      },
+      "soul": {
+        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
+        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
+        "enabled": "[to be translated]:Enable Soul",
+        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
+        "fileLabel": "[to be translated]:soul.md",
+        "preview": "[to be translated]:Soul Preview",
+        "tab": "[to be translated]:Soul",
+        "title": "[to be translated]:Soul Configuration"
+      },
+      "warning": {
+        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+      }
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
