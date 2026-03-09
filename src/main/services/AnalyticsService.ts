@@ -1,6 +1,7 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
+import { app } from 'electron'
 
 import { configManager } from './ConfigManager'
 
@@ -29,6 +30,17 @@ class AnalyticsService {
       onError: (error) => logger.error('Analytics error:', error)
     })
     logger.info('Analytics service initialized')
+
+    this.trackAppLaunch()
+  }
+
+  public trackAppLaunch(): void {
+    if (!this.client) return
+    this.client.trackAppLaunch({
+      version: app.getVersion(),
+      os: process.platform
+    })
+    logger.info('App launch event tracked')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
