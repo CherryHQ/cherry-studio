@@ -1,0 +1,131 @@
+/**
+ * Note migrator - migrates starred note paths from Redux to SQLite note table
+ *
+ * Data sources:
+ *   - Redux note slice (note.starredPaths)
+ * Target table: note
+ */
+
+import { noteTable } from '@data/db/schemas/note'
+import { loggerService } from '@logger'
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { sql } from 'drizzle-orm'
+
+import type { MigrationContext } from '../core/MigrationContext'
+import { BaseMigrator } from './BaseMigrator'
+
+const logger = loggerService.withContext('NoteMigrator')
+
+export class NoteMigrator extends BaseMigrator {
+  readonly id = 'note'
+  readonly name = 'Notes'
+  readonly description = 'Migrate note metadata (starred paths)'
+  readonly order = 5
+
+  private starredPaths: string[] = []
+
+  async prepare(ctx: MigrationContext): Promise<PrepareResult> {
+    try {
+      const rawPaths = ctx.sources.reduxState.get<string[]>('note', 'starredPaths')
+
+      if (!rawPaths || !Array.isArray(rawPaths) || rawPaths.length === 0) {
+        logger.info('No starred paths found in Redux state')
+        return { success: true, itemCount: 0 }
+      }
+
+      // Deduplicate and filter valid paths
+      this.starredPaths = [...new Set(rawPaths.filter((p) => typeof p === 'string' && p.trim()))]
+
+      logger.info(`Found ${this.starredPaths.length} starred paths to migrate`)
+
+      return {
+        success: true,
+        itemCount: this.starredPaths.length
+      }
+    } catch (error) {
+      logger.error('Preparation failed', error as Error)
+      return {
+        success: false,
+        itemCount: 0,
+        warnings: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+
+  async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    if (this.starredPaths.length === 0) {
+      return { success: true, processedCount: 0 }
+    }
+
+    try {
+      const db = ctx.db
+      const timestamp = Date.now()
+
+      await db.transaction(async (tx) => {
+        const BATCH_SIZE = 100
+        for (let i = 0; i < this.starredPaths.length; i += BATCH_SIZE) {
+          const batch = this.starredPaths.slice(i, i + BATCH_SIZE)
+          await tx.insert(noteTable).values(
+            batch.map((path) => ({
+              path,
+              isStarred: true,
+              createdAt: timestamp,
+              updatedAt: timestamp
+            }))
+          )
+
+          const progress = Math.round(((i + batch.length) / this.starredPaths.length) * 100)
+          this.reportProgress(progress, `Migrated ${i + batch.length}/${this.starredPaths.length} starred paths`, {
+            key: 'migration.progress.migrated_notes',
+            params: { processed: i + batch.length, total: this.starredPaths.length }
+          })
+        }
+      })
+
+      logger.info('Execute completed', { processedCount: this.starredPaths.length })
+
+      return {
+        success: true,
+        processedCount: this.starredPaths.length
+      }
+    } catch (error) {
+      logger.error('Execute failed', error as Error)
+      return {
+        success: false,
+        processedCount: 0,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async validate(ctx: MigrationContext): Promise<ValidateResult> {
+    try {
+      const db = ctx.db
+
+      const result = await db.select({ count: sql<number>`count(*)` }).from(noteTable).get()
+
+      const targetCount = result?.count ?? 0
+
+      return {
+        success: true,
+        errors: [],
+        stats: {
+          sourceCount: this.starredPaths.length,
+          targetCount,
+          skippedCount: 0
+        }
+      }
+    } catch (error) {
+      logger.error('Validation failed', error as Error)
+      return {
+        success: false,
+        errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
+        stats: {
+          sourceCount: this.starredPaths.length,
+          targetCount: 0,
+          skippedCount: 0
+        }
+      }
+    }
+  }
+}
