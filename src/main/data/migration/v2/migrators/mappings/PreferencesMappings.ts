@@ -852,6 +852,16 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'sortType',
       targetKey: 'feature.notes.sort_type'
     }
+  ],
+  codeTools: [
+    {
+      originalKey: 'selectedCliTool',
+      targetKey: 'feature.code_tools.selected_cli_tool'
+    },
+    {
+      originalKey: 'selectedTerminal',
+      targetKey: 'feature.code_tools.selected_terminal'
+    }
   ]
 } as const
 
@@ -860,9 +870,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 208
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note, codeTools
+ * - 总配置项: 209
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

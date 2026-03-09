@@ -64,16 +64,18 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
-    it('should initially be empty (no mappings configured yet)', () => {
-      // This test documents the current state - update when mappings are added
-      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBe(0)
+    it('should contain the code_tools_overrides mapping', () => {
+      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBeGreaterThanOrEqual(1)
+      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_tools_overrides')
+      expect(codeToolsMapping).toBeDefined()
+      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_tools.overrides'])
     })
   })
 
   describe('getComplexMappingTargetKeys', () => {
-    it('should return empty array when no mappings exist', () => {
+    it('should return target keys from registered mappings', () => {
       const keys = getComplexMappingTargetKeys()
-      expect(keys).toEqual([])
+      expect(keys).toContain('feature.code_tools.overrides')
     })
 
     it('should flatten target keys from all mappings', () => {

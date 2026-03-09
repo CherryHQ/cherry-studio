@@ -18,6 +18,8 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { transformCodeToolsToOverrides } from './CodeToolsTransforms'
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -78,34 +80,28 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
-  // Example mappings (commented out - uncomment when needed):
-  //
-  // {
-  //   id: 'window_bounds_split',
-  //   description: 'Split windowBounds object into separate position and size keys',
-  //   sources: {
-  //     windowBounds: { source: 'electronStore', key: 'windowBounds' }
-  //   },
-  //   targetKeys: [
-  //     'app.window.position.x',
-  //     'app.window.position.y',
-  //     'app.window.size.width',
-  //     'app.window.size.height'
-  //   ],
-  //   transform: splitWindowBounds
-  // },
-  //
-  // {
-  //   id: 'proxy_config_merge',
-  //   description: 'Merge proxy configuration from multiple sources',
-  //   sources: {
-  //     proxyEnabled: { source: 'redux', category: 'settings', key: 'proxyEnabled' },
-  //     proxyHost: { source: 'redux', category: 'settings', key: 'proxyHost' },
-  //     proxyPort: { source: 'electronStore', key: 'ProxyPort' }
-  //   },
-  //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
-  //   transform: mergeProxyConfig
-  // }
+  {
+    id: 'code_tools_overrides',
+    description: 'Merge codeTools per-tool data (models, env vars, directories) into layered preset overrides',
+    sources: {
+      selectedModels: { source: 'redux', category: 'codeTools', key: 'selectedModels' },
+      environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
+      directories: { source: 'redux', category: 'codeTools', key: 'directories' },
+      currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
+      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' }
+    },
+    targetKeys: ['feature.code_tools.overrides'],
+    transform: (sources) => {
+      const overrides = transformCodeToolsToOverrides({
+        selectedModels: sources.selectedModels as Record<string, unknown> | null,
+        environmentVariables: sources.environmentVariables as Record<string, string> | null,
+        directories: sources.directories as string[] | null,
+        currentDirectory: sources.currentDirectory as string | null,
+        selectedCliTool: sources.selectedCliTool as string | null
+      })
+      return { 'feature.code_tools.overrides': overrides }
+    }
+  }
 ]
 
 // ============================================================================

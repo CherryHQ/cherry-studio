@@ -12,7 +12,8 @@ const SLICES_TO_EXPORT = [
   'knowledge', // Knowledge base metadata
   'llm', // LLM provider and model configurations
   'note', // Note-related settings
-  'selectionStore' // Selection assistant settings
+  'selectionStore', // Selection assistant settings
+  'codeTools' // Code tools settings (CLI tool, models, terminal)
 ]
 
 export interface ReduxExportResult {
