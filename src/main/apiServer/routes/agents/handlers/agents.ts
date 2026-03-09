@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
+import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { ListAgentsResponse } from '@types'
 import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
@@ -350,6 +351,12 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
+    // Restart scheduler if this is a cherry-claw agent
+    if (agent.type === 'cherry-claw') {
+      schedulerService.stopScheduler(agentId)
+      schedulerService.startScheduler(agent)
+    }
+
     logger.info('Agent updated', { agentId })
     return res.json(agent)
   } catch (error: any) {
@@ -496,6 +503,12 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
       })
     }
 
+    // Restart scheduler if this is a cherry-claw agent with scheduler config changes
+    if (agent.type === 'cherry-claw') {
+      schedulerService.stopScheduler(agentId)
+      schedulerService.startScheduler(agent)
+    }
+
     logger.info('Agent patched', { agentId })
     return res.json(agent)
   } catch (error: any) {
@@ -555,6 +568,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
   try {
     const { agentId } = req.params
     logger.debug('Deleting agent', { agentId })
+
+    // Stop scheduler before deleting agent
+    schedulerService.stopScheduler(agentId)
 
     const deleted = await agentService.deleteAgent(agentId)
 
