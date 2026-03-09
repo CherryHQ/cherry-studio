@@ -11,9 +11,9 @@ export async function formatVertexApiHost(host: string): Promise<string> {
   }
   const trimmedHost = withoutTrailingSlash(trim(host))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
-    const host =
+    const fallbackHost =
       location == 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
-    return `${formatApiHost(host)}/projects/${project}/locations/${location}`
+    return `${formatApiHost(fallbackHost)}/projects/${project}/locations/${location}`
   }
   return formatApiHost(trimmedHost)
 }
