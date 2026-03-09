@@ -657,6 +657,16 @@ export function startAutoSync(immediate = false, type?: BackupType) {
       return
     }
 
+    // Check if any topic is currently streaming/loading
+    const state = store.getState()
+    const anyTopicLoading = Object.values(state.messages.loadingByTopic).some((loading) => loading === true)
+
+    if (anyTopicLoading) {
+      logger.info(`${logPrefix} Streaming in progress, deferring backup`)
+      scheduleNextBackup('fromNow', backupType)
+      return
+    }
+
     // 设置运行状态
     if (backupType === 'webdav') {
       isWebdavAutoBackupRunning = true
