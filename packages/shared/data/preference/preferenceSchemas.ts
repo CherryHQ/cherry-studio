@@ -28,6 +28,7 @@
 
 import { MEMORY_FACT_EXTRACTION_PROMPT, MEMORY_UPDATE_SYSTEM_PROMPT, TRANSLATE_PROMPT } from '@shared/config/prompts'
 import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
+import type { CodeToolOverrides } from '@shared/data/presets/code-tools'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
@@ -304,6 +305,8 @@ export interface PreferenceSchemas {
     'data.integration.yuque.token': string
     // redux/settings/yuqueUrl
     'data.integration.yuque.url': string
+    // redux/codeTools - per-tool overrides (layered preset pattern)
+    'feature.code_tools.overrides': CodeToolOverrides
     // redux/settings/apiServer.apiKey
     'feature.csaas.api_key': string | null
     // redux/settings/apiServer.enabled
@@ -584,6 +587,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.integration.yuque.repo_id': '',
     'data.integration.yuque.token': '',
     'data.integration.yuque.url': '',
+    'feature.code_tools.overrides': {},
     'feature.csaas.api_key': null,
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
