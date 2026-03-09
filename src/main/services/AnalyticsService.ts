@@ -34,7 +34,7 @@ class AnalyticsService {
     this.trackAppLaunch()
   }
 
-  public trackAppLaunch(): void {
+  private trackAppLaunch(): void {
     if (!this.client) return
     this.client.trackAppLaunch({
       version: app.getVersion(),
