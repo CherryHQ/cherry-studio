@@ -12,6 +12,7 @@
 export interface Note {
   id: string
   path: string
+  relativePath: string
   isStarred: boolean
   createdAt: string
   updatedAt: string

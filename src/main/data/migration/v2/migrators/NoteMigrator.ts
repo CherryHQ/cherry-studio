@@ -2,7 +2,7 @@
  * Note migrator - migrates starred note paths from Redux to SQLite note table
  *
  * Data sources:
- *   - Redux note slice (note.starredPaths)
+ *   - Redux note slice (note.starredPaths, note.notesPath)
  * Target table: note
  */
 
@@ -10,11 +10,16 @@ import { noteTable } from '@data/db/schemas/note'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
+import path from 'path'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('NoteMigrator')
+
+function toRelativePath(absolutePath: string, notesRoot: string): string {
+  return path.relative(notesRoot, absolutePath).split(path.sep).join('/')
+}
 
 export class NoteMigrator extends BaseMigrator {
   readonly id = 'note'
@@ -23,10 +28,12 @@ export class NoteMigrator extends BaseMigrator {
   readonly order = 5
 
   private starredPaths: string[] = []
+  private notesRoot = ''
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       const rawPaths = ctx.sources.reduxState.get<string[]>('note', 'starredPaths')
+      this.notesRoot = ctx.sources.reduxState.get<string>('note', 'notesPath') || ''
 
       if (!rawPaths || !Array.isArray(rawPaths) || rawPaths.length === 0) {
         logger.info('No starred paths found in Redux state')
@@ -36,7 +43,7 @@ export class NoteMigrator extends BaseMigrator {
       // Deduplicate and filter valid paths
       this.starredPaths = [...new Set(rawPaths.filter((p) => typeof p === 'string' && p.trim()))]
 
-      logger.info(`Found ${this.starredPaths.length} starred paths to migrate`)
+      logger.info(`Found ${this.starredPaths.length} starred paths to migrate`, { notesRoot: this.notesRoot })
 
       return {
         success: true,
@@ -66,8 +73,9 @@ export class NoteMigrator extends BaseMigrator {
         for (let i = 0; i < this.starredPaths.length; i += BATCH_SIZE) {
           const batch = this.starredPaths.slice(i, i + BATCH_SIZE)
           await tx.insert(noteTable).values(
-            batch.map((path) => ({
-              path,
+            batch.map((notePath) => ({
+              path: notePath,
+              relativePath: this.notesRoot ? toRelativePath(notePath, this.notesRoot) : notePath,
               isStarred: true,
               createdAt: timestamp,
               updatedAt: timestamp
