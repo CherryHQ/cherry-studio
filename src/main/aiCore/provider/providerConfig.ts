@@ -23,8 +23,8 @@ import { formatVertexApiHost } from './utils/api'
  * @returns A new provider instance with the formatted API host.
  */
 export async function formatProviderApiHost(provider: Provider): Promise<Provider> {
+  // WARNING: if any changes are made here, please sync it to src/renderer/src/aiCore/provider/providerConfig.ts:formatProviderApiHost
   // NOTE: It's async to support Vertex API host formatting
-  // Original implementation: src/renderer/src/aiCore/provider/providerConfig.ts
   const formatted = { ...provider }
   const appendApiVersion = !isWithTrailingSharp(provider.apiHost)
   if (formatted.anthropicApiHost) {
