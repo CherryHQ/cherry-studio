@@ -10,13 +10,15 @@
  * 4. Conditional mapping: Target keys determined by source values
  *
  * Usage:
- * 1. Define transformation function in PreferenceTransformers.ts
+ * 1. Define transformation function in a colocated mapping file under `mappings/`
  * 2. Add mapping configuration to COMPLEX_PREFERENCE_MAPPINGS below
  * 3. Add target key definitions in target-key-definitions.json
  *
  * IMPORTANT: Ensure no conflicts between simple mappings and complex mappings.
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
+
+import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
 // Type Definitions
@@ -106,6 +108,16 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
   //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
   //   transform: mergeProxyConfig
   // }
+  {
+    id: 'file_processing_overrides_merge',
+    description: 'Merge legacy OCR and preprocess providers into file processing overrides',
+    sources: {
+      preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
+      ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
+    },
+    targetKeys: ['file_processing.overrides'],
+    transform: mergeFileProcessingOverrides
+  }
 ]
 
 // ============================================================================

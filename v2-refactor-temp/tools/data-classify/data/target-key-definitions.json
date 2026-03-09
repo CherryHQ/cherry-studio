@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2025-01-18"
+    "lastUpdated": "2026-03-09"
   },
   "definitions": [
     {
@@ -32,6 +32,13 @@
       "defaultValue": 600,
       "status": "pending",
       "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "file_processing.overrides",
+      "type": "PreferenceTypes.FileProcessorOverrides",
+      "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
+      "status": "classified",
+      "description": "复杂迁移：合并 redux/preprocess.providers 与 redux/ocr.providers 为 file processing overrides"
     }
   ]
 }

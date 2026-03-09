@@ -64,16 +64,19 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
-    it('should initially be empty (no mappings configured yet)', () => {
-      // This test documents the current state - update when mappings are added
-      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBe(0)
+    it('should include file processing overrides merge mapping', () => {
+      expect(COMPLEX_PREFERENCE_MAPPINGS).toHaveLength(1)
+      expect(COMPLEX_PREFERENCE_MAPPINGS[0]).toMatchObject({
+        id: 'file_processing_overrides_merge',
+        targetKeys: ['file_processing.overrides']
+      })
     })
   })
 
   describe('getComplexMappingTargetKeys', () => {
-    it('should return empty array when no mappings exist', () => {
+    it('should return target keys from configured mappings', () => {
       const keys = getComplexMappingTargetKeys()
-      expect(keys).toEqual([])
+      expect(keys).toEqual(['file_processing.overrides'])
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -103,9 +106,10 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('getComplexMappingById', () => {
-    it('should return undefined when no mappings exist', () => {
-      const mapping = getComplexMappingById('non_existent')
-      expect(mapping).toBeUndefined()
+    it('should return the configured mapping by id', () => {
+      const mapping = getComplexMappingById('file_processing_overrides_merge')
+      expect(mapping).toBeDefined()
+      expect(mapping?.targetKeys).toEqual(['file_processing.overrides'])
     })
 
     it('should return undefined for non-existent id', () => {

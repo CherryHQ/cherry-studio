@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-01-23T10:27:37.752Z",
+    "lastUpdated": "2026-03-09T14:20:00.000Z",
     "totalItems": 391,
-    "classified": 255,
-    "pending": 130,
+    "classified": 259,
+    "pending": 126,
     "deleted": 0
   },
   "classifications": {
@@ -625,17 +625,17 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "[ { id: 'mineru', name: 'MinerU', apiKey: '', apiHost: 'https://mineru.net' }",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "defaultProvider",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "mineru",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "file_processing.default.markdown_conversion"
         }
       ],
       "runtime": [
@@ -3002,17 +3002,17 @@
           "originalKey": "providers",
           "type": "array",
           "defaultValue": "BUILTIN_OCR_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "imageProviderId",
-          "type": "string",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.FileProcessorId",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "file_processing.default.text_extraction"
         }
       ],
       "note": [

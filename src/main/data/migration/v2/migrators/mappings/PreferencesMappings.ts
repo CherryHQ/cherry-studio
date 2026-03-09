@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-01-23T10:31:39.499Z
+ * Generated at: 2026-03-09T06:17:20.453Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -745,6 +745,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
+  preprocess: [
+    {
+      originalKey: 'defaultProvider',
+      targetKey: 'file_processing.default.markdown_conversion'
+    }
+  ],
   shortcuts: [
     {
       originalKey: 'shortcuts.zoom_in',
@@ -811,6 +817,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  ocr: [
+    {
+      originalKey: 'imageProviderId',
+      targetKey: 'file_processing.default.text_extraction'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',
@@ -860,9 +872,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 205
+ * - Redux分类: settings, selectionStore, memory, nutstore, preprocess, shortcuts, ocr, note
+ * - 总配置项: 206
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

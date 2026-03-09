@@ -1,3 +1,5 @@
+import type { FileProcessorOverride, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -104,3 +106,7 @@ export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+export type FileProcessorOverrides = Record<string, FileProcessorOverride>
+
+export type FileProcessorId = (typeof PRESETS_FILE_PROCESSORS)[number]['id']
