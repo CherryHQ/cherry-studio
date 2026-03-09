@@ -25,8 +25,22 @@ export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
-export const AgentTypeSchema = z.enum(['claude-code'])
+export const AgentTypeSchema = z.enum(['claude-code', 'cherry-claw'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
+
+// ------------------ CherryClaw-specific types ------------------
+export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
+
+export const CherryClawChannelSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  config: z.record(z.string(), z.unknown()),
+  is_notify_receiver: z.boolean()
+})
+
+export type CherryClawChannel = z.infer<typeof CherryClawChannelSchema>
 
 export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
@@ -63,6 +77,28 @@ export const AgentConfigurationSchema = z
   .loose()
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+
+// CherryClaw extends AgentConfiguration with scheduler/soul/heartbeat fields.
+// Since AgentConfigurationSchema uses .loose(), these are stored in the same JSON field.
+export type CherryClawConfiguration = AgentConfiguration & {
+  // Soul
+  soul_enabled?: boolean
+
+  // Scheduler
+  scheduler_enabled?: boolean
+  scheduler_type?: SchedulerType
+  scheduler_cron?: string
+  scheduler_interval?: number
+  scheduler_one_time_delay?: number
+  scheduler_last_run?: string
+
+  // Heartbeat
+  heartbeat_enabled?: boolean
+  heartbeat_file?: string
+
+  // Channels (placeholder)
+  channels?: CherryClawChannel[]
+}
 
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
