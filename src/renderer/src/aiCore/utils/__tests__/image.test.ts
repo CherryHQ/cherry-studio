@@ -56,6 +56,17 @@ describe('image utils', () => {
       expect(result).toBe(true)
     })
 
+    it('should return true for OpenRouter Gemini 3.1 Flash Image model', () => {
+      const model: Model = {
+        id: 'google/gemini-3.1-flash-image-preview',
+        name: 'Gemini 3.1 Flash Image Preview',
+        provider: SystemProviderIds.openrouter
+      } as Model
+
+      const result = isOpenRouterGeminiGenerateImageModel(model, mockOpenRouterProvider)
+      expect(result).toBe(true)
+    })
+
     it('should return false for non-Gemini model on OpenRouter', () => {
       const model: Model = {
         id: 'openai/gpt-4',
@@ -82,6 +93,17 @@ describe('image utils', () => {
       const model: Model = {
         id: 'google/gemini-2.5-flash',
         name: 'Gemini 2.5 Flash',
+        provider: SystemProviderIds.openrouter
+      } as Model
+
+      const result = isOpenRouterGeminiGenerateImageModel(model, mockOpenRouterProvider)
+      expect(result).toBe(false)
+    })
+
+    it('should return false for Gemini 3.1 Flash model without image suffix', () => {
+      const model: Model = {
+        id: 'google/gemini-3.1-flash-preview',
+        name: 'Gemini 3.1 Flash Preview',
         provider: SystemProviderIds.openrouter
       } as Model
 
