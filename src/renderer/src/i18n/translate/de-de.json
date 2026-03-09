@@ -4856,6 +4856,7 @@
         "logout_failed": "Abmeldung fehlgeschlagen, bitte erneut versuchen",
         "logout_success": "Erfolgreich abgemeldet von Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic hat die Nutzung von Claude über OAuth vorübergehend eingestellt. Diese Authentifizierungsmethode ist derzeit nicht verfügbar. Bitte verwenden Sie vorerst einen API-Schlüssel.",
         "start_auth": "Autorisierung starten",
         "submit_code": "Anmeldung abschließen"
       },

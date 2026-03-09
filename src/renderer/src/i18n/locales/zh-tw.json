@@ -4856,6 +4856,7 @@
         "logout_failed": "登出失敗，請重試",
         "logout_success": "成功登出 Anthropic",
         "oauth": "網頁 OAuth",
+        "oauth_disabled_warning": "Anthropic 已暫時中止透過 OAuth 使用 Claude。此驗證方式目前無法使用。請暫時使用 API 金鑰。",
         "start_auth": "開始授權",
         "submit_code": "完成登入"
       },

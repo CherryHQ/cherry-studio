@@ -4856,6 +4856,7 @@
         "logout_failed": "Error al cerrar sesión, inténtalo de nuevo",
         "logout_success": "Cierre de sesión exitoso en Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic ha suspendido temporalmente el uso de Claude a través de OAuth. Este método de autenticación no está disponible actualmente. Por favor, utiliza una clave API por ahora.",
         "start_auth": "Comenzar autorización",
         "submit_code": "Iniciar sesión completado"
       },

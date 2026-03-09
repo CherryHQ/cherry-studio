@@ -4856,6 +4856,7 @@
         "logout_failed": "ログアウトに失敗しました。もう一度お試しください",
         "logout_success": "Anthropic からログアウトしました",
         "oauth": "WebページOAuth",
+        "oauth_disabled_warning": "Anthropicは、OAuth経由でのClaudeの利用を一時的に停止しました。この認証方法は現在ご利用いただけません。今のところはAPIキーをご利用ください。",
         "start_auth": "開始承認",
         "submit_code": "ログインを完了する"
       },

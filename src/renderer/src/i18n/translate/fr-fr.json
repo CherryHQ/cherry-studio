@@ -4856,6 +4856,7 @@
         "logout_failed": "Échec de la déconnexion, veuillez réessayer",
         "logout_success": "Déconnexion réussie d'Anthropic",
         "oauth": "Authentification OAuth web",
+        "oauth_disabled_warning": "Anthropic a temporairement suspendu l'utilisation de Claude via OAuth. Cette méthode d'authentification est actuellement indisponible. Veuillez utiliser une clé API pour le moment.",
         "start_auth": "Commencer l'autorisation",
         "submit_code": "Terminer la connexion"
       },
