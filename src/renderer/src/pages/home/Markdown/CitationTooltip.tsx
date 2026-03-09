@@ -1,4 +1,5 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
 import { useQuery } from '@tanstack/react-query'
 import { Tooltip } from 'antd'
@@ -57,7 +58,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
-            {sourceTitle}
+            <MarqueeText>{sourceTitle}</MarqueeText>
           </TooltipTitle>
         </TooltipHeader>
         {displayContent && (

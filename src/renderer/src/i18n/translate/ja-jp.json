@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
+        "default_hint": "デフォルト: {{path}}",
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "ツール",
         "tools": {
-          "title": "ツール"
+          "title": "事前承認済みツール"
         }
       }
     },
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
       "completed": "完了",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
+      "batch_error": "{{failed}}件のアイテムの処理に失敗しました",
+      "batch_mixed": "{{succeeded}}件が成功し、{{failed}}件が失敗しました",
+      "batch_success": "{{succeeded}} 個のアイテムが正常に処理されました",
       "error": "{{error}}",
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
     "no_results": "プラグインが見つかりません",
+    "no_results_skills": "スキルが見つかりません",
     "search_placeholder": "検索プラグイン...",
+    "search_placeholder_skills": "検索スキル…",
     "showing_results": "{{count}} 個のプラグインを表示",
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",

@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adicionar diretório",
+        "default_hint": "Padrão: {{path}}",
         "duplicate": "Este diretório já está incluído.",
         "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "Ferramentas",
         "tools": {
-          "title": "Ferramentas"
+          "title": "Ferramentas pré-aprovadas"
         }
       }
     },
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
       "completed": "Completo",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "Resposta do assistente",
     "knowledge": {
+      "batch_error": "{{failed}} itens falharam ao ser processados",
+      "batch_mixed": "{{succeeded}} itens foram bem-sucedidos, {{failed}} itens falharam",
+      "batch_success": "{{succeeded}} itens processados com sucesso",
       "error": "{{error}}",
       "success": "Adicionado com sucesso {{type}} à base de conhecimento"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "Sem descrição",
     "no_installed_plugins": "Nenhum plugin foi instalado ainda",
     "no_results": "Plugin não encontrado",
+    "no_results_skills": "Nenhuma habilidade encontrada",
     "search_placeholder": "Pesquisar plugin...",
+    "search_placeholder_skills": "Pesquisar habilidades...",
     "showing_results": "Exibir {{count}} extensões",
     "showing_results_one": "Mostrar {{count}} extensões",
     "showing_results_other": "Exibir {{count}} extensões",

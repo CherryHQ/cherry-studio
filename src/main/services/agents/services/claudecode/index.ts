@@ -26,7 +26,12 @@ import { withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
-import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import type {
+  AgentServiceInterface,
+  AgentStream,
+  AgentStreamEvent,
+  AgentThinkingOptions
+} from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
@@ -68,7 +73,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-agent-sdk/cli.js')
+    this.claudeExecutablePath = path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
     if (app.isPackaged) {
       this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
     }
@@ -78,7 +83,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     prompt: string,
     session: GetAgentSessionResponse,
     abortController: AbortController,
-    lastAgentSessionId?: string
+    lastAgentSessionId?: string,
+    thinkingOptions?: AgentThinkingOptions
   ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
 
@@ -303,7 +309,9 @@ class ClaudeCodeService implements AgentServiceInterface {
             hooks: [preToolUseHook]
           }
         ]
-      }
+      },
+      ...(thinkingOptions?.effort ? { effort: thinkingOptions.effort } : {}),
+      ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
 
     if (session.accessible_paths.length > 1) {

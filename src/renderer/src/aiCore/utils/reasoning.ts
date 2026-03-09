@@ -19,6 +19,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
+  isQwen35Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -140,6 +141,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
+      }
+    }
+
+    // Qwen 3.5 without direct enable_thinking
+    // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
+    if (isQwen35Model(model)) {
+      return {
+        chat_template_kwargs: {
+          enable_thinking: false
+        }
       }
     }
 
@@ -371,11 +382,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const thinkConfig = {
-      enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
-      thinking_budget: budgetTokens
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
+    const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    if (supportEnableThinking) {
+      return {
+        ...enableThinkingConfig,
+        thinking_budget: budgetTokens
+      }
+    } else {
+      return {
+        thinking_budget: budgetTokens,
+        chat_template_kwargs: {
+          ...enableThinkingConfig
+        }
+      }
     }
-    return thinkConfig
   }
 
   // Hunyuan models, use enable_thinking
@@ -406,7 +427,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
     if (isGemini3ThinkingTokenModel(model)) {
       return {
-        reasoning_effort: reasoningEffort
+        reasoningEffort
       }
     }
     if (reasoningEffort === 'auto') {

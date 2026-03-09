@@ -195,7 +195,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
           }
         }}>
         <ToolContainer>
-          <ToolContentWrapper className={isPending ? 'pending' : status}>
+          <ToolContentWrapper className={isPending || approval.isWaiting ? 'pending' : status}>
             <CollapseContainer
               ghost
               activeKey={activeKeys}
@@ -208,7 +208,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                 <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
               )}
             />
-            {isPending && (
+            {(isPending || approval.isWaiting || approval.isExecuting) && (
               <ActionsBar>
                 <ActionLabel>
                   {approval.isWaiting
