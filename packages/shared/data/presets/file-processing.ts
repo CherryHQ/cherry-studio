@@ -1,3 +1,7 @@
+import * as z from 'zod'
+
+import { FILE_TYPE, FileTypeSchema } from '../types/file'
+
 /**
  * File Processing Presets
  *
@@ -14,71 +18,120 @@
 /**
  * Processor service type
  */
-export type FileProcessorType = 'api' | 'builtin'
+export const FileProcessorTypeSchema = z.enum(['api', 'builtin'])
+export type FileProcessorType = z.infer<typeof FileProcessorTypeSchema>
 
 /**
  * Feature type
  */
-export type FileProcessorFeature = 'text_extraction' | 'markdown_conversion'
+export const FileProcessorFeatureSchema = z.enum(['text_extraction', 'markdown_conversion'])
+export type FileProcessorFeature = z.infer<typeof FileProcessorFeatureSchema>
 
 /**
- * Input type (category)
- * Can be migrated to FileTypes enum in @types later
+ * Input file type schema
+ * Reuses the canonical file type definitions shared across the app.
  */
-export type FileProcessorInput = 'image' | 'document'
+export const FileProcessorInputSchema = FileTypeSchema.extract([FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT])
+
+const FileProcessorTextOutputSchema = FileTypeSchema.extract([FILE_TYPE.TEXT])
 
 /**
- * Output type
+ * Output content format schema
+ * `text` reuses the canonical file type, while `markdown` remains a processing-specific format.
  */
-export type FileProcessorOutput = 'text' | 'markdown'
+export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema, z.literal('markdown')])
 
 /**
  * Processor metadata (reserved for future use)
  */
-export type FileProcessorMetadata = Record<string, never>
+export const FileProcessorMetadataSchema = z.record(z.string(), z.never())
+export type FileProcessorMetadata = z.infer<typeof FileProcessorMetadataSchema>
 
 /**
  * Feature capability definition
  *
- * Each capability binds a feature with its input/output and optional API settings.
+ * Each capability binds a feature with its supported inputs, output, and optional API settings.
  */
-export type CapabilityMetadata = Record<string, unknown>
+export const CapabilityMetadataSchema = z.record(z.string(), z.unknown())
+export type CapabilityMetadata = z.infer<typeof CapabilityMetadataSchema>
 
-export type TextExtractionCapability = {
-  feature: 'text_extraction'
-  input: 'image' | 'document'
-  output: 'text'
-  apiHost?: string // API Host (template default, can be overridden)
-  modelId?: string // Model ID (template default, can be overridden)
-  metadata?: CapabilityMetadata
-  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
-}
+export const TextExtractionCapabilitySchema = z
+  .object({
+    feature: z.literal('text_extraction'),
+    inputs: z.array(FileProcessorInputSchema).min(1),
+    output: z.literal('text'),
+    apiHost: z.url().optional(),
+    modelId: z.string().min(1).optional(),
+    metadata: CapabilityMetadataSchema.optional()
+    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
+  })
+  .strict()
+export type TextExtractionCapability = z.infer<typeof TextExtractionCapabilitySchema>
 
-export type MarkdownConversionCapability = {
-  feature: 'markdown_conversion'
-  input: 'document'
-  output: 'markdown'
-  apiHost?: string // API Host (template default, can be overridden)
-  modelId?: string // Model ID (template default, can be overridden)
-  metadata?: CapabilityMetadata
-  // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-  // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
-}
+export const MarkdownConversionCapabilitySchema = z
+  .object({
+    feature: z.literal('markdown_conversion'),
+    inputs: z.array(z.literal('document')).min(1),
+    output: z.literal('markdown'),
+    apiHost: z.url().optional(),
+    modelId: z.string().min(1).optional(),
+    metadata: CapabilityMetadataSchema.optional()
+    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
+    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
+  })
+  .strict()
+export type MarkdownConversionCapability = z.infer<typeof MarkdownConversionCapabilitySchema>
 
-export type FeatureCapability = TextExtractionCapability | MarkdownConversionCapability
+export const FeatureCapabilitySchema = z.discriminatedUnion('feature', [
+  TextExtractionCapabilitySchema,
+  MarkdownConversionCapabilitySchema
+])
+export type FeatureCapability = z.infer<typeof FeatureCapabilitySchema>
+
+/**
+ * Input type (category)
+ * Derived from FeatureCapability to keep definitions in sync.
+ */
+export type FileProcessorInput = FeatureCapability['inputs'][number]
+
+/**
+ * Output type
+ * Derived from FeatureCapability to keep definitions in sync.
+ */
+export type FileProcessorOutput = FeatureCapability['output']
 
 /**
  * Processor template (read-only metadata)
  *
  * Note: Display name is retrieved via i18n key `processor.${id}.name`
  */
-export type FileProcessorTemplate = {
-  id: string // Unique identifier, also used for i18n key
-  type: FileProcessorType // 'api' | 'builtin'
-  metadata?: FileProcessorMetadata // Optional processor metadata
-  capabilities: FeatureCapability[] // Feature capabilities
-}
+export const FileProcessorTemplateSchema = z
+  .object({
+    id: z.string().min(1),
+    type: FileProcessorTypeSchema,
+    metadata: FileProcessorMetadataSchema.optional(),
+    capabilities: z.array(FeatureCapabilitySchema).min(1)
+  })
+  .strict()
+  .superRefine((template, ctx) => {
+    const seenFeatures = new Set<FileProcessorFeature>()
+
+    template.capabilities.forEach((capability, index) => {
+      if (seenFeatures.has(capability.feature)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['capabilities', index, 'feature'],
+          message: `Duplicate capability feature '${capability.feature}' is not allowed. Use 'inputs' to model multiple input types.`
+        })
+        return
+      }
+
+      seenFeatures.add(capability.feature)
+    })
+  })
+export type FileProcessorTemplate = z.infer<typeof FileProcessorTemplateSchema>
+export const FileProcessorTemplatesSchema = z.array(FileProcessorTemplateSchema)
 
 // ============================================================================
 // Override Types (for user customization)
@@ -97,18 +150,29 @@ export type FileProcessorTemplate = {
  * - { langs: ['chi_sim', 'eng'] }        // Tesseract language config
  * - { quality: 'high', timeout: 30000 }  // Other processor config
  */
-export type FileProcessorOptions = Record<string, unknown>
+export const FileProcessorOptionsSchema = z.record(z.string(), z.unknown())
+export type FileProcessorOptions = z.infer<typeof FileProcessorOptionsSchema>
 
 /**
  * Capability override (user customization for a specific feature)
  *
  * Stored as Record<feature, CapabilityOverride> in FileProcessorOverride.
  */
-export type CapabilityOverride = {
-  apiHost?: string
-  modelId?: string
-  metadata?: CapabilityMetadata
-}
+export const CapabilityOverrideSchema = z
+  .object({
+    apiHost: z.url().optional(),
+    modelId: z.string().min(1).optional(),
+    metadata: CapabilityMetadataSchema.optional()
+  })
+  .strict()
+export type CapabilityOverride = z.infer<typeof CapabilityOverrideSchema>
+
+export const FileProcessorCapabilityOverridesSchema = z
+  .object({
+    markdown_conversion: CapabilityOverrideSchema.optional(),
+    text_extraction: CapabilityOverrideSchema.optional()
+  })
+  .strict()
 
 /**
  * User-configured processor override (stored in Preference)
@@ -119,11 +183,15 @@ export type CapabilityOverride = {
  * - apiHost/modelId are per-feature (in capabilities Record)
  * - Field names use camelCase (consistent with TypeScript conventions)
  */
-export type FileProcessorOverride = {
-  apiKeys?: string[] // API Keys (shared across all features)
-  capabilities?: Partial<Record<FileProcessorFeature, CapabilityOverride>> // Per-feature overrides
-  options?: FileProcessorOptions // Processor-specific config (generic type)
-}
+export const FileProcessorOverrideSchema = z
+  .object({
+    apiKeys: z.array(z.string().min(1)).optional(),
+    capabilities: FileProcessorCapabilityOverridesSchema.optional(),
+    options: FileProcessorOptionsSchema.optional()
+  })
+  .strict()
+export type FileProcessorOverride = z.infer<typeof FileProcessorOverrideSchema>
+export const FileProcessorOverridesSchema = z.record(z.string(), FileProcessorOverrideSchema)
 
 /**
  * Merged processor configuration (template + user override)
@@ -134,14 +202,11 @@ export type FileProcessorOverride = {
  * Note: capabilities is an array (from template) with overrides merged in,
  * NOT a Record like in FileProcessorOverride.
  */
-export type FileProcessorMerged = {
-  id: string
-  type: FileProcessorType
-  metadata?: FileProcessorMetadata
-  capabilities: FeatureCapability[] // Merged capabilities (array)
-  apiKeys?: string[]
-  options?: FileProcessorOptions
-}
+export const FileProcessorMergedSchema = FileProcessorTemplateSchema.extend({
+  apiKeys: z.array(z.string().min(1)).optional(),
+  options: FileProcessorOptionsSchema.optional()
+})
+export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 
 // ============================================================================
 // Processor Presets
@@ -158,7 +223,7 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'text_extraction',
-        input: 'image',
+        inputs: ['image'],
         output: 'text'
       }
     ]
@@ -166,7 +231,7 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'system',
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
   },
   {
     id: 'paddleocr',
@@ -174,7 +239,7 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'text_extraction',
-        input: 'image',
+        inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PP-OCRv5',
@@ -187,7 +252,7 @@ export const PRESETS_FILE_PROCESSORS = [
       },
       {
         feature: 'markdown_conversion',
-        input: 'document',
+        inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PaddleOCR-VL-1.5',
@@ -203,7 +268,7 @@ export const PRESETS_FILE_PROCESSORS = [
   {
     id: 'ovocr',
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', input: 'image', output: 'text' }]
+    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
   },
 
   // === Document Processors (former Preprocess) ===
@@ -213,7 +278,7 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'markdown_conversion',
-        input: 'document',
+        inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://mineru.net',
         metadata: {
@@ -232,7 +297,7 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'markdown_conversion',
-        input: 'document',
+        inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com'
       }
@@ -244,14 +309,14 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'text_extraction',
-        input: 'image',
+        inputs: ['image'],
         output: 'text',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       },
       {
         feature: 'markdown_conversion',
-        input: 'document',
+        inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
@@ -264,10 +329,12 @@ export const PRESETS_FILE_PROCESSORS = [
     capabilities: [
       {
         feature: 'markdown_conversion',
-        input: 'document',
+        inputs: ['document'],
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000'
       }
     ]
   }
 ] as const satisfies readonly FileProcessorTemplate[]
+
+void FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)
