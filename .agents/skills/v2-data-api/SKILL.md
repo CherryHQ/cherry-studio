@@ -405,6 +405,76 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 See `docs/en/references/data/preference-schema-guide.md` for full guide.
 
+## Layered Preset Pattern (Predefined Config + User Overrides)
+
+Use this pattern when a feature has a **predefined list of items** (tools, providers, templates) with **user-customizable settings per item**. Instead of storing full config for every item, store only the user's deviations from defaults.
+
+**When to use:**
+- Feature has a fixed, code-defined list of options (e.g., CLI tools, AI providers)
+- Users can customize per-item settings (model, API key, env vars)
+- Most items keep default values — only a few are customized
+
+**Architecture:**
+
+```
+packages/shared/data/presets/<domain>.ts    → Preset definitions (code, not DB)
+packages/shared/data/preference/            → Overrides preference key (DB)
+```
+
+### Step 1: Define Presets (Shared Package)
+
+```typescript
+// packages/shared/data/presets/my-feature.ts
+export interface MyFeaturePreset {
+  id: string
+  name: string
+  modelId: string | null
+  config: string
+}
+
+export const PRESETS_MY_FEATURE: MyFeaturePreset[] = [
+  { id: 'option-a', name: 'Option A', modelId: null, config: '' },
+  { id: 'option-b', name: 'Option B', modelId: null, config: '' },
+]
+
+// Override = partial preset (only non-default fields)
+export type MyFeatureOverride = Partial<Omit<MyFeaturePreset, 'id' | 'name'>>
+export type MyFeatureOverrides = Record<string, MyFeatureOverride>
+```
+
+### Step 2: Add Overrides Preference Key
+
+```typescript
+// packages/shared/data/preference/preferenceSchemas.ts
+import type { MyFeatureOverrides } from '@shared/data/presets/my-feature'
+
+// In PreferenceSchemas interface:
+'feature.my_feature.overrides': MyFeatureOverrides  // default: {}
+
+// In DefaultPreferences:
+'feature.my_feature.overrides': {},
+```
+
+**Key design principles:**
+- Presets are **immutable code** — updated via app releases, not user action
+- Overrides store **delta only** — empty `{}` means all defaults
+- Override keys match preset IDs — `{ 'option-a': { modelId: 'm1' } }`
+- The merge happens at read time (renderer), not write time
+
+### Step 3: Merge Logic (Service or Hook)
+
+The effective config for an item = preset defaults merged with user overrides:
+
+```typescript
+function getEffectiveConfig(presetId: string, overrides: MyFeatureOverrides): MyFeaturePreset {
+  const preset = PRESETS_MY_FEATURE.find(p => p.id === presetId)
+  if (!preset) throw new Error(`Unknown preset: ${presetId}`)
+  return { ...preset, ...overrides[presetId] }
+}
+```
+
+See `docs/en/references/data/best-practice-layered-preset-pattern.md` for full documentation and `packages/shared/data/presets/code-tools.ts` for a reference implementation.
+
 ## Cross-Domain References (Stale Object Bug)
 
 ### The Legacy Problem
@@ -501,6 +571,8 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 - [ ] Key + type in `PreferenceSchemas` interface
 - [ ] Default value in `DefaultPreferences`
 - [ ] Key naming follows conventions
+- [ ] Layered Preset pattern applied (if feature has predefined list + per-item overrides)
+- [ ] Preset definitions in `packages/shared/data/presets/` (if using Layered Preset)
 
 ### Quality
 - [ ] All tests pass: `pnpm test`

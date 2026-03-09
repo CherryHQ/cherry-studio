@@ -457,6 +457,59 @@ const showTimestamp = useAppSelector(s => s.settings.showMessageTimestamp)
 const [showTimestamp] = usePreference('chat.display.show_timestamp')
 ```
 
+## Consuming Layered Presets (Predefined Config + User Overrides)
+
+When a feature uses the Layered Preset pattern (see `v2-data-api` skill), the renderer merges presets with user overrides at read time.
+
+### Reading Effective Config
+
+```typescript
+import { PRESETS_MY_FEATURE, type MyFeaturePreset } from '@shared/data/presets/my-feature'
+import { usePreference } from '@data/hooks/usePreference'
+
+function useMyFeatureConfig(presetId: string): MyFeaturePreset {
+  const [overrides] = usePreference('feature.my_feature.overrides')
+  const preset = PRESETS_MY_FEATURE.find(p => p.id === presetId)!
+  return { ...preset, ...overrides[presetId] }
+}
+```
+
+### Updating Per-Item Overrides
+
+Write only the changed fields — keep the delta minimal:
+
+```typescript
+function useMyFeatureOverride(presetId: string) {
+  const [overrides, setOverrides] = usePreference('feature.my_feature.overrides')
+
+  const updateOverride = async (patch: Partial<MyFeatureOverride>) => {
+    const current = overrides[presetId] ?? {}
+    await setOverrides({ ...overrides, [presetId]: { ...current, ...patch } })
+  }
+
+  const resetOverride = async () => {
+    const { [presetId]: _, ...rest } = overrides
+    await setOverrides(rest)
+  }
+
+  return { override: overrides[presetId] ?? {}, updateOverride, resetOverride }
+}
+```
+
+### Migration Pattern: Redux Per-Item Maps -> Layered Preset
+
+```typescript
+// Before (Redux): separate maps per field
+const selectedModels = useAppSelector(s => s.codeTools.selectedModels)   // Record<toolId, Model>
+const envVars = useAppSelector(s => s.codeTools.environmentVariables)    // Record<toolId, string>
+
+// After (v2): single overrides preference + preset merge
+const [overrides] = usePreference('feature.code_tools.overrides')
+const effectiveConfig = { ...PRESETS_CODE_TOOLS.find(p => p.id === toolId)!, ...overrides[toolId] }
+```
+
+See `packages/shared/data/presets/code-tools.ts` for a reference implementation.
+
 ## Adding New Schema Keys
 
 ### New Cache Key
@@ -499,6 +552,7 @@ See `v2-data-api` skill, "Adding a Preference Key" section.
 - [ ] Optimistic vs pessimistic update strategy chosen for preferences
 - [ ] Cache tier chosen correctly (memory vs shared vs persist)
 - [ ] New cache/preference keys added to schemas
+- [ ] Layered Preset merge logic implemented (if feature uses presets + overrides)
 
 ### Quality
 - [ ] All tests pass: `pnpm test`

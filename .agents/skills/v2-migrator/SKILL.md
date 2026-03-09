@@ -399,12 +399,30 @@ async execute(ctx) {
 }
 ```
 
-### 8. Register
+### 8. Register ReduxExporter (if migrating a Redux slice)
+
+If the migrator reads from a Redux slice, the slice must be exported by the renderer during migration. Register it in:
+
+```typescript
+// src/renderer/src/windows/migrationV2/exporters/ReduxExporter.ts
+const SLICES_TO_EXPORT = [
+  'settings',
+  'llm',
+  // ... existing slices
+  'myNewSlice',  // <-- add your slice here
+]
+```
+
+**Why:** The migration runs in the Main process, but Redux state lives in the renderer's localStorage. `ReduxExporter` serializes registered slices and sends them to Main via IPC. If you forget this step, `ctx.sources.redux.get('mySlice', ...)` will return `undefined` for all keys.
+
+**When to skip:** If your migrator only reads from Dexie or ElectronStore (not Redux), skip this step.
+
+### 9. Register Migrator
 
 1. Add to `src/main/data/migration/v2/migrators/index.ts` with correct `order`
 2. Add target table to `MigrationEngine.verifyAndClearNewTables` (child tables before parents)
 
-### 9. Document
+### 10. Document
 
 Create `src/main/data/migration/v2/migrators/README-<MigratorName>.md`:
 - Data sources and target tables
@@ -452,6 +470,39 @@ function mergeTopicData(reduxTopic: ReduxTopic, dexieTopic: DexieTopic): MergedT
   }
 }
 ```
+
+## Layered Preset Pattern Recognition
+
+When analyzing a Redux slice for migration, check if the data follows the **Layered Preset** pattern — a predefined list of items with user customizations stored per-item. This is common for features with a fixed set of options (tools, providers, templates) where users can override individual settings.
+
+**How to recognize it in Redux:**
+- A hardcoded list of items in code (e.g., `CLI_TOOLS`, `PROVIDER_LIST`)
+- Per-item user state stored in Redux as `Record<itemId, value>` maps (e.g., `selectedModels: { 'tool-a': Model, 'tool-b': null }`)
+- Multiple such maps that share the same item keys
+
+**v2 migration strategy:** Convert to a single `overrides` preference key using delta-only storage:
+
+```typescript
+// Before (Redux): Multiple per-tool maps
+// codeTools.selectedModels = { 'tool-a': { id: 'm1', ... }, 'tool-b': null }
+// codeTools.environmentVariables = { 'tool-a': 'KEY=val', 'tool-b': '' }
+
+// After (v2): Single overrides preference (delta-only, non-default values only)
+// preference: 'feature.code_tools.overrides' = { 'tool-a': { modelId: 'm1', envVars: 'KEY=val' } }
+```
+
+**Implementation steps:**
+1. Define preset types and defaults in `packages/shared/data/presets/<domain>.ts`
+2. Add the overrides preference key to `preferenceSchemas.ts` with `{}` as default
+3. Use a `ComplexMapping` in `ComplexPreferenceMappings.ts` to merge multiple Redux maps into a single overrides object
+4. Write pure transform functions in a separate file (e.g., `CodeToolsTransforms.ts`)
+
+**Key principles:**
+- Store only non-default values (delta) — if a tool's settings all match the preset defaults, omit it entirely
+- Extract FK IDs from embedded full objects (e.g., `Model` → `modelId`)
+- Presets live in code (`packages/shared/data/presets/`), overrides live in preferences
+
+See `docs/en/references/data/best-practice-layered-preset-pattern.md` for full pattern documentation, and `packages/shared/data/presets/code-tools.ts` for a reference implementation.
 
 ## Cross-Domain References & Foreign Keys
 
@@ -642,6 +693,8 @@ try {
 - [ ] Streaming for large tables (>1000 records)
 - [ ] Duplicate ID handling
 - [ ] Progress via `reportProgress`
+- [ ] Redux slice registered in `ReduxExporter.SLICES_TO_EXPORT` (if reading from Redux)
+- [ ] Layered Preset pattern identified and applied (if source has predefined list + per-item overrides)
 - [ ] Registered in `migrators/index.ts` with correct `order`
 - [ ] Target table added to `MigrationEngine.verifyAndClearNewTables`
 - [ ] Cross-migrator data via `ctx.sharedData` (if applicable)
