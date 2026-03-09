@@ -131,6 +131,28 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  'volcano-coding': {
+    id: 'volcano-coding',
+    name: 'Volcano Engine Coding Plan',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+    anthropicApiHost: 'https://ark.cn-beijing.volces.com/api/coding',
+    models: SYSTEM_MODELS['volcano-coding'],
+    isSystem: true,
+    enabled: false
+  },
+  'byteplus-coding': {
+    id: 'byteplus-coding',
+    name: 'BytePlus Coding Plan',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ark.ap-southeast.bytepluses.com/api/coding/v3',
+    anthropicApiHost: 'https://ark.ap-southeast.bytepluses.com/api/coding',
+    models: SYSTEM_MODELS['byteplus-coding'],
+    isSystem: true,
+    enabled: false
+  },
   zhipu: {
     id: 'zhipu',
     name: 'ZhiPu',
@@ -723,6 +745,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   'gitee-ai': GiteeAIProviderLogo,
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
+  'volcano-coding': BytedanceProviderLogo,
+  'byteplus-coding': BytedanceProviderLogo,
   zhipu: ZhipuProviderLogo,
   ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
@@ -1458,6 +1482,26 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  'volcano-coding': {
+    api: {
+      url: 'https://ark.cn-beijing.volces.com/api/coding/v3'
+    },
+    websites: {
+      official: 'https://www.volcengine.com/activity/codingplan',
+      apiKey: 'https://www.volcengine.com/activity/codingplan',
+      docs: 'https://www.volcengine.com/activity/codingplan'
+    }
+  },
+  'byteplus-coding': {
+    api: {
+      url: 'https://ark.ap-southeast.bytepluses.com/api/coding/v3'
+    },
+    websites: {
+      official: 'https://www.byteplus.com/en/activity/codingplan',
+      apiKey: 'https://www.byteplus.com/en/activity/codingplan',
+      docs: 'https://www.byteplus.com/en/activity/codingplan'
     }
   }
 }

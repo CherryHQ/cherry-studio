@@ -89,7 +89,9 @@ const providerKeyMap = {
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
-  mimo: 'provider.mimo'
+  mimo: 'provider.mimo',
+  'volcano-coding': 'provider.volcano-coding',
+  'byteplus-coding': 'provider.byteplus-coding'
 } as const
 
 /**
