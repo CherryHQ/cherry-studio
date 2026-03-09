@@ -32,6 +32,7 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private providerId?: string
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -39,13 +40,15 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    providerId?: string
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.providerId = providerId
   }
 
   private markFirstTokenIfNeeded() {
@@ -291,7 +294,7 @@ export class AiSdkToChunkAdapter {
             }
           })
         } else if (final.webSearchResults.length) {
-          const providerName = Object.keys(providerMetadata || {})[0]
+          const providerName: string | undefined = Object.keys(providerMetadata || {})[0] || this.providerId
           const sourceMap: Record<string, WebSearchSource> = {
             [WEB_SEARCH_SOURCE.OPENAI]: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
             [WEB_SEARCH_SOURCE.ANTHROPIC]: WEB_SEARCH_SOURCE.ANTHROPIC,
@@ -302,9 +305,10 @@ export class AiSdkToChunkAdapter {
             [WEB_SEARCH_SOURCE.HUNYUAN]: WEB_SEARCH_SOURCE.HUNYUAN,
             [WEB_SEARCH_SOURCE.ZHIPU]: WEB_SEARCH_SOURCE.ZHIPU,
             [WEB_SEARCH_SOURCE.GROK]: WEB_SEARCH_SOURCE.GROK,
+            xai: WEB_SEARCH_SOURCE.GROK,
             [WEB_SEARCH_SOURCE.WEBSEARCH]: WEB_SEARCH_SOURCE.WEBSEARCH
           }
-          const source = sourceMap[providerName] || WEB_SEARCH_SOURCE.AISDK
+          const source = (providerName && sourceMap[providerName]) || WEB_SEARCH_SOURCE.AISDK
 
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,

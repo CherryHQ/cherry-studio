@@ -37,8 +37,6 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       default:
         return null
     }
-  } else if (toolName === 'web_search' || toolName === 'x_search') {
-    return <MessageWebSearchToolTitle toolResponse={toolResponse} />
   } else if (isAgentTool(toolName as AgentToolsType)) {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
