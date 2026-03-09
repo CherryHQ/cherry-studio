@@ -75,7 +75,7 @@
     "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.56",
+    "@anthropic-ai/claude-agent-sdk": "0.2.71",
     "@expo/sudo-prompt": "^9.3.2",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
