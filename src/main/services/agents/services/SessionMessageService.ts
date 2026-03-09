@@ -11,7 +11,7 @@ import { and, desc, eq, not } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
-import ClaudeCodeService from './claudecode'
+import { agentServiceRegistry } from './AgentServiceRegistry'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -95,7 +95,6 @@ class TextStreamAccumulator {
 
 export class SessionMessageService extends BaseService {
   private static instance: SessionMessageService | null = null
-  private cc: ClaudeCodeService = new ClaudeCodeService()
 
   static getInstance(): SessionMessageService {
     if (!SessionMessageService.instance) {
@@ -164,13 +163,13 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    if (session.agent_type !== 'claude-code') {
-      // TODO: Implement support for other agent types
+    if (!agentServiceRegistry.hasService(session.agent_type)) {
       logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
-      throw new Error('Unsupported agent type for streaming')
+      throw new Error(`Unsupported agent type for streaming: ${session.agent_type}`)
     }
 
-    const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId, {
+    const service = agentServiceRegistry.getService(session.agent_type)
+    const claudeStream = await service.invoke(req.content, session, abortController, agentSessionId, {
       effort: req.effort,
       thinking: req.thinking
     })
