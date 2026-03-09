@@ -4,11 +4,7 @@ import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import {
-  setActiveSessionIdAction,
-  setActiveTopicOrSessionAction,
-  setSessionWaitingAction
-} from '@renderer/store/runtime'
+import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
@@ -92,7 +88,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         window.toast.error(t('agent.session.delete.error.last'))
         return
       }
-      dispatch(setSessionWaitingAction({ id, value: true }))
       const success = await deleteSession(id)
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
@@ -102,7 +97,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           // may clear messages instead of forbidden deletion
         }
       }
-      dispatch(setSessionWaitingAction({ id, value: false }))
     },
     [agentId, deleteSession, dispatch, sessions, t]
   )
