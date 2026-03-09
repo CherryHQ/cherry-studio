@@ -143,7 +143,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         t
       )
     },
-    [extensions, pasteLongTextThreshold, t]
+    [extensions, pasteLongTextThreshold, t, pasteLongTextAsFile]
   )
 
   // 添加全局粘贴事件处理
