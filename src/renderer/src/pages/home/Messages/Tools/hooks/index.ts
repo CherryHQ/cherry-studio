@@ -6,7 +6,6 @@ export {
   useAgentToolApproval,
   type UseAgentToolApprovalOptions,
   useMcpToolApproval,
-  type UseMcpToolApprovalOptions,
   useToolApproval,
   type UseToolApprovalOptions
 } from './useToolApproval'

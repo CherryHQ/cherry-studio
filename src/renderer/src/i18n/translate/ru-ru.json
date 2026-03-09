@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Вызов инструмента прерван",
       "aborted": "Вызов инструмента прерван",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
       "completed": "Завершено",

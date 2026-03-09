@@ -321,7 +321,7 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Pending ({{seconds}}s)",
+      "pending": "Waiting for approval",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",

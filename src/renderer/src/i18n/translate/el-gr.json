@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Αποτυχία διακοπής κλήσης εργαλείου",
       "aborted": "Η κλήση του εργαλείου διακόπηκε",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",

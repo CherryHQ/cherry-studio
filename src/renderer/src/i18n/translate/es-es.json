@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
       "completed": "Completado",
