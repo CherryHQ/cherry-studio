@@ -19,32 +19,27 @@ class AnalyticsService {
   }
 
   public init(): void {
-    if (!configManager.getEnableDataCollection()) {
-      logger.info('Data collection is disabled, skipping analytics initialization')
-      return
-    }
-
     this.client = new AnalyticsClient({
       clientId: configManager.getClientId(),
       channel: 'cherry-studio',
       onError: (error) => logger.error('Analytics error:', error)
     })
-    logger.info('Analytics service initialized')
 
-    this.trackAppLaunch()
-  }
-
-  private trackAppLaunch(): void {
-    if (!this.client) return
     this.client.trackAppLaunch({
       version: app.getVersion(),
       os: process.platform
     })
-    logger.info('App launch event tracked')
+
+    logger.info('Analytics service initialized')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.client) return
+    const enableDataCollection = configManager.getEnableDataCollection()
+
+    if (!this.client || !enableDataCollection) {
+      return
+    }
+
     this.client.trackTokenUsage(data)
   }
 
