@@ -24,7 +24,7 @@ export class HeartbeatReader {
         logger.info(`Heartbeat file not found: ${resolved}`)
         return undefined
       }
-      logger.error(`Failed to read heartbeat file: ${resolved}`, error)
+      logger.error(`Failed to read heartbeat file: ${resolved}`, error as Error)
       return undefined
     }
   }

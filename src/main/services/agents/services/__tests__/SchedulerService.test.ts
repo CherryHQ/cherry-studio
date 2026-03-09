@@ -34,9 +34,11 @@ vi.mock('../cherryclaw', () => ({
 }))
 
 vi.mock('cron-parser', () => ({
-  parseExpression: vi.fn().mockReturnValue({
-    next: () => ({ toDate: () => new Date(Date.now() + 60000) })
-  })
+  CronExpressionParser: {
+    parse: vi.fn().mockReturnValue({
+      next: () => ({ toDate: () => new Date(Date.now() + 60000) })
+    })
+  }
 }))
 
 import type { AgentEntity, CherryClawConfiguration } from '@types'
@@ -58,7 +60,7 @@ function createMockAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
 }
 
 describe('SchedulerService', () => {
-  let SchedulerServiceClass: typeof import('../SchedulerService')
+  let SchedulerServiceClass: any
 
   beforeEach(async () => {
     vi.useFakeTimers()

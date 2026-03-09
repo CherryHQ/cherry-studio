@@ -36,7 +36,7 @@ export class SoulReader {
       logger.info(`Loaded soul.md from ${soulPath}`)
       return content
     } catch (error) {
-      logger.error(`Failed to read soul.md at ${soulPath}`, error)
+      logger.error(`Failed to read soul.md at ${soulPath}`, error as Error)
       return undefined
     }
   }
