@@ -23,7 +23,7 @@ export function formatVertexApiHost(provider: VertexProvider): string {
   const trimmedHost = withoutTrailingSlash(trim(apiHost))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
     const host =
-      location == 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
+      location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`
   }
   return formatApiHost(trimmedHost)
