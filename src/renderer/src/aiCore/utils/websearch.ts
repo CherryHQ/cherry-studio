@@ -2,7 +2,8 @@ import type {
   AnthropicSearchConfig,
   OpenAISearchConfig,
   WebSearchPluginConfig,
-  XAISearchConfig
+  XAIWebSearchConfig,
+  XAIXSearchConfig
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
@@ -81,12 +82,18 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'xai': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const xaiConfig: XAISearchConfig = {}
+      const xaiWebConfig: XAIWebSearchConfig = {
+        enableImageUnderstanding: true
+      }
       if (excludeDomains.length > 0) {
-        xaiConfig.excludedDomains = excludeDomains.slice(0, 5)
+        xaiWebConfig.excludedDomains = excludeDomains.slice(0, 5)
+      }
+      const xaiXSearchConfig: XAIXSearchConfig = {
+        enableImageUnderstanding: true
       }
       return {
-        xai: xaiConfig
+        xai: xaiWebConfig,
+        'xai-xsearch': xaiXSearchConfig
       }
     }
     case 'openrouter': {
