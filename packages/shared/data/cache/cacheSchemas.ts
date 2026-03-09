@@ -226,10 +226,18 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
+
+  // Notes UI state
+  'notes.active_file_path': string | undefined
+  'notes.expanded_paths': string[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' }
+  'ui.tab.state': { tabs: [], activeTabId: '' },
+
+  // Notes UI state
+  'notes.active_file_path': undefined,
+  'notes.expanded_paths': []
 }
 
 // ============================================================================
