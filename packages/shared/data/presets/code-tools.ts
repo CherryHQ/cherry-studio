@@ -11,28 +11,32 @@
 export interface CodeToolPreset {
   id: string
   name: string
+  enabled: boolean
   modelId: string | null
   envVars: string
+  terminal: string
   currentDirectory: string
   directories: string[]
 }
 
+const DEFAULT_PRESET: Omit<CodeToolPreset, 'id' | 'name'> = {
+  enabled: false,
+  modelId: null,
+  envVars: '',
+  terminal: 'Terminal',
+  currentDirectory: '',
+  directories: []
+}
+
 export const PRESETS_CODE_TOOLS: CodeToolPreset[] = [
-  { id: 'qwen-code', name: 'Qwen Code', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  { id: 'claude-code', name: 'Claude Code', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  { id: 'gemini-cli', name: 'Gemini CLI', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  { id: 'openai-codex', name: 'OpenAI Codex', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  { id: 'iflow-cli', name: 'iFlow CLI', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  {
-    id: 'github-copilot-cli',
-    name: 'GitHub Copilot CLI',
-    modelId: null,
-    envVars: '',
-    currentDirectory: '',
-    directories: []
-  },
-  { id: 'kimi-cli', name: 'Kimi CLI', modelId: null, envVars: '', currentDirectory: '', directories: [] },
-  { id: 'opencode', name: 'OpenCode', modelId: null, envVars: '', currentDirectory: '', directories: [] }
+  { id: 'qwen-code', name: 'Qwen Code', ...DEFAULT_PRESET },
+  { id: 'claude-code', name: 'Claude Code', ...DEFAULT_PRESET },
+  { id: 'gemini-cli', name: 'Gemini CLI', ...DEFAULT_PRESET },
+  { id: 'openai-codex', name: 'OpenAI Codex', ...DEFAULT_PRESET },
+  { id: 'iflow-cli', name: 'iFlow CLI', ...DEFAULT_PRESET },
+  { id: 'github-copilot-cli', name: 'GitHub Copilot CLI', ...DEFAULT_PRESET },
+  { id: 'kimi-cli', name: 'Kimi CLI', ...DEFAULT_PRESET },
+  { id: 'opencode', name: 'OpenCode', ...DEFAULT_PRESET }
 ]
 
 /**

@@ -307,10 +307,6 @@ export interface PreferenceSchemas {
     'data.integration.yuque.url': string
     // redux/codeTools - per-tool overrides (layered preset pattern)
     'feature.code_tools.overrides': CodeToolOverrides
-    // redux/codeTools/selectedCliTool
-    'feature.code_tools.selected_cli_tool': string
-    // redux/codeTools/selectedTerminal
-    'feature.code_tools.selected_terminal': string
     // redux/settings/apiServer.apiKey
     'feature.csaas.api_key': string | null
     // redux/settings/apiServer.enabled
@@ -592,8 +588,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.integration.yuque.token': '',
     'data.integration.yuque.url': '',
     'feature.code_tools.overrides': {},
-    'feature.code_tools.selected_cli_tool': 'qwen-code',
-    'feature.code_tools.selected_terminal': 'Terminal',
     'feature.csaas.api_key': null,
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',

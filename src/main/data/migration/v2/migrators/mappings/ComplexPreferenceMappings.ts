@@ -88,7 +88,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       environmentVariables: { source: 'redux', category: 'codeTools', key: 'environmentVariables' },
       directories: { source: 'redux', category: 'codeTools', key: 'directories' },
       currentDirectory: { source: 'redux', category: 'codeTools', key: 'currentDirectory' },
-      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' }
+      selectedCliTool: { source: 'redux', category: 'codeTools', key: 'selectedCliTool' },
+      selectedTerminal: { source: 'redux', category: 'codeTools', key: 'selectedTerminal' }
     },
     targetKeys: ['feature.code_tools.overrides'],
     transform: (sources) => {
@@ -97,7 +98,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         environmentVariables: sources.environmentVariables as Record<string, string> | null,
         directories: sources.directories as string[] | null,
         currentDirectory: sources.currentDirectory as string | null,
-        selectedCliTool: sources.selectedCliTool as string | null
+        selectedCliTool: sources.selectedCliTool as string | null,
+        selectedTerminal: sources.selectedTerminal as string | null
       })
       return { 'feature.code_tools.overrides': overrides }
     }
