@@ -18,15 +18,15 @@ export const noteHandlers: {
       return await noteService.list()
     }
   },
-  '/notes/:path': {
+  '/notes/:relativePath': {
     GET: async ({ params }) => {
-      return await noteService.getByPath(params.path)
+      return await noteService.getByRelativePath(params.relativePath)
     },
     PATCH: async ({ params, body }) => {
-      return await noteService.update(params.path, body)
+      return await noteService.update(params.relativePath, body)
     },
     DELETE: async ({ params }) => {
-      await noteService.delete(params.path)
+      await noteService.delete(params.relativePath)
       return undefined
     }
   }

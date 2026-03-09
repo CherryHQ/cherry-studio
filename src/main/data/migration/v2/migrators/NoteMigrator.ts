@@ -74,7 +74,6 @@ export class NoteMigrator extends BaseMigrator {
           const batch = this.starredPaths.slice(i, i + BATCH_SIZE)
           await tx.insert(noteTable).values(
             batch.map((notePath) => ({
-              path: notePath,
               relativePath: this.notesRoot ? toRelativePath(notePath, this.notesRoot) : notePath,
               isStarred: true,
               createdAt: timestamp,
