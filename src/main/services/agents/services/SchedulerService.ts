@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { AgentEntity, CherryClawConfiguration, SchedulerType } from '@types'
-import { parseExpression } from 'cron-parser'
+import { CronExpressionParser } from 'cron-parser'
 
 import { agentService } from './AgentService'
 import { CherryClawService } from './cherryclaw'
@@ -165,8 +165,8 @@ class SchedulerService {
       case 'cron': {
         if (!config.scheduler_cron) return null
         try {
-          const interval = parseExpression(config.scheduler_cron)
-          const next = interval.next().toDate()
+          const cron = CronExpressionParser.parse(config.scheduler_cron)
+          const next = cron.next().toDate()
           return Math.max(next.getTime() - Date.now(), 1000) // at least 1s
         } catch {
           logger.warn('Invalid cron expression', { cron: config.scheduler_cron })

@@ -9,7 +9,7 @@ vi.mock('@logger', () => ({
 }))
 
 describe('AgentServiceRegistry', () => {
-  let agentServiceRegistry: typeof import('../AgentServiceRegistry').agentServiceRegistry
+  let agentServiceRegistry: any
 
   beforeEach(async () => {
     vi.resetModules()
