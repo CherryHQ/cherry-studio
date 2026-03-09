@@ -286,7 +286,7 @@ export class WindowService {
         'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
-        'https://www.aiionly.com/login'
+        'https://maas.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
