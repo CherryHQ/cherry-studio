@@ -1,5 +1,6 @@
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { Input, InputNumber, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -15,28 +16,6 @@ import {
 } from '../shared'
 
 const { TextArea } = Input
-
-const serializeEnvVars = (vars: Record<string, string>): string =>
-  Object.entries(vars)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('\n')
-
-const parseEnvVars = (text: string): Record<string, string> => {
-  const env: Record<string, string> = {}
-  if (!text) return env
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim()
-    if (trimmed && trimmed.includes('=')) {
-      const [key, ...valueParts] = trimmed.split('=')
-      const trimmedKey = key.trim()
-      const value = valueParts.join('=').trim()
-      if (trimmedKey) {
-        env[trimmedKey] = value
-      }
-    }
-  }
-  return env
-}
 
 export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
@@ -54,7 +33,7 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
     const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
     setMaxTurnsInput(parsed.max_turns)
-    setEnvVarsText(serializeEnvVars(parsed.env_vars ?? {}))
+    setEnvVarsText(serializeKeyValueString(parsed.env_vars ?? {}))
   }, [agentBase])
 
   const commitMaxTurns = useCallback(() => {
@@ -76,7 +55,7 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
 
   const commitEnvVars = useCallback(() => {
     if (!agentBase) return
-    const parsed = parseEnvVars(envVarsText)
+    const parsed = parseKeyValueString(envVarsText)
     const currentVars = configuration.env_vars ?? {}
     if (JSON.stringify(parsed) === JSON.stringify(currentVars)) return
     const next: AgentConfigurationState = { ...configuration, env_vars: parsed }

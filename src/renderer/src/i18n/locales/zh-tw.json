@@ -136,9 +136,9 @@
     "settings": {
       "advance": {
         "envVars": {
-          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
-          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
-          "label": "[to be translated]:Environment Variables"
+          "description": "為智慧體執行環境設置自訂環境變數。",
+          "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
+          "label": "環境變數"
         },
         "maxTurns": {
           "description": "設定代理自動執行的請求／回覆輪次數。",

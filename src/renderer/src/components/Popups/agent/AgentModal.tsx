@@ -17,6 +17,7 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select } from 'antd'
 import type { ChangeEvent, FormEvent } from 'react'
@@ -166,40 +167,18 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }))
   }, [])
 
-  const serializeEnvVars = (vars: Record<string, string>): string =>
-    Object.entries(vars)
-      .map(([k, v]) => `${k}=${v}`)
-      .join('\n')
-
-  const parseEnvVars = (text: string): Record<string, string> => {
-    const env: Record<string, string> = {}
-    if (!text) return env
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim()
-      if (trimmed && trimmed.includes('=')) {
-        const [key, ...valueParts] = trimmed.split('=')
-        const trimmedKey = key.trim()
-        const value = valueParts.join('=').trim()
-        if (trimmedKey) {
-          env[trimmedKey] = value
-        }
-      }
-    }
-    return env
-  }
-
-  const [envVarsText, setEnvVarsText] = useState(() => serializeEnvVars(form.configuration?.env_vars ?? {}))
+  const [envVarsText, setEnvVarsText] = useState(() => serializeKeyValueString(form.configuration?.env_vars ?? {}))
 
   useEffect(() => {
     if (open) {
-      setEnvVarsText(serializeEnvVars(buildAgentForm(agent).configuration?.env_vars ?? {}))
+      setEnvVarsText(serializeKeyValueString(buildAgentForm(agent).configuration?.env_vars ?? {}))
     }
   }, [agent, open])
 
   const onEnvVarsChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value
     setEnvVarsText(text)
-    const parsed = parseEnvVars(text)
+    const parsed = parseKeyValueString(text)
     setForm((prev) => ({
       ...prev,
       configuration: {

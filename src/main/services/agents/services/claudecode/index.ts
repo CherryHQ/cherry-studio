@@ -179,7 +179,11 @@ class ClaudeCodeService implements AgentServiceInterface {
         'ELECTRON_NO_ATTACH_CONSOLE',
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_USE_BEDROCK',
-        'CLAUDE_CODE_GIT_BASH_PATH'
+        'CLAUDE_CODE_GIT_BASH_PATH',
+        'NODE_OPTIONS',
+        '__proto__',
+        'constructor',
+        'prototype'
       ])
       for (const [key, value] of Object.entries(userEnvVars)) {
         if (BLOCKED_ENV_KEYS.has(key)) {
