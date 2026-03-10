@@ -31,9 +31,13 @@ export class CherryClawService implements AgentServiceInterface {
     const config = (session.configuration ?? {}) as CherryClawConfiguration
     const workspacePath = session.accessible_paths[0]
 
+    type EnhancedSession = GetAgentSessionResponse & {
+      _internalMcpServers?: Record<string, InternalMcpServerConfig>
+      _disallowedTools?: string[]
+    }
+
     // Build soul-enhanced session
-    let enhancedSession: GetAgentSessionResponse & { _internalMcpServers?: Record<string, InternalMcpServerConfig> } =
-      session
+    let enhancedSession: EnhancedSession = session
 
     if (config.soul_enabled !== false && workspacePath) {
       const soulContent = await this.soulReader.readSoul(workspacePath)
@@ -51,6 +55,7 @@ export class CherryClawService implements AgentServiceInterface {
     }
 
     // Inject the claw MCP server for autonomous task management
+    // and disable the SDK's builtin cron tools so the agent uses our MCP cron tool instead
     const apiConfig = await apiConfigService.get()
     enhancedSession = {
       ...enhancedSession,
@@ -62,7 +67,8 @@ export class CherryClawService implements AgentServiceInterface {
             Authorization: `Bearer ${apiConfig.apiKey}`
           }
         }
-      }
+      },
+      _disallowedTools: ['CronCreate', 'CronDelete', 'CronList']
     }
 
     // Delegate to claude-code service (CherryClaw is a Claude Code variant)

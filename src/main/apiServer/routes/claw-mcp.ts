@@ -59,37 +59,49 @@ router.all('/:agentId/claw-mcp', async (req: Request, res: Response): Promise<vo
     await clawServer.server.connect(transport)
   }
 
-  // Parse JSON-RPC messages
-  const jsonPayload = req.body
-  const messages: JSONRPCMessage[] = []
+  // Only parse JSON-RPC body for POST requests.
+  // GET (SSE streaming) and DELETE (session close) have no body.
+  if (req.method === 'POST') {
+    const jsonPayload = req.body
+    const messages: JSONRPCMessage[] = []
 
-  if (Array.isArray(jsonPayload)) {
-    for (const payload of jsonPayload) {
-      messages.push(JSONRPCMessageSchema.parse(payload))
+    if (Array.isArray(jsonPayload)) {
+      for (const payload of jsonPayload) {
+        messages.push(JSONRPCMessageSchema.parse(payload))
+      }
+    } else {
+      messages.push(JSONRPCMessageSchema.parse(jsonPayload))
     }
+
+    for (const message of messages) {
+      if (isJSONRPCRequest(message)) {
+        if (!message.params) {
+          message.params = {}
+        }
+        if (!message.params._meta) {
+          message.params._meta = {}
+        }
+        message.params._meta.agentId = agentId
+      }
+    }
+
+    logger.debug('Dispatching claw MCP POST request', {
+      agentId,
+      sessionId: transport.sessionId ?? sessionId,
+      messageCount: messages.length
+    })
+
+    await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
   } else {
-    messages.push(JSONRPCMessageSchema.parse(jsonPayload))
+    // GET / DELETE — let the transport handle directly without body parsing
+    logger.debug('Dispatching claw MCP request', {
+      method: req.method,
+      agentId,
+      sessionId: transport.sessionId ?? sessionId
+    })
+
+    await transport.handleRequest(req as IncomingMessage, res as ServerResponse)
   }
-
-  for (const message of messages) {
-    if (isJSONRPCRequest(message)) {
-      if (!message.params) {
-        message.params = {}
-      }
-      if (!message.params._meta) {
-        message.params._meta = {}
-      }
-      message.params._meta.agentId = agentId
-    }
-  }
-
-  logger.debug('Dispatching claw MCP request', {
-    agentId,
-    sessionId: transport.sessionId ?? sessionId,
-    messageCount: messages.length
-  })
-
-  await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
 })
 
 /**
