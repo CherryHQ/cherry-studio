@@ -19,7 +19,6 @@ import {
 } from '@shared/config/constant'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
-import { app } from 'electron'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -983,7 +982,7 @@ class CodeToolsService {
       // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
       let installCommand: string
       if (platform === 'win32') {
-        const logsDir = path.join(app.getPath('userData'), 'logs')
+        const logsDir = loggerService.getLogsDir()
         const installLogPath = path.join(logsDir, 'cli-tools-install.log')
 
         // Ensure logs directory exists
