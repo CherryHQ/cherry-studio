@@ -86,6 +86,33 @@ class SchedulerService {
     this.startLoop()
   }
 
+  /**
+   * Ensure a heartbeat task exists for the given agent.
+   * Creates one if missing, or updates the interval if it changed.
+   */
+  async ensureHeartbeatTask(agentId: string, intervalMinutes: number = 30): Promise<void> {
+    const { tasks } = await taskService.listTasks(agentId, { includeHeartbeat: true })
+    const existing = tasks.find((t) => t.name === 'heartbeat')
+
+    if (existing) {
+      const currentInterval = existing.schedule_value
+      const newInterval = String(intervalMinutes)
+      if (currentInterval !== newInterval) {
+        await taskService.updateTask(agentId, existing.id, { schedule_value: newInterval })
+        logger.info('Updated heartbeat task interval', { agentId, interval: intervalMinutes })
+      }
+    } else {
+      await taskService.createTask(agentId, {
+        name: 'heartbeat',
+        prompt: '__heartbeat__',
+        schedule_type: 'interval',
+        schedule_value: String(intervalMinutes),
+        context_mode: 'session'
+      })
+      logger.info('Created heartbeat task', { agentId, interval: intervalMinutes })
+    }
+  }
+
   /** Manually trigger a task run (from UI). Returns immediately; task runs in background. */
   async runTaskNow(agentId: string, taskId: string): Promise<void> {
     const task = await taskService.getTask(agentId, taskId)
@@ -165,14 +192,34 @@ class SchedulerService {
       const config = (agent.configuration ?? {}) as CherryClawConfiguration
       const workspacePath = agent.accessible_paths?.[0]
 
-      // Build the prompt — optionally prepend heartbeat content
+      // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt
-      if (config.heartbeat_enabled !== false && workspacePath) {
-        const clawService = this.getCherryClawService()
-        const heartbeatContent = await clawService.heartbeatReader.readHeartbeat(workspacePath, config.heartbeat_file)
-        if (heartbeatContent) {
-          fullPrompt = `[Heartbeat]\n${heartbeatContent}\n\n[Task]\n${task.prompt}`
+      if (task.name === 'heartbeat') {
+        if (config.heartbeat_enabled === false || !workspacePath) {
+          logger.debug('Heartbeat task skipped (disabled or no workspace)', { taskId: task.id })
+          // Still update next_run so it doesn't fire again immediately
+          const nextRun = taskService.computeNextRun(task)
+          await taskService.updateTaskAfterRun(task.id, nextRun, 'Skipped (disabled)')
+          this.activeTasks.delete(task.id)
+          return
         }
+        const clawService = this.getCherryClawService()
+        const heartbeatContent = await clawService.heartbeatReader.readHeartbeat(workspacePath)
+        if (!heartbeatContent) {
+          logger.debug('Heartbeat task skipped (no heartbeat.md)', { taskId: task.id })
+          const nextRun = taskService.computeNextRun(task)
+          await taskService.updateTaskAfterRun(task.id, nextRun, 'Skipped (no file)')
+          this.activeTasks.delete(task.id)
+          return
+        }
+        fullPrompt = [
+          '[Heartbeat]',
+          'This is a periodic heartbeat. The instructions below are from your heartbeat.md file.',
+          'Process each item, take action where possible, and use the notify tool to alert the user of important results.',
+          '',
+          '---',
+          heartbeatContent
+        ].join('\n')
       }
 
       // Find or create session based on context mode

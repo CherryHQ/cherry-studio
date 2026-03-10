@@ -102,7 +102,7 @@ export type CherryClawConfiguration = AgentConfiguration & {
 
   // Heartbeat
   heartbeat_enabled?: boolean
-  heartbeat_file?: string
+  heartbeat_interval?: number // minutes, default 30
 
   // Channels (placeholder)
   channels?: CherryClawChannel[]

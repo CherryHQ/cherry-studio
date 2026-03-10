@@ -23,7 +23,8 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Phase 13**: Scheduler session resume + claw MCP tool injection — SDK session_id capture for `options.resume`, auto-add claw MCP tools to `allowed_tools` — DONE
 - **Phase 14**: Claw MCP skills tool — `skills` MCP tool with search/install/remove/list actions, reuses `PluginService` for install/uninstall/list and marketplace API for search — DONE
 - **Phase 15**: System prompt & memory — full custom system prompt replaces Claude Code preset; workspace files (system.md, soul.md, user.md, memory/FACT.md) assembled by `PromptBuilder`; `memory` MCP tool with update/append/search actions for FACT.md + JOURNAL.jsonl — DONE
-- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (199 test files, 3621 tests)
+- **Phase 16**: Heartbeat redesign — heartbeat.md as workspace file, heartbeat as auto-created scheduled task (name='heartbeat'), toggle + interval UI in Tasks settings, `HeartbeatReader` simplified (no filename param), `TaskService.listTasks` filters heartbeat by default — DONE
+- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (198 test files, 3617 tests)
 
 ## Key Decisions
 
@@ -32,7 +33,8 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Drift-resistant interval computation** — `computeNextRun()` anchors to the previous `next_run` timestamp and skips past missed intervals, preventing cumulative drift (ported from nanoclaw).
 - **Tasks as first-class entities** — new `scheduled_tasks` and `task_run_logs` Drizzle tables with FK cascades to agents. Users can create/edit/pause/delete multiple tasks per agent via the UI.
 - **cron-parser v5** — uses `CronExpressionParser.parse()` API (not the older `parseExpression`).
-- **mtime-based cache for workspace files** — `PromptBuilder` caches all file reads (soul.md, user.md, system.md, FACT.md) with single `fs.stat` check per read, no persistent file watchers. Heartbeat reads fresh each tick.
+- **mtime-based cache for workspace files** — `PromptBuilder` caches all file reads (soul.md, user.md, system.md, FACT.md) with single `fs.stat` check per read, no persistent file watchers.
+- **Heartbeat as a scheduled task** — heartbeat is a special task with `name='heartbeat'` auto-created for each CherryClaw agent. Reuses the existing `TaskService` + `SchedulerService` poll loop infrastructure. Config: `heartbeat_enabled` (boolean, default true) + `heartbeat_interval` (minutes, default 30). On each tick, `SchedulerService.runTask()` detects `task.name === 'heartbeat'` and reads `{workspace}/heartbeat.md` via `HeartbeatReader`. If the file exists and heartbeat is enabled, its content is sent to the agent's main session. If the file is missing or heartbeat is disabled, the tick is skipped silently. `TaskService.listTasks()` excludes heartbeat tasks by default (pass `{ includeHeartbeat: true }` to include). `SchedulerService.ensureHeartbeatTask(agentId, intervalMinutes)` creates or updates the heartbeat task — called on agent create and update. UI shows a toggle + interval input at the top of the Tasks settings page.
 - **Default emoji 🦞** — CherryClaw agents get lobster claw emoji as default avatar in the agent list.
 - **Placeholder cherry-claw.png** — copied from claude.png; needs a proper distinct avatar image.
 - **i18n strict nesting** — task keys use proper nested objects (e.g., `tasks.contextMode.session` not `tasks.contextMode.session` + `tasks.contextMode.session.desc`) to pass the i18n checker.
@@ -61,16 +63,21 @@ SchedulerService (singleton, poll loop)
   startLoop() → polls every 60s
     tick() → taskService.getDueTasks() → for each due task:
       runTask(task)
-        1. Load agent config (soul, heartbeat)
-        2. Build prompt (optionally prepend heartbeat content)
+        1. Load agent config
+        2. If task.name === 'heartbeat':
+           - Check heartbeat_enabled config + read heartbeat.md from workspace
+           - If disabled or file missing → skip (update next_run, return)
+           - Otherwise use file content as prompt
         3. Find/create session based on context_mode
         4. sessionMessageService.createSessionMessage()
         5. Log run to task_run_logs
         6. computeNextRun() → updateTaskAfterRun()
+  ensureHeartbeatTask(agentId, intervalMinutes) → creates/updates heartbeat task
   stopLoop() → clears timer, aborts active tasks
 
 TaskService (CRUD + scheduling logic)
   createTask / getTask / listTasks / updateTask / deleteTask
+  listTasks(agentId, { includeHeartbeat? }) → excludes heartbeat tasks by default
   getDueTasks() → SELECT WHERE status='active' AND next_run <= now()
   computeNextRun(task) → drift-resistant next run calculation
   updateTaskAfterRun() → updates next_run, last_run, last_result
@@ -126,6 +133,7 @@ Route: /v1/claw/:agentId/claw-mcp (Streamable HTTP MCP transport)
   system.md              — optional system prompt override (replaces default CherryClaw identity)
   soul.md                — WHO you are: personality, tone, communication style
   user.md                — WHO the user is: name, preferences, personal context
+  heartbeat.md           — standing instructions for periodic execution (e.g., "check my email")
   memory/
     FACT.md              — WHAT you know: durable project knowledge, technical decisions (6+ months)
     JOURNAL.jsonl        — event log: one-time events, completed tasks, session notes (append-only)
@@ -199,14 +207,14 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/claudecode/index.ts` — reads enhanced session fields; when `_systemPrompt` is set, uses it as full replacement (plain string) instead of preset+append; PreToolUse hook enforces `_sandboxAllowedPaths` via path checking for all filesystem tools + Bash regex; captures SDK session_id from init message onto `AgentStream.sdkSessionId`
 - `src/main/services/agents/interfaces/AgentStreamInterface.ts` — added `sdkSessionId?: string` to `AgentStream` interface for SDK session resume
 - `src/main/services/agents/services/cherryclaw/soul.ts` — NEW: SoulReader with mtime cache
-- `src/main/services/agents/services/cherryclaw/heartbeat.ts` — NEW: HeartbeatReader with path traversal protection
-- `src/main/services/agents/services/TaskService.ts` — NEW: task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging
-- `src/main/services/agents/services/SchedulerService.ts` — REWRITTEN: poll-loop based, queries DB for due tasks, backward-compatible stopScheduler/startScheduler stubs; passes `{ persist: true }` and drains stream for completion; added `runTaskNow()` for manual trigger + `notifyTaskResult()` for channel notifications
+- `src/main/services/agents/services/cherryclaw/heartbeat.ts` — HeartbeatReader: reads `heartbeat.md` from workspace with path traversal protection. Simplified API (no filename param, always reads `heartbeat.md`, returns trimmed content or undefined for empty/missing files).
+- `src/main/services/agents/services/TaskService.ts` — task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging. `listTasks` now filters out heartbeat tasks by default (pass `{ includeHeartbeat: true }` to include).
+- `src/main/services/agents/services/SchedulerService.ts` — poll-loop based, queries DB for due tasks, backward-compatible stopScheduler/startScheduler stubs; passes `{ persist: true }` and drains stream for completion; `runTaskNow()` for manual trigger; `notifyTaskResult()` for channel notifications; `ensureHeartbeatTask(agentId, intervalMinutes)` creates/updates the heartbeat scheduled task. `runTask()` detects heartbeat tasks (`task.name === 'heartbeat'`) and reads `heartbeat.md` from workspace instead of using stored prompt.
 - `src/main/services/agents/services/index.ts` — registers claude-code + cherry-claw services, exports TaskService
 - `src/main/services/agents/BaseService.ts` — added `cherry-claw` to tool/command dispatch
 - `src/main/services/agents/services/SessionService.ts` — added `cherry-claw` to command dispatch
 - `src/main/index.ts` — wired scheduler restore on startup, stopAll on quit
-- `src/main/apiServer/routes/agents/handlers/agents.ts` — stop/restart scheduler on agent delete/update
+- `src/main/apiServer/routes/agents/handlers/agents.ts` — stop/restart scheduler on agent delete/update; sync heartbeat task on CherryClaw create/update/patch via `ensureHeartbeatTask()`
 
 ### Claw MCP Server
 - `src/main/mcpServers/claw.ts` — NEW: ClawServer with `cron` tool (add/list/remove actions) + `notify` tool (send messages to channels) + `memory` tool (update/append/search for FACT.md + JOURNAL.jsonl) + `skills` tool (marketplace search/install/remove/list), duration parsing, TaskService + ChannelManager + AgentService delegation
@@ -241,7 +249,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/renderer/src/components/Popups/agent/AgentModal.tsx` — agent type selector, CherryClaw defaults, bypass warning
 - `src/renderer/src/pages/settings/AgentSettings/AgentSettingsPopup.tsx` — replaced Channels tab with Tasks tab for CherryClaw agents
 - `src/renderer/src/pages/settings/AgentSettings/BaseSettingsPopup.tsx` — added `'tasks'` to SettingsPopupTab union
-- `src/renderer/src/pages/settings/AgentSettings/components/TasksSettings.tsx` — NEW: task list with add/edit/pause/delete/run/logs
+- `src/renderer/src/pages/settings/AgentSettings/components/TasksSettings.tsx` — task list with add/edit/pause/delete/run/logs + HeartbeatSection (toggle + interval input) at top
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskListItem.tsx` — NEW: task row with status badge, schedule info, action buttons
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskFormModal.tsx` — NEW: add/edit modal (name, prompt, schedule type/value, context mode)
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskLogsModal.tsx` — NEW: run history table (run_at, duration, status, result/error)
@@ -257,7 +265,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/__tests__/AgentServiceRegistry.test.ts` — 4 tests
 - `src/main/services/agents/services/__tests__/SchedulerService.test.ts` — 7 tests (rewritten for poll-loop API)
 - `src/main/services/agents/services/cherryclaw/__tests__/soul.test.ts` — 4 tests
-- `src/main/services/agents/services/cherryclaw/__tests__/heartbeat.test.ts` — 5 tests
+- `src/main/services/agents/services/cherryclaw/__tests__/heartbeat.test.ts` — 4 tests (simplified: reads heartbeat.md, handles missing/empty, trims content)
 - `src/main/services/agents/services/cherryclaw/__tests__/prompt.test.ts` — 7 tests (default prompt, system.md override, individual memory files, combined memories, caching)
 - `src/main/mcpServers/__tests__/claw.test.ts` — 37 tests (cron tool add/list/remove, duration parsing, validation, notify tool send/filter/errors, skills tool search/install/remove/list, memory tool update/append/search)
 - `src/main/services/agents/services/channels/__tests__/ChannelMessageHandler.test.ts` — 7 tests (multi-turn accumulation, chunking, commands, session tracking)
@@ -270,8 +278,8 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 ## Current State
 
 - Branch: `feat/cherry-claw-agent`
-- All lint/test/format checks pass (199 test files, 3621 tests)
-- Feature is code-complete including task-based scheduler, claw MCP tools (cron + notify + skills + memory), channel layer with Telegram streaming, custom system prompt with memory system, and manual task run
+- All lint/test/format checks pass (198 test files, 3617 tests)
+- Feature is code-complete including task-based scheduler, heartbeat as scheduled task, claw MCP tools (cron + notify + skills + memory), channel layer with Telegram streaming, custom system prompt with memory system, and manual task run
 - Pushed to remote
 
 ## Blockers / Gotchas

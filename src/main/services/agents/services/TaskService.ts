@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { CreateTaskRequest, ListOptions, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@types'
-import { and, asc, count, desc, eq, lte } from 'drizzle-orm'
+import { and, asc, count, desc, eq, lte, ne } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -68,26 +68,29 @@ export class TaskService extends BaseService {
 
   async listTasks(
     agentId: string,
-    options: ListOptions = {}
+    options: ListOptions & { includeHeartbeat?: boolean } = {}
   ): Promise<{ tasks: ScheduledTaskEntity[]; total: number }> {
     const database = await this.getDatabase()
+    const { includeHeartbeat = false, ...paginationOptions } = options
 
-    const totalResult = await database
-      .select({ count: count() })
-      .from(scheduledTasksTable)
-      .where(eq(scheduledTasksTable.agent_id, agentId))
+    // By default, exclude heartbeat tasks from the listing
+    const whereCondition = includeHeartbeat
+      ? eq(scheduledTasksTable.agent_id, agentId)
+      : and(eq(scheduledTasksTable.agent_id, agentId), ne(scheduledTasksTable.name, 'heartbeat'))
+
+    const totalResult = await database.select({ count: count() }).from(scheduledTasksTable).where(whereCondition)
 
     const baseQuery = database
       .select()
       .from(scheduledTasksTable)
-      .where(eq(scheduledTasksTable.agent_id, agentId))
+      .where(whereCondition)
       .orderBy(desc(scheduledTasksTable.created_at))
 
     const result =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? await baseQuery.limit(options.limit).offset(options.offset)
-          : await baseQuery.limit(options.limit)
+      paginationOptions.limit !== undefined
+        ? paginationOptions.offset !== undefined
+          ? await baseQuery.limit(paginationOptions.limit).offset(paginationOptions.offset)
+          : await baseQuery.limit(paginationOptions.limit)
         : await baseQuery
 
     return {

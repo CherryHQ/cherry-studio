@@ -177,7 +177,7 @@ export class AgentService extends BaseService {
           scheduler_enabled: false,
           scheduler_type: 'interval',
           heartbeat_enabled: true,
-          heartbeat_file: 'heartbeat.md'
+          heartbeat_interval: 30
         }
       }
 
@@ -189,6 +189,11 @@ export class AgentService extends BaseService {
       const sessionSvc = SessionService.getInstance()
       await sessionSvc.createSession(agent.id, {})
       logger.info('Default session created for CherryClaw agent', { agentId: agent.id })
+
+      // Create the heartbeat scheduled task
+      const { schedulerService } = await import('./SchedulerService')
+      await schedulerService.ensureHeartbeatTask(agent.id, 30)
+      logger.info('Heartbeat task created for CherryClaw agent', { agentId: agent.id })
     } catch (error) {
       logger.error('Failed to ensure default CherryClaw agent', error as Error)
     }

@@ -39,7 +39,7 @@ vi.mock('../TaskService', () => ({
 
 vi.mock('../cherryclaw', () => ({
   CherryClawService: vi.fn().mockImplementation(() => ({
-    heartbeatReader: { readHeartbeat: vi.fn() }
+    heartbeatReader: { readHeartbeat: vi.fn().mockResolvedValue(undefined) }
   }))
 }))
 
@@ -127,7 +127,7 @@ describe('SchedulerService', () => {
       name: 'Test',
       model: 'claude-3',
       accessible_paths: ['/tmp/test'],
-      configuration: { heartbeat_enabled: false },
+      configuration: { heartbeat_enabled: true },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     } as any)
