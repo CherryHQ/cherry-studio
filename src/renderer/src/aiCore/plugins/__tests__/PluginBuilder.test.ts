@@ -149,8 +149,8 @@ describe('PluginBuilder', () => {
 
   it('does not mount openrouterGenerateImage plugin for non-openrouter providers', () => {
     const plugins = buildPlugins({
-      provider: createProvider(SystemProviderIds.gemini),
-      model: createModel(SystemProviderIds.gemini),
+      provider: { ...createProvider(SystemProviderIds.openrouter), id: 'gemini' } as any,
+      model: createModel(SystemProviderIds.openrouter),
       config: {
         assistant: createAssistant(),
         streamOutput: true,
