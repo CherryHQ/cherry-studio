@@ -68,7 +68,19 @@ export class CherryClawService implements AgentServiceInterface {
           }
         }
       },
-      _disallowedTools: ['CronCreate', 'CronDelete', 'CronList']
+      _disallowedTools: [
+        // Disable builtin cron tools (agent uses our MCP cron tool instead)
+        'CronCreate',
+        'CronDelete',
+        'CronList',
+        // Disable tools not suited for autonomous agent operation
+        'TodoWrite',
+        'AskUserQuestion',
+        'EnterPlanMode',
+        'ExitPlanMode',
+        'EnterWorktree',
+        'NotebookEdit'
+      ]
     }
 
     // Delegate to claude-code service (CherryClaw is a Claude Code variant)
