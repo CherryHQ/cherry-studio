@@ -2147,7 +2147,7 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
-      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
+      "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
       "completed": "Finalizat",
