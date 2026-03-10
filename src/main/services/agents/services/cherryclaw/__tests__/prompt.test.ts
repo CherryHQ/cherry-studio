@@ -8,17 +8,28 @@ vi.mock('@logger', () => ({
 
 vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
-  readFile: vi.fn()
+  readFile: vi.fn(),
+  readdir: vi.fn()
 }))
 
-import { readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 
 import { PromptBuilder } from '../prompt'
 
 const mockedStat = vi.mocked(stat)
 const mockedReadFile = vi.mocked(readFile)
+const mockedReaddir = vi.mocked(readdir)
 
 function setupFiles(files: Record<string, string>) {
+  // Build directory listing from file paths
+  const dirs = new Map<string, string[]>()
+  for (const filePath of Object.keys(files)) {
+    const dir = filePath.substring(0, filePath.lastIndexOf('/'))
+    const name = filePath.substring(filePath.lastIndexOf('/') + 1)
+    if (!dirs.has(dir)) dirs.set(dir, [])
+    dirs.get(dir)!.push(name)
+  }
+
   mockedStat.mockImplementation(async (filePath) => {
     const p = typeof filePath === 'string' ? filePath : filePath.toString()
     if (files[p] !== undefined) {
@@ -32,6 +43,10 @@ function setupFiles(files: Record<string, string>) {
       return files[p]
     }
     throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+  })
+  mockedReaddir.mockImplementation(async (dirPath) => {
+    const p = typeof dirPath === 'string' ? dirPath : dirPath.toString()
+    return (dirs.get(p) ?? []) as any
   })
 }
 
@@ -131,6 +146,24 @@ describe('PromptBuilder', () => {
     expect(result).toContain('You are CustomBot.')
     expect(result).toContain('<soul>')
     expect(result).toContain('Sharp and efficient.')
+  })
+
+  it('resolves filenames case-insensitively', async () => {
+    // Files exist with different casing than the canonical names
+    setupFiles({
+      '/workspace/SOUL.md': 'Uppercase soul',
+      '/workspace/User.md': 'Mixed case user',
+      '/workspace/memory/fact.md': 'Lowercase facts'
+    })
+
+    const result = await builder.buildSystemPrompt('/workspace')
+
+    expect(result).toContain('<soul>')
+    expect(result).toContain('Uppercase soul')
+    expect(result).toContain('<user>')
+    expect(result).toContain('Mixed case user')
+    expect(result).toContain('<facts>')
+    expect(result).toContain('Lowercase facts')
   })
 
   it('uses mtime cache for repeated reads', async () => {

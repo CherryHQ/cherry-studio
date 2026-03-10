@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -164,6 +164,29 @@ const SKILLS_TOOL: Tool = {
       }
     },
     required: ['action']
+  }
+}
+
+/**
+ * Resolve a filename within a directory using case-insensitive matching.
+ * Returns the full path if found (preferring exact match), or the canonical path as fallback.
+ */
+async function resolveFileCI(dir: string, name: string): Promise<string> {
+  const exact = path.join(dir, name)
+  try {
+    await stat(exact)
+    return exact
+  } catch {
+    // exact match not found, try case-insensitive
+  }
+
+  try {
+    const entries = await readdir(dir)
+    const target = name.toLowerCase()
+    const match = entries.find((e) => e.toLowerCase() === target)
+    return match ? path.join(dir, match) : exact
+  } catch {
+    return exact
   }
 }
 
@@ -544,7 +567,7 @@ class ClawServer {
 
     const workspace = await this.getWorkspacePath()
     const memoryDir = path.join(workspace, 'memory')
-    const factPath = path.join(memoryDir, 'FACT.md')
+    const factPath = await resolveFileCI(memoryDir, 'FACT.md')
 
     await mkdir(memoryDir, { recursive: true })
 
@@ -573,9 +596,10 @@ class ClawServer {
 
     const workspace = await this.getWorkspacePath()
     const memoryDir = path.join(workspace, 'memory')
-    const journalPath = path.join(memoryDir, 'JOURNAL.jsonl')
 
     await mkdir(memoryDir, { recursive: true })
+
+    const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
 
     const entry: JournalEntry = {
       ts: new Date().toISOString(),
@@ -597,7 +621,8 @@ class ClawServer {
     const limit = Math.max(1, parseInt(args.limit ?? '20', 10) || 20)
 
     const workspace = await this.getWorkspacePath()
-    const journalPath = path.join(workspace, 'memory', 'JOURNAL.jsonl')
+    const memoryDir = path.join(workspace, 'memory')
+    const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
 
     let fileContent: string
     try {
