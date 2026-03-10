@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Add directory",
+        "default_hint": "A default workspace will be created automatically if not specified.",
         "duplicate": "This directory is already included.",
         "empty": "Select at least one directory that the agent can access.",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "Tools",
         "tools": {
-          "title": "Tools"
+          "title": "Pre-approved Tools"
         }
       }
     },
@@ -320,7 +321,7 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Pending ({{seconds}}s)",
+      "pending": "Waiting for approval",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "Assistant Response",
     "knowledge": {
+      "batch_error": "{{failed}} items failed to process",
+      "batch_mixed": "{{succeeded}} items succeeded, {{failed}} items failed",
+      "batch_success": "{{succeeded}} items processed successfully",
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "No description available",
     "no_installed_plugins": "No plugins installed yet",
     "no_results": "No plugins found",
+    "no_results_skills": "No skills found",
     "search_placeholder": "Search plugins...",
+    "search_placeholder_skills": "Search skills...",
     "showing_results": "Showing {{count}} plugin",
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",

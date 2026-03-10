@@ -6,7 +6,7 @@ import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCo
 import { getLowerBaseModelName } from '@renderer/utils'
 
 import {
-  isGPT5ProModel,
+  isGPT5FamilyModel,
   isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGPT52SeriesModel,
@@ -218,28 +218,53 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 }
 
 // Verbosity settings is only supported by GPT-5 and newer models
-// Specifically, GPT-5 and GPT-5.1 for now
-// gpt-5-pro only supports 'high', other GPT-5 models support all levels
 const MODEL_SUPPORTED_VERBOSITY: readonly {
   readonly validator: (model: Model) => boolean
   readonly values: readonly ValidOpenAIVerbosity[]
 }[] = [
-  // gpt-5-pro
-  { validator: isGPT5ProModel, values: ['high'] },
-  // gpt-5 except gpt-5-pro
+  // Filter out models that do not support verbosity
   {
-    validator: (model: Model) => isGPT5SeriesModel(model) && !isGPT5ProModel(model),
+    validator: (model: Model) => !isSupportVerbosityModel(model),
+    values: []
+  },
+  // Either only one value is supported(medium), or [low, medium, high]
+  {
+    validator: (model: Model) => {
+      const modelId = getLowerBaseModelName(model.id)
+      // chat variant: only medium is supported
+      if (modelId.includes('chat')) {
+        return false
+      }
+      // codex variant: only medium is supported before 5.3-codex
+      // Since 5.3-codex, all levels are supported.
+      if (modelId.includes('codex')) {
+        if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model) || isGPT52SeriesModel(model)) {
+          return false
+        }
+        return true
+      }
+      // pro variant: all support
+      return isGPT5FamilyModel(model)
+    },
     values: ['low', 'medium', 'high']
   },
-  // gpt-5.1
-  { validator: isGPT51SeriesModel, values: ['low', 'medium', 'high'] }
+  // Fallback to medium
+  {
+    validator: isGPT5FamilyModel,
+    values: ['medium']
+  }
 ]
 
 /**
  * Returns the list of supported verbosity levels for the given model.
- * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
- * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
- * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
+ * If the model is not a GPT-5 family model, only `[undefined]` is returned.
+ *
+ * Verbosity levels are version-aware:
+ * - GPT-5 pro: `[low, medium, high]`
+ * - GPT-5 chat / old codex (5.1/5.2): `[medium]` only
+ * - GPT-5.3+ codex: `[low, medium, high]`
+ * - Other GPT-5 family models: `[low, medium, high]`
+ *
  * @param model - The model to check
  * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
@@ -314,6 +339,20 @@ export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
   }
   // Check for gemini-3-flash with optional suffixes, excluding image variants
   return /gemini-3-flash(?!-image)(?:-[\w-]+)*$/i.test(modelId)
+}
+
+/**
+ * Check if the model is a Gemini 3.1 Flash Lite model
+ * Matches: gemini-3.1-flash-lite-preview, gemini-3.1-flash-lite-preview-06-2025
+ * @param model - The model to check
+ * @returns true if the model is a Gemini 3.1 Flash Lite model
+ */
+export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id)
+  return /gemini-3\.1-flash-lite(?:-[\w-]+)*$/i.test(modelId)
 }
 
 /**

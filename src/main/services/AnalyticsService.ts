@@ -1,6 +1,7 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
+import { app } from 'electron'
 
 import { configManager } from './ConfigManager'
 
@@ -18,21 +19,27 @@ class AnalyticsService {
   }
 
   public init(): void {
-    if (!configManager.getEnableDataCollection()) {
-      logger.info('Data collection is disabled, skipping analytics initialization')
-      return
-    }
-
     this.client = new AnalyticsClient({
       clientId: configManager.getClientId(),
       channel: 'cherry-studio',
       onError: (error) => logger.error('Analytics error:', error)
     })
+
+    this.client.trackAppLaunch({
+      version: app.getVersion(),
+      os: process.platform
+    })
+
     logger.info('Analytics service initialized')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.client) return
+    const enableDataCollection = configManager.getEnableDataCollection()
+
+    if (!this.client || !enableDataCollection) {
+      return
+    }
+
     this.client.trackTokenUsage(data)
   }
 

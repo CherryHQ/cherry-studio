@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
+        "default_hint": "未指定時將自動建立預設工作目錄。",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "預授權工具"
         }
       }
     },
@@ -320,7 +321,7 @@
       "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待審批",
       "permissionExpired": "權限請求已過期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要提升的權限。",
       "suggestion": {
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "工具呼叫中斷失敗",
       "aborted": "工具呼叫已中斷",
+      "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
+      "batch_error": "{{failed}} 個項目處理失敗",
+      "batch_mixed": "{{succeeded}} 個項目處理成功，{{failed}} 個項目處理失敗",
+      "batch_success": "{{succeeded}} 個項目處理成功",
       "error": "無法將 {{type}} 加入知識庫：{{error}}",
       "success": "成功將 {{type}} 新增至知識庫"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何外掛",
     "no_results": "未找到外掛",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜尋外掛...",
+    "search_placeholder_skills": "搜尋技能...",
     "showing_results": "顯示 {{count}} 個外掛",
     "showing_results_one": "顯示 {{count}} 個外掛",
     "showing_results_other": "顯示 {{count}} 個外掛",
@@ -5529,7 +5536,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "停止翻譯",
     "success": {
       "custom": {
         "delete": "刪除成功",

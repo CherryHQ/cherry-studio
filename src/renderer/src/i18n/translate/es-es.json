@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
+        "default_hint": "Predeterminado: {{path}}",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "Herramientas",
         "tools": {
-          "title": "Herramientas"
+          "title": "Herramientas preaprobadas"
         }
       }
     },
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
       "completed": "Completado",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "Respuesta del asistente",
     "knowledge": {
+      "batch_error": "{{failed}} elementos no pudieron procesarse",
+      "batch_mixed": "{{succeeded}} elementos tuvieron éxito, {{failed}} elementos fallaron",
+      "batch_success": "{{succeeded}} elementos procesados correctamente",
       "error": "{{error}}",
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
     "no_results": "No se encontró el complemento",
+    "no_results_skills": "No se encontraron habilidades",
     "search_placeholder": "Buscar complemento...",
+    "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
     "showing_results_one": "Mostrar {{count}} complementos",
     "showing_results_other": "Mostrar {{count}} complementos",
@@ -5529,7 +5536,7 @@
       "scroll_sync": "Configuración de sincronización de desplazamiento",
       "title": "Configuración de traducción"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "Detener Traducción",
     "success": {
       "custom": {
         "delete": "Eliminado correctamente",

@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Adaugă director",
+        "default_hint": "Implicit: {{path}}",
         "duplicate": "Acest director este deja inclus.",
         "empty": "Selectează cel puțin un director pe care agentul îl poate accesa.",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "Unelte",
         "tools": {
-          "title": "Unelte"
+          "title": "Instrumente pre-aprobate"
         }
       }
     },
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
       "completed": "Finalizat",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "Răspuns asistent",
     "knowledge": {
+      "batch_error": "{{failed}} elemente nu au putut fi procesate",
+      "batch_mixed": "{{succeeded}} elemente au reușit, {{failed}} elemente au eșuat",
+      "batch_success": "{{succeeded}} elemente procesate cu succes",
       "error": "{{error}}",
       "success": "S-a adăugat cu succes {{type}} în baza de cunoștințe"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "Nicio descriere disponibilă",
     "no_installed_plugins": "Niciun plugin instalat încă",
     "no_results": "Nu s-au găsit pluginuri",
+    "no_results_skills": "Nicio abilitate găsită",
     "search_placeholder": "Caută pluginuri...",
+    "search_placeholder_skills": "Abilități de căutare...",
     "showing_results": "Se afișează {{count}} plugin",
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
@@ -5529,7 +5536,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "Oprește traducerea",
     "success": {
       "custom": {
         "delete": "Șters cu succes",

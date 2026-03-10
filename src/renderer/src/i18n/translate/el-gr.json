@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Προσθήκη καταλόγου",
+        "default_hint": "Προεπιλογή: {{path}}",
         "duplicate": "Αυτός ο κατάλογος έχει ήδη συμπεριληφθεί.",
         "empty": "Επιλέξτε τουλάχιστον έναν κατάλογο στον οποίο ο πράκτορας μπορεί να έχει πρόσβαση.",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "Εργαλεία",
         "tools": {
-          "title": "Εργαλεία"
+          "title": "Προεγκεκριμένα εργαλεία"
         }
       }
     },
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "Αποτυχία διακοπής κλήσης εργαλείου",
       "aborted": "Η κλήση του εργαλείου διακόπηκε",
+      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "Απάντηση Βοηθού",
     "knowledge": {
+      "batch_error": "{{failed}} στοιχεία απέτυχαν να επεξεργαστούν",
+      "batch_mixed": "{{succeeded}} στοιχεία πέτυχαν, {{failed}} στοιχεία απέτυχαν",
+      "batch_success": "{{succeeded}} στοιχεία επεξεργάστηκαν με επιτυχία",
       "error": "{{error}}",
       "success": "Επιτυχής προσθήκη {{type}} στη βάση γνώσης"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "Χωρίς περιγραφή",
     "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
     "no_results": "Δεν βρέθηκε πρόσθετο",
+    "no_results_skills": "Δεν βρέθηκαν δεξιότητες",
     "search_placeholder": "Πρόσθετο αναζήτησης...",
+    "search_placeholder_skills": "Δεξιότητες αναζήτησης...",
     "showing_results": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_one": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_other": "Εμφάνιση {{count}} προσθέτων",
@@ -5529,7 +5536,7 @@
       "scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
       "title": "Ρυθμίσεις μετάφρασης"
     },
-    "stop": "[to be translated]:Stop Translation",
+    "stop": "Σταματήστε τη μετάφραση",
     "success": {
       "custom": {
         "delete": "Η διαγραφή ολοκληρώθηκε με επιτυχία",

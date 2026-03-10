@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "添加目录",
+        "default_hint": "未指定时将自动创建默认工作目录。",
         "duplicate": "该目录已添加。",
         "empty": "请选择至少一个智能体可访问的目录。",
         "error": {
@@ -283,7 +284,7 @@
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "预授权工具"
         }
       }
     },
@@ -320,7 +321,7 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待审批",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
       "suggestion": {
@@ -2146,6 +2147,7 @@
     "tools": {
       "abort_failed": "工具调用中断失败",
       "aborted": "工具调用已中断",
+      "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -2520,6 +2522,9 @@
   "notification": {
     "assistant": "助手响应",
     "knowledge": {
+      "batch_error": "{{failed}} 个项目处理失败",
+      "batch_mixed": "{{succeeded}} 个项目处理成功，{{failed}} 个项目处理失败",
+      "batch_success": "{{succeeded}} 个项目处理成功",
       "error": "{{error}}",
       "success": "成功添加 {{type}} 到知识库"
     },
@@ -2957,7 +2962,9 @@
     "no_description": "无描述",
     "no_installed_plugins": "尚未安装任何插件",
     "no_results": "未找到插件",
+    "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
+    "search_placeholder_skills": "搜索技能...",
     "showing_results": "显示 {{count}} 个插件",
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",

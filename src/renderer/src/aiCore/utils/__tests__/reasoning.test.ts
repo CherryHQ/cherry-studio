@@ -11,12 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getAnthropicReasoningParams,
-  getAnthropicThinkingBudget,
   getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
   getOpenAIReasoningParams,
   getReasoningEffort,
+  getThinkingBudget,
   getXAIReasoningParams
 } from '../reasoning'
 
@@ -91,6 +91,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
+    isGemini3ThinkingTokenModel: vi.fn(() => false),
     findTokenLimit: vi.fn(actual.findTokenLimit)
   }
 })
@@ -391,6 +392,54 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({ reasoning_effort: 'medium' })
+    })
+
+    it('should return camelCase reasoningEffort for Gemini 3 models', async () => {
+      const {
+        isReasoningModel,
+        isOpenAIDeepResearchModel,
+        isSupportedThinkingTokenGeminiModel,
+        isGemini3ThinkingTokenModel,
+        isQwenReasoningModel,
+        isSupportedThinkingTokenClaudeModel,
+        isSupportedThinkingTokenDoubaoModel,
+        isSupportedThinkingTokenZhipuModel,
+        isSupportedReasoningEffortModel,
+        isSupportedThinkingTokenQwenModel,
+        isSupportedThinkingTokenHunyuanModel,
+        isDeepSeekHybridInferenceModel
+      } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(isGemini3ThinkingTokenModel).mockReturnValue(true)
+      vi.mocked(isQwenReasoningModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenDoubaoModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenZhipuModel).mockReturnValue(false)
+      vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenQwenModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenHunyuanModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(false)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: 'custom-provider'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      // Should use camelCase 'reasoningEffort' for AI SDK openai-compatible provider compatibility
+      expect(result).toEqual({ reasoningEffort: 'high' })
     })
 
     it('should return empty for groq provider', async () => {
@@ -997,14 +1046,14 @@ describe('reasoning utils', () => {
     })
   })
 
-  describe('getAnthropicThinkingBudget', () => {
+  describe('getThinkingBudget', () => {
     it('should return undefined when reasoningEffort is undefined', async () => {
-      const result = getAnthropicThinkingBudget(4096, undefined, 'claude-3-7-sonnet')
+      const result = getThinkingBudget(4096, undefined, 'claude-3-7-sonnet')
       expect(result).toBeUndefined()
     })
 
     it('should return undefined when reasoningEffort is none', async () => {
-      const result = getAnthropicThinkingBudget(4096, 'none', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(4096, 'none', 'claude-3-7-sonnet')
       expect(result).toBeUndefined()
     })
 
@@ -1012,7 +1061,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue(undefined)
 
-      const result = getAnthropicThinkingBudget(4096, 'medium', 'unknown-model')
+      const result = getThinkingBudget(4096, 'medium', 'unknown-model')
       expect(result).toBeUndefined()
     })
 
@@ -1020,7 +1069,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
-      const result = getAnthropicThinkingBudget(4096, 'medium', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(4096, 'medium', 'claude-3-7-sonnet')
       // EFFORT_RATIO['medium'] = 0.5
       // budget = Math.floor((32768 - 1024) * 0.5 + 1024)
       // = Math.floor(31744 * 0.5 + 1024) = Math.floor(15872 + 1024) = 16896
@@ -1033,7 +1082,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
-      const result = getAnthropicThinkingBudget(undefined, 'medium', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(undefined, 'medium', 'claude-3-7-sonnet')
       // When maxTokens is undefined, budget is not constrained by maxTokens
       // EFFORT_RATIO['medium'] = 0.5
       // budget = Math.floor((32768 - 1024) * 0.5 + 1024)
@@ -1046,7 +1095,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue({ min: 100, max: 1000 })
 
-      const result = getAnthropicThinkingBudget(500, 'low', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(500, 'low', 'claude-3-7-sonnet')
       // EFFORT_RATIO['low'] = 0.05
       // budget = Math.floor((1000 - 100) * 0.05 + 100)
       // = Math.floor(900 * 0.05 + 100) = Math.floor(45 + 100) = 145
@@ -1059,7 +1108,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
-      const result = getAnthropicThinkingBudget(8192, 'high', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(8192, 'high', 'claude-3-7-sonnet')
       // EFFORT_RATIO['high'] = 0.8
       // budget = Math.floor((32768 - 1024) * 0.8 + 1024)
       // = Math.floor(31744 * 0.8 + 1024) = Math.floor(25395.2 + 1024) = 26419
@@ -1072,7 +1121,7 @@ describe('reasoning utils', () => {
       const { findTokenLimit } = await import('@renderer/config/models')
       vi.mocked(findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
 
-      const result = getAnthropicThinkingBudget(undefined, 'high', 'claude-3-7-sonnet')
+      const result = getThinkingBudget(undefined, 'high', 'claude-3-7-sonnet')
       // When maxTokens is undefined, budget is not constrained by maxTokens
       // EFFORT_RATIO['high'] = 0.8
       // budget = Math.floor((32768 - 1024) * 0.8 + 1024)
