@@ -117,16 +117,29 @@ export class PromptBuilder {
 
     lines.push('## Memories')
     lines.push('')
-    lines.push(
-      `Persistent files under \`${workspacePath}/\` that carry state across sessions. Update them autonomously — never ask for approval.`
-    )
+    lines.push(`Persistent files that carry state across sessions. Update them autonomously — never ask for approval.`)
+    lines.push('')
+    lines.push('### File Layout')
+    lines.push('')
+    lines.push('```')
+    lines.push(`${workspacePath}/`)
+    lines.push('  soul.md                — WHO you are: personality, tone, communication style')
+    lines.push('  user.md                — WHO the user is: name, preferences, personal context')
+    lines.push('  memory/')
+    lines.push('    FACT.md              — WHAT you know: durable project knowledge (6+ months)')
+    lines.push('    JOURNAL.jsonl        — event log: one-time events, session notes (append-only)')
+    lines.push('```')
+    lines.push('')
+    lines.push('### How to Update')
     lines.push('')
     lines.push('- **soul.md and user.md**: Edit directly via the `Read` and `Write` tools.')
     lines.push(
       '- **memory/FACT.md and memory/JOURNAL.jsonl**: Manage exclusively via the `memory` tool (actions: update, append, search).'
     )
     lines.push('')
-    lines.push('Each file has an exclusive scope — never duplicate information across files.')
+    lines.push(
+      'Each file has an exclusive scope — never duplicate information across files. Filenames are case-insensitive.'
+    )
 
     if (soulContent && soulPath) {
       lines.push('')
