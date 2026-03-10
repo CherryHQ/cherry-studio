@@ -2,18 +2,19 @@
 
 ## Goal
 
-Implement CherryClaw — a new autonomous agent type for Cherry Studio with soul-driven personality, scheduler-based autonomous operation, and heartbeat-driven task execution. Full implementation across all 4 phases from `.agents/sessions/2026-03-10-cherry-claw/plan.md`, plus a task-based scheduler redesign inspired by nanoclaw.
+Implement CherryClaw — a new autonomous agent type for Cherry Studio with soul-driven personality, scheduler-based autonomous operation, and heartbeat-driven task execution. Full implementation across all 4 phases from `.agents/sessions/2026-03-10-cherry-claw/plan.md`, plus a task-based scheduler redesign inspired by nanoclaw, plus an internal claw MCP server so the agent can autonomously manage its own scheduled tasks.
 
 ## Progress
 
-All 4 phases are complete, plus the scheduler redesign:
+All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 
 - **Phase 1**: Type system, config defaults, i18n keys — DONE
 - **Phase 2**: Backend services (registry, soul, heartbeat, claw service, scheduler, lifecycle hooks) — DONE
 - **Phase 3**: Frontend UI (creation modal, settings tabs, list differentiation) — DONE
 - **Phase 4**: Unit tests (22 tests across 4 files) — DONE
 - **Phase 5**: Scheduler redesign — tasks as first-class DB entities, poll-loop scheduler, task management UI — DONE
-- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (194 test files, 3555 tests)
+- **Phase 6**: Claw MCP server — internal `cron` tool auto-injected into CherryClaw sessions — DONE
+- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (195 test files, 3567 tests)
 
 ## Key Decisions
 
@@ -26,6 +27,7 @@ All 4 phases are complete, plus the scheduler redesign:
 - **Default emoji 🦞** — CherryClaw agents get lobster claw emoji as default avatar in the agent list.
 - **Placeholder cherry-claw.png** — copied from claude.png; needs a proper distinct avatar image.
 - **i18n strict nesting** — task keys use proper nested objects (e.g., `tasks.contextMode.session` not `tasks.contextMode.session` + `tasks.contextMode.session.desc`) to pass the i18n checker.
+- **Internal claw MCP server (anna-inspired)** — single `cron` tool with `add`/`list`/`remove` actions, auto-injected into every CherryClaw session via `_internalMcpServers`. Uses the `@modelcontextprotocol/sdk` Server class, served over Streamable HTTP at `/v1/claw/:agentId/claw-mcp`. The tool maps anna-style inputs (`cron`, `every`, `at`, `session_mode`) to TaskService's schema (`schedule_type`, `schedule_value`, `context_mode`).
 
 ## Scheduler Architecture
 
@@ -52,6 +54,26 @@ TaskService (CRUD + scheduling logic)
 
 API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId/tasks/:taskId`, `GET /v1/agents/:agentId/tasks/:taskId/logs`
 
+## Claw MCP Architecture
+
+```
+CherryClawService.invoke()
+  → injects _internalMcpServers = { 'cherry-claw': { url: /v1/claw/:agentId/claw-mcp } }
+  → delegates to ClaudeCodeService.invoke()
+    → merges _internalMcpServers into options.mcpServers
+    → Claude SDK auto-discovers the "cron" tool
+
+ClawServer (per-agent instance, src/main/mcpServers/claw.ts)
+  cron tool:
+    add → validates schedule (cron/every/at), maps to TaskService.createTask()
+    list → TaskService.listTasks()
+    remove → TaskService.deleteTask()
+
+Route: /v1/claw/:agentId/claw-mcp (Streamable HTTP MCP transport)
+  Per-agent ClawServer instances cached in memory
+  Per-MCP-session transports managed with cleanup on close
+```
+
 ## Files Changed
 
 ### Type System & Config
@@ -68,7 +90,7 @@ API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId
 ### Backend Services
 - `src/main/services/agents/services/AgentServiceRegistry.ts` — NEW: maps AgentType → AgentServiceInterface
 - `src/main/services/agents/services/SessionMessageService.ts` — refactored to use registry
-- `src/main/services/agents/services/cherryclaw/index.ts` — NEW: CherryClawService (soul-enhanced claude-code delegation)
+- `src/main/services/agents/services/cherryclaw/index.ts` — CherryClawService (soul-enhanced claude-code delegation + claw MCP injection)
 - `src/main/services/agents/services/cherryclaw/soul.ts` — NEW: SoulReader with mtime cache
 - `src/main/services/agents/services/cherryclaw/heartbeat.ts` — NEW: HeartbeatReader with path traversal protection
 - `src/main/services/agents/services/TaskService.ts` — NEW: task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging
@@ -78,6 +100,13 @@ API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId
 - `src/main/services/agents/services/SessionService.ts` — added `cherry-claw` to command dispatch
 - `src/main/index.ts` — wired scheduler restore on startup, stopAll on quit
 - `src/main/apiServer/routes/agents/handlers/agents.ts` — stop/restart scheduler on agent delete/update
+
+### Claw MCP Server
+- `src/main/mcpServers/claw.ts` — NEW: ClawServer with `cron` tool (add/list/remove actions), duration parsing, TaskService delegation
+- `src/main/apiServer/routes/claw-mcp.ts` — NEW: Express route for Streamable HTTP MCP protocol, per-agent server caching, per-session transport management
+- `src/main/apiServer/app.ts` — mounted claw MCP route at `/v1/claw`
+- `src/main/services/agents/services/claudecode/internal-mcp.ts` — NEW: `InternalMcpServerConfig` type for injecting internal MCP servers
+- `src/main/services/agents/services/claudecode/index.ts` — merges `_internalMcpServers` from session into SDK `options.mcpServers`
 
 ### API Routes (Tasks)
 - `src/main/apiServer/routes/agents/handlers/tasks.ts` — NEW: createTask, listTasks, getTask, updateTask, deleteTask, getTaskLogs
@@ -110,6 +139,7 @@ API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId
 - `src/main/services/agents/services/__tests__/SchedulerService.test.ts` — 7 tests (rewritten for poll-loop API)
 - `src/main/services/agents/services/cherryclaw/__tests__/soul.test.ts` — 4 tests
 - `src/main/services/agents/services/cherryclaw/__tests__/heartbeat.test.ts` — 5 tests
+- `src/main/mcpServers/__tests__/claw.test.ts` — 12 tests (cron tool add/list/remove, duration parsing, validation)
 
 ### Dependencies
 - `package.json` / `pnpm-lock.yaml` — added `cron-parser` ^5.5.0
@@ -117,8 +147,8 @@ API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId
 ## Current State
 
 - Branch: `feat/cherry-claw-agent`
-- All lint/test/format checks pass (194 test files, 3555 tests)
-- Feature is code-complete including task-based scheduler
+- All lint/test/format checks pass (195 test files, 3567 tests)
+- Feature is code-complete including task-based scheduler and claw MCP tool
 - Not yet pushed to remote or PR created
 
 ## Blockers / Gotchas
@@ -130,11 +160,15 @@ API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId
 - **Session settings** — `SessionSettingsPopup.tsx` was NOT updated with CherryClaw tabs (only `AgentSettingsPopup` was). May want to add soul/task tabs there too if sessions need per-session overrides.
 - **Scheduler backward compat** — `startScheduler(agent)` and `stopScheduler(agentId)` are now no-ops (the poll loop handles everything via DB state). Agent handler code in `agents.ts` still calls them but they just ensure the loop is running.
 - **Task consecutive errors** — after 3 consecutive errors, a task is auto-paused. The error count resets on the next successful run. This is tracked per-task in the running task state (not persisted).
+- **Claw MCP server lifecycle** — per-agent ClawServer instances are cached in memory; `cleanupClawServer(agentId)` exported from `claw-mcp.ts` but not yet called on agent deletion. Should be wired into agent delete handler.
+- **Claw MCP tool allowlist** — the `cron` tool appears as `mcp__cherry-claw__cron` in the SDK's tool namespace. It may need to be auto-added to the session's `allowed_tools` if the agent uses a restrictive permission mode.
 
 ## Next Steps
 
 1. **Create PR** — use `gh-create-pr` skill to create a pull request from `feat/cherry-claw-agent` → `main`
 2. **Replace avatar** — design/source a proper CherryClaw avatar image to replace the placeholder
-3. **E2E testing** — manually test the full flow: create CherryClaw agent → add scheduled task → verify task execution and run logging
-4. **TaskService tests** — add unit tests for TaskService CRUD and computeNextRun
-5. **SessionSettingsPopup** — consider adding CherryClaw tabs to session-level settings if per-session overrides are needed
+3. **E2E testing** — manually test the full flow: create CherryClaw agent → verify cron tool is available → agent creates a scheduled task → verify task execution and run logging
+4. **Wire cleanup** — call `cleanupClawServer(agentId)` in the agent delete handler to free per-agent MCP server instances
+5. **Tool allowlist** — ensure `mcp__cherry-claw__cron` is auto-allowed for CherryClaw agents
+6. **TaskService tests** — add unit tests for TaskService CRUD and computeNextRun
+7. **SessionSettingsPopup** — consider adding CherryClaw tabs to session-level settings if per-session overrides are needed
