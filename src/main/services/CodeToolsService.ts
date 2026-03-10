@@ -19,6 +19,7 @@ import {
 } from '@shared/config/constant'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
+import { app } from 'electron'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -977,7 +978,24 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Windows: Redirect bun output to log file to prevent cmd.exe from
+      // misinterpreting multiline output as separate commands
+      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
+      let installCommand: string
+      if (platform === 'win32') {
+        const logsDir = path.join(app.getPath('userData'), 'logs')
+        const installLogPath = path.join(logsDir, 'cli-tools-install.log')
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true })
+        }
+
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
+      } else {
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      }
+
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
