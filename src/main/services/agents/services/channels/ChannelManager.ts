@@ -88,8 +88,7 @@ class ChannelManager {
     if (!channels || channels.length === 0) return
 
     for (const channel of channels) {
-      // CherryClawChannel does not have an `enabled` field yet (planned for Phase 4).
-      // For now, treat all channels as enabled.
+      if (channel.enabled === false) continue
 
       const factory = adapterFactories.get(channel.type)
       if (!factory) {
