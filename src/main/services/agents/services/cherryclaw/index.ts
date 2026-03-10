@@ -60,7 +60,7 @@ export class CherryClawService implements AgentServiceInterface {
     enhancedSession = {
       ...enhancedSession,
       _internalMcpServers: {
-        'cherry-claw': {
+        claw: {
           type: 'http',
           url: `http://${apiConfig.host}:${apiConfig.port}/v1/claw/${session.agent_id}/claw-mcp`,
           headers: {
