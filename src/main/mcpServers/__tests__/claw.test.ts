@@ -76,7 +76,7 @@ function createServer(agentId = 'agent_test') {
 // Helper to call tools via the Server's request handlers
 async function callTool(server: ClawServerInstance, args: Record<string, unknown>, toolName = 'cron') {
   // Use the server's internal handler by simulating a CallTool request
-  const handlers = (server.server as any)._requestHandlers
+  const handlers = (server.mcpServer.server as any)._requestHandlers
   const callToolHandler = handlers?.get('tools/call')
   if (!callToolHandler) {
     throw new Error('No tools/call handler registered')
@@ -89,7 +89,7 @@ async function callTool(server: ClawServerInstance, args: Record<string, unknown
 }
 
 async function listTools(server: ClawServerInstance) {
-  const handlers = (server.server as any)._requestHandlers
+  const handlers = (server.mcpServer.server as any)._requestHandlers
   const listHandler = handlers?.get('tools/list')
   if (!listHandler) {
     throw new Error('No tools/list handler registered')

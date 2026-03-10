@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { config as apiConfigService } from '@main/apiServer/config'
+import ClawServer from '@main/mcpServers/claw'
 import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
 import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '../../interfaces/AgentStreamInterface'
@@ -49,18 +49,15 @@ export class CherryClawService implements AgentServiceInterface {
       }
     }
 
-    // Inject the claw MCP server for autonomous task management
+    // Inject the claw MCP server as an in-memory instance for autonomous task management
     // and disable the SDK's builtin cron tools so the agent uses our MCP cron tool instead
-    const apiConfig = await apiConfigService.get()
+    const clawServer = new ClawServer(session.agent_id)
     enhancedSession = {
       ...enhancedSession,
       _internalMcpServers: {
         claw: {
-          type: 'http',
-          url: `http://${apiConfig.host}:${apiConfig.port}/v1/claw/${session.agent_id}/claw-mcp`,
-          headers: {
-            Authorization: `Bearer ${apiConfig.apiKey}`
-          }
+          type: 'inmem',
+          instance: clawServer.mcpServer
         }
       },
       _disallowedTools: [
@@ -101,7 +98,7 @@ export class CherryClawService implements AgentServiceInterface {
     // If the agent has an explicit allowed_tools whitelist, append the claw MCP
     // tool names so the SDK doesn't hide them.  When allowed_tools is undefined
     // (no restriction), leave it alone — all tools are already available.
-    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify', 'mcp__claw__skills', 'mcp__claw__memory']
+    const clawMcpTools = ['mcp__claw__*'] // wildcard to allow all claw MCP tools (e.g. cron, file management, etc.)
     const currentAllowed = enhancedSession.allowed_tools
     if (Array.isArray(currentAllowed) && currentAllowed.length > 0) {
       const missing = clawMcpTools.filter((t) => !currentAllowed.includes(t))
