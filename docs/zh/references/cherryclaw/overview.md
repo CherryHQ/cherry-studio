@@ -1,5 +1,9 @@
 # CherryClaw 整体设计
 
+<p align="center">
+  <img src="./cherryclaw.png" width="200" alt="CherryClaw" />
+</p>
+
 CherryClaw 是 Cherry Studio 中的自主代理（autonomous agent）类型，基于 Claude Agent SDK 构建。与标准的 claude-code 代理不同，CherryClaw 拥有独立的人格系统、基于任务的调度器、IM 频道集成，以及一组通过内部 MCP 服务器提供的自主管理工具。
 
 ## 架构概览
