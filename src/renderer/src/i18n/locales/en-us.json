@@ -135,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Set custom environment variables for the agent runtime.",
+          "helper": "Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "Environment Variables"
+        },
         "maxTurns": {
           "description": "Define how many request/response cycles the agent may complete automatically.",
           "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
