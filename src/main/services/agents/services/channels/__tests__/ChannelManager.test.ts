@@ -30,6 +30,7 @@ class MockAdapter extends ChannelAdapter {
   connect = vi.fn().mockResolvedValue(undefined)
   disconnect = vi.fn().mockResolvedValue(undefined)
   sendMessage = vi.fn().mockResolvedValue(undefined)
+  sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
 
   constructor(config: ChannelAdapterConfig) {

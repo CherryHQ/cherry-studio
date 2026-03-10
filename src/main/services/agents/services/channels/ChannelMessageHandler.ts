@@ -9,6 +9,8 @@ import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from '.
 const logger = loggerService.withContext('ChannelMessageHandler')
 
 const MAX_MESSAGE_LENGTH = 4096
+const DRAFT_THROTTLE_MS = 500
+const TYPING_INTERVAL_MS = 4000
 
 export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
@@ -31,12 +33,25 @@ export class ChannelMessageHandler {
       }
 
       const abortController = new AbortController()
-      const responseText = await this.collectStreamResponse(session, message.text, abortController, () =>
-        adapter.sendTypingIndicator(message.chatId).catch(() => {})
+      const draftId = Math.floor(Math.random() * 2_147_483_647) + 1
+
+      // Show typing indicator immediately and keep refreshing every 4s
+      adapter.sendTypingIndicator(message.chatId).catch(() => {})
+      const typingInterval = setInterval(
+        () => adapter.sendTypingIndicator(message.chatId).catch(() => {}),
+        TYPING_INTERVAL_MS
       )
 
-      if (responseText) {
-        await this.sendChunked(adapter, message.chatId, responseText)
+      try {
+        const responseText = await this.collectStreamResponse(session, message.text, abortController, (text) =>
+          adapter.sendMessageDraft(message.chatId, draftId, text).catch(() => {})
+        )
+
+        if (responseText) {
+          await this.sendChunked(adapter, message.chatId, responseText)
+        }
+      } finally {
+        clearInterval(typingInterval)
       }
     } catch (error) {
       logger.error('Error handling incoming message', {
@@ -66,10 +81,17 @@ export class ChannelMessageHandler {
             return
           }
           const abortController = new AbortController()
-          const response = await this.collectStreamResponse(session, '/compact', abortController, () =>
-            adapter.sendTypingIndicator(command.chatId).catch(() => {})
+          adapter.sendTypingIndicator(command.chatId).catch(() => {})
+          const typingInterval = setInterval(
+            () => adapter.sendTypingIndicator(command.chatId).catch(() => {}),
+            TYPING_INTERVAL_MS
           )
-          await adapter.sendMessage(command.chatId, response || 'Session compacted.')
+          try {
+            const response = await this.collectStreamResponse(session, '/compact', abortController)
+            await adapter.sendMessage(command.chatId, response || 'Session compacted.')
+          } finally {
+            clearInterval(typingInterval)
+          }
           break
         }
         case 'help': {
@@ -136,7 +158,7 @@ export class ChannelMessageHandler {
     session: GetAgentSessionResponse,
     content: string,
     abortController: AbortController,
-    onTyping?: () => void
+    onDraft?: (text: string) => void
   ): Promise<string> {
     const { stream, completion } = await sessionMessageService.createSessionMessage(
       session,
@@ -145,12 +167,34 @@ export class ChannelMessageHandler {
     )
 
     const reader = stream.getReader()
-    let text = ''
-    let typingInterval: ReturnType<typeof setInterval> | undefined
+    let completedText = '' // text from finished blocks/turns
+    let currentBlockText = '' // cumulative text within the current block
+    let lastDraftTime = 0
+    let draftTimer: ReturnType<typeof setTimeout> | undefined
 
-    if (onTyping) {
-      onTyping()
-      typingInterval = setInterval(onTyping, 4000)
+    const emitDraft = () => {
+      if (!onDraft) return
+      const fullText = completedText + currentBlockText
+      if (fullText) onDraft(fullText)
+    }
+
+    const throttledDraft = () => {
+      if (!onDraft) return
+      const now = Date.now()
+      if (now - lastDraftTime >= DRAFT_THROTTLE_MS) {
+        lastDraftTime = now
+        if (draftTimer) clearTimeout(draftTimer)
+        emitDraft()
+      } else if (!draftTimer) {
+        draftTimer = setTimeout(
+          () => {
+            draftTimer = undefined
+            lastDraftTime = Date.now()
+            emitDraft()
+          },
+          DRAFT_THROTTLE_MS - (now - lastDraftTime)
+        )
+      }
     }
 
     try {
@@ -158,17 +202,31 @@ export class ChannelMessageHandler {
         const { done, value } = await reader.read()
         if (done) break
 
-        if (value.type === 'text-delta' && value.text) {
-          text += value.text
+        switch (value.type) {
+          case 'text-delta':
+            // text-delta values are cumulative within a block
+            if (value.text) {
+              currentBlockText = value.text
+              throttledDraft()
+            }
+            break
+          case 'text-end':
+            // Block finished — commit current block text and reset for next turn
+            if (currentBlockText) {
+              completedText += currentBlockText + '\n\n'
+              currentBlockText = ''
+            }
+            break
         }
       }
 
       await completion
     } finally {
-      if (typingInterval) clearInterval(typingInterval)
+      if (draftTimer) clearTimeout(draftTimer)
     }
 
-    return text
+    // Trim trailing separator
+    return (completedText + currentBlockText).replace(/\n+$/, '')
   }
 
   private async sendChunked(adapter: ChannelAdapter, chatId: string, text: string): Promise<void> {

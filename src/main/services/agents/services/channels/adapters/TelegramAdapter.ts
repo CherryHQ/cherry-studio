@@ -171,6 +171,14 @@ class TelegramAdapter extends ChannelAdapter {
     }
   }
 
+  async sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    await this.bot.api.sendMessageDraft(Number(chatId), draftId, text)
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')

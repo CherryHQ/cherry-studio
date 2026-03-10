@@ -39,6 +39,8 @@ export abstract class ChannelAdapter extends EventEmitter {
   abstract connect(): Promise<void>
   abstract disconnect(): Promise<void>
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
+  /** Stream a partial/draft message to the chat. Same draftId updates the existing draft in-place. */
+  abstract sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void>
   abstract sendTypingIndicator(chatId: string): Promise<void>
 
   // Typed event emitter overrides
