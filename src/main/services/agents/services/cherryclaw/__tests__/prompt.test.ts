@@ -64,7 +64,7 @@ describe('PromptBuilder', () => {
     const result = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('You are CherryClaw')
-    expect(result).toContain('## Guidelines')
+    expect(result).toContain('## CherryClaw Tools')
     expect(result).not.toContain('## Memories')
   })
 
