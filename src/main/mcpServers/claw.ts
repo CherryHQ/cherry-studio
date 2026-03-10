@@ -83,7 +83,7 @@ class ClawServer {
     this.agentId = agentId
     this.server = new Server(
       {
-        name: 'cherry-claw-server',
+        name: 'claw',
         version: '1.0.0'
       },
       {
