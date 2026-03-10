@@ -14,4 +14,6 @@ export type EnhancedSessionFields = {
   _settings?: Settings
   /** Allowed paths for sandbox enforcement via PreToolUse hook. */
   _sandboxAllowedPaths?: string[]
+  /** When set, replaces the SDK system prompt entirely (instead of using preset+append). */
+  _systemPrompt?: string
 }
