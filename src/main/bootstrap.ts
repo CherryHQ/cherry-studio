@@ -31,3 +31,25 @@ function copyOccupiedDirsInMainProcess() {
 }
 
 copyOccupiedDirsInMainProcess()
+
+// Copy built-in skills to the user-level .claude/skills directory so they are
+// available to all Claude Code agent sessions via CLAUDE_CONFIG_DIR.
+function installBuiltinSkills() {
+  const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
+  const destSkillsPath = path.join(app.getPath('userData'), '.claude', 'skills')
+
+  if (!fs.existsSync(resourceSkillsPath)) {
+    return
+  }
+
+  const skills = fs.readdirSync(resourceSkillsPath, { withFileTypes: true })
+  for (const entry of skills) {
+    if (!entry.isDirectory()) continue
+    const destPath = path.join(destSkillsPath, entry.name)
+    if (fs.existsSync(destPath)) continue
+    fs.mkdirSync(destPath, { recursive: true })
+    fs.cpSync(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
+  }
+}
+
+installBuiltinSkills()
