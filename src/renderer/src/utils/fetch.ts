@@ -136,10 +136,8 @@ export async function fetchWebContent(
 export function isXPostUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
-    return (
-      (parsed.hostname === 'x.com' || parsed.hostname === 'twitter.com' || parsed.hostname === 'www.x.com') &&
-      /\/status\/\d+/.test(parsed.pathname)
-    )
+    const host = parsed.hostname.replace(/^www\./, '')
+    return (host === 'x.com' || host === 'twitter.com') && /\/status\/\d+/.test(parsed.pathname)
   } catch {
     return false
   }

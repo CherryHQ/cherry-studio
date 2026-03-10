@@ -157,10 +157,14 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
     select: (content) => truncateText(content, 100)
   })
 
-  const displayTitle =
-    isXPost && fetchedContent
-      ? fetchedContent.split(':')[0] // show @author as title
-      : citation.title
+  const { data: oembedData } = useQuery({
+    queryKey: ['xOembed', citation.url],
+    queryFn: () => fetchXOEmbed(citation.url!),
+    enabled: isXPost && Boolean(citation.url),
+    staleTime: Infinity
+  })
+
+  const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
 
   return (
     <ContextMenu>
