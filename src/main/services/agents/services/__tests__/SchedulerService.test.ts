@@ -139,7 +139,10 @@ describe('SchedulerService', () => {
       id: 'session-1',
       agent_id: 'agent-1'
     } as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(undefined as any)
+    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce({
+      stream: new ReadableStream({ start: (c) => c.close() }),
+      completion: Promise.resolve({})
+    } as any)
 
     const service = SchedulerServiceModule.schedulerService
     service.startLoop()

@@ -163,7 +163,8 @@ export class ChannelMessageHandler {
     const { stream, completion } = await sessionMessageService.createSessionMessage(
       session,
       { content },
-      abortController
+      abortController,
+      { persist: true }
     )
 
     const reader = stream.getReader()
