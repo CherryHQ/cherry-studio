@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
+import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { ListAgentsResponse } from '@types'
 import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
@@ -355,6 +356,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
     if (agent.type === 'cherry-claw') {
       schedulerService.stopScheduler(agentId)
       schedulerService.startScheduler(agent)
+      channelManager.syncAgent(agentId)
     }
 
     logger.info('Agent updated', { agentId })
@@ -507,6 +509,7 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
     if (agent.type === 'cherry-claw') {
       schedulerService.stopScheduler(agentId)
       schedulerService.startScheduler(agent)
+      channelManager.syncAgent(agentId)
     }
 
     logger.info('Agent patched', { agentId })
@@ -584,6 +587,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
         }
       })
     }
+
+    // Sync channels after deletion so syncAgent finds no agent and disconnects adapters
+    channelManager.syncAgent(agentId)
 
     logger.info('Agent deleted', { agentId })
     return res.status(204).send()
