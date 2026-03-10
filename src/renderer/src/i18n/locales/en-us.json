@@ -95,6 +95,62 @@
         "tab": "Soul",
         "title": "Soul Configuration"
       },
+      "tasks": {
+        "add": "Add Task",
+        "cancel": "Cancel",
+        "contextMode": {
+          "isolated": "Isolated",
+          "isolatedDesc": "Create a new session each run",
+          "label": "Context Mode",
+          "session": "Reuse Session",
+          "sessionDesc": "Reuse the most recent session"
+        },
+        "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
+        "delete": {
+          "confirm": "Are you sure you want to delete this task?",
+          "label": "Delete"
+        },
+        "edit": "Edit",
+        "empty": "No scheduled tasks. Add one to get started.",
+        "intervalPlaceholder": "Interval in minutes",
+        "lastRun": "Last Run",
+        "logs": {
+          "duration": "Duration",
+          "empty": "No run history yet.",
+          "error": "Error",
+          "label": "Run History",
+          "result": "Result",
+          "runAt": "Run At",
+          "status": "Status"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "e.g. Daily code review"
+        },
+        "nextRun": "Next Run",
+        "oncePlaceholder": "Select date and time",
+        "pause": "Pause",
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "What should the agent do when this task runs?"
+        },
+        "resume": "Resume",
+        "save": "Save",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Schedule Type",
+          "once": "Once"
+        },
+        "scheduleValue": "Schedule Value",
+        "status": {
+          "active": "Active",
+          "completed": "Completed",
+          "paused": "Paused"
+        },
+        "tab": "Tasks",
+        "title": "Scheduled Tasks"
+      },
       "warning": {
         "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       }

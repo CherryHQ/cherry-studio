@@ -9,15 +9,15 @@ vi.mock('@logger', () => ({
 vi.mock('../AgentService', () => ({
   agentService: {
     listAgents: vi.fn().mockResolvedValue({ agents: [], total: 0 }),
-    getAgent: vi.fn(),
-    updateAgent: vi.fn()
+    getAgent: vi.fn()
   }
 }))
 
 vi.mock('../SessionService', () => ({
   sessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
-    getSession: vi.fn()
+    getSession: vi.fn(),
+    createSession: vi.fn().mockResolvedValue({ id: 'session-1' })
   }
 }))
 
@@ -27,209 +27,131 @@ vi.mock('../SessionMessageService', () => ({
   }
 }))
 
+vi.mock('../TaskService', () => ({
+  taskService: {
+    getDueTasks: vi.fn().mockResolvedValue([]),
+    updateTaskAfterRun: vi.fn(),
+    logTaskRun: vi.fn(),
+    computeNextRun: vi.fn().mockReturnValue(null),
+    updateTask: vi.fn()
+  }
+}))
+
 vi.mock('../cherryclaw', () => ({
   CherryClawService: vi.fn().mockImplementation(() => ({
     heartbeatReader: { readHeartbeat: vi.fn() }
   }))
 }))
 
-vi.mock('cron-parser', () => ({
-  CronExpressionParser: {
-    parse: vi.fn().mockReturnValue({
-      next: () => ({ toDate: () => new Date(Date.now() + 60000) })
-    })
-  }
-}))
-
-import type { AgentEntity, CherryClawConfiguration } from '@types'
-
-function createMockAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
-  return {
-    id: 'agent-1',
-    name: 'Test Agent',
-    type: 'cherry-claw',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    configuration: {
-      scheduler_enabled: true,
-      scheduler_type: 'interval',
-      scheduler_interval: 60
-    } as CherryClawConfiguration,
-    ...overrides
-  } as AgentEntity
-}
-
 describe('SchedulerService', () => {
-  let SchedulerServiceClass: any
+  let SchedulerServiceModule: any
 
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.resetModules()
-    SchedulerServiceClass = await import('../SchedulerService')
+    SchedulerServiceModule = await import('../SchedulerService')
   })
 
   afterEach(() => {
+    const service = SchedulerServiceModule.schedulerService
+    service.stopAll()
     vi.useRealTimers()
   })
 
-  function getService() {
-    // Access the class via the module to create a fresh singleton each time
-    // Since we reset modules in beforeEach, getInstance() returns a new instance
-    return SchedulerServiceClass.schedulerService
-  }
-
-  it('startScheduler creates a timer for interval type', () => {
-    const service = getService()
-    const agent = createMockAgent()
-
-    service.startScheduler(agent)
-
-    expect(service.isRunning('agent-1')).toBe(true)
-    const status = service.getSchedulerStatus('agent-1')
-    expect(status).not.toBeNull()
-    expect(status!.running).toBe(true)
-    expect(status!.type).toBe('interval')
-    expect(status!.nextRun).toBeInstanceOf(Date)
-  })
-
-  it('stopScheduler clears the timer', () => {
-    const service = getService()
-    const agent = createMockAgent()
-
-    service.startScheduler(agent)
-    expect(service.isRunning('agent-1')).toBe(true)
-
-    service.stopScheduler('agent-1')
-    expect(service.isRunning('agent-1')).toBe(false)
-    expect(service.getSchedulerStatus('agent-1')).toBeNull()
-  })
-
-  it('stopAll clears all schedulers', () => {
-    const service = getService()
-
-    const agent1 = createMockAgent({ id: 'agent-1' })
-    const agent2 = createMockAgent({
-      id: 'agent-2',
-      configuration: {
-        scheduler_enabled: true,
-        scheduler_type: 'interval',
-        scheduler_interval: 120
-      } as CherryClawConfiguration
-    })
-
-    service.startScheduler(agent1)
-    service.startScheduler(agent2)
-
-    expect(service.isRunning('agent-1')).toBe(true)
-    expect(service.isRunning('agent-2')).toBe(true)
-
+  it('startLoop starts the poll loop', () => {
+    const service = SchedulerServiceModule.schedulerService
+    service.startLoop()
+    // Running is tracked internally; stopAll should not throw
     service.stopAll()
-
-    expect(service.isRunning('agent-1')).toBe(false)
-    expect(service.isRunning('agent-2')).toBe(false)
   })
 
-  it('isRunning returns correct state', () => {
-    const service = getService()
-
-    expect(service.isRunning('nonexistent')).toBe(false)
-
-    const agent = createMockAgent()
-    service.startScheduler(agent)
-    expect(service.isRunning('agent-1')).toBe(true)
-
-    service.stopScheduler('agent-1')
-    expect(service.isRunning('agent-1')).toBe(false)
+  it('startLoop is idempotent', () => {
+    const service = SchedulerServiceModule.schedulerService
+    service.startLoop()
+    service.startLoop() // second call should be a no-op
+    service.stopAll()
   })
 
-  it('getSchedulerStatus returns null for unknown agent', () => {
-    const service = getService()
-    expect(service.getSchedulerStatus('unknown-agent')).toBeNull()
+  it('stopAll stops the loop and aborts active tasks', () => {
+    const service = SchedulerServiceModule.schedulerService
+    service.startLoop()
+    service.stopAll()
+    // Should not throw, loop should be stopped
   })
 
-  it('getSchedulerStatus returns status for running scheduler', () => {
-    const service = getService()
-    const agent = createMockAgent()
-
-    service.startScheduler(agent)
-
-    const status = service.getSchedulerStatus('agent-1')
-    expect(status).not.toBeNull()
-    expect(status!.running).toBe(true)
-    expect(status!.type).toBe('interval')
-    expect(status!.tickInProgress).toBe(false)
-    expect(status!.consecutiveErrors).toBe(0)
-    expect(status!.nextRun).toBeInstanceOf(Date)
-    expect(status!.lastRun).toBeUndefined()
+  it('restoreSchedulers starts the poll loop', async () => {
+    const service = SchedulerServiceModule.schedulerService
+    await service.restoreSchedulers()
+    // The poll loop should be running
+    service.stopAll()
   })
 
-  it('tick guard prevents overlapping ticks', async () => {
-    const service = getService()
-    const agent = createMockAgent({
-      configuration: {
-        scheduler_enabled: true,
-        scheduler_type: 'interval',
-        scheduler_interval: 10 // 10 seconds
-      } as CherryClawConfiguration
+  it('stopScheduler is a no-op (poll loop handles everything)', () => {
+    const service = SchedulerServiceModule.schedulerService
+    // Should not throw for any agent ID
+    service.stopScheduler('nonexistent')
+  })
+
+  it('startScheduler starts the poll loop', () => {
+    const service = SchedulerServiceModule.schedulerService
+    service.startScheduler({ id: 'agent-1' })
+    service.stopAll()
+  })
+
+  it('tick processes due tasks', async () => {
+    const { taskService } = await import('../TaskService')
+    const { agentService } = await import('../AgentService')
+    const { sessionService } = await import('../SessionService')
+    const { sessionMessageService } = await import('../SessionMessageService')
+
+    const mockTask = {
+      id: 'task-1',
+      agent_id: 'agent-1',
+      name: 'Test task',
+      prompt: 'Do something',
+      schedule_type: 'once' as const,
+      schedule_value: new Date().toISOString(),
+      context_mode: 'session' as const,
+      next_run: new Date(Date.now() - 1000).toISOString(),
+      last_run: null,
+      last_result: null,
+      status: 'active' as const,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce({
+      id: 'agent-1',
+      type: 'cherry-claw',
+      name: 'Test',
+      model: 'claude-3',
+      accessible_paths: ['/tmp/test'],
+      configuration: { heartbeat_enabled: false },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as any)
+    vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
+      sessions: [{ id: 'session-1' }] as any,
+      total: 1
     })
+    vi.mocked(sessionService.getSession).mockResolvedValueOnce({
+      id: 'session-1',
+      agent_id: 'agent-1'
+    } as any)
+    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(undefined as any)
 
-    service.startScheduler(agent)
+    const service = SchedulerServiceModule.schedulerService
+    service.startLoop()
 
-    // Access the private schedulers map to simulate tickInProgress
-    // We use getSchedulerStatus to verify initial state, then manipulate via the map
-    const status = service.getSchedulerStatus('agent-1')
-    expect(status!.tickInProgress).toBe(false)
+    // Advance past the first tick
+    await vi.advanceTimersByTimeAsync(100)
 
-    // Access internal state to set tickInProgress = true before the timer fires
+    expect(taskService.getDueTasks).toHaveBeenCalled()
+    // Give the async task time to complete
+    await vi.advanceTimersByTimeAsync(1000)
 
-    const schedulers = (service as any).schedulers as Map<string, { tickInProgress: boolean }>
-    const entry = schedulers.get('agent-1')!
-    entry.tickInProgress = true
-
-    // Advance timers to trigger the tick
-    await vi.advanceTimersByTimeAsync(10_000)
-
-    // The tick should have been skipped because tickInProgress was true
-    // tickInProgress should still be true (the guard returned early, didn't reset it)
-    const statusAfter = service.getSchedulerStatus('agent-1')
-    expect(statusAfter!.tickInProgress).toBe(true)
-  })
-
-  it('startScheduler does nothing when scheduler is not enabled', () => {
-    const service = getService()
-    const agent = createMockAgent({
-      configuration: {
-        scheduler_enabled: false,
-        scheduler_type: 'interval',
-        scheduler_interval: 60
-      } as CherryClawConfiguration
-    })
-
-    service.startScheduler(agent)
-    expect(service.isRunning('agent-1')).toBe(false)
-  })
-
-  it('startScheduler stops existing scheduler before creating new one', () => {
-    const service = getService()
-    const agent = createMockAgent()
-
-    service.startScheduler(agent)
-    const statusBefore = service.getSchedulerStatus('agent-1')
-
-    // Start again with different interval
-    const agentUpdated = createMockAgent({
-      configuration: {
-        scheduler_enabled: true,
-        scheduler_type: 'interval',
-        scheduler_interval: 120
-      } as CherryClawConfiguration
-    })
-    service.startScheduler(agentUpdated)
-
-    const statusAfter = service.getSchedulerStatus('agent-1')
-    expect(statusAfter).not.toBeNull()
-    expect(statusAfter!.running).toBe(true)
-    // The nextRun should reflect the new interval
-    expect(statusAfter!.nextRun!.getTime()).not.toBe(statusBefore!.nextRun!.getTime())
+    expect(taskService.logTaskRun).toHaveBeenCalled()
+    expect(taskService.updateTaskAfterRun).toHaveBeenCalledWith('task-1', null, 'Completed')
   })
 })

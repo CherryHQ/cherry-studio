@@ -95,6 +95,62 @@
         "tab": "[to be translated]:Soul",
         "title": "[to be translated]:Soul Configuration"
       },
+      "tasks": {
+        "add": "[to be translated]:Add Task",
+        "cancel": "[to be translated]:Cancel",
+        "contextMode": {
+          "isolated": "[to be translated]:Isolated",
+          "isolatedDesc": "[to be translated]:Create a new session each run",
+          "label": "[to be translated]:Context Mode",
+          "session": "[to be translated]:Reuse Session",
+          "sessionDesc": "[to be translated]:Reuse the most recent session"
+        },
+        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "delete": {
+          "confirm": "[to be translated]:Are you sure you want to delete this task?",
+          "label": "[to be translated]:Delete"
+        },
+        "edit": "[to be translated]:Edit",
+        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
+        "intervalPlaceholder": "[to be translated]:Interval in minutes",
+        "lastRun": "[to be translated]:Last Run",
+        "logs": {
+          "duration": "[to be translated]:Duration",
+          "empty": "[to be translated]:No run history yet.",
+          "error": "[to be translated]:Error",
+          "label": "[to be translated]:Run History",
+          "result": "[to be translated]:Result",
+          "runAt": "[to be translated]:Run At",
+          "status": "[to be translated]:Status"
+        },
+        "name": {
+          "label": "[to be translated]:Name",
+          "placeholder": "[to be translated]:e.g. Daily code review"
+        },
+        "nextRun": "[to be translated]:Next Run",
+        "oncePlaceholder": "[to be translated]:Select date and time",
+        "pause": "[to be translated]:Pause",
+        "prompt": {
+          "label": "[to be translated]:Prompt",
+          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+        },
+        "resume": "[to be translated]:Resume",
+        "save": "[to be translated]:Save",
+        "scheduleType": {
+          "cron": "[to be translated]:Cron",
+          "interval": "[to be translated]:Interval",
+          "label": "[to be translated]:Schedule Type",
+          "once": "[to be translated]:Once"
+        },
+        "scheduleValue": "[to be translated]:Schedule Value",
+        "status": {
+          "active": "[to be translated]:Active",
+          "completed": "[to be translated]:Completed",
+          "paused": "[to be translated]:Paused"
+        },
+        "tab": "[to be translated]:Tasks",
+        "title": "[to be translated]:Scheduled Tasks"
+      },
       "warning": {
         "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       }

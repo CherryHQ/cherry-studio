@@ -100,6 +100,46 @@ export type CherryClawConfiguration = AgentConfiguration & {
   channels?: CherryClawChannel[]
 }
 
+// ------------------ Scheduled Task types ------------------
+export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
+export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
+
+export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
+export type TaskStatus = z.infer<typeof TaskStatusSchema>
+
+export const TaskContextModeSchema = z.enum(['session', 'isolated'])
+export type TaskContextMode = z.infer<typeof TaskContextModeSchema>
+
+export const ScheduledTaskEntitySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  name: z.string(),
+  prompt: z.string(),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string(),
+  context_mode: TaskContextModeSchema,
+  next_run: z.string().nullable().optional(),
+  last_run: z.string().nullable().optional(),
+  last_result: z.string().nullable().optional(),
+  status: TaskStatusSchema,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime()
+})
+
+export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+
+export const TaskRunLogEntitySchema = z.object({
+  id: z.number(),
+  task_id: z.string(),
+  run_at: z.string(),
+  duration_ms: z.number(),
+  status: z.enum(['success', 'error']),
+  result: z.string().nullable().optional(),
+  error: z.string().nullable().optional()
+})
+
+export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
+
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
   // Basic info
@@ -362,6 +402,50 @@ export const AgentServerErrorSchema = z.object({
 })
 
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// ------------------ Task API types ------------------
+export const CreateTaskRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  prompt: z.string().min(1, 'Prompt is required'),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string().min(1, 'Schedule value is required'),
+  context_mode: TaskContextModeSchema.optional().default('session')
+})
+
+export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
+
+export const UpdateTaskRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  prompt: z.string().min(1).optional(),
+  schedule_type: TaskScheduleTypeSchema.optional(),
+  schedule_value: z.string().min(1).optional(),
+  context_mode: TaskContextModeSchema.optional(),
+  status: TaskStatusSchema.optional()
+})
+
+export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
+
+export const ListTasksResponseSchema = z.object({
+  data: z.array(ScheduledTaskEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
+
+export const ListTaskLogsResponseSchema = z.object({
+  data: z.array(TaskRunLogEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
+
+export const TaskIdParamSchema = z.object({
+  taskId: z.string().min(1, 'Task ID is required')
+})
 
 // ------------------ API validation schemas ------------------
 

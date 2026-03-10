@@ -9,11 +9,13 @@
 export { AgentService } from './AgentService'
 export { SessionMessageService } from './SessionMessageService'
 export { SessionService } from './SessionService'
+export { TaskService } from './TaskService'
 
 // Service instances (singletons)
 export { agentService } from './AgentService'
 export { sessionMessageService } from './SessionMessageService'
 export { sessionService } from './SessionService'
+export { taskService } from './TaskService'
 
 // Agent service registry
 export { agentServiceRegistry } from './AgentServiceRegistry'

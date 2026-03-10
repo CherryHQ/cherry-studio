@@ -1,39 +1,29 @@
 import { loggerService } from '@logger'
-import type { AgentEntity, CherryClawConfiguration, SchedulerType } from '@types'
-import { CronExpressionParser } from 'cron-parser'
+import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
 import { agentService } from './AgentService'
 import { CherryClawService } from './cherryclaw'
 import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
+import { taskService } from './TaskService'
 
 const logger = loggerService.withContext('SchedulerService')
 
+const POLL_INTERVAL_MS = 60_000
 const MAX_CONSECUTIVE_ERRORS = 3
 
-type SchedulerEntry = {
+type RunningTask = {
+  taskId: string
   agentId: string
-  type: SchedulerType
-  timer: ReturnType<typeof setTimeout> | null
-  tickInProgress: boolean
-  consecutiveErrors: number
-  enabled: boolean
-  lastRun?: Date
-  nextRun?: Date
-}
-
-export type SchedulerStatus = {
-  running: boolean
-  type: SchedulerType
-  tickInProgress: boolean
-  nextRun?: Date
-  lastRun?: Date
+  abortController: AbortController
   consecutiveErrors: number
 }
 
 class SchedulerService {
   private static instance: SchedulerService | null = null
-  private readonly schedulers = new Map<string, SchedulerEntry>()
+  private pollTimer: ReturnType<typeof setTimeout> | null = null
+  private running = false
+  private readonly activeTasks = new Map<string, RunningTask>()
   private cherryClawService: CherryClawService | null = null
 
   static getInstance(): SchedulerService {
@@ -50,246 +40,183 @@ class SchedulerService {
     return this.cherryClawService
   }
 
-  startScheduler(agent: AgentEntity): void {
-    const config = (agent.configuration ?? {}) as CherryClawConfiguration
-    if (!config.scheduler_enabled || !config.scheduler_type) {
-      logger.info('Scheduler not enabled for agent', { agentId: agent.id })
+  startLoop(): void {
+    if (this.running) {
+      logger.debug('Scheduler loop already running')
       return
     }
-
-    // Stop existing scheduler for this agent if any
-    this.stopScheduler(agent.id)
-
-    const entry: SchedulerEntry = {
-      agentId: agent.id,
-      type: config.scheduler_type,
-      timer: null,
-      tickInProgress: false,
-      consecutiveErrors: 0,
-      enabled: true
-    }
-
-    this.schedulers.set(agent.id, entry)
-    this.scheduleNext(agent.id, config)
-    logger.info('Started scheduler', { agentId: agent.id, type: config.scheduler_type })
+    this.running = true
+    logger.info('Scheduler poll loop started')
+    this.poll()
   }
 
-  stopScheduler(agentId: string): void {
-    const entry = this.schedulers.get(agentId)
-    if (!entry) return
-
-    if (entry.timer) {
-      clearTimeout(entry.timer)
-      entry.timer = null
+  stopLoop(): void {
+    this.running = false
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer)
+      this.pollTimer = null
     }
-    entry.enabled = false
-    this.schedulers.delete(agentId)
-    logger.info('Stopped scheduler', { agentId })
+    // Abort all running tasks
+    for (const [taskId, rt] of this.activeTasks) {
+      rt.abortController.abort()
+      logger.info('Aborted running task on shutdown', { taskId })
+    }
+    this.activeTasks.clear()
+    logger.info('Scheduler poll loop stopped')
+  }
+
+  // Keep backward-compatible aliases used by agent handlers and main/index.ts
+  stopScheduler(_agentId: string): void {
+    // No-op — the poll loop handles everything via DB state.
+    // Individual task abort is handled by stopLoop or task deletion.
+  }
+
+  startScheduler(_agent: any): void {
+    // No-op — the poll loop picks up tasks from DB automatically.
+    // Just ensure the loop is running.
+    this.startLoop()
   }
 
   stopAll(): void {
-    for (const agentId of this.schedulers.keys()) {
-      this.stopScheduler(agentId)
-    }
-    logger.info('All schedulers stopped')
+    this.stopLoop()
   }
 
   async restoreSchedulers(): Promise<void> {
-    try {
-      const { agents } = await agentService.listAgents({ limit: 1000 })
-      const clawAgents = agents.filter(
-        (a: AgentEntity) => a.type === 'cherry-claw' && (a.configuration as CherryClawConfiguration)?.scheduler_enabled
-      )
-
-      for (const agent of clawAgents) {
-        try {
-          this.startScheduler(agent)
-        } catch (error) {
-          logger.error('Failed to restore scheduler for agent', {
-            agentId: agent.id,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-
-      logger.info('Restored schedulers', { count: clawAgents.length })
-    } catch (error) {
-      logger.error('Failed to restore schedulers', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
+    this.startLoop()
   }
 
-  getSchedulerStatus(agentId: string): SchedulerStatus | null {
-    const entry = this.schedulers.get(agentId)
-    if (!entry) return null
+  private poll(): void {
+    if (!this.running) return
 
-    return {
-      running: entry.enabled,
-      type: entry.type,
-      tickInProgress: entry.tickInProgress,
-      nextRun: entry.nextRun,
-      lastRun: entry.lastRun,
-      consecutiveErrors: entry.consecutiveErrors
-    }
-  }
-
-  isRunning(agentId: string): boolean {
-    return this.schedulers.has(agentId) && (this.schedulers.get(agentId)?.enabled ?? false)
-  }
-
-  private scheduleNext(agentId: string, config: CherryClawConfiguration): void {
-    const entry = this.schedulers.get(agentId)
-    if (!entry || !entry.enabled) return
-
-    const delayMs = this.computeDelayMs(config)
-    if (delayMs === null) {
-      logger.warn('Could not compute next delay for scheduler', { agentId, type: config.scheduler_type })
-      return
-    }
-
-    entry.nextRun = new Date(Date.now() + delayMs)
-
-    entry.timer = setTimeout(() => {
-      this.onTick(agentId, config).catch((error) => {
-        logger.error('Tick handler error', {
-          agentId,
+    this.tick()
+      .catch((error) => {
+        logger.error('Error in scheduler tick', {
           error: error instanceof Error ? error.message : String(error)
         })
       })
-    }, delayMs)
-  }
-
-  private computeDelayMs(config: CherryClawConfiguration): number | null {
-    switch (config.scheduler_type) {
-      case 'cron': {
-        if (!config.scheduler_cron) return null
-        try {
-          const cron = CronExpressionParser.parse(config.scheduler_cron)
-          const next = cron.next().toDate()
-          return Math.max(next.getTime() - Date.now(), 1000) // at least 1s
-        } catch {
-          logger.warn('Invalid cron expression', { cron: config.scheduler_cron })
-          return null
+      .finally(() => {
+        if (this.running) {
+          this.pollTimer = setTimeout(() => this.poll(), POLL_INTERVAL_MS)
         }
+      })
+  }
+
+  private async tick(): Promise<void> {
+    const dueTasks = await taskService.getDueTasks()
+    if (dueTasks.length > 0) {
+      logger.info('Found due tasks', { count: dueTasks.length })
+    }
+
+    for (const task of dueTasks) {
+      // Skip if already running
+      if (this.activeTasks.has(task.id)) {
+        logger.debug('Task already running, skipping', { taskId: task.id })
+        continue
       }
-      case 'interval': {
-        if (!config.scheduler_interval || config.scheduler_interval <= 0) return null
-        return config.scheduler_interval * 1000 // seconds to ms
-      }
-      case 'one-time': {
-        if (!config.scheduler_one_time_delay || config.scheduler_one_time_delay <= 0) return null
-        return config.scheduler_one_time_delay * 1000 // seconds to ms
-      }
-      default:
-        return null
+
+      // Fire and forget — don't block the poll loop
+      this.runTask(task).catch((error) => {
+        logger.error('Unhandled error in runTask', {
+          taskId: task.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      })
     }
   }
 
-  private async onTick(agentId: string, config: CherryClawConfiguration): Promise<void> {
-    const entry = this.schedulers.get(agentId)
-    if (!entry || !entry.enabled) return
-
-    // Tick guard — skip if previous tick still running
-    if (entry.tickInProgress) {
-      logger.warn('Skipping tick — previous tick still in progress', { agentId })
-      // Reschedule for next interval (unless one-time)
-      if (config.scheduler_type !== 'one-time') {
-        this.scheduleNext(agentId, config)
-      }
-      return
+  private async runTask(task: ScheduledTaskEntity): Promise<void> {
+    const startTime = Date.now()
+    const abortController = new AbortController()
+    const runningTask: RunningTask = {
+      taskId: task.id,
+      agentId: task.agent_id,
+      abortController,
+      consecutiveErrors: 0
     }
+    this.activeTasks.set(task.id, runningTask)
 
-    entry.tickInProgress = true
-    entry.lastRun = new Date()
+    let result: string | null = null
+    let error: string | null = null
 
     try {
-      // Read heartbeat content
-      const workspacePath = await this.getAgentWorkspacePath(agentId)
-      if (!workspacePath) {
-        logger.warn('No workspace path for agent, skipping tick', { agentId })
-        return
+      logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
+
+      const agent = await agentService.getAgent(task.agent_id)
+      if (!agent) {
+        throw new Error(`Agent not found: ${task.agent_id}`)
       }
 
-      let heartbeatContent: string | undefined
-      if (config.heartbeat_enabled !== false) {
+      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      const workspacePath = agent.accessible_paths?.[0]
+
+      // Build the prompt — optionally prepend heartbeat content
+      let fullPrompt = task.prompt
+      if (config.heartbeat_enabled !== false && workspacePath) {
         const clawService = this.getCherryClawService()
-        heartbeatContent = await clawService.heartbeatReader.readHeartbeat(workspacePath, config.heartbeat_file)
-      }
-
-      if (!heartbeatContent) {
-        logger.warn('No heartbeat content, skipping tick', { agentId })
-        return
-      }
-
-      // Find most recent session by updated_at desc
-      const { sessions } = await sessionService.listSessions(agentId, { limit: 1 })
-      if (!sessions || sessions.length === 0) {
-        logger.warn('No session found for agent, skipping tick', { agentId })
-        return
-      }
-
-      const session = await sessionService.getSession(agentId, sessions[0].id)
-      if (!session) {
-        logger.warn('Session not found', { agentId, sessionId: sessions[0].id })
-        return
-      }
-
-      // Send heartbeat as user message
-      logger.info('Delivering heartbeat to session', {
-        agentId,
-        sessionId: session.id,
-        contentLength: heartbeatContent.length
-      })
-
-      const abortController = new AbortController()
-      await sessionMessageService.createSessionMessage(session, { content: heartbeatContent }, abortController)
-
-      // Update last run in agent configuration
-      await agentService.updateAgent(agentId, {
-        configuration: {
-          ...config,
-          scheduler_last_run: new Date().toISOString()
+        const heartbeatContent = await clawService.heartbeatReader.readHeartbeat(workspacePath, config.heartbeat_file)
+        if (heartbeatContent) {
+          fullPrompt = `[Heartbeat]\n${heartbeatContent}\n\n[Task]\n${task.prompt}`
         }
-      })
+      }
 
-      entry.consecutiveErrors = 0
-    } catch (error) {
-      entry.consecutiveErrors++
-      logger.error('Tick failed', {
-        agentId,
-        consecutiveErrors: entry.consecutiveErrors,
-        error: error instanceof Error ? error.message : String(error)
-      })
+      // Find or create session based on context mode
+      let sessionId: string
+      if (task.context_mode === 'session') {
+        const { sessions } = await sessionService.listSessions(task.agent_id, { limit: 1 })
+        if (sessions.length === 0) {
+          const newSession = await sessionService.createSession(task.agent_id, {})
+          sessionId = newSession!.id
+        } else {
+          sessionId = sessions[0].id
+        }
+      } else {
+        const newSession = await sessionService.createSession(task.agent_id, {})
+        sessionId = newSession!.id
+      }
 
-      if (entry.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        logger.warn('Pausing scheduler after consecutive errors', {
-          agentId,
-          errors: entry.consecutiveErrors
+      const session = await sessionService.getSession(task.agent_id, sessionId)
+      if (!session) {
+        throw new Error(`Session not found: ${sessionId}`)
+      }
+
+      // Send as user message (triggers agent response)
+      await sessionMessageService.createSessionMessage(session, { content: fullPrompt }, abortController)
+
+      result = 'Completed'
+      logger.info('Task completed', { taskId: task.id, durationMs: Date.now() - startTime })
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err)
+      logger.error('Task failed', { taskId: task.id, error })
+
+      // Track consecutive errors
+      runningTask.consecutiveErrors++
+      if (runningTask.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        logger.warn('Pausing task after consecutive errors', {
+          taskId: task.id,
+          errors: runningTask.consecutiveErrors
         })
-        this.stopScheduler(agentId)
-        return
+        await taskService.updateTask(task.agent_id, task.id, { status: 'paused' })
       }
     } finally {
-      const currentEntry = this.schedulers.get(agentId)
-      if (currentEntry) {
-        currentEntry.tickInProgress = false
-      }
+      this.activeTasks.delete(task.id)
     }
 
-    // Schedule next tick (unless one-time)
-    if (config.scheduler_type !== 'one-time' && entry.enabled) {
-      this.scheduleNext(agentId, config)
-    }
-  }
+    const durationMs = Date.now() - startTime
 
-  private async getAgentWorkspacePath(agentId: string): Promise<string | undefined> {
-    try {
-      const agent = await agentService.getAgent(agentId)
-      return agent?.accessible_paths?.[0]
-    } catch {
-      return undefined
-    }
+    // Log the run
+    await taskService.logTaskRun({
+      task_id: task.id,
+      run_at: new Date().toISOString(),
+      duration_ms: durationMs,
+      status: error ? 'error' : 'success',
+      result,
+      error
+    })
+
+    // Compute next run and update task
+    const nextRun = taskService.computeNextRun(task)
+    const resultSummary = error ? `Error: ${error}` : result ? result.slice(0, 200) : 'Completed'
+    await taskService.updateTaskAfterRun(task.id, nextRun, resultSummary)
   }
 }
 

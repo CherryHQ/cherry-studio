@@ -22,6 +22,13 @@
       "when": 1762526423527,
       "tag": "0002_wealthy_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773111833225,
+      "tag": "0003_wise_meltdown",
+      "breakpoints": true
     }
   ]
 }
