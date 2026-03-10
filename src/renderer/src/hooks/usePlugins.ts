@@ -1,6 +1,9 @@
 import type { InstalledPlugin, PluginError, UninstallPluginPackageResult } from '@renderer/types/plugin'
+import { createKeyedSignal } from '@renderer/utils/createKeyedSignal'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useEffect, useState } from 'react'
+
+const installedPluginsSignal = createKeyedSignal()
 
 /**
  * Hook to fetch installed plugins for a specific agent
@@ -40,7 +43,13 @@ export function useInstalledPlugins(agentId: string | undefined) {
 
   useEffect(() => {
     refresh()
-  }, [refresh])
+
+    if (!agentId) {
+      return
+    }
+
+    return installedPluginsSignal.subscribe(agentId, refresh)
+  }, [agentId, refresh])
 
   return { plugins, loading, error, refresh }
 }
@@ -48,10 +57,9 @@ export function useInstalledPlugins(agentId: string | undefined) {
 /**
  * Hook to provide install and uninstall actions for plugins
  * @param agentId - The ID of the agent to perform actions for
- * @param onSuccess - Optional callback to be called on successful operations
  * @returns Object containing install, uninstall, uninstallPackage functions and their loading states
  */
-export function usePluginActions(agentId: string, onSuccess?: () => Promise<void> | void) {
+export function usePluginActions(agentId: string) {
   const [installing, setInstalling] = useState<boolean>(false)
   const [uninstalling, setUninstalling] = useState<boolean>(false)
   const [uninstallingPackage, setUninstallingPackage] = useState<boolean>(false)
@@ -66,7 +74,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => Promise<void
       try {
         const result = await action()
         if (result.success) {
-          await onSuccess?.()
+          installedPluginsSignal.emit(agentId)
           return { success: true, data: result.data as TResult }
         }
         return { success: false, error: getPluginErrorMessage(result.error, errorPrefix) }
@@ -76,7 +84,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => Promise<void
         setLoading(false)
       }
     },
-    [onSuccess]
+    [agentId]
   )
 
   const install = useCallback(

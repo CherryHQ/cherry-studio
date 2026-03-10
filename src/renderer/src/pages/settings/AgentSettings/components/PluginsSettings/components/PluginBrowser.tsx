@@ -21,7 +21,7 @@ export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => Promise<void>
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => Promise<void>
-  onUninstallPackage: (packageName: string) => void
+  onUninstallPackage: (packageName: string) => Promise<void>
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }

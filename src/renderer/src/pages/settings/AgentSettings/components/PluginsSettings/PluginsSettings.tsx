@@ -23,10 +23,10 @@ export const PluginBrowserSettings: FC<PluginSettingsProps> = ({ agentBase }) =>
   const { t } = useTranslation()
 
   // Fetch installed plugins for checking installation status
-  const { plugins, refresh } = useInstalledPlugins(agentBase.id)
+  const { plugins } = useInstalledPlugins(agentBase.id)
 
   // Plugin actions
-  const { install, uninstall, uninstallPackage } = usePluginActions(agentBase.id, refresh)
+  const { install, uninstall, uninstallPackage } = usePluginActions(agentBase.id)
 
   // Handle install action
   const handleInstall = useCallback(
@@ -97,10 +97,7 @@ export const InstalledPluginsSettings: FC<PluginSettingsProps> = ({ agentBase })
   const { plugins, loading: loadingInstalled, error: errorInstalled, refresh } = useInstalledPlugins(agentBase.id)
 
   // Plugin actions
-  const { uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage } = usePluginActions(
-    agentBase.id,
-    refresh
-  )
+  const { uninstall, uninstallPackage, installing, uninstalling, uninstallingPackage } = usePluginActions(agentBase.id)
 
   // Handle uninstall action
   const handleUninstall = useCallback(
