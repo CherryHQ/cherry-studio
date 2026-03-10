@@ -1,9 +1,32 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('PromptBuilder')
+
+/**
+ * Resolve a filename within a directory using case-insensitive matching.
+ * Returns the full path if found (preferring exact match), or undefined.
+ */
+async function resolveFile(dir: string, name: string): Promise<string | undefined> {
+  const exact = path.join(dir, name)
+  try {
+    await stat(exact)
+    return exact
+  } catch {
+    // exact match not found, try case-insensitive
+  }
+
+  try {
+    const entries = await readdir(dir)
+    const target = name.toLowerCase()
+    const match = entries.find((e) => e.toLowerCase() === target)
+    return match ? path.join(dir, match) : undefined
+  } catch {
+    return undefined
+  }
+}
 
 type CacheEntry = {
   mtimeMs: number
@@ -56,8 +79,9 @@ export class PromptBuilder {
   async buildSystemPrompt(workspacePath: string): Promise<string> {
     const parts: string[] = []
 
-    // Basic prompt: workspace system.md > embedded default
-    const basicPrompt = await this.readCachedFile(path.join(workspacePath, 'system.md'))
+    // Basic prompt: workspace system.md (case-insensitive) > embedded default
+    const systemPath = await resolveFile(workspacePath, 'system.md')
+    const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
     // Memories section
@@ -71,14 +95,18 @@ export class PromptBuilder {
 
   private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
     const memoryDir = path.join(workspacePath, 'memory')
-    const soulPath = path.join(workspacePath, 'soul.md')
-    const userPath = path.join(workspacePath, 'user.md')
-    const factPath = path.join(memoryDir, 'FACT.md')
+
+    // Resolve all filenames case-insensitively
+    const [soulPath, userPath, factPath] = await Promise.all([
+      resolveFile(workspacePath, 'soul.md'),
+      resolveFile(workspacePath, 'user.md'),
+      resolveFile(memoryDir, 'FACT.md')
+    ])
 
     const [soulContent, userContent, factContent] = await Promise.all([
-      this.readCachedFile(soulPath),
-      this.readCachedFile(userPath),
-      this.readCachedFile(factPath)
+      soulPath ? this.readCachedFile(soulPath) : Promise.resolve(undefined),
+      userPath ? this.readCachedFile(userPath) : Promise.resolve(undefined),
+      factPath ? this.readCachedFile(factPath) : Promise.resolve(undefined)
     ])
 
     if (!soulContent && !userContent && !factContent) {
@@ -100,7 +128,7 @@ export class PromptBuilder {
     lines.push('')
     lines.push('Each file has an exclusive scope — never duplicate information across files.')
 
-    if (soulContent) {
+    if (soulContent && soulPath) {
       lines.push('')
       lines.push(`### Soul (${soulPath})`)
       lines.push('')
@@ -112,7 +140,7 @@ export class PromptBuilder {
       lines.push('</soul>')
     }
 
-    if (userContent) {
+    if (userContent && userPath) {
       lines.push('')
       lines.push(`### User (${userPath})`)
       lines.push('')
@@ -124,7 +152,7 @@ export class PromptBuilder {
       lines.push('</user>')
     }
 
-    if (factContent) {
+    if (factContent && factPath) {
       lines.push('')
       lines.push(`### Facts (${factPath})`)
       lines.push('')

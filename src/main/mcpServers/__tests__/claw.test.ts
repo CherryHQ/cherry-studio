@@ -16,13 +16,17 @@ const mockWriteFile = vi.fn()
 const mockRename = vi.fn()
 const mockAppendFile = vi.fn()
 const mockReadFile = vi.fn()
+const mockReaddir = vi.fn()
+const mockStat = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   mkdir: (...args: unknown[]) => mockMkdir(...args),
   writeFile: (...args: unknown[]) => mockWriteFile(...args),
   rename: (...args: unknown[]) => mockRename(...args),
   appendFile: (...args: unknown[]) => mockAppendFile(...args),
-  readFile: (...args: unknown[]) => mockReadFile(...args)
+  readFile: (...args: unknown[]) => mockReadFile(...args),
+  readdir: (...args: unknown[]) => mockReaddir(...args),
+  stat: (...args: unknown[]) => mockStat(...args)
 }))
 
 vi.mock('@main/services/agents/services/TaskService', () => ({
@@ -485,6 +489,8 @@ describe('ClawServer', () => {
       mockWriteFile.mockResolvedValue(undefined)
       mockRename.mockResolvedValue(undefined)
       mockAppendFile.mockResolvedValue(undefined)
+      // resolveFileCI: exact path always found (case-sensitive match)
+      mockStat.mockResolvedValue({ mtimeMs: 1000 })
     })
 
     it('should update FACT.md atomically', async () => {
