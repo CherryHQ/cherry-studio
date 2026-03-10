@@ -92,9 +92,6 @@ export type CherryClawConfiguration = AgentConfiguration & {
   // Soul
   soul_enabled?: boolean
 
-  // Sandbox
-  sandbox_enabled?: boolean
-
   // Scheduler
   scheduler_enabled?: boolean
   scheduler_type?: SchedulerType
