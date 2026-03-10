@@ -2147,7 +2147,7 @@
     "tools": {
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
-      "approvalRequired": "[to be translated]:Tool \"{{tool}}\" requires approval",
+      "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
       "completed": "完了",
