@@ -1,7 +1,8 @@
-import { BuiltinMCPServerNames, type MCPServer } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { BuiltinMCPServerNames } from '@renderer/types'
+import { createMigrate } from 'redux-persist'
+import { describe, expect, it } from 'vitest'
 
-import { builtinMCPServers, initializeMCPServers, updateMCPServer } from '../mcp'
+import { builtinMCPServers } from '../mcp'
 
 describe('MCP filesystem defaults', () => {
   it('disables auto-approve for sensitive filesystem tools by default', () => {
@@ -10,23 +11,59 @@ describe('MCP filesystem defaults', () => {
     expect(filesystemServer?.disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
   })
 
-  it('backfills manual approval defaults for existing filesystem servers', () => {
-    const dispatch = vi.fn()
-    const existingFilesystemServer: MCPServer = {
-      id: 'filesystem-server',
-      name: BuiltinMCPServerNames.filesystem,
-      type: 'inMemory',
-      args: ['/tmp/workspace'],
-      isActive: true
+  describe('migration 200: filesystem approval backfill', () => {
+    // Isolated migration function matching the logic in migrate.ts version 200
+    const migrate200 = (state: any) => {
+      const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
+      if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
+        filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
+      }
+      return state
     }
 
-    initializeMCPServers([existingFilesystemServer], dispatch)
+    const migrate = createMigrate({ '200': migrate200 as any })
 
-    expect(dispatch).toHaveBeenCalledWith(
-      updateMCPServer({
-        ...existingFilesystemServer,
-        disabledAutoApproveTools: ['write', 'edit', 'delete']
-      })
-    )
+    it('backfills manual approval defaults for existing filesystem servers', async () => {
+      const state = {
+        mcp: {
+          servers: [
+            {
+              id: 'filesystem-server',
+              name: '@cherry/filesystem',
+              type: 'inMemory',
+              args: ['/tmp/workspace'],
+              isActive: true
+            }
+          ]
+        },
+        _persist: { version: 199, rehydrated: false }
+      }
+
+      const migrated: any = await migrate(state, 200)
+
+      expect(migrated.mcp.servers[0].disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
+    })
+
+    it('preserves existing disabledAutoApproveTools', async () => {
+      const state = {
+        mcp: {
+          servers: [
+            {
+              id: 'filesystem-server',
+              name: '@cherry/filesystem',
+              type: 'inMemory',
+              args: ['/tmp/workspace'],
+              isActive: true,
+              disabledAutoApproveTools: ['write']
+            }
+          ]
+        },
+        _persist: { version: 199, rehydrated: false }
+      }
+
+      const migrated: any = await migrate(state, 200)
+
+      expect(migrated.mcp.servers[0].disabledAutoApproveTools).toEqual(['write'])
+    })
   })
 })

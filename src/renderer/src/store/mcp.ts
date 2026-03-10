@@ -242,16 +242,6 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
  * @param dispatch Redux dispatch function
  */
 export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (action: any) => void): void => {
-  const existingFilesystemServer = existingServers.find((server) => server.name === BuiltinMCPServerNames.filesystem)
-  if (existingFilesystemServer && existingFilesystemServer.disabledAutoApproveTools === undefined) {
-    dispatch(
-      updateMCPServer({
-        ...existingFilesystemServer,
-        disabledAutoApproveTools: [...filesystemManualApprovalTools]
-      })
-    )
-  }
-
   // Check if the existing servers already contain the built-in servers
   const serverIds = new Set(existingServers.map((server) => server.name))
 
