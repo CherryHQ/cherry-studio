@@ -11,6 +11,7 @@ import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
+import BytePlusProviderLogo from '@renderer/assets/images/providers/byteplus.svg'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 import CerebrasProviderLogo from '@renderer/assets/images/providers/cerebras.webp'
 import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png'
@@ -746,7 +747,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
   'volcano-coding': BytedanceProviderLogo,
-  'byteplus-coding': BytedanceProviderLogo,
+  'byteplus-coding': BytePlusProviderLogo,
   zhipu: ZhipuProviderLogo,
   ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
