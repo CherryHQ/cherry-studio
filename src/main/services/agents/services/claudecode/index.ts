@@ -34,6 +34,7 @@ import type {
 } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import type { InternalMcpServerConfig } from './internal-mcp'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -332,6 +333,18 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
       options.mcpServers = mcpList
       options.strictMcpConfig = true
+    }
+
+    // Merge internal MCP servers injected by agent services (e.g. CherryClaw's cron tool)
+    const internalMcps = (session as { _internalMcpServers?: Record<string, InternalMcpServerConfig> })
+      ._internalMcpServers
+    if (internalMcps) {
+      if (!options.mcpServers) {
+        options.mcpServers = {}
+      }
+      for (const [name, config] of Object.entries(internalMcps)) {
+        options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
+      }
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {

@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
+import { config as apiConfigService } from '@main/apiServer/config'
 import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
 import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '../../interfaces/AgentStreamInterface'
 import { agentServiceRegistry } from '../AgentServiceRegistry'
+import type { InternalMcpServerConfig } from '../claudecode/internal-mcp'
 import { HeartbeatReader } from './heartbeat'
 import { SoulReader } from './soul'
 
@@ -12,7 +14,8 @@ const logger = loggerService.withContext('CherryClawService')
  * CherryClawService — a Claude Code variant with soul-driven personality
  * and scheduler-based autonomous operation.
  *
- * Delegates to ClaudeCodeService (via registry) with a soul-enhanced system prompt.
+ * Delegates to ClaudeCodeService (via registry) with a soul-enhanced system prompt
+ * and an injected claw MCP server for autonomous task management.
  */
 export class CherryClawService implements AgentServiceInterface {
   private soulReader = new SoulReader()
@@ -29,7 +32,8 @@ export class CherryClawService implements AgentServiceInterface {
     const workspacePath = session.accessible_paths[0]
 
     // Build soul-enhanced session
-    let enhancedSession = session
+    let enhancedSession: GetAgentSessionResponse & { _internalMcpServers?: Record<string, InternalMcpServerConfig> } =
+      session
 
     if (config.soul_enabled !== false && workspacePath) {
       const soulContent = await this.soulReader.readSoul(workspacePath)
@@ -42,6 +46,21 @@ export class CherryClawService implements AgentServiceInterface {
         enhancedSession = {
           ...session,
           instructions: soulContent + '\n\n' + originalInstructions
+        }
+      }
+    }
+
+    // Inject the claw MCP server for autonomous task management
+    const apiConfig = await apiConfigService.get()
+    enhancedSession = {
+      ...enhancedSession,
+      _internalMcpServers: {
+        'cherry-claw': {
+          type: 'http',
+          url: `http://${apiConfig.host}:${apiConfig.port}/v1/claw/${session.agent_id}/claw-mcp`,
+          headers: {
+            Authorization: `Bearer ${apiConfig.apiKey}`
+          }
         }
       }
     }
