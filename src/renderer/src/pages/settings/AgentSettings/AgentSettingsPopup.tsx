@@ -8,12 +8,10 @@ import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from 
 import AdvancedSettings from './components/AdvancedSettings'
 import ChannelsSettings from './components/ChannelsSettings'
 import EssentialSettings from './components/EssentialSettings'
-import HeartbeatSettings from './components/HeartbeatSettings'
+import McpSettings from './components/McpSettings'
 import PermissionModeSettings from './components/PermissionModeSettings'
 import { InstalledPluginsSettings, PluginBrowserSettings } from './components/PluginsSettings/PluginsSettings'
 import PromptSettings from './components/PromptSettings'
-import SchedulerSettings from './components/SchedulerSettings'
-import SoulSettings from './components/SoulSettings'
 import ToolsSettings from './components/ToolsSettings'
 import { AgentLabel } from './shared'
 
@@ -34,23 +32,25 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const isCherryClaw = agent?.type === 'cherry-claw'
 
   const menuItems: SettingsMenuItem[] = useMemo(
-    () => [
-      { key: 'essential', label: t('agent.settings.essential') },
-      { key: 'prompt', label: t('agent.settings.prompt') },
-      ...(isCherryClaw
+    () =>
+      isCherryClaw
         ? [
-            { key: 'soul' as const, label: t('agent.cherryClaw.soul.tab', 'Soul') },
-            { key: 'scheduler' as const, label: t('agent.cherryClaw.scheduler.tab', 'Scheduler') },
-            { key: 'heartbeat' as const, label: t('agent.cherryClaw.heartbeat.tab', 'Heartbeat') }
+            { key: 'essential', label: t('agent.settings.essential') },
+            { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
+            { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
+            { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
+            { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
+            { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
           ]
-        : []),
-      { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
-      { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
-      { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
-      { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
-      ...(isCherryClaw ? [{ key: 'channels' as const, label: t('agent.cherryClaw.channels.tab', 'Channels') }] : []),
-      { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
-    ],
+        : [
+            { key: 'essential', label: t('agent.settings.essential') },
+            { key: 'prompt', label: t('agent.settings.prompt') },
+            { key: 'permission-mode', label: t('agent.settings.permissionMode.tab', 'Permission Mode') },
+            { key: 'tools-mcp', label: t('agent.settings.toolsMcp.tab', 'Tools & MCP') },
+            { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
+            { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
+            { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
+          ],
     [t, isCherryClaw]
   )
 
@@ -70,12 +70,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         return <PluginBrowserSettings agentBase={agent} update={updateAgent} />
       case 'installed':
         return <InstalledPluginsSettings agentBase={agent} update={updateAgent} />
-      case 'soul':
-        return <SoulSettings agentBase={agent} update={updateAgent} />
-      case 'scheduler':
-        return <SchedulerSettings agentBase={agent} update={updateAgent} />
-      case 'heartbeat':
-        return <HeartbeatSettings agentBase={agent} update={updateAgent} />
+      case 'mcp':
+        return <McpSettings agentBase={agent} update={updateAgent} />
       case 'channels':
         return <ChannelsSettings agentBase={agent} update={updateAgent} />
       case 'advanced':
