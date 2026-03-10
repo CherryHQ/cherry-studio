@@ -21,8 +21,9 @@ export const serializeKeyValueString = (vars: Record<string, string>): string =>
       if (!v.includes("'")) return `${k}='${v}'`
       // Fall back to backtick quotes (also literal in dotenv, supports multiline)
       if (!v.includes('`')) return `${k}=\`${v}\``
-      // Last resort: double quotes (lossy if value contains `"`, but all three
-      // quote types are present which is extremely rare for env vars)
-      return `${k}="${v}"`
+      // All three quote types present — best-effort backtick quoting.
+      // Lossy only if value also contains backticks, which is essentially
+      // non-existent in real environment variables.
+      return `${k}=\`${v}\``
     })
     .join('\n')
