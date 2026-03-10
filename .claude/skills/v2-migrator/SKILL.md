@@ -88,6 +88,9 @@ Renderer Process                          Main Process
 | `packages/shared/data/migration/v2/types.ts` | Shared types: stages, results, stats |
 | `src/main/data/migration/v2/window/MigrationIpcHandler.ts` | IPC flow control |
 | `src/renderer/src/store/` | Redux slices (source data shapes) |
+| `v2-refactor-temp/tools/data-classify/` | Toolchain: classification, code generation, validation |
+| `v2-refactor-temp/tools/data-classify/data/classification.json` | Authoritative classification of all 391 legacy data items |
+| `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` | Target keys for complex mappings and v2-new-only preferences |
 
 ## Migrator Contract
 
@@ -153,14 +156,17 @@ const idMap = ctx.sharedData.get('assistantIdMap')  // consumer (later migrator)
 ### 1. Understand Source Data
 - Read the Redux slice in `src/renderer/src/store/` for data shape
 - Check Dexie tables in `src/renderer/src/services/db.ts` if applicable
-- Confirm classification in `v2-refactor-temp/tools/data-classify/classification.json`
+- Confirm classification in `v2-refactor-temp/tools/data-classify/data/classification.json`
 
 ### 2. Understand Target Schema
 - Read target SQLite schema in `src/main/data/db/schemas/`
 - Map source fields to target columns
 - Identify transformations (type conversions, restructuring, merging)
+- For preference migrations: check if target keys already exist in `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json`
 
 ### 3. Create Mapping File (if needed)
+
+**For preference migrations:** `PreferencesMappings.ts` and `preferenceSchemas.ts` are **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain. For simple 1:1 preference mappings, update `classification.json` and run `npm run generate` instead of editing the generated files directly. See the `v2-data-api` skill for the full workflow. For complex mappings or keys with custom types, you may need to add entries manually.
 
 **Simple 1:1 mapping** (like PreferencesMappings):
 ```typescript
@@ -187,6 +193,8 @@ export interface ComplexMapping {
   transform: (sources: Record<string, unknown>) => Record<string, unknown>
 }
 ```
+
+For complex mapping target keys, add them to `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` so that the generated `preferenceSchemas.ts` includes their type and default value.
 
 ### 4. Write Tests for Transformation Functions (TDD Red Phase)
 

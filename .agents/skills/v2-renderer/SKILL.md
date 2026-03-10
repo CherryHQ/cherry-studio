@@ -528,7 +528,7 @@ See `packages/shared/data/presets/code-tools.ts` for a reference implementation.
    ```
 
 ### New Preference Key
-See `v2-data-api` skill, "Adding a Preference Key" section.
+See `v2-data-api` skill, "Adding a Preference Key" section. Note that `preferenceSchemas.ts` is **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain — for simple keys, use the toolchain (update `classification.json` or `target-key-definitions.json`, then run `npm run generate`) instead of editing the generated file directly.
 
 ## Checklist
 

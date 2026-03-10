@@ -363,35 +363,83 @@ Always accept optional `tx` parameter for transaction support.
 
 ## Adding a Preference Key
 
-For user settings that don't need full DataApi:
+For user settings that don't need full DataApi.
 
-### Step 1: Define Type (if custom)
+**IMPORTANT:** `preferenceSchemas.ts` and `PreferencesMappings.ts` are **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain. Do NOT edit them directly for migrated keys — use the toolchain instead. However, for keys that use custom types (e.g., `CodeToolOverrides`) or complex defaults (e.g., Layered Preset overrides), you may need to manually add them because the code generator only handles primitive types and simple `VALUE:` references.
+
+### Understanding the Toolchain
+
+The `v2-refactor-temp/tools/data-classify/` directory contains scripts that manage the full preference lifecycle:
+
+```
+v2-refactor-temp/tools/data-classify/
+├── data/
+│   ├── classification.json          # All legacy data items classified (391 items)
+│   ├── inventory.json               # Auto-extracted from source code
+│   └── target-key-definitions.json  # Complex mapping + v2-new-only target keys
+├── scripts/
+│   ├── extract-inventory.js         # Scan source code for data items
+│   ├── generate-preferences.js      # Generate preferenceSchemas.ts
+│   ├── generate-migration.js        # Generate PreferencesMappings.ts
+│   ├── generate-all.js              # Run all generators
+│   ├── validate-consistency.js      # Check classification consistency
+│   └── validate-generation.js       # Verify generated code quality
+```
+
+**Generated files** (do not manually edit for simple migrated keys):
+- `packages/shared/data/preference/preferenceSchemas.ts` — types + defaults
+- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts` — simple 1:1 mappings
+
+### How to Add a Preference Key
+
+There are **two paths** depending on whether the key migrates from legacy data or is brand new:
+
+#### Path A: Migrating from Legacy Data (Simple 1:1 Mapping)
+
+1. Edit `v2-refactor-temp/tools/data-classify/data/classification.json`
+2. Set `status: "classified"`, `category: "preferences"`, `targetKey: "feature.my_feature.enabled"`
+3. Run `cd v2-refactor-temp/tools/data-classify && npm run generate`
+4. The toolchain generates both `preferenceSchemas.ts` and `PreferencesMappings.ts`
+
+#### Path B: Complex Mapping or v2-New-Only Key
+
+For keys that come from complex migration transforms (N→1, 1→N) or are entirely new in v2:
+
+1. Add the key definition to `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json`:
+```json
+{
+  "targetKey": "feature.my_feature.enabled",
+  "type": "boolean",
+  "defaultValue": false,
+  "status": "classified",
+  "description": "Enable my feature (v2 new, non-migration)"
+}
+```
+2. Run `cd v2-refactor-temp/tools/data-classify && npm run generate:preferences`
+3. For complex migrations, also implement transform in `ComplexPreferenceMappings.ts`
+
+#### Path C: Keys with Custom Types (Manual)
+
+When the preference uses a custom TypeScript type (e.g., `CodeToolOverrides`, a Record type), the code generator cannot handle it. Manually add:
+
+1. Define custom type (if needed):
 ```typescript
 // packages/shared/data/preference/preferenceTypes.ts
 export enum MyFeatureMode { auto = 'auto', manual = 'manual', disabled = 'disabled' }
 ```
 
-### Step 2: Add to Schema
+2. Manually add to `preferenceSchemas.ts` (keep alphabetical order):
 ```typescript
-// packages/shared/data/preference/preferenceSchemas.ts
-export interface PreferenceSchemas {
-  default: {
-    // ... existing keys (alphabetically sorted)
-    'feature.my_feature.enabled': boolean
-    'feature.my_feature.mode': PreferenceTypes.MyFeatureMode
-  }
-}
+// In PreferenceSchemas interface:
+'feature.my_feature.overrides': MyFeatureOverrides
 
-export const DefaultPreferences: PreferenceSchemas = {
-  default: {
-    // ... existing defaults (alphabetically sorted)
-    'feature.my_feature.enabled': true,
-    'feature.my_feature.mode': PreferenceTypes.MyFeatureMode.auto,
-  }
-}
+// In DefaultPreferences:
+'feature.my_feature.overrides': {},
 ```
 
-**Key naming:** `namespace.category.key_name`
+### Key Naming Conventions
+
+**Format:** `namespace.category.key_name`
 - At least 2 dot-separated segments
 - Lowercase letters, numbers, underscores only
 - Pattern: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`
