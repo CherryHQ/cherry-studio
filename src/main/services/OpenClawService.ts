@@ -251,7 +251,7 @@ class OpenClawService {
     const nodeDir = path.dirname(npmPath)
     const npmCommand = isWin
       ? `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
-      : `export PATH="${nodeDir}:$PATH" && "${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+      : `PATH="${nodeDir}:$PATH" "${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
@@ -358,7 +358,7 @@ class OpenClawService {
     const nodeDir = path.dirname(npmPath)
     const npmCommand = isWin
       ? `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
-      : `export PATH="${nodeDir}:$PATH" && "${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+      : `PATH="${nodeDir}:$PATH" "${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
