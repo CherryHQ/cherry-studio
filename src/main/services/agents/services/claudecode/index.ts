@@ -69,6 +69,8 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
   declare once: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
+  /** SDK session_id captured from the init message, used for resume. */
+  sdkSessionId?: string
 }
 
 class ClaudeCodeService implements AgentServiceInterface {
@@ -411,6 +413,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       for (const [name, config] of Object.entries(enhancedSession._internalMcpServers)) {
         options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
       }
+      logger.debug('Merged internal MCP servers into SDK options', {
+        serverNames: Object.keys(enhancedSession._internalMcpServers),
+        totalMcpServers: Object.keys(options.mcpServers).length
+      })
     }
 
     // Disable specific builtin tools if requested by agent service
@@ -583,8 +589,16 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         jsonOutput.push(message)
 
-        // Handle init message - merge builtin and SDK slash_commands
+        // Handle init message - capture SDK session_id and merge slash_commands
         if (message.type === 'system' && message.subtype === 'init') {
+          if (message.session_id) {
+            stream.sdkSessionId = message.session_id
+            logger.info('Captured SDK session_id from init message', {
+              sdkSessionId: message.session_id,
+              sessionId
+            })
+          }
+
           const sdkSlashCommands = message.slash_commands || []
           logger.info('Received init message with slash commands', {
             sessionId,

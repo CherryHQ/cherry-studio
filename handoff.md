@@ -20,6 +20,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Phase 10**: Basic sandbox — PreToolUse hook path enforcement + OS-level sandbox + UI toggle — DONE (basic restriction only, needs hardening)
 - **Phase 11**: Notify tool — `notify` MCP tool for CherryClaw to send messages to users via channels, scheduler auto-notifications on task completion/failure — DONE
 - **Phase 12**: Manual task run — `POST /:taskId/run` API endpoint + "Run" button in task settings UI for manually triggering scheduled tasks — DONE
+- **Phase 13**: Scheduler session resume + claw MCP tool injection — SDK session_id capture for `options.resume`, auto-add claw MCP tools to `allowed_tools` — DONE
 - **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (198 test files, 3593 tests)
 
 ## Key Decisions
@@ -37,6 +38,8 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Notify channels** — `ChannelManager` tracks which adapters have `is_notify_receiver: true` via `notifyChannels` set. `getNotifyAdapters(agentId)` returns connected adapters for notification. Each adapter exposes `notifyChatIds` (set by subclass) for target chat IDs.
 - **Scheduler task notifications** — After each task run, `SchedulerService.notifyTaskResult()` sends a status message (`[Task completed/failed] name, duration, error`) to notify-enabled channels. Fire-and-forget, never blocks scheduling.
 - **Manual task run** — `POST /v1/agents/:agentId/tasks/:taskId/run` triggers `schedulerService.runTaskNow()` which validates the task, checks it's not already running (409 if so), then fires `runTask()` in background. UI has a "Run" button per task in the task settings list.
+- **SDK session resume for scheduler** — The Claude Agent SDK's `session_id` (needed for `options.resume`) is captured in `ClaudeCodeService.processSDKQuery()` from the `system/init` message and stored on the `AgentStream.sdkSessionId` property. `SessionMessageService` reads it on stream complete and persists it as `agent_session_id` in `sessionMessagesTable` via `persistHeadlessExchange()`. On the next scheduler run with `context_mode: 'session'`, `getLastAgentSessionId()` finds the stored value and passes it as `options.resume`, enabling multi-turn conversation continuity.
+- **Claw MCP tool auto-allow** — `CherryClawService.invoke()` appends `mcp__claw__cron` and `mcp__claw__notify` to `allowed_tools` when the agent has an explicit tool whitelist. This ensures the SDK doesn't filter out the claw MCP tools. When `allowed_tools` is undefined (default), all tools are already available and no injection is needed.
 - **Disallowed builtin tools** — CherryClaw disables SDK builtin tools not suited for autonomous operation via `_disallowedTools`: `CronCreate`/`CronDelete`/`CronList` (replaced by claw MCP cron tool), `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `EnterWorktree`, `NotebookEdit`. Mapped to `options.disallowedTools` in the SDK. Note: `disallowedTools` only affects tools, not skills — skills are invoked via the `Skill` tool and cannot be blocked this way.
 - **Basic sandbox (not a real security sandbox)** — When `sandbox_enabled` is true, two layers restrict filesystem access: (1) a `PreToolUse` hook in `ClaudeCodeService` that inspects every tool call's target paths and denies access outside `_sandboxAllowedPaths`, and (2) the SDK's OS-level `sandbox.enabled` option. The hook approach works regardless of `permissionMode` (including `bypassPermissions`) because PreToolUse hooks always fire before permission checks. Bash commands are checked via regex extraction of absolute paths from the command string — this is **best-effort, not secure**: commands like `cd / && cat etc/passwd` or variable expansion can bypass it. The OS sandbox (`sandbox.enabled: true`, `allowUnsandboxedCommands: false`) is meant to be the fallback but does not reliably restrict reads on macOS. This is a basic restriction for well-behaved agents, not a security boundary.
 - **Channel abstraction layer** — `ChannelAdapter` (abstract EventEmitter), `ChannelManager` (singleton lifecycle), `ChannelMessageHandler` (stateless message routing + stream collection). Adapters are registered via `registerAdapterFactory(type, factory)` and auto-created from agent config on startup. Future channels (Discord, Slack) plug in by implementing `ChannelAdapter` and registering a factory.
@@ -147,10 +150,11 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 
 ### Backend Services
 - `src/main/services/agents/services/AgentServiceRegistry.ts` — NEW: maps AgentType → AgentServiceInterface
-- `src/main/services/agents/services/SessionMessageService.ts` — refactored to use registry; added `CreateMessageOptions.persist`, `TextStreamAccumulator.getText()`, `persistHeadlessExchange()` for headless message persistence; fixed cumulative text-delta `+=` → `=`
-- `src/main/services/agents/services/cherryclaw/index.ts` — CherryClawService (soul-enhanced claude-code delegation + claw MCP injection + disallowed builtin tools + sandbox path injection)
+- `src/main/services/agents/services/SessionMessageService.ts` — refactored to use registry; added `CreateMessageOptions.persist`, `TextStreamAccumulator.getText()`, `persistHeadlessExchange()` for headless message persistence; fixed cumulative text-delta `+=` → `=`; reads `claudeStream.sdkSessionId` on complete for resume persistence
+- `src/main/services/agents/services/cherryclaw/index.ts` — CherryClawService (soul-enhanced claude-code delegation + claw MCP injection + disallowed builtin tools + sandbox path injection + claw tool auto-allow)
 - `src/main/services/agents/services/claudecode/enhanced-session.ts` — NEW: `EnhancedSessionFields` type for `_sandbox`, `_settings`, `_sandboxAllowedPaths`, etc.
-- `src/main/services/agents/services/claudecode/index.ts` — reads enhanced session fields; PreToolUse hook enforces `_sandboxAllowedPaths` via path checking for all filesystem tools + Bash regex
+- `src/main/services/agents/services/claudecode/index.ts` — reads enhanced session fields; PreToolUse hook enforces `_sandboxAllowedPaths` via path checking for all filesystem tools + Bash regex; captures SDK session_id from init message onto `AgentStream.sdkSessionId`
+- `src/main/services/agents/interfaces/AgentStreamInterface.ts` — added `sdkSessionId?: string` to `AgentStream` interface for SDK session resume
 - `src/main/services/agents/services/cherryclaw/soul.ts` — NEW: SoulReader with mtime cache
 - `src/main/services/agents/services/cherryclaw/heartbeat.ts` — NEW: HeartbeatReader with path traversal protection
 - `src/main/services/agents/services/TaskService.ts` — NEW: task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging
@@ -242,7 +246,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - **Scheduler backward compat** — `startScheduler(agent)` and `stopScheduler(agentId)` are now no-ops (the poll loop handles everything via DB state). Agent handler code in `agents.ts` still calls them but they just ensure the loop is running.
 - **Task consecutive errors** — after 3 consecutive errors, a task is auto-paused. The error count resets on the next successful run. This is tracked per-task in the running task state (not persisted).
 - **Claw MCP server lifecycle** — per-agent ClawServer instances are cached in memory; `cleanupClawServer(agentId)` exported from `claw-mcp.ts` but not yet called on agent deletion. Should be wired into agent delete handler.
-- **Claw MCP tool allowlist** — the `cron` tool appears as `mcp__cherry-claw__cron` in the SDK's tool namespace. It may need to be auto-added to the session's `allowed_tools` if the agent uses a restrictive permission mode.
+- **Claw MCP tool allowlist (FIXED)** — the claw MCP server is registered as `claw`, so tools appear as `mcp__claw__cron` and `mcp__claw__notify`. `CherryClawService.invoke()` now auto-appends these to `allowed_tools` when the agent has an explicit whitelist. When `allowed_tools` is undefined (no restriction), all tools are already available.
 - **Sandbox is basic restriction only (NOT a security boundary)** — The PreToolUse hook path check has known bypasses: (1) Bash regex misses relative path tricks (`cd / && cat etc/passwd`), variable expansion (`$HOME`), subshells, heredocs, etc. (2) The SDK OS-level sandbox (`sandbox.enabled`) does not reliably restrict reads on macOS. (3) MCP tools and agent sub-tools are not checked. This is sufficient for well-behaved autonomous agents but should not be relied upon as a security sandbox. Future work: integrate proper OS sandbox enforcement, or restrict Bash to a vetted allowlist of commands.
 
 ## Next Steps
@@ -251,7 +255,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 2. **Replace avatar** — design/source a proper CherryClaw avatar image to replace the placeholder
 3. **E2E testing** — manually test the full flow: create CherryClaw agent → verify cron tool is available → agent creates a scheduled task → verify task execution and run logging
 4. **Wire cleanup** — call `cleanupClawServer(agentId)` in the agent delete handler to free per-agent MCP server instances
-5. **Tool allowlist** — ensure `mcp__claw__cron` and `mcp__claw__notify` are auto-allowed for CherryClaw agents
+5. ~~**Tool allowlist**~~ — DONE: `mcp__claw__cron` and `mcp__claw__notify` auto-added to `allowed_tools` in `CherryClawService.invoke()`
 6. **TaskService tests** — add unit tests for TaskService CRUD and computeNextRun
 7. **SessionSettingsPopup** — consider adding CherryClaw tabs to session-level settings if per-session overrides are needed
 8. **GFM→MarkdownV2 conversion** — proper markdown formatting for Telegram responses

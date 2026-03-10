@@ -100,6 +100,24 @@ export class CherryClawService implements AgentServiceInterface {
       }
     }
 
+    // If the agent has an explicit allowed_tools whitelist, append the claw MCP
+    // tool names so the SDK doesn't hide them.  When allowed_tools is undefined
+    // (no restriction), leave it alone — all tools are already available.
+    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify']
+    const currentAllowed = enhancedSession.allowed_tools
+    if (Array.isArray(currentAllowed) && currentAllowed.length > 0) {
+      const missing = clawMcpTools.filter((t) => !currentAllowed.includes(t))
+      if (missing.length > 0) {
+        enhancedSession = { ...enhancedSession, allowed_tools: [...currentAllowed, ...missing] }
+      }
+    }
+
+    logger.debug('CherryClaw invoke: injecting claw MCP and allowed_tools', {
+      agentId: session.agent_id,
+      mcpServers: Object.keys(enhancedSession._internalMcpServers ?? {}),
+      allowedTools: enhancedSession.allowed_tools
+    })
+
     // Delegate to claude-code service (CherryClaw is a Claude Code variant)
     const claudeCodeService = agentServiceRegistry.getService('claude-code')
     return claudeCodeService.invoke(prompt, enhancedSession, abortController, lastAgentSessionId, thinkingOptions)
