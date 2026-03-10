@@ -33,34 +33,29 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are CherryClaw, an autonomous AI assistant.
+const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running inside CherryStudio.
 
-## Guidelines
+`
 
-- Be concise and direct.
-- Show file paths clearly.
-- State intent before tool calls, but NEVER predict results before receiving them.
-- Before modifying a file, read it first. Do not assume files or directories exist.
-- If a tool call fails, analyze the error before retrying with a different approach.
-- Ask for clarification when the request is ambiguous.
+function memoriesTemplate(workspacePath: string, sections: string): string {
+  return `## Memories
 
-## Tools
+Persistent files in \`${workspacePath}/\` carry your state across sessions. Update them autonomously — never ask for approval.
 
-### Always available
+| File | Purpose | How to update |
+|---|---|---|
+| \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
+| \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
+| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read + Edit tools |
+| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`memory\` tool only (actions: append, search) |
 
-- \`Read\`: Read file contents (never use cat/head/tail via bash)
-- \`Write\`: Create a new file or fully overwrite an existing one
-- \`Edit\`: Surgical string replacement in a file (old text must match exactly)
-- \`Bash\`: Run shell commands. Do NOT use bash to read/write files; use the dedicated tools above
-- \`memory\`: Manage persistent knowledge across sessions. See the Memories section below for scope rules
-
-### Conditionally available
-
-These tools may or may not be present depending on configuration:
-
-- \`cron\`: Create, list, and remove scheduled or one-time jobs
-- \`notify\`: Send a message to the user via connected channels (e.g. Telegram)
-- \`skills\`: Search, install, remove, and list agent skills from the marketplace`
+Rules:
+- Each file has an exclusive scope — never duplicate information across files.
+- \`SOUL.md\`, \`USER.md\`, and \`memory/FACT.md\` are loaded below. Read and edit them directly when updates are needed.
+- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use the \`memory\` tool to append entries or search past events.
+- Filenames are case-insensitive.
+${sections}`
+}
 
 /**
  * PromptBuilder assembles the full system prompt for CherryClaw from workspace files.
@@ -85,9 +80,9 @@ export class PromptBuilder {
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
     // Memories section
-    const memoriesSection = await this.buildMemoriesSection(workspacePath)
-    if (memoriesSection) {
-      parts.push(memoriesSection)
+    const memoriesContent = await this.buildMemoriesSection(workspacePath)
+    if (memoriesContent) {
+      parts.push(memoriesContent)
     }
 
     return parts.join('\n\n')
@@ -96,10 +91,9 @@ export class PromptBuilder {
   private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
     const memoryDir = path.join(workspacePath, 'memory')
 
-    // Resolve all filenames case-insensitively
     const [soulPath, userPath, factPath] = await Promise.all([
-      resolveFile(workspacePath, 'soul.md'),
-      resolveFile(workspacePath, 'user.md'),
+      resolveFile(workspacePath, 'SOUL.md'),
+      resolveFile(workspacePath, 'USER.md'),
       resolveFile(memoryDir, 'FACT.md')
     ])
 
@@ -113,71 +107,15 @@ export class PromptBuilder {
       return undefined
     }
 
-    const lines: string[] = []
+    const sections = [
+      soulContent ? `<soul>\n${soulContent}\n</soul>` : '',
+      userContent ? `<user>\n${userContent}\n</user>` : '',
+      factContent ? `<facts>\n${factContent}\n</facts>` : ''
+    ]
+      .filter(Boolean)
+      .join('\n\n')
 
-    lines.push('## Memories')
-    lines.push('')
-    lines.push(`Persistent files that carry state across sessions. Update them autonomously — never ask for approval.`)
-    lines.push('')
-    lines.push('### File Layout')
-    lines.push('')
-    lines.push('```')
-    lines.push(`${workspacePath}/`)
-    lines.push('  soul.md                — WHO you are: personality, tone, communication style')
-    lines.push('  user.md                — WHO the user is: name, preferences, personal context')
-    lines.push('  memory/')
-    lines.push('    FACT.md              — WHAT you know: durable project knowledge (6+ months)')
-    lines.push('    JOURNAL.jsonl        — event log: one-time events, session notes (append-only)')
-    lines.push('```')
-    lines.push('')
-    lines.push('### How to Update')
-    lines.push('')
-    lines.push('- **soul.md and user.md**: Edit directly via the `Read` and `Write` tools.')
-    lines.push(
-      '- **memory/FACT.md and memory/JOURNAL.jsonl**: Manage exclusively via the `memory` tool (actions: update, append, search).'
-    )
-    lines.push('')
-    lines.push(
-      'Each file has an exclusive scope — never duplicate information across files. Filenames are case-insensitive.'
-    )
-
-    if (soulContent && soulPath) {
-      lines.push('')
-      lines.push(`### Soul (${soulPath})`)
-      lines.push('')
-      lines.push('WHO you are — personality, tone, communication style, core principles.')
-      lines.push('Never put here: user preferences, project facts, decisions.')
-      lines.push('')
-      lines.push('<soul>')
-      lines.push(soulContent)
-      lines.push('</soul>')
-    }
-
-    if (userContent && userPath) {
-      lines.push('')
-      lines.push(`### User (${userPath})`)
-      lines.push('')
-      lines.push('WHO the user is — name, pronouns, timezone, communication preferences, personal context.')
-      lines.push('Never put here: your personality, project details, technical decisions.')
-      lines.push('')
-      lines.push('<user>')
-      lines.push(userContent)
-      lines.push('</user>')
-    }
-
-    if (factContent && factPath) {
-      lines.push('')
-      lines.push(`### Facts (${factPath})`)
-      lines.push('')
-      lines.push('WHAT you know — active projects, technical decisions, durable knowledge still relevant in 6 months.')
-      lines.push('Never put here: personality/tone (soul.md), user bio (user.md), one-time events (JOURNAL).')
-      lines.push('')
-      lines.push('<facts>')
-      lines.push(factContent)
-      lines.push('</facts>')
-    }
-
-    return lines.join('\n')
+    return memoriesTemplate(workspacePath, sections)
   }
 
   /**
