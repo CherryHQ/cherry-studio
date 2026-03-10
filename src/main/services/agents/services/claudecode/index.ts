@@ -413,7 +413,11 @@ class ClaudeCodeService implements AgentServiceInterface {
         options.mcpServers = {}
       }
       for (const [name, config] of Object.entries(enhancedSession._internalMcpServers)) {
-        options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
+        if (config.type === 'inmem') {
+          options.mcpServers[name] = { type: 'sdk', name, instance: config.instance }
+        } else {
+          options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
+        }
       }
       logger.debug('Merged internal MCP servers into SDK options', {
         serverNames: Object.keys(enhancedSession._internalMcpServers),

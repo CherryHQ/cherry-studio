@@ -6,7 +6,7 @@ import { PluginService } from '@main/services/agents/plugins/PluginService'
 import { agentService } from '@main/services/agents/services/AgentService'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { taskService } from '@main/services/agents/services/TaskService'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { TaskContextMode, TaskScheduleType } from '@types'
@@ -240,12 +240,12 @@ const MEMORY_TOOL: Tool = {
 }
 
 class ClawServer {
-  public server: Server
+  public mcpServer: McpServer
   private agentId: string
 
   constructor(agentId: string) {
     this.agentId = agentId
-    this.server = new Server(
+    this.mcpServer = new McpServer(
       {
         name: 'claw',
         version: '1.0.0'
@@ -260,11 +260,11 @@ class ClawServer {
   }
 
   private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [CRON_TOOL, NOTIFY_TOOL, SKILLS_TOOL, MEMORY_TOOL]
     }))
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const toolName = request.params.name
       const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
 

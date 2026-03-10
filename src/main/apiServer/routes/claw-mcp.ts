@@ -59,7 +59,7 @@ router.all('/:agentId/claw-mcp', async (req: Request, res: Response): Promise<vo
     entry = sessions.get(sessionId)!
   } else {
     entry = createSessionEntry(agentId)
-    await entry.server.server.connect(entry.transport)
+    await entry.server.mcpServer.connect(entry.transport)
   }
 
   // Only parse JSON-RPC body for POST requests.
