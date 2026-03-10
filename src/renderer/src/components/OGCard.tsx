@@ -46,7 +46,7 @@ export const OGCard = ({ link, show }: Props) => {
   return (
     <Container>
       {hasImage && (
-        <div className="flex overflow:hidden min-h-48 items-center justify-center">
+        <div className="flex overflow:hidden h-48 min-h-48 items-center justify-center">
           <img src={metadata['og:image']} alt={metadata['og:imageAlt'] || link} className="max-h-full object-contain" />
         </div>
       )}
