@@ -181,12 +181,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         'CLAUDE_CODE_USE_BEDROCK',
         'CLAUDE_CODE_GIT_BASH_PATH',
         'NODE_OPTIONS',
-        '__proto__',
-        'constructor',
-        'prototype'
+        '__PROTO__',
+        'CONSTRUCTOR',
+        'PROTOTYPE'
       ])
       for (const [key, value] of Object.entries(userEnvVars)) {
-        if (BLOCKED_ENV_KEYS.has(key)) {
+        const upperKey = key.toUpperCase()
+        if (BLOCKED_ENV_KEYS.has(upperKey)) {
           logger.warn('Blocked user env var override for system-critical variable', { key })
         } else if (typeof value === 'string') {
           env[key] = value
