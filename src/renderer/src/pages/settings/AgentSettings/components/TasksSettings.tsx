@@ -1,15 +1,102 @@
 import { useCreateTask, useDeleteTask, useRunTask, useTasks, useUpdateTask } from '@renderer/hooks/agents/useTasks'
-import type { ScheduledTaskEntity } from '@renderer/types'
-import { Button, Empty, Spin } from 'antd'
-import { type FC, useState } from 'react'
+import type {
+  CherryClawConfiguration,
+  GetAgentResponse,
+  ScheduledTaskEntity,
+  UpdateAgentBaseForm,
+  UpdateAgentFunction
+} from '@renderer/types'
+import { Button, Empty, InputNumber, Spin, Switch, Tooltip } from 'antd'
+import { Info } from 'lucide-react'
+import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsTitle } from '../shared'
+import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
 import TaskFormModal from './TaskFormModal'
 import TaskListItem from './TaskListItem'
 import TaskLogsModal from './TaskLogsModal'
 
-const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
+// --------------- Heartbeat section ---------------
+
+type HeartbeatProps = {
+  agentBase: GetAgentResponse
+  update: UpdateAgentFunction
+}
+
+const HeartbeatSection: FC<HeartbeatProps> = ({ agentBase, update }) => {
+  const { t } = useTranslation()
+
+  const config = useMemo(() => (agentBase?.configuration ?? {}) as CherryClawConfiguration, [agentBase?.configuration])
+  const heartbeatEnabled = config.heartbeat_enabled !== false
+  const heartbeatInterval = config.heartbeat_interval ?? 30
+
+  const [intervalInput, setIntervalInput] = useState(heartbeatInterval)
+
+  const updateConfig = useCallback(
+    (updates: Partial<CherryClawConfiguration>) => {
+      if (!agentBase) return
+      update({
+        id: agentBase.id,
+        configuration: { ...config, ...updates }
+      } satisfies UpdateAgentBaseForm)
+    },
+    [agentBase, config, update]
+  )
+
+  const handleToggle = useCallback(
+    (checked: boolean) => {
+      updateConfig({ heartbeat_enabled: checked })
+    },
+    [updateConfig]
+  )
+
+  const commitInterval = useCallback(() => {
+    if (!Number.isFinite(intervalInput) || intervalInput < 1) {
+      setIntervalInput(heartbeatInterval)
+      return
+    }
+    if (intervalInput !== heartbeatInterval) {
+      updateConfig({ heartbeat_interval: intervalInput })
+    }
+  }, [intervalInput, heartbeatInterval, updateConfig])
+
+  if (!agentBase) return null
+
+  return (
+    <SettingsItem>
+      <div className="flex items-center justify-between">
+        <SettingsTitle
+          contentAfter={
+            <Tooltip title={t('agent.cherryClaw.heartbeat.enabledHelper')} placement="right">
+              <Info size={16} className="text-foreground-400" />
+            </Tooltip>
+          }>
+          {t('agent.cherryClaw.heartbeat.enabled')}
+        </SettingsTitle>
+        <Switch checked={heartbeatEnabled} size="small" onChange={handleToggle} />
+      </div>
+      {heartbeatEnabled && (
+        <div className="mt-2 flex flex-col gap-1">
+          <label className="font-medium text-xs">{t('agent.cherryClaw.heartbeat.interval')}</label>
+          <InputNumber
+            min={1}
+            value={intervalInput}
+            onChange={(value) => setIntervalInput(value ?? 30)}
+            onBlur={commitInterval}
+            onPressEnter={commitInterval}
+            style={{ width: '100%' }}
+            size="small"
+          />
+          <span className="text-foreground-500 text-xs">{t('agent.cherryClaw.heartbeat.intervalHelper')}</span>
+        </div>
+      )}
+    </SettingsItem>
+  )
+}
+
+// --------------- Main tasks section ---------------
+
+const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const agentId = agentBase?.id ?? null
   const { tasks, isLoading } = useTasks(agentId)
@@ -59,6 +146,12 @@ const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
 
   return (
     <SettingsContainer>
+      {/* Heartbeat settings — only shown for agent-level settings (not session) */}
+      {'type' in agentBase && (
+        <HeartbeatSection agentBase={agentBase as GetAgentResponse} update={update as UpdateAgentFunction} />
+      )}
+
+      {/* Regular tasks */}
       <div className="mb-3 flex items-center justify-between">
         <SettingsTitle>{t('agent.cherryClaw.tasks.title')}</SettingsTitle>
         <Button type="primary" size="small" onClick={handleAdd}>

@@ -30,6 +30,7 @@ describe('HeartbeatReader', () => {
     const result = await reader.readHeartbeat('/workspace')
 
     expect(result).toBe('heartbeat content')
+    expect(mockedReadFile).toHaveBeenCalledWith(expect.stringContaining('heartbeat.md'), 'utf-8')
   })
 
   it('returns undefined when file does not exist', async () => {
@@ -40,27 +41,19 @@ describe('HeartbeatReader', () => {
     expect(result).toBeUndefined()
   })
 
-  it('uses custom filename', async () => {
-    mockedReadFile.mockResolvedValue('custom content')
+  it('returns undefined when file is empty', async () => {
+    mockedReadFile.mockResolvedValue('   \n  ')
 
-    const result = await reader.readHeartbeat('/workspace', 'custom.md')
-
-    expect(result).toBe('custom content')
-    expect(mockedReadFile).toHaveBeenCalledWith(expect.stringContaining('custom.md'), 'utf-8')
-  })
-
-  it('blocks path traversal attempts', async () => {
-    const result = await reader.readHeartbeat('/workspace', '../../../etc/passwd')
+    const result = await reader.readHeartbeat('/workspace')
 
     expect(result).toBeUndefined()
-    expect(mockedReadFile).not.toHaveBeenCalled()
   })
 
-  it('defaults to heartbeat.md', async () => {
-    mockedReadFile.mockResolvedValue('default heartbeat')
+  it('trims whitespace from content', async () => {
+    mockedReadFile.mockResolvedValue('  check my email  \n')
 
-    await reader.readHeartbeat('/workspace')
+    const result = await reader.readHeartbeat('/workspace')
 
-    expect(mockedReadFile).toHaveBeenCalledWith(expect.stringContaining('heartbeat.md'), 'utf-8')
+    expect(result).toBe('check my email')
   })
 })

@@ -22,7 +22,7 @@ export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configurat
     scheduler_enabled: false,
     scheduler_type: 'interval',
     heartbeat_enabled: true,
-    heartbeat_file: 'heartbeat.md'
+    heartbeat_interval: 30
   }
 } as const
 
