@@ -48,7 +48,7 @@ const AboutSettings: FC = () => {
         return
       }
 
-      dispatch(setUpdateState({ checking: true }))
+      dispatch(setUpdateState({ checking: true, manualCheck: true }))
 
       try {
         await window.api.checkForUpdate()
