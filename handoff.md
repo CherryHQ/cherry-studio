@@ -18,7 +18,9 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Phase 8**: Channel streaming — `sendMessageDraft` for real-time response streaming, multi-turn accumulation, typing indicators — DONE
 - **Phase 9**: Headless message persistence — channel and scheduler messages now persist to DB — DONE
 - **Phase 10**: Basic sandbox — PreToolUse hook path enforcement + OS-level sandbox + UI toggle — DONE (basic restriction only, needs hardening)
-- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (198 test files, 3588 tests)
+- **Phase 11**: Notify tool — `notify` MCP tool for CherryClaw to send messages to users via channels, scheduler auto-notifications on task completion/failure — DONE
+- **Phase 12**: Manual task run — `POST /:taskId/run` API endpoint + "Run" button in task settings UI for manually triggering scheduled tasks — DONE
+- **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (198 test files, 3593 tests)
 
 ## Key Decisions
 
@@ -31,7 +33,10 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Default emoji 🦞** — CherryClaw agents get lobster claw emoji as default avatar in the agent list.
 - **Placeholder cherry-claw.png** — copied from claude.png; needs a proper distinct avatar image.
 - **i18n strict nesting** — task keys use proper nested objects (e.g., `tasks.contextMode.session` not `tasks.contextMode.session` + `tasks.contextMode.session.desc`) to pass the i18n checker.
-- **Internal claw MCP server (anna-inspired)** — single `cron` tool with `add`/`list`/`remove` actions, auto-injected into every CherryClaw session via `_internalMcpServers`. Uses the `@modelcontextprotocol/sdk` Server class, served over Streamable HTTP at `/v1/claw/:agentId/claw-mcp`. The tool maps anna-style inputs (`cron`, `every`, `at`, `session_mode`) to TaskService's schema (`schedule_type`, `schedule_value`, `context_mode`).
+- **Internal claw MCP server (anna-inspired)** — `cron` tool with `add`/`list`/`remove` actions + `notify` tool for sending messages to users via channels, auto-injected into every CherryClaw session via `_internalMcpServers`. Uses the `@modelcontextprotocol/sdk` Server class, served over Streamable HTTP at `/v1/claw/:agentId/claw-mcp`. The cron tool maps anna-style inputs (`cron`, `every`, `at`, `session_mode`) to TaskService's schema (`schedule_type`, `schedule_value`, `context_mode`). The notify tool sends messages to all channels with `is_notify_receiver: true`, or to a specific channel by ID.
+- **Notify channels** — `ChannelManager` tracks which adapters have `is_notify_receiver: true` via `notifyChannels` set. `getNotifyAdapters(agentId)` returns connected adapters for notification. Each adapter exposes `notifyChatIds` (set by subclass) for target chat IDs.
+- **Scheduler task notifications** — After each task run, `SchedulerService.notifyTaskResult()` sends a status message (`[Task completed/failed] name, duration, error`) to notify-enabled channels. Fire-and-forget, never blocks scheduling.
+- **Manual task run** — `POST /v1/agents/:agentId/tasks/:taskId/run` triggers `schedulerService.runTaskNow()` which validates the task, checks it's not already running (409 if so), then fires `runTask()` in background. UI has a "Run" button per task in the task settings list.
 - **Disallowed builtin tools** — CherryClaw disables SDK builtin tools not suited for autonomous operation via `_disallowedTools`: `CronCreate`/`CronDelete`/`CronList` (replaced by claw MCP cron tool), `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `EnterWorktree`, `NotebookEdit`. Mapped to `options.disallowedTools` in the SDK. Note: `disallowedTools` only affects tools, not skills — skills are invoked via the `Skill` tool and cannot be blocked this way.
 - **Basic sandbox (not a real security sandbox)** — When `sandbox_enabled` is true, two layers restrict filesystem access: (1) a `PreToolUse` hook in `ClaudeCodeService` that inspects every tool call's target paths and denies access outside `_sandboxAllowedPaths`, and (2) the SDK's OS-level `sandbox.enabled` option. The hook approach works regardless of `permissionMode` (including `bypassPermissions`) because PreToolUse hooks always fire before permission checks. Bash commands are checked via regex extraction of absolute paths from the command string — this is **best-effort, not secure**: commands like `cd / && cat etc/passwd` or variable expansion can bypass it. The OS sandbox (`sandbox.enabled: true`, `allowUnsandboxedCommands: false`) is meant to be the fallback but does not reliably restrict reads on macOS. This is a basic restriction for well-behaved agents, not a security boundary.
 - **Channel abstraction layer** — `ChannelAdapter` (abstract EventEmitter), `ChannelManager` (singleton lifecycle), `ChannelMessageHandler` (stateless message routing + stream collection). Adapters are registered via `registerAdapterFactory(type, factory)` and auto-created from agent config on startup. Future channels (Discord, Slack) plug in by implementing `ChannelAdapter` and registering a factory.
@@ -62,7 +67,7 @@ TaskService (CRUD + scheduling logic)
   logTaskRun() → inserts into task_run_logs
 ```
 
-API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId/tasks/:taskId`, `GET /v1/agents/:agentId/tasks/:taskId/logs`
+API: `GET/POST /v1/agents/:agentId/tasks`, `GET/PATCH/DELETE /v1/agents/:agentId/tasks/:taskId`, `POST /v1/agents/:agentId/tasks/:taskId/run`, `GET /v1/agents/:agentId/tasks/:taskId/logs`
 
 ## Claw MCP Architecture
 
@@ -71,13 +76,16 @@ CherryClawService.invoke()
   → injects _internalMcpServers = { 'cherry-claw': { url: /v1/claw/:agentId/claw-mcp } }
   → delegates to ClaudeCodeService.invoke()
     → merges _internalMcpServers into options.mcpServers
-    → Claude SDK auto-discovers the "cron" tool
+    → Claude SDK auto-discovers the "cron" and "notify" tools
 
 ClawServer (per-agent instance, src/main/mcpServers/claw.ts)
   cron tool:
     add → validates schedule (cron/every/at), maps to TaskService.createTask()
     list → TaskService.listTasks()
     remove → TaskService.deleteTask()
+  notify tool:
+    message → channelManager.getNotifyAdapters() → adapter.sendMessage() to all notifyChatIds
+    channel_id (optional) → filter to specific channel
 
 Route: /v1/claw/:agentId/claw-mcp (Streamable HTTP MCP transport)
   Per-agent ClawServer instances cached in memory
@@ -146,7 +154,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/cherryclaw/soul.ts` — NEW: SoulReader with mtime cache
 - `src/main/services/agents/services/cherryclaw/heartbeat.ts` — NEW: HeartbeatReader with path traversal protection
 - `src/main/services/agents/services/TaskService.ts` — NEW: task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging
-- `src/main/services/agents/services/SchedulerService.ts` — REWRITTEN: poll-loop based, queries DB for due tasks, backward-compatible stopScheduler/startScheduler stubs; passes `{ persist: true }` and drains stream for completion
+- `src/main/services/agents/services/SchedulerService.ts` — REWRITTEN: poll-loop based, queries DB for due tasks, backward-compatible stopScheduler/startScheduler stubs; passes `{ persist: true }` and drains stream for completion; added `runTaskNow()` for manual trigger + `notifyTaskResult()` for channel notifications
 - `src/main/services/agents/services/index.ts` — registers claude-code + cherry-claw services, exports TaskService
 - `src/main/services/agents/BaseService.ts` — added `cherry-claw` to tool/command dispatch
 - `src/main/services/agents/services/SessionService.ts` — added `cherry-claw` to command dispatch
@@ -154,18 +162,18 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/apiServer/routes/agents/handlers/agents.ts` — stop/restart scheduler on agent delete/update
 
 ### Claw MCP Server
-- `src/main/mcpServers/claw.ts` — NEW: ClawServer with `cron` tool (add/list/remove actions), duration parsing, TaskService delegation
+- `src/main/mcpServers/claw.ts` — NEW: ClawServer with `cron` tool (add/list/remove actions) + `notify` tool (send messages to channels), duration parsing, TaskService + ChannelManager delegation
 - `src/main/apiServer/routes/claw-mcp.ts` — NEW: Express route for Streamable HTTP MCP protocol, per-agent server caching, per-session transport management
 - `src/main/apiServer/app.ts` — mounted claw MCP route at `/v1/claw`
 - `src/main/services/agents/services/claudecode/internal-mcp.ts` — NEW: `InternalMcpServerConfig` type for injecting internal MCP servers
 - `src/main/services/agents/services/claudecode/index.ts` — merges `_internalMcpServers` from session into SDK `options.mcpServers`
 
 ### Channel Layer
-- `src/main/services/agents/services/channels/ChannelAdapter.ts` — abstract interface + event types + `sendMessageDraft`
+- `src/main/services/agents/services/channels/ChannelAdapter.ts` — abstract interface + event types + `sendMessageDraft` + `notifyChatIds` property
 - `src/main/services/agents/services/channels/ChannelMessageHandler.ts` — message routing, multi-turn stream collection, draft streaming, typing indicators; passes `{ persist: true }` for headless persistence
-- `src/main/services/agents/services/channels/ChannelManager.ts` — singleton lifecycle, adapter factory registry, agent sync
+- `src/main/services/agents/services/channels/ChannelManager.ts` — singleton lifecycle, adapter factory registry, agent sync + `getNotifyAdapters()` + `notifyChannels` tracking
 - `src/main/services/agents/services/channels/index.ts` — public exports + adapter module imports
-- `src/main/services/agents/services/channels/adapters/TelegramAdapter.ts` — grammY-based adapter (long polling, auth guard, `sendMessageDraft`, message chunking)
+- `src/main/services/agents/services/channels/adapters/TelegramAdapter.ts` — grammY-based adapter (long polling, auth guard, `sendMessageDraft`, message chunking, sets `notifyChatIds`)
 
 ### Channel UI
 - `src/renderer/src/pages/settings/AgentSettings/components/ChannelsSettings.tsx` — catalog-based card layout with inline config (blur-to-save)
@@ -173,20 +181,20 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/renderer/src/types/agent.ts` — `TelegramChannelConfigSchema`, `CherryClawChannelSchema` with typed config + enabled flag
 
 ### API Routes (Tasks)
-- `src/main/apiServer/routes/agents/handlers/tasks.ts` — NEW: createTask, listTasks, getTask, updateTask, deleteTask, getTaskLogs
+- `src/main/apiServer/routes/agents/handlers/tasks.ts` — NEW: createTask, listTasks, getTask, updateTask, deleteTask, runTask, getTaskLogs
 - `src/main/apiServer/routes/agents/validators/tasks.ts` — NEW: Zod validators for task routes
 - `src/main/apiServer/routes/agents/handlers/index.ts` — added taskHandlers export
 - `src/main/apiServer/routes/agents/validators/index.ts` — added tasks validators export
 
 ### Frontend API Client & Hooks
-- `src/renderer/src/api/agent.ts` — added task path helpers, listTasks, createTask, getTask, updateTask, deleteTask, getTaskLogs methods
-- `src/renderer/src/hooks/agents/useTasks.ts` — NEW: useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskLogs SWR hooks
+- `src/renderer/src/api/agent.ts` — added task path helpers, listTasks, createTask, getTask, updateTask, deleteTask, runTask, getTaskLogs methods
+- `src/renderer/src/hooks/agents/useTasks.ts` — NEW: useTasks, useCreateTask, useUpdateTask, useDeleteTask, useRunTask, useTaskLogs SWR hooks
 
 ### Frontend UI
 - `src/renderer/src/components/Popups/agent/AgentModal.tsx` — agent type selector, CherryClaw defaults, bypass warning
 - `src/renderer/src/pages/settings/AgentSettings/AgentSettingsPopup.tsx` — replaced Channels tab with Tasks tab for CherryClaw agents
 - `src/renderer/src/pages/settings/AgentSettings/BaseSettingsPopup.tsx` — added `'tasks'` to SettingsPopupTab union
-- `src/renderer/src/pages/settings/AgentSettings/components/TasksSettings.tsx` — NEW: task list with add/edit/pause/delete/logs
+- `src/renderer/src/pages/settings/AgentSettings/components/TasksSettings.tsx` — NEW: task list with add/edit/pause/delete/run/logs
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskListItem.tsx` — NEW: task row with status badge, schedule info, action buttons
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskFormModal.tsx` — NEW: add/edit modal (name, prompt, schedule type/value, context mode)
 - `src/renderer/src/pages/settings/AgentSettings/components/TaskLogsModal.tsx` — NEW: run history table (run_at, duration, status, result/error)
@@ -203,7 +211,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/__tests__/SchedulerService.test.ts` — 7 tests (rewritten for poll-loop API)
 - `src/main/services/agents/services/cherryclaw/__tests__/soul.test.ts` — 4 tests
 - `src/main/services/agents/services/cherryclaw/__tests__/heartbeat.test.ts` — 5 tests
-- `src/main/mcpServers/__tests__/claw.test.ts` — 12 tests (cron tool add/list/remove, duration parsing, validation)
+- `src/main/mcpServers/__tests__/claw.test.ts` — 17 tests (cron tool add/list/remove, duration parsing, validation, notify tool send/filter/errors)
 - `src/main/services/agents/services/channels/__tests__/ChannelMessageHandler.test.ts` — 7 tests (multi-turn accumulation, chunking, commands, session tracking)
 - `src/main/services/agents/services/channels/__tests__/ChannelManager.test.ts` — 6 tests (lifecycle, sync, adapter management)
 - `src/main/services/agents/services/channels/adapters/__tests__/TelegramAdapter.test.ts` — 8 tests (connect, auth guard, message handling, chunking)
@@ -214,8 +222,8 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 ## Current State
 
 - Branch: `feat/cherry-claw-agent`
-- All lint/test/format checks pass (198 test files, 3588 tests)
-- Feature is code-complete including task-based scheduler, claw MCP tool, and channel layer with Telegram streaming
+- All lint/test/format checks pass (198 test files, 3593 tests)
+- Feature is code-complete including task-based scheduler, claw MCP tools (cron + notify), channel layer with Telegram streaming, and manual task run
 - Pushed to remote
 
 ## Blockers / Gotchas
@@ -243,10 +251,9 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 2. **Replace avatar** — design/source a proper CherryClaw avatar image to replace the placeholder
 3. **E2E testing** — manually test the full flow: create CherryClaw agent → verify cron tool is available → agent creates a scheduled task → verify task execution and run logging
 4. **Wire cleanup** — call `cleanupClawServer(agentId)` in the agent delete handler to free per-agent MCP server instances
-5. **Tool allowlist** — ensure `mcp__cherry-claw__cron` is auto-allowed for CherryClaw agents
+5. **Tool allowlist** — ensure `mcp__claw__cron` and `mcp__claw__notify` are auto-allowed for CherryClaw agents
 6. **TaskService tests** — add unit tests for TaskService CRUD and computeNextRun
 7. **SessionSettingsPopup** — consider adding CherryClaw tabs to session-level settings if per-session overrides are needed
-8. **Scheduler notifications** — when `is_notify_receiver: true` on a channel, route task completion summaries to it (Phase 7 in `handoff-tg-channel.md`)
-9. **GFM→MarkdownV2 conversion** — proper markdown formatting for Telegram responses
-10. **Additional channel adapters** — Discord, Slack using the same `ChannelAdapter` + `registerAdapterFactory` pattern
-11. **Harden sandbox** — current sandbox is basic path checking only. Needs: (a) proper OS sandbox enforcement for Bash reads, (b) Bash command allowlist or AST-based path extraction, (c) MCP tool path checking, (d) block relative path traversal tricks in Bash commands
+8. **GFM→MarkdownV2 conversion** — proper markdown formatting for Telegram responses
+9. **Additional channel adapters** — Discord, Slack using the same `ChannelAdapter` + `registerAdapterFactory` pattern
+10. **Harden sandbox** — current sandbox is basic path checking only. Needs: (a) proper OS sandbox enforcement for Bash reads, (b) Bash command allowlist or AST-based path extraction, (c) MCP tool path checking, (d) block relative path traversal tricks in Bash commands

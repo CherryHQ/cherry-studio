@@ -152,6 +152,8 @@
           "placeholder": "What should the agent do when this task runs?"
         },
         "resume": "Resume",
+        "run": "Run",
+        "runTriggered": "Task triggered",
         "save": "Save",
         "scheduleType": {
           "cron": "Cron",

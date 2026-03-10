@@ -152,6 +152,8 @@
           "placeholder": "[to be translated]:What should the agent do when this task runs?"
         },
         "resume": "[to be translated]:Resume",
+        "run": "[to be translated]:Run",
+        "runTriggered": "[to be translated]:Task triggered",
         "save": "[to be translated]:Save",
         "scheduleType": {
           "cron": "[to be translated]:Cron",

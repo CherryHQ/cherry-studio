@@ -84,6 +84,31 @@ export const useUpdateTask = (agentId: string) => {
   return { updateTask }
 }
 
+export const useRunTask = (agentId: string) => {
+  const { t } = useTranslation()
+  const client = useAgentClient()
+  const listKey = client.getTaskPaths(agentId).base
+
+  const runTask = useCallback(
+    async (taskId: string): Promise<boolean> => {
+      try {
+        await client.runTask(agentId, taskId)
+        mutate(listKey)
+        window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
+        return true
+      } catch (error) {
+        window.toast.error(
+          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.runFailed', 'Failed to run task'))
+        )
+        return false
+      }
+    },
+    [agentId, client, listKey, t]
+  )
+
+  return { runTask }
+}
+
 export const useDeleteTask = (agentId: string) => {
   const { t } = useTranslation()
   const client = useAgentClient()

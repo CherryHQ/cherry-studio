@@ -958,6 +958,7 @@ const createTasksRouter = (): express.Router => {
   tasksRouter.get('/:taskId', validateTaskId, handleValidationErrors, taskHandlers.getTask)
   tasksRouter.patch('/:taskId', validateTaskId, validateTaskUpdate, handleValidationErrors, taskHandlers.updateTask)
   tasksRouter.delete('/:taskId', validateTaskId, handleValidationErrors, taskHandlers.deleteTask)
+  tasksRouter.post('/:taskId/run', validateTaskId, handleValidationErrors, taskHandlers.runTask)
   tasksRouter.get(
     '/:taskId/logs',
     validateTaskId,

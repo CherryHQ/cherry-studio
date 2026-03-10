@@ -8,6 +8,7 @@ type TaskListItemProps = {
   onEdit: (task: ScheduledTaskEntity) => void
   onToggleStatus: (task: ScheduledTaskEntity) => void
   onDelete: (taskId: string) => void
+  onRun: (task: ScheduledTaskEntity) => void
   onViewLogs: (task: ScheduledTaskEntity) => void
 }
 
@@ -23,7 +24,7 @@ const scheduleTypeLabels: Record<string, string> = {
   once: 'Once'
 }
 
-const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onDelete, onViewLogs }) => {
+const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onDelete, onRun, onViewLogs }) => {
   const { t } = useTranslation()
 
   const formatScheduleValue = () => {
@@ -77,6 +78,11 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
         )}
       </div>
       <div className="ml-3 flex shrink-0 items-center gap-1">
+        {!isCompleted && (
+          <Button size="small" type="text" onClick={() => onRun(task)}>
+            {t('agent.cherryClaw.tasks.run')}
+          </Button>
+        )}
         <Button size="small" type="text" onClick={() => onViewLogs(task)}>
           {t('agent.cherryClaw.tasks.logs.label')}
         </Button>

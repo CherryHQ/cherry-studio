@@ -86,6 +86,21 @@ class SchedulerService {
     this.startLoop()
   }
 
+  /** Manually trigger a task run (from UI). Returns immediately; task runs in background. */
+  async runTaskNow(agentId: string, taskId: string): Promise<void> {
+    const task = await taskService.getTask(agentId, taskId)
+    if (!task) throw new Error(`Task not found: ${taskId}`)
+    if (this.activeTasks.has(task.id)) throw new Error('Task is already running')
+
+    // Fire and forget
+    this.runTask(task).catch((error) => {
+      logger.error('Unhandled error in manual runTask', {
+        taskId: task.id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    })
+  }
+
   private poll(): void {
     if (!this.running) return
 

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import { taskService } from '@main/services/agents/services/TaskService'
 import type { ListTaskLogsResponse, ListTasksResponse } from '@types'
 import type { Request, Response } from 'express'
@@ -135,6 +136,26 @@ export const deleteTask = async (req: Request, res: Response): Promise<Response>
         message: 'Failed to delete task',
         type: 'internal_error',
         code: 'task_delete_failed'
+      }
+    })
+  }
+}
+
+export const runTask = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId, taskId } = req.params
+  try {
+    logger.debug('Manually running task', { agentId, taskId })
+    await schedulerService.runTaskNow(agentId, taskId)
+    logger.info('Task triggered manually', { agentId, taskId })
+    return res.json({ status: 'triggered' })
+  } catch (error: any) {
+    const status = error.message?.includes('not found') ? 404 : error.message?.includes('already running') ? 409 : 500
+    logger.error('Error running task', { error, agentId, taskId })
+    return res.status(status).json({
+      error: {
+        message: `Failed to run task: ${error.message}`,
+        type: status === 409 ? 'conflict' : status === 404 ? 'not_found' : 'internal_error',
+        code: 'task_run_failed'
       }
     })
   }

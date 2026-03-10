@@ -99,6 +99,7 @@ export class AgentApiClient {
   public getTaskPaths = (agentId: string) => ({
     base: `/${this.apiVersion}/agents/${agentId}/tasks`,
     withId: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}`,
+    run: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/run`,
     logs: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/logs`
   })
 
@@ -329,6 +330,15 @@ export class AgentApiClient {
       await this.axios.delete(url)
     } catch (error) {
       throw processError(error, 'Failed to delete task.')
+    }
+  }
+
+  public async runTask(agentId: string, taskId: string): Promise<void> {
+    const url = this.getTaskPaths(agentId).run(taskId)
+    try {
+      await this.axios.post(url)
+    } catch (error) {
+      throw processError(error, 'Failed to run task.')
     }
   }
 
