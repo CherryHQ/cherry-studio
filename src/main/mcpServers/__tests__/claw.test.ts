@@ -4,12 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
+const mockGetNotifyAdapters = vi.fn()
+const mockSendMessage = vi.fn()
 
 vi.mock('@main/services/agents/services/TaskService', () => ({
   taskService: {
     createTask: mockCreateTask,
     listTasks: mockListTasks,
     deleteTask: mockDeleteTask
+  }
+}))
+
+vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
+  channelManager: {
+    getNotifyAdapters: mockGetNotifyAdapters
   }
 }))
 
@@ -22,7 +30,7 @@ function createServer(agentId = 'agent_test') {
 }
 
 // Helper to call tools via the Server's request handlers
-async function callTool(server: ClawServerInstance, args: Record<string, unknown>) {
+async function callTool(server: ClawServerInstance, args: Record<string, unknown>, toolName = 'cron') {
   // Use the server's internal handler by simulating a CallTool request
   const handlers = (server.server as any)._requestHandlers
   const callToolHandler = handlers?.get('tools/call')
@@ -31,7 +39,7 @@ async function callTool(server: ClawServerInstance, args: Record<string, unknown
   }
 
   return callToolHandler(
-    { method: 'tools/call', params: { name: 'cron', arguments: args } },
+    { method: 'tools/call', params: { name: toolName, arguments: args } },
     {} // extra
   )
 }
@@ -50,11 +58,11 @@ describe('ClawServer', () => {
     vi.clearAllMocks()
   })
 
-  it('should list the cron tool', async () => {
+  it('should list the cron and notify tools', async () => {
     const server = createServer()
     const result = await listTools(server)
-    expect(result.tools).toHaveLength(1)
-    expect(result.tools[0].name).toBe('cron')
+    expect(result.tools).toHaveLength(2)
+    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify'])
   })
 
   describe('add action', () => {
@@ -227,6 +235,71 @@ describe('ClawServer', () => {
       const result = await callTool(server, { action: 'remove', id: 'nonexistent' })
 
       expect(result.isError).toBe(true)
+    })
+  })
+
+  describe('notify tool', () => {
+    function makeAdapter(channelId: string, chatIds: string[]) {
+      return {
+        channelId,
+        notifyChatIds: chatIds,
+        sendMessage: mockSendMessage
+      }
+    }
+
+    it('should send notification to all notify adapters', async () => {
+      mockSendMessage.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Hello user!' }, 'notify')
+
+      expect(mockGetNotifyAdapters).toHaveBeenCalledWith('agent_1')
+      expect(mockSendMessage).toHaveBeenCalledTimes(2)
+      expect(mockSendMessage).toHaveBeenCalledWith('100', 'Hello user!')
+      expect(mockSendMessage).toHaveBeenCalledWith('200', 'Hello user!')
+      expect(result.content[0].text).toContain('2 chat(s)')
+    })
+
+    it('should filter by channel_id when provided', async () => {
+      mockSendMessage.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100']), makeAdapter('ch2', ['200'])])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Targeted', channel_id: 'ch2' }, 'notify')
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1)
+      expect(mockSendMessage).toHaveBeenCalledWith('200', 'Targeted')
+      expect(result.content[0].text).toContain('1 chat(s)')
+    })
+
+    it('should return message when no notify channels found', async () => {
+      mockGetNotifyAdapters.mockReturnValue([])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Hello' }, 'notify')
+
+      expect(result.content[0].text).toContain('No notify-enabled channels')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('should error when message is missing', async () => {
+      const server = createServer()
+      const result = await callTool(server, {}, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'message' is required")
+    })
+
+    it('should report partial failures', async () => {
+      mockSendMessage.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('rate limited'))
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Test' }, 'notify')
+
+      expect(result.content[0].text).toContain('1 chat(s)')
+      expect(result.content[0].text).toContain('rate limited')
     })
   })
 })

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { taskService } from '@main/services/agents/services/TaskService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -75,6 +76,26 @@ const CRON_TOOL: Tool = {
   }
 }
 
+const NOTIFY_TOOL: Tool = {
+  name: 'notify',
+  description:
+    'Send a notification message to the user through connected channels (e.g. Telegram). Use this to proactively inform the user about task results, status updates, or any important information.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: {
+        type: 'string',
+        description: 'The notification message to send to the user'
+      },
+      channel_id: {
+        type: 'string',
+        description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+      }
+    },
+    required: ['message']
+  }
+}
+
 class ClawServer {
   public server: Server
   private agentId: string
@@ -97,31 +118,36 @@ class ClawServer {
 
   private setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [CRON_TOOL]
+      tools: [CRON_TOOL, NOTIFY_TOOL]
     }))
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (request.params.name !== 'cron') {
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`)
-      }
-
+      const toolName = request.params.name
       const args = (request.params.arguments ?? {}) as Record<string, string | undefined>
-      const action = args.action
 
       try {
-        switch (action) {
-          case 'add':
-            return await this.addJob(args)
-          case 'list':
-            return await this.listJobs()
-          case 'remove':
-            return await this.removeJob(args)
+        switch (toolName) {
+          case 'cron': {
+            const action = args.action
+            switch (action) {
+              case 'add':
+                return await this.addJob(args)
+              case 'list':
+                return await this.listJobs()
+              case 'remove':
+                return await this.removeJob(args)
+              default:
+                throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
+            }
+          }
+          case 'notify':
+            return await this.sendNotification(args)
           default:
-            throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected add/list/remove`)
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        logger.error(`Cron tool error: ${action}`, { agentId: this.agentId, error: message })
+        logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
         return {
           content: [{ type: 'text' as const, text: `Error: ${message}` }],
           isError: true
@@ -188,6 +214,60 @@ class ClawServer {
 
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }]
+    }
+  }
+
+  private async sendNotification(args: Record<string, string | undefined>) {
+    const message = args.message
+    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
+
+    const targetChannelId = args.channel_id
+    let adapters = channelManager.getNotifyAdapters(this.agentId)
+
+    if (targetChannelId) {
+      adapters = adapters.filter((a) => a.channelId === targetChannelId)
+    }
+
+    if (adapters.length === 0) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'No notify-enabled channels found. Enable `is_notify_receiver` on at least one channel in agent settings.'
+          }
+        ]
+      }
+    }
+
+    let sent = 0
+    const errors: string[] = []
+
+    for (const adapter of adapters) {
+      for (const chatId of adapter.notifyChatIds) {
+        try {
+          await adapter.sendMessage(chatId, message)
+          sent++
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err)
+          errors.push(`${adapter.channelId}/${chatId}: ${errMsg}`)
+          logger.warn('Failed to send notification', {
+            agentId: this.agentId,
+            channelId: adapter.channelId,
+            chatId,
+            error: errMsg
+          })
+        }
+      }
+    }
+
+    const parts = [`Notification sent to ${sent} chat(s).`]
+    if (errors.length > 0) {
+      parts.push(`Errors: ${errors.join('; ')}`)
+    }
+
+    logger.info('Notification sent via notify tool', { agentId: this.agentId, sent, errors: errors.length })
+    return {
+      content: [{ type: 'text' as const, text: parts.join(' ') }]
     }
   }
 

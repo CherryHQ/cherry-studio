@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
 import { agentService } from './AgentService'
+import { channelManager } from './channels/ChannelManager'
 import { CherryClawService } from './cherryclaw'
 import { sessionMessageService } from './SessionMessageService'
 import { sessionService } from './SessionService'
@@ -229,6 +230,43 @@ class SchedulerService {
     const nextRun = taskService.computeNextRun(task)
     const resultSummary = error ? `Error: ${error}` : result ? result.slice(0, 200) : 'Completed'
     await taskService.updateTaskAfterRun(task.id, nextRun, resultSummary)
+
+    // Send notification to notify-enabled channels
+    await this.notifyTaskResult(task, durationMs, error)
+  }
+
+  private async notifyTaskResult(task: ScheduledTaskEntity, durationMs: number, error: string | null): Promise<void> {
+    try {
+      const adapters = channelManager.getNotifyAdapters(task.agent_id)
+      if (adapters.length === 0) return
+
+      const status = error ? 'failed' : 'completed'
+      const durationSec = Math.round(durationMs / 1000)
+      const lines = [
+        `[Task ${status}] ${task.name}`,
+        `Duration: ${durationSec}s`,
+        ...(error ? [`Error: ${error}`] : [])
+      ]
+      const text = lines.join('\n')
+
+      for (const adapter of adapters) {
+        for (const chatId of adapter.notifyChatIds) {
+          adapter.sendMessage(chatId, text).catch((err) => {
+            logger.warn('Failed to send task notification', {
+              taskId: task.id,
+              channelId: adapter.channelId,
+              chatId,
+              error: err instanceof Error ? err.message : String(err)
+            })
+          })
+        }
+      }
+    } catch (err) {
+      logger.warn('Error sending task notifications', {
+        taskId: task.id,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
   }
 }
 

@@ -56,6 +56,8 @@ class TelegramAdapter extends ChannelAdapter {
     this.botToken = (bot_token as string) ?? ''
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    // Expose for notify tool — all allowed chats receive notifications
+    this.notifyChatIds = [...this.allowedChatIds]
   }
 
   async connect(): Promise<void> {

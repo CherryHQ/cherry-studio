@@ -18,6 +18,7 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
 class ChannelManager {
   private static instance: ChannelManager | null = null
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
+  private readonly notifyChannels = new Set<string>() // key: `${agentId}:${channelId}`
 
   static getInstance(): ChannelManager {
     if (!ChannelManager.instance) {
@@ -57,7 +58,22 @@ class ChannelManager {
     )
     await Promise.all(disconnects)
     this.adapters.clear()
+    this.notifyChannels.clear()
     logger.info('Channel manager stopped')
+  }
+
+  /** Return connected adapters for an agent whose channel has `is_notify_receiver: true`. */
+  getNotifyAdapters(agentId: string): ChannelAdapter[] {
+    const result: ChannelAdapter[] = []
+    for (const [key, adapter] of this.adapters) {
+      if (adapter.agentId !== agentId) continue
+      // Look up original channel config to check is_notify_receiver
+      const channelId = key.split(':')[1]
+      if (this.notifyChannels.has(`${agentId}:${channelId}`)) {
+        result.push(adapter)
+      }
+    }
+    return result
   }
 
   async syncAgent(agentId: string): Promise<void> {
@@ -71,6 +87,7 @@ class ChannelManager {
           })
         })
         this.adapters.delete(key)
+        this.notifyChannels.delete(key)
       }
     }
 
@@ -122,6 +139,9 @@ class ChannelManager {
 
         await adapter.connect()
         this.adapters.set(key, adapter)
+        if (channel.is_notify_receiver) {
+          this.notifyChannels.add(key)
+        }
         logger.info('Channel adapter connected', { agentId, channelId: channel.id, type: channel.type })
       } catch (error) {
         logger.error('Failed to connect channel adapter', {
