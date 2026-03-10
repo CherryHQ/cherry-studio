@@ -1,9 +1,7 @@
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { InstalledPlugin, PluginError, UninstallPluginPackageResult } from '@renderer/types/plugin'
-import { createKeyedSignal } from '@renderer/utils/createKeyedSignal'
 import { getPluginErrorMessage } from '@renderer/utils/pluginErrors'
 import { useCallback, useEffect, useState } from 'react'
-
-const installedPluginsSignal = createKeyedSignal()
 
 /**
  * Hook to fetch installed plugins for a specific agent
@@ -48,7 +46,11 @@ export function useInstalledPlugins(agentId: string | undefined) {
       return
     }
 
-    return installedPluginsSignal.subscribe(agentId, refresh)
+    return EventEmitter.on(EVENT_NAMES.PLUGINS_UPDATED, (payload) => {
+      if (payload?.agentId === agentId) {
+        refresh()
+      }
+    })
   }, [agentId, refresh])
 
   return { plugins, loading, error, refresh }
@@ -74,7 +76,7 @@ export function usePluginActions(agentId: string) {
       try {
         const result = await action()
         if (result.success) {
-          installedPluginsSignal.emit(agentId)
+          await EventEmitter.emit(EVENT_NAMES.PLUGINS_UPDATED, { agentId })
           return { success: true, data: result.data as TResult }
         }
         return { success: false, error: getPluginErrorMessage(result.error, errorPrefix) }
