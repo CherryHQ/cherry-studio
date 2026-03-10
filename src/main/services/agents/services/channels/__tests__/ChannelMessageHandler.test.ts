@@ -145,7 +145,8 @@ describe('ChannelMessageHandler', () => {
     expect(sessionMessageService.createSessionMessage).toHaveBeenCalledWith(
       session,
       { content: '/compact' },
-      expect.any(AbortController)
+      expect.any(AbortController),
+      { persist: true }
     )
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
   })

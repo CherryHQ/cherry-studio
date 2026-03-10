@@ -180,7 +180,19 @@ class SchedulerService {
       }
 
       // Send as user message (triggers agent response)
-      await sessionMessageService.createSessionMessage(session, { content: fullPrompt }, abortController)
+      const { stream, completion } = await sessionMessageService.createSessionMessage(
+        session,
+        { content: fullPrompt },
+        abortController,
+        { persist: true }
+      )
+
+      // Drain the stream so completion resolves
+      const reader = stream.getReader()
+      while (!(await reader.read()).done) {
+        // discard chunks
+      }
+      await completion
 
       result = 'Completed'
       logger.info('Task completed', { taskId: task.id, durationMs: Date.now() - startTime })
