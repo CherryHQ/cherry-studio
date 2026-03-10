@@ -103,7 +103,7 @@ export class CherryClawService implements AgentServiceInterface {
     // If the agent has an explicit allowed_tools whitelist, append the claw MCP
     // tool names so the SDK doesn't hide them.  When allowed_tools is undefined
     // (no restriction), leave it alone — all tools are already available.
-    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify']
+    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify', 'mcp__claw__skills']
     const currentAllowed = enhancedSession.allowed_tools
     if (Array.isArray(currentAllowed) && currentAllowed.length > 0) {
       const missing = clawMcpTools.filter((t) => !currentAllowed.includes(t))

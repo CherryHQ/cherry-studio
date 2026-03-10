@@ -10,20 +10,37 @@ import type { IncomingMessage, ServerResponse } from 'http'
 
 const logger = loggerService.withContext('ClawMCPRoute')
 
-// Per-agent claw MCP server instances (keyed by agentId)
-const clawServers = new Map<string, ClawServer>()
+// Per-session state: each MCP session gets its own Server + Transport pair.
+// The MCP SDK Server class only supports one transport at a time, so sharing
+// a Server across sessions causes "Already connected" errors on reconnect.
+type SessionEntry = {
+  server: ClawServer
+  transport: StreamableHTTPServerTransport
+  agentId: string
+}
 
-// Per-session transports (keyed by MCP session ID)
-const transports = new Map<string, StreamableHTTPServerTransport>()
+const sessions = new Map<string, SessionEntry>()
 
-function getOrCreateClawServer(agentId: string): ClawServer {
-  let server = clawServers.get(agentId)
-  if (!server) {
-    server = new ClawServer(agentId)
-    clawServers.set(agentId, server)
-    logger.debug('Created claw MCP server for agent', { agentId })
+function createSessionEntry(agentId: string): SessionEntry {
+  const server = new ClawServer(agentId)
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (newSessionId) => {
+      sessions.set(newSessionId, entry)
+      logger.debug('Claw MCP session initialized', { sessionId: newSessionId, agentId })
+    }
+  })
+
+  const entry: SessionEntry = { server, transport, agentId }
+
+  transport.onclose = () => {
+    if (transport.sessionId) {
+      sessions.delete(transport.sessionId)
+      logger.debug('Claw MCP session closed', { sessionId: transport.sessionId, agentId })
+    }
   }
-  return server
+
+  return entry
 }
 
 const router = express.Router({ mergeParams: true })
@@ -35,28 +52,14 @@ router.all('/:agentId/claw-mcp', async (req: Request, res: Response): Promise<vo
     return
   }
 
-  const clawServer = getOrCreateClawServer(agentId)
   const sessionId = req.headers['mcp-session-id'] as string | undefined
 
-  let transport: StreamableHTTPServerTransport
-  if (sessionId && transports.has(sessionId)) {
-    transport = transports.get(sessionId)!
+  let entry: SessionEntry
+  if (sessionId && sessions.has(sessionId)) {
+    entry = sessions.get(sessionId)!
   } else {
-    transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (newSessionId) => {
-        transports.set(newSessionId, transport)
-      }
-    })
-
-    transport.onclose = () => {
-      if (transport.sessionId) {
-        transports.delete(transport.sessionId)
-        logger.debug('Claw MCP transport closed', { sessionId: transport.sessionId, agentId })
-      }
-    }
-
-    await clawServer.server.connect(transport)
+    entry = createSessionEntry(agentId)
+    await entry.server.server.connect(entry.transport)
   }
 
   // Only parse JSON-RPC body for POST requests.
@@ -87,28 +90,32 @@ router.all('/:agentId/claw-mcp', async (req: Request, res: Response): Promise<vo
 
     logger.debug('Dispatching claw MCP POST request', {
       agentId,
-      sessionId: transport.sessionId ?? sessionId,
+      sessionId: entry.transport.sessionId ?? sessionId,
       messageCount: messages.length
     })
 
-    await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
+    await entry.transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
   } else {
     // GET / DELETE — let the transport handle directly without body parsing
     logger.debug('Dispatching claw MCP request', {
       method: req.method,
       agentId,
-      sessionId: transport.sessionId ?? sessionId
+      sessionId: entry.transport.sessionId ?? sessionId
     })
 
-    await transport.handleRequest(req as IncomingMessage, res as ServerResponse)
+    await entry.transport.handleRequest(req as IncomingMessage, res as ServerResponse)
   }
 })
 
 /**
- * Clean up claw server for a specific agent (e.g. on agent deletion).
+ * Clean up all claw sessions for a specific agent (e.g. on agent deletion).
  */
 export function cleanupClawServer(agentId: string): void {
-  clawServers.delete(agentId)
+  for (const [sessionId, entry] of sessions) {
+    if (entry.agentId === agentId) {
+      sessions.delete(sessionId)
+    }
+  }
 }
 
 export { router as clawMcpRoutes }
