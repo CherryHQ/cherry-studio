@@ -1,4 +1,4 @@
-import { useCreateTask, useDeleteTask, useTasks, useUpdateTask } from '@renderer/hooks/agents/useTasks'
+import { useCreateTask, useDeleteTask, useRunTask, useTasks, useUpdateTask } from '@renderer/hooks/agents/useTasks'
 import type { ScheduledTaskEntity } from '@renderer/types'
 import { Button, Empty, Spin } from 'antd'
 import { type FC, useState } from 'react'
@@ -16,6 +16,7 @@ const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
   const { createTask } = useCreateTask(agentId ?? '')
   const { updateTask } = useUpdateTask(agentId ?? '')
   const { deleteTask } = useDeleteTask(agentId ?? '')
+  const { runTask } = useRunTask(agentId ?? '')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<ScheduledTaskEntity | null>(null)
@@ -48,6 +49,10 @@ const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
     await updateTask(task.id, { status: newStatus })
   }
 
+  const handleRun = async (task: ScheduledTaskEntity) => {
+    await runTask(task.id)
+  }
+
   const handleDelete = async (taskId: string) => {
     await deleteTask(taskId)
   }
@@ -76,6 +81,7 @@ const TasksSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
               onEdit={handleEdit}
               onToggleStatus={handleToggleStatus}
               onDelete={handleDelete}
+              onRun={handleRun}
               onViewLogs={setLogsTask}
             />
           ))}
