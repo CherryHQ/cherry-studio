@@ -28,35 +28,19 @@
     },
     "cherryClaw": {
       "channels": {
-        "add": "Add Channel",
-        "addTitle": "Add Channel",
-        "cancel": "Cancel",
-        "chatIds": "chat IDs allowed",
-        "delete": {
-          "confirm": "Are you sure you want to delete this channel?",
-          "label": "Delete"
-        },
-        "disable": "Disable",
-        "edit": "Edit",
-        "editTitle": "Edit Channel",
-        "empty": "No channels configured. Add a channel to connect your agent to messaging platforms.",
-        "enable": "Enable",
-        "name": {
-          "label": "Channel Name",
-          "placeholder": "e.g. Support Bot"
-        },
-        "save": "Save",
-        "status": {
-          "active": "Active",
-          "disabled": "Disabled"
-        },
+        "comingSoon": "Coming soon",
+        "description": "Connect your agent to messaging platforms.",
+        "notifyReceiver": "Receive task notifications",
+        "notifyReceiverHint": "Send scheduler task results to this channel.",
         "tab": "Channels",
         "telegram": {
           "botToken": "Bot Token",
           "botTokenPlaceholder": "Enter your Telegram bot token",
           "chatIds": "Allowed Chat IDs",
           "chatIdsHint": "Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "123456789, 987654321"
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Receive and respond to messages via a Telegram bot using long polling.",
+          "title": "Telegram"
         },
         "title": "Channels"
       },
