@@ -1,6 +1,7 @@
 import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
 import BingLogo from '@renderer/assets/images/search/bing.svg'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
+import DuckDuckGoLogo from '@renderer/assets/images/search/duckduckgo.svg'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import GoogleLogo from '@renderer/assets/images/search/google.svg'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
@@ -73,6 +74,8 @@ const WebSearchSettings: FC = () => {
         return BingLogo
       case 'local-baidu':
         return BaiduLogo
+      case 'local-duckduckgo':
+        return DuckDuckGoLogo
       default:
         return undefined
     }
