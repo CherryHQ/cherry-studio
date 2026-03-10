@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import ClawServer from '@main/mcpServers/claw'
-import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
+import type { GetAgentSessionResponse } from '@types'
 
 import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '../../interfaces/AgentStreamInterface'
 import { agentServiceRegistry } from '../AgentServiceRegistry'
@@ -28,7 +28,6 @@ export class CherryClawService implements AgentServiceInterface {
     lastAgentSessionId?: string,
     thinkingOptions?: AgentThinkingOptions
   ): Promise<AgentStream> {
-    const config = (session.configuration ?? {}) as CherryClawConfiguration
     const workspacePath = session.accessible_paths[0]
 
     type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
@@ -73,26 +72,6 @@ export class CherryClawService implements AgentServiceInterface {
         'EnterWorktree',
         'NotebookEdit'
       ]
-    }
-
-    // Enable OS-level sandbox when configured.
-    // Filesystem restrictions are enforced via the PreToolUse hook (_sandboxAllowedPaths)
-    // so they work regardless of permissionMode (including bypassPermissions).
-    if (config.sandbox_enabled && workspacePath) {
-      const allowedPaths = [workspacePath, ...session.accessible_paths.slice(1)]
-      logger.info('Enabling sandbox for CherryClaw agent', { workspacePath, allowedPaths })
-      enhancedSession = {
-        ...enhancedSession,
-        _sandboxAllowedPaths: allowedPaths,
-        _sandbox: {
-          enabled: true,
-          autoAllowBashIfSandboxed: true,
-          allowUnsandboxedCommands: false,
-          filesystem: {
-            allowWrite: allowedPaths
-          }
-        }
-      }
     }
 
     // If the agent has an explicit allowed_tools whitelist, append the claw MCP

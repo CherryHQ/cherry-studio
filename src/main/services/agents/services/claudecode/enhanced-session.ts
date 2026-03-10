@@ -1,4 +1,4 @@
-import type { SandboxSettings, Settings } from '@anthropic-ai/claude-agent-sdk'
+import type { Settings } from '@anthropic-ai/claude-agent-sdk'
 
 import type { InternalMcpServerConfig } from './internal-mcp'
 
@@ -10,10 +10,7 @@ import type { InternalMcpServerConfig } from './internal-mcp'
 export type EnhancedSessionFields = {
   _internalMcpServers?: Record<string, InternalMcpServerConfig>
   _disallowedTools?: string[]
-  _sandbox?: SandboxSettings
   _settings?: Settings
-  /** Allowed paths for sandbox enforcement via PreToolUse hook. */
-  _sandboxAllowedPaths?: string[]
   /** When set, replaces the SDK system prompt entirely (instead of using preset+append). */
   _systemPrompt?: string
 }

@@ -19,7 +19,6 @@ export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configurat
     permission_mode: 'bypassPermissions',
     max_turns: 100,
     soul_enabled: true,
-    sandbox_enabled: false,
     scheduler_enabled: false,
     scheduler_type: 'interval',
     heartbeat_enabled: true,

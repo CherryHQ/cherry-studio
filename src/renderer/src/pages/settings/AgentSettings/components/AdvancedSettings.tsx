@@ -1,7 +1,7 @@
-import type { CherryClawConfiguration, UpdateAgentBaseForm } from '@renderer/types'
+import type { UpdateAgentBaseForm } from '@renderer/types'
 import { AgentConfigurationSchema } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
-import { Input, InputNumber, Switch, Tooltip } from 'antd'
+import { Input, InputNumber, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,8 +22,6 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [maxTurnsInput, setMaxTurnsInput] = useState<number>(defaultConfiguration.max_turns)
   const [envVarsText, setEnvVarsText] = useState<string>('')
-
-  const isCherryClaw = agentBase && 'type' in agentBase && agentBase.type === 'cherry-claw'
 
   useEffect(() => {
     if (!agentBase) {
@@ -65,40 +63,12 @@ export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentB
     update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
   }, [agentBase, configuration, envVarsText, update])
 
-  const handleSandboxToggle = useCallback(
-    (checked: boolean) => {
-      if (!agentBase) return
-      const next: AgentConfigurationState = { ...configuration, sandbox_enabled: checked }
-      setConfiguration(next)
-      update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
-    },
-    [agentBase, configuration, update]
-  )
-
   if (!agentBase) {
     return null
   }
 
-  const sandboxEnabled = (configuration as CherryClawConfiguration).sandbox_enabled ?? false
-
   return (
     <SettingsContainer>
-      {isCherryClaw && (
-        <SettingsItem>
-          <SettingsTitle
-            contentAfter={
-              <Tooltip title={t('agent.cherryClaw.sandbox.description')} placement="left">
-                <Info size={16} className="text-foreground-400" />
-              </Tooltip>
-            }>
-            {t('agent.cherryClaw.sandbox.label')}
-          </SettingsTitle>
-          <div className="flex items-center justify-between">
-            <span className="text-foreground-500 text-xs">{t('agent.cherryClaw.sandbox.helper')}</span>
-            <Switch checked={sandboxEnabled} size="small" onChange={handleSandboxToggle} />
-          </div>
-        </SettingsItem>
-      )}
       <SettingsItem>
         <SettingsTitle
           contentAfter={
