@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
+import { PluginService } from '@main/services/agents/plugins/PluginService'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { taskService } from '@main/services/agents/services/TaskService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { TaskContextMode, TaskScheduleType } from '@types'
+import { net } from 'electron'
 
 const logger = loggerService.withContext('MCPServer:Claw')
 
@@ -26,6 +28,39 @@ function parseDurationToMinutes(duration: string): number {
   }
 
   return totalMinutes
+}
+
+type SkillSearchResult = {
+  name: string
+  namespace?: string
+  description?: string | null
+  author?: string | null
+  installs?: number
+  metadata?: {
+    repoOwner?: string
+    repoName?: string
+  }
+}
+
+function buildSkillIdentifier(skill: SkillSearchResult): string {
+  const { name, namespace, metadata } = skill
+  const repoOwner = metadata?.repoOwner
+  const repoName = metadata?.repoName
+
+  if (repoOwner && repoName) {
+    return `${repoOwner}/${repoName}/${name}`
+  }
+
+  if (namespace) {
+    const cleanNamespace = namespace.replace(/^@/, '')
+    const parts = cleanNamespace.split('/').filter(Boolean)
+    if (parts.length >= 2) {
+      return `${parts[0]}/${parts[1]}/${name}`
+    }
+    return `${cleanNamespace}/${name}`
+  }
+
+  return name
 }
 
 const CRON_TOOL: Tool = {
@@ -96,6 +131,38 @@ const NOTIFY_TOOL: Tool = {
   }
 }
 
+const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
+
+const SKILLS_TOOL: Tool = {
+  name: 'skills',
+  description:
+    "Manage Claude skills in the agent's workspace. Use action 'search' to find skills from the marketplace, 'install' to install a skill, 'remove' to uninstall a skill, or 'list' to see installed skills.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['search', 'install', 'remove', 'list'],
+        description: 'The action to perform'
+      },
+      query: {
+        type: 'string',
+        description: "Search query for finding skills in the marketplace (required for 'search')"
+      },
+      identifier: {
+        type: 'string',
+        description:
+          "Marketplace skill identifier in 'owner/repo/skill-name' format (required for 'install'). Get this from the search results."
+      },
+      name: {
+        type: 'string',
+        description: "Skill folder name to remove (required for 'remove'). Get this from the list results."
+      }
+    },
+    required: ['action']
+  }
+}
+
 class ClawServer {
   public server: Server
   private agentId: string
@@ -118,7 +185,7 @@ class ClawServer {
 
   private setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [CRON_TOOL, NOTIFY_TOOL]
+      tools: [CRON_TOOL, NOTIFY_TOOL, SKILLS_TOOL]
     }))
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -142,6 +209,24 @@ class ClawServer {
           }
           case 'notify':
             return await this.sendNotification(args)
+          case 'skills': {
+            const action = args.action
+            switch (action) {
+              case 'search':
+                return await this.searchSkills(args)
+              case 'install':
+                return await this.installSkill(args)
+              case 'remove':
+                return await this.removeSkill(args)
+              case 'list':
+                return await this.listSkills()
+              default:
+                throw new McpError(
+                  ErrorCode.InvalidParams,
+                  `Unknown action "${action}", expected search/install/remove/list`
+                )
+            }
+          }
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -268,6 +353,114 @@ class ClawServer {
     logger.info('Notification sent via notify tool', { agentId: this.agentId, sent, errors: errors.length })
     return {
       content: [{ type: 'text' as const, text: parts.join(' ') }]
+    }
+  }
+
+  private async searchSkills(args: Record<string, string | undefined>) {
+    const query = args.query
+    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search")
+
+    const url = new URL(`${MARKETPLACE_BASE_URL}/api/skills`)
+    url.searchParams.set('q', query.replace(/[-_]+/g, ' ').trim())
+    url.searchParams.set('limit', '20')
+    url.searchParams.set('offset', '0')
+
+    const response = await net.fetch(url.toString(), { method: 'GET' })
+    if (!response.ok) {
+      throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
+    }
+
+    const json = (await response.json()) as { skills?: SkillSearchResult[]; total?: number }
+    const skills = json.skills ?? []
+
+    if (skills.length === 0) {
+      return { content: [{ type: 'text' as const, text: `No skills found for "${query}".` }] }
+    }
+
+    const results = skills.map((s) => ({
+      name: s.name,
+      description: s.description ?? null,
+      author: s.author ?? null,
+      identifier: buildSkillIdentifier(s),
+      installs: s.installs ?? 0
+    }))
+
+    logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: results.length })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Found ${results.length} skill(s) for "${query}":\n${JSON.stringify(results, null, 2)}\n\nUse the 'identifier' field with action 'install' to install a skill.`
+        }
+      ]
+    }
+  }
+
+  private async installSkill(args: Record<string, string | undefined>) {
+    const identifier = args.identifier
+    if (!identifier) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "'identifier' is required for install (format: 'owner/repo/skill-name')"
+      )
+    }
+
+    const pluginService = PluginService.getInstance()
+    const sourcePath = `marketplace:skill:${identifier}`
+
+    const metadata = await pluginService.install({
+      agentId: this.agentId,
+      sourcePath,
+      type: 'skill'
+    })
+
+    logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: metadata.name })
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Skill installed:\n  Name: ${metadata.name}\n  Description: ${metadata.description ?? 'N/A'}\n  Folder: ${metadata.filename}`
+        }
+      ]
+    }
+  }
+
+  private async removeSkill(args: Record<string, string | undefined>) {
+    const name = args.name
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for remove (skill folder name)")
+
+    const pluginService = PluginService.getInstance()
+
+    await pluginService.uninstall({
+      agentId: this.agentId,
+      filename: name,
+      type: 'skill'
+    })
+
+    logger.info('Skill removed via tool', { agentId: this.agentId, name })
+    return {
+      content: [{ type: 'text' as const, text: `Skill "${name}" removed.` }]
+    }
+  }
+
+  private async listSkills() {
+    const pluginService = PluginService.getInstance()
+    const allPlugins = await pluginService.listInstalled(this.agentId)
+    const skills = allPlugins.filter((p) => p.type === 'skill')
+
+    if (skills.length === 0) {
+      return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
+    }
+
+    const results = skills.map((s) => ({
+      name: s.metadata.name,
+      folder: s.filename,
+      description: s.metadata.description ?? null
+    }))
+
+    logger.info('Skills list via tool', { agentId: this.agentId, count: results.length })
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }]
     }
   }
 

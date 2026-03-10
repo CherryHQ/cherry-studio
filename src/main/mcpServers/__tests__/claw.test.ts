@@ -6,6 +6,10 @@ const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
 const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
+const mockPluginInstall = vi.fn()
+const mockPluginUninstall = vi.fn()
+const mockPluginListInstalled = vi.fn()
+const mockNetFetch = vi.fn()
 
 vi.mock('@main/services/agents/services/TaskService', () => ({
   taskService: {
@@ -18,6 +22,22 @@ vi.mock('@main/services/agents/services/TaskService', () => ({
 vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
   channelManager: {
     getNotifyAdapters: mockGetNotifyAdapters
+  }
+}))
+
+vi.mock('@main/services/agents/plugins/PluginService', () => ({
+  PluginService: {
+    getInstance: () => ({
+      install: mockPluginInstall,
+      uninstall: mockPluginUninstall,
+      listInstalled: mockPluginListInstalled
+    })
+  }
+}))
+
+vi.mock('electron', () => ({
+  net: {
+    fetch: mockNetFetch
   }
 }))
 
@@ -58,11 +78,11 @@ describe('ClawServer', () => {
     vi.clearAllMocks()
   })
 
-  it('should list the cron and notify tools', async () => {
+  it('should list the cron, notify, and skills tools', async () => {
     const server = createServer()
     const result = await listTools(server)
-    expect(result.tools).toHaveLength(2)
-    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify'])
+    expect(result.tools).toHaveLength(3)
+    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'skills'])
   })
 
   describe('add action', () => {
@@ -300,6 +320,139 @@ describe('ClawServer', () => {
 
       expect(result.content[0].text).toContain('1 chat(s)')
       expect(result.content[0].text).toContain('rate limited')
+    })
+  })
+
+  describe('skills tool', () => {
+    it('should search marketplace skills', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          skills: [
+            {
+              name: 'gh-create-pr',
+              description: 'Create GitHub PRs',
+              author: 'test-author',
+              namespace: '@test-owner/test-repo',
+              installs: 42,
+              metadata: { repoOwner: 'test-owner', repoName: 'test-repo' }
+            }
+          ],
+          total: 1
+        })
+      }
+      mockNetFetch.mockResolvedValue(mockResponse)
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'search', query: 'github pr' }, 'skills')
+
+      expect(mockNetFetch).toHaveBeenCalledWith(expect.stringContaining('/api/skills'), { method: 'GET' })
+      expect(result.content[0].text).toContain('gh-create-pr')
+      expect(result.content[0].text).toContain('test-owner/test-repo/gh-create-pr')
+    })
+
+    it('should handle empty search results', async () => {
+      mockNetFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ skills: [], total: 0 })
+      })
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'search', query: 'nonexistent' }, 'skills')
+
+      expect(result.content[0].text).toContain('No skills found')
+    })
+
+    it('should error when query is missing for search', async () => {
+      const server = createServer()
+      const result = await callTool(server, { action: 'search' }, 'skills')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'query' is required")
+    })
+
+    it('should install a marketplace skill', async () => {
+      mockPluginInstall.mockResolvedValue({
+        name: 'gh-create-pr',
+        description: 'Create PRs',
+        filename: 'gh-create-pr'
+      })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' }, 'skills')
+
+      expect(mockPluginInstall).toHaveBeenCalledWith({
+        agentId: 'agent_1',
+        sourcePath: 'marketplace:skill:owner/repo/gh-create-pr',
+        type: 'skill'
+      })
+      expect(result.content[0].text).toContain('Skill installed')
+      expect(result.content[0].text).toContain('gh-create-pr')
+    })
+
+    it('should error when identifier is missing for install', async () => {
+      const server = createServer()
+      const result = await callTool(server, { action: 'install' }, 'skills')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'identifier' is required")
+    })
+
+    it('should remove an installed skill', async () => {
+      mockPluginUninstall.mockResolvedValue(undefined)
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'remove', name: 'gh-create-pr' }, 'skills')
+
+      expect(mockPluginUninstall).toHaveBeenCalledWith({
+        agentId: 'agent_1',
+        filename: 'gh-create-pr',
+        type: 'skill'
+      })
+      expect(result.content[0].text).toContain('removed')
+    })
+
+    it('should error when name is missing for remove', async () => {
+      const server = createServer()
+      const result = await callTool(server, { action: 'remove' }, 'skills')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'name' is required")
+    })
+
+    it('should list installed skills', async () => {
+      mockPluginListInstalled.mockResolvedValue([
+        { type: 'skill', filename: 'gh-create-pr', metadata: { name: 'gh-create-pr', description: 'Create PRs' } },
+        { type: 'agent', filename: 'some-agent.md', metadata: { name: 'some-agent', description: 'An agent' } },
+        { type: 'skill', filename: 'code-review', metadata: { name: 'code-review', description: 'Review code' } }
+      ])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'list' }, 'skills')
+
+      expect(mockPluginListInstalled).toHaveBeenCalledWith('agent_1')
+      expect(result.content[0].text).toContain('gh-create-pr')
+      expect(result.content[0].text).toContain('code-review')
+      // Should not include the agent
+      expect(result.content[0].text).not.toContain('some-agent')
+    })
+
+    it('should handle empty skills list', async () => {
+      mockPluginListInstalled.mockResolvedValue([])
+
+      const server = createServer()
+      const result = await callTool(server, { action: 'list' }, 'skills')
+
+      expect(result.content[0].text).toBe('No skills installed.')
+    })
+
+    it('should handle unknown skills action', async () => {
+      const server = createServer()
+      const result = await callTool(server, { action: 'unknown' }, 'skills')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Unknown action')
     })
   })
 })
