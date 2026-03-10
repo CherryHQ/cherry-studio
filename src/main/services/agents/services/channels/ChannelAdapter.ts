@@ -29,6 +29,8 @@ export type ChannelAdapterConfig = {
 export abstract class ChannelAdapter extends EventEmitter {
   readonly channelId: string
   readonly agentId: string
+  /** Chat IDs that this adapter can send notifications to (set by subclass in constructor). */
+  notifyChatIds: string[] = []
 
   constructor(protected readonly config: ChannelAdapterConfig) {
     super()
