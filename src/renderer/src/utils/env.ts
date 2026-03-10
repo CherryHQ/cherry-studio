@@ -6,13 +6,25 @@ export const parseKeyValueString = (str: string): Record<string, string> => {
 
 /**
  * Serialize a Record to a dotenv-compatible KEY=value string.
- * Values containing `#`, newlines, or leading/trailing whitespace are
- * wrapped in double quotes so that `parseKeyValueString` round-trips losslessly.
+ *
+ * Quoting strategy (dotenv does NOT unescape `\"` or `\\`):
+ * - Unquoted: safe for most values including those with `"` or `\`
+ * - Single-quoted: literal (no escaping), used for values with `#` or whitespace
+ * - Double-quoted: used for multiline values (dotenv handles embedded newlines)
  */
 export const serializeKeyValueString = (vars: Record<string, string>): string =>
   Object.entries(vars)
     .map(([k, v]) => {
-      const needsQuoting = v.includes('#') || v.includes('\n') || v.includes('"') || v !== v.trim()
-      return needsQuoting ? `${k}="${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : `${k}=${v}`
+      if (v.includes('\n')) {
+        // Multiline values require double quotes in dotenv format
+        return `${k}="${v}"`
+      }
+      if (v.includes('#') || v !== v.trim()) {
+        // Prefer single quotes (literal, no escaping needed in dotenv)
+        if (!v.includes("'")) return `${k}='${v}'`
+        // Fall back to double quotes if value contains single quotes
+        return `${k}="${v}"`
+      }
+      return `${k}=${v}`
     })
     .join('\n')

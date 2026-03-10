@@ -106,24 +106,34 @@ describe('serializeKeyValueString', () => {
     expect(serializeKeyValueString({ KEY: 'value', OTHER: 'test' })).toBe('KEY=value\nOTHER=test')
   })
 
-  it('should quote values containing #', () => {
+  it('should single-quote values containing #', () => {
     const serialized = serializeKeyValueString({ TOKEN: 'abc#123' })
-    expect(serialized).toBe('TOKEN="abc#123"')
+    expect(serialized).toBe("TOKEN='abc#123'")
   })
 
-  it('should quote values containing newlines', () => {
+  it('should double-quote values containing newlines', () => {
     const serialized = serializeKeyValueString({ KEY: 'line1\nline2' })
     expect(serialized).toBe('KEY="line1\nline2"')
   })
 
-  it('should quote values with leading/trailing whitespace', () => {
+  it('should single-quote values with leading/trailing whitespace', () => {
     const serialized = serializeKeyValueString({ KEY: ' spaced ' })
-    expect(serialized).toBe('KEY=" spaced "')
+    expect(serialized).toBe("KEY=' spaced '")
   })
 
-  it('should escape double quotes inside values', () => {
+  it('should not quote values containing double quotes (dotenv handles them unquoted)', () => {
     const serialized = serializeKeyValueString({ KEY: 'say "hello"' })
-    expect(serialized).toBe('KEY="say \\"hello\\""')
+    expect(serialized).toBe('KEY=say "hello"')
+  })
+
+  it('should not quote values containing backslashes', () => {
+    const serialized = serializeKeyValueString({ KEY: 'c:\\temp\\file' })
+    expect(serialized).toBe('KEY=c:\\temp\\file')
+  })
+
+  it('should use double quotes for # values containing single quotes', () => {
+    const serialized = serializeKeyValueString({ KEY: "it's #here" })
+    expect(serialized).toBe('KEY="it\'s #here"')
   })
 
   it('should round-trip with parseKeyValueString for values with #', () => {
@@ -135,6 +145,27 @@ describe('serializeKeyValueString', () => {
 
   it('should round-trip with parseKeyValueString for multiline values', () => {
     const original = { KEY: 'line1\nline2\nline3' }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip with parseKeyValueString for values with double quotes', () => {
+    const original = { KEY: 'say "hello"' }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip with parseKeyValueString for values with backslashes', () => {
+    const original = { KEY: 'c:\\temp\\file' }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip with parseKeyValueString for backslash+hash values', () => {
+    const original = { KEY: 'c:\\temp\\x#1' }
     const serialized = serializeKeyValueString(original)
     const parsed = parseKeyValueString(serialized)
     expect(parsed).toEqual(original)
