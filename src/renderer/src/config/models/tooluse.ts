@@ -31,6 +31,7 @@ export const FUNCTION_CALLING_MODELS = [
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
+  'abliteration-model(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
   'minimax-m2(?:.1)?',

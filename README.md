@@ -82,6 +82,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 1. **Diverse LLM Provider Support**:
 
 - ☁️ Major LLM Cloud Services: OpenAI, Gemini, Anthropic, and more
+- 🆕 Newly added provider support: Abliteration AI (OpenAI-compatible endpoint)
 - 🔗 AI Web Service Integration: Claude, Perplexity, [Poe](https://poe.com/), and others
 - 💻 Local Model Support with Ollama, LM Studio
 
