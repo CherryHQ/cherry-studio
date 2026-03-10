@@ -15,13 +15,14 @@ vi.mock('@main/services/agents/services/TaskService', () => ({
 
 // Import after mocks
 const { default: ClawServer } = await import('../claw')
+type ClawServerInstance = InstanceType<typeof ClawServer>
 
 function createServer(agentId = 'agent_test') {
   return new ClawServer(agentId)
 }
 
 // Helper to call tools via the Server's request handlers
-async function callTool(server: ClawServer, args: Record<string, unknown>) {
+async function callTool(server: ClawServerInstance, args: Record<string, unknown>) {
   // Use the server's internal handler by simulating a CallTool request
   const handlers = (server.server as any)._requestHandlers
   const callToolHandler = handlers?.get('tools/call')
@@ -35,7 +36,7 @@ async function callTool(server: ClawServer, args: Record<string, unknown>) {
   )
 }
 
-async function listTools(server: ClawServer) {
+async function listTools(server: ClawServerInstance) {
   const handlers = (server.server as any)._requestHandlers
   const listHandler = handlers?.get('tools/list')
   if (!listHandler) {

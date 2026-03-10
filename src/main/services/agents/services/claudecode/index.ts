@@ -336,15 +336,22 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     // Merge internal MCP servers injected by agent services (e.g. CherryClaw's cron tool)
-    const internalMcps = (session as { _internalMcpServers?: Record<string, InternalMcpServerConfig> })
-      ._internalMcpServers
-    if (internalMcps) {
+    const enhancedSession = session as {
+      _internalMcpServers?: Record<string, InternalMcpServerConfig>
+      _disallowedTools?: string[]
+    }
+    if (enhancedSession._internalMcpServers) {
       if (!options.mcpServers) {
         options.mcpServers = {}
       }
-      for (const [name, config] of Object.entries(internalMcps)) {
+      for (const [name, config] of Object.entries(enhancedSession._internalMcpServers)) {
         options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
       }
+    }
+
+    // Disable specific builtin tools if requested by agent service
+    if (enhancedSession._disallowedTools) {
+      options.disallowedTools = enhancedSession._disallowedTools
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
