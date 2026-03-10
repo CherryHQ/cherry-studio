@@ -18,6 +18,7 @@ const mockBot = {
   api: {
     setMyCommands: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn().mockResolvedValue(undefined),
+    sendMessageDraft: vi.fn().mockResolvedValue(true),
     sendChatAction: vi.fn().mockResolvedValue(undefined)
   },
   catch: vi.fn(),
@@ -48,6 +49,7 @@ describe('TelegramAdapter', () => {
     mockBot.on.mockClear()
     mockBot.api.setMyCommands.mockClear().mockResolvedValue(undefined)
     mockBot.api.sendMessage.mockClear().mockResolvedValue(undefined)
+    mockBot.api.sendMessageDraft.mockClear().mockResolvedValue(true)
     mockBot.api.sendChatAction.mockClear().mockResolvedValue(undefined)
     mockBot.catch.mockClear()
     mockBot.start.mockClear().mockResolvedValue(undefined)

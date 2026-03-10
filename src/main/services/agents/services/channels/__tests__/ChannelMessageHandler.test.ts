@@ -49,6 +49,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.agentId = overrides.agentId ?? 'agent-1'
   adapter.channelId = overrides.channelId ?? 'channel-1'
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
+  adapter.sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   return adapter
 }
@@ -62,15 +63,20 @@ describe('ChannelMessageHandler', () => {
     channelMessageHandler.clearSessionTracker('agent-1')
   })
 
-  it('collectStreamResponse accumulates text and sends via adapter', async () => {
+  it('collectStreamResponse accumulates text across turns and sends via adapter', async () => {
     const adapter = createMockAdapter()
     const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
       createMockStream([
+        // Turn 1: cumulative text-delta within block
         { type: 'text-delta', text: 'Hello ' },
-        { type: 'text-delta', text: 'world!' }
+        { type: 'text-delta', text: 'Hello world!' },
+        { type: 'text-end' },
+        // Turn 2: new block after tool use
+        { type: 'text-delta', text: 'Done.' },
+        { type: 'text-end' }
       ]) as any
     )
 
@@ -81,7 +87,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
   })
 
   it('sends chunked messages for long responses', async () => {
