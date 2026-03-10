@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseSettingsPopup, type SettingsMenuItem, type SettingsPopupTab } from './BaseSettingsPopup'
 import AdvancedSettings from './components/AdvancedSettings'
+import ChannelsSettings from './components/ChannelsSettings'
 import EssentialSettings from './components/EssentialSettings'
 import McpSettings from './components/McpSettings'
 import PermissionModeSettings from './components/PermissionModeSettings'
@@ -39,6 +40,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
             { key: 'mcp', label: t('agent.settings.toolsMcp.mcp.tab', 'MCP') },
             { key: 'plugins', label: t('agent.settings.plugins.available.title', 'Available Plugins') },
             { key: 'installed', label: t('agent.settings.plugins.installed.title', 'Installed Plugins') },
+            { key: 'channels', label: t('agent.cherryClaw.channels.tab', 'Channels') },
             { key: 'tasks', label: t('agent.cherryClaw.tasks.tab', 'Tasks') },
             { key: 'advanced', label: t('agent.settings.advance.title', 'Advanced Settings') }
           ]
@@ -72,6 +74,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         return <InstalledPluginsSettings agentBase={agent} update={updateAgent} />
       case 'mcp':
         return <McpSettings agentBase={agent} update={updateAgent} />
+      case 'channels':
+        return <ChannelsSettings agentBase={agent} update={updateAgent} />
       case 'tasks':
         return <TasksSettings agentBase={agent} update={updateAgent} />
       case 'advanced':

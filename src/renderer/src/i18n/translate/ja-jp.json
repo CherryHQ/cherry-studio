@@ -28,8 +28,36 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Channels are coming soon. They will allow the agent to communicate via Slack, Discord, webhooks, and more.",
+        "add": "[to be translated]:Add Channel",
+        "addTitle": "[to be translated]:Add Channel",
+        "cancel": "[to be translated]:Cancel",
+        "chatIds": "[to be translated]:chat IDs allowed",
+        "delete": {
+          "confirm": "[to be translated]:Are you sure you want to delete this channel?",
+          "label": "[to be translated]:Delete"
+        },
+        "disable": "[to be translated]:Disable",
+        "edit": "[to be translated]:Edit",
+        "editTitle": "[to be translated]:Edit Channel",
+        "empty": "[to be translated]:No channels configured. Add a channel to connect your agent to messaging platforms.",
+        "enable": "[to be translated]:Enable",
+        "name": {
+          "label": "[to be translated]:Channel Name",
+          "placeholder": "[to be translated]:e.g. Support Bot"
+        },
+        "save": "[to be translated]:Save",
+        "status": {
+          "active": "[to be translated]:Active",
+          "disabled": "[to be translated]:Disabled"
+        },
         "tab": "[to be translated]:Channels",
+        "telegram": {
+          "botToken": "[to be translated]:Bot Token",
+          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
+          "chatIds": "[to be translated]:Allowed Chat IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321"
+        },
         "title": "[to be translated]:Channels"
       },
       "heartbeat": {
