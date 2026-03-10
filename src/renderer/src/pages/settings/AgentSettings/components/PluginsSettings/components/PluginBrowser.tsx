@@ -312,7 +312,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
 
       {/* Result Count */}
       <div className="flex items-center gap-2">
-        <p className="text-default-500 text-small">
+        <span className="text-default-500 text-small">
           {isInitialLoading ? (
             <>
               {showingResultsParts.prefix}
@@ -322,7 +322,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
           ) : (
             t(showingResultsKey, { count: total })
           )}
-        </p>
+        </span>
       </div>
 
       {/* Plugin Grid */}
