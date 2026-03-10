@@ -140,8 +140,15 @@
 
 .ant-dropdown-menu-submenu {
   background-color: var(--ant-color-bg-elevated);
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--ant-border-radius-lg);
+}
+
+/* Enable scrolling for Move To submenu - Issue #13350 */
+.ant-dropdown-menu-submenu .ant-dropdown-menu {
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .ant-dropdown-menu-submenu .ant-dropdown-menu-submenu-title {
