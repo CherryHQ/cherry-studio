@@ -244,7 +244,14 @@ export class SessionMessageService extends BaseService {
                 cleanup()
                 controller.close()
                 if (options?.persist) {
-                  this.persistHeadlessExchange(session, req.content, accumulator.getText(), agentSessionId)
+                  // Read SDK session_id from the stream object (set by ClaudeCodeService on init)
+                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  logger.debug('Persisting headless exchange with agent session ID', {
+                    sdkSessionId: claudeStream.sdkSessionId,
+                    fallback: agentSessionId,
+                    resolved: resolvedSessionId
+                  })
+                  this.persistHeadlessExchange(session, req.content, accumulator.getText(), resolvedSessionId)
                     .then(resolveCompletion)
                     .catch((err) => {
                       logger.error('Failed to persist headless exchange', err as Error)
