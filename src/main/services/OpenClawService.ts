@@ -248,10 +248,15 @@ class OpenClawService {
     // On macOS/Linux, prepend npm's parent dir to PATH so that sudo (which runs in a
     // clean environment without user PATH) can resolve `node` via npm's shebang
     // (#!/usr/bin/env node).
+    // Only prepend when npmPath is absolute — if it fell back to literal 'npm',
+    // path.dirname would be '.', which doesn't help in a clean sudo env.
     const nodeDir = path.dirname(npmPath)
+    const needsPathFix = !isWin && path.isAbsolute(npmPath)
     const npmCommand = isWin
       ? `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
-      : `PATH="${nodeDir}:$PATH" "${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+      : needsPathFix
+        ? `PATH="${nodeDir}:$PATH" "${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+        : `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
@@ -355,10 +360,14 @@ class OpenClawService {
 
     // Keep the command string for logging and sudo retry.
     // On macOS/Linux, prepend npm's parent dir to PATH so that sudo can resolve `node`.
+    // Only prepend when npmPath is absolute — literal 'npm' fallback yields '.' which is useless.
     const nodeDir = path.dirname(npmPath)
+    const needsPathFix = !isWin && path.isAbsolute(npmPath)
     const npmCommand = isWin
       ? `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
-      : `PATH="${nodeDir}:$PATH" "${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+      : needsPathFix
+        ? `PATH="${nodeDir}:$PATH" "${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+        : `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
 
     // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
     const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
