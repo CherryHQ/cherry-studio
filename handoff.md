@@ -17,6 +17,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Phase 7**: Channel abstraction layer + Telegram adapter + channel settings UI — DONE
 - **Phase 8**: Channel streaming — `sendMessageDraft` for real-time response streaming, multi-turn accumulation, typing indicators — DONE
 - **Phase 9**: Headless message persistence — channel and scheduler messages now persist to DB — DONE
+- **Phase 10**: Basic sandbox — PreToolUse hook path enforcement + OS-level sandbox + UI toggle — DONE (basic restriction only, needs hardening)
 - **Validation**: `pnpm lint`, `pnpm test`, `pnpm format` all pass (198 test files, 3588 tests)
 
 ## Key Decisions
@@ -32,6 +33,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **i18n strict nesting** — task keys use proper nested objects (e.g., `tasks.contextMode.session` not `tasks.contextMode.session` + `tasks.contextMode.session.desc`) to pass the i18n checker.
 - **Internal claw MCP server (anna-inspired)** — single `cron` tool with `add`/`list`/`remove` actions, auto-injected into every CherryClaw session via `_internalMcpServers`. Uses the `@modelcontextprotocol/sdk` Server class, served over Streamable HTTP at `/v1/claw/:agentId/claw-mcp`. The tool maps anna-style inputs (`cron`, `every`, `at`, `session_mode`) to TaskService's schema (`schedule_type`, `schedule_value`, `context_mode`).
 - **Disallowed builtin tools** — CherryClaw disables SDK builtin tools not suited for autonomous operation via `_disallowedTools`: `CronCreate`/`CronDelete`/`CronList` (replaced by claw MCP cron tool), `TodoWrite`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `EnterWorktree`, `NotebookEdit`. Mapped to `options.disallowedTools` in the SDK. Note: `disallowedTools` only affects tools, not skills — skills are invoked via the `Skill` tool and cannot be blocked this way.
+- **Basic sandbox (not a real security sandbox)** — When `sandbox_enabled` is true, two layers restrict filesystem access: (1) a `PreToolUse` hook in `ClaudeCodeService` that inspects every tool call's target paths and denies access outside `_sandboxAllowedPaths`, and (2) the SDK's OS-level `sandbox.enabled` option. The hook approach works regardless of `permissionMode` (including `bypassPermissions`) because PreToolUse hooks always fire before permission checks. Bash commands are checked via regex extraction of absolute paths from the command string — this is **best-effort, not secure**: commands like `cd / && cat etc/passwd` or variable expansion can bypass it. The OS sandbox (`sandbox.enabled: true`, `allowUnsandboxedCommands: false`) is meant to be the fallback but does not reliably restrict reads on macOS. This is a basic restriction for well-behaved agents, not a security boundary.
 - **Channel abstraction layer** — `ChannelAdapter` (abstract EventEmitter), `ChannelManager` (singleton lifecycle), `ChannelMessageHandler` (stateless message routing + stream collection). Adapters are registered via `registerAdapterFactory(type, factory)` and auto-created from agent config on startup. Future channels (Discord, Slack) plug in by implementing `ChannelAdapter` and registering a factory.
 - **Stream response collection** — `text-delta` events from the transform layer are cumulative within a text block. `ChannelMessageHandler` tracks per-block text (`text = value.text`) and commits on `text-end` to accumulate across multi-turn agent responses. Drafts are streamed to the chat via `sendMessageDraft` (throttled at 500ms) while `sendTypingIndicator` runs every 4s throughout the request.
 - **Channel config in agent settings** — stored in `CherryClawConfiguration.channels[]`. UI is a catalog of available channel types with inline config (enable switch, bot token, allowed chat IDs). No DB migration needed.
@@ -138,7 +140,9 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 ### Backend Services
 - `src/main/services/agents/services/AgentServiceRegistry.ts` — NEW: maps AgentType → AgentServiceInterface
 - `src/main/services/agents/services/SessionMessageService.ts` — refactored to use registry; added `CreateMessageOptions.persist`, `TextStreamAccumulator.getText()`, `persistHeadlessExchange()` for headless message persistence; fixed cumulative text-delta `+=` → `=`
-- `src/main/services/agents/services/cherryclaw/index.ts` — CherryClawService (soul-enhanced claude-code delegation + claw MCP injection + disallowed builtin tools)
+- `src/main/services/agents/services/cherryclaw/index.ts` — CherryClawService (soul-enhanced claude-code delegation + claw MCP injection + disallowed builtin tools + sandbox path injection)
+- `src/main/services/agents/services/claudecode/enhanced-session.ts` — NEW: `EnhancedSessionFields` type for `_sandbox`, `_settings`, `_sandboxAllowedPaths`, etc.
+- `src/main/services/agents/services/claudecode/index.ts` — reads enhanced session fields; PreToolUse hook enforces `_sandboxAllowedPaths` via path checking for all filesystem tools + Bash regex
 - `src/main/services/agents/services/cherryclaw/soul.ts` — NEW: SoulReader with mtime cache
 - `src/main/services/agents/services/cherryclaw/heartbeat.ts` — NEW: HeartbeatReader with path traversal protection
 - `src/main/services/agents/services/TaskService.ts` — NEW: task CRUD, getDueTasks, computeNextRun (drift-resistant), run logging
@@ -231,6 +235,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - **Task consecutive errors** — after 3 consecutive errors, a task is auto-paused. The error count resets on the next successful run. This is tracked per-task in the running task state (not persisted).
 - **Claw MCP server lifecycle** — per-agent ClawServer instances are cached in memory; `cleanupClawServer(agentId)` exported from `claw-mcp.ts` but not yet called on agent deletion. Should be wired into agent delete handler.
 - **Claw MCP tool allowlist** — the `cron` tool appears as `mcp__cherry-claw__cron` in the SDK's tool namespace. It may need to be auto-added to the session's `allowed_tools` if the agent uses a restrictive permission mode.
+- **Sandbox is basic restriction only (NOT a security boundary)** — The PreToolUse hook path check has known bypasses: (1) Bash regex misses relative path tricks (`cd / && cat etc/passwd`), variable expansion (`$HOME`), subshells, heredocs, etc. (2) The SDK OS-level sandbox (`sandbox.enabled`) does not reliably restrict reads on macOS. (3) MCP tools and agent sub-tools are not checked. This is sufficient for well-behaved autonomous agents but should not be relied upon as a security sandbox. Future work: integrate proper OS sandbox enforcement, or restrict Bash to a vetted allowlist of commands.
 
 ## Next Steps
 
@@ -244,3 +249,4 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 8. **Scheduler notifications** — when `is_notify_receiver: true` on a channel, route task completion summaries to it (Phase 7 in `handoff-tg-channel.md`)
 9. **GFM→MarkdownV2 conversion** — proper markdown formatting for Telegram responses
 10. **Additional channel adapters** — Discord, Slack using the same `ChannelAdapter` + `registerAdapterFactory` pattern
+11. **Harden sandbox** — current sandbox is basic path checking only. Needs: (a) proper OS sandbox enforcement for Bash reads, (b) Bash command allowlist or AST-based path extraction, (c) MCP tool path checking, (d) block relative path traversal tricks in Bash commands
