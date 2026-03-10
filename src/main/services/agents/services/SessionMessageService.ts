@@ -64,7 +64,7 @@ class TextStreamAccumulator {
         break
       case 'text-delta':
         if (part.text) {
-          this.textBuffer += part.text
+          this.textBuffer = part.text
         }
         break
       case 'text-end': {
