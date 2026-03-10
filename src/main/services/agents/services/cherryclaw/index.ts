@@ -4,7 +4,7 @@ import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 
 import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '../../interfaces/AgentStreamInterface'
 import { agentServiceRegistry } from '../AgentServiceRegistry'
-import type { InternalMcpServerConfig } from '../claudecode/internal-mcp'
+import type { EnhancedSessionFields } from '../claudecode/enhanced-session'
 import { HeartbeatReader } from './heartbeat'
 import { SoulReader } from './soul'
 
@@ -31,10 +31,7 @@ export class CherryClawService implements AgentServiceInterface {
     const config = (session.configuration ?? {}) as CherryClawConfiguration
     const workspacePath = session.accessible_paths[0]
 
-    type EnhancedSession = GetAgentSessionResponse & {
-      _internalMcpServers?: Record<string, InternalMcpServerConfig>
-      _disallowedTools?: string[]
-    }
+    type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
 
     // Build soul-enhanced session
     let enhancedSession: EnhancedSession = session
@@ -81,6 +78,26 @@ export class CherryClawService implements AgentServiceInterface {
         'EnterWorktree',
         'NotebookEdit'
       ]
+    }
+
+    // Enable OS-level sandbox when configured.
+    // Filesystem restrictions are enforced via the PreToolUse hook (_sandboxAllowedPaths)
+    // so they work regardless of permissionMode (including bypassPermissions).
+    if (config.sandbox_enabled && workspacePath) {
+      const allowedPaths = [workspacePath, ...session.accessible_paths.slice(1)]
+      logger.info('Enabling sandbox for CherryClaw agent', { workspacePath, allowedPaths })
+      enhancedSession = {
+        ...enhancedSession,
+        _sandboxAllowedPaths: allowedPaths,
+        _sandbox: {
+          enabled: true,
+          autoAllowBashIfSandboxed: true,
+          allowUnsandboxedCommands: false,
+          filesystem: {
+            allowWrite: allowedPaths
+          }
+        }
+      }
     }
 
     // Delegate to claude-code service (CherryClaw is a Claude Code variant)

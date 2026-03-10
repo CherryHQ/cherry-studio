@@ -58,6 +58,11 @@
         "tab": "Heartbeat",
         "title": "Heartbeat Configuration"
       },
+      "sandbox": {
+        "description": "Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
+        "helper": "Restrict filesystem and command access to the workspace path.",
+        "label": "Sandbox Mode"
+      },
       "scheduler": {
         "cron": {
           "helper": "Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",

@@ -34,9 +34,11 @@ import type {
 } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
-import type { InternalMcpServerConfig } from './internal-mcp'
+import type { EnhancedSessionFields } from './enhanced-session'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+
+type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -218,6 +220,48 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
     }
 
+    // Sandbox path enforcement: extract allowed paths from enhanced session
+    const sandboxAllowedPaths = (session as EnhancedSession)._sandboxAllowedPaths
+
+    const isPathAllowed = (filePath: string): boolean => {
+      if (!sandboxAllowedPaths) return true
+      const resolved = path.resolve(cwd, filePath)
+      return sandboxAllowedPaths.some((allowed) => resolved === allowed || resolved.startsWith(allowed + path.sep))
+    }
+
+    /** Extract absolute paths from a shell command string. */
+    const extractBashPaths = (command: string): string[] => {
+      const paths: string[] = []
+      // Match absolute paths (sequences starting with / containing typical path chars)
+      const absPathRe = /(?:^|\s|=|"|')(\/([\w.+@-]+\/)*[\w.*+@-]+)/g
+      let m: RegExpExecArray | null
+      while ((m = absPathRe.exec(command)) !== null) {
+        paths.push(m[1])
+      }
+      return paths
+    }
+
+    /** Extract target paths from tool_input based on tool name. */
+    const extractToolPaths = (tool: string, toolInput: Record<string, unknown> | undefined): string[] => {
+      if (!toolInput) return []
+      switch (tool) {
+        case 'Read':
+        case 'Edit':
+        case 'Write':
+        case 'MultiEdit':
+          return typeof toolInput.file_path === 'string' ? [toolInput.file_path] : []
+        case 'NotebookEdit':
+          return typeof toolInput.notebook_path === 'string' ? [toolInput.notebook_path] : []
+        case 'Glob':
+        case 'Grep':
+          return typeof toolInput.path === 'string' ? [toolInput.path] : []
+        case 'Bash':
+          return typeof toolInput.command === 'string' ? extractBashPaths(toolInput.command) : []
+        default:
+          return []
+      }
+    }
+
     const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
       // Type guard to ensure we're handling PreToolUse event
       if (input.hook_event_name !== 'PreToolUse') {
@@ -242,6 +286,29 @@ class ClaudeCodeService implements AgentServiceInterface {
           tool_name: hookInput.tool_name
         })
         return {}
+      }
+
+      // Sandbox path enforcement — deny tools targeting paths outside allowed directories
+      if (sandboxAllowedPaths) {
+        const normalized = normalizeToolName(toolName)
+        const toolInput = hookInput.tool_input as Record<string, unknown> | undefined
+        const targetPaths = extractToolPaths(normalized, toolInput)
+        for (const targetPath of targetPaths) {
+          if (!isPathAllowed(targetPath)) {
+            logger.warn('Sandbox denied tool access to path outside allowed directories', {
+              toolName: normalized,
+              targetPath,
+              sandboxAllowedPaths
+            })
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse' as const,
+                permissionDecision: 'deny' as const,
+                permissionDecisionReason: `Sandbox: path "${targetPath}" is outside allowed directories [${sandboxAllowedPaths.join(', ')}]`
+              }
+            }
+          }
+        }
       }
 
       // handle auto approved tools since it never triggers canUseTool
@@ -335,11 +402,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    // Merge internal MCP servers injected by agent services (e.g. CherryClaw's cron tool)
-    const enhancedSession = session as {
-      _internalMcpServers?: Record<string, InternalMcpServerConfig>
-      _disallowedTools?: string[]
-    }
+    // Merge enhanced session fields injected by agent services (e.g. CherryClaw)
+    const enhancedSession = session as EnhancedSession
     if (enhancedSession._internalMcpServers) {
       if (!options.mcpServers) {
         options.mcpServers = {}
@@ -352,6 +416,16 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Disable specific builtin tools if requested by agent service
     if (enhancedSession._disallowedTools) {
       options.disallowedTools = enhancedSession._disallowedTools
+    }
+
+    // Apply sandbox settings if provided by agent service
+    if (enhancedSession._sandbox) {
+      options.sandbox = enhancedSession._sandbox
+    }
+
+    // Apply additional settings if provided by agent service
+    if (enhancedSession._settings) {
+      options.settings = enhancedSession._settings
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
