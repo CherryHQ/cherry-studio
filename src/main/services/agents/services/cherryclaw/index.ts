@@ -6,7 +6,7 @@ import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '.
 import { agentServiceRegistry } from '../AgentServiceRegistry'
 import type { EnhancedSessionFields } from '../claudecode/enhanced-session'
 import { HeartbeatReader } from './heartbeat'
-import { SoulReader } from './soul'
+import { PromptBuilder } from './prompt'
 
 const logger = loggerService.withContext('CherryClawService')
 
@@ -14,11 +14,11 @@ const logger = loggerService.withContext('CherryClawService')
  * CherryClawService — a Claude Code variant with soul-driven personality
  * and scheduler-based autonomous operation.
  *
- * Delegates to ClaudeCodeService (via registry) with a soul-enhanced system prompt
- * and an injected claw MCP server for autonomous task management.
+ * Delegates to ClaudeCodeService (via registry) with a full custom system prompt
+ * (replaces Claude Code preset) and an injected claw MCP server for autonomous task management.
  */
 export class CherryClawService implements AgentServiceInterface {
-  private soulReader = new SoulReader()
+  private promptBuilder = new PromptBuilder()
   readonly heartbeatReader = new HeartbeatReader()
 
   async invoke(
@@ -36,18 +36,16 @@ export class CherryClawService implements AgentServiceInterface {
     // Build soul-enhanced session
     let enhancedSession: EnhancedSession = session
 
-    if (config.soul_enabled !== false && workspacePath) {
-      const soulContent = await this.soulReader.readSoul(workspacePath)
-      if (soulContent) {
-        logger.info('Prepending soul.md to instructions', {
-          workspacePath,
-          soulLength: soulContent.length
-        })
-        const originalInstructions = session.instructions ?? ''
-        enhancedSession = {
-          ...session,
-          instructions: soulContent + '\n\n' + originalInstructions
-        }
+    // Build full custom system prompt from workspace files (soul.md, user.md, memory/FACT.md, system.md)
+    if (workspacePath) {
+      const systemPrompt = await this.promptBuilder.buildSystemPrompt(workspacePath)
+      logger.info('Built custom system prompt for CherryClaw', {
+        workspacePath,
+        promptLength: systemPrompt.length
+      })
+      enhancedSession = {
+        ...session,
+        _systemPrompt: systemPrompt
       }
     }
 
@@ -103,7 +101,7 @@ export class CherryClawService implements AgentServiceInterface {
     // If the agent has an explicit allowed_tools whitelist, append the claw MCP
     // tool names so the SDK doesn't hide them.  When allowed_tools is undefined
     // (no restriction), leave it alone — all tools are already available.
-    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify', 'mcp__claw__skills']
+    const clawMcpTools = ['mcp__claw__cron', 'mcp__claw__notify', 'mcp__claw__skills', 'mcp__claw__memory']
     const currentAllowed = enhancedSession.allowed_tools
     if (Array.isArray(currentAllowed) && currentAllowed.length > 0) {
       const missing = clawMcpTools.filter((t) => !currentAllowed.includes(t))

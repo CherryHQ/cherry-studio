@@ -10,12 +10,32 @@ const mockPluginInstall = vi.fn()
 const mockPluginUninstall = vi.fn()
 const mockPluginListInstalled = vi.fn()
 const mockNetFetch = vi.fn()
+const mockGetAgent = vi.fn()
+const mockMkdir = vi.fn()
+const mockWriteFile = vi.fn()
+const mockRename = vi.fn()
+const mockAppendFile = vi.fn()
+const mockReadFile = vi.fn()
+
+vi.mock('node:fs/promises', () => ({
+  mkdir: (...args: unknown[]) => mockMkdir(...args),
+  writeFile: (...args: unknown[]) => mockWriteFile(...args),
+  rename: (...args: unknown[]) => mockRename(...args),
+  appendFile: (...args: unknown[]) => mockAppendFile(...args),
+  readFile: (...args: unknown[]) => mockReadFile(...args)
+}))
 
 vi.mock('@main/services/agents/services/TaskService', () => ({
   taskService: {
     createTask: mockCreateTask,
     listTasks: mockListTasks,
     deleteTask: mockDeleteTask
+  }
+}))
+
+vi.mock('@main/services/agents/services/AgentService', () => ({
+  agentService: {
+    getAgent: mockGetAgent
   }
 }))
 
@@ -78,11 +98,11 @@ describe('ClawServer', () => {
     vi.clearAllMocks()
   })
 
-  it('should list the cron, notify, and skills tools', async () => {
+  it('should list the cron, notify, skills, and memory tools', async () => {
     const server = createServer()
     const result = await listTools(server)
-    expect(result.tools).toHaveLength(3)
-    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'skills'])
+    expect(result.tools).toHaveLength(4)
+    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'skills', 'memory'])
   })
 
   describe('add action', () => {
@@ -450,6 +470,131 @@ describe('ClawServer', () => {
     it('should handle unknown skills action', async () => {
       const server = createServer()
       const result = await callTool(server, { action: 'unknown' }, 'skills')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Unknown action')
+    })
+  })
+
+  describe('memory tool', () => {
+    const agentWithWorkspace = { accessible_paths: ['/workspace/test'] }
+
+    beforeEach(() => {
+      mockGetAgent.mockResolvedValue(agentWithWorkspace)
+      mockMkdir.mockResolvedValue(undefined)
+      mockWriteFile.mockResolvedValue(undefined)
+      mockRename.mockResolvedValue(undefined)
+      mockAppendFile.mockResolvedValue(undefined)
+    })
+
+    it('should update FACT.md atomically', async () => {
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'update', content: '# Facts\n\nNew knowledge' }, 'memory')
+
+      expect(mockMkdir).toHaveBeenCalledWith('/workspace/test/memory', { recursive: true })
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        expect.stringContaining('FACT.md.'),
+        '# Facts\n\nNew knowledge',
+        'utf-8'
+      )
+      expect(mockRename).toHaveBeenCalled()
+      expect(result.content[0].text).toBe('Memory updated.')
+    })
+
+    it('should error when content is missing for update', async () => {
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'update' }, 'memory')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'content' is required")
+    })
+
+    it('should append journal entry with tags', async () => {
+      const server = createServer('agent_1')
+      const result = await callTool(
+        server,
+        { action: 'append', text: 'Deployed v2.0', tags: ['deploy', 'release'] },
+        'memory'
+      )
+
+      expect(mockAppendFile).toHaveBeenCalledWith(
+        '/workspace/test/memory/JOURNAL.jsonl',
+        expect.stringContaining('"text":"Deployed v2.0"'),
+        'utf-8'
+      )
+      expect(result.content[0].text).toContain('Journal entry added')
+    })
+
+    it('should error when text is missing for append', async () => {
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'append' }, 'memory')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'text' is required")
+    })
+
+    it('should search journal entries', async () => {
+      const entries = [
+        '{"ts":"2024-01-01T00:00:00Z","tags":["deploy"],"text":"Deployed v1.0"}',
+        '{"ts":"2024-01-02T00:00:00Z","tags":["bugfix"],"text":"Fixed login bug"}',
+        '{"ts":"2024-01-03T00:00:00Z","tags":["deploy"],"text":"Deployed v2.0"}'
+      ].join('\n')
+      mockReadFile.mockResolvedValue(entries)
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'search', tag: 'deploy' }, 'memory')
+
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed).toHaveLength(2)
+      expect(parsed[0].text).toBe('Deployed v2.0') // reverse chronological
+    })
+
+    it('should search journal with text query', async () => {
+      const entries = [
+        '{"ts":"2024-01-01T00:00:00Z","tags":[],"text":"Setup project"}',
+        '{"ts":"2024-01-02T00:00:00Z","tags":[],"text":"Fixed login bug"}'
+      ].join('\n')
+      mockReadFile.mockResolvedValue(entries)
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'search', query: 'login' }, 'memory')
+
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed).toHaveLength(1)
+      expect(parsed[0].text).toBe('Fixed login bug')
+    })
+
+    it('should return message when journal has no matches', async () => {
+      mockReadFile.mockResolvedValue('{"ts":"2024-01-01T00:00:00Z","tags":[],"text":"hello"}\n')
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'search', query: 'nonexistent' }, 'memory')
+
+      expect(result.content[0].text).toBe('No matching journal entries found.')
+    })
+
+    it('should return message when journal does not exist', async () => {
+      mockReadFile.mockRejectedValue(new Error('ENOENT'))
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'search' }, 'memory')
+
+      expect(result.content[0].text).toBe('No journal entries found.')
+    })
+
+    it('should error when agent has no workspace', async () => {
+      mockGetAgent.mockResolvedValue({ accessible_paths: [] })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { action: 'update', content: 'test' }, 'memory')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('no workspace path')
+    })
+
+    it('should handle unknown memory action', async () => {
+      const server = createServer()
+      const result = await callTool(server, { action: 'unknown' }, 'memory')
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Unknown action')

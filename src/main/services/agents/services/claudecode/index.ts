@@ -355,17 +355,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: session.instructions
-        ? {
-            type: 'preset',
-            preset: 'claude_code',
-            append: `${session.instructions}\n\n${getLanguageInstruction()}`
-          }
-        : {
-            type: 'preset',
-            preset: 'claude_code',
-            append: getLanguageInstruction()
-          },
+      systemPrompt: (session as EnhancedSession)._systemPrompt
+        ? `${(session as EnhancedSession)._systemPrompt}\n\n${getLanguageInstruction()}`
+        : session.instructions
+          ? {
+              type: 'preset',
+              preset: 'claude_code',
+              append: `${session.instructions}\n\n${getLanguageInstruction()}`
+            }
+          : {
+              type: 'preset',
+              preset: 'claude_code',
+              append: getLanguageInstruction()
+            },
       settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
