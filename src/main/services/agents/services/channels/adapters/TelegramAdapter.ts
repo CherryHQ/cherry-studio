@@ -185,6 +185,6 @@ registerAdapterFactory('telegram', (channel: CherryClawChannel, agentId: string)
   return new TelegramAdapter({
     channelId: channel.id,
     agentId,
-    channelConfig: channel.config as Record<string, unknown>
+    channelConfig: channel.config
   })
 })
