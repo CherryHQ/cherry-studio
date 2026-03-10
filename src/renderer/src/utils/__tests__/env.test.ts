@@ -111,9 +111,9 @@ describe('serializeKeyValueString', () => {
     expect(serialized).toBe("TOKEN='abc#123'")
   })
 
-  it('should double-quote values containing newlines', () => {
+  it('should single-quote values containing newlines', () => {
     const serialized = serializeKeyValueString({ KEY: 'line1\nline2' })
-    expect(serialized).toBe('KEY="line1\nline2"')
+    expect(serialized).toBe("KEY='line1\nline2'")
   })
 
   it('should single-quote values with leading/trailing whitespace', () => {
@@ -131,9 +131,9 @@ describe('serializeKeyValueString', () => {
     expect(serialized).toBe('KEY=c:\\temp\\file')
   })
 
-  it('should use double quotes for # values containing single quotes', () => {
+  it('should use backtick quotes for # values containing single quotes', () => {
     const serialized = serializeKeyValueString({ KEY: "it's #here" })
-    expect(serialized).toBe('KEY="it\'s #here"')
+    expect(serialized).toBe("KEY=`it's #here`")
   })
 
   it('should round-trip with parseKeyValueString for values with #', () => {
@@ -166,6 +166,27 @@ describe('serializeKeyValueString', () => {
 
   it('should round-trip with parseKeyValueString for backslash+hash values', () => {
     const original = { KEY: 'c:\\temp\\x#1' }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip values with both single quotes and # using backticks', () => {
+    const original = { KEY: "it's #here" }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip values with both quote types and #', () => {
+    const original = { KEY: `it's "here" #1` }
+    const serialized = serializeKeyValueString(original)
+    const parsed = parseKeyValueString(serialized)
+    expect(parsed).toEqual(original)
+  })
+
+  it('should round-trip multiline values containing double quotes', () => {
+    const original = { KEY: 'line1\nhe said "hi"' }
     const serialized = serializeKeyValueString(original)
     const parsed = parseKeyValueString(serialized)
     expect(parsed).toEqual(original)
