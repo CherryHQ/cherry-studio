@@ -37,6 +37,23 @@ const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running i
 
 `
 
+const TOOLS_SECTION = `## CherryClaw Tools
+
+You have exclusive access to these tools for interacting with CherryStudio. Always prefer them over manual alternatives.
+
+| Tool | Purpose | When to use |
+|---|---|---|
+| \`mcp__claw__cron\` | Schedule recurring or one-time tasks | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
+| \`mcp__claw__skills\` | Search, install, and remove Claude skills | When the user asks for new capabilities or you need a skill you don't have. |
+| \`mcp__claw__memory\` | Manage JOURNAL.jsonl (append and search) | Log events and search past activity. Never write to JOURNAL.jsonl directly via file tools. |
+
+Rules:
+- These are your primary interface to CherryStudio. Do not attempt workarounds or alternative approaches.
+- When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
+`
+
 function memoriesTemplate(workspacePath: string, sections: string): string {
   return `## Memories
 
@@ -47,12 +64,12 @@ Persistent files in \`${workspacePath}/\` carry your state across sessions. Upda
 | \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
 | \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
 | \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read + Edit tools |
-| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`memory\` tool only (actions: append, search) |
+| \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__claw__memory\` tool only (actions: append, search) |
 
 Rules:
 - Each file has an exclusive scope — never duplicate information across files.
 - \`SOUL.md\`, \`USER.md\`, and \`memory/FACT.md\` are loaded below. Read and edit them directly when updates are needed.
-- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use the \`memory\` tool to append entries or search past events.
+- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__claw__memory\` to append entries or search past events. Never read or write the file directly.
 - Filenames are case-insensitive.
 ${sections}`
 }
@@ -60,7 +77,7 @@ ${sections}`
 /**
  * PromptBuilder assembles the full system prompt for CherryClaw from workspace files.
  *
- * Structure: basic prompt (system.md override or default) + memories section.
+ * Structure: basic prompt (system.md override or default) + tools section + memories section.
  *
  * Memory files layout:
  *   {workspace}/soul.md          — personality, tone, communication style
@@ -78,6 +95,9 @@ export class PromptBuilder {
     const systemPath = await resolveFile(workspacePath, 'system.md')
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
+
+    // Tools section (always included)
+    parts.push(TOOLS_SECTION)
 
     // Memories section
     const memoriesContent = await this.buildMemoriesSection(workspacePath)
