@@ -61,7 +61,6 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const activeType = kind ?? internalActiveType
   const showTypeTabs = kind === undefined
   const [sortOption, setSortOption] = useState<MarketplaceSort>('relevance')
-  const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
@@ -202,18 +201,25 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
 
   // Handle uninstall with loading state
   const handleUninstall = async (plugin: PluginMetadata) => {
-    setActioningPlugin(plugin.sourcePath)
+    const loadingKey = createPluginLoadingKey(plugin)
+    if (loadingMap[loadingKey]) {
+      return
+    }
+
+    startLoading(loadingKey)
     try {
+      // Find the actual installed plugin to get its real filename
       const installed = findInstalledPlugin(plugin)
-      if (installed) {
-        if (installed.metadata.packageName) {
-          await onUninstallPackage(installed.metadata.packageName)
-        } else {
-          await onUninstall(installed.metadata.filename, installed.type)
-        }
+      if (!installed) {
+        return
+      }
+      if (installed.metadata.packageName) {
+        await onUninstallPackage(installed.metadata.packageName)
+      } else {
+        await onUninstall(installed.metadata.filename, installed.type)
       }
     } finally {
-      setActioningPlugin(null)
+      finishLoading(loadingKey)
     }
   }
 
@@ -417,7 +423,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
         installed={selectedPlugin ? isPluginInstalled(selectedPlugin) : false}
         onInstall={() => selectedPlugin && handleInstall(selectedPlugin)}
         onUninstall={() => selectedPlugin && handleUninstall(selectedPlugin)}
-        loading={selectedPlugin ? actioningPlugin === selectedPlugin.sourcePath : false}
+        loading={selectedPlugin ? (loadingMap[createPluginLoadingKey(selectedPlugin)] ?? false) : false}
       />
     </div>
   )
