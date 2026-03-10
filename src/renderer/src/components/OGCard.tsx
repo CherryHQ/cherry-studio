@@ -46,8 +46,8 @@ export const OGCard = ({ link, show }: Props) => {
   return (
     <Container>
       {hasImage && (
-        <div className="min-h-48">
-          <img src={metadata['og:image']} alt={metadata['og:imageAlt'] || link} />
+        <div className="flex min-h-48 items-center justify-center">
+          <img src={metadata['og:image']} alt={metadata['og:imageAlt'] || link} className="object-contain" />
         </div>
       )}
       {!hasImage && <GeneratedGraph />}
