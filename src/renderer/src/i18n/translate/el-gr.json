@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Προσθήκη καταλόγου",
+        "default_hint": "Προεπιλογή: {{path}}",
         "duplicate": "Αυτός ο κατάλογος έχει ήδη συμπεριληφθεί.",
         "empty": "Επιλέξτε τουλάχιστον έναν κατάλογο στον οποίο ο πράκτορας μπορεί να έχει πρόσβαση.",
         "error": {
@@ -134,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
+          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "[to be translated]:Environment Variables"
+        },
         "maxTurns": {
           "description": "Ορίστε τον αριθμό γύρων αιτήματος/απάντησης που θα εκτελούνται αυτόματα από τον διαμεσολαβητή.",
           "helper": "Όσο υψηλότερη είναι η τιμή, τόσο περισσότερο μπορεί να λειτουργεί αυτόνομα· όσο χαμηλότερη είναι, τόσο πιο εύκολα ελέγχεται.",
@@ -283,7 +289,7 @@
         },
         "tab": "Εργαλεία",
         "tools": {
-          "title": "Εργαλεία"
+          "title": "Προεγκεκριμένα εργαλεία"
         }
       }
     },
@@ -2147,6 +2153,7 @@
     "tools": {
       "abort_failed": "Αποτυχία διακοπής κλήσης εργαλείου",
       "aborted": "Η κλήση του εργαλείου διακόπηκε",
+      "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
@@ -2521,6 +2528,9 @@
   "notification": {
     "assistant": "Απάντηση Βοηθού",
     "knowledge": {
+      "batch_error": "{{failed}} στοιχεία απέτυχαν να επεξεργαστούν",
+      "batch_mixed": "{{succeeded}} στοιχεία πέτυχαν, {{failed}} στοιχεία απέτυχαν",
+      "batch_success": "{{succeeded}} στοιχεία επεξεργάστηκαν με επιτυχία",
       "error": "{{error}}",
       "success": "Επιτυχής προσθήκη {{type}} στη βάση γνώσης"
     },
@@ -2958,7 +2968,9 @@
     "no_description": "Χωρίς περιγραφή",
     "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
     "no_results": "Δεν βρέθηκε πρόσθετο",
+    "no_results_skills": "Δεν βρέθηκαν δεξιότητες",
     "search_placeholder": "Πρόσθετο αναζήτησης...",
+    "search_placeholder_skills": "Δεξιότητες αναζήτησης...",
     "showing_results": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_one": "Εμφάνιση {{count}} προσθέτων",
     "showing_results_other": "Εμφάνιση {{count}} προσθέτων",
@@ -4851,6 +4863,7 @@
         "logout_failed": "Η αποσύνδεση απέτυχε, δοκιμάστε ξανά.",
         "logout_success": "Επιτυχής αποσύνδεση από το Anthropic",
         "oauth": "ιστοσελίδα OAuth",
+        "oauth_disabled_warning": "Η Anthropic ανέστειλε προσωρινά τη χρήση του Claude μέσω OAuth. Αυτή η μέθοδος ελέγχου ταυτότητας είναι προς το παρόν μη διαθέσιμη. Παρακαλούμε χρησιμοποιήστε ένα κλειδί API προς το παρόν.",
         "start_auth": "Έναρξη εξουσιοδότησης",
         "submit_code": "Ολοκληρώστε την σύνδεση"
       },

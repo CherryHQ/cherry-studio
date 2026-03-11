@@ -91,6 +91,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
+    isGemini3ThinkingTokenModel: vi.fn(() => false),
     findTokenLimit: vi.fn(actual.findTokenLimit)
   }
 })
@@ -391,6 +392,54 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({ reasoning_effort: 'medium' })
+    })
+
+    it('should return camelCase reasoningEffort for Gemini 3 models', async () => {
+      const {
+        isReasoningModel,
+        isOpenAIDeepResearchModel,
+        isSupportedThinkingTokenGeminiModel,
+        isGemini3ThinkingTokenModel,
+        isQwenReasoningModel,
+        isSupportedThinkingTokenClaudeModel,
+        isSupportedThinkingTokenDoubaoModel,
+        isSupportedThinkingTokenZhipuModel,
+        isSupportedReasoningEffortModel,
+        isSupportedThinkingTokenQwenModel,
+        isSupportedThinkingTokenHunyuanModel,
+        isDeepSeekHybridInferenceModel
+      } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(isGemini3ThinkingTokenModel).mockReturnValue(true)
+      vi.mocked(isQwenReasoningModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenDoubaoModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenZhipuModel).mockReturnValue(false)
+      vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenQwenModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenHunyuanModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(false)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: 'custom-provider'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      // Should use camelCase 'reasoningEffort' for AI SDK openai-compatible provider compatibility
+      expect(result).toEqual({ reasoningEffort: 'high' })
     })
 
     it('should return empty for groq provider', async () => {

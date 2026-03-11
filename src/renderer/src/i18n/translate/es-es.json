@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
+        "default_hint": "Predeterminado: {{path}}",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
         "error": {
@@ -134,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
+          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "[to be translated]:Environment Variables"
+        },
         "maxTurns": {
           "description": "Establece el número de rondas de solicitud/respuesta que el agente ejecutará automáticamente.",
           "helper": "Cuanto mayor es el valor, más tiempo puede funcionar de forma autónoma; cuanto menor es el valor, más fácil es de controlar.",
@@ -283,7 +289,7 @@
         },
         "tab": "Herramientas",
         "tools": {
-          "title": "Herramientas"
+          "title": "Herramientas preaprobadas"
         }
       }
     },
@@ -2147,6 +2153,7 @@
     "tools": {
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
+      "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
       "completed": "Completado",
@@ -2521,6 +2528,9 @@
   "notification": {
     "assistant": "Respuesta del asistente",
     "knowledge": {
+      "batch_error": "{{failed}} elementos no pudieron procesarse",
+      "batch_mixed": "{{succeeded}} elementos tuvieron éxito, {{failed}} elementos fallaron",
+      "batch_success": "{{succeeded}} elementos procesados correctamente",
       "error": "{{error}}",
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
@@ -2958,7 +2968,9 @@
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
     "no_results": "No se encontró el complemento",
+    "no_results_skills": "No se encontraron habilidades",
     "search_placeholder": "Buscar complemento...",
+    "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
     "showing_results_one": "Mostrar {{count}} complementos",
     "showing_results_other": "Mostrar {{count}} complementos",
@@ -4851,6 +4863,7 @@
         "logout_failed": "Error al cerrar sesión, inténtalo de nuevo",
         "logout_success": "Cierre de sesión exitoso en Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic ha suspendido temporalmente el uso de Claude a través de OAuth. Este método de autenticación no está disponible actualmente. Por favor, utiliza una clave API por ahora.",
         "start_auth": "Comenzar autorización",
         "submit_code": "Iniciar sesión completado"
       },

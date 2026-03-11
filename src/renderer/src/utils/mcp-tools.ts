@@ -347,7 +347,13 @@ export function isToolAutoApproved(tool: MCPTool, server?: MCPServer, allowedToo
   }
   // Fall back to server-level auto-approve setting
   const effectiveServer = server ?? getMcpServerByTool(tool)
-  return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
+  if (!effectiveServer) return false
+  // Hub meta-tools: read-only tools (list, inspect) are auto-approved;
+  // execution tools (invoke, exec) require approval.
+  if (effectiveServer.id === 'hub') {
+    return tool.name === 'list' || tool.name === 'inspect'
+  }
+  return !effectiveServer.disabledAutoApproveTools?.includes(tool.name)
 }
 
 export function parseToolUse(

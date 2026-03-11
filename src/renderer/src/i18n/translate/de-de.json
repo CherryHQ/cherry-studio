@@ -85,6 +85,7 @@
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
+        "default_hint": "Standard: {{path}}",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
@@ -134,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
+          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "[to be translated]:Environment Variables"
+        },
         "maxTurns": {
           "description": "Legen Sie die Anzahl der Anfrage-/Antwort-Runden fest, die der Agent automatisch ausführt.",
           "helper": "Höhere Werte ermöglichen längere autonome Ausführung; niedrigere Werte bieten bessere Kontrolle.",
@@ -283,7 +289,7 @@
         },
         "tab": "Tools",
         "tools": {
-          "title": "Werkzeuge"
+          "title": "Vorab genehmigte Tools"
         }
       }
     },
@@ -2147,6 +2153,7 @@
     "tools": {
       "abort_failed": "Tool-Aufruf abbrechen fehlgeschlagen",
       "aborted": "Tool-Aufruf abgebrochen",
+      "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
       "completed": "Abgeschlossen",
@@ -2521,6 +2528,9 @@
   "notification": {
     "assistant": "Assistenten-Antwort",
     "knowledge": {
+      "batch_error": "{{failed}} Elemente konnten nicht verarbeitet werden",
+      "batch_mixed": "{{succeeded}} Elemente erfolgreich, {{failed}} Elemente fehlgeschlagen",
+      "batch_success": "{{succeeded}} Elemente erfolgreich verarbeitet",
       "error": "{{error}}",
       "success": "{{type}} erfolgreich zur Wissensdatenbank hinzugefügt"
     },
@@ -2958,7 +2968,9 @@
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
     "no_results": "Keine Plugins gefunden",
+    "no_results_skills": "Keine Fähigkeiten gefunden",
     "search_placeholder": "Such-Plugins...",
+    "search_placeholder_skills": "Suchfähigkeiten...",
     "showing_results": "{{count}} Plugin anzeigen",
     "showing_results_one": "{{count}} Plugin anzeigen",
     "showing_results_other": "Zeige {{count}} Plugins",
@@ -4851,6 +4863,7 @@
         "logout_failed": "Abmeldung fehlgeschlagen, bitte erneut versuchen",
         "logout_success": "Erfolgreich abgemeldet von Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic hat die Nutzung von Claude über OAuth vorübergehend eingestellt. Diese Authentifizierungsmethode ist derzeit nicht verfügbar. Bitte verwenden Sie vorerst einen API-Schlüssel.",
         "start_auth": "Autorisierung starten",
         "submit_code": "Anmeldung abschließen"
       },
