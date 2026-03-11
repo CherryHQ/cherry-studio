@@ -1,6 +1,7 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { loggerService } from '@logger'
 import type { CherryClawChannel, FeishuDomain } from '@types'
+import { net } from 'electron'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../ChannelAdapter'
 import { registerAdapterFactory } from '../ChannelManager'
@@ -43,6 +44,70 @@ function resolveApiBase(domain: FeishuDomain): string {
     default:
       return 'https://open.feishu.cn/open-apis'
   }
+}
+
+/**
+ * A lightweight HttpInstance adapter that routes requests through Electron's net.fetch,
+ * which respects system proxy settings. This ensures the Lark SDK works behind
+ * corporate proxies where raw Node.js fetch/axios would fail.
+ */
+function createElectronHttpInstance(): Lark.HttpInstance {
+  async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
+    const headers: Record<string, string> = { ...opts?.headers }
+    let body: string | FormData | undefined
+
+    if (data !== undefined && data !== null) {
+      if (typeof data === 'string') {
+        body = data
+      } else if (data instanceof FormData) {
+        body = data
+      } else {
+        body = JSON.stringify(data)
+        if (!headers['Content-Type'] && !headers['content-type']) {
+          headers['Content-Type'] = 'application/json'
+        }
+      }
+    }
+
+    const fetchUrl = new URL(url)
+    if (opts?.params) {
+      for (const [key, value] of Object.entries(opts.params)) {
+        fetchUrl.searchParams.set(key, String(value))
+      }
+    }
+
+    const res = await net.fetch(fetchUrl.toString(), {
+      method: method.toUpperCase(),
+      headers,
+      body
+    })
+
+    const isStream = opts?.responseType === 'stream'
+    const responseData = isStream ? res.body : await res.json().catch(() => res.text())
+
+    const result = {
+      data: responseData,
+      status: res.status,
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries())
+    }
+
+    if (opts?.$return_headers) {
+      return result
+    }
+    return result
+  }
+
+  return {
+    request: (opts: any) => doRequest(opts.method || 'GET', opts.url, opts.data, opts),
+    get: (url: string, opts?: any) => doRequest('GET', url, undefined, opts),
+    delete: (url: string, opts?: any) => doRequest('DELETE', url, undefined, opts),
+    head: (url: string, opts?: any) => doRequest('HEAD', url, undefined, opts),
+    options: (url: string, opts?: any) => doRequest('OPTIONS', url, undefined, opts),
+    post: (url: string, data?: any, opts?: any) => doRequest('POST', url, data, opts),
+    put: (url: string, data?: any, opts?: any) => doRequest('PUT', url, data, opts),
+    patch: (url: string, data?: any, opts?: any) => doRequest('PATCH', url, data, opts)
+  } as Lark.HttpInstance
 }
 
 function splitMessage(text: string): string[] {
@@ -118,7 +183,7 @@ class FeishuStreamingSession {
 
   async create(): Promise<string | null> {
     try {
-      const res = await fetch(`${this.apiBase}/cardkit/v1/cards`, {
+      const res = await net.fetch(`${this.apiBase}/cardkit/v1/cards`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +234,7 @@ class FeishuStreamingSession {
       this.lastUpdateTime = Date.now()
       this.sequence++
       try {
-        await fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/elements/${this.elementId}/content`, {
+        await net.fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/elements/${this.elementId}/content`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -195,7 +260,7 @@ class FeishuStreamingSession {
     await this.updateQueue
 
     try {
-      await fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/settings`, {
+      await net.fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/settings`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -248,7 +313,8 @@ class FeishuAdapter extends ChannelAdapter {
       appId: this.appId,
       appSecret: this.appSecret,
       appType: Lark.AppType.SelfBuild,
-      domain: larkDomain
+      domain: larkDomain,
+      httpInstance: createElectronHttpInstance()
     })
 
     const eventDispatcher = new Lark.EventDispatcher({}).register({
@@ -449,7 +515,7 @@ class FeishuAdapter extends ChannelAdapter {
 
     try {
       const apiBase = resolveApiBase(this.domain)
-      const res = await fetch(`${apiBase}/auth/v3/tenant_access_token/internal`, {
+      const res = await net.fetch(`${apiBase}/auth/v3/tenant_access_token/internal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app_id: this.appId, app_secret: this.appSecret })

@@ -10,6 +10,14 @@ vi.mock('../../ChannelManager', () => ({
   registerAdapterFactory: vi.fn()
 }))
 
+const { mockNetFetch } = vi.hoisted(() => {
+  const mockNetFetch = vi.fn()
+  return { mockNetFetch }
+})
+vi.mock('electron', () => ({
+  net: { fetch: mockNetFetch }
+}))
+
 const mockCreate = vi.fn().mockResolvedValue({ data: { message_id: 'msg-1' } })
 const mockUpdate = vi.fn().mockResolvedValue({})
 const mockClient = {
@@ -38,10 +46,6 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
   LoggerLevel: { warn: 2 }
 }))
 
-// Mock global fetch for streaming card + tenant token APIs
-const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
-
 import '../FeishuAdapter'
 
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -58,7 +62,7 @@ describe('FeishuAdapter', () => {
     mockCreate.mockClear().mockResolvedValue({ data: { message_id: 'msg-1' } })
     mockUpdate.mockClear().mockResolvedValue({})
     mockWsStart.mockClear().mockResolvedValue(undefined)
-    mockFetch.mockClear()
+    mockNetFetch.mockClear()
     capturedEventHandlers = {}
   })
 
