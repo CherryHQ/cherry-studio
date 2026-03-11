@@ -315,6 +315,11 @@ class OpenClawService {
                   resolve({ success: true, message: 'OpenClaw installed successfully' })
                 }
               })
+            } else if (stderr.includes('Permission denied (publickey)')) {
+              const msg =
+                'Git SSH authentication failed. Run: git config --global url."https://github.com/".insteadOf "git@github.com:"'
+              this.sendInstallProgress(msg, 'error')
+              resolve({ success: false, message: msg })
             } else {
               this.sendInstallProgress(`Installation failed with exit code ${code}`, 'error')
               resolve({

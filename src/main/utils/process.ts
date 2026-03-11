@@ -498,8 +498,18 @@ function getCommonGitRoots(): string[] {
 export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
   await refreshShellEnv()
   const gitPath = await findExecutableInEnv('git')
-  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
-  return { available: gitPath !== null, path: gitPath }
+  if (!gitPath) {
+    logger.debug('git check result: not found')
+    return { available: false, path: null }
+  }
+  try {
+    await executeCommand(gitPath, ['--version'], { capture: true, timeout: 5000 })
+    logger.debug(`git check result: found at ${gitPath}`)
+    return { available: true, path: gitPath }
+  } catch {
+    logger.debug(`git check result: found at ${gitPath} but not functional`)
+    return { available: false, path: gitPath }
+  }
 }
 
 /**
