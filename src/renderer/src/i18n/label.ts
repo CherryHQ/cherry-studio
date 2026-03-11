@@ -108,9 +108,10 @@ export const getProviderLabel = (id: string): string => {
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
+  copying_database: 'backup.progress.copying_database',
   copying_files: 'backup.progress.copying_files',
-  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
+  preparing_compression: 'backup.progress.preparing_compression',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
@@ -126,7 +127,10 @@ const restoreProgressKeyMap = {
   extracting: 'restore.progress.extracting',
   preparing: 'restore.progress.preparing',
   reading_data: 'restore.progress.reading_data',
-  title: 'restore.progress.title'
+  restoring_data: 'restore.progress.restoring_data',
+  restoring_database: 'restore.progress.restoring_database',
+  title: 'restore.progress.title',
+  validating: 'restore.progress.validating'
 }
 
 export const getRestoreProgressLabel = (key: string): string => {

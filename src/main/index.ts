@@ -149,7 +149,12 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
+    // Check for backup restore marker and complete restoration (highest priority, before window creation)
+    const { BackupManager } = await import('./services/BackupManager')
+    await BackupManager.handleStartupRestore()
+
     const mainWindow = windowService.createMainWindow()
+
     new TrayService()
 
     // Setup macOS application menu
