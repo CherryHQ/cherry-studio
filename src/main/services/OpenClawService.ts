@@ -14,7 +14,7 @@ import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
-import type { ChildProcess } from 'child_process'
+import { type ChildProcess, spawn } from 'child_process'
 import semver from 'semver'
 
 import VertexAIService from './VertexAIService'
@@ -501,10 +501,20 @@ class OpenClawService {
     let startupError: string | null = null
     let processExited = false
 
+    const gatewayEnv = { ...shellEnv, OPENCLAW_CONFIG_PATH }
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
-    this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
-      env: { ...shellEnv, OPENCLAW_CONFIG_PATH }
-    })
+    if (isWin) {
+      // Force UTF-8 code page to prevent garbled Chinese text from child processes. See #13384.
+      this.gatewayProcess = spawn(
+        'cmd',
+        ['/c', `chcp 65001 >nul && "${openclawPath}" gateway --port ${this.gatewayPort}`],
+        { env: gatewayEnv, stdio: 'pipe' }
+      )
+    } else {
+      this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
+        env: gatewayEnv
+      })
+    }
     logger.info(`Gateway process spawned with pid: ${this.gatewayProcess.pid}`)
 
     // Monitor stderr for error messages
