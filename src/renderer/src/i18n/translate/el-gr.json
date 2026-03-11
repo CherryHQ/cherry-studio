@@ -28,154 +28,154 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+        "comingSoon": "Σύντομα διαθέσιμο",
+        "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
+        "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
+        "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
         "qq": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-          "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-          "clientSecret": "[to be translated]:Client Secret",
-          "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-          "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+          "appId": "App ID",
+          "appIdPlaceholder": "Εισάγετε το App ID του QQ Bot σας",
+          "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+          "chatIdsHint": "Μορφή: c2c:openid, group:groupid, channel:channelid. Αφήστε κενό για να επιτρέψετε όλα.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Εισάγετε το Client Secret του QQ Bot σας",
+          "description": "Λήψη και απάντηση μηνυμάτων μέσω του επίσημου API του QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID συνομιλίας σας στη σωστή μορφή."
         },
-        "tab": "[to be translated]:Channels",
+        "tab": "Κανάλια",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Εισάγετε το token του Telegram bot σας",
+          "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+          "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Λήψη και απάντηση μηνυμάτων μέσω Telegram bot χρησιμοποιώντας long polling.",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "Κανάλια"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "Ενεργοποίηση Heartbeat",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο και υπάρχει heartbeat.md στον χώρο εργασίας, ο προγραμματιστής διαβάζει το περιεχόμενό του και το στέλνει στην κύρια συνεδρία στο διαμορφωμένο διάστημα.",
+        "interval": "Διάστημα (λεπτά)",
+        "intervalHelper": "Πόσο συχνά εκτελείται το heartbeat, σε λεπτά."
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "Περιορίζει την πρόσβαση του πράκτορα στο σύστημα αρχείων και το δίκτυο στον κατάλογο του χώρου εργασίας χρησιμοποιώντας sandboxing σε επίπεδο λειτουργικού συστήματος.",
+        "helper": "Περιορισμός πρόσβασης στο σύστημα αρχείων και εντολών στη διαδρομή του χώρου εργασίας.",
+        "label": "Λειτουργία Sandbox"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "Τυπική έκφραση cron (π.χ. '*/30 * * * *' για κάθε 30 λεπτά).",
+          "label": "Έκφραση Cron",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "Ο προγραμματιστής ενεργοποιεί τον πράκτορα αυτόματα σύμφωνα με ένα χρονοδιάγραμμα.",
+        "enabled": "Ενεργοποίηση προγραμματιστή",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο, ο πράκτορας θα εκτελείται αυτόματα με βάση το διαμορφωμένο χρονοδιάγραμμα.",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "Μη έγκυρη έκφραση cron",
+          "invalidDelay": "Η καθυστέρηση πρέπει να είναι θετικός αριθμός",
+          "invalidInterval": "Το διάστημα πρέπει να είναι θετικός αριθμός"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "Πόσο συχνά πρέπει να εκτελείται ο πράκτορας, σε δευτερόλεπτα.",
+          "label": "Διάστημα (δευτερόλεπτα)"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "Τελευταία εκτέλεση",
+        "never": "Ποτέ",
+        "nextRun": "Επόμενη εκτέλεση",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "Μοναδική καθυστέρηση σε δευτερόλεπτα πριν την εκτέλεση του πράκτορα.",
+          "label": "Καθυστέρηση (δευτερόλεπτα)"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "Εκτελείται",
+          "stopped": "Σταματημένο",
+          "tickInProgress": "Tick σε εξέλιξη"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "Προγραμματιστής",
+        "title": "Ρύθμιση προγραμματιστή",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Έκφραση Cron",
+          "interval": "Σταθερό διάστημα",
+          "label": "Τύπος χρονοδιαγράμματος",
+          "one-time": "Μοναδική καθυστέρηση"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "Η ψυχή καθορίζει την προσωπικότητα και τη βασική συμπεριφορά του πράκτορα. Διαβάζεται από το soul.md στη ρίζα του χώρου εργασίας.",
+        "empty": "Δεν βρέθηκε soul.md στη ρίζα του χώρου εργασίας. Δημιουργήστε ένα για να ορίσετε την προσωπικότητα του πράκτορα.",
+        "enabled": "Ενεργοποίηση ψυχής",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο, ο πράκτορας διαβάζει το soul.md από τη ρίζα του χώρου εργασίας και το προσθέτει στην αρχή του system prompt.",
+        "fileLabel": "soul.md",
+        "preview": "Προεπισκόπηση ψυχής",
+        "tab": "Ψυχή",
+        "title": "Ρύθμιση ψυχής"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "Προσθήκη εργασίας",
+        "cancel": "Ακύρωση",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "Απομονωμένο",
+          "isolatedDesc": "Δημιουργία νέας συνεδρίας σε κάθε εκτέλεση",
+          "label": "Λειτουργία πλαισίου",
+          "session": "Επαναχρησιμοποίηση συνεδρίας",
+          "sessionDesc": "Επαναχρησιμοποίηση της πιο πρόσφατης συνεδρίας"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εργασία;",
+          "label": "Διαγραφή"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "Επεξεργασία",
+        "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
+        "intervalPlaceholder": "Διάστημα σε λεπτά",
+        "lastRun": "Τελευταία εκτέλεση",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "Διάρκεια",
+          "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
+          "error": "Σφάλμα",
+          "label": "Ιστορικό εκτελέσεων",
+          "result": "Αποτέλεσμα",
+          "runAt": "Εκτελέστηκε στις",
+          "status": "Κατάσταση"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "Όνομα",
+          "placeholder": "π.χ. Καθημερινή αναθεώρηση κώδικα"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "Επόμενη εκτέλεση",
+        "oncePlaceholder": "Επιλέξτε ημερομηνία και ώρα",
+        "pause": "Παύση",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "Prompt",
+          "placeholder": "Τι πρέπει να κάνει ο πράκτορας όταν εκτελείται αυτή η εργασία;"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "Συνέχιση",
+        "run": "Εκτέλεση",
+        "runTriggered": "Η εργασία ενεργοποιήθηκε",
+        "save": "Αποθήκευση",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "Διάστημα",
+          "label": "Τύπος χρονοδιαγράμματος",
+          "once": "Μία φορά"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "Τιμή χρονοδιαγράμματος",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "Ενεργή",
+          "completed": "Ολοκληρώθηκε",
+          "paused": "Σε παύση"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "Εργασίες",
+        "title": "Προγραμματισμένες εργασίες"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "Οι πράκτορες CherryClaw εκτελούνται σε πλήρη αυτόματη λειτουργία από προεπιλογή. Όλα τα εργαλεία εκτελούνται χωρίς να ζητούν έγκριση."
       }
     },
     "delete": {

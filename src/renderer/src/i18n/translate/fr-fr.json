@@ -28,154 +28,154 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+        "comingSoon": "Bientôt disponible",
+        "description": "Connectez votre agent aux plateformes de messagerie.",
+        "notifyReceiver": "Recevoir les notifications de tâches",
+        "notifyReceiverHint": "Envoyer les résultats des tâches planifiées à ce canal.",
         "qq": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-          "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-          "clientSecret": "[to be translated]:Client Secret",
-          "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-          "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+          "appId": "App ID",
+          "appIdPlaceholder": "Entrez votre App ID QQ Bot",
+          "chatIds": "IDs de chat autorisés",
+          "chatIdsHint": "Format : c2c:openid, group:groupid, channel:channelid. Laissez vide pour tout autoriser.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Entrez votre Client Secret QQ Bot",
+          "description": "Recevoir et répondre aux messages via l'API officielle QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir votre ID de chat au bon format."
         },
-        "tab": "[to be translated]:Channels",
+        "tab": "Canaux",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Token du bot",
+          "botTokenPlaceholder": "Entrez votre token de bot Telegram",
+          "chatIds": "IDs de chat autorisés",
+          "chatIdsHint": "Séparés par des virgules. Laissez vide pour autoriser tous les chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Recevoir et répondre aux messages via un bot Telegram en utilisant le long polling.",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "Canaux"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "Activer le Heartbeat",
+        "enabledHelper": "Lorsqu'activé et si heartbeat.md existe dans l'espace de travail, le planificateur lit son contenu et l'envoie à la session principale à l'intervalle configuré.",
+        "interval": "Intervalle (minutes)",
+        "intervalHelper": "Fréquence d'exécution du heartbeat, en minutes."
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "Restreint l'accès au système de fichiers et au réseau de l'agent au répertoire de l'espace de travail en utilisant le sandboxing au niveau du système d'exploitation.",
+        "helper": "Restreindre l'accès au système de fichiers et aux commandes au chemin de l'espace de travail.",
+        "label": "Mode Sandbox"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "Expression cron standard (ex: '*/30 * * * *' pour toutes les 30 minutes).",
+          "label": "Expression Cron",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "Le planificateur déclenche l'agent automatiquement selon un calendrier.",
+        "enabled": "Activer le planificateur",
+        "enabledHelper": "Lorsqu'activé, l'agent s'exécutera automatiquement selon le calendrier configuré.",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "Expression cron invalide",
+          "invalidDelay": "Le délai doit être un nombre positif",
+          "invalidInterval": "L'intervalle doit être un nombre positif"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "Fréquence d'exécution de l'agent, en secondes.",
+          "label": "Intervalle (secondes)"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "Dernière exécution",
+        "never": "Jamais",
+        "nextRun": "Prochaine exécution",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "Délai unique en secondes avant l'exécution de l'agent.",
+          "label": "Délai (secondes)"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "En cours",
+          "stopped": "Arrêté",
+          "tickInProgress": "Tick en cours"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "Planificateur",
+        "title": "Configuration du planificateur",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Expression Cron",
+          "interval": "Intervalle fixe",
+          "label": "Type de planification",
+          "one-time": "Délai unique"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "L'âme définit la personnalité et le comportement de base de l'agent. Elle est lue depuis soul.md à la racine de l'espace de travail.",
+        "empty": "Aucun soul.md trouvé à la racine de l'espace de travail. Créez-en un pour définir la personnalité de l'agent.",
+        "enabled": "Activer l'âme",
+        "enabledHelper": "Lorsqu'activé, l'agent lit soul.md depuis la racine de l'espace de travail et l'ajoute au début du prompt système.",
+        "fileLabel": "soul.md",
+        "preview": "Aperçu de l'âme",
+        "tab": "Âme",
+        "title": "Configuration de l'âme"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "Ajouter une tâche",
+        "cancel": "Annuler",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "Isolé",
+          "isolatedDesc": "Créer une nouvelle session à chaque exécution",
+          "label": "Mode de contexte",
+          "session": "Réutiliser la session",
+          "sessionDesc": "Réutiliser la session la plus récente"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "ex: 0 9 * * * (tous les jours à 9h)",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "Êtes-vous sûr de vouloir supprimer cette tâche ?",
+          "label": "Supprimer"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "Modifier",
+        "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
+        "intervalPlaceholder": "Intervalle en minutes",
+        "lastRun": "Dernière exécution",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "Durée",
+          "empty": "Aucun historique d'exécution.",
+          "error": "Erreur",
+          "label": "Historique d'exécution",
+          "result": "Résultat",
+          "runAt": "Exécuté le",
+          "status": "Statut"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "Nom",
+          "placeholder": "ex: Revue de code quotidienne"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "Prochaine exécution",
+        "oncePlaceholder": "Sélectionner la date et l'heure",
+        "pause": "Pause",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "Prompt",
+          "placeholder": "Que doit faire l'agent lors de l'exécution de cette tâche ?"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "Reprendre",
+        "run": "Exécuter",
+        "runTriggered": "Tâche déclenchée",
+        "save": "Enregistrer",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "Intervalle",
+          "label": "Type de planification",
+          "once": "Une fois"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "Valeur de planification",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "Actif",
+          "completed": "Terminé",
+          "paused": "En pause"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "Tâches",
+        "title": "Tâches planifiées"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "Les agents CherryClaw fonctionnent en mode automatique complet par défaut. Tous les outils s'exécutent sans demander d'approbation."
       }
     },
     "delete": {

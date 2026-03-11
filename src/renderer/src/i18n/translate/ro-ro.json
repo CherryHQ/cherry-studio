@@ -28,154 +28,154 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+        "comingSoon": "În curând",
+        "description": "Conectați agentul la platforme de mesagerie.",
+        "notifyReceiver": "Primește notificări de sarcini",
+        "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
         "qq": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-          "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-          "clientSecret": "[to be translated]:Client Secret",
-          "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-          "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ",
-          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduceți App ID-ul QQ Bot",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Lăsați gol pentru a permite toate.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Introduceți Client Secret-ul QQ Bot",
+          "description": "Primește și răspunde la mesaje prin API-ul oficial QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
         },
-        "tab": "[to be translated]:Channels",
+        "tab": "Canale",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Introduceți token-ul bot-ului Telegram",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Primește și răspunde la mesaje prin bot Telegram folosind long polling.",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "Canale"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "Activează Heartbeat",
+        "enabledHelper": "Când este activat și heartbeat.md există în spațiul de lucru, planificatorul citește conținutul și îl trimite la sesiunea principală la intervalul configurat.",
+        "interval": "Interval (minute)",
+        "intervalHelper": "Cât de des rulează heartbeat-ul, în minute."
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "Restricționează accesul agentului la sistemul de fișiere și rețea doar la directorul spațiului de lucru folosind sandboxing la nivel de sistem de operare.",
+        "helper": "Restricționează accesul la sistemul de fișiere și comenzi la calea spațiului de lucru.",
+        "label": "Mod Sandbox"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "Expresie cron standard (ex: '*/30 * * * *' pentru fiecare 30 de minute).",
+          "label": "Expresie Cron",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "Planificatorul declanșează agentul automat conform unui program.",
+        "enabled": "Activează planificatorul",
+        "enabledHelper": "Când este activat, agentul va rula automat pe baza programului configurat.",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "Expresie cron invalidă",
+          "invalidDelay": "Întârzierea trebuie să fie un număr pozitiv",
+          "invalidInterval": "Intervalul trebuie să fie un număr pozitiv"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "Cât de des ar trebui să ruleze agentul, în secunde.",
+          "label": "Interval (secunde)"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "Ultima rulare",
+        "never": "Niciodată",
+        "nextRun": "Următoarea rulare",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "Întârziere unică în secunde înainte de rularea agentului.",
+          "label": "Întârziere (secunde)"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "Rulează",
+          "stopped": "Oprit",
+          "tickInProgress": "Tick în progres"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "Planificator",
+        "title": "Configurare planificator",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Expresie Cron",
+          "interval": "Interval fix",
+          "label": "Tip program",
+          "one-time": "Întârziere unică"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "Sufletul definește personalitatea și comportamentul de bază al agentului. Este citit din soul.md în rădăcina spațiului de lucru.",
+        "empty": "Nu s-a găsit soul.md în rădăcina spațiului de lucru. Creați unul pentru a defini personalitatea agentului.",
+        "enabled": "Activează sufletul",
+        "enabledHelper": "Când este activat, agentul citește soul.md din rădăcina spațiului de lucru și îl adaugă la începutul promptului de sistem.",
+        "fileLabel": "soul.md",
+        "preview": "Previzualizare suflet",
+        "tab": "Suflet",
+        "title": "Configurare suflet"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "Adaugă sarcină",
+        "cancel": "Anulează",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "Izolat",
+          "isolatedDesc": "Creează o nouă sesiune la fiecare rulare",
+          "label": "Mod context",
+          "session": "Reutilizează sesiunea",
+          "sessionDesc": "Reutilizează cea mai recentă sesiune"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "Sunteți sigur că doriți să ștergeți această sarcină?",
+          "label": "Șterge"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "Editează",
+        "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "intervalPlaceholder": "Interval în minute",
+        "lastRun": "Ultima rulare",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "Durată",
+          "empty": "Nu există încă istoric de rulare.",
+          "error": "Eroare",
+          "label": "Istoric rulări",
+          "result": "Rezultat",
+          "runAt": "Rulat la",
+          "status": "Stare"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "Nume",
+          "placeholder": "ex: Revizuire cod zilnică"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "Următoarea rulare",
+        "oncePlaceholder": "Selectați data și ora",
+        "pause": "Pauză",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "Prompt",
+          "placeholder": "Ce ar trebui să facă agentul când rulează această sarcină?"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "Reia",
+        "run": "Rulează",
+        "runTriggered": "Sarcină declanșată",
+        "save": "Salvează",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Tip program",
+          "once": "O singură dată"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "Valoare program",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "Activă",
+          "completed": "Finalizată",
+          "paused": "În pauză"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "Sarcini",
+        "title": "Sarcini programate"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
       }
     },
     "delete": {

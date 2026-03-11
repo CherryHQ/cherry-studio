@@ -28,154 +28,154 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+        "comingSoon": "即将推出",
+        "description": "将您的 Agent 连接到消息平台。",
+        "notifyReceiver": "接收任务通知",
+        "notifyReceiverHint": "将定时任务结果发送到此频道。",
         "qq": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
-          "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
-          "clientSecret": "[to be translated]:Client Secret",
-          "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
-          "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ",
+          "appId": "App ID",
+          "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
+          "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+          "title": "QQ",
           "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
         },
-        "tab": "[to be translated]:Channels",
+        "tab": "频道",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "频道"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "启用心跳",
+        "enabledHelper": "启用后，如果工作区存在 heartbeat.md 文件，调度器会按配置的间隔读取其内容并发送到主会话。",
+        "interval": "间隔（分钟）",
+        "intervalHelper": "心跳运行的频率，单位为分钟。"
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "使用操作系统级沙箱限制 Agent 的文件系统和网络访问，仅限于工作区目录。",
+        "helper": "将文件系统和命令访问限制在工作区路径内。",
+        "label": "沙箱模式"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "标准 cron 表达式（例如 '*/30 * * * *' 表示每 30 分钟）。",
+          "label": "Cron 表达式",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "调度器按计划自动触发 Agent 运行。",
+        "enabled": "启用调度器",
+        "enabledHelper": "启用后，Agent 将根据配置的计划自动运行。",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "无效的 cron 表达式",
+          "invalidDelay": "延迟必须是正数",
+          "invalidInterval": "间隔必须是正数"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "Agent 运行的频率，单位为秒。",
+          "label": "间隔（秒）"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "上次运行",
+        "never": "从未",
+        "nextRun": "下次运行",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "Agent 运行前的一次性延迟，单位为秒。",
+          "label": "延迟（秒）"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "运行中",
+          "stopped": "已停止",
+          "tickInProgress": "执行中"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "调度器",
+        "title": "调度器配置",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Cron 表达式",
+          "interval": "固定间隔",
+          "label": "调度类型",
+          "one-time": "一次性延迟"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "灵魂定义了 Agent 的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
+        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义 Agent 的个性。",
+        "enabled": "启用灵魂",
+        "enabledHelper": "启用后，Agent 会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
+        "fileLabel": "soul.md",
+        "preview": "灵魂预览",
+        "tab": "灵魂",
+        "title": "灵魂配置"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "添加任务",
+        "cancel": "取消",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "隔离",
+          "isolatedDesc": "每次运行创建新会话",
+          "label": "上下文模式",
+          "session": "复用会话",
+          "sessionDesc": "复用最近的会话"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "确定要删除此任务吗？",
+          "label": "删除"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "编辑",
+        "empty": "暂无定时任务。添加一个开始吧。",
+        "intervalPlaceholder": "间隔（分钟）",
+        "lastRun": "上次运行",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "耗时",
+          "empty": "暂无运行历史。",
+          "error": "错误",
+          "label": "运行历史",
+          "result": "结果",
+          "runAt": "运行时间",
+          "status": "状态"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "名称",
+          "placeholder": "例如：每日代码审查"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "下次运行",
+        "oncePlaceholder": "选择日期和时间",
+        "pause": "暂停",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "提示词",
+          "placeholder": "此任务运行时 Agent 应该做什么？"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "恢复",
+        "run": "运行",
+        "runTriggered": "任务已触发",
+        "save": "保存",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "间隔",
+          "label": "调度类型",
+          "once": "一次性"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "调度值",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "活跃",
+          "completed": "已完成",
+          "paused": "已暂停"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "任务",
+        "title": "定时任务"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
       }
     },
     "delete": {
