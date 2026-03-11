@@ -35,6 +35,23 @@ Only investigate CI failures by reading the logs, not by re-running checks local
 When creating an Issue, you MUST use the `gh-create-issue` skill.
 If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
 
+## Main Branch Sync Workflow
+
+When the user asks to sync upstream main into local main (for example: "merge origin main", "sync fork main"):
+- You MUST use the `sync-fork-main` skill at `.agents/skills/sync-fork-main/SKILL.md`.
+- Follow the skill workflow exactly: check repo status, fetch `origin/main`, merge into local `main`, resolve conflicts if needed, and only push `myfork/main` when the user explicitly asks to push.
+
+### 冲突处理约定（origin/main 同步）
+
+- 按用户偏好：仅使用本地 `main`，不创建独立长期分支。
+- 按用户偏好：不启用 `rerere`。
+- 当同步/合并 `origin/main` 出现冲突时，若冲突涉及 Actions，默认继续删除以下项并完成合并：
+  - `.github/workflows/nightly-build.yml`
+  - `.github/workflows/auto-i18n.yml`
+  - `.github/workflows/github-issue-tracker.yml`
+  - `.github/workflows/ci.yml` 中的 `basic-checks` 和 `notify` jobs
+- 若上游后续新增或恢复上述同类 Actions，按同一约定再次删除。
+
 ### Branch Strategy (Effective April 3, 2026)
 
 > **IMPORTANT**: The `main` branch is now under **code freeze**. Only critical bug fixes submitted via `hotfix/*` branches are accepted. Fix PRs must be minimal in scope and must not include any refactoring code.
