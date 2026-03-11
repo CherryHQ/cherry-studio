@@ -36,16 +36,6 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
   }
 }
 
-function resolveApiBase(domain: FeishuDomain): string {
-  switch (domain) {
-    case 'lark':
-      return 'https://open.larksuite.com/open-apis'
-    case 'feishu':
-    default:
-      return 'https://open.feishu.cn/open-apis'
-  }
-}
-
 /**
  * A lightweight HttpInstance adapter that routes requests through Electron's net.fetch,
  * which respects system proxy settings. This ensures the Lark SDK works behind
@@ -85,17 +75,12 @@ function createElectronHttpInstance(): Lark.HttpInstance {
     const isStream = opts?.responseType === 'stream'
     const responseData = isStream ? res.body : await res.json().catch(() => res.text())
 
-    const result = {
+    return {
       data: responseData,
       status: res.status,
       statusText: res.statusText,
       headers: Object.fromEntries(res.headers.entries())
     }
-
-    if (opts?.$return_headers) {
-      return result
-    }
-    return result
   }
 
   return {
@@ -164,49 +149,41 @@ function buildMarkdownCard(text: string): string {
   })
 }
 
+const STREAMING_ELEMENT_ID = 'streaming_content'
+
 /**
- * Manages a streaming card session using Feishu's CardKit API.
+ * Manages a streaming card session using the Lark SDK's CardKit API.
  * Creates a card with streaming_mode, updates content incrementally, and closes when done.
  */
 class FeishuStreamingSession {
   private cardId: string | null = null
-  private elementId = 'streaming_content'
   private sequence = 0
   private lastUpdateTime = 0
   private updateQueue: Promise<void> = Promise.resolve()
   private readonly throttleMs = 150
 
-  constructor(
-    private readonly apiBase: string,
-    private readonly tenantToken: string
-  ) {}
+  constructor(private readonly client: Lark.Client) {}
 
   async create(): Promise<string | null> {
     try {
-      const res = await net.fetch(`${this.apiBase}/cardkit/v1/cards`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.tenantToken}`
-        },
-        body: JSON.stringify({
+      const res = await this.client.cardkit.v1.card.create({
+        data: {
           type: 'card_json',
           data: JSON.stringify({
             schema: '2.0',
             config: { wide_screen_mode: true, streaming_mode: true },
             body: {
-              elements: [{ tag: 'markdown', content: '...', element_id: this.elementId }]
+              elements: [{ tag: 'markdown', content: '...', element_id: STREAMING_ELEMENT_ID }]
             }
           })
-        })
+        }
       })
 
-      const json = (await res.json()) as { code?: number; data?: { card_id?: string } }
-      if (json.code === 0 && json.data?.card_id) {
-        this.cardId = json.data.card_id
+      if (res.code === 0 && res.data?.card_id) {
+        this.cardId = res.data.card_id
         return this.cardId
       }
-      logger.warn('Failed to create streaming card', { response: json })
+      logger.warn('Failed to create streaming card', { code: res.code, msg: res.msg })
       return null
     } catch (error) {
       logger.error('Error creating streaming card', {
@@ -223,27 +200,21 @@ class FeishuStreamingSession {
   async update(text: string): Promise<void> {
     if (!this.cardId) return
 
-    // Throttle updates
     const now = Date.now()
     if (now - this.lastUpdateTime < this.throttleMs) {
       return
     }
 
-    // Queue sequential updates
     this.updateQueue = this.updateQueue.then(async () => {
       this.lastUpdateTime = Date.now()
       this.sequence++
       try {
-        await net.fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/elements/${this.elementId}/content`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.tenantToken}`
-          },
-          body: JSON.stringify({
+        await this.client.cardkit.v1.cardElement.content({
+          path: { card_id: this.cardId!, element_id: STREAMING_ELEMENT_ID },
+          data: {
             content: JSON.stringify({ tag: 'markdown', content: text }),
             sequence: this.sequence
-          })
+          }
         })
       } catch {
         // Swallow update errors to avoid blocking the stream
@@ -256,17 +227,16 @@ class FeishuStreamingSession {
   async close(): Promise<void> {
     if (!this.cardId) return
 
-    // Wait for pending updates to flush
     await this.updateQueue
 
     try {
-      await net.fetch(`${this.apiBase}/cardkit/v1/cards/${this.cardId}/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.tenantToken}`
-        },
-        body: JSON.stringify({ settings: { streaming_mode: false } })
+      this.sequence++
+      await this.client.cardkit.v1.card.settings({
+        path: { card_id: this.cardId },
+        data: {
+          settings: JSON.stringify({ streaming_mode: false }),
+          sequence: this.sequence
+        }
       })
     } catch (error) {
       logger.warn('Error closing streaming card', {
@@ -283,9 +253,7 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly appSecret: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
-  private tenantToken: string | null = null
-  private tenantTokenExpiry = 0
-  // Track active streaming sessions: draftId -> { session, chatId }
+  // Track active streaming sessions: draftId -> { session, chatId, messageId }
   private readonly streamingSessions = new Map<
     number,
     { session: FeishuStreamingSession; chatId: string; messageId?: string }
@@ -337,17 +305,13 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async disconnect(): Promise<void> {
-    // Clean up streaming sessions
     for (const [, entry] of this.streamingSessions) {
       await entry.session.close().catch(() => {})
     }
     this.streamingSessions.clear()
 
-    // WSClient doesn't expose a stop method in all SDK versions.
-    // Setting to null allows GC.
     this.wsClient = null
     this.client = null
-    this.tenantToken = null
     logger.info('Feishu bot stopped', { agentId: this.agentId, channelId: this.channelId })
   }
 
@@ -381,20 +345,11 @@ class FeishuAdapter extends ChannelAdapter {
 
     let entry = this.streamingSessions.get(draftId)
 
-    // Create a new streaming card session on the first draft call
     if (!entry) {
-      const token = await this.getTenantToken()
-      if (!token) {
-        // Fallback: no streaming support, skip drafts
-        return
-      }
-
-      const apiBase = resolveApiBase(this.domain)
-      const session = new FeishuStreamingSession(apiBase, token)
+      const session = new FeishuStreamingSession(this.client)
       const cardId = await session.create()
       if (!cardId) return
 
-      // Send the card as an interactive message
       try {
         const res = await this.client.im.message.create({
           params: { receive_id_type: 'chat_id' },
@@ -415,19 +370,17 @@ class FeishuAdapter extends ChannelAdapter {
       }
     }
 
-    // Update the streaming card with new content
     await entry.session.update(text)
   }
 
   async sendTypingIndicator(_chatId: string): Promise<void> {
     // Feishu doesn't have a native typing indicator API.
     // The streaming card itself serves as a visual indicator.
-    // No-op to satisfy the abstract interface.
   }
 
   /**
    * Finalize a streaming session: close the streaming card and optionally
-   * update the message to a normal post for long-term readability.
+   * update the message to a static markdown card for long-term readability.
    */
   async finalizeStream(draftId: number, finalText: string): Promise<void> {
     const entry = this.streamingSessions.get(draftId)
@@ -436,7 +389,6 @@ class FeishuAdapter extends ChannelAdapter {
     await entry.session.close()
     this.streamingSessions.delete(draftId)
 
-    // Replace the interactive card message with a clean post message
     if (entry.messageId && this.client) {
       try {
         await this.client.im.message.update({
@@ -456,13 +408,11 @@ class FeishuAdapter extends ChannelAdapter {
     const chatId = event.message.chat_id?.trim()
     if (!chatId) return
 
-    // Auth guard
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(chatId)) {
       logger.debug('Dropping message from unauthorized chat', { chatId })
       return
     }
 
-    // Only handle text messages
     if (event.message.message_type !== 'text') return
 
     let text: string
@@ -501,47 +451,6 @@ class FeishuAdapter extends ChannelAdapter {
       userName: '',
       text
     })
-  }
-
-  /**
-   * Obtain (or refresh) the tenant_access_token needed for CardKit API calls.
-   * Caches the token and refreshes 5 minutes before expiry.
-   */
-  private async getTenantToken(): Promise<string | null> {
-    const now = Date.now()
-    if (this.tenantToken && now < this.tenantTokenExpiry) {
-      return this.tenantToken
-    }
-
-    try {
-      const apiBase = resolveApiBase(this.domain)
-      const res = await net.fetch(`${apiBase}/auth/v3/tenant_access_token/internal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_id: this.appId, app_secret: this.appSecret })
-      })
-
-      const json = (await res.json()) as {
-        code?: number
-        tenant_access_token?: string
-        expire?: number
-      }
-
-      if (json.code === 0 && json.tenant_access_token) {
-        this.tenantToken = json.tenant_access_token
-        // Refresh 5 minutes before actual expiry
-        this.tenantTokenExpiry = now + ((json.expire ?? 7200) - 300) * 1000
-        return this.tenantToken
-      }
-
-      logger.warn('Failed to obtain tenant_access_token', { response: json })
-      return null
-    } catch (error) {
-      logger.error('Error obtaining tenant_access_token', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return null
-    }
   }
 }
 

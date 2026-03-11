@@ -10,21 +10,27 @@ vi.mock('../../ChannelManager', () => ({
   registerAdapterFactory: vi.fn()
 }))
 
-const { mockNetFetch } = vi.hoisted(() => {
-  const mockNetFetch = vi.fn()
-  return { mockNetFetch }
-})
 vi.mock('electron', () => ({
-  net: { fetch: mockNetFetch }
+  net: { fetch: vi.fn() }
 }))
 
-const mockCreate = vi.fn().mockResolvedValue({ data: { message_id: 'msg-1' } })
-const mockUpdate = vi.fn().mockResolvedValue({})
+const mockImCreate = vi.fn().mockResolvedValue({ data: { message_id: 'msg-1' } })
+const mockImUpdate = vi.fn().mockResolvedValue({})
+const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
+const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
+const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
+
 const mockClient = {
   im: {
     message: {
-      create: mockCreate,
-      update: mockUpdate
+      create: mockImCreate,
+      update: mockImUpdate
+    }
+  },
+  cardkit: {
+    v1: {
+      card: { create: mockCardCreate, settings: mockCardSettings },
+      cardElement: { content: mockElementContent }
     }
   }
 }
@@ -59,10 +65,12 @@ function getFactory() {
 
 describe('FeishuAdapter', () => {
   beforeEach(() => {
-    mockCreate.mockClear().mockResolvedValue({ data: { message_id: 'msg-1' } })
-    mockUpdate.mockClear().mockResolvedValue({})
+    mockImCreate.mockClear().mockResolvedValue({ data: { message_id: 'msg-1' } })
+    mockImUpdate.mockClear().mockResolvedValue({})
+    mockCardCreate.mockClear().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
+    mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
+    mockElementContent.mockClear().mockResolvedValue({ code: 0 })
     mockWsStart.mockClear().mockResolvedValue(undefined)
-    mockNetFetch.mockClear()
     capturedEventHandlers = {}
   })
 
@@ -105,7 +113,7 @@ describe('FeishuAdapter', () => {
     await adapter.connect()
     await adapter.sendMessage('oc_123', 'Hello Feishu')
 
-    expect(mockCreate).toHaveBeenCalledWith({
+    expect(mockImCreate).toHaveBeenCalledWith({
       params: { receive_id_type: 'chat_id' },
       data: {
         receive_id: 'oc_123',
@@ -115,7 +123,7 @@ describe('FeishuAdapter', () => {
     })
 
     // Verify it's a proper post payload with md tag
-    const content = JSON.parse(mockCreate.mock.calls[0][0].data.content)
+    const content = JSON.parse(mockImCreate.mock.calls[0][0].data.content)
     expect(content.zh_cn.content[0][0]).toEqual({ tag: 'md', text: 'Hello Feishu' })
   })
 
@@ -130,13 +138,46 @@ describe('FeishuAdapter', () => {
     await vi.runAllTimersAsync()
     await sendPromise
 
-    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(mockImCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('sendMessageDraft() creates streaming card and updates content via SDK', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMessageDraft('oc_123', 1, 'partial text...')
+
+    // Should create a streaming card
+    expect(mockCardCreate).toHaveBeenCalledWith({
+      data: {
+        type: 'card_json',
+        data: expect.stringContaining('streaming_mode')
+      }
+    })
+
+    // Should send the card as an interactive message
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: 'oc_123',
+        msg_type: 'interactive',
+        content: expect.stringContaining('card-1')
+      }
+    })
+
+    // Should update element content
+    expect(mockElementContent).toHaveBeenCalledWith({
+      path: { card_id: 'card-1', element_id: 'streaming_content' },
+      data: {
+        content: expect.stringContaining('partial text...'),
+        sequence: expect.any(Number)
+      }
+    })
   })
 
   it('sendTypingIndicator() is a no-op (Feishu has no native typing API)', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-    // Should not throw
     await adapter.sendTypingIndicator('oc_123')
   })
 
@@ -147,7 +188,6 @@ describe('FeishuAdapter', () => {
     const messageSpy = vi.fn()
     adapter.on('message', messageSpy)
 
-    // Simulate an incoming message via the captured event handler
     const handler = capturedEventHandlers['im.message.receive_v1']
     expect(handler).toBeDefined()
 
@@ -221,7 +261,7 @@ describe('FeishuAdapter', () => {
   })
 
   it('strips @mention tags from group messages', async () => {
-    const adapter = createAdapter({ allowed_chat_ids: [] }) // allow all
+    const adapter = createAdapter({ allowed_chat_ids: [] })
     await adapter.connect()
 
     const messageSpy = vi.fn()
