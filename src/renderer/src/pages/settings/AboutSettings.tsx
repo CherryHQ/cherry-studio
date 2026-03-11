@@ -53,6 +53,7 @@ const AboutSettings: FC = () => {
       try {
         await window.api.checkForUpdate()
       } catch (error) {
+        dispatch(setUpdateState({ manualCheck: false }))
         window.toast.error(t('settings.about.updateError'))
       }
 

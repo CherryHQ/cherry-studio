@@ -29,7 +29,7 @@ export default function useUpdateHandler() {
 
     const removers = [
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
-        dispatch(setUpdateState({ checking: false }))
+        dispatch(setUpdateState({ checking: false, manualCheck: false }))
         if (window.location.hash.includes('settings/about')) {
           window.toast.success(t('settings.about.updateNotAvailable'))
         }
@@ -87,7 +87,8 @@ export default function useUpdateHandler() {
           setUpdateState({
             checking: false,
             downloading: false,
-            downloadProgress: 0
+            downloadProgress: 0,
+            manualCheck: false
           })
         )
         if (window.location.hash.includes('settings/about')) {
