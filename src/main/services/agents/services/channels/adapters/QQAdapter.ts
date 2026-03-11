@@ -9,7 +9,6 @@ const logger = loggerService.withContext('QQAdapter')
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
-const QQ_SANDBOX_API_BASE = 'https://sandbox.api.sgroup.qq.com'
 
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
@@ -89,7 +88,6 @@ class QQAdapter extends ChannelAdapter {
   private readonly appId: string
   private readonly clientSecret: string
   private readonly allowedChatIds: string[]
-  private readonly useSandbox: boolean
 
   private tokenCache: QQTokenCache | null = null
   private sessionId: string | null = null
@@ -104,18 +102,13 @@ class QQAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
-    const { app_id, client_secret, allowed_chat_ids, use_sandbox } = config.channelConfig
+    const { app_id, client_secret, allowed_chat_ids } = config.channelConfig
     this.appId = (app_id as string) ?? ''
     this.clientSecret = (client_secret as string) ?? ''
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
-    this.useSandbox = (use_sandbox as boolean) ?? false
     // Expose for notify tool
     this.notifyChatIds = [...this.allowedChatIds]
-  }
-
-  private get apiBase(): string {
-    return this.useSandbox ? QQ_SANDBOX_API_BASE : QQ_API_BASE
   }
 
   async connect(): Promise<void> {
@@ -165,7 +158,7 @@ class QQAdapter extends ChannelAdapter {
 
   private async getGatewayUrl(): Promise<string> {
     const token = await this.getAccessToken()
-    const response = await fetch(`${this.apiBase}/gateway`, {
+    const response = await fetch(`${QQ_API_BASE}/gateway`, {
       headers: {
         Authorization: `QQBot ${token}`,
         'X-Union-Appid': this.appId
@@ -465,19 +458,19 @@ class QQAdapter extends ChannelAdapter {
 
     switch (type) {
       case 'c2c':
-        endpoint = `${this.apiBase}/v2/users/${id}/messages`
+        endpoint = `${QQ_API_BASE}/v2/users/${id}/messages`
         body = { content: text, msg_type: 0 }
         break
       case 'group':
-        endpoint = `${this.apiBase}/v2/groups/${id}/messages`
+        endpoint = `${QQ_API_BASE}/v2/groups/${id}/messages`
         body = { content: text, msg_type: 0 }
         break
       case 'channel':
-        endpoint = `${this.apiBase}/channels/${id}/messages`
+        endpoint = `${QQ_API_BASE}/channels/${id}/messages`
         body = { content: text }
         break
       case 'dm':
-        endpoint = `${this.apiBase}/dms/${id}/messages`
+        endpoint = `${QQ_API_BASE}/dms/${id}/messages`
         body = { content: text }
         break
       default:

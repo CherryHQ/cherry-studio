@@ -138,7 +138,6 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
     app_id?: string
     client_secret?: string
     allowed_chat_ids?: string[]
-    use_sandbox?: boolean
   }
   const [appId, setAppId] = useState(config.app_id ?? '')
   const [clientSecret, setClientSecret] = useState(config.client_secret ?? '')
@@ -214,20 +213,6 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
         <span className="mt-1 block text-gray-400 text-xs">{t('agent.cherryClaw.channels.qq.chatIdsHint')}</span>
       </div>
 
-      {/* Sandbox mode */}
-      <div className="flex items-center gap-2">
-        <Checkbox
-          checked={config.use_sandbox ?? false}
-          onChange={(e) =>
-            onConfigChange({ config: { ...config, use_sandbox: e.target.checked } as typeof channel.config })
-          }
-        />
-        <div>
-          <span className="text-sm">{t('agent.cherryClaw.channels.qq.sandbox')}</span>
-          <span className="block text-gray-400 text-xs">{t('agent.cherryClaw.channels.qq.sandboxHint')}</span>
-        </div>
-      </div>
-
       {/* Notify receiver checkbox */}
       <div className="flex items-center gap-2">
         <Checkbox
@@ -272,7 +257,7 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
       case 'telegram':
         return { bot_token: '', allowed_chat_ids: [] }
       case 'qq':
-        return { app_id: '', client_secret: '', allowed_chat_ids: [], use_sandbox: false }
+        return { app_id: '', client_secret: '', allowed_chat_ids: [] }
     }
   }, [])
 

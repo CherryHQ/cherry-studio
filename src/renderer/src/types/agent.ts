@@ -42,8 +42,7 @@ export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
 export const QQChannelConfigSchema = z.object({
   app_id: z.string().min(1),
   client_secret: z.string().min(1),
-  allowed_chat_ids: z.array(z.string()).default([]),
-  use_sandbox: z.boolean().default(false)
+  allowed_chat_ids: z.array(z.string()).default([])
 })
 
 export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>

@@ -56,7 +56,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Stream response collection** — `text-delta` events from the transform layer are cumulative within a text block. `ChannelMessageHandler` tracks per-block text (`text = value.text`) and commits on `text-end` to accumulate across multi-turn agent responses. Drafts are streamed to the chat via `sendMessageDraft` (throttled at 500ms) while `sendTypingIndicator` runs every 4s throughout the request.
 - **Channel config in agent settings** — stored in `CherryClawConfiguration.channels[]`. UI is a catalog of available channel types with inline config (enable switch, bot token, allowed chat IDs). No DB migration needed.
 - **grammY library** — Telegram Bot API client, long polling only (desktop app behind NAT). `sendMessageDraft` is Telegram's native streaming draft API.
-- **QQ Bot API (ws package)** — QQ channel adapter uses official QQ Bot API with WebSocket gateway for receiving messages and REST API for sending. Supports c2c (private), group, guild (channel), and dm message types. Uses AppID + ClientSecret authentication with access token caching. Sandbox mode toggle for testing. No native draft/streaming API, so `sendMessageDraft` is a no-op.
+- **QQ Bot API (ws package)** — QQ channel adapter uses official QQ Bot API with WebSocket gateway for receiving messages and REST API for sending. Supports c2c (private), group, guild (channel), and dm message types. Uses AppID + ClientSecret authentication with access token caching. No native draft/streaming API, so `sendMessageDraft` is a no-op.
 
 ## Scheduler Architecture
 
@@ -231,7 +231,7 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/channels/ChannelManager.ts` — singleton lifecycle, adapter factory registry, agent sync + `getNotifyAdapters()` + `notifyChannels` tracking
 - `src/main/services/agents/services/channels/index.ts` — public exports + adapter module imports
 - `src/main/services/agents/services/channels/adapters/TelegramAdapter.ts` — grammY-based adapter (long polling, auth guard, `sendMessageDraft`, message chunking, sets `notifyChatIds`)
-- `src/main/services/agents/services/channels/adapters/QQAdapter.ts` — NEW: QQ Bot API adapter (WebSocket gateway, REST messaging, c2c/group/guild/dm support, access token caching, sandbox mode)
+- `src/main/services/agents/services/channels/adapters/QQAdapter.ts` — NEW: QQ Bot API adapter (WebSocket gateway, REST messaging, c2c/group/guild/dm support, access token caching)
 
 ### Channel UI
 - `src/renderer/src/pages/settings/AgentSettings/components/ChannelsSettings.tsx` — catalog-based card layout with inline config (blur-to-save), TelegramChannelCard + QQChannelCard
@@ -297,7 +297,6 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - **Telegram MarkdownV2** — agent responses sent as plain text (no `parse_mode`) to avoid escaping issues. Proper GFM→MarkdownV2 conversion is a follow-up.
 - **QQ no streaming** — QQ Bot API has no native draft/streaming API like Telegram, so `sendMessageDraft` is a no-op. Full responses are sent as final messages only.
 - **QQ no typing indicator** — QQ Bot API does not support typing indicators for most message types. `sendTypingIndicator` is a no-op.
-- **QQ sandbox mode** — Toggle `use_sandbox` in channel config to use `sandbox.api.sgroup.qq.com` for testing instead of production API.
 - ~~**Memory system**~~ — DONE: anna-inspired 3-file model (soul.md, user.md, memory/FACT.md) + JOURNAL.jsonl, with `memory` MCP tool and `PromptBuilder` for system prompt assembly.
 - **Non-Anthropic models** — CherryClaw only supports Anthropic provider models (inherits from Claude Agent SDK).
 - **Session settings** — `SessionSettingsPopup.tsx` was NOT updated with CherryClaw tabs (only `AgentSettingsPopup` was). May want to add soul/task tabs there too if sessions need per-session overrides.

@@ -41,8 +41,6 @@
           "clientSecret": "Client Secret",
           "clientSecretPlaceholder": "Enter your QQ Bot client secret",
           "description": "Receive and respond to messages via QQ Bot official API.",
-          "sandbox": "Sandbox Mode",
-          "sandboxHint": "Use sandbox API for testing (api.sgroup.qq.com sandbox).",
           "title": "QQ"
         },
         "tab": "Channels",
