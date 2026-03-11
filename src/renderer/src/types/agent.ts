@@ -39,12 +39,21 @@ export const TelegramChannelConfigSchema = z.object({
 
 export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
 
+export const QQChannelConfigSchema = z.object({
+  app_id: z.string().min(1),
+  client_secret: z.string().min(1),
+  allowed_chat_ids: z.array(z.string()).default([]),
+  use_sandbox: z.boolean().default(false)
+})
+
+export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>
+
 export const CherryClawChannelSchema = z.object({
   id: z.string(),
-  type: z.enum(['telegram']),
+  type: z.enum(['telegram', 'qq']),
   name: z.string(),
   enabled: z.boolean().default(true),
-  config: z.union([TelegramChannelConfigSchema]),
+  config: z.union([TelegramChannelConfigSchema, QQChannelConfigSchema]),
   is_notify_receiver: z.boolean().default(false)
 })
 

@@ -32,6 +32,19 @@
         "description": "[to be translated]:Connect your agent to messaging platforms.",
         "notifyReceiver": "[to be translated]:Receive task notifications",
         "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
+        "qq": {
+          "appId": "[to be translated]:App ID",
+          "appIdPlaceholder": "[to be translated]:Enter your QQ Bot App ID",
+          "chatIds": "[to be translated]:Allowed Chat IDs",
+          "chatIdsHint": "[to be translated]:Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
+          "chatIdsPlaceholder": "[to be translated]:c2c:abc123, group:xyz789",
+          "clientSecret": "[to be translated]:Client Secret",
+          "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
+          "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
+          "sandbox": "[to be translated]:Sandbox Mode",
+          "sandboxHint": "[to be translated]:Use sandbox API for testing (api.sgroup.qq.com sandbox).",
+          "title": "[to be translated]:QQ"
+        },
         "tab": "[to be translated]:Channels",
         "telegram": {
           "botToken": "[to be translated]:Bot Token",

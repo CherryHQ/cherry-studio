@@ -32,6 +32,19 @@
         "description": "Connect your agent to messaging platforms.",
         "notifyReceiver": "Receive task notifications",
         "notifyReceiverHint": "Send scheduler task results to this channel.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Enter your QQ Bot App ID",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Enter your QQ Bot client secret",
+          "description": "Receive and respond to messages via QQ Bot official API.",
+          "sandbox": "Sandbox Mode",
+          "sandboxHint": "Use sandbox API for testing (api.sgroup.qq.com sandbox).",
+          "title": "QQ"
+        },
         "tab": "Channels",
         "telegram": {
           "botToken": "Bot Token",
