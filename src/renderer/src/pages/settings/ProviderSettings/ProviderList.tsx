@@ -13,6 +13,7 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
 import type { MenuProps } from 'antd'
 import { Button, Dropdown, Input, Tag } from 'antd'
 import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
@@ -309,7 +310,7 @@ const ProviderList: FC = () => {
     }
 
     // Filter by agent support
-    if (agentFilterEnabled && !provider.anthropicApiHost) {
+    if (agentFilterEnabled && !isAnthropicSupportedProvider(provider)) {
       return false
     }
 
