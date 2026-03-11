@@ -491,22 +491,13 @@ class OpenClawService {
     let startupError: string | null = null
     let processExited = false
 
-    // Strip proxy env vars so Cherry Studio's proxy settings don't bleed into
-    // the gateway process. OpenClaw's undici crashes if HTTP_PROXY is set to a
-    // non-http(s) URL (e.g. socks5://). See #13140.
+    // Strip non-http(s) proxy URLs that crash OpenClaw's undici. See #13140.
     const gatewayEnv = { ...shellEnv, OPENCLAW_CONFIG_PATH }
-    for (const key of [
-      'HTTP_PROXY',
-      'HTTPS_PROXY',
-      'http_proxy',
-      'https_proxy',
-      'SOCKS_PROXY',
-      'ALL_PROXY',
-      'grpc_proxy',
-      'no_proxy',
-      'NO_PROXY'
-    ]) {
-      delete gatewayEnv[key]
+    for (const key of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']) {
+      const val = gatewayEnv[key]
+      if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
+        delete gatewayEnv[key]
+      }
     }
 
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
