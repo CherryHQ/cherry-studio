@@ -696,6 +696,7 @@ export function getGeminiReasoningParams(
   }
 
   let thinkingLevel: GoogleThinkingLevel = undefined
+  const includeThoughts = reasoningEffort === 'none'
 
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
@@ -705,21 +706,11 @@ export function getGeminiReasoningParams(
     }
   }
 
-  if (reasoningEffort === 'none') {
-    return {
-      thinkingConfig: {
-        includeThoughts: false,
-        ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {}),
-        ...(thinkingLevel ? { thinkingLevel } : {})
-      }
-    }
-  }
-
   if (thinkingLevel) {
     // Gemini 3 branch.
     return {
       thinkingConfig: {
-        includeThoughts: true,
+        includeThoughts,
         thinkingLevel
       }
     }
@@ -727,11 +718,20 @@ export function getGeminiReasoningParams(
     // Old models
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (effortRatio > 1) {
+    if (reasoningEffort === 'auto') {
       return {
         thinkingConfig: {
-          thinkingBudget: -1,
-          includeThoughts: true
+          includeThoughts,
+          thinkingBudget: -1
+        }
+      }
+    }
+
+    if (reasoningEffort === 'none') {
+      return {
+        thinkingConfig: {
+          includeThoughts,
+          thinkingBudget: 0
         }
       }
     }
@@ -741,8 +741,8 @@ export function getGeminiReasoningParams(
 
     return {
       thinkingConfig: {
-        ...(budget > 0 ? { thinkingBudget: budget } : {}),
-        includeThoughts: true
+        includeThoughts,
+        ...(budget > 0 ? { thinkingBudget: budget } : {})
       }
     }
   }
