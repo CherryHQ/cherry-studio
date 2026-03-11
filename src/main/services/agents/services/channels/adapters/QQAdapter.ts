@@ -353,6 +353,10 @@ class QQAdapter extends ChannelAdapter {
 
     const text = this.parseContent(msg.content)
     if (this.isCommand(text)) {
+      if (text.startsWith('/whoami')) {
+        await this.sendWhoami(chatId)
+        return
+      }
       this.emitCommand(chatId, msg.author.user_openid ?? '', '', text)
     } else {
       this.emit('message', {
@@ -371,6 +375,10 @@ class QQAdapter extends ChannelAdapter {
 
     const text = this.parseContent(msg.content)
     if (this.isCommand(text)) {
+      if (text.startsWith('/whoami')) {
+        await this.sendWhoami(chatId)
+        return
+      }
       this.emitCommand(chatId, msg.author.member_openid ?? '', '', text)
     } else {
       this.emit('message', {
@@ -389,6 +397,10 @@ class QQAdapter extends ChannelAdapter {
 
     const text = this.parseContent(msg.content)
     if (this.isCommand(text)) {
+      if (text.startsWith('/whoami')) {
+        await this.sendWhoami(chatId)
+        return
+      }
       this.emitCommand(chatId, msg.author.id, msg.author.username ?? '', text)
     } else {
       this.emit('message', {
@@ -407,6 +419,10 @@ class QQAdapter extends ChannelAdapter {
 
     const text = this.parseContent(msg.content)
     if (this.isCommand(text)) {
+      if (text.startsWith('/whoami')) {
+        await this.sendWhoami(chatId)
+        return
+      }
       this.emitCommand(chatId, msg.author.id, msg.author.username ?? '', text)
     } else {
       this.emit('message', {
@@ -429,12 +445,27 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private isCommand(text: string): boolean {
-    return text.startsWith('/new') || text.startsWith('/compact') || text.startsWith('/help')
+    return (
+      text.startsWith('/new') || text.startsWith('/compact') || text.startsWith('/help') || text.startsWith('/whoami')
+    )
   }
 
   private emitCommand(chatId: string, userId: string, userName: string, text: string): void {
     const cmd = text.split(/\s+/)[0].slice(1) as 'new' | 'compact' | 'help'
     this.emit('command', { chatId, userId, userName, command: cmd })
+  }
+
+  private async sendWhoami(chatId: string): Promise<void> {
+    const message = `Your chat ID: ${chatId}\n\nAdd this to "allowed_chat_ids" in channel settings to enable notifications.`
+    try {
+      await this.sendMessage(chatId, message)
+    } catch (err) {
+      logger.error('Failed to send whoami response', {
+        agentId: this.agentId,
+        chatId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
   }
 
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
