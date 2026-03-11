@@ -135,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
+          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "[to be translated]:Environment Variables"
+        },
         "maxTurns": {
           "description": "Ορίστε τον αριθμό γύρων αιτήματος/απάντησης που θα εκτελούνται αυτόματα από τον διαμεσολαβητή.",
           "helper": "Όσο υψηλότερη είναι η τιμή, τόσο περισσότερο μπορεί να λειτουργεί αυτόνομα· όσο χαμηλότερη είναι, τόσο πιο εύκολα ελέγχεται.",

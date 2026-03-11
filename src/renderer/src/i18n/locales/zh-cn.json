@@ -135,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "为智能体运行时设置自定义环境变量。",
+          "helper": "输入自定义环境变量（每行一个，格式：KEY=value）",
+          "label": "环境变量"
+        },
         "maxTurns": {
           "description": "设定代理自动执行的请求/回复轮次数。",
           "helper": "数值越高可自主运行越久；数值越低更易控制。",
