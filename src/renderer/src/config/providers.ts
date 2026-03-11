@@ -1490,9 +1490,13 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://ark.cn-beijing.volces.com/api/coding/v3'
     },
     websites: {
-      official: 'https://www.volcengine.com/activity/codingplan',
-      apiKey: 'https://www.volcengine.com/activity/codingplan',
-      docs: 'https://www.volcengine.com/activity/codingplan'
+      official:
+        'https://console.volcengine.com/ark/?utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio',
+      apiKey:
+        'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D&utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio',
+      docs: 'https://www.volcengine.com/docs/82379/1182403?utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio&lang=zh',
+      models:
+        'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint?utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio'
     }
   },
   'byteplus-coding': {
@@ -1500,9 +1504,13 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://ark.ap-southeast.bytepluses.com/api/coding/v3'
     },
     websites: {
-      official: 'https://www.byteplus.com/en/activity/codingplan',
-      apiKey: 'https://www.byteplus.com/en/activity/codingplan',
-      docs: 'https://www.byteplus.com/en/activity/codingplan'
+      official:
+        'https://www.byteplus.com/en/activity/codingplan?utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio',
+      apiKey:
+        'https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey?apikey=%7B%7D&utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio',
+      docs: 'https://docs.byteplus.com/en/docs/ModelArk/1928261?utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio&lang=zh',
+      models:
+        'https://console.byteplus.com/ark/region:ark+ap-southeast-1/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&utm_campaign=cherrystudio&utm_content=cherrystudio&utm_medium=devrel&utm_source=OWO&utm_term=cherrystudio'
     }
   }
 }
