@@ -30,7 +30,14 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.cherryClaw.channels.feishu.description',
     icon: '🪶',
     available: true,
-    defaultConfig: { app_id: '', app_secret: '', allowed_chat_ids: [], domain: 'feishu' }
+    defaultConfig: {
+      app_id: '',
+      app_secret: '',
+      encrypt_key: '',
+      verification_token: '',
+      allowed_chat_ids: [],
+      domain: 'feishu'
+    }
   },
   {
     type: 'telegram',
@@ -151,13 +158,17 @@ const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
 
   const [appId, setAppId] = useState(cfg.app_id ?? '')
   const [appSecret, setAppSecret] = useState(cfg.app_secret ?? '')
+  const [encryptKey, setEncryptKey] = useState(cfg.encrypt_key ?? '')
+  const [verificationToken, setVerificationToken] = useState(cfg.verification_token ?? '')
   const [chatIds, setChatIds] = useState((cfg.allowed_chat_ids ?? []).join(', '))
 
   useEffect(() => {
     setAppId(cfg.app_id ?? '')
     setAppSecret(cfg.app_secret ?? '')
+    setEncryptKey(cfg.encrypt_key ?? '')
+    setVerificationToken(cfg.verification_token ?? '')
     setChatIds((cfg.allowed_chat_ids ?? []).join(', '))
-  }, [cfg.app_id, cfg.app_secret, cfg.allowed_chat_ids])
+  }, [cfg.app_id, cfg.app_secret, cfg.encrypt_key, cfg.verification_token, cfg.allowed_chat_ids])
 
   const saveAppId = useCallback(() => {
     const trimmed = appId.trim()
@@ -172,6 +183,20 @@ const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
       onConfigChange({ config: { ...cfg, app_secret: trimmed } })
     }
   }, [appSecret, cfg, onConfigChange])
+
+  const saveEncryptKey = useCallback(() => {
+    const trimmed = encryptKey.trim()
+    if (trimmed !== (cfg.encrypt_key ?? '')) {
+      onConfigChange({ config: { ...cfg, encrypt_key: trimmed } })
+    }
+  }, [encryptKey, cfg, onConfigChange])
+
+  const saveVerificationToken = useCallback(() => {
+    const trimmed = verificationToken.trim()
+    if (trimmed !== (cfg.verification_token ?? '')) {
+      onConfigChange({ config: { ...cfg, verification_token: trimmed } })
+    }
+  }, [verificationToken, cfg, onConfigChange])
 
   const saveChatIds = useCallback(() => {
     const ids = chatIds
@@ -209,6 +234,28 @@ const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
           onChange={(e) => setAppSecret(e.target.value)}
           onBlur={saveAppSecret}
           placeholder={t('agent.cherryClaw.channels.feishu.appSecretPlaceholder')}
+          size="small"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.encryptKey')}</label>
+        <Input.Password
+          value={encryptKey}
+          onChange={(e) => setEncryptKey(e.target.value)}
+          onBlur={saveEncryptKey}
+          placeholder={t('agent.cherryClaw.channels.feishu.encryptKeyPlaceholder')}
+          size="small"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block font-medium text-xs">
+          {t('agent.cherryClaw.channels.feishu.verificationToken')}
+        </label>
+        <Input.Password
+          value={verificationToken}
+          onChange={(e) => setVerificationToken(e.target.value)}
+          onBlur={saveVerificationToken}
+          placeholder={t('agent.cherryClaw.channels.feishu.verificationTokenPlaceholder')}
           size="small"
         />
       </div>

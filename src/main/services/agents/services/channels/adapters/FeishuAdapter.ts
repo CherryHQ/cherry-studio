@@ -251,6 +251,8 @@ class FeishuAdapter extends ChannelAdapter {
   private wsClient: Lark.WSClient | null = null
   private readonly appId: string
   private readonly appSecret: string
+  private readonly encryptKey: string
+  private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
   // Track active streaming sessions: draftId -> { session, chatId, messageId }
@@ -261,9 +263,11 @@ class FeishuAdapter extends ChannelAdapter {
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
-    const { app_id, app_secret, allowed_chat_ids, domain } = config.channelConfig
+    const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain } = config.channelConfig
     this.appId = (app_id as string) ?? ''
     this.appSecret = (app_secret as string) ?? ''
+    this.encryptKey = (encrypt_key as string) ?? ''
+    this.verificationToken = (verification_token as string) ?? ''
     const rawIds = allowed_chat_ids as string[] | undefined
     this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
     this.domain = ((domain as string) ?? 'feishu') as FeishuDomain
@@ -285,7 +289,10 @@ class FeishuAdapter extends ChannelAdapter {
       httpInstance: createElectronHttpInstance()
     })
 
-    const eventDispatcher = new Lark.EventDispatcher({}).register({
+    const eventDispatcher = new Lark.EventDispatcher({
+      encryptKey: this.encryptKey || undefined,
+      verificationToken: this.verificationToken || undefined
+    }).register({
       'im.message.receive_v1': async (data: unknown) => {
         const event = data as FeishuMessageEvent
         this.handleMessageEvent(event)

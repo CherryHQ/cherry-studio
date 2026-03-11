@@ -42,7 +42,11 @@
           "domain": "Domain",
           "domainFeishu": "Feishu (China)",
           "domainLark": "Lark (International)",
-          "title": "Feishu"
+          "encryptKey": "Encrypt Key",
+          "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
+          "title": "Feishu",
+          "verificationToken": "Verification Token",
+          "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
         },
         "notifyReceiver": "Receive task notifications",
         "notifyReceiverHint": "Send scheduler task results to this channel.",
