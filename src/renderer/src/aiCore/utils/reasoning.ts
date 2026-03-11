@@ -731,7 +731,7 @@ export function getGeminiReasoningParams(
       return {
         thinkingConfig: {
           includeThoughts,
-          thinkingBudget: 0
+          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
         }
       }
     }

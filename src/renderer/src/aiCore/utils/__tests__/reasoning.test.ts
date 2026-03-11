@@ -868,7 +868,6 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         thinkingConfig: {
           includeThoughts: false,
-          thinkingBudget: 0,
           thinkingLevel: 'minimal'
         }
       })
