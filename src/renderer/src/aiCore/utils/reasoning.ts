@@ -696,7 +696,7 @@ export function getGeminiReasoningParams(
   }
 
   let thinkingLevel: GoogleThinkingLevel = undefined
-  const includeThoughts = reasoningEffort === 'none'
+  const includeThoughts = reasoningEffort !== 'none'
 
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
