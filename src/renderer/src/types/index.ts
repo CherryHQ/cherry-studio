@@ -188,6 +188,8 @@ export type AssistantSettings = {
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
+  maxToolCalls?: number
+  enableMaxToolCalls?: boolean
 }
 
 export type AssistantPreset = Omit<Assistant, 'model'> & {

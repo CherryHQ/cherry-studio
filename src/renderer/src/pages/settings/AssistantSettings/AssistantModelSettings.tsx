@@ -36,6 +36,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
     assistant?.settings?.toolUseMode ?? 'function'
   )
+  const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
+  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? true)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
@@ -193,6 +195,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
     setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
+    setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls ?? 20)
+    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls ?? true)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
@@ -476,6 +480,42 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           size={14}
         />
       </SettingRow>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <HStack alignItems="center">
+          <Label>{t('assistants.settings.max_tool_calls.label')}</Label>
+          <Tooltip title={t('assistants.settings.max_tool_calls.tip')}>
+            <QuestionIcon />
+          </Tooltip>
+        </HStack>
+        <Switch
+          checked={enableMaxToolCalls}
+          onChange={(enabled) => {
+            setEnableMaxToolCalls(enabled)
+            updateAssistantSettings({ enableMaxToolCalls: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableMaxToolCalls && (
+        <Row align="middle" style={{ marginTop: 5, marginBottom: 5 }}>
+          <Col span={24}>
+            <InputNumber
+              min={1}
+              max={100}
+              step={1}
+              value={maxToolCalls}
+              changeOnBlur
+              onChange={(value) => {
+                if (!isNull(value)) {
+                  setMaxToolCalls(value)
+                  setTimeoutTimer('maxToolCalls_onChange', () => updateAssistantSettings({ maxToolCalls: value }), 500)
+                }
+              }}
+              style={{ width: '100%' }}
+            />
+          </Col>
+        </Row>
+      )}
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>

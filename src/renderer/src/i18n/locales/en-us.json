@@ -621,6 +621,10 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
+      "max_tool_calls": {
+        "label": "Max Tool Calls",
+        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
+      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",

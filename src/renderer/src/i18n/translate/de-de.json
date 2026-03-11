@@ -621,6 +621,10 @@
           "tip": "Der Assistent verwendet die Absichtserkennungsfähigkeit des großen Modells, um zu bestimmen, ob die Wissensdatenbank für die Antwort aufgerufen werden muss. Diese Funktion hängt von den Fähigkeiten des Modells ab"
         }
       },
+      "max_tool_calls": {
+        "label": "Maximale Werkzeugaufrufe",
+        "tip": "Maximale Anzahl von Tool-Aufrufen, die in einer einzelnen Konversation erlaubt sind. Höhere Werte ermöglichen komplexere, mehrstufige Operationen, können aber den Token-Verbrauch und die Antwortzeit erhöhen."
+      },
       "mcp": {
         "description": "Standardmäßig aktivierte MCP-Server",
         "enableFirst": "Bitte aktivieren Sie diesen Server zuerst in den MCP-Einstellungen",

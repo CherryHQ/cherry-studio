@@ -55,7 +55,9 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   reasoning_effort_cache: undefined,
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
-  toolUseMode: 'function'
+  toolUseMode: 'function',
+  maxToolCalls: 20,
+  enableMaxToolCalls: true
 } as const satisfies AssistantSettings
 
 /**

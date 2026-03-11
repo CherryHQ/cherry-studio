@@ -621,6 +621,10 @@
           "tip": "Asistentul va folosi capacitatea de recunoaștere a intenției modelului mare pentru a determina dacă să folosească baza de cunoștințe pentru a răspunde. Această funcție depinde de capacitățile modelului"
         }
       },
+      "max_tool_calls": {
+        "label": "Apeluri Maxime de Instrumente",
+        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valori mai mari permit operații mai complexe, în mai multe etape, dar pot crește consumul de tokeni și timpul de răspuns."
+      },
       "mcp": {
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",

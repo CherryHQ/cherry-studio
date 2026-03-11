@@ -621,6 +621,10 @@
           "tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo"
         }
       },
+      "max_tool_calls": {
+        "label": "Llamadas Máximas de Herramientas",
+        "tip": "Número máximo de llamadas a herramientas permitidas en una sola conversación. Valores más altos permiten operaciones de múltiples pasos más complejas, pero pueden incrementar el uso de tokens y el tiempo de respuesta."
+      },
       "mcp": {
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
