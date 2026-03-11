@@ -284,7 +284,7 @@
         },
         "tab": "Tools",
         "tools": {
-          "title": "Tools"
+          "title": "Pre-approved Tools"
         }
       }
     },
@@ -321,7 +321,7 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Pending ({{seconds}}s)",
+      "pending": "Waiting for approval",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",
@@ -4858,6 +4859,7 @@
         "logout_failed": "Logout failed, please try again",
         "logout_success": "Successfully logged out of Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic has temporarily suspended the use of Claude via OAuth. This authentication method is currently unavailable. Please use an API key for now.",
         "start_auth": "Start authorization",
         "submit_code": "Complete login"
       },

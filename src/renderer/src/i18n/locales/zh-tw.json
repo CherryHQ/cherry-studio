@@ -284,7 +284,7 @@
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "預授權工具"
         }
       }
     },
@@ -321,7 +321,7 @@
       "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待審批",
       "permissionExpired": "權限請求已過期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要提升的權限。",
       "suggestion": {
@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "工具呼叫中斷失敗",
       "aborted": "工具呼叫已中斷",
+      "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -4856,6 +4857,7 @@
         "logout_failed": "登出失敗，請重試",
         "logout_success": "成功登出 Anthropic",
         "oauth": "網頁 OAuth",
+        "oauth_disabled_warning": "Anthropic 已暫時中止透過 OAuth 使用 Claude。此驗證方式目前無法使用。請暫時使用 API 金鑰。",
         "start_auth": "開始授權",
         "submit_code": "完成登入"
       },

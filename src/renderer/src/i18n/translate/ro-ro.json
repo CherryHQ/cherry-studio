@@ -284,7 +284,7 @@
         },
         "tab": "Unelte",
         "tools": {
-          "title": "Unelte"
+          "title": "Instrumente pre-aprobate"
         }
       }
     },
@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
+      "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
       "completed": "Finalizat",
@@ -4856,6 +4857,7 @@
         "logout_failed": "Deconectarea a eșuat, te rugăm să încerci din nou",
         "logout_success": "Te-ai deconectat cu succes de la Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic a suspendat temporar utilizarea Claude prin OAuth. Această metodă de autentificare este momentan indisponibilă. Vă rugăm să utilizați o cheie API deocamdată.",
         "start_auth": "Începe autorizarea",
         "submit_code": "Finalizează conectarea"
       },

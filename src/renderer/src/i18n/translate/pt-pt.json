@@ -284,7 +284,7 @@
         },
         "tab": "Ferramentas",
         "tools": {
-          "title": "Ferramentas"
+          "title": "Ferramentas pré-aprovadas"
         }
       }
     },
@@ -2147,6 +2147,7 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
       "completed": "Completo",
@@ -4856,6 +4857,7 @@
         "logout_failed": "Falha ao sair da conta, tente novamente",
         "logout_success": "Logout bem-sucedido do login Anthropic",
         "oauth": "OAuth da Página Web",
+        "oauth_disabled_warning": "A Anthropic suspendeu temporariamente o uso do Claude via OAuth. Este método de autenticação está atualmente indisponível. Por favor, use uma chave de API por enquanto.",
         "start_auth": "Iniciar autorização",
         "submit_code": "Concluir login"
       },
