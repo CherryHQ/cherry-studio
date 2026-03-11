@@ -10,6 +10,13 @@ const logger = loggerService.withContext('FeishuAdapter')
 
 const FEISHU_MAX_LENGTH = 4000
 
+type FeishuApiResponse<T = unknown> = {
+  code?: number
+  msg?: string
+  message?: string
+  data?: T
+}
+
 // Feishu message event shape (im.message.receive_v1)
 type FeishuMessageEvent = {
   sender: {
@@ -73,14 +80,46 @@ function createElectronHttpInstance(): Lark.HttpInstance {
     })
 
     const isStream = opts?.responseType === 'stream'
-    const responseData = isStream ? res.body : await res.json().catch(() => res.text())
+    const responseData = isStream
+      ? res.body
+      : await res.text().then((text) => {
+          if (!text) {
+            return ''
+          }
 
-    return {
-      data: responseData,
-      status: res.status,
-      statusText: res.statusText,
-      headers: Object.fromEntries(res.headers.entries())
+          try {
+            return JSON.parse(text) as unknown
+          } catch {
+            return text
+          }
+        })
+    const responseHeaders = Object.fromEntries(res.headers.entries())
+
+    if (!res.ok) {
+      const detail =
+        typeof responseData === 'string'
+          ? responseData
+          : (responseData as { msg?: string; message?: string } | null)?.msg ||
+            (responseData as { msg?: string; message?: string } | null)?.message ||
+            res.statusText
+      const error = new Error(`Feishu HTTP ${res.status}: ${detail}`)
+      ;(error as Error & { response?: unknown }).response = {
+        data: responseData,
+        headers: responseHeaders,
+        status: res.status,
+        statusText: res.statusText
+      }
+      throw error
     }
+
+    if (opts?.$return_headers) {
+      return {
+        data: responseData,
+        headers: responseHeaders
+      }
+    }
+
+    return responseData
   }
 
   return {
@@ -93,6 +132,34 @@ function createElectronHttpInstance(): Lark.HttpInstance {
     put: (url: string, data?: any, opts?: any) => doRequest('PUT', url, data, opts),
     patch: (url: string, data?: any, opts?: any) => doRequest('PATCH', url, data, opts)
   } as Lark.HttpInstance
+}
+
+function unwrapFeishuResponse<T>(response: unknown): FeishuApiResponse<T> {
+  if (response && typeof response === 'object' && 'code' in response) {
+    return response as FeishuApiResponse<T>
+  }
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'data' in response &&
+    response.data &&
+    typeof response.data === 'object' &&
+    'code' in response.data
+  ) {
+    return response.data as FeishuApiResponse<T>
+  }
+
+  return { code: -1, msg: 'Unexpected Feishu API response' }
+}
+
+function ensureFeishuSuccess<T>(response: unknown, action: string): FeishuApiResponse<T> {
+  const unwrapped = unwrapFeishuResponse<T>(response)
+  if (unwrapped.code === 0) {
+    return unwrapped
+  }
+
+  throw new Error(`${action} failed: ${unwrapped.msg || unwrapped.message || `code=${String(unwrapped.code)}`}`)
 }
 
 function splitMessage(text: string): string[] {
@@ -166,23 +233,27 @@ class FeishuStreamingSession {
 
   async create(): Promise<string | null> {
     try {
-      const res = await this.client.cardkit.v1.card.create({
-        data: {
-          type: 'card_json',
-          data: JSON.stringify({
-            schema: '2.0',
-            config: { wide_screen_mode: true, streaming_mode: true },
-            body: {
-              elements: [{ tag: 'markdown', content: '...', element_id: STREAMING_ELEMENT_ID }]
-            }
-          })
-        }
-      })
+      const res = ensureFeishuSuccess<{ card_id?: string }>(
+        await this.client.cardkit.v1.card.create({
+          data: {
+            type: 'card_json',
+            data: JSON.stringify({
+              schema: '2.0',
+              config: { wide_screen_mode: true, streaming_mode: true },
+              body: {
+                elements: [{ tag: 'markdown', content: '...', element_id: STREAMING_ELEMENT_ID }]
+              }
+            })
+          }
+        }),
+        'Create streaming card'
+      )
 
-      if (res.code === 0 && res.data?.card_id) {
+      if (res.data?.card_id) {
         this.cardId = res.data.card_id
         return this.cardId
       }
+
       logger.warn('Failed to create streaming card', { code: res.code, msg: res.msg })
       return null
     } catch (error) {
@@ -209,13 +280,16 @@ class FeishuStreamingSession {
       this.lastUpdateTime = Date.now()
       this.sequence++
       try {
-        await this.client.cardkit.v1.cardElement.content({
-          path: { card_id: this.cardId!, element_id: STREAMING_ELEMENT_ID },
-          data: {
-            content: JSON.stringify({ tag: 'markdown', content: text }),
-            sequence: this.sequence
-          }
-        })
+        ensureFeishuSuccess(
+          await this.client.cardkit.v1.cardElement.content({
+            path: { card_id: this.cardId!, element_id: STREAMING_ELEMENT_ID },
+            data: {
+              content: JSON.stringify({ tag: 'markdown', content: text }),
+              sequence: this.sequence
+            }
+          }),
+          'Update streaming card'
+        )
       } catch {
         // Swallow update errors to avoid blocking the stream
       }
@@ -231,13 +305,16 @@ class FeishuStreamingSession {
 
     try {
       this.sequence++
-      await this.client.cardkit.v1.card.settings({
-        path: { card_id: this.cardId },
-        data: {
-          settings: JSON.stringify({ streaming_mode: false }),
-          sequence: this.sequence
-        }
-      })
+      ensureFeishuSuccess(
+        await this.client.cardkit.v1.card.settings({
+          path: { card_id: this.cardId },
+          data: {
+            settings: JSON.stringify({ streaming_mode: false }),
+            sequence: this.sequence
+          }
+        }),
+        'Close streaming card'
+      )
     } catch (error) {
       logger.warn('Error closing streaming card', {
         error: error instanceof Error ? error.message : String(error)
@@ -326,18 +403,22 @@ class FeishuAdapter extends ChannelAdapter {
     if (!this.client) {
       throw new Error('Client is not connected')
     }
+    void _opts
 
     const chunks = splitMessage(text)
 
     for (let i = 0; i < chunks.length; i++) {
-      await this.client.im.message.create({
-        params: { receive_id_type: 'chat_id' },
-        data: {
-          receive_id: chatId,
-          msg_type: 'post',
-          content: buildPostPayload(chunks[i])
-        }
-      })
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: {
+            receive_id: chatId,
+            msg_type: 'post',
+            content: buildPostPayload(chunks[i])
+          }
+        }),
+        'Send Feishu message'
+      )
 
       if (i < chunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
@@ -358,15 +439,18 @@ class FeishuAdapter extends ChannelAdapter {
       if (!cardId) return
 
       try {
-        const res = await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: {
-            receive_id: chatId,
-            msg_type: 'interactive',
-            content: session.getCardContent()
-          }
-        })
-        const messageId = (res as { data?: { message_id?: string } })?.data?.message_id
+        const res = ensureFeishuSuccess<{ message_id?: string }>(
+          await this.client.im.message.create({
+            params: { receive_id_type: 'chat_id' },
+            data: {
+              receive_id: chatId,
+              msg_type: 'interactive',
+              content: session.getCardContent()
+            }
+          }),
+          'Send streaming card message'
+        )
+        const messageId = res.data?.message_id
         entry = { session, chatId, messageId }
         this.streamingSessions.set(draftId, entry)
       } catch (error) {
@@ -381,6 +465,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendTypingIndicator(_chatId: string): Promise<void> {
+    void _chatId
     // Feishu doesn't have a native typing indicator API.
     // The streaming card itself serves as a visual indicator.
   }
@@ -389,26 +474,34 @@ class FeishuAdapter extends ChannelAdapter {
    * Finalize a streaming session: close the streaming card and optionally
    * update the message to a static markdown card for long-term readability.
    */
-  async finalizeStream(draftId: number, finalText: string): Promise<void> {
+  override async finalizeStream(draftId: number, finalText: string): Promise<boolean> {
     const entry = this.streamingSessions.get(draftId)
-    if (!entry) return
+    if (!entry) return false
 
     await entry.session.close()
     this.streamingSessions.delete(draftId)
 
     if (entry.messageId && this.client) {
       try {
-        await this.client.im.message.update({
-          path: { message_id: entry.messageId },
-          data: {
-            msg_type: 'interactive',
-            content: buildMarkdownCard(finalText)
-          }
+        ensureFeishuSuccess(
+          await this.client.im.message.update({
+            path: { message_id: entry.messageId },
+            data: {
+              msg_type: 'interactive',
+              content: buildMarkdownCard(finalText)
+            }
+          }),
+          'Finalize Feishu streaming card'
+        )
+        return true
+      } catch (error) {
+        logger.warn('Failed to finalize streaming card', {
+          error: error instanceof Error ? error.message : String(error)
         })
-      } catch {
-        // If update fails (e.g., message too old), that's acceptable
       }
     }
+
+    return false
   }
 
   private handleMessageEvent(event: FeishuMessageEvent): void {
@@ -440,12 +533,12 @@ class FeishuAdapter extends ChannelAdapter {
     if (text.startsWith('/')) {
       const parts = text.split(/\s+/)
       const cmd = parts[0].slice(1).toLowerCase()
-      if (cmd === 'new' || cmd === 'compact' || cmd === 'help') {
+      if (cmd === 'new' || cmd === 'compact' || cmd === 'help' || cmd === 'whoami') {
         this.emit('command', {
           chatId,
           userId,
           userName: '',
-          command: cmd as 'new' | 'compact' | 'help',
+          command: cmd as 'new' | 'compact' | 'help' | 'whoami',
           args: parts.slice(1).join(' ') || undefined
         })
         return

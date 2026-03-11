@@ -14,8 +14,8 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 
-const mockImCreate = vi.fn().mockResolvedValue({ data: { message_id: 'msg-1' } })
-const mockImUpdate = vi.fn().mockResolvedValue({})
+const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
+const mockImUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
 const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
@@ -65,8 +65,8 @@ function getFactory() {
 
 describe('FeishuAdapter', () => {
   beforeEach(() => {
-    mockImCreate.mockClear().mockResolvedValue({ data: { message_id: 'msg-1' } })
-    mockImUpdate.mockClear().mockResolvedValue({})
+    mockImCreate.mockClear().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
+    mockImUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockCardCreate.mockClear().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
     mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
     mockElementContent.mockClear().mockResolvedValue({ code: 0 })
@@ -141,6 +141,16 @@ describe('FeishuAdapter', () => {
     expect(mockImCreate).toHaveBeenCalledTimes(2)
   })
 
+  it('sendMessage() throws when Feishu returns an API error', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockImCreate.mockResolvedValueOnce({ code: 99991663, msg: 'permission denied' })
+
+    await expect(adapter.sendMessage('oc_123', 'Hello Feishu')).rejects.toThrow(
+      'Send Feishu message failed: permission denied'
+    )
+  })
+
   it('sendMessageDraft() creates streaming card and updates content via SDK', async () => {
     const adapter = createAdapter()
     await adapter.connect()
@@ -171,6 +181,22 @@ describe('FeishuAdapter', () => {
       data: {
         content: expect.stringContaining('partial text...'),
         sequence: expect.any(Number)
+      }
+    })
+  })
+
+  it('finalizeStream() updates the existing card and returns true', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await adapter.sendMessageDraft('oc_123', 1, 'partial text...')
+
+    await expect(adapter.finalizeStream(1, 'final text')).resolves.toBe(true)
+    expect(mockImUpdate).toHaveBeenCalledWith({
+      path: { message_id: 'msg-1' },
+      data: {
+        msg_type: 'interactive',
+        content: expect.stringContaining('final text')
       }
     })
   })
@@ -234,6 +260,34 @@ describe('FeishuAdapter', () => {
       userId: 'ou_user1',
       userName: '',
       command: 'new',
+      args: undefined
+    })
+  })
+
+  it('handles /whoami from text messages', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const commandSpy = vi.fn()
+    adapter.on('command', commandSpy)
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-cmd-2',
+        chat_id: 'oc_123',
+        chat_type: 'p2p',
+        message_type: 'text',
+        content: JSON.stringify({ text: '/whoami' })
+      }
+    })
+
+    expect(commandSpy).toHaveBeenCalledWith({
+      chatId: 'oc_123',
+      userId: 'ou_user1',
+      userName: '',
+      command: 'whoami',
       args: undefined
     })
   })

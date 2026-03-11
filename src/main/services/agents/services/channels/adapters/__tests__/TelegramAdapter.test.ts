@@ -81,12 +81,13 @@ describe('TelegramAdapter', () => {
     await adapter.connect()
 
     expect(mockBot.use).toHaveBeenCalledTimes(1) // auth middleware
-    expect(mockBot.command).toHaveBeenCalledTimes(3) // new, compact, help
+    expect(mockBot.command).toHaveBeenCalledTimes(4) // new, compact, help, whoami
     expect(mockBot.on).toHaveBeenCalledWith('message:text', expect.any(Function))
     expect(mockBot.api.setMyCommands).toHaveBeenCalledWith([
       { command: 'new', description: 'Start a new conversation' },
       { command: 'compact', description: 'Compact conversation history' },
-      { command: 'help', description: 'Show help information' }
+      { command: 'help', description: 'Show help information' },
+      { command: 'whoami', description: 'Show the current chat ID' }
     ])
     expect(mockBot.catch).toHaveBeenCalledTimes(1)
     expect(mockBot.start).toHaveBeenCalledTimes(1)
@@ -173,6 +174,28 @@ describe('TelegramAdapter', () => {
       userId: '456',
       userName: 'TestUser',
       command: 'new'
+    })
+  })
+
+  it('whoami command handler emits command events', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const commandSpy = vi.fn()
+    adapter.on('command', commandSpy)
+
+    const commandHandler = mockBot.command.mock.calls[3][1] as (ctx: any) => void
+
+    commandHandler({
+      chat: { id: 123 },
+      from: { id: 456, first_name: 'TestUser' }
+    })
+
+    expect(commandSpy).toHaveBeenCalledWith({
+      chatId: '123',
+      userId: '456',
+      userName: 'TestUser',
+      command: 'whoami'
     })
   })
 

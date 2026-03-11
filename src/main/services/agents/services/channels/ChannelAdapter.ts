@@ -11,7 +11,7 @@ export type ChannelCommandEvent = {
   chatId: string
   userId: string
   userName: string
-  command: 'new' | 'compact' | 'help'
+  command: 'new' | 'compact' | 'help' | 'whoami'
   args?: string
 }
 
@@ -44,6 +44,11 @@ export abstract class ChannelAdapter extends EventEmitter {
   /** Stream a partial/draft message to the chat. Same draftId updates the existing draft in-place. */
   abstract sendMessageDraft(chatId: string, draftId: number, text: string): Promise<void>
   abstract sendTypingIndicator(chatId: string): Promise<void>
+  async finalizeStream(_draftId: number, _finalText: string): Promise<boolean> {
+    void _draftId
+    void _finalText
+    return false
+  }
 
   // Typed event emitter overrides
   override emit(event: 'message', data: ChannelMessageEvent): boolean
