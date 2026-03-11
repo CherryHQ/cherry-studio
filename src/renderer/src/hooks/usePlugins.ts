@@ -48,8 +48,9 @@ export function useInstalledPlugins(agentId: string | undefined) {
 
     return EventEmitter.on(EVENT_NAMES.PLUGINS_UPDATED, (payload) => {
       if (payload?.agentId === agentId) {
-        refresh()
+        return refresh()
       }
+      return undefined
     })
   }, [agentId, refresh])
 
