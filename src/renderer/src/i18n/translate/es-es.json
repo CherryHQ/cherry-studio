@@ -5620,8 +5620,10 @@
     "show_window": "Mostrar ventana"
   },
   "update": {
+    "download": "Descargar",
     "install": "Instalar",
     "later": "Más tarde",
+    "manualDownloadRequired": "Las actualizaciones automáticas no están disponibles para esta versión. Por favor, descarga la nueva versión manualmente desde el sitio web oficial.",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",

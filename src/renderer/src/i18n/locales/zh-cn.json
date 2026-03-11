@@ -5620,8 +5620,10 @@
     "show_window": "显示窗口"
   },
   "update": {
+    "download": "前往下载",
     "install": "立即安装",
     "later": "稍后",
+    "manualDownloadRequired": "此版本不支持自动更新，请前往官网手动下载新版本。",
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "saveDataError": "保存数据失败，请重试",

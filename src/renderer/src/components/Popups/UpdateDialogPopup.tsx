@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { Button, Modal } from 'antd'
+import { Alert, Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +10,10 @@ import Markdown from 'react-markdown'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('UpdateDialog')
+
+// Old Team ID that requires manual download after v1.8.0
+const OLD_TEAM_ID = 'Q24M7JR2C4'
+const DOWNLOAD_URL = 'https://www.cherry-ai.com/download'
 
 interface ShowParams {
   releaseInfo: UpdateInfo | null
@@ -23,13 +27,26 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
+  const [requiresManualDownload, setRequiresManualDownload] = useState(false)
   const dispatch = useAppDispatch()
+
+  const isMac = window.electron.process.platform === 'darwin'
 
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
     }
-  }, [releaseInfo])
+
+    // Check if macOS user with old Team ID needs manual download
+    if (isMac) {
+      window.api.getSigningInfo().then((info) => {
+        if (info.teamId === OLD_TEAM_ID) {
+          setRequiresManualDownload(true)
+          logger.info('Manual download required due to signing change', { teamId: info.teamId })
+        }
+      })
+    }
+  }, [releaseInfo, isMac])
 
   const handleInstall = async () => {
     setIsInstalling(true)
@@ -42,6 +59,10 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       setIsInstalling(false)
       window.toast.error(t('update.saveDataError'))
     }
+  }
+
+  const handleDownload = () => {
+    window.api.openWebsite(DOWNLOAD_URL)
   }
 
   const onCancel = () => {
@@ -80,11 +101,20 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         <Button key="later" onClick={onIgnore} disabled={isInstalling}>
           {t('update.later')}
         </Button>,
-        <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
-          {t('update.install')}
-        </Button>
+        requiresManualDownload ? (
+          <Button key="download" type="primary" onClick={handleDownload}>
+            {t('update.download')}
+          </Button>
+        ) : (
+          <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
+            {t('update.install')}
+          </Button>
+        )
       ]}>
       <ModalBodyWrapper>
+        {requiresManualDownload && (
+          <Alert type="warning" showIcon message={t('update.manualDownloadRequired')} style={{ marginBottom: 16 }} />
+        )}
         <ReleaseNotesWrapper className="markdown">
           <Markdown>
             {typeof releaseNotes === 'string'
