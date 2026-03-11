@@ -7,7 +7,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import type { SettingsState } from '@renderer/store/settings'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getAnthropicReasoningParams,
@@ -707,10 +707,16 @@ describe('reasoning utils', () => {
   })
 
   describe('getGeminiReasoningParams', () => {
-    it('should return empty for non-reasoning model', async () => {
-      const { isReasoningModel } = await import('@renderer/config/models')
+    // Use beforeAll to avoid per-test dynamic imports while keeping compatibility
+    // with the async vi.mock factory (static imports of the mocked module break other tests)
+    let mockModels: any
 
-      vi.mocked(isReasoningModel).mockReturnValue(false)
+    beforeAll(async () => {
+      mockModels = await import('@renderer/config/models')
+    })
+
+    it('should return empty for non-reasoning model', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(false)
 
       const model: Model = {
         id: 'gemini-2.0-flash',
@@ -728,11 +734,69 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
-    it('should disable thinking for Flash models when reasoning effort is none', async () => {
-      const { isReasoningModel, isSupportedThinkingTokenGeminiModel } = await import('@renderer/config/models')
+    it('should return empty when isReasoningModel is true but not a Gemini thinking model', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(false)
 
-      vi.mocked(isReasoningModel).mockReturnValue(true)
-      vi.mocked(isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      const model: Model = {
+        id: 'some-reasoning-model',
+        name: 'Some Model',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({})
+    })
+
+    it('should return empty when reasoning effort is not set', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {}
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({})
+    })
+
+    it('should return empty when reasoning effort is default', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'default' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({})
+    })
+
+    it('should disable thinking for Flash models when reasoning effort is none', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 
       const model: Model = {
         id: 'gemini-2.5-flash',
@@ -757,11 +821,220 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should enable thinking with budget for reasoning effort', async () => {
-      const { isReasoningModel, isSupportedThinkingTokenGeminiModel } = await import('@renderer/config/models')
+    it('should disable thinking for non-Flash models when reasoning effort is none (no thinkingBudget)', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 
-      vi.mocked(isReasoningModel).mockReturnValue(true)
-      vi.mocked(isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      const model: Model = {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: false
+        }
+      })
+    })
+
+    it('should include thinkingLevel for Gemini 3 model with none effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'none' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: false,
+          thinkingBudget: 0,
+          thinkingLevel: 'minimal'
+        }
+      })
+    })
+
+    it('should return thinkingLevel for Gemini 3 model with low effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'low' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'low'
+        }
+      })
+    })
+
+    it('should return thinkingLevel medium for Gemini 3 model with medium effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'medium' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'medium'
+        }
+      })
+    })
+
+    it('should return thinkingLevel high for Gemini 3 model with high effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'high'
+        }
+      })
+    })
+
+    it('should return thinkingLevel high for Gemini 3 model with xhigh effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'high'
+        }
+      })
+    })
+
+    it('should not set thinkingLevel for Gemini 3 model with auto effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'auto' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      // auto maps to undefined thinkingLevel, so falls through to old model path
+      // effortRatio for auto is 2 (> 1), so thinkingBudget: -1
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingBudget: -1
+        }
+      })
+    })
+
+    it('should return thinkingLevel minimal for Gemini 3 model with minimal effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'minimal' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'minimal'
+        }
+      })
+    })
+
+    it('should enable thinking with budget for reasoning effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 
       const model: Model = {
         id: 'gemini-2.5-pro',
@@ -786,11 +1059,35 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should enable thinking without budget for auto effort ratio > 1', async () => {
-      const { isReasoningModel, isSupportedThinkingTokenGeminiModel } = await import('@renderer/config/models')
+    it('should compute thinkingBudget for old models with xhigh effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 
-      vi.mocked(isReasoningModel).mockReturnValue(true)
-      vi.mocked(isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      const model: Model = {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      // EFFORT_RATIO['xhigh'] = 0.9, which is NOT > 1, so it should compute a budget
+      expect(result).toEqual({
+        thinkingConfig: {
+          thinkingBudget: expect.any(Number),
+          includeThoughts: true
+        }
+      })
+    })
+
+    it('should enable thinking without budget for auto effort ratio > 1', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 
       const model: Model = {
         id: 'gemini-2.5-pro',
@@ -811,6 +1108,60 @@ describe('reasoning utils', () => {
         thinkingConfig: {
           includeThoughts: true,
           thinkingBudget: -1
+        }
+      })
+    })
+
+    it('should omit thinkingBudget for old models when no token limit is found', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'gemini-2.5-pro-unknown',
+        name: 'Gemini 2.5 Pro Unknown',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'medium' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      // budget = Math.floor((0 - 0) * 0.5 + 0) = 0, so no thinkingBudget
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true
+        }
+      })
+    })
+
+    it('should calculate correct thinkingBudget for low effort', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.findTokenLimit).mockReturnValue({ min: 1024, max: 32768 })
+
+      const model: Model = {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'low' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      // EFFORT_RATIO['low'] = 0.05
+      // budget = Math.floor((32768 - 1024) * 0.05 + 1024) = Math.floor(1587.2 + 1024) = 2611
+      expect(result).toEqual({
+        thinkingConfig: {
+          thinkingBudget: 2611,
+          includeThoughts: true
         }
       })
     })

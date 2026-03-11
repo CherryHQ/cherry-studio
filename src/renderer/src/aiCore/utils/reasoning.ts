@@ -653,8 +653,11 @@ type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinki
 
 function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogleThinkingLevel {
   switch (reasoningEffort) {
+    case 'auto':
     case 'default':
       return undefined
+    case 'none':
+      return 'minimal'
     case 'minimal':
       return 'minimal'
     case 'low':
@@ -662,10 +665,12 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
     case 'medium':
       return 'medium'
     case 'high':
+    case 'xhigh':
       return 'high'
     default:
-      logger.warn('Unknown thinking level for Gemini. Fallback to medium instead.', { reasoningEffort })
-      return 'medium'
+      // Enforce all possible values are handled
+      reasoningEffort satisfies never
+      return undefined
   }
 }
 
@@ -679,7 +684,7 @@ export function getGeminiReasoningParams(
   assistant: Assistant,
   model: Model
 ): Pick<GoogleGenerativeAIProviderOptions, 'thinkingConfig'> {
-  if (!isReasoningModel(model)) {
+  if (!isReasoningModel(model) || !isSupportedThinkingTokenGeminiModel(model)) {
     return {}
   }
 
@@ -689,27 +694,33 @@ export function getGeminiReasoningParams(
     return {}
   }
 
-  // Gemini 推理参数
-  if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (reasoningEffort === undefined || reasoningEffort === 'none') {
-      return {
-        thinkingConfig: {
-          includeThoughts: false,
-          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
-        }
+  let thinkingLevel: GoogleThinkingLevel = undefined
+
+  // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
+  if (isGemini3ThinkingTokenModel(model)) {
+    thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
+  }
+
+  if (reasoningEffort === 'none') {
+    return {
+      thinkingConfig: {
+        includeThoughts: false,
+        ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {})
       }
     }
+  }
 
-    // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    if (isGemini3ThinkingTokenModel(model)) {
-      return {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-        }
+  if (thinkingLevel) {
+    // Gemini 3 branch.
+    return {
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingLevel
       }
     }
-
+  } else {
+    // Old models
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
     if (effortRatio > 1) {
@@ -731,8 +742,6 @@ export function getGeminiReasoningParams(
       }
     }
   }
-
-  return {}
 }
 
 /**
