@@ -22,13 +22,13 @@ const mockClient = {
 }
 
 const mockWsStart = vi.fn().mockResolvedValue(undefined)
-let capturedEventHandlers: Record<string, Function> = {}
+let capturedEventHandlers: Record<string, (...args: unknown[]) => unknown> = {}
 
 vi.mock('@larksuiteoapi/node-sdk', () => ({
   Client: vi.fn().mockImplementation(() => mockClient),
   WSClient: vi.fn().mockImplementation(() => ({ start: mockWsStart })),
   EventDispatcher: vi.fn().mockImplementation(() => ({
-    register: vi.fn().mockImplementation((handles: Record<string, Function>) => {
+    register: vi.fn().mockImplementation((handles: Record<string, (...args: unknown[]) => unknown>) => {
       capturedEventHandlers = handles
       return {}
     })
