@@ -1,6 +1,7 @@
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
-import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
+import type { AzureOpenAIProvider, ProviderType } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
+import { isAzureOpenAIProvider } from '@shared/aiCore/provider/utils'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
 export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
   return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'
@@ -131,14 +132,6 @@ export const isNewApiProvider = (provider: Provider) => {
   return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
 }
 
-export function isCherryAIProvider(provider: Provider): boolean {
-  return provider.id === 'cherryai'
-}
-
-export function isPerplexityProvider(provider: Provider): boolean {
-  return provider.id === 'perplexity'
-}
-
 /**
  * 判断是否为 OpenAI 兼容的提供商
  * @param {Provider} provider 提供商对象
@@ -148,36 +141,27 @@ export function isOpenAICompatibleProvider(provider: Provider): boolean {
   return ['openai', 'new-api', 'mistral'].includes(provider.type)
 }
 
-export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpenAIProvider {
-  return provider.type === 'azure-openai'
-}
-
 export function isOpenAIProvider(provider: Provider): boolean {
   return provider.type === 'openai-response'
-}
-
-export function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai'
 }
 
 export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.type === 'aws-bedrock'
 }
 
-export function isAnthropicProvider(provider: Provider): boolean {
-  return provider.type === 'anthropic'
-}
-
-export function isGeminiProvider(provider: Provider): boolean {
-  return provider.type === 'gemini'
-}
+// Re-export from shared, for backward compatibility
+export {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isPerplexityProvider,
+  isVertexProvider
+} from '@shared/aiCore/provider/utils'
 
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'gateway'
-}
-
-export function isOllamaProvider(provider: Provider): boolean {
-  return provider.type === 'ollama'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
