@@ -30,6 +30,25 @@ function initFileTypeMap() {
 // 初始化映射表
 initFileTypeMap()
 
+/**
+ * Resolves a relative path against a base directory and validates it is within bounds.
+ * Prevents path traversal attacks (e.g., ../../../etc/passwd).
+ *
+ * @param baseDir - The base directory
+ * @param relativePath - The relative path (may contain '..')
+ * @returns The resolved absolute file path
+ * @throws Error if resolved path is outside base directory
+ */
+export function resolveAndValidatePath(baseDir: string, relativePath: string): string {
+  const resolvedBase = path.resolve(baseDir)
+  const resolvedPath = path.resolve(baseDir, relativePath)
+  const separator = resolvedBase.endsWith(path.sep) ? '' : path.sep
+  if (!resolvedPath.startsWith(resolvedBase + separator)) {
+    throw new Error('Invalid file path: path traversal detected')
+  }
+  return resolvedPath
+}
+
 export function untildify(pathWithTilde: string) {
   if (pathWithTilde.startsWith('~')) {
     const homeDirectory = os.homedir()
