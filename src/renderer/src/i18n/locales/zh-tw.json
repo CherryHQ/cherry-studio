@@ -41,7 +41,8 @@
           "clientSecret": "[to be translated]:Client Secret",
           "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
           "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ"
+          "title": "[to be translated]:QQ",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
         },
         "tab": "[to be translated]:Channels",
         "telegram": {

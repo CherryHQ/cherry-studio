@@ -41,7 +41,8 @@
           "clientSecret": "[to be translated]:Client Secret",
           "clientSecretPlaceholder": "[to be translated]:Enter your QQ Bot client secret",
           "description": "[to be translated]:Receive and respond to messages via QQ Bot official API.",
-          "title": "[to be translated]:QQ"
+          "title": "[to be translated]:QQ",
+          "whoamiTip": "[to be translated]:💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
         },
         "tab": "[to be translated]:Channels",
         "telegram": {

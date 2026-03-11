@@ -211,6 +211,7 @@ const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
           size="small"
         />
         <span className="mt-1 block text-gray-400 text-xs">{t('agent.cherryClaw.channels.qq.chatIdsHint')}</span>
+        <span className="mt-1 block text-blue-400 text-xs">{t('agent.cherryClaw.channels.qq.whoamiTip')}</span>
       </div>
 
       {/* Notify receiver checkbox */}

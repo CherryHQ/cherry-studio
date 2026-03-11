@@ -456,7 +456,24 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private async sendWhoami(chatId: string): Promise<void> {
-    const message = `Your chat ID: ${chatId}\n\nAdd this to "allowed_chat_ids" in channel settings to enable notifications.`
+    const [type] = chatId.split(':')
+    const typeLabel =
+      type === 'c2c' ? 'Private' : type === 'group' ? 'Group' : type === 'channel' ? 'Guild Channel' : 'Direct Message'
+
+    const message = [
+      `📍 Chat Info`,
+      ``,
+      `Type: ${typeLabel}`,
+      `Chat ID: ${chatId}`,
+      ``,
+      `To enable notifications for this chat:`,
+      `1. Go to Agent Settings → Channels → QQ`,
+      `2. Add "${chatId}" to Allowed Chat IDs`,
+      `3. Enable "Receive Notifications"`,
+      ``,
+      `Then use the notify tool or scheduled tasks will send messages here.`
+    ].join('\n')
+
     try {
       await this.sendMessage(chatId, message)
     } catch (err) {
