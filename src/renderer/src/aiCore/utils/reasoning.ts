@@ -43,6 +43,7 @@ import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
 
@@ -699,6 +700,9 @@ export function getGeminiReasoningParams(
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
     thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
+    if (thinkingLevel === 'minimal' && getLowerBaseModelName(model.id).includes('pro')) {
+      thinkingLevel = 'low'
+    }
   }
 
   if (reasoningEffort === 'none') {
