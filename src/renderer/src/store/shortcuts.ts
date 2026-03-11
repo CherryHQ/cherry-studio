@@ -93,6 +93,34 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'switch_next_assistant',
+      shortcut: ['CommandOrControl', 'ArrowDown'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_prev_assistant',
+      shortcut: ['CommandOrControl', 'ArrowUp'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_next_topic',
+      shortcut: ['CommandOrControl', 'Tab'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_prev_topic',
+      shortcut: ['CommandOrControl', 'Shift', 'Tab'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'copy_last_message',
       shortcut: ['CommandOrControl', 'Shift', 'C'],
       editable: true,

@@ -35,8 +35,9 @@ const defaultOptions: UseShortcutOptions = {
 
 export const useShortcut = (
   shortcutKey: string,
-  callback: (e: KeyboardEvent) => void,
-  options: UseShortcutOptions = defaultOptions
+  callback: (e?: KeyboardEvent) => void,
+  options: UseShortcutOptions = defaultOptions,
+  deps: any[] = []
 ) => {
   const shortcuts = useAppSelector((state) => state.shortcuts.shortcuts)
 
@@ -71,7 +72,8 @@ export const useShortcut = (
       enableOnFormTags: options.enableOnFormTags,
       description: options.description || shortcutConfig?.key,
       enabled: !!shortcutConfig?.enabled
-    }
+    },
+    deps
   )
 }
 

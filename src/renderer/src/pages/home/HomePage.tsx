@@ -3,6 +3,7 @@ import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessi
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -75,6 +76,81 @@ const HomePage: FC = () => {
   useEffect(() => {
     NavigationService.setNavigate(navigate)
   }, [navigate])
+
+  useShortcut(
+    'switch_next_assistant',
+    () => {
+      if (!assistants || assistants.length <= 1 || !activeAssistant) return
+      const currentIndex = assistants.findIndex((a) => a.id === activeAssistant.id)
+      const nextIndex = (currentIndex + 1) % assistants.length
+      setActiveAssistant(assistants[nextIndex])
+    },
+    {
+      enableOnFormTags: true,
+      preventDefault: true
+    },
+    [assistants, activeAssistant]
+  )
+
+  useShortcut(
+    'switch_prev_assistant',
+    () => {
+      if (!assistants || assistants.length <= 1 || !activeAssistant) return
+      const currentIndex = assistants.findIndex((a) => a.id === activeAssistant.id)
+      const prevIndex = (currentIndex - 1 + assistants.length) % assistants.length
+      setActiveAssistant(assistants[prevIndex])
+    },
+    {
+      enableOnFormTags: true,
+      preventDefault: true
+    },
+    [assistants, activeAssistant]
+  )
+
+  useShortcut(
+    'switch_next_topic',
+    () => {
+      // Use fresh assistant data from the list to ensure we have the latest topics
+      const currentAssistant = assistants.find((a) => a.id === activeAssistant?.id) || activeAssistant
+
+      if (!currentAssistant || !currentAssistant.topics || currentAssistant.topics.length <= 1) return
+      const currentIndex = activeTopic ? currentAssistant.topics.findIndex((t) => t.id === activeTopic.id) : -1
+
+      // If current topic not found (e.g. New Chat), start from beginning
+      const baseIndex = currentIndex === -1 ? -1 : currentIndex
+      const nextIndex = (baseIndex + 1) % currentAssistant.topics.length
+      setActiveTopic(currentAssistant.topics[nextIndex])
+    },
+    {
+      enableOnFormTags: true,
+      preventDefault: true
+    },
+    [activeAssistant, activeTopic, assistants]
+  )
+
+  useShortcut(
+    'switch_prev_topic',
+    () => {
+      // Use fresh assistant data from the list to ensure we have the latest topics
+      const currentAssistant = assistants.find((a) => a.id === activeAssistant?.id) || activeAssistant
+
+      if (!currentAssistant || !currentAssistant.topics || currentAssistant.topics.length <= 1) return
+      let currentIndex = activeTopic ? currentAssistant.topics.findIndex((t) => t.id === activeTopic.id) : -1
+
+      // If current topic not found (e.g. New Chat), treat as if we are after the last topic
+      if (currentIndex === -1) {
+        currentIndex = currentAssistant.topics.length
+      }
+
+      const prevIndex = (currentIndex - 1 + currentAssistant.topics.length) % currentAssistant.topics.length
+      setActiveTopic(currentAssistant.topics[prevIndex])
+    },
+    {
+      enableOnFormTags: true,
+      preventDefault: true
+    },
+    [activeAssistant, activeTopic, assistants]
+  )
 
   useEffect(() => {
     state?.assistant && setActiveAssistant(state?.assistant)
