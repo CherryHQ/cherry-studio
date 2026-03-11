@@ -977,7 +977,7 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should not set thinkingLevel for Gemini 3 model with auto effort', () => {
+    it('should use undefined thinkingLevel for Gemini 3 model with auto effort', () => {
       vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
       vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
       vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
@@ -995,12 +995,11 @@ describe('reasoning utils', () => {
       } as Assistant
 
       const result = getGeminiReasoningParams(assistant, model)
-      // auto maps to undefined thinkingLevel, so falls through to old model path
-      // effortRatio for auto is 2 (> 1), so thinkingBudget: -1
+      // auto maps to undefined thinkingLevel (let API decide), stays in Gemini 3 branch
       expect(result).toEqual({
         thinkingConfig: {
           includeThoughts: true,
-          thinkingBudget: -1
+          thinkingLevel: undefined
         }
       })
     })
@@ -1084,7 +1083,7 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should enable thinking without budget for auto effort ratio > 1', () => {
+    it('should return thinkingBudget -1 for old models with auto effort', () => {
       vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
       vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
 

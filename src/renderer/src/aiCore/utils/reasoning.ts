@@ -695,7 +695,7 @@ export function getGeminiReasoningParams(
     return {}
   }
 
-  let thinkingLevel: GoogleThinkingLevel = undefined
+  let thinkingLevel: GoogleThinkingLevel | null = null
   const includeThoughts = reasoningEffort !== 'none'
 
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
@@ -706,8 +706,8 @@ export function getGeminiReasoningParams(
     }
   }
 
-  if (thinkingLevel) {
-    // Gemini 3 branch.
+  if (thinkingLevel !== null) {
+    // Gemini 3 branch. thinkingLevel can be undefined (auto) or a specific level.
     return {
       thinkingConfig: {
         includeThoughts,
