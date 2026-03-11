@@ -2571,6 +2571,7 @@
     "checking_installation": "Checking OpenClaw installation...",
     "description": "Use Cherry Studio providers to power OpenClaw, your personal AI assistant that works across WhatsApp, Telegram, Slack, Discord and more.",
     "error": {
+      "git_ssh_failed": "Git SSH authentication failed. Run: git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"",
       "select_provider_model": "Please select a provider and model first"
     },
     "gateway": {

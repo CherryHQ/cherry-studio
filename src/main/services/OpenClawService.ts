@@ -7,6 +7,7 @@ import path from 'node:path'
 import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
+import { t } from '@main/utils/locales'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
@@ -316,8 +317,7 @@ class OpenClawService {
                 }
               })
             } else if (stderr.includes('Permission denied (publickey)')) {
-              const msg =
-                'Git SSH authentication failed. Run: git config --global url."https://github.com/".insteadOf "git@github.com:"'
+              const msg = t('openclaw.error.git_ssh_failed')
               this.sendInstallProgress(msg, 'error')
               resolve({ success: false, message: msg })
             } else {

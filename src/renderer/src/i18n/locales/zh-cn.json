@@ -2571,6 +2571,7 @@
     "checking_installation": "正在检查 OpenClaw 安装状态...",
     "description": "使用 Cherry Studio 服务商为 OpenClaw 提供支持，OpenClaw 是您的个人 AI 助手，可在 WhatsApp、Telegram、Slack、Discord 等平台上使用。",
     "error": {
+      "git_ssh_failed": "Git SSH 认证失败。请执行：git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"",
       "select_provider_model": "请先选择服务商和模型"
     },
     "gateway": {
