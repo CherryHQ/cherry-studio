@@ -310,7 +310,7 @@ export default class AppUpdater {
 
   public quitAndInstall() {
     app.isQuitting = true
-    setImmediate(() => autoUpdater.quitAndInstall())
+    setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }
 
   /**
