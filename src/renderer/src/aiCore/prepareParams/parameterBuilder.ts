@@ -231,11 +231,12 @@ export async function buildStreamTextParams(
   // instead of being placed in providerOptions
 
   // Get max tool calls from assistant settings
-  // Default to disabled (9999 steps = effectively unlimited) for new users
-  // For backward compatibility with users who have the field set, respect their choice
+  // Default to enabled with 20 steps (same as AI SDK default) to prevent infinite loops
+  // Users can disable to use default 20, or enable and set custom value
   const maxToolCalls = assistant.settings?.maxToolCalls ?? 20
-  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? false
-  const effectiveMaxToolCalls = enableMaxToolCalls ? maxToolCalls : 9999
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? true
+  // When disabled, use default 20 (AI SDK's default); when enabled, use user-defined value
+  const effectiveMaxToolCalls = enableMaxToolCalls ? maxToolCalls : 20
 
   const params: StreamTextParams = {
     messages: sdkMessages,

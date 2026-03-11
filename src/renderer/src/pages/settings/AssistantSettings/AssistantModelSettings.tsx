@@ -37,7 +37,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     assistant?.settings?.toolUseMode ?? 'function'
   )
   const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
-  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? false)
+  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? true)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
@@ -196,7 +196,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
     setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls ?? 20)
-    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls ?? false)
+    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls ?? true)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)

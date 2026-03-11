@@ -57,7 +57,7 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
   maxToolCalls: 20,
-  enableMaxToolCalls: false
+  enableMaxToolCalls: true
 } as const satisfies AssistantSettings
 
 /**
