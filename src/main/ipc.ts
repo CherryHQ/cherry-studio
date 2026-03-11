@@ -166,6 +166,34 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     installPath: path.dirname(app.getPath('exe'))
   }))
 
+  ipcMain.handle(IpcChannel.App_GetSigningInfo, async () => {
+    if (!isMac) {
+      return { teamId: null, bundleId: null, authority: null }
+    }
+
+    const exePath = app.getPath('exe')
+    // /path/to/App.app/Contents/MacOS/AppName -> /path/to/App.app
+    const appPath = exePath.replace(/\/Contents\/MacOS\/.*$/, '')
+
+    try {
+      const { execSync } = await import('child_process')
+      const output = execSync(`codesign -dv --verbose=4 "${appPath}" 2>&1`, { encoding: 'utf-8' })
+
+      const teamIdMatch = output.match(/TeamIdentifier=(.+)/)
+      const identifierMatch = output.match(/Identifier=(.+)/)
+      const authorityMatch = output.match(/Authority=([^\n]+)/)
+
+      return {
+        teamId: teamIdMatch?.[1] || null,
+        bundleId: identifierMatch?.[1] || null,
+        authority: authorityMatch?.[1] || null
+      }
+    } catch (error) {
+      logger.error('Failed to get signing info', error as Error)
+      return { teamId: null, bundleId: null, authority: null }
+    }
+  })
+
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
     let proxyConfig: ProxyConfig
 

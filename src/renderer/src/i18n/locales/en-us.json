@@ -5556,8 +5556,10 @@
     "show_window": "Show Window"
   },
   "update": {
+    "download": "Download",
     "install": "Install",
     "later": "Later",
+    "manualDownloadRequired": "Automatic updates are not available for this version. Please download the new version manually from the official website.",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",

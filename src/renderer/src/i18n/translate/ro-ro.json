@@ -5556,8 +5556,10 @@
     "show_window": "Afișează fereastra"
   },
   "update": {
+    "download": "Descărcare",
     "install": "Instalează",
     "later": "Mai târziu",
+    "manualDownloadRequired": "Actualizările automate nu sunt disponibile pentru această versiune. Vă rugăm să descărcați noua versiune manual de pe site-ul oficial.",
     "message": "Noua versiune {{version}} este gata, vrei să o instalezi acum?",
     "noReleaseNotes": "Nicio notă de lansare",
     "saveDataError": "Salvarea datelor a eșuat, te rugăm să încerci din nou.",

@@ -5556,8 +5556,10 @@
     "show_window": "Afficher la fenêtre"
   },
   "update": {
+    "download": "Télécharger",
     "install": "Installer",
     "later": "Plus tard",
+    "manualDownloadRequired": "Les mises à jour automatiques ne sont pas disponibles pour cette version. Veuillez télécharger la nouvelle version manuellement depuis le site officiel.",
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "saveDataError": "Échec de la sauvegarde des données, veuillez réessayer",

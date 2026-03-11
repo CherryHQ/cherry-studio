@@ -5556,8 +5556,10 @@
     "show_window": "Exibir Janela"
   },
   "update": {
+    "download": "Baixar",
     "install": "Instalar",
     "later": "Mais tarde",
+    "manualDownloadRequired": "As atualizações automáticas não estão disponíveis para esta versão. Por favor, baixe a nova versão manualmente no site oficial.",
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
     "noReleaseNotes": "Sem notas de versão",
     "saveDataError": "Falha ao salvar os dados, tente novamente",

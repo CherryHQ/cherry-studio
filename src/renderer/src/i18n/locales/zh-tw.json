@@ -5556,8 +5556,10 @@
     "show_window": "顯示視窗"
   },
   "update": {
+    "download": "前往下載",
     "install": "立即安裝",
     "later": "稍後",
+    "manualDownloadRequired": "此版本不支援自動更新，請前往官網手動下載新版本。",
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "儲存資料失敗，請重試",

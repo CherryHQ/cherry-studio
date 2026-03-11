@@ -5556,8 +5556,10 @@
     "show_window": "Fenster anzeigen"
   },
   "update": {
+    "download": "Herunterladen",
     "install": "Jetzt installieren",
     "later": "Später",
+    "manualDownloadRequired": "Automatische Updates sind für diese Version nicht verfügbar. Bitte laden Sie die neue Version manuell von der offiziellen Website herunter.",
     "message": "Neue Version {{version}} gefunden. Jetzt installieren?",
     "noReleaseNotes": "Kein Changelog verfügbar",
     "saveDataError": "Speichern fehlgeschlagen, bitte erneut versuchen",

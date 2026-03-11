@@ -103,6 +103,8 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
+  getSigningInfo: (): Promise<{ teamId: string | null; bundleId: string | null; authority: string | null }> =>
+    ipcRenderer.invoke(IpcChannel.App_GetSigningInfo),
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
