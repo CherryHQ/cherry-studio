@@ -479,6 +479,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.move_to'),
         key: 'move',
         icon: <FolderOpen size={14} />,
+        popupClassName: 'move-to-submenu',
         children: assistants
           .filter((a) => a.id !== assistant.id)
           .map((a) => ({

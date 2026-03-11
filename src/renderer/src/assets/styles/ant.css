@@ -151,6 +151,16 @@
   overflow-x: hidden;
 }
 
+/* Hide scrollbar for Move To submenu only */
+.move-to-submenu .ant-dropdown-menu {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.move-to-submenu .ant-dropdown-menu::-webkit-scrollbar {
+  display: none;
+}
+
 .ant-dropdown-menu-submenu .ant-dropdown-menu-submenu-title {
   align-items: center;
 }
