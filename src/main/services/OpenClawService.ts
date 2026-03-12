@@ -79,33 +79,119 @@ export interface OpenClawProviderConfig {
 }
 
 /**
- * OpenClaw API types
- * - 'openai-completions': For OpenAI-compatible chat completions API
- * - 'anthropic-messages': For Anthropic Messages API format
+ * OpenClaw API protocol types.
+ * Add new protocol mappings here as OpenClaw adds support for them.
  */
 const OPENCLAW_API_TYPES = {
   OPENAI: 'openai-completions',
+  OPENAI_RESPONSE: 'openai-responses',
+  OPENAI_CODEX_RESPONSE: 'openai-codex-responses',
   ANTHROPIC: 'anthropic-messages',
-  OPENAI_RESPOSNE: 'openai-responses'
+  GOOGLE: 'google-generative-ai',
+  COPILOT: 'github-copilot',
+  BEDROCK: 'bedrock-converse-stream',
+  OLLAMA: 'ollama'
 } as const
 
 /**
- * Providers that always use Anthropic API format
+ * Mapping from Cherry Studio EndpointType to OpenClaw API protocol.
+ * Used when model has explicit endpoint_type metadata.
  */
-const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
+const ENDPOINT_TO_OPENCLAW_API: Record<string, string> = {
+  anthropic: OPENCLAW_API_TYPES.ANTHROPIC,
+  openai: OPENCLAW_API_TYPES.OPENAI,
+  'openai-response': OPENCLAW_API_TYPES.OPENAI_RESPONSE,
+  gemini: OPENCLAW_API_TYPES.GOOGLE
+}
 
 /**
- * Endpoint types that use Anthropic API format
- * These are values from model.endpoint_type field
+ * Mapping from Cherry Studio provider type to OpenClaw API protocol.
+ * Used for providers that always use a specific protocol regardless of model.
  */
-const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
+const PROVIDER_TYPE_TO_OPENCLAW_API: Partial<Record<ProviderType, string>> = {
+  anthropic: OPENCLAW_API_TYPES.ANTHROPIC,
+  'vertex-anthropic': OPENCLAW_API_TYPES.ANTHROPIC,
+  gemini: OPENCLAW_API_TYPES.GOOGLE,
+  ollama: OPENCLAW_API_TYPES.OLLAMA,
+  'aws-bedrock': OPENCLAW_API_TYPES.BEDROCK,
+  'openai-response': OPENCLAW_API_TYPES.OPENAI_RESPONSE
+}
 
 /**
- * Check if a model should use Anthropic API based on endpoint_type
+ * Mapping from Cherry Studio provider id to OpenClaw API protocol.
+ * Add provider-specific protocol overrides here as needed.
  */
-function isAnthropicEndpointType(model: Model): boolean {
-  const endpointType = model.endpoint_type
-  return endpointType ? ANTHROPIC_ENDPOINT_TYPES.includes(endpointType) : false
+const PROVIDER_ID_TO_OPENCLAW_API: Record<string, string> = {
+  copilot: OPENCLAW_API_TYPES.COPILOT
+}
+
+/**
+ * Get the base model name (last segment after '/') in lowercase.
+ * e.g. 'openrouter/anthropic/claude-opus-4.6' => 'claude-opus-4.6'
+ */
+function getModelBaseName(modelId: string): string {
+  const parts = modelId.split('/')
+  return (parts.pop() || modelId).toLowerCase()
+}
+
+/**
+ * Check if a model is an Anthropic model by its name.
+ */
+function isAnthropicModel(modelId: string): boolean {
+  return getModelBaseName(modelId).startsWith('claude')
+}
+
+/**
+ * Check if a model is a Gemini model by its name.
+ */
+function isGeminiModel(modelId: string): boolean {
+  return getModelBaseName(modelId).startsWith('gemini')
+}
+
+/**
+ * Determine the appropriate OpenClaw API protocol for the given provider and model.
+ *
+ * Priority order:
+ * 1. Model's explicit endpoint_type (model knows best — set by new-api, etc.)
+ * 2. Provider id (provider-specific protocol overrides)
+ * 3. Provider type (anthropic, vertex-anthropic, gemini, ollama, bedrock, openai-response)
+ * 4. Model name inference for multi-protocol aggregators
+ *    (only when provider has a dedicated host for that protocol)
+ * 5. Default to openai-completions
+ *
+ * @internal Exported for testing only.
+ */
+export function determineApiType(
+  provider: { id: string; type: string; anthropicApiHost?: string; geminiApiHost?: string },
+  model: { id: string; endpoint_type?: string }
+): string {
+  // 1. Model's explicit endpoint_type (highest priority — model declares its own protocol)
+  if (model.endpoint_type && ENDPOINT_TO_OPENCLAW_API[model.endpoint_type]) {
+    return ENDPOINT_TO_OPENCLAW_API[model.endpoint_type]
+  }
+
+  // 2. Provider id specific protocol
+  if (PROVIDER_ID_TO_OPENCLAW_API[provider.id]) {
+    return PROVIDER_ID_TO_OPENCLAW_API[provider.id]
+  }
+
+  // 3. Provider type specific protocol (anthropic, vertex-anthropic, gemini, etc.)
+  if (PROVIDER_TYPE_TO_OPENCLAW_API[provider.type as ProviderType]) {
+    return PROVIDER_TYPE_TO_OPENCLAW_API[provider.type as ProviderType]!
+  }
+
+  // 4. Infer protocol from model name for multi-protocol aggregators.
+  //    Each vendor-specific host (anthropicApiHost, geminiApiHost) independently
+  //    signals that the provider can route to that vendor's native API.
+  if (provider.anthropicApiHost && isAnthropicModel(model.id)) {
+    return OPENCLAW_API_TYPES.ANTHROPIC
+  }
+  if (provider.geminiApiHost && isGeminiModel(model.id)) {
+    return OPENCLAW_API_TYPES.GOOGLE
+  }
+
+  // 5. Default to OpenAI-compatible
+  return OPENCLAW_API_TYPES.OPENAI
 }
 
 /**
@@ -935,38 +1021,8 @@ class OpenClawService {
     })
   }
 
-  /**
-   * Determine the API type based on model and provider
-   * This supports mixed providers (cherryin, aihubmix, new-api, etc.) that have both OpenAI and Anthropic endpoints
-   *
-   * Priority order:
-   * 1. Provider type (anthropic, vertex-anthropic always use Anthropic API)
-   * 2. Model endpoint_type (explicit endpoint configuration)
-   * 3. Provider has anthropicApiHost configured
-   * 4. Default to OpenAI-compatible
-   */
   private determineApiType(provider: Provider, model: Model): string {
-    // 1. Check if provider type is always Anthropic
-    if (ANTHROPIC_ONLY_PROVIDERS.includes(provider.type)) {
-      return OPENCLAW_API_TYPES.ANTHROPIC
-    }
-
-    // 2. Check model's endpoint_type (used by new-api and other mixed providers)
-    if (isAnthropicEndpointType(model)) {
-      return OPENCLAW_API_TYPES.ANTHROPIC
-    }
-
-    // 3. Check if provider has anthropicApiHost configured
-    if (provider.anthropicApiHost) {
-      return OPENCLAW_API_TYPES.ANTHROPIC
-    }
-
-    if (provider.type === 'openai-response') {
-      return OPENCLAW_API_TYPES.OPENAI_RESPOSNE
-    }
-
-    // 4. Default to OpenAI-compatible
-    return OPENCLAW_API_TYPES.OPENAI
+    return determineApiType(provider, model)
   }
 
   /**
@@ -976,11 +1032,13 @@ class OpenClawService {
    */
   private getBaseUrlForApiType(provider: Provider, apiType: string): string {
     if (apiType === OPENCLAW_API_TYPES.ANTHROPIC) {
-      // For Anthropic API type, prefer anthropicApiHost if available
       const host = provider.anthropicApiHost || provider.apiHost
       return this.formatAnthropicUrl(host)
     }
-    // For OpenAI-compatible API type
+    if (apiType === OPENCLAW_API_TYPES.GOOGLE && provider.geminiApiHost) {
+      return withoutTrailingSlash(provider.geminiApiHost)
+    }
+    // TODO: Add dedicated URL formatters for ollama, bedrock, copilot protocols
     return this.formatOpenAIUrl(provider)
   }
 

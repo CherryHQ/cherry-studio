@@ -26,7 +26,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+  const authUrl = `https://console.aihubmix.com/sign-in?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
     authUrl,
