@@ -57,13 +57,17 @@ vi.mock('@renderer/services/ProviderService', () => ({
 }))
 
 // Mock config modules
-vi.mock('@renderer/config/models', () => ({
-  isOpenAIModel: vi.fn(() => false),
-  isQwenMTModel: vi.fn(() => false),
-  isSupportFlexServiceTierModel: vi.fn(() => false),
-  isSupportVerbosityModel: vi.fn(() => false),
-  getModelSupportedVerbosity: vi.fn(() => [])
-}))
+vi.mock('@renderer/config/models', async (importOriginal) => {
+  const actual: any = await importOriginal()
+  return {
+    ...actual,
+    isOpenAIModel: vi.fn(() => false),
+    isQwenMTModel: vi.fn(() => false),
+    isSupportFlexServiceTierModel: vi.fn(() => false),
+    isSupportVerbosityModel: vi.fn(() => false),
+    getModelSupportedVerbosity: vi.fn(() => [])
+  }
+})
 
 vi.mock('@renderer/config/translate', () => ({
   mapLanguageToQwenMTModel: vi.fn()
