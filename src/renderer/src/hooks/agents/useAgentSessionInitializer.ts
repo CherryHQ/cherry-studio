@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveSessionIdAction } from '@renderer/store/runtime'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useAgentClient } from './useAgentClient'
 
@@ -19,6 +19,10 @@ export const useAgentSessionInitializer = () => {
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
 
+  // Use a ref to keep the callback stable across activeSessionIdMap changes
+  const activeSessionIdMapRef = useRef(activeSessionIdMap)
+  activeSessionIdMapRef.current = activeSessionIdMap
+
   /**
    * Initialize session for the given agent by loading its sessions
    * and setting the latest one as active
@@ -29,7 +33,7 @@ export const useAgentSessionInitializer = () => {
 
       try {
         // Check if this agent has already been initialized (key exists in map)
-        if (agentId in activeSessionIdMap) {
+        if (agentId in activeSessionIdMapRef.current) {
           // Already initialized, nothing to do
           return
         }
@@ -52,7 +56,7 @@ export const useAgentSessionInitializer = () => {
         logger.error('Failed to initialize agent session:', error as Error)
       }
     },
-    [client, dispatch, activeSessionIdMap]
+    [client, dispatch]
   )
 
   /**
@@ -61,11 +65,11 @@ export const useAgentSessionInitializer = () => {
   useEffect(() => {
     if (activeAgentId) {
       // Check if we need to initialize this agent's session (key not yet in map)
-      if (!(activeAgentId in activeSessionIdMap)) {
+      if (!(activeAgentId in activeSessionIdMapRef.current)) {
         initializeAgentSession(activeAgentId)
       }
     }
-  }, [activeAgentId, activeSessionIdMap, initializeAgentSession])
+  }, [activeAgentId, initializeAgentSession])
 
   return {
     initializeAgentSession
