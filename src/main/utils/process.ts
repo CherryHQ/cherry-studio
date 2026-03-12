@@ -15,13 +15,13 @@ import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
-export function runInstallScript(scriptPath: string): Promise<void> {
+export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const installScriptPath = path.join(getResourcePath(), 'scripts', scriptPath)
     logger.info(`Running script at: ${installScriptPath}`)
 
     const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
     })
 
     nodeProcess.stdout.on('data', (data) => {
