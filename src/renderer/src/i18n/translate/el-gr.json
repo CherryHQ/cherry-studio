@@ -136,9 +136,9 @@
     "settings": {
       "advance": {
         "envVars": {
-          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
-          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
-          "label": "[to be translated]:Environment Variables"
+          "description": "Ορίστε προσαρμοσμένες μεταβλητές περιβάλλοντος για τη χρόνο εκτέλεσης του πράκτορα.",
+          "helper": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, μορφή: ΚΛΕΙΔΙ=τιμή)",
+          "label": "Μεταβλητές Περιβάλλοντος"
         },
         "maxTurns": {
           "description": "Ορίστε τον αριθμό γύρων αιτήματος/απάντησης που θα εκτελούνται αυτόματα από τον διαμεσολαβητή.",
