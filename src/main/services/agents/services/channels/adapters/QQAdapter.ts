@@ -147,7 +147,12 @@ class QQAdapter extends ChannelAdapter {
       throw new Error(`Failed to get access token: HTTP ${response.status}`)
     }
 
-    const data = (await response.json()) as { access_token: string; expires_in: number }
+    const data = (await response.json()) as { access_token?: string; expires_in?: number }
+    if (!data.access_token || !data.expires_in) {
+      const errorText = JSON.stringify(data)
+      throw new Error(`Invalid token response from QQ API: ${errorText}`)
+    }
+
     this.tokenCache = {
       accessToken: data.access_token,
       expiresAt: Date.now() + data.expires_in * 1000
@@ -156,19 +161,31 @@ class QQAdapter extends ChannelAdapter {
     return data.access_token
   }
 
-  private async getGatewayUrl(): Promise<string> {
+  private async apiRequest(
+    endpoint: string,
+    options?: { method?: string; body?: Record<string, unknown> }
+  ): Promise<Response> {
     const token = await this.getAccessToken()
-    const response = await fetch(`${QQ_API_BASE}/gateway`, {
+    const response = await fetch(endpoint, {
+      method: options?.method ?? 'GET',
       headers: {
         Authorization: `QQBot ${token}`,
+        'Content-Type': 'application/json',
         'X-Union-Appid': this.appId
-      }
+      },
+      ...(options?.body ? { body: JSON.stringify(options.body) } : {})
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to get gateway URL: HTTP ${response.status}`)
+      const errorText = await response.text().catch(() => '')
+      throw new Error(`QQ API request failed ${endpoint}: HTTP ${response.status} - ${errorText}`)
     }
 
+    return response
+  }
+
+  private async getGatewayUrl(): Promise<string> {
+    const response = await this.apiRequest(`${QQ_API_BASE}/gateway`)
     const data = (await response.json()) as { url: string }
     return data.url
   }
@@ -226,11 +243,12 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private async handleWsMessage(data: Buffer): Promise<void> {
-    const payload = JSON.parse(data.toString()) as {
-      op: number
-      d?: unknown
-      s?: number
-      t?: string
+    let payload: { op: number; d?: unknown; s?: number; t?: string }
+    try {
+      payload = JSON.parse(data.toString())
+    } catch {
+      logger.warn('Invalid JSON from QQ WebSocket', { agentId: this.agentId })
+      return
     }
 
     if (payload.s !== undefined) {
@@ -242,7 +260,9 @@ class QQAdapter extends ChannelAdapter {
         await this.handleHello(payload.d as { heartbeat_interval: number })
         break
       case OP_DISPATCH:
-        await this.handleDispatch(payload.t!, payload.d)
+        if (payload.t) {
+          await this.handleDispatch(payload.t, payload.d)
+        }
         break
       case OP_HEARTBEAT_ACK:
         // Heartbeat acknowledged
@@ -498,7 +518,6 @@ class QQAdapter extends ChannelAdapter {
   }
 
   private async sendToChat(chatId: string, text: string): Promise<void> {
-    const token = await this.getAccessToken()
     const [type, id] = chatId.split(':')
 
     let endpoint: string
@@ -525,20 +544,7 @@ class QQAdapter extends ChannelAdapter {
         throw new Error(`Unknown chat type: ${type}`)
     }
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `QQBot ${token}`,
-        'Content-Type': 'application/json',
-        'X-Union-Appid': this.appId
-      },
-      body: JSON.stringify(body)
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      throw new Error(`Failed to send message: HTTP ${response.status} - ${errorText}`)
-    }
+    await this.apiRequest(endpoint, { method: 'POST', body })
   }
 
   async sendMessageDraft(_chatId: string, _draftId: number, _text: string): Promise<void> {
@@ -563,6 +569,7 @@ class QQAdapter extends ChannelAdapter {
       }
       this.ws = null
     }
+    this.tokenCache = null
   }
 
   private scheduleReconnect(): void {
