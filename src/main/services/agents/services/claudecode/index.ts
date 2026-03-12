@@ -19,7 +19,7 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
-import { autoDiscoverGitBash } from '@main/utils/process'
+import { autoDiscoverGitBash, stripProxyEnvVars } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -125,9 +125,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
-    const loginShellEnvWithoutProxies = Object.fromEntries(
-      Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
-    ) as Record<string, string>
+    const loginShellEnvWithoutProxies = stripProxyEnvVars(loginShellEnv)
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null

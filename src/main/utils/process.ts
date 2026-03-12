@@ -667,3 +667,12 @@ export function getGitBashPathInfo(): GitBashPathInfo {
 
   return { path, source }
 }
+
+/**
+ * Strip proxy-related environment variables from an env object.
+ * Prevents child processes from inheriting proxy settings that may cause crashes
+ * (e.g. undici does not support socks5:// protocol).
+ */
+export function stripProxyEnvVars<T extends Record<string, string>>(env: T): T {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))) as T
+}

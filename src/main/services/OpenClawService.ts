@@ -8,7 +8,7 @@ import { exec } from '@expo/sudo-prompt'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { crossPlatformSpawn, executeCommand, findExecutableInEnv } from '@main/utils/process'
+import { crossPlatformSpawn, executeCommand, findExecutableInEnv, stripProxyEnvVars } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -491,14 +491,8 @@ class OpenClawService {
     let startupError: string | null = null
     let processExited = false
 
-    // Strip non-http(s) proxy URLs that crash OpenClaw's undici. See #13140.
-    const gatewayEnv = { ...shellEnv, OPENCLAW_CONFIG_PATH }
-    for (const key of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']) {
-      const val = gatewayEnv[key]
-      if (val && !val.startsWith('http://') && !val.startsWith('https://')) {
-        delete gatewayEnv[key]
-      }
-    }
+    // Strip proxy env vars that crash OpenClaw's undici (e.g. socks5://). See #13140.
+    const gatewayEnv = { ...stripProxyEnvVars(shellEnv), OPENCLAW_CONFIG_PATH }
 
     logger.info(`Spawning gateway process: ${openclawPath} gateway --port ${this.gatewayPort}`)
     this.gatewayProcess = crossPlatformSpawn(openclawPath, ['gateway', '--port', String(this.gatewayPort)], {
