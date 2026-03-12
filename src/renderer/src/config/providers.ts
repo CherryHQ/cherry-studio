@@ -1400,9 +1400,9 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.aiionly.com',
-      apiKey: 'https://www.aiionly.com/keyApi',
-      docs: 'https://www.aiionly.com/document',
-      models: 'https://www.aiionly.com'
+      apiKey: 'https://maas.aiionly.com/keyApi',
+      docs: 'https://maas.aiionly.com/document',
+      models: 'https://maas.aiionly.com'
     }
   },
   longcat: {

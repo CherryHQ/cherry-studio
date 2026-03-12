@@ -71,12 +71,30 @@ describe('ComplexPreferenceMappings', () => {
         targetKeys: ['file_processing.overrides']
       })
     })
+    it('should contain websearch compression flatten mapping', () => {
+      const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
+      expect(websearchMapping).toBeDefined()
+      expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
+      expect(websearchMapping?.targetKeys.length).toBe(7)
+    })
+
+    it('should contain websearch providers migrate mapping', () => {
+      const providersMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_providers_migrate')
+      expect(providersMapping).toBeDefined()
+      expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
+    })
   })
 
   describe('getComplexMappingTargetKeys', () => {
     it('should return target keys from configured mappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toEqual(['file_processing.overrides'])
+    })
+    it('should return target keys from all mappings', () => {
+      const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('chat.web_search.compression.method')
+      expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -110,6 +128,11 @@ describe('ComplexPreferenceMappings', () => {
       const mapping = getComplexMappingById('file_processing_overrides_merge')
       expect(mapping).toBeDefined()
       expect(mapping?.targetKeys).toEqual(['file_processing.overrides'])
+    })
+    it('should return mapping by id', () => {
+      const mapping = getComplexMappingById('websearch_compression_flatten')
+      expect(mapping).toBeDefined()
+      expect(mapping?.id).toBe('websearch_compression_flatten')
     })
 
     it('should return undefined for non-existent id', () => {

@@ -173,7 +173,7 @@ export const oauthWith302AI = async (setKey) => {
 }
 
 export const oauthWithAiOnly = async (setKey) => {
-  const authUrl = `https://www.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
+  const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
 
   const popup = window.open(
     authUrl,
@@ -326,7 +326,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     aionly: {
-      url: `https://www.aiionly.com/recharge`,
+      url: `https://maas.aiionly.com/recharge`,
       width: 900,
       height: 700
     }
@@ -369,7 +369,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     aionly: {
-      url: `https://www.aiionly.com/billManagement`,
+      url: `https://maas.aiionly.com/billManagement`,
       width: 900,
       height: 700
     }

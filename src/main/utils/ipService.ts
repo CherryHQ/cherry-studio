@@ -13,7 +13,7 @@ export async function getIpCountry(): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const ipinfo = await net.fetch(`https://api.ipinfo.io/lite/me?token=2a42580355dae4`, {
+    const ipinfo = await net.fetch(`https://api.ipinfo.io/lite/me?token=5aa4105b40adbc`, {
       signal: controller.signal
     })
 

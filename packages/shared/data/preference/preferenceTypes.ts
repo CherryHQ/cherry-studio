@@ -110,3 +110,75 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 export type FileProcessorOverrides = Record<string, FileProcessorOverride>
 
 export type FileProcessorId = (typeof PRESETS_FILE_PROCESSORS)[number]['id']
+// ============================================================================
+// WebSearch Types
+// ============================================================================
+
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'local', 'mcp'] as const
+
+export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
+
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'local-google',
+  'local-bing',
+  'local-baidu'
+] as const
+
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
+
+export type WebSearchProviderOverride = {
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
+
+/**
+ * Full WebSearch Provider configuration
+ * Generated at runtime by merging preset with user overrides
+ */
+export interface WebSearchProvider {
+  /** Unique provider identifier */
+  id: WebSearchProviderId
+  /** Display name (from preset) */
+  name: string
+  /** Provider type (from preset) */
+  type: WebSearchProviderType
+  /** API key (from user overrides) */
+  apiKey: string
+  /** API host (user override or preset default) */
+  apiHost: string
+  /** Search engines (from user overrides) */
+  engines: string[]
+  /** Whether to use browser for search (from preset) */
+  usingBrowser: boolean
+  /** Basic auth username (from user overrides) */
+  basicAuthUsername: string
+  /** Basic auth password (from user overrides) */
+  basicAuthPassword: string
+}
+
+// ============================================================================
+// WebSearch Compression Types (v2 - Flattened)
+// ============================================================================
+
+/**
+ * Compression method type
+ * Stored in chat.web_search.compression.method
+ */
+export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+
+/**
+ * Cutoff unit type
+ * Stored in chat.web_search.compression.cutoff_unit
+ */
+export type WebSearchCompressionCutoffUnit = 'char' | 'token'

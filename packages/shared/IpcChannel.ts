@@ -93,6 +93,7 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',

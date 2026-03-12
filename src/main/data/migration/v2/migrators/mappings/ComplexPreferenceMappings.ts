@@ -18,6 +18,7 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 
 // ============================================================================
@@ -80,34 +81,36 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
-  // Example mappings (commented out - uncomment when needed):
-  //
-  // {
-  //   id: 'window_bounds_split',
-  //   description: 'Split windowBounds object into separate position and size keys',
-  //   sources: {
-  //     windowBounds: { source: 'electronStore', key: 'windowBounds' }
-  //   },
-  //   targetKeys: [
-  //     'app.window.position.x',
-  //     'app.window.position.y',
-  //     'app.window.size.width',
-  //     'app.window.size.height'
-  //   ],
-  //   transform: splitWindowBounds
-  // },
-  //
-  // {
-  //   id: 'proxy_config_merge',
-  //   description: 'Merge proxy configuration from multiple sources',
-  //   sources: {
-  //     proxyEnabled: { source: 'redux', category: 'settings', key: 'proxyEnabled' },
-  //     proxyHost: { source: 'redux', category: 'settings', key: 'proxyHost' },
-  //     proxyPort: { source: 'electronStore', key: 'ProxyPort' }
-  //   },
-  //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
-  //   transform: mergeProxyConfig
-  // }
+  // WebSearch provider overrides migration
+  {
+    id: 'websearch_providers_migrate',
+    description: 'Migrate websearch providers array into provider overrides',
+    sources: {
+      providers: { source: 'redux', category: 'websearch', key: 'providers' }
+    },
+    targetKeys: ['chat.web_search.provider_overrides'],
+    transform: migrateWebSearchProviders
+  },
+
+  // WebSearch compression config flattening
+  {
+    id: 'websearch_compression_flatten',
+    description: 'Flatten websearch compressionConfig object into separate preference keys',
+    sources: {
+      compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
+    },
+    targetKeys: [
+      'chat.web_search.compression.method',
+      'chat.web_search.compression.cutoff_limit',
+      'chat.web_search.compression.cutoff_unit',
+      'chat.web_search.compression.rag_document_count',
+      'chat.web_search.compression.rag_embedding_model_id',
+      'chat.web_search.compression.rag_embedding_dimensions',
+      'chat.web_search.compression.rag_rerank_model_id'
+    ],
+    transform: flattenCompressionConfig
+  },
+  // File processing overrides merging
   {
     id: 'file_processing_overrides_merge',
     description: 'Merge legacy OCR and preprocess providers into file processing overrides',
