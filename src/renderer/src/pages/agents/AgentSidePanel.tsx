@@ -1,3 +1,4 @@
+import AddButton from '@renderer/components/AddButton'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -10,10 +11,9 @@ import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AddButton from '../home/Tabs/components/AddButton'
-import AgentItem from '../home/Tabs/components/AgentItem'
-import Sessions from '../home/Tabs/components/Sessions'
 import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
+import AgentItem from './components/AgentItem'
+import Sessions from './components/Sessions'
 
 const AgentSidePanel: FC = () => {
   const { t } = useTranslation()

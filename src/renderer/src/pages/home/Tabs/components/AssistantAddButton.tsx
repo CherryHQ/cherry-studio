@@ -1,7 +1,6 @@
+import AddButton from '@renderer/components/AddButton'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import AddButton from './AddButton'
 
 interface AssistantAddButtonProps {
   onCreateAssistant: () => void

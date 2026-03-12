@@ -8,11 +8,11 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 
-import Sessions from '../home/Tabs/components/Sessions'
 import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
 import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
+import Sessions from './components/Sessions'
 
 const AgentPage: FC = () => {
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()

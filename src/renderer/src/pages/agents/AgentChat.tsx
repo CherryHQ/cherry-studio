@@ -1,4 +1,6 @@
+import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -6,11 +8,12 @@ import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AgentSessionInputbar from '../home/Inputbar/AgentSessionInputbar'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
-import AgentSessionMessages from '../home/Messages/AgentSessionMessages'
 import ChatNavigation from '../home/Messages/ChatNavigation'
 import NarrowLayout from '../home/Messages/NarrowLayout'
+import AgentContent from './components/AgentContent'
+import AgentSessionInputbar from './components/AgentSessionInputbar'
+import AgentSessionMessages from './components/AgentSessionMessages'
 
 const AgentChat: FC = () => {
   const { t } = useTranslation()
@@ -19,14 +22,16 @@ const AgentChat: FC = () => {
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
+  const { agent: activeAgent } = useActiveAgent()
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
+  const contentHeight = `calc(${mainHeight} - var(--navbar-height))`
 
   return (
     <div
       className="flex flex-1 flex-col overflow-hidden"
       style={{
-        height: isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))',
+        height: mainHeight,
         ...(isTopNavbar && {
           backgroundColor: 'var(--color-background)',
           borderTopLeftRadius: 10,
@@ -41,7 +46,14 @@ const AgentChat: FC = () => {
           transform: 'translateZ(0)'
         }}>
         <QuickPanelProvider>
-          <div className="flex flex-1 flex-col justify-between" style={{ height: mainHeight }}>
+          {activeAgent && (
+            <NavbarHeader style={{ height: 'var(--navbar-height)' }}>
+              <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
+                <AgentContent activeAgent={activeAgent} />
+              </div>
+            </NavbarHeader>
+          )}
+          <div className="flex flex-1 flex-col justify-between" style={{ height: contentHeight }}>
             {!activeAgentId && (
               <div className="flex h-full w-full items-center justify-center">
                 <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />

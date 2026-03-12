@@ -1,3 +1,4 @@
+import AddButton from '@renderer/components/AddButton'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
@@ -14,7 +15,6 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AddButton from './AddButton'
 import SessionItem from './SessionItem'
 
 interface SessionsProps {
