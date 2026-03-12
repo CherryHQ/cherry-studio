@@ -59,6 +59,9 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
 import type { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
+const MINAPP_PROXY_OVERRIDES_FILE = 'minapp-proxy-overrides.json'
+
+type MinAppProxyOverride = Pick<MinAppType, 'proxyMode' | 'proxyUrl' | 'proxyBypassRules'>
 
 // 加载自定义小应用
 const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
@@ -86,6 +89,41 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
     logger.error('Failed to load custom mini apps:', error as Error)
     return []
   }
+}
+
+const loadMinappProxyOverrides = async (): Promise<Record<string, MinAppProxyOverride>> => {
+  try {
+    let content: string
+    try {
+      content = await window.api.file.read(MINAPP_PROXY_OVERRIDES_FILE)
+    } catch {
+      content = '{}'
+      await window.api.file.writeWithId(MINAPP_PROXY_OVERRIDES_FILE, content)
+    }
+    const parsed = JSON.parse(content)
+    if (!parsed || typeof parsed !== 'object') {
+      return {}
+    }
+    return parsed
+  } catch (error) {
+    logger.error('Failed to load minapp proxy overrides:', error as Error)
+    return {}
+  }
+}
+
+const saveMinappProxyOverrides = async (overrides: Record<string, MinAppProxyOverride>) => {
+  await window.api.file.writeWithId(MINAPP_PROXY_OVERRIDES_FILE, JSON.stringify(overrides, null, 2))
+}
+
+const applyMinappProxyOverrides = (
+  apps: MinAppType[],
+  overrides: Record<string, MinAppProxyOverride>
+): MinAppType[] => {
+  return apps.map((app) => {
+    const override = overrides[app.id]
+    if (!override) return app
+    return { ...app, ...override }
+  })
 }
 
 // 初始化默认小应用
@@ -561,11 +599,50 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   }
 ]
 
+const loadAllMinApps = async (): Promise<MinAppType[]> => {
+  const customApps = await loadCustomMiniApp()
+  const proxyOverrides = await loadMinappProxyOverrides()
+  return applyMinappProxyOverrides([...ORIGIN_DEFAULT_MIN_APPS, ...customApps], proxyOverrides)
+}
+
 // All mini apps: built-in defaults + custom apps loaded from user config
-let allMinApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+let allMinApps = await loadAllMinApps()
 
 function updateAllMinApps(apps: MinAppType[]) {
   allMinApps = apps
 }
 
-export { allMinApps, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps }
+const reloadAllMinApps = async (): Promise<MinAppType[]> => {
+  const apps = await loadAllMinApps()
+  updateAllMinApps(apps)
+  return apps
+}
+
+const upsertMinAppProxyOverride = async (
+  appId: string,
+  override: MinAppProxyOverride
+): Promise<Record<string, MinAppProxyOverride>> => {
+  const overrides = await loadMinappProxyOverrides()
+
+  if (!override.proxyMode || override.proxyMode === 'inherit') {
+    delete overrides[appId]
+  } else {
+    overrides[appId] = {
+      proxyMode: override.proxyMode,
+      proxyUrl: override.proxyUrl,
+      proxyBypassRules: override.proxyBypassRules
+    }
+  }
+
+  await saveMinappProxyOverrides(overrides)
+  return overrides
+}
+
+export {
+  allMinApps,
+  loadCustomMiniApp,
+  ORIGIN_DEFAULT_MIN_APPS,
+  reloadAllMinApps,
+  updateAllMinApps,
+  upsertMinAppProxyOverride
+}

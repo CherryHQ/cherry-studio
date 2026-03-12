@@ -1,9 +1,50 @@
 import { loggerService } from '@logger'
 import { useSettings } from '@renderer/hooks/useSettings'
+import type { MinAppType } from '@renderer/types'
 import type { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('WebviewContainer')
+
+const normalizeBypassRules = (rules?: string): string => {
+  if (!rules) return ''
+  return rules
+    .split(',')
+    .map((rule) => rule.trim())
+    .filter(Boolean)
+    .sort()
+    .join(',')
+}
+
+const hashString = (value: string): string => {
+  // djb2 variant, enough for stable local partition bucketing.
+  let hash = 5381
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 33) ^ value.charCodeAt(i)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+const getPartitionForApp = (app: MinAppType): string => {
+  const mode = app.proxyMode || 'inherit'
+
+  if (mode === 'inherit') {
+    return 'persist:webview'
+  }
+
+  if (mode === 'system') {
+    return 'persist:webview:proxy:system'
+  }
+
+  if (mode === 'direct') {
+    return 'persist:webview:proxy:direct'
+  }
+
+  const proxyUrl = (app.proxyUrl || '').trim()
+  const bypassRules = normalizeBypassRules(app.proxyBypassRules)
+  const configHash = hashString(`custom|${proxyUrl}|${bypassRules}`)
+  return `persist:webview:proxy:${configHash}`
+}
 
 /**
  * WebviewContainer is a component that renders a webview element.
@@ -12,18 +53,19 @@ const logger = loggerService.withContext('WebviewContainer')
  */
 const WebviewContainer = memo(
   ({
-    appid,
-    url,
+    app,
     onSetRefCallback,
     onLoadedCallback,
     onNavigateCallback
   }: {
-    appid: string
-    url: string
+    app: MinAppType
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
+    const appid = app.id
+    const url = app.url
+    const partition = getPartitionForApp(app)
     const webviewRef = useRef<WebviewTag | null>(null)
     const { enableSpellCheck, minappsOpenLinkExternal } = useSettings()
 
@@ -92,8 +134,36 @@ const WebviewContainer = memo(
       webviewRef.current.addEventListener('ready-to-show', handleReadyToShow)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
-      // we set the url when the webview is ready
-      webviewRef.current.src = url
+      const loadWebview = async () => {
+        try {
+          if (!webviewRef.current) return
+
+          // Dedicated partition is used only when per-minapp proxy mode is set.
+          if (partition !== 'persist:webview') {
+            if (app.proxyMode === 'custom' && app.proxyUrl) {
+              await window.api.webview.setPartitionProxy(partition, {
+                mode: 'fixed_servers',
+                proxyRules: app.proxyUrl,
+                proxyBypassRules: app.proxyBypassRules
+              })
+            } else if (app.proxyMode === 'system') {
+              await window.api.webview.setPartitionProxy(partition, { mode: 'system' })
+            } else {
+              await window.api.webview.setPartitionProxy(partition, { mode: 'direct' })
+            }
+          }
+
+          // we set the url when the webview is ready
+          webviewRef.current.src = url
+        } catch (error) {
+          logger.error(`Failed to configure proxy for minapp ${appid}:`, error as Error)
+          if (webviewRef.current) {
+            webviewRef.current.src = url
+          }
+        }
+      }
+
+      void loadWebview()
 
       return () => {
         webviewRef.current?.removeEventListener('did-start-loading', handleStartLoading)
@@ -104,7 +174,7 @@ const WebviewContainer = memo(
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appid, url])
+    }, [appid, url, partition, app.proxyMode, app.proxyUrl, app.proxyBypassRules])
 
     // Setup keyboard shortcuts handler for print and save
     useEffect(() => {
@@ -176,12 +246,12 @@ const WebviewContainer = memo(
 
     return (
       <webview
-        key={appid}
+        key={`${appid}:${partition}`}
         ref={setRef(appid)}
         data-minapp-id={appid}
         style={WebviewStyle}
         allowpopups={'true' as any}
-        partition="persist:webview"
+        partition={partition}
         useragent={
           appid === 'google'
             ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
