@@ -6,8 +6,8 @@
  * - Reading and updating processor configuration
  */
 
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorMerged, FileProcessorOverride } from '@shared/data/presets/file-processing'
+import type { FileProcessorId, FileProcessorOverride } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 
 // ============================================================================
 // API Schema Definitions

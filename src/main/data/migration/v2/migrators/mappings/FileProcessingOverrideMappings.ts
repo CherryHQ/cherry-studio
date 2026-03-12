@@ -1,10 +1,12 @@
-import type { FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
 import {
   type CapabilityOverride,
+  FILE_PROCESSOR_IDS,
   type FileProcessorFeature,
+  type FileProcessorId,
   type FileProcessorOverride,
-  PRESETS_FILE_PROCESSORS
-} from '@shared/data/presets/file-processing'
+  type FileProcessorOverrides
+} from '@shared/data/preference/preferenceTypes'
+import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 import type { TransformResult } from './ComplexPreferenceMappings'
 
@@ -16,7 +18,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function ensureOverride(overrides: FileProcessorOverrides, id: string): FileProcessorOverride {
+function isFileProcessorId(value: unknown): value is FileProcessorId {
+  return typeof value === 'string' && FILE_PROCESSOR_IDS.includes(value as FileProcessorId)
+}
+
+function ensureOverride(overrides: FileProcessorOverrides, id: FileProcessorId): FileProcessorOverride {
   overrides[id] ??= {}
   return overrides[id]
 }
@@ -56,7 +62,7 @@ function addApiKey(override: FileProcessorOverride, apiKey: unknown) {
   }
 }
 
-function getPresetCapability(processorId: string, feature: FileProcessorFeature) {
+function getPresetCapability(processorId: FileProcessorId, feature: FileProcessorFeature) {
   const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)
   const capability = processor?.capabilities.find((item) => item.feature === feature)
 
@@ -68,7 +74,7 @@ function getPresetCapability(processorId: string, feature: FileProcessorFeature)
 
 function setCapabilityApiHost(
   override: FileProcessorOverride,
-  processorId: string,
+  processorId: FileProcessorId,
   feature: FileProcessorFeature,
   apiHost: unknown
 ) {
@@ -86,7 +92,7 @@ function setCapabilityApiHost(
 
 function setCapabilityModelId(
   override: FileProcessorOverride,
-  processorId: string,
+  processorId: FileProcessorId,
   feature: FileProcessorFeature,
   modelId: unknown
 ) {
@@ -140,7 +146,7 @@ function pruneEmptyOverrides(overrides: FileProcessorOverrides) {
     }
 
     if (Object.keys(override).length === 0) {
-      delete overrides[processorId]
+      delete overrides[processorId as FileProcessorId]
     }
   }
 }
@@ -151,7 +157,7 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
   }
 
   const providerId = provider.id
-  if (!isNonEmptyString(providerId)) {
+  if (!isFileProcessorId(providerId)) {
     return
   }
 
@@ -179,7 +185,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
   }
 
   const providerId = provider.id
-  if (!isNonEmptyString(providerId)) {
+  if (!isFileProcessorId(providerId)) {
     return
   }
 

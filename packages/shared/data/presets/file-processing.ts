@@ -1,5 +1,11 @@
 import * as z from 'zod'
 
+import {
+  FILE_PROCESSOR_FEATURES,
+  FILE_PROCESSOR_IDS,
+  FILE_PROCESSOR_TYPES,
+  type FileProcessorFeature
+} from '../preference/preferenceTypes'
 import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
 /**
@@ -18,14 +24,14 @@ import { FILE_TYPE, FileTypeSchema } from '../types/file'
 /**
  * Processor service type
  */
-export const FileProcessorTypeSchema = z.enum(['api', 'builtin'])
-export type FileProcessorType = z.infer<typeof FileProcessorTypeSchema>
+export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 
 /**
  * Feature type
  */
-export const FileProcessorFeatureSchema = z.enum(['text_extraction', 'markdown_conversion'])
-export type FileProcessorFeature = z.infer<typeof FileProcessorFeatureSchema>
+export const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
+
+export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 
 /**
  * Input file type schema
@@ -108,7 +114,7 @@ export type FileProcessorOutput = FeatureCapability['output']
  */
 export const FileProcessorTemplateSchema = z
   .object({
-    id: z.string().min(1),
+    id: FileProcessorIdSchema,
     type: FileProcessorTypeSchema,
     metadata: FileProcessorMetadataSchema.optional(),
     capabilities: z.array(FeatureCapabilitySchema).min(1)
@@ -151,7 +157,6 @@ export const FileProcessorTemplatesSchema = z.array(FileProcessorTemplateSchema)
  * - { quality: 'high', timeout: 30000 }  // Other processor config
  */
 export const FileProcessorOptionsSchema = z.record(z.string(), z.unknown())
-export type FileProcessorOptions = z.infer<typeof FileProcessorOptionsSchema>
 
 /**
  * Capability override (user customization for a specific feature)
@@ -165,7 +170,6 @@ export const CapabilityOverrideSchema = z
     metadata: CapabilityMetadataSchema.optional()
   })
   .strict()
-export type CapabilityOverride = z.infer<typeof CapabilityOverrideSchema>
 
 export const FileProcessorCapabilityOverridesSchema = z
   .object({
@@ -190,8 +194,7 @@ export const FileProcessorOverrideSchema = z
     options: FileProcessorOptionsSchema.optional()
   })
   .strict()
-export type FileProcessorOverride = z.infer<typeof FileProcessorOverrideSchema>
-export const FileProcessorOverridesSchema = z.record(z.string(), FileProcessorOverrideSchema)
+export const FileProcessorOverridesSchema = z.partialRecord(FileProcessorIdSchema, FileProcessorOverrideSchema)
 
 /**
  * Merged processor configuration (template + user override)

@@ -65,8 +65,10 @@ describe('ComplexPreferenceMappings', () => {
     })
 
     it('should include file processing overrides merge mapping', () => {
-      expect(COMPLEX_PREFERENCE_MAPPINGS).toHaveLength(1)
-      expect(COMPLEX_PREFERENCE_MAPPINGS[0]).toMatchObject({
+      const fileProcessingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'file_processing_overrides_merge')
+
+      expect(fileProcessingMapping).toBeDefined()
+      expect(fileProcessingMapping).toMatchObject({
         id: 'file_processing_overrides_merge',
         targetKeys: ['file_processing.overrides']
       })
@@ -88,13 +90,14 @@ describe('ComplexPreferenceMappings', () => {
   describe('getComplexMappingTargetKeys', () => {
     it('should return target keys from configured mappings', () => {
       const keys = getComplexMappingTargetKeys()
-      expect(keys).toEqual(['file_processing.overrides'])
+      expect(keys).toContain('file_processing.overrides')
     })
     it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
+      expect(keys).toContain('file_processing.overrides')
+      expect(keys.length).toBe(9) // 7 websearch compression keys + 1 provider overrides key + 1 file processing overrides key
     })
 
     it('should flatten target keys from all mappings', () => {

@@ -1,14 +1,14 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { FileProcessorId, FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
-import {
-  type CapabilityOverride,
-  type FileProcessorFeature,
-  type FileProcessorMerged,
-  type FileProcessorOverride,
-  PRESETS_FILE_PROCESSORS
-} from '@shared/data/presets/file-processing'
+import type {
+  CapabilityOverride,
+  FileProcessorFeature,
+  FileProcessorId,
+  FileProcessorOverride,
+  FileProcessorOverrides
+} from '@shared/data/preference/preferenceTypes'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 
 const logger = loggerService.withContext('DataApi:FileProcessingService')
 

@@ -28,7 +28,7 @@ describe('FileProcessorTemplatesSchema', () => {
 
   it('rejects duplicate features in a single processor template', () => {
     const result = FileProcessorTemplateSchema.safeParse({
-      id: 'duplicate-feature-processor',
+      id: 'paddleocr',
       type: 'api',
       capabilities: [
         {
