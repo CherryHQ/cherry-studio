@@ -21,6 +21,7 @@ export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
   onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => Promise<void>
   onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => Promise<void>
+  onUninstallPackage: (packageName: string) => Promise<void>
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }
@@ -43,7 +44,13 @@ type PluginRow = {
 
 const createPluginLoadingKey = (plugin: PluginMetadata) => `plugin:${plugin.sourcePath}`
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInstall, onUninstall, kind }) => {
+export const PluginBrowser: FC<PluginBrowserProps> = ({
+  installedPlugins,
+  onInstall,
+  onUninstall,
+  onUninstallPackage,
+  kind
+}) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [searchQuery, setSearchQuery] = useState('')
@@ -203,7 +210,12 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
     try {
       // Find the actual installed plugin to get its real filename
       const installed = findInstalledPlugin(plugin)
-      if (installed) {
+      if (!installed) {
+        return
+      }
+      if (installed.metadata.packageName) {
+        await onUninstallPackage(installed.metadata.packageName)
+      } else {
         await onUninstall(installed.metadata.filename, installed.type)
       }
     } finally {

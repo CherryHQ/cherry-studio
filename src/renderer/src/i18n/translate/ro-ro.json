@@ -26,6 +26,176 @@
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "În curând",
+        "description": "Conectați agentul la platforme de mesagerie.",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduceți App ID-ul aplicației Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Introduceți App Secret-ul aplicației Feishu",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "ID-uri de chat separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Primiți și răspundeți la mesaje printr-un bot Feishu/Lark folosind WebSocket.",
+          "domain": "Domeniu",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (Internațional)",
+          "encryptKey": "Cheie de criptare",
+          "encryptKeyPlaceholder": "Introduceți cheia de criptare a aplicației Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token de verificare",
+          "verificationTokenPlaceholder": "Introduceți tokenul de verificare al aplicației Feishu"
+        },
+        "notifyReceiver": "Primește notificări de sarcini",
+        "notifyReceiverHint": "Trimite rezultatele sarcinilor programate pe acest canal.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduceți App ID-ul QQ Bot",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Lăsați gol pentru a permite toate.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Introduceți Client Secret-ul QQ Bot",
+          "description": "Primește și răspunde la mesaje prin API-ul oficial QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Sfat: Trimiteți /whoami la bot pentru a obține ID-ul de chat în formatul corect."
+        },
+        "tab": "Canale",
+        "telegram": {
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Introduceți token-ul bot-ului Telegram",
+          "chatIds": "ID-uri de chat permise",
+          "chatIdsHint": "Separate prin virgulă. Lăsați gol pentru a permite toate chat-urile.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Primește și răspunde la mesaje prin bot Telegram folosind long polling.",
+          "title": "Telegram"
+        },
+        "title": "Canale"
+      },
+      "heartbeat": {
+        "enabled": "Activează Heartbeat",
+        "enabledHelper": "Când este activat și heartbeat.md există în spațiul de lucru, planificatorul citește conținutul și îl trimite la sesiunea principală la intervalul configurat.",
+        "interval": "Interval (minute)",
+        "intervalHelper": "Cât de des rulează heartbeat-ul, în minute."
+      },
+      "sandbox": {
+        "description": "Restricționează accesul agentului la sistemul de fișiere și rețea doar la directorul spațiului de lucru folosind sandboxing la nivel de sistem de operare.",
+        "helper": "Restricționează accesul la sistemul de fișiere și comenzi la calea spațiului de lucru.",
+        "label": "Mod Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Expresie cron standard (ex: '*/30 * * * *' pentru fiecare 30 de minute).",
+          "label": "Expresie Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "Planificatorul declanșează agentul automat conform unui program.",
+        "enabled": "Activează planificatorul",
+        "enabledHelper": "Când este activat, agentul va rula automat pe baza programului configurat.",
+        "errors": {
+          "invalidCron": "Expresie cron invalidă",
+          "invalidDelay": "Întârzierea trebuie să fie un număr pozitiv",
+          "invalidInterval": "Intervalul trebuie să fie un număr pozitiv"
+        },
+        "interval": {
+          "helper": "Cât de des ar trebui să ruleze agentul, în secunde.",
+          "label": "Interval (secunde)"
+        },
+        "lastRun": "Ultima rulare",
+        "never": "Niciodată",
+        "nextRun": "Următoarea rulare",
+        "oneTime": {
+          "helper": "Întârziere unică în secunde înainte de rularea agentului.",
+          "label": "Întârziere (secunde)"
+        },
+        "status": {
+          "running": "Rulează",
+          "stopped": "Oprit",
+          "tickInProgress": "Tick în progres"
+        },
+        "tab": "Planificator",
+        "title": "Configurare planificator",
+        "type": {
+          "cron": "Expresie Cron",
+          "interval": "Interval fix",
+          "label": "Tip program",
+          "one-time": "Întârziere unică"
+        }
+      },
+      "soul": {
+        "description": "Sufletul definește personalitatea și comportamentul de bază al agentului. Este citit din soul.md în rădăcina spațiului de lucru.",
+        "empty": "Nu s-a găsit soul.md în rădăcina spațiului de lucru. Creați unul pentru a defini personalitatea agentului.",
+        "enabled": "Activează sufletul",
+        "enabledHelper": "Când este activat, agentul citește soul.md din rădăcina spațiului de lucru și îl adaugă la începutul promptului de sistem.",
+        "fileLabel": "soul.md",
+        "preview": "Previzualizare suflet",
+        "tab": "Suflet",
+        "title": "Configurare suflet"
+      },
+      "tasks": {
+        "add": "Adaugă sarcină",
+        "cancel": "Anulează",
+        "contextMode": {
+          "isolated": "Izolat",
+          "isolatedDesc": "Creează o nouă sesiune la fiecare rulare",
+          "label": "Mod context",
+          "session": "Reutilizează sesiunea",
+          "sessionDesc": "Reutilizează cea mai recentă sesiune"
+        },
+        "cronPlaceholder": "ex: 0 9 * * * (în fiecare zi la ora 9)",
+        "delete": {
+          "confirm": "Sunteți sigur că doriți să ștergeți această sarcină?",
+          "label": "Șterge"
+        },
+        "edit": "Editează",
+        "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "intervalPlaceholder": "Interval în minute",
+        "lastRun": "Ultima rulare",
+        "logs": {
+          "duration": "Durată",
+          "empty": "Nu există încă istoric de rulare.",
+          "error": "Eroare",
+          "label": "Istoric rulări",
+          "result": "Rezultat",
+          "runAt": "Rulat la",
+          "status": "Stare"
+        },
+        "name": {
+          "label": "Nume",
+          "placeholder": "ex: Revizuire cod zilnică"
+        },
+        "nextRun": "Următoarea rulare",
+        "oncePlaceholder": "Selectați data și ora",
+        "pause": "Pauză",
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Ce ar trebui să facă agentul când rulează această sarcină?"
+        },
+        "resume": "Reia",
+        "run": "Rulează",
+        "runTriggered": "Sarcină declanșată",
+        "save": "Salvează",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Tip program",
+          "once": "O singură dată"
+        },
+        "scheduleValue": "Valoare program",
+        "status": {
+          "active": "Activă",
+          "completed": "Finalizată",
+          "paused": "În pauză"
+        },
+        "tab": "Sarcini",
+        "title": "Sarcini programate"
+      },
+      "warning": {
+        "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
+      }
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -135,6 +305,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Setați variabile de mediu personalizate pentru runtime-ul agentului.",
+          "helper": "Introduceți variabile de mediu personalizate (una pe linie, format: CHEIE=valoare)",
+          "label": "Variabile de mediu"
+        },
         "maxTurns": {
           "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
           "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",

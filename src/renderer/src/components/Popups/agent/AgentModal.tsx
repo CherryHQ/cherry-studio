@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
-import { permissionModeCards } from '@renderer/config/agent'
+import { DEFAULT_CHERRY_CLAW_CONFIG, permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
@@ -10,6 +11,7 @@ import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAg
 import type {
   AddAgentForm,
   AgentEntity,
+  AgentType,
   ApiModel,
   BaseAgentForm,
   PermissionMode,
@@ -17,6 +19,8 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select } from 'antd'
 import type { ChangeEvent, FormEvent } from 'react'
@@ -122,6 +126,26 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [checkGitBash])
 
+  const onTypeChange = useCallback((value: AgentType) => {
+    setForm((prev) => {
+      if (value === 'cherry-claw') {
+        return {
+          ...prev,
+          type: value,
+          configuration: {
+            ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+            ...DEFAULT_CHERRY_CLAW_CONFIG.configuration
+          }
+        }
+      }
+      return {
+        ...prev,
+        type: value,
+        configuration: AgentConfigurationSchema.parse(prev.configuration ?? {})
+      }
+    })
+  }, [])
+
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
@@ -163,6 +187,27 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     setForm((prev) => ({
       ...prev,
       instructions: e.target.value
+    }))
+  }, [])
+
+  const [envVarsText, setEnvVarsText] = useState(() => serializeKeyValueString(form.configuration?.env_vars ?? {}))
+
+  useEffect(() => {
+    if (open) {
+      setEnvVarsText(serializeKeyValueString(buildAgentForm(agent).configuration?.env_vars ?? {}))
+    }
+  }, [agent, open])
+
+  const onEnvVarsChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value
+    setEnvVarsText(text)
+    const parsed = parseKeyValueString(text)
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        env_vars: parsed
+      }
     }))
   }, [])
 
@@ -338,14 +383,41 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 </Label>
                 <Input value={form.name} onChange={onNameChange} required />
               </FormItem>
+              {!isEditing(agent) && (
+                <FormItem style={{ minWidth: 160 }}>
+                  <Label>
+                    {t('common.type')} <RequiredMark>*</RequiredMark>
+                  </Label>
+                  <Select value={form.type} onChange={onTypeChange} style={{ width: '100%' }}>
+                    <Select.Option value="claude-code">{t('agent.type.claude-code', 'Claude Code')}</Select.Option>
+                    <Select.Option value="cherry-claw">{t('agent.type.cherry-claw', 'CherryClaw')}</Select.Option>
+                  </Select>
+                </FormItem>
+              )}
             </FormRow>
+
+            {form.type === 'cherry-claw' && (
+              <CherryClawWarning>
+                {t(
+                  'agent.cherryClaw.warning.bypassPermissions',
+                  'CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval.'
+                )}
+              </CherryClawWarning>
+            )}
 
             <FormItem>
               <div className="flex items-center gap-2">
                 <Label>
                   {t('common.model')} <RequiredMark>*</RequiredMark>
                 </Label>
-                <HelpTooltip title={t('agent.add.model.tooltip')} />
+                <AnthropicProviderListPopover
+                  useWindowNavigate
+                  filterProviders={getAnthropicSupportedProviders}
+                  onProviderClick={() => {
+                    setOpen(false)
+                    resolve(undefined)
+                  }}
+                />
               </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}
@@ -453,6 +525,17 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             <FormItem>
               <Label>{t('common.prompt')}</Label>
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('agent.settings.advance.envVars.label')}</Label>
+              <TextArea
+                rows={3}
+                value={envVarsText}
+                onChange={onEnvVarsChange}
+                placeholder={'API_KEY=xxx\nDEBUG=true'}
+              />
+              <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
             </FormItem>
 
             {/* <FormItem>
@@ -606,6 +689,15 @@ const FormFooter = styled.div`
   justify-content: flex-end;
   gap: 8px;
   padding: 10px;
+`
+
+const CherryClawWarning = styled.div`
+  font-size: 12px;
+  color: #ff4d4f;
+  padding: 8px 12px;
+  background-color: rgba(255, 77, 79, 0.1);
+  border-radius: 6px;
+  line-height: 1.5;
 `
 
 const PermissionOptionWrapper = styled.div`

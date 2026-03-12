@@ -1,0 +1,101 @@
+import { loggerService } from '@logger'
+import ClawServer from '@main/mcpServers/claw'
+import type { GetAgentSessionResponse } from '@types'
+
+import type { AgentServiceInterface, AgentStream, AgentThinkingOptions } from '../../interfaces/AgentStreamInterface'
+import { agentServiceRegistry } from '../AgentServiceRegistry'
+import type { EnhancedSessionFields } from '../claudecode/enhanced-session'
+import { HeartbeatReader } from './heartbeat'
+import { PromptBuilder } from './prompt'
+
+const logger = loggerService.withContext('CherryClawService')
+
+/**
+ * CherryClawService — a Claude Code variant with soul-driven personality
+ * and scheduler-based autonomous operation.
+ *
+ * Delegates to ClaudeCodeService (via registry) with a full custom system prompt
+ * (replaces Claude Code preset) and an injected claw MCP server for autonomous task management.
+ */
+export class CherryClawService implements AgentServiceInterface {
+  private promptBuilder = new PromptBuilder()
+  readonly heartbeatReader = new HeartbeatReader()
+
+  async invoke(
+    prompt: string,
+    session: GetAgentSessionResponse,
+    abortController: AbortController,
+    lastAgentSessionId?: string,
+    thinkingOptions?: AgentThinkingOptions
+  ): Promise<AgentStream> {
+    const workspacePath = session.accessible_paths[0]
+
+    type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
+
+    // Build soul-enhanced session
+    let enhancedSession: EnhancedSession = session
+
+    // Build full custom system prompt from workspace files (soul.md, user.md, memory/FACT.md, system.md)
+    if (workspacePath) {
+      const systemPrompt = await this.promptBuilder.buildSystemPrompt(workspacePath)
+      logger.info('Built custom system prompt for CherryClaw', {
+        workspacePath,
+        promptLength: systemPrompt.length
+      })
+      enhancedSession = {
+        ...session,
+        _systemPrompt: systemPrompt
+      }
+    }
+
+    // Inject the claw MCP server as an in-memory instance for autonomous task management
+    // and disable the SDK's builtin cron tools so the agent uses our MCP cron tool instead
+    const clawServer = new ClawServer(session.agent_id)
+    enhancedSession = {
+      ...enhancedSession,
+      _internalMcpServers: {
+        claw: {
+          type: 'inmem',
+          instance: clawServer.mcpServer
+        }
+      },
+      _disallowedTools: [
+        // Disable builtin cron tools (agent uses our MCP cron tool instead)
+        'CronCreate',
+        'CronDelete',
+        'CronList',
+        // Disable tools not suited for autonomous agent operation
+        'TodoWrite',
+        'AskUserQuestion',
+        'EnterPlanMode',
+        'ExitPlanMode',
+        'EnterWorktree',
+        'NotebookEdit'
+      ]
+    }
+
+    // If the agent has an explicit allowed_tools whitelist, append the claw MCP
+    // tool names so the SDK doesn't hide them.  When allowed_tools is undefined
+    // (no restriction), leave it alone — all tools are already available.
+    const clawMcpTools = ['mcp__claw__*'] // wildcard to allow all claw MCP tools (e.g. cron, file management, etc.)
+    const currentAllowed = enhancedSession.allowed_tools
+    if (Array.isArray(currentAllowed) && currentAllowed.length > 0) {
+      const missing = clawMcpTools.filter((t) => !currentAllowed.includes(t))
+      if (missing.length > 0) {
+        enhancedSession = { ...enhancedSession, allowed_tools: [...currentAllowed, ...missing] }
+      }
+    }
+
+    logger.debug('CherryClaw invoke: injecting claw MCP and allowed_tools', {
+      agentId: session.agent_id,
+      mcpServers: Object.keys(enhancedSession._internalMcpServers ?? {}),
+      allowedTools: enhancedSession.allowed_tools
+    })
+
+    // Delegate to claude-code service (CherryClaw is a Claude Code variant)
+    const claudeCodeService = agentServiceRegistry.getService('claude-code')
+    return claudeCodeService.invoke(prompt, enhancedSession, abortController, lastAgentSessionId, thinkingOptions)
+  }
+}
+
+export default CherryClawService

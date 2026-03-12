@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { modelsService } from '@main/apiServer/services/models'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import type {
   AgentEntity,
@@ -104,6 +105,9 @@ export class AgentService extends BaseService {
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+    // Ensure a default CherryClaw agent exists
+    await this.ensureDefaultCherryClaw()
+
     // Build query with pagination
     const database = await this.getDatabase()
     const totalResult = await database.select({ count: count() }).from(agentsTable)
@@ -131,7 +135,68 @@ export class AgentService extends BaseService {
       agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
     }
 
+    // Sort cherry-claw agents to the top
+    agents.sort((a, b) => {
+      if (a.type === 'cherry-claw' && b.type !== 'cherry-claw') return -1
+      if (a.type !== 'cherry-claw' && b.type === 'cherry-claw') return 1
+      return 0
+    })
+
     return { agents, total: totalResult[0].count }
+  }
+
+  private async ensureDefaultCherryClaw(): Promise<void> {
+    try {
+      const database = await this.getDatabase()
+      const existing = await database
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(eq(agentsTable.type, 'cherry-claw'))
+        .limit(1)
+
+      if (existing.length > 0) return
+
+      // Find the first available Anthropic model
+      const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
+      const firstModel = modelsRes.data?.[0]
+      if (!firstModel) {
+        logger.warn('No Anthropic models available — skipping default CherryClaw creation')
+        return
+      }
+
+      const req: CreateAgentRequest = {
+        type: 'cherry-claw',
+        name: 'CherryClaw',
+        description: 'Default autonomous CherryClaw agent',
+        model: firstModel.id,
+        accessible_paths: [],
+        configuration: {
+          permission_mode: 'bypassPermissions',
+          max_turns: 100,
+          soul_enabled: true,
+          scheduler_enabled: false,
+          scheduler_type: 'interval',
+          heartbeat_enabled: true,
+          heartbeat_interval: 30
+        }
+      }
+
+      const agent = await this.createAgent(req)
+      logger.info('Auto-created default CherryClaw agent', { id: agent.id })
+
+      // Create a default session for the auto-created agent
+      const { SessionService } = await import('./SessionService')
+      const sessionSvc = SessionService.getInstance()
+      await sessionSvc.createSession(agent.id, {})
+      logger.info('Default session created for CherryClaw agent', { agentId: agent.id })
+
+      // Create the heartbeat scheduled task
+      const { schedulerService } = await import('./SchedulerService')
+      await schedulerService.ensureHeartbeatTask(agent.id, 30)
+      logger.info('Heartbeat task created for CherryClaw agent', { agentId: agent.id })
+    } catch (error) {
+      logger.error('Failed to ensure default CherryClaw agent', error as Error)
+    }
   }
 
   async updateAgent(

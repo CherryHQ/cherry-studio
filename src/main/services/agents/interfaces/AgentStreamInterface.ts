@@ -19,6 +19,8 @@ export interface AgentStream extends EventEmitter {
   emit(event: 'data', data: AgentStreamEvent): boolean
   on(event: 'data', listener: (data: AgentStreamEvent) => void): this
   once(event: 'data', listener: (data: AgentStreamEvent) => void): this
+  /** SDK session_id captured from the init message, used for resume. */
+  sdkSessionId?: string
 }
 
 export interface AgentThinkingOptions {

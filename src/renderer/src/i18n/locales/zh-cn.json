@@ -7,7 +7,9 @@
         "invalid_agent": "无效的 Agent"
       },
       "model": {
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+        "supported_providers": "支持的服务商",
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。",
+        "view_providers": "查看支持的服务商"
       },
       "title": "添加 Agent",
       "type": {
@@ -25,6 +27,176 @@
       "previous": "上一个",
       "submit": "提交",
       "title": "来自 Agent 的问题"
+    },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "即将推出",
+        "description": "将您的 Agent 连接到消息平台。",
+        "feishu": {
+          "appId": "[to be translated]:App ID",
+          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
+          "appSecret": "[to be translated]:App Secret",
+          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
+          "chatIds": "[to be translated]:Allowed Chat IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
+          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
+          "domain": "[to be translated]:Domain",
+          "domainFeishu": "[to be translated]:Feishu (China)",
+          "domainLark": "[to be translated]:Lark (International)",
+          "encryptKey": "[to be translated]:Encrypt Key",
+          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
+          "title": "[to be translated]:Feishu",
+          "verificationToken": "[to be translated]:Verification Token",
+          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+        },
+        "notifyReceiver": "接收任务通知",
+        "notifyReceiverHint": "将定时任务结果发送到此频道。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
+          "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+          "title": "QQ",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
+        },
+        "tab": "频道",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
+          "title": "Telegram"
+        },
+        "title": "频道"
+      },
+      "heartbeat": {
+        "enabled": "启用心跳",
+        "enabledHelper": "启用后，如果工作区存在 heartbeat.md 文件，调度器会按配置的间隔读取其内容并发送到主会话。",
+        "interval": "间隔（分钟）",
+        "intervalHelper": "心跳运行的频率，单位为分钟。"
+      },
+      "sandbox": {
+        "description": "使用操作系统级沙箱限制 Agent 的文件系统和网络访问，仅限于工作区目录。",
+        "helper": "将文件系统和命令访问限制在工作区路径内。",
+        "label": "沙箱模式"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "标准 cron 表达式（例如 '*/30 * * * *' 表示每 30 分钟）。",
+          "label": "Cron 表达式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "调度器按计划自动触发 Agent 运行。",
+        "enabled": "启用调度器",
+        "enabledHelper": "启用后，Agent 将根据配置的计划自动运行。",
+        "errors": {
+          "invalidCron": "无效的 cron 表达式",
+          "invalidDelay": "延迟必须是正数",
+          "invalidInterval": "间隔必须是正数"
+        },
+        "interval": {
+          "helper": "Agent 运行的频率，单位为秒。",
+          "label": "间隔（秒）"
+        },
+        "lastRun": "上次运行",
+        "never": "从未",
+        "nextRun": "下次运行",
+        "oneTime": {
+          "helper": "Agent 运行前的一次性延迟，单位为秒。",
+          "label": "延迟（秒）"
+        },
+        "status": {
+          "running": "运行中",
+          "stopped": "已停止",
+          "tickInProgress": "执行中"
+        },
+        "tab": "调度器",
+        "title": "调度器配置",
+        "type": {
+          "cron": "Cron 表达式",
+          "interval": "固定间隔",
+          "label": "调度类型",
+          "one-time": "一次性延迟"
+        }
+      },
+      "soul": {
+        "description": "灵魂定义了 Agent 的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
+        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义 Agent 的个性。",
+        "enabled": "启用灵魂",
+        "enabledHelper": "启用后，Agent 会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
+        "fileLabel": "soul.md",
+        "preview": "灵魂预览",
+        "tab": "灵魂",
+        "title": "灵魂配置"
+      },
+      "tasks": {
+        "add": "添加任务",
+        "cancel": "取消",
+        "contextMode": {
+          "isolated": "隔离",
+          "isolatedDesc": "每次运行创建新会话",
+          "label": "上下文模式",
+          "session": "复用会话",
+          "sessionDesc": "复用最近的会话"
+        },
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
+        "delete": {
+          "confirm": "确定要删除此任务吗？",
+          "label": "删除"
+        },
+        "edit": "编辑",
+        "empty": "暂无定时任务。添加一个开始吧。",
+        "intervalPlaceholder": "间隔（分钟）",
+        "lastRun": "上次运行",
+        "logs": {
+          "duration": "耗时",
+          "empty": "暂无运行历史。",
+          "error": "错误",
+          "label": "运行历史",
+          "result": "结果",
+          "runAt": "运行时间",
+          "status": "状态"
+        },
+        "name": {
+          "label": "名称",
+          "placeholder": "例如：每日代码审查"
+        },
+        "nextRun": "下次运行",
+        "oncePlaceholder": "选择日期和时间",
+        "pause": "暂停",
+        "prompt": {
+          "label": "提示词",
+          "placeholder": "此任务运行时 Agent 应该做什么？"
+        },
+        "resume": "恢复",
+        "run": "运行",
+        "runTriggered": "任务已触发",
+        "save": "保存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "间隔",
+          "label": "调度类型",
+          "once": "一次性"
+        },
+        "scheduleValue": "调度值",
+        "status": {
+          "active": "活跃",
+          "completed": "已完成",
+          "paused": "已暂停"
+        },
+        "tab": "任务",
+        "title": "定时任务"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
+      }
     },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
@@ -135,6 +307,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "为智能体运行时设置自定义环境变量。",
+          "helper": "输入自定义环境变量（每行一个，格式：KEY=value）",
+          "label": "环境变量"
+        },
         "maxTurns": {
           "description": "设定代理自动执行的请求/回复轮次数。",
           "helper": "数值越高可自主运行越久；数值越低更易控制。",
@@ -5030,6 +5207,11 @@
       },
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
+      "filter": {
+        "agent": "支持 Agent",
+        "all": "全部服务商"
+      },
+      "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",

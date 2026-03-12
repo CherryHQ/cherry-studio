@@ -7,7 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
-        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente."
+        "supported_providers": "Provedores Suportados",
+        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente.",
+        "view_providers": "Ver provedores suportados"
       },
       "title": "Adicionar Agente",
       "type": {
@@ -25,6 +27,176 @@
       "previous": "Anterior",
       "submit": "Enviar",
       "title": "Perguntas do Agente"
+    },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "Em breve",
+        "description": "Conecte o seu agente a plataformas de mensagens.",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduza o App ID da sua aplicação Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Introduza o App Secret da sua aplicação Feishu",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "IDs de chat separados por vírgulas. Deixe vazio para permitir todos os chats.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Receber e responder a mensagens através de um bot Feishu/Lark usando WebSocket.",
+          "domain": "Domínio",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (Internacional)",
+          "encryptKey": "Chave de encriptação",
+          "encryptKeyPlaceholder": "Introduza a chave de encriptação da sua aplicação Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token de verificação",
+          "verificationTokenPlaceholder": "Introduza o token de verificação da sua aplicação Feishu"
+        },
+        "notifyReceiver": "Receber notificações de tarefas",
+        "notifyReceiverHint": "Enviar resultados de tarefas agendadas para este canal.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduza o seu App ID do QQ Bot",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Deixe vazio para permitir todos.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Introduza o seu Client Secret do QQ Bot",
+          "description": "Receber e responder a mensagens através da API oficial do QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o seu ID de chat no formato correto."
+        },
+        "tab": "Canais",
+        "telegram": {
+          "botToken": "Token do bot",
+          "botTokenPlaceholder": "Introduza o token do seu bot Telegram",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Separados por vírgulas. Deixe vazio para permitir todos os chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Receber e responder a mensagens através de um bot Telegram usando long polling.",
+          "title": "Telegram"
+        },
+        "title": "Canais"
+      },
+      "heartbeat": {
+        "enabled": "Ativar Heartbeat",
+        "enabledHelper": "Quando ativado e heartbeat.md existe no espaço de trabalho, o agendador lê o seu conteúdo e envia-o para a sessão principal no intervalo configurado.",
+        "interval": "Intervalo (minutos)",
+        "intervalHelper": "Com que frequência o heartbeat é executado, em minutos."
+      },
+      "sandbox": {
+        "description": "Restringe o acesso do agente ao sistema de ficheiros e rede apenas ao diretório do espaço de trabalho usando sandboxing ao nível do sistema operativo.",
+        "helper": "Restringir o acesso ao sistema de ficheiros e comandos ao caminho do espaço de trabalho.",
+        "label": "Modo Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Expressão cron padrão (ex: '*/30 * * * *' para cada 30 minutos).",
+          "label": "Expressão Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "O agendador aciona o agente automaticamente conforme um cronograma.",
+        "enabled": "Ativar agendador",
+        "enabledHelper": "Quando ativado, o agente será executado automaticamente com base no cronograma configurado.",
+        "errors": {
+          "invalidCron": "Expressão cron inválida",
+          "invalidDelay": "O atraso deve ser um número positivo",
+          "invalidInterval": "O intervalo deve ser um número positivo"
+        },
+        "interval": {
+          "helper": "Com que frequência o agente deve ser executado, em segundos.",
+          "label": "Intervalo (segundos)"
+        },
+        "lastRun": "Última execução",
+        "never": "Nunca",
+        "nextRun": "Próxima execução",
+        "oneTime": {
+          "helper": "Atraso único em segundos antes do agente ser executado.",
+          "label": "Atraso (segundos)"
+        },
+        "status": {
+          "running": "A executar",
+          "stopped": "Parado",
+          "tickInProgress": "Tick em progresso"
+        },
+        "tab": "Agendador",
+        "title": "Configuração do agendador",
+        "type": {
+          "cron": "Expressão Cron",
+          "interval": "Intervalo fixo",
+          "label": "Tipo de agendamento",
+          "one-time": "Atraso único"
+        }
+      },
+      "soul": {
+        "description": "A alma define a personalidade e o comportamento base do agente. É lida a partir de soul.md na raiz do espaço de trabalho.",
+        "empty": "Nenhum soul.md encontrado na raiz do espaço de trabalho. Crie um para definir a personalidade do agente.",
+        "enabled": "Ativar alma",
+        "enabledHelper": "Quando ativado, o agente lê soul.md da raiz do espaço de trabalho e adiciona-o ao início do prompt do sistema.",
+        "fileLabel": "soul.md",
+        "preview": "Pré-visualização da alma",
+        "tab": "Alma",
+        "title": "Configuração da alma"
+      },
+      "tasks": {
+        "add": "Adicionar tarefa",
+        "cancel": "Cancelar",
+        "contextMode": {
+          "isolated": "Isolado",
+          "isolatedDesc": "Criar uma nova sessão em cada execução",
+          "label": "Modo de contexto",
+          "session": "Reutilizar sessão",
+          "sessionDesc": "Reutilizar a sessão mais recente"
+        },
+        "cronPlaceholder": "ex: 0 9 * * * (todos os dias às 9h)",
+        "delete": {
+          "confirm": "Tem certeza de que deseja eliminar esta tarefa?",
+          "label": "Eliminar"
+        },
+        "edit": "Editar",
+        "empty": "Sem tarefas agendadas. Adicione uma para começar.",
+        "intervalPlaceholder": "Intervalo em minutos",
+        "lastRun": "Última execução",
+        "logs": {
+          "duration": "Duração",
+          "empty": "Ainda sem histórico de execução.",
+          "error": "Erro",
+          "label": "Histórico de execução",
+          "result": "Resultado",
+          "runAt": "Executado em",
+          "status": "Estado"
+        },
+        "name": {
+          "label": "Nome",
+          "placeholder": "ex: Revisão de código diária"
+        },
+        "nextRun": "Próxima execução",
+        "oncePlaceholder": "Selecionar data e hora",
+        "pause": "Pausar",
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "O que o agente deve fazer quando esta tarefa for executada?"
+        },
+        "resume": "Retomar",
+        "run": "Executar",
+        "runTriggered": "Tarefa acionada",
+        "save": "Guardar",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Intervalo",
+          "label": "Tipo de agendamento",
+          "once": "Uma vez"
+        },
+        "scheduleValue": "Valor do agendamento",
+        "status": {
+          "active": "Ativo",
+          "completed": "Concluído",
+          "paused": "Em pausa"
+        },
+        "tab": "Tarefas",
+        "title": "Tarefas agendadas"
+      },
+      "warning": {
+        "bypassPermissions": "Os agentes CherryClaw funcionam em modo automático completo por predefinição. Todas as ferramentas são executadas sem pedir aprovação."
+      }
     },
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
@@ -135,6 +307,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Definir variáveis de ambiente personalizadas para o tempo de execução do agente.",
+          "helper": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
+          "label": "Variáveis de Ambiente"
+        },
         "maxTurns": {
           "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
           "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
@@ -5030,6 +5207,11 @@
       },
       "docs_check": "Verificar",
       "docs_more_details": "Obter mais detalhes",
+      "filter": {
+        "agent": "Suportado por Agente",
+        "all": "Todos os Provedores"
+      },
+      "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
       "misc": "outro",
       "no_models_for_check": "Não há modelos disponíveis para verificação (por exemplo, modelos de conversa)",

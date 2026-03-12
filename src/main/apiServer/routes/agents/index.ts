@@ -1,6 +1,6 @@
 import express from 'express'
 
-import { agentHandlers, messageHandlers, sessionHandlers } from './handlers'
+import { agentHandlers, messageHandlers, sessionHandlers, taskHandlers } from './handlers'
 import { checkAgentExists, handleValidationErrors } from './middleware'
 import {
   validateAgent,
@@ -13,7 +13,11 @@ import {
   validateSessionMessage,
   validateSessionMessageId,
   validateSessionReplace,
-  validateSessionUpdate
+  validateSessionUpdate,
+  validateTask,
+  validateTaskId,
+  validateTaskPagination,
+  validateTaskUpdate
 } from './validators'
 
 // Create main agents router
@@ -30,7 +34,7 @@ const agentsRouter = express.Router()
  *
  *     AgentType:
  *       type: string
- *       enum: [claude-code]
+ *       enum: [claude-code, cherry-claw]
  *       description: Type of agent
  *
  *     AgentConfiguration:
@@ -945,9 +949,31 @@ const createMessagesRouter = (): express.Router => {
   return messagesRouter
 }
 
+// Create tasks router with agent context
+const createTasksRouter = (): express.Router => {
+  const tasksRouter = express.Router({ mergeParams: true })
+
+  tasksRouter.post('/', validateTask, handleValidationErrors, taskHandlers.createTask)
+  tasksRouter.get('/', validateTaskPagination, handleValidationErrors, taskHandlers.listTasks)
+  tasksRouter.get('/:taskId', validateTaskId, handleValidationErrors, taskHandlers.getTask)
+  tasksRouter.patch('/:taskId', validateTaskId, validateTaskUpdate, handleValidationErrors, taskHandlers.updateTask)
+  tasksRouter.delete('/:taskId', validateTaskId, handleValidationErrors, taskHandlers.deleteTask)
+  tasksRouter.post('/:taskId/run', validateTaskId, handleValidationErrors, taskHandlers.runTask)
+  tasksRouter.get(
+    '/:taskId/logs',
+    validateTaskId,
+    validateTaskPagination,
+    handleValidationErrors,
+    taskHandlers.getTaskLogs
+  )
+
+  return tasksRouter
+}
+
 // Mount nested resources with clear hierarchy
 const sessionsRouter = createSessionsRouter()
 const messagesRouter = createMessagesRouter()
+const tasksRouter = createTasksRouter()
 
 // Mount sessions under specific agent
 agentsRouter.use('/:agentId/sessions', validateAgentId, checkAgentExists, handleValidationErrors, sessionsRouter)
@@ -960,6 +986,9 @@ agentsRouter.use(
   handleValidationErrors,
   messagesRouter
 )
+
+// Mount tasks under specific agent
+agentsRouter.use('/:agentId/tasks', validateAgentId, checkAgentExists, handleValidationErrors, tasksRouter)
 
 // Export main router and convenience router
 export const agentsRoutes = agentsRouter

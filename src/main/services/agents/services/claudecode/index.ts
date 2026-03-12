@@ -34,8 +34,11 @@ import type {
 } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
+import type { EnhancedSessionFields } from './enhanced-session'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+
+type EnhancedSession = GetAgentSessionResponse & EnhancedSessionFields
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -66,6 +69,8 @@ class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
   declare once: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
+  /** SDK session_id captured from the init message, used for resume. */
+  sdkSessionId?: string
 }
 
 class ClaudeCodeService implements AgentServiceInterface {
@@ -162,6 +167,37 @@ class ClaudeCodeService implements AgentServiceInterface {
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+    }
+
+    // Merge user-defined environment variables from session configuration
+    const userEnvVars = session.configuration?.env_vars
+    if (userEnvVars && typeof userEnvVars === 'object') {
+      const BLOCKED_ENV_KEYS = new Set([
+        'ANTHROPIC_API_KEY',
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_MODEL',
+        'ANTHROPIC_DEFAULT_OPUS_MODEL',
+        'ANTHROPIC_DEFAULT_SONNET_MODEL',
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+        'ELECTRON_RUN_AS_NODE',
+        'ELECTRON_NO_ATTACH_CONSOLE',
+        'CLAUDE_CONFIG_DIR',
+        'CLAUDE_CODE_USE_BEDROCK',
+        'CLAUDE_CODE_GIT_BASH_PATH',
+        'NODE_OPTIONS',
+        '__PROTO__',
+        'CONSTRUCTOR',
+        'PROTOTYPE'
+      ])
+      for (const [key, value] of Object.entries(userEnvVars)) {
+        const upperKey = key.toUpperCase()
+        if (BLOCKED_ENV_KEYS.has(upperKey)) {
+          logger.warn('Blocked user env var override for system-critical variable', { key })
+        } else if (typeof value === 'string') {
+          env[key] = value
+        }
+      }
     }
 
     const errorChunks: string[] = []
@@ -285,17 +321,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: session.instructions
-        ? {
-            type: 'preset',
-            preset: 'claude_code',
-            append: `${session.instructions}\n\n${getLanguageInstruction()}`
-          }
-        : {
-            type: 'preset',
-            preset: 'claude_code',
-            append: getLanguageInstruction()
-          },
+      systemPrompt: (session as EnhancedSession)._systemPrompt
+        ? `${(session as EnhancedSession)._systemPrompt}\n\n${getLanguageInstruction()}`
+        : session.instructions
+          ? {
+              type: 'preset',
+              preset: 'claude_code',
+              append: `${session.instructions}\n\n${getLanguageInstruction()}`
+            }
+          : {
+              type: 'preset',
+              preset: 'claude_code',
+              append: getLanguageInstruction()
+            },
       settingSources: ['project', 'local'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
@@ -332,6 +370,35 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
       options.mcpServers = mcpList
       options.strictMcpConfig = true
+    }
+
+    // Merge enhanced session fields injected by agent services (e.g. CherryClaw)
+    const enhancedSession = session as EnhancedSession
+    if (enhancedSession._internalMcpServers) {
+      if (!options.mcpServers) {
+        options.mcpServers = {}
+      }
+      for (const [name, config] of Object.entries(enhancedSession._internalMcpServers)) {
+        if (config.type === 'inmem') {
+          options.mcpServers[name] = { type: 'sdk', name, instance: config.instance }
+        } else {
+          options.mcpServers[name] = { type: config.type, url: config.url, headers: config.headers }
+        }
+      }
+      logger.debug('Merged internal MCP servers into SDK options', {
+        serverNames: Object.keys(enhancedSession._internalMcpServers),
+        totalMcpServers: Object.keys(options.mcpServers).length
+      })
+    }
+
+    // Disable specific builtin tools if requested by agent service
+    if (enhancedSession._disallowedTools) {
+      options.disallowedTools = enhancedSession._disallowedTools
+    }
+
+    // Apply additional settings if provided by agent service
+    if (enhancedSession._settings) {
+      options.settings = enhancedSession._settings
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
@@ -489,8 +556,16 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         jsonOutput.push(message)
 
-        // Handle init message - merge builtin and SDK slash_commands
+        // Handle init message - capture SDK session_id and merge slash_commands
         if (message.type === 'system' && message.subtype === 'init') {
+          if (message.session_id) {
+            stream.sdkSessionId = message.session_id
+            logger.info('Captured SDK session_id from init message', {
+              sdkSessionId: message.session_id,
+              sessionId
+            })
+          }
+
           const sdkSlashCommands = message.slash_commands || []
           logger.info('Received init message with slash commands', {
             sessionId,

@@ -7,7 +7,9 @@
         "invalid_agent": "Invalid Agent"
       },
       "model": {
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+        "supported_providers": "Supported Providers",
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "view_providers": "View supported providers"
       },
       "title": "Add Agent",
       "type": {
@@ -25,6 +27,176 @@
       "previous": "Previous",
       "submit": "Submit",
       "title": "Questions from Agent"
+    },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "Coming soon",
+        "description": "Connect your agent to messaging platforms.",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Enter your Feishu app ID",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Enter your Feishu app secret",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Comma-separated chat IDs. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
+          "domain": "Domain",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (International)",
+          "encryptKey": "Encrypt Key",
+          "encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
+          "title": "Feishu",
+          "verificationToken": "Verification Token",
+          "verificationTokenPlaceholder": "Enter the Verification Token from your Feishu app"
+        },
+        "notifyReceiver": "Receive task notifications",
+        "notifyReceiverHint": "Send scheduler task results to this channel.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Enter your QQ Bot App ID",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leave empty to allow all.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Enter your QQ Bot client secret",
+          "description": "Receive and respond to messages via QQ Bot official API.",
+          "title": "QQ",
+          "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
+        },
+        "tab": "Channels",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Enter your Telegram bot token",
+          "chatIds": "Allowed Chat IDs",
+          "chatIdsHint": "Comma-separated. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Receive and respond to messages via a Telegram bot using long polling.",
+          "title": "Telegram"
+        },
+        "title": "Channels"
+      },
+      "heartbeat": {
+        "enabled": "Enable Heartbeat",
+        "enabledHelper": "When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
+        "interval": "Interval (minutes)",
+        "intervalHelper": "How often the heartbeat runs, in minutes."
+      },
+      "sandbox": {
+        "description": "Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
+        "helper": "Restrict filesystem and command access to the workspace path.",
+        "label": "Sandbox Mode"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
+          "label": "Cron Expression",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "The scheduler triggers the agent autonomously on a schedule.",
+        "enabled": "Enable Scheduler",
+        "enabledHelper": "When enabled, the agent will run automatically based on the configured schedule.",
+        "errors": {
+          "invalidCron": "Invalid cron expression",
+          "invalidDelay": "Delay must be a positive number",
+          "invalidInterval": "Interval must be a positive number"
+        },
+        "interval": {
+          "helper": "How often the agent should run, in seconds.",
+          "label": "Interval (seconds)"
+        },
+        "lastRun": "Last Run",
+        "never": "Never",
+        "nextRun": "Next Run",
+        "oneTime": {
+          "helper": "One-time delay in seconds before the agent runs.",
+          "label": "Delay (seconds)"
+        },
+        "status": {
+          "running": "Running",
+          "stopped": "Stopped",
+          "tickInProgress": "Tick in progress"
+        },
+        "tab": "Scheduler",
+        "title": "Scheduler Configuration",
+        "type": {
+          "cron": "Cron Expression",
+          "interval": "Fixed Interval",
+          "label": "Schedule Type",
+          "one-time": "One-Time Delay"
+        }
+      },
+      "soul": {
+        "description": "The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
+        "empty": "No soul.md found in the workspace root. Create one to define the agent's personality.",
+        "enabled": "Enable Soul",
+        "enabledHelper": "When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
+        "fileLabel": "soul.md",
+        "preview": "Soul Preview",
+        "tab": "Soul",
+        "title": "Soul Configuration"
+      },
+      "tasks": {
+        "add": "Add Task",
+        "cancel": "Cancel",
+        "contextMode": {
+          "isolated": "Isolated",
+          "isolatedDesc": "Create a new session each run",
+          "label": "Context Mode",
+          "session": "Reuse Session",
+          "sessionDesc": "Reuse the most recent session"
+        },
+        "cronPlaceholder": "e.g. 0 9 * * * (every day at 9 AM)",
+        "delete": {
+          "confirm": "Are you sure you want to delete this task?",
+          "label": "Delete"
+        },
+        "edit": "Edit",
+        "empty": "No scheduled tasks. Add one to get started.",
+        "intervalPlaceholder": "Interval in minutes",
+        "lastRun": "Last Run",
+        "logs": {
+          "duration": "Duration",
+          "empty": "No run history yet.",
+          "error": "Error",
+          "label": "Run History",
+          "result": "Result",
+          "runAt": "Run At",
+          "status": "Status"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "e.g. Daily code review"
+        },
+        "nextRun": "Next Run",
+        "oncePlaceholder": "Select date and time",
+        "pause": "Pause",
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "What should the agent do when this task runs?"
+        },
+        "resume": "Resume",
+        "run": "Run",
+        "runTriggered": "Task triggered",
+        "save": "Save",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Interval",
+          "label": "Schedule Type",
+          "once": "Once"
+        },
+        "scheduleValue": "Schedule Value",
+        "status": {
+          "active": "Active",
+          "completed": "Completed",
+          "paused": "Paused"
+        },
+        "tab": "Tasks",
+        "title": "Scheduled Tasks"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+      }
     },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
@@ -135,6 +307,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Set custom environment variables for the agent runtime.",
+          "helper": "Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "Environment Variables"
+        },
         "maxTurns": {
           "description": "Define how many request/response cycles the agent may complete automatically.",
           "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
@@ -5030,6 +5207,11 @@
       },
       "docs_check": "Check",
       "docs_more_details": "for more details",
+      "filter": {
+        "agent": "Agent Supported",
+        "all": "All Providers"
+      },
+      "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
