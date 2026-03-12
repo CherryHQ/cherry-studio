@@ -15,7 +15,11 @@ import { useTranslation } from 'react-i18next'
 import AgentItem from './components/AgentItem'
 import Sessions from './components/Sessions'
 
-const AgentSidePanel: FC = () => {
+interface AgentSidePanelProps {
+  onSelectItem?: () => void
+}
+
+const AgentSidePanel: FC<AgentSidePanelProps> = ({ onSelectItem }) => {
   const { t } = useTranslation()
   const { agents, deleteAgent, isLoading, error } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
@@ -31,8 +35,9 @@ const AgentSidePanel: FC = () => {
   const handleAgentPress = useCallback(
     (agentId: string) => {
       setActiveAgentId(agentId)
+      onSelectItem?.()
     },
-    [setActiveAgentId]
+    [setActiveAgentId, onSelectItem]
   )
 
   const handleAddAgent = useCallback(() => {
@@ -93,7 +98,9 @@ const AgentSidePanel: FC = () => {
             </div>
           </Scrollbar>
         )}
-        {!sessionsOnRight && tab === 'sessions' && activeAgentId && <Sessions agentId={activeAgentId} />}
+        {!sessionsOnRight && tab === 'sessions' && activeAgentId && (
+          <Sessions agentId={activeAgentId} onSelectItem={onSelectItem} />
+        )}
         {!sessionsOnRight && tab === 'sessions' && !activeAgentId && (
           <div className="flex flex-1 items-center justify-center p-5 text-(--color-text-secondary) text-[13px]">
             {t('chat.alerts.select_agent')}

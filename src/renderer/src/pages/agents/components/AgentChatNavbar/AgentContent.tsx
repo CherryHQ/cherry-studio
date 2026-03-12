@@ -14,6 +14,7 @@ import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback } from 'react'
 
+import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import SessionWorkspaceMeta from './SessionWorkspaceMeta'
@@ -61,7 +62,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}>
-              <NavbarIcon onClick={toggleShowAssistants} style={{ marginRight: 5 }}>
+              <NavbarIcon onClick={() => AgentSidePanelDrawer.show()} style={{ marginRight: 5 }}>
                 <Menu size={18} />
               </NavbarIcon>
             </motion.div>

@@ -19,12 +19,13 @@ import SessionItem from './SessionItem'
 
 interface SessionsProps {
   agentId: string
+  onSelectItem?: () => void
 }
 
 const LOAD_MORE_THRESHOLD = 100
 const SCROLL_THROTTLE_DELAY = 150
 
-const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
+const Sessions: React.FC<SessionsProps> = ({ agentId, onSelectItem }) => {
   const { t } = useTranslation()
   const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
     useSessions(agentId)
@@ -171,7 +172,10 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             session={session}
             agentId={agentId}
             onDelete={() => handleDeleteSession(session.id)}
-            onPress={() => setActiveSessionId(agentId, session.id)}
+            onPress={() => {
+              setActiveSessionId(agentId, session.id)
+              onSelectItem?.()
+            }}
           />
         )}
       </StyledVirtualList>

@@ -10,11 +10,12 @@ import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 
 import UpdateAppButton from '../home/components/UpdateAppButton'
+import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
 
 const AgentNavbar: FC = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
@@ -67,6 +68,9 @@ const AgentNavbar: FC = () => {
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
+          <NavbarIcon onClick={() => AgentSidePanelDrawer.show()} style={{ marginRight: 5 }}>
+            <Menu size={18} />
+          </NavbarIcon>
         </NavbarLeft>
       )}
       <NavbarCenter></NavbarCenter>
