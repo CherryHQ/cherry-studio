@@ -3285,6 +3285,15 @@ const migrateConfig = {
       logger.error('migrate 200 error', error as Error)
       return state
     }
+  },
+  '201': (state: RootState) => {
+    try {
+      addWebSearchProvider(state, 'querit')
+      return state
+    } catch (error) {
+      logger.error('migrate 201 error', error as Error)
+      return state
+    }
   }
 }
 
