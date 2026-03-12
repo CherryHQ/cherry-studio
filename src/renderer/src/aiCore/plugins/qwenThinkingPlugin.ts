@@ -5,6 +5,9 @@ import type { LanguageModelMiddleware } from 'ai'
  * Qwen Thinking Middleware
  * Controls thinking mode for Qwen models on providers that don't support enable_thinking parameter (like Ollama)
  * Appends '/think' or '/no_think' suffix to user messages based on reasoning_effort setting
+ *
+ * NOTE: Qwen3.5 does not officially support the soft switch of Qwen3, i.e., /think and /nothink.
+ *
  * @param enableThinking - Whether thinking mode is enabled (based on reasoning_effort !== undefined)
  * @returns LanguageModelMiddleware
  */
