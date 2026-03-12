@@ -223,6 +223,13 @@ class OpenClawService {
         logger.info(`Removed OpenClaw binary: ${binaryPath}`)
       }
 
+      // Remove package.json (shipped with OpenClaw binary package)
+      const packageJsonPath = path.join(binDir, 'package.json')
+      if (fs.existsSync(packageJsonPath)) {
+        fs.unlinkSync(packageJsonPath)
+        logger.info(`Removed OpenClaw package.json: ${packageJsonPath}`)
+      }
+
       // Also remove sidecar lib directory if present
       const libDir = path.join(binDir, 'lib')
       if (fs.existsSync(libDir)) {
