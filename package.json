@@ -77,6 +77,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.71",
     "@expo/sudo-prompt": "^9.3.2",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
