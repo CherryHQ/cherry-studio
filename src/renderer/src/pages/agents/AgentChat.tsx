@@ -1,4 +1,3 @@
-import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -11,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
 import NarrowLayout from '../home/Messages/NarrowLayout'
-import AgentContent from './components/AgentContent'
+import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 
@@ -46,13 +45,7 @@ const AgentChat: FC = () => {
           transform: 'translateZ(0)'
         }}>
         <QuickPanelProvider>
-          {activeAgent && (
-            <NavbarHeader style={{ height: 'var(--navbar-height)' }}>
-              <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-                <AgentContent activeAgent={activeAgent} />
-              </div>
-            </NavbarHeader>
-          )}
+          {activeAgent && <AgentChatNavbar activeAgent={activeAgent} />}
           <div className="flex flex-1 flex-col justify-between" style={{ height: contentHeight }}>
             {!activeAgentId && (
               <div className="flex h-full w-full items-center justify-center">

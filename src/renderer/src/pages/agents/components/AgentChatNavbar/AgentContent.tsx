@@ -1,22 +1,31 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useShowAssistants } from '@renderer/hooks/useStore'
 import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentEntity, ApiModel } from '@renderer/types'
+import { Tooltip } from 'antd'
+import { t } from 'i18next'
 import { ChevronRight } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useCallback } from 'react'
 
-import Tools from '../../home/components/ChatNavBar/Tools'
+import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import SelectAgentBaseModelButton from './SelectAgentBaseModelButton'
 import SessionWorkspaceMeta from './SessionWorkspaceMeta'
+import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity
 }
 
 const AgentContent = ({ activeAgent }: AgentContentProps) => {
+  const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
@@ -29,9 +38,36 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   )
 
   return (
-    <>
-      <div className="min-w-0 shrink overflow-x-auto pr-2">
-        <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial">
+    <div className="flex w-full justify-between pr-2">
+      <div className="flex min-w-0 shrink items-center">
+        {isTopNavbar && showAssistants && (
+          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={toggleShowAssistants}>
+              <PanelLeftClose size={18} />
+            </NavbarIcon>
+          </Tooltip>
+        )}
+        {isTopNavbar && !showAssistants && (
+          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
+            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
+              <PanelRightClose size={18} />
+            </NavbarIcon>
+          </Tooltip>
+        )}
+        <AnimatePresence initial={false}>
+          {!showAssistants && isTopNavbar && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}>
+              <NavbarIcon onClick={toggleShowAssistants} style={{ marginRight: 5 }}>
+                <Menu size={18} />
+              </NavbarIcon>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
           <div className="flex flex-nowrap items-center gap-2">
             {/* Agent Label */}
             <div
@@ -88,7 +124,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         )}
         <Tools />
       </div>
-    </>
+    </div>
   )
 }
 
