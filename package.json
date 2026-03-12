@@ -85,6 +85,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@expo/sudo-prompt": "^9.3.2",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.0.2",

@@ -106,6 +106,15 @@ class TelegramAdapter extends ChannelAdapter {
       })
     })
 
+    bot.command('whoami', (ctx) => {
+      this.emit('command', {
+        chatId: ctx.chat.id.toString(),
+        userId: ctx.from?.id?.toString() ?? '',
+        userName: ctx.from?.first_name ?? '',
+        command: 'whoami'
+      })
+    })
+
     // Message handler
     bot.on('message:text', (ctx) => {
       this.emit('message', {
@@ -120,7 +129,8 @@ class TelegramAdapter extends ChannelAdapter {
     await bot.api.setMyCommands([
       { command: 'new', description: 'Start a new conversation' },
       { command: 'compact', description: 'Compact conversation history' },
-      { command: 'help', description: 'Show help information' }
+      { command: 'help', description: 'Show help information' },
+      { command: 'whoami', description: 'Show the current chat ID' }
     ])
 
     // Error handler — err is a BotError wrapping the original cause in err.error

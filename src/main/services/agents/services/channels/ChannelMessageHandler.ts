@@ -48,7 +48,10 @@ export class ChannelMessageHandler {
         )
 
         if (responseText) {
-          await this.sendChunked(adapter, message.chatId, responseText)
+          const finalized = await adapter.finalizeStream(draftId, responseText).catch(() => false)
+          if (!finalized) {
+            await this.sendChunked(adapter, message.chatId, responseText)
+          }
         }
       } finally {
         clearInterval(typingInterval)
@@ -105,11 +108,23 @@ export class ChannelMessageHandler {
             'Available commands:',
             '/new - Start a new conversation session',
             '/compact - Compact current session context',
-            '/help - Show this help message'
+            '/help - Show this help message',
+            '/whoami - Show the current chat ID for allow_ids'
           ]
             .filter(Boolean)
             .join('\n')
           await adapter.sendMessage(command.chatId, helpText)
+          break
+        }
+        case 'whoami': {
+          await adapter.sendMessage(
+            command.chatId,
+            [
+              `Current chat ID: \`${command.chatId}\``,
+              '',
+              'Add this value to `allow_ids` in settings to receive notifications.'
+            ].join('\n')
+          )
           break
         }
       }

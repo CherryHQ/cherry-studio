@@ -51,6 +51,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendMessage = vi.fn().mockResolvedValue(undefined)
   adapter.sendMessageDraft = vi.fn().mockResolvedValue(undefined)
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
+  adapter.finalizeStream = vi.fn().mockResolvedValue(false)
   return adapter
 }
 
@@ -88,6 +89,27 @@ describe('ChannelMessageHandler', () => {
     })
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  it('skips final send when adapter finalizes the draft stream', async () => {
+    const adapter = createMockAdapter()
+    const session = { id: 'session-1', agent_id: 'agent-1', agent_type: 'cherry-claw' }
+
+    adapter.finalizeStream.mockResolvedValueOnce(true)
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+      createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
+    )
+
+    await channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    expect(adapter.finalizeStream).toHaveBeenCalledWith(expect.any(Number), 'Hello world!')
+    expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
   it('sends chunked messages for long responses', async () => {
@@ -172,6 +194,23 @@ describe('ChannelMessageHandler', () => {
     expect(helpText).toContain('/new')
     expect(helpText).toContain('/compact')
     expect(helpText).toContain('/help')
+    expect(helpText).toContain('/whoami')
+  })
+
+  it('handleCommand /whoami sends the current chat ID', async () => {
+    const adapter = createMockAdapter()
+
+    await channelMessageHandler.handleCommand(adapter, {
+      chatId: 'oc_123',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'whoami'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith(
+      'oc_123',
+      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.'
+    )
   })
 
   it('resolveSession tracks sessions after /new', async () => {
