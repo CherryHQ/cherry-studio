@@ -43,12 +43,17 @@ export class AppService {
 
     try {
       const result = spawnSync('codesign', ['-dv', '--verbose=4', appPath], { encoding: 'utf-8', timeout: 5000 })
-      // codesign outputs signing info to stderr
+
+      if (result.error || result.status !== 0) {
+        logger.warn('codesign check failed', { error: result.error, status: result.status })
+        return { teamId: null, bundleId: null, authority: null }
+      }
+
       const output = result.stderr || result.stdout
 
-      const teamIdMatch = output.match(/TeamIdentifier=(.+)/)
-      const identifierMatch = output.match(/Identifier=(.+)/)
-      const authorityMatch = output.match(/Authority=([^\n]+)/)
+      const teamIdMatch = output.match(/^TeamIdentifier=(.+)$/m)
+      const identifierMatch = output.match(/^Identifier=(.+)$/m)
+      const authorityMatch = output.match(/^Authority=([^\n]+)$/m)
 
       return {
         teamId: teamIdMatch?.[1] || null,
