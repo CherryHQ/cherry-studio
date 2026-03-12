@@ -3,6 +3,8 @@ import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveFilesystemBaseDir } from '../config'
+import { handleGlobTool } from '../tools/glob'
+import { handleLsTool } from '../tools/ls'
 import { validatePath } from '../types'
 
 describe('filesystem MCP security', () => {
@@ -81,5 +83,42 @@ describe('filesystem MCP security', () => {
 
     await expect(validatePath('allowed.txt')).resolves.toBe(allowedFile)
     await expect(validatePath('../outside.txt')).rejects.toThrow('outside the configured workspace root')
+  })
+
+  it('glob excludes files reached via symlinked directories outside root', async () => {
+    const workspaceRoot = await createTempDir('glob-symlink-root-')
+    const outsideRoot = await createTempDir('glob-symlink-outside-')
+
+    // Create a file inside the workspace and one outside
+    await fs.writeFile(path.join(workspaceRoot, 'legit.txt'), 'legit')
+    await fs.writeFile(path.join(outsideRoot, 'secret.txt'), 'secret')
+
+    // Create a symlink inside workspace pointing to the outside directory
+    await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
+
+    const result = await handleGlobTool({ pattern: '*.txt' }, workspaceRoot)
+    const text = result.content[0].text
+
+    expect(text).toContain('legit.txt')
+    expect(text).not.toContain('secret.txt')
+  })
+
+  it('ls excludes symlinked directories outside root in recursive mode', async () => {
+    const workspaceRoot = await createTempDir('ls-symlink-root-')
+    const outsideRoot = await createTempDir('ls-symlink-outside-')
+
+    await fs.writeFile(path.join(workspaceRoot, 'legit.txt'), 'legit')
+    await fs.mkdir(path.join(outsideRoot, 'private'))
+    await fs.writeFile(path.join(outsideRoot, 'private', 'secret.txt'), 'secret')
+
+    // Create a symlink inside workspace pointing to the outside directory
+    await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
+
+    const result = await handleLsTool({ recursive: true }, workspaceRoot)
+    const text = result.content[0].text
+
+    expect(text).toContain('legit.txt')
+    // The symlink entry itself may appear, but its children should not be listed
+    expect(text).not.toContain('secret.txt')
   })
 })

@@ -106,6 +106,8 @@ export async function handleGlobTool(args: unknown, baseDir: string) {
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(validPath, filePath)
 
       try {
+        // Re-validate each result to filter out symlink escapes (--follow traverses symlinks)
+        await validatePath(absolutePath, baseDir)
         const stats = await fs.stat(absolutePath)
         files.push({
           path: absolutePath,
@@ -114,7 +116,7 @@ export async function handleGlobTool(args: unknown, baseDir: string) {
           modified: stats.mtime
         })
       } catch (error) {
-        logger.debug('Failed to stat file from ripgrep output, skipping', { file: absolutePath, error })
+        logger.debug('Failed to stat or validate file from ripgrep output, skipping', { file: absolutePath, error })
       }
     }
   }
