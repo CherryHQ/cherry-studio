@@ -2665,8 +2665,12 @@
     "update": {
       "available": "发现新版本：v{{latest}}（当前版本：v{{current}}）",
       "checking": "正在检查更新...",
+      "confirm_button": "立即更新",
       "failed": "检查更新失败",
-      "up_to_date": "已是最新版本（v{{current}}）"
+      "modal_title": "OpenClaw 更新",
+      "success": "更新成功！",
+      "up_to_date": "已是最新版本（v{{current}}）",
+      "updating": "更新中..."
     }
   },
   "ovms": {

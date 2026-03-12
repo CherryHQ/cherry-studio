@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const https = require('https')
 const { execSync } = require('child_process')
 const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
@@ -8,7 +9,67 @@ const { downloadWithRedirects } = require('./download')
 // Download sources
 const GITCODE_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/openclaw-releases/releases/download'
 const GITHUB_RELEASE_BASE_URL = 'https://github.com/CherryHQ/openclaw/releases/download'
-const DEFAULT_VERSION = 'v2026.3.8'
+const GITHUB_API_LATEST_RELEASE = 'https://api.github.com/repos/CherryHQ/openclaw/releases/latest'
+const DEFAULT_VERSION = 'v2026.3.11'
+const API_TIMEOUT_MS = 5000
+
+/**
+ * Fetches the latest release version from GitHub API with timeout
+ * @param {number} timeoutMs Timeout in milliseconds
+ * @returns {Promise<string>} The latest version tag or DEFAULT_VERSION on failure
+ */
+async function getLatestVersion(timeoutMs = API_TIMEOUT_MS) {
+  return new Promise((resolve) => {
+    const request = https.get(
+      GITHUB_API_LATEST_RELEASE,
+      {
+        headers: {
+          'User-Agent': 'cherry-studio-installer',
+          Accept: 'application/vnd.github.v3+json'
+        },
+        timeout: timeoutMs
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          console.warn(`GitHub API returned status ${res.statusCode}, using default version`)
+          resolve(DEFAULT_VERSION)
+          return
+        }
+
+        let data = ''
+        res.on('data', (chunk) => {
+          data += chunk
+        })
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data)
+            if (json.tag_name) {
+              console.log(`Found latest version from GitHub: ${json.tag_name}`)
+              resolve(json.tag_name)
+            } else {
+              console.warn('No tag_name in GitHub response, using default version')
+              resolve(DEFAULT_VERSION)
+            }
+          } catch (e) {
+            console.warn(`Failed to parse GitHub response: ${e.message}, using default version`)
+            resolve(DEFAULT_VERSION)
+          }
+        })
+      }
+    )
+
+    request.on('timeout', () => {
+      console.warn(`GitHub API request timed out after ${timeoutMs}ms, using default version`)
+      request.destroy()
+      resolve(DEFAULT_VERSION)
+    })
+
+    request.on('error', (err) => {
+      console.warn(`GitHub API request failed: ${err.message}, using default version`)
+      resolve(DEFAULT_VERSION)
+    })
+  })
+}
 
 // Mapping of platform+arch to binary package name
 const OPENCLAW_PACKAGES = {
@@ -140,7 +201,7 @@ async function downloadOpenClawBinary(platform, arch, version = DEFAULT_VERSION,
  * Main function to install openclaw
  */
 async function installOpenClaw() {
-  const version = DEFAULT_VERSION
+  const version = await getLatestVersion()
   const platform = os.platform()
   const arch = os.arch()
 
