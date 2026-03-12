@@ -3274,6 +3274,12 @@ const migrateConfig = {
       // Add new providers: minimax-global and zai
       addProvider(state, 'minimax-global')
       addProvider(state, 'zai')
+      // Update grok provider type to openai-response
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.grok) {
+          provider.type = 'openai-response'
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
