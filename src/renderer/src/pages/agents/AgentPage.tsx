@@ -7,7 +7,6 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { Alert } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +14,7 @@ import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
 
-const AgentPage: FC = () => {
+const AgentPage = () => {
   const { t } = useTranslation()
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()

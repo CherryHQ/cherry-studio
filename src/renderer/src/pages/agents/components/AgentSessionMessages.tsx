@@ -24,7 +24,7 @@ type Props = {
   sessionId: string
 }
 
-const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
+const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   // Use the same hook as Messages.tsx for consistent behavior

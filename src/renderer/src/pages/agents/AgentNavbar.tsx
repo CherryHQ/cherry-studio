@@ -12,12 +12,11 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
 
 import UpdateAppButton from '../home/components/UpdateAppButton'
 import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
 
-const AgentNavbar: FC = () => {
+const AgentNavbar = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { narrowMode, topicPosition } = useSettings()

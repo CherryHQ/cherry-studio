@@ -19,7 +19,7 @@ interface AgentSidePanelProps {
   onSelectItem?: () => void
 }
 
-const AgentSidePanel: FC<AgentSidePanelProps> = ({ onSelectItem }) => {
+const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
   const { t } = useTranslation()
   const { agents, deleteAgent, isLoading, error } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()

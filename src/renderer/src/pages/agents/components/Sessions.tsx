@@ -25,7 +25,7 @@ interface SessionsProps {
 const LOAD_MORE_THRESHOLD = 100
 const SCROLL_THROTTLE_DELAY = 150
 
-const Sessions: React.FC<SessionsProps> = ({ agentId, onSelectItem }) => {
+const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
   const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
     useSessions(agentId)

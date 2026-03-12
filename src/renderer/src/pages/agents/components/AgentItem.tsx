@@ -8,7 +8,6 @@ import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { Bot, MoreVertical } from 'lucide-react'
-import type { FC } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,7 +20,7 @@ interface AgentItemProps {
   onPress: () => void
 }
 
-const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
+const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
   const { t } = useTranslation()
   const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
   const [isHovered, setIsHovered] = useState(false)

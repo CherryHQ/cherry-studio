@@ -10,7 +10,7 @@ interface Props {
   resolve: () => void
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
+const PopupContainer = ({ resolve }: Props) => {
   const [open, setOpen] = useState(true)
   const { setTimeoutTimer } = useTimer()
 

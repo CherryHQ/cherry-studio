@@ -54,7 +54,7 @@ type Props = {
   sessionId: string
 }
 
-const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
+const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
   const { session } = useSession(agentId, sessionId)
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({

@@ -5,7 +5,6 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentEntity } from '@renderer/types'
-import type { FC } from 'react'
 
 import AgentContent from './AgentContent'
 
@@ -13,7 +12,7 @@ interface Props {
   activeAgent: AgentEntity
 }
 
-const AgentChatNavbar: FC<Props> = ({ activeAgent }) => {
+const AgentChatNavbar = ({ activeAgent }: Props) => {
   const { toggleShowAssistants } = useShowAssistants()
   const { topicPosition } = useSettings()
   const { toggleShowTopics } = useShowTopics()

@@ -9,7 +9,6 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -20,7 +19,7 @@ import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 import Sessions from './components/Sessions'
 
-const AgentChat: FC = () => {
+const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, topicPosition } = useSettings()
   const { isTopNavbar } = useNavbarPosition()

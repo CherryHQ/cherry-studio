@@ -11,7 +11,7 @@ import { apiModelAdapter } from '@renderer/utils/model'
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -34,7 +34,7 @@ interface Props {
   containerClassName?: string
 }
 
-const SelectAgentBaseModelButton: FC<Props> = ({
+const SelectAgentBaseModelButton = ({
   agentBase: agent,
   onSelect,
   isDisabled,
@@ -45,7 +45,7 @@ const SelectAgentBaseModelButton: FC<Props> = ({
   fontSize = 12,
   iconSize = 14,
   containerClassName
-}) => {
+}: Props) => {
   const { t } = useTranslation()
   const model = useApiModel({ id: agent?.model })
 

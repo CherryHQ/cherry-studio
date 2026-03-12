@@ -2,12 +2,11 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import { Drawer, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
-import type { FC } from 'react'
 import { useState } from 'react'
 
 import AgentSettingsTab from '../../../AgentSettingsTab'
 
-const SettingsButton: FC = () => {
+const SettingsButton = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
