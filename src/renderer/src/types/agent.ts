@@ -47,12 +47,26 @@ export const QQChannelConfigSchema = z.object({
 
 export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>
 
+export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
+export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
+
+export const FeishuChannelConfigSchema = z.object({
+  app_id: z.string().min(1),
+  app_secret: z.string().min(1),
+  encrypt_key: z.string().default(''),
+  verification_token: z.string().default(''),
+  allowed_chat_ids: z.array(z.string()).default([]),
+  domain: FeishuDomainSchema.default('feishu')
+})
+
+export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>
+
 export const CherryClawChannelSchema = z.object({
   id: z.string(),
-  type: z.enum(['telegram', 'qq']),
+  type: z.enum(['telegram', 'feishu', 'qq']),
   name: z.string(),
   enabled: z.boolean().default(true),
-  config: z.union([TelegramChannelConfigSchema, QQChannelConfigSchema]),
+  config: z.union([TelegramChannelConfigSchema, FeishuChannelConfigSchema, QQChannelConfigSchema]),
   is_notify_receiver: z.boolean().default(false)
 })
 

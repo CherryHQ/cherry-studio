@@ -9,5 +9,6 @@ export { channelManager, registerAdapterFactory } from './ChannelManager'
 export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHandler'
 
 // Register adapters (side-effect imports)
+import './adapters/FeishuAdapter'
 import './adapters/QQAdapter'
 import './adapters/TelegramAdapter'
