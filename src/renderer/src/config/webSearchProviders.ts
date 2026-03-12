@@ -56,6 +56,11 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
     websites: {
       official: 'https://www.baidu.com'
     }
+  },
+  'local-duckduckgo': {
+    websites: {
+      official: 'https://duckduckgo.com'
+    }
   }
 }
 
@@ -110,5 +115,10 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     id: 'local-baidu',
     name: 'Baidu',
     url: 'https://www.baidu.com/s?wd=%s'
+  },
+  {
+    id: 'local-duckduckgo',
+    name: 'DuckDuckGo',
+    url: 'https://html.duckduckgo.com/html/?q=%s'
   }
 ] as const

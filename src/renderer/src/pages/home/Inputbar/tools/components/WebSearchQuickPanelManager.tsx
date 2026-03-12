@@ -1,6 +1,14 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
+import {
+  BingLogo,
+  BochaLogo,
+  DuckDuckGoLogo,
+  ExaLogo,
+  SearXNGLogo,
+  TavilyLogo,
+  ZhipuLogo
+} from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -53,6 +61,8 @@ export const WebSearchProviderIcon = ({
       return <BingLogo className="icon" width={size} height={size} color={color} />
     case 'local-google':
       return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
+    case 'local-duckduckgo':
+      return <DuckDuckGoLogo className="icon" width={size} height={size} color={color} />
     default:
       return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
   }
