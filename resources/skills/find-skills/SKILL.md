@@ -31,6 +31,24 @@ The Skills CLI (`npx skills`) is the package manager for the open agent skills e
 
 **Browse skills at:** https://skills.sh/
 
+## Runtime Detection
+
+Before running any `npx skills` command, check if `npx` is available:
+
+```bash
+which npx
+```
+
+If `npx` is **not found**, fall back to the bundled bun shipped with Cherry Studio:
+
+```bash
+~/.cherrystudio/bin/bun x skills <subcommand> [args]
+```
+
+For example, `npx skills find react` becomes `~/.cherrystudio/bin/bun x skills find react`.
+
+Always try `npx` first. Only use the bun fallback when npx is unavailable.
+
 ## How to Help Users Find Skills
 
 ### Step 1: Understand What They Need
