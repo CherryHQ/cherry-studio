@@ -8,6 +8,9 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
+import { userAssistantTable } from '@data/db/schemas/userAssistant'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type {
   MigrationProgress,
@@ -23,11 +26,6 @@ import fs from 'fs/promises'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
-
-// TODO: Import these tables when they are created in user data schema
-// import { assistantTable } from '../../db/schemas/assistant'
-// import { fileTable } from '../../db/schemas/file'
-// import { knowledgeBaseTable } from '../../db/schemas/knowledgeBase'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -201,9 +199,11 @@ export class MigrationEngine {
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
+      { table: userAssistantTable, name: 'user_assistant' },
+      { table: userModelTable, name: 'user_model' },
+      { table: userProviderTable, name: 'user_provider' },
       { table: preferenceTable, name: 'preference' }
       // TODO: Add these when tables are created
-      // { table: assistantTable, name: 'assistant' },
       // { table: fileTable, name: 'file' },
       // { table: knowledgeBaseTable, name: 'knowledge_base' }
     ]
@@ -221,11 +221,13 @@ export class MigrationEngine {
     // Messages reference topics, so delete messages first
     await db.delete(messageTable)
     await db.delete(topicTable)
+    await db.delete(userAssistantTable)
+    await db.delete(userModelTable)
+    await db.delete(userProviderTable)
     await db.delete(preferenceTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
     // await db.delete(knowledgeBaseTable)
-    // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
   }
