@@ -3322,7 +3322,7 @@ const migrateConfig = {
           }
         }
       }
-      logger.info('migrate 201 success')
+      logger.info('migrate 202 success')
       return state
     } catch (error) {
       logger.error('migrate 202 error', error as Error)
