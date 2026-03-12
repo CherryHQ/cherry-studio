@@ -28,6 +28,7 @@ import {
   LayoutGrid,
   Monitor,
   Moon,
+  MousePointerClick,
   NotepadText,
   Palette,
   Settings,
@@ -86,9 +87,12 @@ const getTabIcon = (
     return <LayoutGrid size={14} />
   }
 
+  // TODO: Add TabId as type instead of string
   switch (tabId) {
     case 'home':
       return <Home size={14} />
+    case 'agents':
+      return <MousePointerClick size={14} />
     case 'store':
       return <Sparkle size={14} />
     case 'translate':

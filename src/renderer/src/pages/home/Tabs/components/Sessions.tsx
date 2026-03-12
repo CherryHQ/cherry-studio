@@ -4,7 +4,7 @@ import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
@@ -77,7 +77,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
       dispatch(setActiveSessionIdAction({ agentId, sessionId }))
-      dispatch(setActiveTopicOrSessionAction('session'))
     },
     [dispatch]
   )

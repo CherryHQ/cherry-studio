@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction } from '@renderer/store/runtime'
 import { useCallback, useEffect } from 'react'
 
 import { useAgentClient } from './useAgentClient'
@@ -31,8 +31,7 @@ export const useAgentSessionInitializer = () => {
         // Check if this agent already has an active session
         const currentSessionId = activeSessionIdMap[agentId]
         if (currentSessionId) {
-          // Session already exists, just switch to session view
-          dispatch(setActiveTopicOrSessionAction('session'))
+          // Session already exists, nothing to initialize
           return
         }
 
@@ -46,16 +45,10 @@ export const useAgentSessionInitializer = () => {
 
           // Set the latest session as active
           dispatch(setActiveSessionIdAction({ agentId, sessionId: latestSession.id }))
-          dispatch(setActiveTopicOrSessionAction('session'))
-        } else {
-          // No sessions exist, we might want to create one
-          // But for now, just switch to session view and let the Sessions component handle it
-          dispatch(setActiveTopicOrSessionAction('session'))
         }
+        // If no sessions exist, let the Sessions component handle creation
       } catch (error) {
         logger.error('Failed to initialize agent session:', error as Error)
-        // Even if loading fails, switch to session view
-        dispatch(setActiveTopicOrSessionAction('session'))
       }
     },
     [client, dispatch, activeSessionIdMap]

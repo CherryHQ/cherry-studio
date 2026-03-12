@@ -295,6 +295,7 @@
         }
       }
     },
+    "sidebar_title": "[to be translated]:Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} Aufgaben abgeschlossen"
@@ -1385,6 +1386,7 @@
     "selected": "Ausgewählt",
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
+    "sessions": "[to be translated]:Sessions",
     "settings": "Einstellungen",
     "sort": {
       "pinyin": {

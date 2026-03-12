@@ -295,6 +295,7 @@
         }
       }
     },
+    "sidebar_title": "智能体",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
@@ -1385,6 +1386,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "sessions": "会话",
     "settings": "设置",
     "sort": {
       "pinyin": {
