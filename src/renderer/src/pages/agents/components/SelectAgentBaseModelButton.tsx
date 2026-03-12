@@ -89,7 +89,7 @@ const SelectAgentBaseModelButton = ({
       <div className={containerClassName || 'flex w-full items-center gap-1.5'}>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-hidden">
           <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={avatarSize} />
-          <span className="truncate text-[var(--color-text)]">
+          <span className="truncate text-(--color-text)">
             {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
           </span>
         </div>

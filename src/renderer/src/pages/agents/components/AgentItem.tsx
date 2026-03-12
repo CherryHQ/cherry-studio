@@ -86,7 +86,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
               trigger={['click']}
               popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
               <MenuButton onClick={handleMenuButtonClick}>
-                <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
+                <MoreVertical size={14} className="text-(--color-text-secondary)" />
               </MenuButton>
             </Dropdown>
           )}
@@ -104,9 +104,9 @@ export const Container: React.FC<{ isActive?: boolean } & React.HTMLAttributes<H
 }) => (
   <div
     className={cn(
-      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border border-transparent px-2',
-      !isActive && 'hover:bg-[var(--color-list-item-hover)]',
-      isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+      'relative flex h-9.25 w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-(--list-item-border-radius) border border-transparent px-2',
+      !isActive && 'hover:bg-(--color-list-item-hover)',
+      isActive && 'bg-(--color-list-item) shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
       className
     )}
     {...props}
@@ -115,7 +115,7 @@ export const Container: React.FC<{ isActive?: boolean } & React.HTMLAttributes<H
 
 export const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
-    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-[13px] text-[var(--color-text)]', className)}
+    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-(--color-text) text-[13px]', className)}
     {...props}
   />
 )
@@ -127,7 +127,7 @@ export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      'flex h-5.5 min-h-5.5 min-w-5.5 flex-row items-center justify-center rounded-[11px] border-(--color-border) border-[0.5px] bg-(--color-background) px-1.25',
       className
     )}
     {...props}
@@ -147,7 +147,7 @@ export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ ...pro
 
 export const SessionCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
-    className={cn('flex flex-row items-center justify-center rounded-full text-[var(--color-text)] text-xs', className)}
+    className={cn('flex flex-row items-center justify-center rounded-full text-(--color-text) text-xs', className)}
     {...props}
   />
 )
