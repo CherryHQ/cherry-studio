@@ -1,4 +1,5 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -10,7 +11,6 @@ import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
 import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'

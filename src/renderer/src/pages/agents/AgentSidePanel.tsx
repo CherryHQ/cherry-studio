@@ -1,6 +1,7 @@
 import AddButton from '@renderer/components/AddButton'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -11,7 +12,6 @@ import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
 import AgentItem from './components/AgentItem'
 import Sessions from './components/Sessions'
 
