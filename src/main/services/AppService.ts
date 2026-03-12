@@ -42,7 +42,7 @@ export class AppService {
     const appPath = exePath.replace(/\/Contents\/MacOS\/.*$/, '')
 
     try {
-      const result = spawnSync('codesign', ['-dv', '--verbose=4', appPath], { encoding: 'utf-8' })
+      const result = spawnSync('codesign', ['-dv', '--verbose=4', appPath], { encoding: 'utf-8', timeout: 5000 })
       // codesign outputs signing info to stderr
       const output = result.stderr || result.stdout
 
