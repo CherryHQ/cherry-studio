@@ -1,9 +1,11 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -32,6 +34,7 @@ const AgentChat = () => {
   const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
   const { isLoading: isAgentsLoading, agents } = useAgents()
   const { apiServerRunning } = useApiServer()
+  const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
 
   // Don't show select/create alerts while data is still loading
   // !apiServerRunning: server enabled (guaranteed by AgentPage) but not yet started, SWR key is null
@@ -43,6 +46,18 @@ const AgentChat = () => {
     (!activeAgentId && agents.length > 0)
 
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
+
+  useShortcut(
+    'new_topic',
+    () => {
+      void createDefaultSession()
+    },
+    {
+      enabled: true,
+      preventDefault: true,
+      enableOnFormTags: true
+    }
+  )
 
   return (
     <div
