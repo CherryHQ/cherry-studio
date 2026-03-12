@@ -105,6 +105,44 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
+export const FILE_PROCESSOR_TYPES = ['api', 'builtin'] as const
+
+export type FileProcessorType = (typeof FILE_PROCESSOR_TYPES)[number]
+
+export const FILE_PROCESSOR_FEATURES = ['text_extraction', 'markdown_conversion'] as const
+
+export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
+
+export const FILE_PROCESSOR_IDS = [
+  'tesseract',
+  'system',
+  'paddleocr',
+  'ovocr',
+  'mineru',
+  'doc2x',
+  'mistral',
+  'open-mineru'
+] as const
+
+export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
+
+export type FileProcessorOptions = Record<string, unknown>
+
+export type CapabilityOverride = {
+  apiHost?: string
+  modelId?: string
+  metadata?: Record<string, unknown>
+}
+
+export type FileProcessorCapabilityOverrides = Partial<Record<FileProcessorFeature, CapabilityOverride>>
+
+export type FileProcessorOverride = {
+  apiKeys?: string[]
+  capabilities?: FileProcessorCapabilityOverrides
+  options?: FileProcessorOptions
+}
+
+export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
 // ============================================================================
 // WebSearch Types
 // ============================================================================
