@@ -15,14 +15,13 @@ import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
-import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown, Input, Tag } from 'antd'
 import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 import useSWRImmutable from 'swr/immutable'
 
@@ -46,10 +45,10 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
 }
 
 const ProviderList: FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
+  // TODO: Define validateSearch in routes/settings/provider.tsx and replace with Route.useSearch()
+  // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
-  const location = useLocation()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
@@ -90,13 +89,10 @@ const ProviderList: FC = () => {
 
   useEffect(() => {
     let shouldUpdate = false
-    const hasFilterParam = searchParams.get('filter') === 'agent'
 
     // Handle filter param first - when filter is enabled, ignore id param
-    if (hasFilterParam) {
+    if (search.filter === 'agent') {
       setAgentFilterEnabled(true)
-      searchParams.delete('filter')
-      searchParams.delete('id') // Clear id param when filter is enabled
       shouldUpdate = true
     } else if (search.id) {
       const providerId = search.id
@@ -115,14 +111,18 @@ const ProviderList: FC = () => {
       } else {
         setSelectedProvider(providers[0])
       }
-      searchParams.delete('id')
       shouldUpdate = true
     }
 
     if (shouldUpdate) {
-      setSearchParams(searchParams)
+      // FIXME: Using navigate + Object.fromEntries to strip consumed params is a workaround.
+      // Ideal: define validateSearch on the route so navigate({ search }) is fully typed,
+      // and consumed params can be cleared without manual filtering or type casts.
+      const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
+      navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
-  }, [providers, search.id, navigate, location.pathname, setSelectedProvider, setTimeoutTimer])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers, search.filter, search.id, navigate, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {
