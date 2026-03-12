@@ -1,18 +1,31 @@
 import * as z from 'zod'
 
-export const WebSearchProviderTypeSchema = z.enum(['api', 'local', 'mcp'])
+import {
+  WEB_SEARCH_PROVIDER_IDS,
+  WEB_SEARCH_PROVIDER_TYPES,
+  type WebSearchProviderId,
+  type WebSearchProviderType
+} from '../preference/preferenceTypes'
 
-export type WebSearchProviderType = z.infer<typeof WebSearchProviderTypeSchema>
+export const WebSearchProviderTypeSchema = z.enum(WEB_SEARCH_PROVIDER_TYPES)
+
+export const WebSearchProviderIdSchema = z.enum(WEB_SEARCH_PROVIDER_IDS)
 
 export const WebSearchProviderPresetDefinitionSchema = z.object({
-  id: z.string(),
+  id: WebSearchProviderIdSchema,
   name: z.string(),
   type: WebSearchProviderTypeSchema,
   usingBrowser: z.boolean(),
   defaultApiHost: z.string()
 })
 
-type WebSearchProviderPresetDefinition = z.infer<typeof WebSearchProviderPresetDefinitionSchema>
+type WebSearchProviderPresetDefinition = {
+  id: WebSearchProviderId
+  name: string
+  type: WebSearchProviderType
+  usingBrowser: boolean
+  defaultApiHost: string
+}
 
 export const WebSearchProviderOverrideSchema = z.object({
   apiKey: z.string().optional(),
@@ -21,8 +34,6 @@ export const WebSearchProviderOverrideSchema = z.object({
   basicAuthUsername: z.string().optional(),
   basicAuthPassword: z.string().optional()
 })
-
-export type WebSearchProviderOverride = z.infer<typeof WebSearchProviderOverrideSchema>
 
 const WebSearchProviderPresetListSchema = z.array(WebSearchProviderPresetDefinitionSchema)
 
@@ -96,23 +107,12 @@ export const PRESETS_WEB_SEARCH_PROVIDERS = validateWebSearchProviderPresets([
     usingBrowser: true,
     defaultApiHost: 'https://www.baidu.com/s?wd=%s'
   }
-])
-
-export type WebSearchProviderId = (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number]['id']
-
-const webSearchProviderIds = PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id) as [
-  WebSearchProviderId,
-  ...WebSearchProviderId[]
-]
-
-export const WebSearchProviderIdSchema = z.enum(webSearchProviderIds)
+] satisfies readonly WebSearchProviderPresetDefinition[])
 
 export const WebSearchProviderOverridesSchema = z.partialRecord(
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema
 )
-
-export type WebSearchProviderOverrides = z.infer<typeof WebSearchProviderOverridesSchema>
 
 export interface WebSearchProviderPreset extends WebSearchProviderPresetDefinition {
   id: WebSearchProviderId

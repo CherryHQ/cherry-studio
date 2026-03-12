@@ -1,8 +1,3 @@
-import type {
-  WebSearchProviderId as PresetWebSearchProviderId,
-  WebSearchProviderOverrides as PresetWebSearchProviderOverrides,
-  WebSearchProviderType
-} from '../presets/web-search-providers'
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -114,9 +109,33 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 // WebSearch Types
 // ============================================================================
 
-export type WebSearchProviderId = PresetWebSearchProviderId
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'local', 'mcp'] as const
 
-export type WebSearchProviderOverrides = PresetWebSearchProviderOverrides
+export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
+
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'local-google',
+  'local-bing',
+  'local-baidu'
+] as const
+
+export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
+
+export type WebSearchProviderOverride = {
+  apiKey?: string
+  apiHost?: string
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+
+export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
 
 /**
  * Full WebSearch Provider configuration

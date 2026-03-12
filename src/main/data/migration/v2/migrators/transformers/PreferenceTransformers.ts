@@ -153,11 +153,8 @@
  * ```
  */
 
-import {
-  PRESETS_WEB_SEARCH_PROVIDERS,
-  type WebSearchProviderOverride,
-  type WebSearchProviderOverrides
-} from '@shared/data/presets/web-search-providers'
+import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
