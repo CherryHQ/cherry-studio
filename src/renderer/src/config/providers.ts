@@ -58,6 +58,7 @@ import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
+import ZaiAppLogo from '@renderer/assets/images/providers/zai.svg'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
@@ -139,6 +140,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
     anthropicApiHost: 'https://open.bigmodel.cn/api/anthropic',
     models: SYSTEM_MODELS.zhipu,
+    isSystem: true,
+    enabled: false
+  },
+  zai: {
+    id: 'zai',
+    name: 'Z.ai',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.z.ai/api/paas/v4/',
+    anthropicApiHost: 'https://api.z.ai/api/anthropic',
+    models: SYSTEM_MODELS.zai,
     isSystem: true,
     enabled: false
   },
@@ -476,6 +488,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  'minimax-global': {
+    id: 'minimax-global',
+    name: 'MiniMax Global',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.minimax.io/v1/',
+    anthropicApiHost: 'https://api.minimax.io/anthropic',
+    models: SYSTEM_MODELS['minimax-global'],
+    isSystem: true,
+    enabled: false
+  },
   groq: {
     id: 'groq',
     name: 'Groq',
@@ -724,6 +747,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
   zhipu: ZhipuProviderLogo,
+  zai: ZaiAppLogo,
   ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
@@ -740,6 +764,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
   minimax: MinimaxProviderLogo,
+  'minimax-global': MinimaxProviderLogo,
   github: GithubProviderLogo,
   copilot: GithubProviderLogo,
   ocoolai: OcoolAiProviderLogo,
@@ -1005,6 +1030,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://open.bigmodel.cn/modelcenter/square'
     }
   },
+  zai: {
+    api: {
+      url: 'https://api.z.ai/api/paas/v4/'
+    },
+    websites: {
+      official: 'https://z.ai',
+      apiKey: 'https://z.ai/manage-apikey/apikey-list',
+      docs: 'https://docs.z.ai/',
+      models: 'https://docs.z.ai/models'
+    }
+  },
   moonshot: {
     api: {
       url: 'https://api.moonshot.cn'
@@ -1091,6 +1127,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
       docs: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
       models: 'https://platform.minimaxi.com/document/Models'
+    }
+  },
+  'minimax-global': {
+    api: {
+      url: 'https://api.minimax.io/v1/'
+    },
+    websites: {
+      official: 'https://platform.minimax.io/',
+      apiKey: 'https://platform.minimax.io/user-center/basic-information/interface-key',
+      docs: 'https://platform.minimax.io/docs/api-reference/text-openai-api',
+      models: 'https://platform.minimax.io/document/Models'
     }
   },
   alayanew: {

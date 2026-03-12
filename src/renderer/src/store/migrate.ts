@@ -3258,6 +3258,23 @@ const migrateConfig = {
   },
   '200': (state: RootState) => {
     try {
+      // Migrate minimax app id to hailuo
+      if (state.minapps) {
+        const lists: Array<'enabled' | 'disabled' | 'pinned'> = ['enabled', 'disabled', 'pinned']
+        lists.forEach((list) => {
+          state.minapps[list] = state.minapps[list].map((app) =>
+            app.id === 'minimax' ? { ...app, id: 'hailuo' } : app
+          )
+        })
+      }
+      // Add new MiniMax Agent apps
+      addMiniApp(state, 'minimax-agent')
+      addMiniApp(state, 'minimax-agent-global')
+      addMiniApp(state, 'ima')
+      // Add new providers: minimax-global and zai
+      addProvider(state, 'minimax-global')
+      addProvider(state, 'zai')
+      // Update grok provider type to openai-response
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.grok) {
           provider.type = 'openai-response'
