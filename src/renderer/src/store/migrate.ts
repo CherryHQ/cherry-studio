@@ -3216,6 +3216,7 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.ppio_edit) {
         state.paintings.ppio_edit = []
       }
+      logger.info('migrate 196 success')
       return state
     } catch (error) {
       logger.error('migrate 196 error', error as Error)
@@ -3227,6 +3228,7 @@ const migrateConfig = {
       if (state.openclaw.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
       }
+      logger.info('migrate 197 success')
       return state
     } catch (error) {
       logger.error('migrate 197 error', error as Error)
@@ -3258,6 +3260,12 @@ const migrateConfig = {
   },
   '200': (state: RootState) => {
     try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.type === 'ollama') {
+          provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        }
+      })
+
       // Migrate minimax app id to hailuo
       if (state.minapps) {
         const lists: Array<'enabled' | 'disabled' | 'pinned'> = ['enabled', 'disabled', 'pinned']
@@ -3280,6 +3288,7 @@ const migrateConfig = {
           provider.type = 'openai-response'
         }
       })
+
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
