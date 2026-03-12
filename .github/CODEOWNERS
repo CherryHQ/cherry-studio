@@ -1,8 +1,8 @@
-/src/renderer/src/store/ @0xfullex
-/src/renderer/src/databases/ @0xfullex
-/src/main/services/ConfigManager.ts @0xfullex
-/packages/shared/IpcChannel.ts @0xfullex
-/src/main/ipc.ts @0xfullex
+/src/renderer/src/store/ @0xfullex @DeJeune
+/src/renderer/src/databases/ @0xfullex @DeJeune
+/src/main/services/ConfigManager.ts @0xfullex @DeJeune
+/packages/shared/IpcChannel.ts @0xfullex @DeJeune
+/src/main/ipc.ts @0xfullex @DeJeune
 
 /migrations/ @0xfullex @DeJeune
 /packages/shared/data/ @0xfullex @DeJeune
