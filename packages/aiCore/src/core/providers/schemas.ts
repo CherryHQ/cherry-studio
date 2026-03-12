@@ -101,7 +101,15 @@ export const baseProviders = [
   {
     id: 'xai',
     name: 'xAI (Grok)',
-    creator: createXai,
+    creator: (options: Parameters<typeof createXai>[0]) => {
+      const provider = createXai(options)
+      return customProvider({
+        fallbackProvider: {
+          ...provider,
+          languageModel: (modelId: string) => provider.responses(modelId)
+        }
+      })
+    },
     supportsImageGeneration: true
   },
   {

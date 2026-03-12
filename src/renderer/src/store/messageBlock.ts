@@ -204,6 +204,31 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
         break
       }
       case WEB_SEARCH_SOURCE.GROK:
+        formattedCitations =
+          (block.response.results as AISDKWebSearchResult[])?.map((result, index) => {
+            const url = result.url
+            try {
+              const hostname = new URL(result.url).hostname
+              // xAI source events use citation number as title, fall back to hostname
+              const title = result.title && /^\d+$/.test(result.title) ? hostname : result.title || hostname
+              return {
+                number: index + 1,
+                url,
+                title,
+                showFavicon: true,
+                type: 'websearch'
+              }
+            } catch {
+              return {
+                number: index + 1,
+                url,
+                hostname: url,
+                showFavicon: true,
+                type: 'websearch'
+              }
+            }
+          }) || []
+        break
       case WEB_SEARCH_SOURCE.OPENROUTER:
         formattedCitations =
           (block.response.results as AISDKWebSearchResult[])?.map((result, index) => {

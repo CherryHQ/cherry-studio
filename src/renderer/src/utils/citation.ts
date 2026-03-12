@@ -155,6 +155,14 @@ export function normalizeCitationMarks(
       }
       break
     }
+    case WEB_SEARCH_SOURCE.GROK: {
+      // Grok 格式: [[N]](url) → [cite:N]
+      applyReplacements(/\[\[(\d+)\]\]\([^)]*\)/g, (match) => {
+        const citationNum = parseInt(match[1], 10)
+        return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
+      })
+      break
+    }
     default: {
       // 简单数字格式: [N] → [cite:N]
       applyReplacements(/\[(\d+)\]/g, (match) => {
