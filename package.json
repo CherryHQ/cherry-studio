@@ -95,7 +95,8 @@
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -246,6 +247,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
+    "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
     "@uiw/codemirror-extensions-langs": "4.25.7",
     "@uiw/codemirror-themes-all": "4.25.7",

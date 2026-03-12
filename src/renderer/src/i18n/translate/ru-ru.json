@@ -28,160 +28,172 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
+        "comingSoon": "Скоро",
+        "description": "Подключите вашего агента к платформам обмена сообщениями.",
         "feishu": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-          "appSecret": "[to be translated]:App Secret",
-          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-          "domain": "[to be translated]:Domain",
-          "domainFeishu": "[to be translated]:Feishu (China)",
-          "domainLark": "[to be translated]:Lark (International)",
-          "encryptKey": "[to be translated]:Encrypt Key",
-          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-          "title": "[to be translated]:Feishu",
-          "verificationToken": "[to be translated]:Verification Token",
-          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+          "appId": "App ID",
+          "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Введите App Secret вашего приложения Feishu",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "ID чатов через запятую. Оставьте пустым, чтобы разрешить все чаты.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Получение и ответ на сообщения через бота Feishu/Lark с использованием WebSocket.",
+          "domain": "Домен",
+          "domainFeishu": "Feishu (Китай)",
+          "domainLark": "Lark (Международный)",
+          "encryptKey": "Ключ шифрования",
+          "encryptKeyPlaceholder": "Введите ключ шифрования вашего приложения Feishu",
+          "title": "Feishu",
+          "verificationToken": "Токен верификации",
+          "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
         },
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
-        "tab": "[to be translated]:Channels",
+        "notifyReceiver": "Получать уведомления о задачах",
+        "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Введите App ID вашего QQ бота",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "Формат: c2c:openid, group:groupid, channel:channelid. Оставьте пустым для разрешения всех.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
+          "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
+        },
+        "tab": "Каналы",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Токен бота",
+          "botTokenPlaceholder": "Введите токен вашего Telegram бота",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "Через запятую. Оставьте пустым для разрешения всех чатов.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Получать и отвечать на сообщения через Telegram бота с использованием long polling.",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "Каналы"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "Включить Heartbeat",
+        "enabledHelper": "При включении, если heartbeat.md существует в рабочей области, планировщик читает его содержимое и отправляет в основную сессию с настроенным интервалом.",
+        "interval": "Интервал (минуты)",
+        "intervalHelper": "Как часто выполняется heartbeat, в минутах."
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "Ограничивает доступ агента к файловой системе и сети только директорией рабочей области с использованием песочницы на уровне ОС.",
+        "helper": "Ограничить доступ к файловой системе и командам путём рабочей области.",
+        "label": "Режим песочницы"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "Стандартное cron-выражение (например, '*/30 * * * *' для каждых 30 минут).",
+          "label": "Cron-выражение",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "Планировщик автоматически запускает агента по расписанию.",
+        "enabled": "Включить планировщик",
+        "enabledHelper": "При включении агент будет автоматически запускаться согласно настроенному расписанию.",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "Неверное cron-выражение",
+          "invalidDelay": "Задержка должна быть положительным числом",
+          "invalidInterval": "Интервал должен быть положительным числом"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "Как часто агент должен запускаться, в секундах.",
+          "label": "Интервал (секунды)"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "Последний запуск",
+        "never": "Никогда",
+        "nextRun": "Следующий запуск",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "Однократная задержка в секундах перед запуском агента.",
+          "label": "Задержка (секунды)"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "Выполняется",
+          "stopped": "Остановлен",
+          "tickInProgress": "Tick выполняется"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "Планировщик",
+        "title": "Настройка планировщика",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Cron-выражение",
+          "interval": "Фиксированный интервал",
+          "label": "Тип расписания",
+          "one-time": "Однократная задержка"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "Душа определяет личность и базовое поведение агента. Она читается из soul.md в корне рабочей области.",
+        "empty": "Файл soul.md не найден в корне рабочей области. Создайте его, чтобы определить личность агента.",
+        "enabled": "Включить душу",
+        "enabledHelper": "При включении агент читает soul.md из корня рабочей области и добавляет его в начало системного промпта.",
+        "fileLabel": "soul.md",
+        "preview": "Предпросмотр души",
+        "tab": "Душа",
+        "title": "Настройка души"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "Добавить задачу",
+        "cancel": "Отмена",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "Изолированный",
+          "isolatedDesc": "Создавать новую сессию при каждом запуске",
+          "label": "Режим контекста",
+          "session": "Повторно использовать сессию",
+          "sessionDesc": "Повторно использовать последнюю сессию"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "Вы уверены, что хотите удалить эту задачу?",
+          "label": "Удалить"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "Редактировать",
+        "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
+        "intervalPlaceholder": "Интервал в минутах",
+        "lastRun": "Последний запуск",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "Длительность",
+          "empty": "История запусков пуста.",
+          "error": "Ошибка",
+          "label": "История запусков",
+          "result": "Результат",
+          "runAt": "Запущено в",
+          "status": "Статус"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "Название",
+          "placeholder": "напр. Ежедневный обзор кода"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "Следующий запуск",
+        "oncePlaceholder": "Выберите дату и время",
+        "pause": "Пауза",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "Промпт",
+          "placeholder": "Что должен делать агент при выполнении этой задачи?"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "Возобновить",
+        "run": "Запустить",
+        "runTriggered": "Задача запущена",
+        "save": "Сохранить",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "Интервал",
+          "label": "Тип расписания",
+          "once": "Однократно"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "Значение расписания",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "Активна",
+          "completed": "Завершена",
+          "paused": "Приостановлена"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "Задачи",
+        "title": "Запланированные задачи"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "Агенты CherryClaw по умолчанию работают в полностью автоматическом режиме. Все инструменты выполняются без запроса одобрения."
       }
     },
     "delete": {

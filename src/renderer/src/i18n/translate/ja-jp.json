@@ -28,160 +28,172 @@
     },
     "cherryClaw": {
       "channels": {
-        "comingSoon": "[to be translated]:Coming soon",
-        "description": "[to be translated]:Connect your agent to messaging platforms.",
+        "comingSoon": "近日公開",
+        "description": "エージェントをメッセージングプラットフォームに接続します。",
         "feishu": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-          "appSecret": "[to be translated]:App Secret",
-          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-          "domain": "[to be translated]:Domain",
-          "domainFeishu": "[to be translated]:Feishu (China)",
-          "domainLark": "[to be translated]:Lark (International)",
-          "encryptKey": "[to be translated]:Encrypt Key",
-          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-          "title": "[to be translated]:Feishu",
-          "verificationToken": "[to be translated]:Verification Token",
-          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+          "appId": "App ID",
+          "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
+          "chatIds": "許可するチャットID",
+          "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
+          "domain": "ドメイン",
+          "domainFeishu": "Feishu（中国）",
+          "domainLark": "Lark（国際版）",
+          "encryptKey": "暗号化キー",
+          "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
+          "title": "Feishu",
+          "verificationToken": "検証トークン",
+          "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
         },
-        "notifyReceiver": "[to be translated]:Receive task notifications",
-        "notifyReceiverHint": "[to be translated]:Send scheduler task results to this channel.",
-        "tab": "[to be translated]:Channels",
+        "notifyReceiver": "タスク通知を受信",
+        "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "QQ Bot の App ID を入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
+          "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+          "title": "QQ",
+          "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
+        },
+        "tab": "チャンネル",
         "telegram": {
-          "botToken": "[to be translated]:Bot Token",
-          "botTokenPlaceholder": "[to be translated]:Enter your Telegram bot token",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:123456789, 987654321",
-          "description": "[to be translated]:Receive and respond to messages via a Telegram bot using long polling.",
-          "title": "[to be translated]:Telegram"
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Telegram ボットトークンを入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
+          "title": "Telegram"
         },
-        "title": "[to be translated]:Channels"
+        "title": "チャンネル"
       },
       "heartbeat": {
-        "enabled": "[to be translated]:Enable Heartbeat",
-        "enabledHelper": "[to be translated]:When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
-        "interval": "[to be translated]:Interval (minutes)",
-        "intervalHelper": "[to be translated]:How often the heartbeat runs, in minutes."
+        "enabled": "ハートビートを有効化",
+        "enabledHelper": "有効にすると、ワークスペースに heartbeat.md が存在する場合、スケジューラが設定された間隔でその内容を読み取り、メインセッションに送信します。",
+        "interval": "間隔（分）",
+        "intervalHelper": "ハートビートの実行頻度（分単位）。"
       },
       "sandbox": {
-        "description": "[to be translated]:Restricts the agent's filesystem and network access to the workspace directory using OS-level sandboxing.",
-        "helper": "[to be translated]:Restrict filesystem and command access to the workspace path.",
-        "label": "[to be translated]:Sandbox Mode"
+        "description": "OS レベルのサンドボックスを使用して、エージェントのファイルシステムとネットワークアクセスをワークスペースディレクトリに制限します。",
+        "helper": "ファイルシステムとコマンドアクセスをワークスペースパスに制限します。",
+        "label": "サンドボックスモード"
       },
       "scheduler": {
         "cron": {
-          "helper": "[to be translated]:Standard cron expression (e.g., '*/30 * * * *' for every 30 minutes).",
-          "label": "[to be translated]:Cron Expression",
-          "placeholder": "[to be translated]:*/30 * * * *"
+          "helper": "標準の cron 式（例: '*/30 * * * *' で 30 分ごと）。",
+          "label": "Cron 式",
+          "placeholder": "*/30 * * * *"
         },
-        "description": "[to be translated]:The scheduler triggers the agent autonomously on a schedule.",
-        "enabled": "[to be translated]:Enable Scheduler",
-        "enabledHelper": "[to be translated]:When enabled, the agent will run automatically based on the configured schedule.",
+        "description": "スケジューラはスケジュールに従ってエージェントを自動的にトリガーします。",
+        "enabled": "スケジューラを有効化",
+        "enabledHelper": "有効にすると、エージェントは設定されたスケジュールに基づいて自動的に実行されます。",
         "errors": {
-          "invalidCron": "[to be translated]:Invalid cron expression",
-          "invalidDelay": "[to be translated]:Delay must be a positive number",
-          "invalidInterval": "[to be translated]:Interval must be a positive number"
+          "invalidCron": "無効な cron 式",
+          "invalidDelay": "遅延は正の数である必要があります",
+          "invalidInterval": "間隔は正の数である必要があります"
         },
         "interval": {
-          "helper": "[to be translated]:How often the agent should run, in seconds.",
-          "label": "[to be translated]:Interval (seconds)"
+          "helper": "エージェントの実行頻度（秒単位）。",
+          "label": "間隔（秒）"
         },
-        "lastRun": "[to be translated]:Last Run",
-        "never": "[to be translated]:Never",
-        "nextRun": "[to be translated]:Next Run",
+        "lastRun": "前回の実行",
+        "never": "なし",
+        "nextRun": "次回の実行",
         "oneTime": {
-          "helper": "[to be translated]:One-time delay in seconds before the agent runs.",
-          "label": "[to be translated]:Delay (seconds)"
+          "helper": "エージェント実行前の一回限りの遅延（秒単位）。",
+          "label": "遅延（秒）"
         },
         "status": {
-          "running": "[to be translated]:Running",
-          "stopped": "[to be translated]:Stopped",
-          "tickInProgress": "[to be translated]:Tick in progress"
+          "running": "実行中",
+          "stopped": "停止中",
+          "tickInProgress": "実行中"
         },
-        "tab": "[to be translated]:Scheduler",
-        "title": "[to be translated]:Scheduler Configuration",
+        "tab": "スケジューラ",
+        "title": "スケジューラ設定",
         "type": {
-          "cron": "[to be translated]:Cron Expression",
-          "interval": "[to be translated]:Fixed Interval",
-          "label": "[to be translated]:Schedule Type",
-          "one-time": "[to be translated]:One-Time Delay"
+          "cron": "Cron 式",
+          "interval": "固定間隔",
+          "label": "スケジュールタイプ",
+          "one-time": "一回限りの遅延"
         }
       },
       "soul": {
-        "description": "[to be translated]:The soul defines the agent's personality and base behavior. It is read from soul.md in the workspace root.",
-        "empty": "[to be translated]:No soul.md found in the workspace root. Create one to define the agent's personality.",
-        "enabled": "[to be translated]:Enable Soul",
-        "enabledHelper": "[to be translated]:When enabled, the agent reads soul.md from the workspace root and prepends it to the system prompt.",
-        "fileLabel": "[to be translated]:soul.md",
-        "preview": "[to be translated]:Soul Preview",
-        "tab": "[to be translated]:Soul",
-        "title": "[to be translated]:Soul Configuration"
+        "description": "ソウルはエージェントの個性と基本動作を定義します。ワークスペースルートの soul.md から読み込まれます。",
+        "empty": "ワークスペースルートに soul.md が見つかりません。エージェントの個性を定義するために作成してください。",
+        "enabled": "ソウルを有効化",
+        "enabledHelper": "有効にすると、エージェントはワークスペースルートから soul.md を読み取り、システムプロンプトの先頭に追加します。",
+        "fileLabel": "soul.md",
+        "preview": "ソウルプレビュー",
+        "tab": "ソウル",
+        "title": "ソウル設定"
       },
       "tasks": {
-        "add": "[to be translated]:Add Task",
-        "cancel": "[to be translated]:Cancel",
+        "add": "タスクを追加",
+        "cancel": "キャンセル",
         "contextMode": {
-          "isolated": "[to be translated]:Isolated",
-          "isolatedDesc": "[to be translated]:Create a new session each run",
-          "label": "[to be translated]:Context Mode",
-          "session": "[to be translated]:Reuse Session",
-          "sessionDesc": "[to be translated]:Reuse the most recent session"
+          "isolated": "隔離",
+          "isolatedDesc": "実行ごとに新しいセッションを作成",
+          "label": "コンテキストモード",
+          "session": "セッションを再利用",
+          "sessionDesc": "最新のセッションを再利用"
         },
-        "cronPlaceholder": "[to be translated]:e.g. 0 9 * * * (every day at 9 AM)",
+        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
         "delete": {
-          "confirm": "[to be translated]:Are you sure you want to delete this task?",
-          "label": "[to be translated]:Delete"
+          "confirm": "このタスクを削除してもよろしいですか？",
+          "label": "削除"
         },
-        "edit": "[to be translated]:Edit",
-        "empty": "[to be translated]:No scheduled tasks. Add one to get started.",
-        "intervalPlaceholder": "[to be translated]:Interval in minutes",
-        "lastRun": "[to be translated]:Last Run",
+        "edit": "編集",
+        "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+        "intervalPlaceholder": "間隔（分）",
+        "lastRun": "前回の実行",
         "logs": {
-          "duration": "[to be translated]:Duration",
-          "empty": "[to be translated]:No run history yet.",
-          "error": "[to be translated]:Error",
-          "label": "[to be translated]:Run History",
-          "result": "[to be translated]:Result",
-          "runAt": "[to be translated]:Run At",
-          "status": "[to be translated]:Status"
+          "duration": "所要時間",
+          "empty": "実行履歴がありません。",
+          "error": "エラー",
+          "label": "実行履歴",
+          "result": "結果",
+          "runAt": "実行時刻",
+          "status": "ステータス"
         },
         "name": {
-          "label": "[to be translated]:Name",
-          "placeholder": "[to be translated]:e.g. Daily code review"
+          "label": "名前",
+          "placeholder": "例: 毎日のコードレビュー"
         },
-        "nextRun": "[to be translated]:Next Run",
-        "oncePlaceholder": "[to be translated]:Select date and time",
-        "pause": "[to be translated]:Pause",
+        "nextRun": "次回の実行",
+        "oncePlaceholder": "日時を選択",
+        "pause": "一時停止",
         "prompt": {
-          "label": "[to be translated]:Prompt",
-          "placeholder": "[to be translated]:What should the agent do when this task runs?"
+          "label": "プロンプト",
+          "placeholder": "このタスク実行時にエージェントが行うべきことは？"
         },
-        "resume": "[to be translated]:Resume",
-        "run": "[to be translated]:Run",
-        "runTriggered": "[to be translated]:Task triggered",
-        "save": "[to be translated]:Save",
+        "resume": "再開",
+        "run": "実行",
+        "runTriggered": "タスクがトリガーされました",
+        "save": "保存",
         "scheduleType": {
-          "cron": "[to be translated]:Cron",
-          "interval": "[to be translated]:Interval",
-          "label": "[to be translated]:Schedule Type",
-          "once": "[to be translated]:Once"
+          "cron": "Cron",
+          "interval": "間隔",
+          "label": "スケジュールタイプ",
+          "once": "一回限り"
         },
-        "scheduleValue": "[to be translated]:Schedule Value",
+        "scheduleValue": "スケジュール値",
         "status": {
-          "active": "[to be translated]:Active",
-          "completed": "[to be translated]:Completed",
-          "paused": "[to be translated]:Paused"
+          "active": "アクティブ",
+          "completed": "完了",
+          "paused": "一時停止中"
         },
-        "tab": "[to be translated]:Tasks",
-        "title": "[to be translated]:Scheduled Tasks"
+        "tab": "タスク",
+        "title": "スケジュールタスク"
       },
       "warning": {
-        "bypassPermissions": "[to be translated]:CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
+        "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
       }
     },
     "delete": {

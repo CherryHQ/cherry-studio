@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement CherryClaw — a new autonomous agent type for Cherry Studio with soul-driven personality, scheduler-based autonomous operation, heartbeat-driven task execution, and IM channel integration. Full implementation across all 4 phases from `.agents/sessions/2026-03-10-cherry-claw/plan.md`, plus a task-based scheduler redesign inspired by nanoclaw, plus an internal claw MCP server so the agent can autonomously manage its own scheduled tasks, plus a channel abstraction layer with Telegram as the first adapter.
+Implement CherryClaw — a new autonomous agent type for Cherry Studio with soul-driven personality, scheduler-based autonomous operation, heartbeat-driven task execution, and IM channel integration. Full implementation across all 4 phases from `.agents/sessions/2026-03-10-cherry-claw/plan.md`, plus a task-based scheduler redesign inspired by nanoclaw, plus an internal claw MCP server so the agent can autonomously manage its own scheduled tasks, plus a channel abstraction layer with Telegram and QQ adapters.
 
 ## Progress
 
@@ -15,6 +15,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Phase 5**: Scheduler redesign — tasks as first-class DB entities, poll-loop scheduler, task management UI — DONE
 - **Phase 6**: Claw MCP server — internal `cron` tool auto-injected into CherryClaw sessions — DONE
 - **Phase 7**: Channel abstraction layer + Telegram adapter + channel settings UI — DONE
+- **Phase 7b**: QQ channel adapter — WebSocket gateway, REST API message sending, multi-message type support (c2c/group/guild/dm) — DONE
 - **Phase 8**: Channel streaming — `sendMessageDraft` for real-time response streaming, multi-turn accumulation, typing indicators — DONE
 - **Phase 9**: Headless message persistence — channel and scheduler messages now persist to DB — DONE
 - **Phase 10**: Basic sandbox — PreToolUse hook path enforcement + OS-level sandbox + UI toggle — DONE (basic restriction only, needs hardening)
@@ -55,6 +56,7 @@ All 4 phases are complete, plus the scheduler redesign and claw MCP tool:
 - **Stream response collection** — `text-delta` events from the transform layer are cumulative within a text block. `ChannelMessageHandler` tracks per-block text (`text = value.text`) and commits on `text-end` to accumulate across multi-turn agent responses. Drafts are streamed to the chat via `sendMessageDraft` (throttled at 500ms) while `sendTypingIndicator` runs every 4s throughout the request.
 - **Channel config in agent settings** — stored in `CherryClawConfiguration.channels[]`. UI is a catalog of available channel types with inline config (enable switch, bot token, allowed chat IDs). No DB migration needed.
 - **grammY library** — Telegram Bot API client, long polling only (desktop app behind NAT). `sendMessageDraft` is Telegram's native streaming draft API.
+- **QQ Bot API (ws package)** — QQ channel adapter uses official QQ Bot API with WebSocket gateway for receiving messages and REST API for sending. Supports c2c (private), group, guild (channel), and dm message types. Uses AppID + ClientSecret authentication with access token caching. No native draft/streaming API, so `sendMessageDraft` is a no-op.
 
 ## Scheduler Architecture
 
@@ -229,11 +231,12 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/channels/ChannelManager.ts` — singleton lifecycle, adapter factory registry, agent sync + `getNotifyAdapters()` + `notifyChannels` tracking
 - `src/main/services/agents/services/channels/index.ts` — public exports + adapter module imports
 - `src/main/services/agents/services/channels/adapters/TelegramAdapter.ts` — grammY-based adapter (long polling, auth guard, `sendMessageDraft`, message chunking, sets `notifyChatIds`)
+- `src/main/services/agents/services/channels/adapters/QQAdapter.ts` — NEW: QQ Bot API adapter (WebSocket gateway, REST messaging, c2c/group/guild/dm support, access token caching)
 
 ### Channel UI
-- `src/renderer/src/pages/settings/AgentSettings/components/ChannelsSettings.tsx` — catalog-based card layout with inline config (blur-to-save)
+- `src/renderer/src/pages/settings/AgentSettings/components/ChannelsSettings.tsx` — catalog-based card layout with inline config (blur-to-save), TelegramChannelCard + QQChannelCard
 - `src/renderer/src/pages/settings/AgentSettings/AgentSettingsPopup.tsx` — channels tab for CherryClaw
-- `src/renderer/src/types/agent.ts` — `TelegramChannelConfigSchema`, `CherryClawChannelSchema` with typed config + enabled flag
+- `src/renderer/src/types/agent.ts` — `TelegramChannelConfigSchema`, `QQChannelConfigSchema`, `CherryClawChannelSchema` with typed config + enabled flag
 
 ### API Routes (Tasks)
 - `src/main/apiServer/routes/agents/handlers/tasks.ts` — NEW: createTask, listTasks, getTask, updateTask, deleteTask, runTask, getTaskLogs
@@ -273,14 +276,14 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
 - `src/main/services/agents/services/channels/adapters/__tests__/TelegramAdapter.test.ts` — 8 tests (connect, auth guard, message handling, chunking)
 
 ### Dependencies
-- `package.json` / `pnpm-lock.yaml` — added `cron-parser` ^5.5.0, `grammy` ^1.41
+- `package.json` / `pnpm-lock.yaml` — added `cron-parser` ^5.5.0, `grammy` ^1.41, `ws` ^8.19.0 (QQ channel WebSocket)
 
 ## Current State
 
-- Branch: `feat/cherry-claw-agent`
-- All lint/test/format checks pass (198 test files, 3617 tests)
-- Feature is code-complete including task-based scheduler, heartbeat as scheduled task, claw MCP tools (cron + notify + skills + memory), channel layer with Telegram streaming, custom system prompt with memory system, and manual task run
-- Pushed to remote
+- Branch: `feat/claw-channel-qq`
+- All lint/test/format checks pass (main process: 38 test files, 528 tests)
+- Feature is code-complete including task-based scheduler, heartbeat as scheduled task, claw MCP tools (cron + notify + skills + memory), channel layer with Telegram and QQ adapters, custom system prompt with memory system, and manual task run
+- Renderer tests have pre-existing environment issue (vitest web-worker module resolution)
 
 ## Blockers / Gotchas
 
@@ -292,6 +295,8 @@ Wiring: `channelManager.start()` called alongside scheduler on app ready; `chann
   3. **topicId prefix** — `Message.topicId` must use `agent-session:<sessionId>` prefix, not raw session ID. Without the prefix, the UI's `DbService.getDataSource()` routes to Dexie instead of the agent SQLite data source, breaking message updates and rendering.
 - **Telegram rate limits** — `sendMessageDraft` has no documented rate limit, but `sendMessage` is 30/s globally, 1/s per chat. Draft throttle is 500ms; typing indicator is 4s.
 - **Telegram MarkdownV2** — agent responses sent as plain text (no `parse_mode`) to avoid escaping issues. Proper GFM→MarkdownV2 conversion is a follow-up.
+- **QQ no streaming** — QQ Bot API has no native draft/streaming API like Telegram, so `sendMessageDraft` is a no-op. Full responses are sent as final messages only.
+- **QQ no typing indicator** — QQ Bot API does not support typing indicators for most message types. `sendTypingIndicator` is a no-op.
 - ~~**Memory system**~~ — DONE: anna-inspired 3-file model (soul.md, user.md, memory/FACT.md) + JOURNAL.jsonl, with `memory` MCP tool and `PromptBuilder` for system prompt assembly.
 - **Non-Anthropic models** — CherryClaw only supports Anthropic provider models (inherits from Claude Agent SDK).
 - **Session settings** — `SessionSettingsPopup.tsx` was NOT updated with CherryClaw tabs (only `AgentSettingsPopup` was). May want to add soul/task tabs there too if sessions need per-session overrides.

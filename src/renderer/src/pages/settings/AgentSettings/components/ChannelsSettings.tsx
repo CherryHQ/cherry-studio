@@ -1,12 +1,7 @@
-import type {
-  CherryClawChannel,
-  CherryClawConfiguration,
-  FeishuChannelConfig,
-  FeishuDomain,
-  TelegramChannelConfig
-} from '@renderer/types'
+import type { CherryClawChannel, CherryClawConfiguration, FeishuChannelConfig, FeishuDomain } from '@renderer/types'
 import type { CardProps } from 'antd'
 import { Card, Checkbox, Input, Select, Switch } from 'antd'
+import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +10,7 @@ import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, Sett
 // --------------- Channel catalog registry ---------------
 
 type AvailableChannel = {
-  type: 'telegram' | 'feishu' // extend later: | 'discord' | 'slack'
+  type: 'telegram' | 'feishu' | 'qq' // extend later: | 'discord' | 'slack'
   name: string
   description: string // i18n key
   icon: string
@@ -46,6 +41,14 @@ const AVAILABLE_CHANNELS: AvailableChannel[] = [
     icon: '✈️',
     available: true,
     defaultConfig: { bot_token: '', allowed_chat_ids: [] }
+  },
+  {
+    type: 'qq',
+    name: 'QQ',
+    description: 'agent.cherryClaw.channels.qq.description',
+    icon: '🐧',
+    available: true,
+    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
   }
 ]
 
@@ -86,127 +89,150 @@ const NotifyCheckbox: FC<NotifyCheckboxProps> = ({ channel, onConfigChange }) =>
   )
 }
 
-// --------------- Telegram inline config ---------------
+// --------------- Shared channel config field types ---------------
 
 type ChannelCardProps = {
   channel: CherryClawChannel
   onConfigChange: (updates: Partial<CherryClawChannel>) => void
 }
 
-const TelegramChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
-  const { t } = useTranslation()
-  const cfg = channel.config as TelegramChannelConfig
+type FieldDef = {
+  key: string
+  label: string
+  placeholder: string
+  secret?: boolean
+}
 
-  const [botToken, setBotToken] = useState(cfg.bot_token ?? '')
-  const [chatIds, setChatIds] = useState((cfg.allowed_chat_ids ?? []).join(', '))
+type ChatIdsConfig = {
+  label: string
+  placeholder: string
+  hint: string
+  extraHint?: string
+}
+
+type ChannelFieldsCardProps = ChannelCardProps & {
+  fields: FieldDef[]
+  chatIds: ChatIdsConfig
+  extraContent?: ReactNode
+}
+
+const ChannelFieldsCard: FC<ChannelFieldsCardProps> = ({
+  channel,
+  onConfigChange,
+  fields,
+  chatIds: chatIdsConfig,
+  extraContent
+}) => {
+  // Use Record for generic field access; the union type is preserved via spread on save
+  const cfg = channel.config as unknown as Record<string, unknown>
+
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? '']))
+  )
+  const [chatIds, setChatIds] = useState(((cfg.allowed_chat_ids as string[]) ?? []).join(', '))
 
   useEffect(() => {
-    setBotToken(cfg.bot_token ?? '')
-    setChatIds((cfg.allowed_chat_ids ?? []).join(', '))
-  }, [cfg.bot_token, cfg.allowed_chat_ids])
+    setFieldValues(Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? ''])))
+    setChatIds(((cfg.allowed_chat_ids as string[]) ?? []).join(', '))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(fields.map((f) => cfg[f.key])), cfg.allowed_chat_ids])
 
-  const saveBotToken = useCallback(() => {
-    const trimmed = botToken.trim()
-    if (trimmed !== (cfg.bot_token ?? '')) {
-      onConfigChange({ config: { ...cfg, bot_token: trimmed } })
-    }
-  }, [botToken, cfg, onConfigChange])
+  const saveField = useCallback(
+    (key: string, value: string) => {
+      const trimmed = value.trim()
+      if (trimmed !== ((cfg[key] as string) ?? '')) {
+        onConfigChange({ config: { ...cfg, [key]: trimmed } as CherryClawChannel['config'] })
+      }
+    },
+    [cfg, onConfigChange]
+  )
 
   const saveChatIds = useCallback(() => {
     const ids = chatIds
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    if (JSON.stringify(ids) !== JSON.stringify(cfg.allowed_chat_ids ?? [])) {
-      onConfigChange({ config: { ...cfg, allowed_chat_ids: ids } })
+    if (JSON.stringify(ids) !== JSON.stringify((cfg.allowed_chat_ids as string[]) ?? [])) {
+      onConfigChange({ config: { ...cfg, allowed_chat_ids: ids } as CherryClawChannel['config'] })
     }
   }, [chatIds, cfg, onConfigChange])
 
   return (
     <div className="flex flex-col gap-3 pb-3">
+      {fields.map((field) => (
+        <div key={field.key}>
+          <label className="mb-1 block font-medium text-xs">{field.label}</label>
+          {field.secret ? (
+            <Input.Password
+              value={fieldValues[field.key] ?? ''}
+              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+              onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
+              placeholder={field.placeholder}
+              size="small"
+            />
+          ) : (
+            <Input
+              value={fieldValues[field.key] ?? ''}
+              onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+              onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
+              placeholder={field.placeholder}
+              size="small"
+            />
+          )}
+        </div>
+      ))}
+      {extraContent}
       <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.telegram.botToken')}</label>
-        <Input.Password
-          value={botToken}
-          onChange={(e) => setBotToken(e.target.value)}
-          onBlur={saveBotToken}
-          placeholder={t('agent.cherryClaw.channels.telegram.botTokenPlaceholder')}
-          size="small"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.telegram.chatIds')}</label>
+        <label className="mb-1 block font-medium text-xs">{chatIdsConfig.label}</label>
         <Input
           value={chatIds}
           onChange={(e) => setChatIds(e.target.value)}
           onBlur={saveChatIds}
-          placeholder={t('agent.cherryClaw.channels.telegram.chatIdsPlaceholder')}
+          placeholder={chatIdsConfig.placeholder}
           size="small"
         />
-        <span className="mt-1 block text-gray-400 text-xs">{t('agent.cherryClaw.channels.telegram.chatIdsHint')}</span>
+        <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
+        {chatIdsConfig.extraHint && <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>}
       </div>
       <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
     </div>
   )
 }
 
+// --------------- Telegram inline config ---------------
+
+const TelegramChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <ChannelFieldsCard
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'bot_token',
+          label: t('agent.cherryClaw.channels.telegram.botToken'),
+          placeholder: t('agent.cherryClaw.channels.telegram.botTokenPlaceholder'),
+          secret: true
+        }
+      ]}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.telegram.chatIds'),
+        placeholder: t('agent.cherryClaw.channels.telegram.chatIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.telegram.chatIdsHint')
+      }}
+    />
+  )
+}
+
 // --------------- Feishu inline config ---------------
 
-const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+const FeishuDomainSelector: FC<{
+  channel: CherryClawChannel
+  onConfigChange: (updates: Partial<CherryClawChannel>) => void
+}> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const cfg = channel.config as FeishuChannelConfig
-
-  const [appId, setAppId] = useState(cfg.app_id ?? '')
-  const [appSecret, setAppSecret] = useState(cfg.app_secret ?? '')
-  const [encryptKey, setEncryptKey] = useState(cfg.encrypt_key ?? '')
-  const [verificationToken, setVerificationToken] = useState(cfg.verification_token ?? '')
-  const [chatIds, setChatIds] = useState((cfg.allowed_chat_ids ?? []).join(', '))
-
-  useEffect(() => {
-    setAppId(cfg.app_id ?? '')
-    setAppSecret(cfg.app_secret ?? '')
-    setEncryptKey(cfg.encrypt_key ?? '')
-    setVerificationToken(cfg.verification_token ?? '')
-    setChatIds((cfg.allowed_chat_ids ?? []).join(', '))
-  }, [cfg.app_id, cfg.app_secret, cfg.encrypt_key, cfg.verification_token, cfg.allowed_chat_ids])
-
-  const saveAppId = useCallback(() => {
-    const trimmed = appId.trim()
-    if (trimmed !== (cfg.app_id ?? '')) {
-      onConfigChange({ config: { ...cfg, app_id: trimmed } })
-    }
-  }, [appId, cfg, onConfigChange])
-
-  const saveAppSecret = useCallback(() => {
-    const trimmed = appSecret.trim()
-    if (trimmed !== (cfg.app_secret ?? '')) {
-      onConfigChange({ config: { ...cfg, app_secret: trimmed } })
-    }
-  }, [appSecret, cfg, onConfigChange])
-
-  const saveEncryptKey = useCallback(() => {
-    const trimmed = encryptKey.trim()
-    if (trimmed !== (cfg.encrypt_key ?? '')) {
-      onConfigChange({ config: { ...cfg, encrypt_key: trimmed } })
-    }
-  }, [encryptKey, cfg, onConfigChange])
-
-  const saveVerificationToken = useCallback(() => {
-    const trimmed = verificationToken.trim()
-    if (trimmed !== (cfg.verification_token ?? '')) {
-      onConfigChange({ config: { ...cfg, verification_token: trimmed } })
-    }
-  }, [verificationToken, cfg, onConfigChange])
-
-  const saveChatIds = useCallback(() => {
-    const ids = chatIds
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-    if (JSON.stringify(ids) !== JSON.stringify(cfg.allowed_chat_ids ?? [])) {
-      onConfigChange({ config: { ...cfg, allowed_chat_ids: ids } })
-    }
-  }, [chatIds, cfg, onConfigChange])
 
   const handleDomainChange = useCallback(
     (value: FeishuDomain) => {
@@ -216,75 +242,93 @@ const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) =>
   )
 
   return (
-    <div className="flex flex-col gap-3 pb-3">
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.appId')}</label>
-        <Input
-          value={appId}
-          onChange={(e) => setAppId(e.target.value)}
-          onBlur={saveAppId}
-          placeholder={t('agent.cherryClaw.channels.feishu.appIdPlaceholder')}
-          size="small"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.appSecret')}</label>
-        <Input.Password
-          value={appSecret}
-          onChange={(e) => setAppSecret(e.target.value)}
-          onBlur={saveAppSecret}
-          placeholder={t('agent.cherryClaw.channels.feishu.appSecretPlaceholder')}
-          size="small"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.encryptKey')}</label>
-        <Input.Password
-          value={encryptKey}
-          onChange={(e) => setEncryptKey(e.target.value)}
-          onBlur={saveEncryptKey}
-          placeholder={t('agent.cherryClaw.channels.feishu.encryptKeyPlaceholder')}
-          size="small"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">
-          {t('agent.cherryClaw.channels.feishu.verificationToken')}
-        </label>
-        <Input.Password
-          value={verificationToken}
-          onChange={(e) => setVerificationToken(e.target.value)}
-          onBlur={saveVerificationToken}
-          placeholder={t('agent.cherryClaw.channels.feishu.verificationTokenPlaceholder')}
-          size="small"
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.domain')}</label>
-        <Select
-          value={cfg.domain ?? 'feishu'}
-          onChange={handleDomainChange}
-          size="small"
-          className="w-full"
-          options={[
-            { value: 'feishu', label: t('agent.cherryClaw.channels.feishu.domainFeishu') },
-            { value: 'lark', label: t('agent.cherryClaw.channels.feishu.domainLark') }
-          ]}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.chatIds')}</label>
-        <Input
-          value={chatIds}
-          onChange={(e) => setChatIds(e.target.value)}
-          onBlur={saveChatIds}
-          placeholder={t('agent.cherryClaw.channels.feishu.chatIdsPlaceholder')}
-          size="small"
-        />
-        <span className="mt-1 block text-gray-400 text-xs">{t('agent.cherryClaw.channels.feishu.chatIdsHint')}</span>
-      </div>
-      <NotifyCheckbox channel={channel} onConfigChange={onConfigChange} />
+    <div>
+      <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.domain')}</label>
+      <Select
+        value={cfg.domain ?? 'feishu'}
+        onChange={handleDomainChange}
+        size="small"
+        className="w-full"
+        options={[
+          { value: 'feishu', label: t('agent.cherryClaw.channels.feishu.domainFeishu') },
+          { value: 'lark', label: t('agent.cherryClaw.channels.feishu.domainLark') }
+        ]}
+      />
     </div>
+  )
+}
+
+const FeishuChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <ChannelFieldsCard
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'app_id',
+          label: t('agent.cherryClaw.channels.feishu.appId'),
+          placeholder: t('agent.cherryClaw.channels.feishu.appIdPlaceholder')
+        },
+        {
+          key: 'app_secret',
+          label: t('agent.cherryClaw.channels.feishu.appSecret'),
+          placeholder: t('agent.cherryClaw.channels.feishu.appSecretPlaceholder'),
+          secret: true
+        },
+        {
+          key: 'encrypt_key',
+          label: t('agent.cherryClaw.channels.feishu.encryptKey'),
+          placeholder: t('agent.cherryClaw.channels.feishu.encryptKeyPlaceholder'),
+          secret: true
+        },
+        {
+          key: 'verification_token',
+          label: t('agent.cherryClaw.channels.feishu.verificationToken'),
+          placeholder: t('agent.cherryClaw.channels.feishu.verificationTokenPlaceholder'),
+          secret: true
+        }
+      ]}
+      extraContent={<FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.feishu.chatIds'),
+        placeholder: t('agent.cherryClaw.channels.feishu.chatIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.feishu.chatIdsHint')
+      }}
+    />
+  )
+}
+
+// --------------- QQ inline config ---------------
+
+const QQChannelCard: FC<ChannelCardProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+
+  return (
+    <ChannelFieldsCard
+      channel={channel}
+      onConfigChange={onConfigChange}
+      fields={[
+        {
+          key: 'app_id',
+          label: t('agent.cherryClaw.channels.qq.appId'),
+          placeholder: t('agent.cherryClaw.channels.qq.appIdPlaceholder')
+        },
+        {
+          key: 'client_secret',
+          label: t('agent.cherryClaw.channels.qq.clientSecret'),
+          placeholder: t('agent.cherryClaw.channels.qq.clientSecretPlaceholder'),
+          secret: true
+        }
+      ]}
+      chatIds={{
+        label: t('agent.cherryClaw.channels.qq.chatIds'),
+        placeholder: t('agent.cherryClaw.channels.qq.chatIdsPlaceholder'),
+        hint: t('agent.cherryClaw.channels.qq.chatIdsHint'),
+        extraHint: t('agent.cherryClaw.channels.qq.whoamiTip')
+      }}
+    />
   )
 }
 
@@ -387,6 +431,12 @@ const ChannelsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }
               )}
               {isEnabled && channel && channel.type === 'feishu' && (
                 <FeishuChannelCard
+                  channel={channel}
+                  onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
+                />
+              )}
+              {isEnabled && channel && channel.type === 'qq' && (
+                <QQChannelCard
                   channel={channel}
                   onConfigChange={(updates) => handleConfigChange(channel.type, updates)}
                 />

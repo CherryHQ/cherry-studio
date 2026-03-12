@@ -10,4 +10,5 @@ export { ChannelMessageHandler, channelMessageHandler } from './ChannelMessageHa
 
 // Register adapters (side-effect imports)
 import './adapters/FeishuAdapter'
+import './adapters/QQAdapter'
 import './adapters/TelegramAdapter'
