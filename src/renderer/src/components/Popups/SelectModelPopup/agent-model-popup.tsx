@@ -5,6 +5,7 @@ import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { getModelLogoById } from '@renderer/config/models'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
+import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType } from '@renderer/types'
@@ -58,9 +59,11 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
   const searchText = useDeferredValue(_searchText)
   const { models, isLoading } = useApiModels(apiFilter)
   const adaptedModels = useMemo(() => models.map((model) => apiModelAdapter(model)), [models])
+  const allProviders = useAllProviders()
+  const providerOrderMap = useMemo(() => new Map(allProviders.map((p, i) => [p.id, i])), [allProviders])
 
-  // 当前选中的模型ID
-  const currentModelId = model ? model.id : ''
+  // 当前选中的模型ID（需要转换为与列表项相同的格式）
+  const currentModelId = model ? getModelUniqId(apiModelAdapter(model)) : ''
 
   // 管理滚动和焦点状态
   const [focusedItemKey, _setFocusedItemKey] = useState('')
@@ -141,7 +144,14 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
     // 按 provider 分组
     const groups = groupBy(filteredModels, (model) => model.provider) as Record<string, AdaptedApiModel[]>
 
-    objectEntries(groups).forEach(([key, models]) => {
+    // 按照 provider 配置顺序排序 group keys，cherryin 优先放在第一位
+    const sortedProviderIds = sortBy(Object.keys(groups), (id) => {
+      if (id === 'cherryin') return -1
+      return providerOrderMap.get(id) ?? Infinity
+    })
+
+    sortedProviderIds.forEach((key) => {
+      const models = groups[key]
       items.push({
         key: key ?? 'Unknown',
         type: 'group',
@@ -154,7 +164,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
     // 获取可选择的模型项（过滤掉分组标题）
     const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
-  }, [searchFilter, adaptedModels, showTagFilter, tagFilter, createModelItem, modelFilter])
+  }, [searchFilter, adaptedModels, showTagFilter, tagFilter, createModelItem, modelFilter, providerOrderMap])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
@@ -283,7 +293,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
 
   const onAfterClose = useCallback(async () => {
     resolve(undefined)
-    SelectApiModelPopup.hide()
+    SelectAgentModelPopup.hide()
   }, [resolve])
 
   const getItemKey = useCallback((index: number) => listItems[index].key, [listItems])
@@ -491,9 +501,9 @@ const EmptyState = styled.div`
   height: 200px;
 `
 
-const TopViewKey = 'SelectModelPopup'
+const TopViewKey = 'SelectAgentModelPopup'
 
-export class SelectApiModelPopup {
+export class SelectAgentModelPopup {
   static topviewId = 0
   static hide() {
     TopView.hide(TopViewKey)
