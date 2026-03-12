@@ -13,7 +13,7 @@
         "latest": {
           "feedTemplates": {
             "github": "https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}",
-            "gitcode": "https://releases.cherry-ai.com"
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/{{tag}}"
           }
         }
       }
@@ -30,7 +30,7 @@
         "latest": {
           "feedTemplates": {
             "github": "https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}",
-            "gitcode": "https://releases.cherry-ai.com"
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/{{tag}}"
           }
         },
         "rc": {
