@@ -12,7 +12,6 @@ import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
 import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
-import Sessions from './components/Sessions'
 
 const AgentPage: FC = () => {
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
@@ -38,8 +37,6 @@ const AgentPage: FC = () => {
       window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
-
-  const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
   return (
     <div
@@ -68,27 +65,6 @@ const AgentPage: FC = () => {
         <ErrorBoundary>
           <AgentChat />
         </ErrorBoundary>
-        <AnimatePresence initial={false}>
-          {showRightSessions && (
-            <motion.div
-              key="right-sessions"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
-              <div
-                className="flex flex-col overflow-hidden"
-                style={{
-                  width: 'var(--assistants-width)',
-                  height: 'calc(100vh - var(--navbar-height))',
-                  borderLeft: '0.5px solid var(--color-border)'
-                }}>
-                <Sessions agentId={activeAgentId!} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   )
