@@ -7,7 +7,9 @@
         "invalid_agent": "無效的 Agent"
       },
       "model": {
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+        "supported_providers": "支援的服務商",
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
       "type": {
@@ -135,6 +137,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "為智慧體執行環境設置自訂環境變數。",
+          "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
+          "label": "環境變數"
+        },
         "maxTurns": {
           "description": "設定代理自動執行的請求／回覆輪次數。",
           "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
@@ -5018,6 +5025,11 @@
       },
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
+      "filter": {
+        "agent": "支援 Agent",
+        "all": "全部服務商"
+      },
+      "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
       "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",

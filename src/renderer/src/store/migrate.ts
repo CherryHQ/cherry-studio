@@ -3258,12 +3258,25 @@ const migrateConfig = {
   },
   '200': (state: RootState) => {
     try {
-      addProvider(state, 'volcano-coding')
-      addProvider(state, 'byteplus-coding')
-      logger.info('migrate 200 success')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.grok) {
+          provider.type = 'openai-response'
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
+      return state
+    }
+  },
+  '201': (state: RootState) => {
+    try {
+      addProvider(state, 'volcano-coding')
+      addProvider(state, 'byteplus-coding')
+      logger.info('migrate 201 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 201 error', error as Error)
       return state
     }
   }
