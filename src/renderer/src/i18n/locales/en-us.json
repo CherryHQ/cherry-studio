@@ -2665,8 +2665,12 @@
     "update": {
       "available": "New version available: v{{latest}} (current: v{{current}})",
       "checking": "Checking for updates...",
+      "confirm_button": "Update Now",
       "failed": "Failed to check for updates",
-      "up_to_date": "Already up to date (v{{current}})"
+      "modal_title": "OpenClaw Update",
+      "success": "Update completed successfully!",
+      "up_to_date": "Already up to date (v{{current}})",
+      "updating": "Updating..."
     }
   },
   "ovms": {
