@@ -28,10 +28,9 @@ export const useAgentSessionInitializer = () => {
       if (!agentId) return
 
       try {
-        // Check if this agent already has an active session
-        const currentSessionId = activeSessionIdMap[agentId]
-        if (currentSessionId) {
-          // Session already exists, nothing to initialize
+        // Check if this agent has already been initialized (key exists in map)
+        if (agentId in activeSessionIdMap) {
+          // Already initialized, nothing to do
           return
         }
 
@@ -45,8 +44,10 @@ export const useAgentSessionInitializer = () => {
 
           // Set the latest session as active
           dispatch(setActiveSessionIdAction({ agentId, sessionId: latestSession.id }))
+        } else {
+          // Mark as initialized with no session (null vs undefined distinction)
+          dispatch(setActiveSessionIdAction({ agentId, sessionId: null }))
         }
-        // If no sessions exist, let the Sessions component handle creation
       } catch (error) {
         logger.error('Failed to initialize agent session:', error as Error)
       }
@@ -59,9 +60,8 @@ export const useAgentSessionInitializer = () => {
    */
   useEffect(() => {
     if (activeAgentId) {
-      // Check if we need to initialize this agent's session
-      const hasActiveSession = activeSessionIdMap[activeAgentId]
-      if (!hasActiveSession) {
+      // Check if we need to initialize this agent's session (key not yet in map)
+      if (!(activeAgentId in activeSessionIdMap)) {
         initializeAgentSession(activeAgentId)
       }
     }

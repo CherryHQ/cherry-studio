@@ -1,11 +1,13 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert } from 'antd'
+import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,14 +22,27 @@ import Sessions from './components/Sessions'
 
 const AgentChat: FC = () => {
   const { t } = useTranslation()
-  const { apiServer, messageNavigation } = useSettings()
+  const { messageNavigation } = useSettings()
   const { isTopNavbar } = useNavbarPosition()
   const { topicPosition } = useSettings()
   const { showTopics } = useShowTopics()
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  const { agent: activeAgent } = useActiveAgent()
+  // undefined = session not yet initialized, null = initialized but no sessions
+  const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
+  const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
+  const { isLoading: isAgentsLoading, agents } = useAgents()
+  const { apiServerRunning } = useApiServer()
+
+  // Don't show select/create alerts while data is still loading
+  // !apiServerRunning: server enabled (guaranteed by AgentPage) but not yet started, SWR key is null
+  const isInitializing =
+    !apiServerRunning ||
+    isAgentsLoading ||
+    isAgentLoading ||
+    !isSessionInitialized ||
+    (!activeAgentId && agents.length > 0)
 
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
@@ -42,30 +57,29 @@ const AgentChat: FC = () => {
           <QuickPanelProvider>
             {activeAgent && <AgentChatNavbar activeAgent={activeAgent} />}
             <div className="flex flex-1 flex-col justify-between">
-              {!activeAgentId && (
+              {isInitializing && (
+                <div className="flex h-full w-full items-center justify-center">
+                  <Spin />
+                </div>
+              )}
+              {!isInitializing && !activeAgentId && (
                 <div className="flex h-full w-full items-center justify-center">
                   <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
                 </div>
               )}
-              {activeAgentId && !activeSessionId && (
+              {!isInitializing && activeAgentId && !activeSessionId && (
                 <div className="flex h-full w-full items-center justify-center">
                   <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
                 </div>
               )}
               {activeAgentId && activeSessionId && (
                 <>
-                  {!apiServer.enabled ? (
-                    <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
-                  ) : (
-                    <>
-                      <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                      <div className="mt-auto px-4.5 pb-2">
-                        <NarrowLayout>
-                          <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-                        </NarrowLayout>
-                      </div>
-                    </>
-                  )}
+                  <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                  <div className="mt-auto px-4.5 pb-2">
+                    <NarrowLayout>
+                      <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+                    </NarrowLayout>
+                  </div>
                   {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                   <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
                 </>

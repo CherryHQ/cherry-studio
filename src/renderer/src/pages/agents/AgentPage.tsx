@@ -4,9 +4,11 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { Alert } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useActiveAgent } from '../home/Tabs/hooks/useActiveAgent'
 import AgentChat from './AgentChat'
@@ -14,10 +16,11 @@ import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
 
 const AgentPage: FC = () => {
+  const { t } = useTranslation()
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()
   const { showTopics } = useShowTopics()
-  const { topicPosition } = useSettings()
+  const { topicPosition, apiServer } = useSettings()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { agents } = useAgents()
@@ -37,6 +40,19 @@ const AgentPage: FC = () => {
       window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
+
+  if (!apiServer.enabled) {
+    return (
+      <div
+        id="agent-page"
+        className="flex flex-1 flex-col"
+        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
+        <div className="flex flex-1 items-center justify-center">
+          <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
