@@ -280,14 +280,12 @@ export async function fetchChatCompletion({
 }
 
 export async function fetchMessagesSummary({
-  messages,
-  assistant
+  messages
 }: {
   messages: Message[]
-  assistant: Assistant
 }): Promise<{ text: string | null; error?: string }> {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getQuickModel() || assistant?.model || getDefaultModel()
+  const model = getQuickModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -335,25 +333,17 @@ export async function fetchMessagesSummary({
   })
   const conversation = JSON.stringify(structredMessages)
 
-  // // 复制 assistant 对象，并强制关闭思考预算
-  // const summaryAssistant = {
-  //   ...assistant,
-  //   settings: {
-  //     ...assistant.settings,
-  //     reasoning_effort: undefined,
-  //     qwenThinkMode: false
-  //   }
-  // }
+  const defaultAssistant = getDefaultAssistant()
   const summaryAssistant = {
-    ...assistant,
+    ...defaultAssistant,
     settings: {
-      ...assistant.settings,
-      reasoning_effort: undefined,
+      ...defaultAssistant.settings,
+      reasoning_effort: 'none',
       qwenThinkMode: false
     },
     prompt,
     model
-  }
+  } satisfies Assistant
 
   const { providerOptions, standardParams } = buildProviderOptions(summaryAssistant, model, actualProvider, {
     enableReasoning: false,
