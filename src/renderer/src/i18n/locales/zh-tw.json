@@ -2579,6 +2579,11 @@
     },
     "install_progress": "安裝進度",
     "installed_at": "OpenClaw 安裝路徑",
+    "migration": {
+      "description": "偵測到透過 npm 安裝的舊版本 OpenClaw，請重新安裝以取得最新官方版本。",
+      "install_button": "重新安裝 OpenClaw",
+      "title": "OpenClaw 需要更新"
+    },
     "model_config": {
       "auth_token": "認證令牌",
       "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
@@ -2614,6 +2619,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "檢查更新",
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",
       "uninstall": "解除安裝",
@@ -2640,6 +2646,12 @@
     "uninstalling": {
       "description": "請稍候，正在解除安裝 OpenClaw...",
       "title": "解除安裝 OpenClaw"
+    },
+    "update": {
+      "available": "發現新版本：v{{latest}}（目前版本：v{{current}}）",
+      "checking": "正在檢查更新...",
+      "failed": "檢查更新失敗",
+      "up_to_date": "已是最新版本（v{{current}}）"
     }
   },
   "ovms": {
