@@ -49,7 +49,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
-  const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const isUserMessage = message.role === 'user'
@@ -136,14 +136,14 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         extensions,
         setFiles,
         undefined, // 不需要setText
-        false, // 不需要 pasteLongTextAsFile
+        pasteLongTextAsFile,
         pasteLongTextThreshold,
         undefined, // 不需要text
         undefined, // 不需要 resizeTextArea
         t
       )
     },
-    [extensions, pasteLongTextThreshold, t]
+    [extensions, pasteLongTextThreshold, t, pasteLongTextAsFile]
   )
 
   // 添加全局粘贴事件处理

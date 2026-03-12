@@ -7,7 +7,9 @@
         "invalid_agent": "无效的 Agent"
       },
       "model": {
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+        "supported_providers": "支持的服务商",
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。",
+        "view_providers": "查看支持的服务商"
       },
       "title": "添加 Agent",
       "type": {
@@ -135,6 +137,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "为智能体运行时设置自定义环境变量。",
+          "helper": "输入自定义环境变量（每行一个，格式：KEY=value）",
+          "label": "环境变量"
+        },
         "maxTurns": {
           "description": "设定代理自动执行的请求/回复轮次数。",
           "helper": "数值越高可自主运行越久；数值越低更易控制。",
@@ -284,7 +291,7 @@
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "预授权工具"
         }
       }
     },
@@ -321,7 +328,7 @@
       "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待审批",
       "permissionExpired": "权限请求已过期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要更高权限。",
       "suggestion": {
@@ -2147,6 +2154,7 @@
     "tools": {
       "abort_failed": "工具调用中断失败",
       "aborted": "工具调用已中断",
+      "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -4856,6 +4864,7 @@
         "logout_failed": "退出登录失败，请重试",
         "logout_success": "成功退出 Anthropic 登录",
         "oauth": "网页 OAuth",
+        "oauth_disabled_warning": "Anthropic 目前已暂停通过 OAuth 使用 Claude，此认证方式暂时不可用，请先使用 API 密钥。",
         "start_auth": "开始授权",
         "submit_code": "完成登录"
       },
@@ -5016,6 +5025,11 @@
       },
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
+      "filter": {
+        "agent": "支持 Agent",
+        "all": "全部服务商"
+      },
+      "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
       "no_models_for_check": "没有可以被检测的模型（例如对话模型）",

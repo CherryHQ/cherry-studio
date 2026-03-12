@@ -135,6 +135,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Setați variabile de mediu personalizate pentru runtime-ul agentului.",
+          "helper": "Introduceți variabile de mediu personalizate (una pe linie, format: CHEIE=valoare)",
+          "label": "Variabile de mediu"
+        },
         "maxTurns": {
           "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
           "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",
@@ -284,7 +289,7 @@
         },
         "tab": "Unelte",
         "tools": {
-          "title": "Unelte"
+          "title": "Instrumente pre-aprobate"
         }
       }
     },
@@ -2147,6 +2152,7 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
+      "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
       "completed": "Finalizat",
@@ -2521,9 +2527,9 @@
   "notification": {
     "assistant": "Răspuns asistent",
     "knowledge": {
-      "batch_error": "[to be translated]:{{failed}} items failed to process",
-      "batch_mixed": "[to be translated]:{{succeeded}} items succeeded, {{failed}} items failed",
-      "batch_success": "[to be translated]:{{succeeded}} items processed successfully",
+      "batch_error": "{{failed}} elemente nu au putut fi procesate",
+      "batch_mixed": "{{succeeded}} elemente au reușit, {{failed}} elemente au eșuat",
+      "batch_success": "{{succeeded}} elemente procesate cu succes",
       "error": "{{error}}",
       "success": "S-a adăugat cu succes {{type}} în baza de cunoștințe"
     },
@@ -4856,6 +4862,7 @@
         "logout_failed": "Deconectarea a eșuat, te rugăm să încerci din nou",
         "logout_success": "Te-ai deconectat cu succes de la Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic a suspendat temporar utilizarea Claude prin OAuth. Această metodă de autentificare este momentan indisponibilă. Vă rugăm să utilizați o cheie API deocamdată.",
         "start_auth": "Începe autorizarea",
         "submit_code": "Finalizează conectarea"
       },

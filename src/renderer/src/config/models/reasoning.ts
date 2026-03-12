@@ -9,11 +9,11 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
+  isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT51CodexMaxModel,
   isGPT51SeriesModel,
-  isGPT52ProModel,
   isGPT52SeriesModel,
   isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
@@ -40,21 +40,32 @@ export const REASONING_REGEX =
 // TODO: refactor this. too many identical options
 export const MODEL_SUPPORTED_REASONING_EFFORT = {
   default: ['low', 'medium', 'high'] as const,
+  // Constrains effort on reasoning for reasoning models. Currently supported values are (none, minimal, low, medium, high, and xhigh).
+  // Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.
+  // • (gpt-5.1) defaults to none, which does not perform reasoning.
+  //   The supported reasoning values for (gpt-5.1) are (none, low, medium, and high). Tool calls are supported for all reasoning values in (gpt-5.1).
+  // • All models before (gpt-5.1) default to medium reasoning effort, and do not support (none).
+  // • The (gpt-5-pro) model defaults to (and only supports) (high reasoning effort).
+  // • xhigh is supported for all models after (gpt-5.1-codex-max).
   o: ['low', 'medium', 'high'] as const,
   openai_deep_research: ['medium'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
-  gpt5_1_codex: ['none', 'medium', 'high'] as const,
-  gpt5_1_codex_max: ['none', 'medium', 'high', 'xhigh'] as const,
+  gpt5_1_codex: ['medium', 'high'] as const,
+  gpt5_1_codex_max: ['medium', 'high', 'xhigh'] as const,
+  gpt5_2_codex: ['low', 'medium', 'high', 'xhigh'] as const,
+  // Fallback for GPT-5.2+ base models and GPT-5.3+ codex models
   gpt5_2: ['none', 'low', 'medium', 'high', 'xhigh'] as const,
   gpt5pro: ['high'] as const,
+  // Fallback for GPT-5.2+ pro models
   gpt52pro: ['medium', 'high', 'xhigh'] as const,
   gpt_oss: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini2_flash: ['low', 'medium', 'high', 'auto'] as const,
   gemini2_pro: ['low', 'medium', 'high', 'auto'] as const,
+  // Also Gemini 3.1 Flash(-lite)
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
@@ -83,6 +94,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex] as const,
   gpt5_1: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1] as const,
   gpt5_1_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex] as const,
+  gpt5_2_codex: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2_codex] as const,
   gpt5_2: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_2] as const,
   gpt5_1_codex_max: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex_max] as const,
   gpt52pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gpt52pro] as const,
@@ -114,27 +126,33 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
-  } else if (isGPT51SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_1_codex'
-      if (isGPT51CodexMaxModel(model)) {
-        thinkingModelType = 'gpt5_1_codex_max'
+  } else if (isGPT5FamilyModel(model)) {
+    if (isGPT51SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_1_codex'
+        if (isGPT51CodexMaxModel(model)) {
+          thinkingModelType = 'gpt5_1_codex_max'
+        }
+      } else {
+        thinkingModelType = 'gpt5_1'
+      }
+    } else if (isGPT52SeriesModel(model) && modelId.includes('codex')) {
+      thinkingModelType = 'gpt5_2_codex'
+    } else if (isGPT5SeriesModel(model)) {
+      if (modelId.includes('codex')) {
+        thinkingModelType = 'gpt5_codex'
+      } else {
+        thinkingModelType = 'gpt5'
+        if (isGPT5ProModel(model)) {
+          thinkingModelType = 'gpt5pro'
+        }
       }
     } else {
-      thinkingModelType = 'gpt5_1'
-    }
-  } else if (isGPT52SeriesModel(model)) {
-    thinkingModelType = 'gpt5_2'
-    if (isGPT52ProModel(model)) {
-      thinkingModelType = 'gpt52pro'
-    }
-  } else if (isGPT5SeriesModel(model)) {
-    if (modelId.includes('codex')) {
-      thinkingModelType = 'gpt5_codex'
-    } else {
-      thinkingModelType = 'gpt5'
-      if (isGPT5ProModel(model)) {
-        thinkingModelType = 'gpt5pro'
+      // GPT-5.2+ non-codex models (also serves as fallback for unknown future sub-versions)
+      if (modelId.includes('-pro')) {
+        thinkingModelType = 'gpt52pro'
+      } else {
+        thinkingModelType = 'gpt5_2'
       }
     }
   } else if (isOpenAIOpenWeightModel(model)) {

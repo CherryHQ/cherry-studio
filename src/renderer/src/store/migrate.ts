@@ -3258,13 +3258,26 @@ const migrateConfig = {
   },
   '200': (state: RootState) => {
     try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.grok) {
+          provider.type = 'openai-response'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 200 error', error as Error)
+      return state
+    }
+  },
+  '201': (state: RootState) => {
+    try {
       const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
       if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
         filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
       }
       return state
     } catch (error) {
-      logger.error('migrate 200 error', error as Error)
+      logger.error('migrate 201 error', error as Error)
       return state
     }
   }

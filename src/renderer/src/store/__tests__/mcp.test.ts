@@ -11,9 +11,9 @@ describe('MCP filesystem defaults', () => {
     expect(filesystemServer?.disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
   })
 
-  describe('migration 200: filesystem approval backfill', () => {
-    // Isolated migration function matching the logic in migrate.ts version 200
-    const migrate200 = (state: any) => {
+  describe('migration 201: filesystem approval backfill', () => {
+    // Isolated migration function matching the logic in migrate.ts version 201
+    const migrate201 = (state: any) => {
       const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
       if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
         filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
@@ -21,7 +21,7 @@ describe('MCP filesystem defaults', () => {
       return state
     }
 
-    const migrate = createMigrate({ '200': migrate200 as any })
+    const migrate = createMigrate({ '201': migrate201 as any })
 
     it('backfills manual approval defaults for existing filesystem servers', async () => {
       const state = {
@@ -36,10 +36,10 @@ describe('MCP filesystem defaults', () => {
             }
           ]
         },
-        _persist: { version: 199, rehydrated: false }
+        _persist: { version: 200, rehydrated: false }
       }
 
-      const migrated: any = await migrate(state, 200)
+      const migrated: any = await migrate(state, 201)
 
       expect(migrated.mcp.servers[0].disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
     })
@@ -58,10 +58,10 @@ describe('MCP filesystem defaults', () => {
             }
           ]
         },
-        _persist: { version: 199, rehydrated: false }
+        _persist: { version: 200, rehydrated: false }
       }
 
-      const migrated: any = await migrate(state, 200)
+      const migrated: any = await migrate(state, 201)
 
       expect(migrated.mcp.servers[0].disabledAutoApproveTools).toEqual(['write'])
     })
