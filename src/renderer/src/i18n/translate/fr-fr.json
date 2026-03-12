@@ -2579,6 +2579,11 @@
     },
     "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
+    "migration": {
+      "description": "[to be translated]:An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "[to be translated]:Reinstall OpenClaw",
+      "title": "[to be translated]:OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Jeton d'authentification",
       "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",
@@ -2614,6 +2619,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "[to be translated]:Check for Updates",
       "open_dashboard": "Ouvrir le tableau de bord",
       "title": "Actions rapides",
       "uninstall": "Désinstaller",
@@ -2640,6 +2646,12 @@
     "uninstalling": {
       "description": "Veuillez patienter pendant la désinstallation d'OpenClaw...",
       "title": "Désinstallation d'OpenClaw"
+    },
+    "update": {
+      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
+      "checking": "[to be translated]:Checking for updates...",
+      "failed": "[to be translated]:Failed to check for updates",
+      "up_to_date": "[to be translated]:Already up to date (v{{current}})"
     }
   },
   "ovms": {

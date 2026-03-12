@@ -15,7 +15,7 @@ import {
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
-import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
+import { ArrowUpCircle, Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,6 +71,7 @@ const OpenClawPage: FC = () => {
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
+  const [needsMigration, setNeedsMigration] = useState(false)
   const [installPath, setInstallPath] = useState<string | null>(null)
   const [installError, setInstallError] = useState<string | null>(null)
 
@@ -85,6 +86,13 @@ const OpenClawPage: FC = () => {
   const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
   const [showLogs, setShowLogs] = useState(false)
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<{
+    hasUpdate: boolean
+    currentVersion: string | null
+    latestVersion: string | null
+    message?: string
+  } | null>(null)
 
   const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
   const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
@@ -121,6 +129,7 @@ const OpenClawPage: FC = () => {
     try {
       const result = await window.api.openclaw.checkInstalled()
       setIsInstalled(result.installed)
+      setNeedsMigration(result.needsMigration)
       setShowLogs(false)
       setInstallPath(result.path)
     } catch (err) {
@@ -185,6 +194,36 @@ const OpenClawPage: FC = () => {
     }
   }, [uninstallSuccess])
 
+  const handleCheckUpdate = useCallback(async () => {
+    setUpdateInfo(null)
+    try {
+      const result = await window.api.openclaw.checkUpdate()
+      setUpdateInfo(result)
+    } catch (err) {
+      logger.error('Failed to check for updates', err as Error)
+    }
+  }, [])
+
+  const handlePerformUpdate = useCallback(async () => {
+    setIsUpdating(true)
+    setInstallLogs([])
+    setShowLogs(true)
+    try {
+      const result = await window.api.openclaw.performUpdate()
+      if (result.success) {
+        setUpdateInfo(null)
+        await checkInstallation()
+      } else {
+        setInstallError(result.message)
+      }
+    } catch (err) {
+      logger.error('Failed to update OpenClaw', err as Error)
+      setInstallError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [checkInstallation])
+
   const fetchStatus = useCallback(async () => {
     try {
       const status = await window.api.openclaw.getStatus()
@@ -206,6 +245,13 @@ const OpenClawPage: FC = () => {
   useEffect(() => {
     checkInstallation()
   }, [checkInstallation])
+
+  // Auto-check for updates when installed and page is loaded
+  useEffect(() => {
+    if (pageState === 'installed') {
+      handleCheckUpdate()
+    }
+  }, [pageState, handleCheckUpdate])
 
   // Listen for install progress events
   useEffect(() => {
@@ -366,8 +412,8 @@ const OpenClawPage: FC = () => {
       <div className="mx-auto min-h-fit w-130 shrink-0">
         <Result
           icon={<Avatar src={OpenClawLogo} size={64} shape="square" style={{ borderRadius: 12 }} />}
-          title={t('openclaw.not_installed.title')}
-          subTitle={t('openclaw.not_installed.description')}
+          title={t(needsMigration ? 'openclaw.migration.title' : 'openclaw.not_installed.title')}
+          subTitle={t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
           extra={
             <Space>
               <Button
@@ -376,7 +422,7 @@ const OpenClawPage: FC = () => {
                 disabled={isInstalling}
                 onClick={handleInstall}
                 loading={isInstalling}>
-                {t('openclaw.not_installed.install_button')}
+                {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
               </Button>
               <Button
                 icon={<ExternalLink size={16} />}
@@ -442,6 +488,29 @@ const OpenClawPage: FC = () => {
               onClick={handleUninstall}>
               {t('openclaw.quick_actions.uninstall')}
             </span>
+          </div>
+        )}
+
+        {/* Update Available Alert */}
+        {updateInfo?.hasUpdate && gatewayStatus !== 'running' && !isRestarting && (
+          <div className="mb-6">
+            <Alert
+              message={t('openclaw.update.available', {
+                latest: updateInfo.latestVersion,
+                current: updateInfo.currentVersion
+              })}
+              type="info"
+              showIcon
+              icon={<ArrowUpCircle size={16} />}
+              closable
+              onClose={() => setUpdateInfo(null)}
+              action={
+                <Button size="small" type="primary" onClick={handlePerformUpdate} loading={isUpdating}>
+                  {t('openclaw.migration.install_button')}
+                </Button>
+              }
+              className="rounded-lg!"
+            />
           </div>
         )}
 

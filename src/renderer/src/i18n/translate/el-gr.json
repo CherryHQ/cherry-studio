@@ -2579,6 +2579,11 @@
     },
     "install_progress": "Πρόοδος Εγκατάστασης",
     "installed_at": "Το OpenClaw εγκαταστάθηκε στο",
+    "migration": {
+      "description": "[to be translated]:An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "[to be translated]:Reinstall OpenClaw",
+      "title": "[to be translated]:OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Διακριτικό Πιστοποίησης",
       "auth_token_hint": "Διακριτικό για έλεγχο ταυτότητας πύλης. Αφήστε το κενό για να απενεργοποιήσετε τον έλεγχο ταυτότητας.",
@@ -2614,6 +2619,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "[to be translated]:Check for Updates",
       "open_dashboard": "Άνοιγμα Πίνακα Ελέγχου",
       "title": "Γρήγορες Ενέργειες",
       "uninstall": "Απεγκατάσταση",
@@ -2640,6 +2646,12 @@
     "uninstalling": {
       "description": "Παρακαλώ περιμένετε ενώ γίνεται η απεγκατάσταση του OpenClaw...",
       "title": "Απεγκατάσταση του OpenClaw"
+    },
+    "update": {
+      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
+      "checking": "[to be translated]:Checking for updates...",
+      "failed": "[to be translated]:Failed to check for updates",
+      "up_to_date": "[to be translated]:Already up to date (v{{current}})"
     }
   },
   "ovms": {
