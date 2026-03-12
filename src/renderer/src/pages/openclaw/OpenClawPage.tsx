@@ -2,6 +2,7 @@ import OpenClawLogo from '@renderer/assets/images/providers/openclaw.svg'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
 import ModelSelector from '@renderer/components/ModelSelector'
+import { isLLMModel, isVisionModel } from '@renderer/config/models'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -11,7 +12,8 @@ import {
   type HealthInfo,
   setGatewayStatus,
   setLastHealthCheck,
-  setSelectedModelUniqId
+  setSelectedModelUniqId,
+  setSelectedVisionModelUniqId
 } from '@renderer/store/openclaw'
 import type { NodeCheckResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -77,7 +79,8 @@ const OpenClawPage: FC = () => {
     return DEFAULT_DOCS_URL
   }, [i18n.language])
 
-  const { gatewayStatus, gatewayPort, selectedModelUniqId, lastHealthCheck } = useAppSelector((state) => state.openclaw)
+  const { gatewayStatus, gatewayPort, selectedModelUniqId, selectedVisionModelUniqId, lastHealthCheck } =
+    useAppSelector((state) => state.openclaw)
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
@@ -168,8 +171,25 @@ const OpenClawPage: FC = () => {
     return null
   }, [selectedModelUniqId, availableProviders])
 
+  const selectedVisionModelInfo = useMemo(() => {
+    if (!selectedVisionModelUniqId) return null
+    try {
+      const parsed = JSON.parse(selectedVisionModelUniqId) as { id: string; provider: string }
+      for (const p of availableProviders) {
+        const model = p.models.find((m) => m.id === parsed.id && m.provider === parsed.provider)
+        if (model) {
+          return { provider: p, model }
+        }
+      }
+    } catch {
+      // Invalid JSON
+    }
+    return null
+  }, [selectedVisionModelUniqId, availableProviders])
+
   const selectedProvider = selectedModelInfo?.provider ?? null
   const selectedModel = selectedModelInfo?.model ?? null
+  const selectedVisionModel = selectedVisionModelInfo?.model ?? null
 
   type PageState = 'checking' | 'not_installed' | 'installed' | 'installing' | 'uninstalling'
   const pageState: PageState = useMemo(() => {
@@ -332,8 +352,16 @@ const OpenClawPage: FC = () => {
     return () => clearInterval(interval)
   }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, pageState])
 
+  const needsVisionModel = useMemo(() => {
+    return selectedModel ? !isVisionModel(selectedModel) : false
+  }, [selectedModel])
+
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))
+  }
+
+  const handleVisionModelSelect = (modelUniqId: string) => {
+    dispatch(setSelectedVisionModelUniqId(modelUniqId))
   }
 
   const handleStartGateway = async () => {
@@ -347,7 +375,11 @@ const OpenClawPage: FC = () => {
 
     try {
       // First sync the configuration (auth token will be auto-generated in main process)
-      const syncResult = await window.api.openclaw.syncConfig(selectedProvider, selectedModel)
+      const syncResult = await window.api.openclaw.syncConfig(
+        selectedProvider,
+        selectedModel,
+        needsVisionModel ? (selectedVisionModel ?? undefined) : undefined
+      )
       if (!syncResult.success) {
         setError(syncResult.message)
         return
@@ -680,6 +712,7 @@ const OpenClawPage: FC = () => {
               style={{ width: '100%' }}
               placeholder={t('openclaw.model_config.select_model')}
               providers={availableProviders}
+              predicate={isLLMModel}
               value={selectedModelUniqId}
               onChange={handleModelSelect}
               grouped
@@ -689,6 +722,31 @@ const OpenClawPage: FC = () => {
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
               {t('openclaw.model_config.sync_hint')}
             </div>
+
+            {/* Vision Model Selector - show when primary model does not support vision */}
+            {needsVisionModel && (
+              <div className="mt-4">
+                <div
+                  className="mb-2 flex items-center gap-2 font-medium text-sm"
+                  style={{ color: 'var(--color-text-1)' }}>
+                  {t('openclaw.model_config.vision_model')}
+                </div>
+                <ModelSelector
+                  style={{ width: '100%' }}
+                  placeholder={t('openclaw.model_config.select_vision_model')}
+                  providers={availableProviders}
+                  predicate={isVisionModel}
+                  value={selectedVisionModelUniqId}
+                  onChange={handleVisionModelSelect}
+                  grouped
+                  showAvatar
+                  showSuffix
+                />
+                <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
+                  {t('openclaw.model_config.vision_model_hint')}
+                </div>
+              </div>
+            )}
 
             {/* Tips about OpenClaw */}
             <div

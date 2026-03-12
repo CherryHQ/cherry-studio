@@ -2603,8 +2603,11 @@
       "provider": "Anbieter",
       "select_model": "Wählen Sie ein Modell",
       "select_provider": "Wählen Sie einen Anbieter",
+      "select_vision_model": "[to be translated]:Select a vision model",
       "sync_hint": "Ausgewählter Anbieter und Modell werden in die OpenClaw-Konfigurationsdatei synchronisiert",
-      "title": "Modellkonfiguration"
+      "title": "Modellkonfiguration",
+      "vision_model": "[to be translated]:Vision Model",
+      "vision_model_hint": "[to be translated]:The selected model does not support image recognition. You can select a vision model as a fallback."
     },
     "node_missing": {
       "description": "OpenClaw benötigt Node.js 22+. Bitte installiere zuerst Node.js und klicke dann erneut auf Installieren.",

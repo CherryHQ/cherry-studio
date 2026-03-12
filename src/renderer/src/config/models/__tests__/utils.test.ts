@@ -17,7 +17,6 @@ import {
 } from '../openai'
 import { isQwenMTModel } from '../qwen'
 import {
-  agentModelFilter,
   getModelSupportedVerbosity,
   groupQwenModels,
   isAnthropicModel,
@@ -28,6 +27,7 @@ import {
   isGeminiModel,
   isGemmaModel,
   isGenerateImageModels,
+  isLLMModel,
   isMaxTemperatureOneModel,
   isNotSupportSystemMessageModel,
   isNotSupportTextDeltaModel,
@@ -733,26 +733,26 @@ describe('model utils', () => {
       })
     })
 
-    describe('agentModelFilter', () => {
+    describe('isLLMModel', () => {
       it('returns true for regular models', () => {
-        expect(agentModelFilter(createModel())).toBe(true)
+        expect(isLLMModel(createModel())).toBe(true)
       })
 
       it('filters out embedding models', () => {
         embeddingMock.mockReturnValueOnce(true)
-        expect(agentModelFilter(createModel({ id: 'text-embedding' }))).toBe(false)
+        expect(isLLMModel(createModel({ id: 'text-embedding' }))).toBe(false)
       })
 
       it('filters out rerank models', () => {
         embeddingMock.mockReturnValue(false)
         rerankMock.mockReturnValueOnce(true)
-        expect(agentModelFilter(createModel({ id: 'rerank' }))).toBe(false)
+        expect(isLLMModel(createModel({ id: 'rerank' }))).toBe(false)
       })
 
       it('filters out text-to-image models', () => {
         rerankMock.mockReturnValue(false)
         textToImageMock.mockReturnValueOnce(true)
-        expect(agentModelFilter(createModel({ id: 'gpt-image-1' }))).toBe(false)
+        expect(isLLMModel(createModel({ id: 'gpt-image-1' }))).toBe(false)
       })
     })
   })

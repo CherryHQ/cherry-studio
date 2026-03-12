@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent."
+        "supported_providers": "[to be translated]:Supported Providers",
+        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
+        "view_providers": "[to be translated]:View supported providers"
       },
       "title": "Adaugă agent",
       "type": {
@@ -2601,8 +2603,11 @@
       "provider": "Furnizor",
       "select_model": "Selectați un model",
       "select_provider": "Selectați un furnizor",
+      "select_vision_model": "[to be translated]:Select a vision model",
       "sync_hint": "Furnizorul și modelul selectate vor fi sincronizate în fișierul de configurare OpenClaw.",
-      "title": "Configurare model"
+      "title": "Configurare model",
+      "vision_model": "[to be translated]:Vision Model",
+      "vision_model_hint": "[to be translated]:The selected model does not support image recognition. You can select a vision model as a fallback."
     },
     "node_missing": {
       "description": "OpenClaw necesită Node.js 22+. Te rugăm să instalezi mai întâi Node.js, apoi apasă din nou pe Instalare.",
@@ -5028,6 +5033,11 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "filter": {
+        "agent": "[to be translated]:Agent Supported",
+        "all": "[to be translated]:All Providers"
+      },
+      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",

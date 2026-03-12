@@ -59,6 +59,7 @@ export interface OpenClawConfig {
       model?: {
         primary?: string
       }
+      imageModel?: string
     }
   }
   models?: {
@@ -768,7 +769,8 @@ class OpenClawService {
   public async syncProviderConfig(
     _: Electron.IpcMainInvokeEvent,
     provider: Provider,
-    primaryModel: Model
+    primaryModel: Model,
+    visionModel?: Model
   ): Promise<{ success: boolean; message: string }> {
     try {
       // Ensure config directory exists
@@ -849,11 +851,16 @@ class OpenClawService {
       config.models.providers = config.models.providers || {}
       config.models.providers[providerKey] = openclawProvider
 
-      // Set primary model
+      // Set primary model and optional image model
       config.agents = config.agents || { defaults: {} }
       config.agents.defaults = config.agents.defaults || {}
       config.agents.defaults.model = {
         primary: `${providerKey}/${primaryModel.id}`
+      }
+      if (visionModel) {
+        config.agents.defaults.imageModel = `${providerKey}/${visionModel.id}`
+      } else {
+        delete config.agents.defaults.imageModel
       }
 
       // Write config file

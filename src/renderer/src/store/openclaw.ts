@@ -23,6 +23,7 @@ export interface OpenClawState {
   channels: ChannelInfo[]
   lastHealthCheck: HealthInfo | null
   selectedModelUniqId: string | null
+  selectedVisionModelUniqId: string | null
 }
 
 export const initialState: OpenClawState = {
@@ -30,7 +31,8 @@ export const initialState: OpenClawState = {
   gatewayPort: 18790,
   channels: [],
   lastHealthCheck: null,
-  selectedModelUniqId: null
+  selectedModelUniqId: null,
+  selectedVisionModelUniqId: null
 }
 
 const openClawSlice = createSlice({
@@ -52,6 +54,9 @@ const openClawSlice = createSlice({
     setSelectedModelUniqId: (state, action: PayloadAction<string | null>) => {
       state.selectedModelUniqId = action.payload
     },
+    setSelectedVisionModelUniqId: (state, action: PayloadAction<string | null>) => {
+      state.selectedVisionModelUniqId = action.payload
+    },
     resetOpenClaw: () => {
       return initialState
     }
@@ -64,6 +69,7 @@ export const {
   setChannels,
   setLastHealthCheck,
   setSelectedModelUniqId,
+  setSelectedVisionModelUniqId,
   resetOpenClaw
 } = openClawSlice.actions
 
