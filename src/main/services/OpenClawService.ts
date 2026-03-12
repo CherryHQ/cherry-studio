@@ -549,15 +549,38 @@ class OpenClawService {
   }
 
   /**
-   * Get OpenClaw Dashboard URL (for opening in minapp)
+   * Get OpenClaw Dashboard URL (for opening in minapp).
+   * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
    */
   public getDashboardUrl(): string {
-    let dashboardUrl = `http://localhost:${this.gatewayPort}`
-    // Include auth token in URL for dashboard authentication
-    if (this.gatewayAuthToken) {
-      dashboardUrl += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
+    // Ensure we have the token (may have been lost after app restart)
+    if (!this.gatewayAuthToken) {
+      this.loadAuthTokenFromConfig()
     }
-    return dashboardUrl
+    let url = `http://127.0.0.1:${this.gatewayPort}`
+    if (this.gatewayAuthToken) {
+      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+    }
+    return url
+  }
+
+  /**
+   * Load auth token from the config file (for recovery after app restart).
+   */
+  private loadAuthTokenFromConfig(): void {
+    try {
+      if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+        const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
+        const config = JSON.parse(content) as OpenClawConfig
+        const token = config.gateway?.auth?.token
+        if (token) {
+          this.gatewayAuthToken = token
+          logger.info('Recovered auth token from config file')
+        }
+      }
+    } catch {
+      logger.debug('Failed to load auth token from config file')
+    }
   }
 
   /**
