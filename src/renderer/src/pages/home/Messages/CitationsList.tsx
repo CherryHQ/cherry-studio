@@ -3,7 +3,7 @@ import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Citation } from '@renderer/types'
-import { fetchWebContent } from '@renderer/utils/fetch'
+import { fetchWebContent, fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Button, message, Popover, Skeleton } from 'antd'
@@ -137,16 +137,34 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
+
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
     queryFn: async () => {
       if (!citation.url) return ''
+      if (isXPost) {
+        const oembed = await fetchXOEmbed(citation.url)
+        if (oembed) {
+          return `@${oembed.author}: ${oembed.text}`
+        }
+        return ''
+      }
       const res = await fetchWebContent(citation.url, 'markdown')
       return cleanMarkdownContent(res.content)
     },
     enabled: Boolean(citation.url),
     select: (content) => truncateText(content, 100)
   })
+
+  const { data: oembedData } = useQuery({
+    queryKey: ['xOembed', citation.url],
+    queryFn: () => fetchXOEmbed(citation.url!),
+    enabled: isXPost && Boolean(citation.url),
+    staleTime: Infinity
+  })
+
+  const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
 
   return (
     <ContextMenu>
@@ -156,7 +174,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-            {citation.title || <span className="hostname">{citation.hostname}</span>}
+            {displayTitle || <span className="hostname">{citation.hostname}</span>}
           </CitationLink>
 
           <CitationIndex>{citation.number}</CitationIndex>

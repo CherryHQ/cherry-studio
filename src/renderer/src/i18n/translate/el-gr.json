@@ -7,7 +7,9 @@
         "invalid_agent": "Μη έγκυρος Agent"
       },
       "model": {
-        "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent."
+        "supported_providers": "Υποστηριζόμενοι Πάροχοι",
+        "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent.",
+        "view_providers": "Δείτε τους υποστηριζόμενους παρόχους"
       },
       "title": "Προσθήκη Agent",
       "type": {
@@ -135,6 +137,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Ορίστε προσαρμοσμένες μεταβλητές περιβάλλοντος για τη χρόνο εκτέλεσης του πράκτορα.",
+          "helper": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, μορφή: ΚΛΕΙΔΙ=τιμή)",
+          "label": "Μεταβλητές Περιβάλλοντος"
+        },
         "maxTurns": {
           "description": "Ορίστε τον αριθμό γύρων αιτήματος/απάντησης που θα εκτελούνται αυτόματα από τον διαμεσολαβητή.",
           "helper": "Όσο υψηλότερη είναι η τιμή, τόσο περισσότερο μπορεί να λειτουργεί αυτόνομα· όσο χαμηλότερη είναι, τόσο πιο εύκολα ελέγχεται.",
@@ -284,7 +291,7 @@
         },
         "tab": "Εργαλεία",
         "tools": {
-          "title": "Εργαλεία"
+          "title": "Προεγκεκριμένα εργαλεία"
         }
       }
     },
@@ -2147,6 +2154,7 @@
     "tools": {
       "abort_failed": "Αποτυχία διακοπής κλήσης εργαλείου",
       "aborted": "Η κλήση του εργαλείου διακόπηκε",
+      "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
@@ -2282,8 +2290,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2521,9 +2532,9 @@
   "notification": {
     "assistant": "Απάντηση Βοηθού",
     "knowledge": {
-      "batch_error": "[to be translated]:{{failed}} items failed to process",
-      "batch_mixed": "[to be translated]:{{succeeded}} items succeeded, {{failed}} items failed",
-      "batch_success": "[to be translated]:{{succeeded}} items processed successfully",
+      "batch_error": "{{failed}} στοιχεία απέτυχαν να επεξεργαστούν",
+      "batch_mixed": "{{succeeded}} στοιχεία πέτυχαν, {{failed}} στοιχεία απέτυχαν",
+      "batch_success": "{{succeeded}} στοιχεία επεξεργάστηκαν με επιτυχία",
       "error": "{{error}}",
       "success": "Επιτυχής προσθήκη {{type}} στη βάση γνώσης"
     },
@@ -3044,7 +3055,8 @@
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Magpie",
     "moonshot": "Σκοτεινή Κορωνίδα της Σελήνης",
@@ -3072,6 +3084,7 @@
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
+    "zai": "Ζ.ai",
     "zhinao": "360 Intelligent Brain",
     "zhipu": "BigModel"
   },
@@ -4856,6 +4869,7 @@
         "logout_failed": "Η αποσύνδεση απέτυχε, δοκιμάστε ξανά.",
         "logout_success": "Επιτυχής αποσύνδεση από το Anthropic",
         "oauth": "ιστοσελίδα OAuth",
+        "oauth_disabled_warning": "Η Anthropic ανέστειλε προσωρινά τη χρήση του Claude μέσω OAuth. Αυτή η μέθοδος ελέγχου ταυτότητας είναι προς το παρόν μη διαθέσιμη. Παρακαλούμε χρησιμοποιήστε ένα κλειδί API προς το παρόν.",
         "start_auth": "Έναρξη εξουσιοδότησης",
         "submit_code": "Ολοκληρώστε την σύνδεση"
       },
@@ -5016,6 +5030,11 @@
       },
       "docs_check": "Άνοιγμα",
       "docs_more_details": "Λάβετε περισσότερες λεπτομέρειες",
+      "filter": {
+        "agent": "Υποστηριζόμενος από πράκτορα",
+        "all": "Όλοι οι Πάροχοι"
+      },
+      "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
       "misc": "Άλλο",
       "no_models_for_check": "Δεν υπάρχουν μοντέλα για έλεγχο (π.χ. μοντέλα συνομιλίας)",

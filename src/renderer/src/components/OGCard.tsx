@@ -1,16 +1,14 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
-import { Skeleton, Typography } from 'antd'
-import { useCallback, useEffect, useMemo } from 'react'
-import styled from 'styled-components'
-const { Title, Paragraph } = Typography
+import { Skeleton } from 'antd'
+import { type PropsWithChildren, useCallback, useEffect, useMemo } from 'react'
+
+import MarqueeText from './MarqueeText'
 
 type Props = {
   link: string
   show: boolean
 }
-
-const IMAGE_HEIGHT = '9rem' // equals h-36
 
 export const OGCard = ({ link, show }: Props) => {
   const openGraph = ['og:title', 'og:description', 'og:image', 'og:imageAlt'] as const
@@ -35,7 +33,7 @@ export const OGCard = ({ link, show }: Props) => {
 
   const GeneratedGraph = useCallback(() => {
     return (
-      <div className="flex h-36 items-center justify-center bg-accent p-4">
+      <div className="flex h-48 items-center justify-center bg-accent p-4">
         <h2 className="font-bold text-2xl">{metadata['og:title'] || hostname}</h2>
       </div>
     )
@@ -46,51 +44,48 @@ export const OGCard = ({ link, show }: Props) => {
   }
 
   return (
-    <PreviewContainer hasImage={hasImage}>
+    <Container>
       {hasImage && (
-        <PreviewImageContainer>
-          <PreviewImage src={metadata['og:image']} alt={metadata['og:imageAlt'] || link} />
-        </PreviewImageContainer>
+        <div className="flex overflow:hidden h-48 min-h-48 items-center justify-center">
+          <img src={metadata['og:image']} alt={metadata['og:imageAlt'] || link} className="max-h-full object-contain" />
+        </div>
       )}
-      {!hasImage && (
-        <PreviewImageContainer>
-          <GeneratedGraph />
-        </PreviewImageContainer>
-      )}
+      {!hasImage && <GeneratedGraph />}
 
-      <PreviewContent>
-        <StyledHyperLink>
+      <div className="flex min-h-0 flex-col overflow-hidden p-2">
+        <div className="mb-2 flex items-center gap-2">
           {hostname && <Favicon hostname={hostname} alt={link} />}
-          <Title
-            style={{
-              margin: 0,
-              fontSize: '14px',
-              lineHeight: '1.2',
-              color: 'var(--color-text)'
-            }}>
-            {metadata['og:title'] || hostname}
-          </Title>
-        </StyledHyperLink>
-        <Paragraph
+          <MarqueeText>
+            <span className="m-0 font-black text-sm leading-tight">{metadata['og:title'] || hostname}</span>
+          </MarqueeText>
+        </div>
+
+        <div
           title={metadata['og:description'] || link}
-          ellipsis={{ rows: 2 }}
-          style={{
-            fontSize: '12px',
-            lineHeight: '1.2',
-            color: 'var(--color-text-secondary)'
-          }}>
+          className="line-clamp-3 text-(--color-text-secondary) text-xs leading-tight">
           {metadata['og:description'] || link}
-        </Paragraph>
-      </PreviewContent>
-    </PreviewContainer>
+        </div>
+      </div>
+    </Container>
+  )
+}
+
+const Container = ({ children }: PropsWithChildren<{}>) => {
+  return (
+    <div className="flex h-72 w-96 flex-col overflow-hidden rounded-lg border border-(--color-border) bg-(--color-background)">
+      {children}
+    </div>
   )
 }
 
 const CardSkeleton = () => {
   return (
-    <SkeletonContainer>
-      <Skeleton.Image style={{ width: '100%', height: 140 }} active />
+    <Container>
+      <Skeleton.Image style={{ width: '100%', height: 192 }} active />
       <Skeleton
+        style={{
+          padding: 8
+        }}
         paragraph={{
           rows: 1,
           style: {
@@ -99,56 +94,6 @@ const CardSkeleton = () => {
         }}
         active
       />
-    </SkeletonContainer>
+    </Container>
   )
 }
-
-const StyledHyperLink = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const PreviewContainer = styled.div<{ hasImage?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  width: 380px;
-  height: 220px;
-  overflow: hidden;
-`
-
-const PreviewImageContainer = styled.div`
-  width: 100%;
-  height: ${IMAGE_HEIGHT};
-  min-height: ${IMAGE_HEIGHT};
-  overflow: hidden;
-`
-
-const PreviewContent = styled.div`
-  padding: 12px 16px;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const PreviewImage = styled.img`
-  width: 100%;
-  height: ${IMAGE_HEIGHT};
-  object-fit: cover;
-`
-
-const SkeletonContainer = styled.div`
-  width: 380px;
-  height: 220px;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  gap: 16px;
-`

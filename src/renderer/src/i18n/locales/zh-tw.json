@@ -7,7 +7,9 @@
         "invalid_agent": "無效的 Agent"
       },
       "model": {
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+        "supported_providers": "支援的服務商",
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
       "type": {
@@ -135,6 +137,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "為智慧體執行環境設置自訂環境變數。",
+          "helper": "輸入自訂環境變數（每行一個，格式：KEY=value）",
+          "label": "環境變數"
+        },
         "maxTurns": {
           "description": "設定代理自動執行的請求／回覆輪次數。",
           "helper": "數值越高可自動運作越久；數值越低更容易掌控。",
@@ -284,7 +291,7 @@
         },
         "tab": "工具",
         "tools": {
-          "title": "工具"
+          "title": "預授權工具"
         }
       }
     },
@@ -321,7 +328,7 @@
       "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
-      "pending": "等待中 ({{seconds}}秒)",
+      "pending": "等待審批",
       "permissionExpired": "權限請求已過期。等待新指令...",
       "requiresElevatedPermissions": "此工具需要提升的權限。",
       "suggestion": {
@@ -2147,6 +2154,7 @@
     "tools": {
       "abort_failed": "工具呼叫中斷失敗",
       "aborted": "工具呼叫已中斷",
+      "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
       "completed": "已完成",
@@ -2283,7 +2291,10 @@
     "dangbei": "當貝 AI",
     "doubao": "豆包",
     "hailuo": "海螺",
+    "ima": "ima",
     "metaso": "秘塔 AI 搜尋",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "奈米 AI",
     "nami-ai-search": "奈米 AI 搜尋",
     "qwen": "通義千問",
@@ -3044,7 +3055,8 @@
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
     "moonshot": "月之暗面",
@@ -3072,6 +3084,7 @@
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",
     "yi": "零一萬物",
+    "zai": "Z.ai",
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
   },
@@ -4856,6 +4869,7 @@
         "logout_failed": "登出失敗，請重試",
         "logout_success": "成功登出 Anthropic",
         "oauth": "網頁 OAuth",
+        "oauth_disabled_warning": "Anthropic 已暫時中止透過 OAuth 使用 Claude。此驗證方式目前無法使用。請暫時使用 API 金鑰。",
         "start_auth": "開始授權",
         "submit_code": "完成登入"
       },
@@ -5016,6 +5030,11 @@
       },
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
+      "filter": {
+        "agent": "支援 Agent",
+        "all": "全部服務商"
+      },
+      "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
       "misc": "其他",
       "no_models_for_check": "沒有可以被檢查的模型（例如對話模型）",
