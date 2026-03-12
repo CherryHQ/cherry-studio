@@ -59,7 +59,7 @@ const AgentChat: FC = () => {
                 ) : (
                   <>
                     <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                    <div className="mt-auto px-[18px] pb-2">
+                    <div className="mt-auto px-4.5 pb-2">
                       <NarrowLayout>
                         <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
                       </NarrowLayout>
