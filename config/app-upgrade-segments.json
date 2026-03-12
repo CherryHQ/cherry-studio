@@ -1,13 +1,31 @@
 {
   "segments": [
     {
-      "id": "legacy-v1",
+      "id": "legacy-v1-locked",
       "type": "legacy",
       "match": {
-        "range": ">=1.0.0 <2.0.0"
+        "range": ">=1.0.0 <1.7.25"
       },
+      "lockedVersion": "1.7.25",
       "minCompatibleVersion": "1.0.0",
-      "description": "Last stable v1.7.x release - required intermediate version for users below v1.7",
+      "description": "Gateway version for users below v1.7.25 - locked to v1.7.25",
+      "channelTemplates": {
+        "latest": {
+          "feedTemplates": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}",
+            "gitcode": "https://releases.cherry-ai.com"
+          }
+        }
+      }
+    },
+    {
+      "id": "current-v1",
+      "type": "latest",
+      "match": {
+        "range": ">=1.7.25 <2.0.0"
+      },
+      "minCompatibleVersion": "1.7.25",
+      "description": "Current latest v1.x release for users on v1.7.25+",
       "channelTemplates": {
         "latest": {
           "feedTemplates": {
