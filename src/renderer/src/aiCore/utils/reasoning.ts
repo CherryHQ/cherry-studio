@@ -19,6 +19,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
+  isQwen35Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -42,6 +43,7 @@ import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
 
@@ -140,6 +142,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
+      }
+    }
+
+    // Qwen 3.5 without direct enable_thinking
+    // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
+    if (isQwen35Model(model)) {
+      return {
+        chat_template_kwargs: {
+          enable_thinking: false
+        }
       }
     }
 
@@ -371,11 +383,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const thinkConfig = {
-      enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
-      thinking_budget: budgetTokens
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
+    const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    if (supportEnableThinking) {
+      return {
+        ...enableThinkingConfig,
+        thinking_budget: budgetTokens
+      }
+    } else {
+      return {
+        thinking_budget: budgetTokens,
+        chat_template_kwargs: {
+          ...enableThinkingConfig
+        }
+      }
     }
-    return thinkConfig
   }
 
   // Hunyuan models, use enable_thinking
@@ -406,7 +428,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
     if (isGemini3ThinkingTokenModel(model)) {
       return {
-        reasoning_effort: reasoningEffort
+        reasoningEffort
       }
     }
     if (reasoningEffort === 'auto') {
@@ -632,8 +654,11 @@ type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinki
 
 function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogleThinkingLevel {
   switch (reasoningEffort) {
+    case 'auto':
     case 'default':
       return undefined
+    case 'none':
+      return 'minimal'
     case 'minimal':
       return 'minimal'
     case 'low':
@@ -641,10 +666,12 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
     case 'medium':
       return 'medium'
     case 'high':
+    case 'xhigh':
       return 'high'
     default:
-      logger.warn('Unknown thinking level for Gemini. Fallback to medium instead.', { reasoningEffort })
-      return 'medium'
+      // Enforce all possible values are handled
+      reasoningEffort satisfies never
+      return undefined
   }
 }
 
@@ -658,7 +685,7 @@ export function getGeminiReasoningParams(
   assistant: Assistant,
   model: Model
 ): Pick<GoogleGenerativeAIProviderOptions, 'thinkingConfig'> {
-  if (!isReasoningModel(model)) {
+  if (!isReasoningModel(model) || !isSupportedThinkingTokenGeminiModel(model)) {
     return {}
   }
 
@@ -668,34 +695,43 @@ export function getGeminiReasoningParams(
     return {}
   }
 
-  // Gemini 推理参数
-  if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (reasoningEffort === undefined || reasoningEffort === 'none') {
-      return {
-        thinkingConfig: {
-          includeThoughts: false,
-          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
-        }
+  let thinkingLevel: GoogleThinkingLevel | null = null
+  const includeThoughts = reasoningEffort !== 'none'
+
+  // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
+  if (isGemini3ThinkingTokenModel(model)) {
+    thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
+    if (thinkingLevel === 'minimal' && getLowerBaseModelName(model.id).includes('pro')) {
+      thinkingLevel = 'low'
+    }
+  }
+
+  if (thinkingLevel !== null) {
+    // Gemini 3 branch. thinkingLevel can be undefined (auto) or a specific level.
+    return {
+      thinkingConfig: {
+        includeThoughts,
+        thinkingLevel
       }
     }
-
-    // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    if (isGemini3ThinkingTokenModel(model)) {
-      return {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-        }
-      }
-    }
-
+  } else {
+    // Old models
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (effortRatio > 1) {
+    if (reasoningEffort === 'auto') {
       return {
         thinkingConfig: {
-          thinkingBudget: -1,
-          includeThoughts: true
+          includeThoughts,
+          thinkingBudget: -1
+        }
+      }
+    }
+
+    if (reasoningEffort === 'none') {
+      return {
+        thinkingConfig: {
+          includeThoughts,
+          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
         }
       }
     }
@@ -705,13 +741,11 @@ export function getGeminiReasoningParams(
 
     return {
       thinkingConfig: {
-        ...(budget > 0 ? { thinkingBudget: budget } : {}),
-        includeThoughts: true
+        includeThoughts,
+        ...(budget > 0 ? { thinkingBudget: budget } : {})
       }
     }
   }
-
-  return {}
 }
 
 /**

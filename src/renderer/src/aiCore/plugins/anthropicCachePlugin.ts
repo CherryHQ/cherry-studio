@@ -85,12 +85,12 @@ function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
   }
 }
 
-export const createAnthropicCachePlugin = () =>
+export const createAnthropicCachePlugin = (provider: Provider) =>
   definePlugin({
     name: 'anthropicCache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(anthropicCacheMiddleware(context.provider))
+      context.middlewares.push(anthropicCacheMiddleware(provider))
     }
   })

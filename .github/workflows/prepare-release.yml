@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare Release via Claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1.0.66
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}

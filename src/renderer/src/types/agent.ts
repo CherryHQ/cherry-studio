@@ -58,7 +58,8 @@ export const AgentConfigurationSchema = z
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().optional().default(100) // Maximum number of interaction turns, default to 100
+    max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
+    env_vars: z.record(z.string(), z.string()).optional().default({}) // Custom environment variables for the agent runtime
   })
   .loose()
 
@@ -69,7 +70,7 @@ export const AgentBaseSchema = z.object({
   // Basic info
   name: z.string().optional(),
   description: z.string().optional(),
-  accessible_paths: z.array(z.string()).nonempty(), // Array of directory paths the agent can access
+  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access (empty = use default workspace)
 
   // Instructions for the agent
   instructions: z.string().optional(), // System prompt

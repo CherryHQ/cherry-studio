@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
@@ -17,6 +18,8 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select } from 'antd'
 import type { ChangeEvent, FormEvent } from 'react'
@@ -166,6 +169,27 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }))
   }, [])
 
+  const [envVarsText, setEnvVarsText] = useState(() => serializeKeyValueString(form.configuration?.env_vars ?? {}))
+
+  useEffect(() => {
+    if (open) {
+      setEnvVarsText(serializeKeyValueString(buildAgentForm(agent).configuration?.env_vars ?? {}))
+    }
+  }, [agent, open])
+
+  const onEnvVarsChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value
+    setEnvVarsText(text)
+    const parsed = parseKeyValueString(text)
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        env_vars: parsed
+      }
+    }))
+  }, [])
+
   const addAccessiblePath = useCallback(async () => {
     try {
       const selected = await window.api.file.selectFolder()
@@ -242,12 +266,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       }
       if (!form.model) {
         window.toast.error(t('error.model.not_exists'))
-        loadingRef.current = false
-        return
-      }
-
-      if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
         loadingRef.current = false
         return
       }
@@ -351,7 +369,14 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 <Label>
                   {t('common.model')} <RequiredMark>*</RequiredMark>
                 </Label>
-                <HelpTooltip title={t('agent.add.model.tooltip')} />
+                <AnthropicProviderListPopover
+                  useWindowNavigate
+                  filterProviders={getAnthropicSupportedProviders}
+                  onProviderClick={() => {
+                    setOpen(false)
+                    resolve(undefined)
+                  }}
+                />
               </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}
@@ -430,9 +455,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
             <FormItem>
               <LabelWithButton>
-                <Label>
-                  {t('agent.session.accessible_paths.label')} <RequiredMark>*</RequiredMark>
-                </Label>
+                <Label>{t('agent.session.accessible_paths.label')}</Label>
                 <Button size="small" onClick={addAccessiblePath}>
                   {t('agent.session.accessible_paths.add')}
                 </Button>
@@ -449,13 +472,29 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   ))}
                 </PathList>
               ) : (
-                <EmptyText>{t('agent.session.accessible_paths.empty')}</EmptyText>
+                <HelpText>
+                  {t(
+                    'agent.session.accessible_paths.default_hint',
+                    'A default workspace will be created automatically if not specified.'
+                  )}
+                </HelpText>
               )}
             </FormItem>
 
             <FormItem>
               <Label>{t('common.prompt')}</Label>
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('agent.settings.advance.envVars.label')}</Label>
+              <TextArea
+                rows={3}
+                value={envVarsText}
+                onChange={onEnvVarsChange}
+                placeholder={'API_KEY=xxx\nDEBUG=true'}
+              />
+              <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
             </FormItem>
 
             {/* <FormItem>
@@ -602,12 +641,6 @@ const PathText = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const EmptyText = styled.p`
-  font-size: 13px;
-  color: var(--color-text-3);
-  margin: 0;
 `
 
 const FormFooter = styled.div`

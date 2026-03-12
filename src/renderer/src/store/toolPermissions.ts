@@ -28,7 +28,6 @@ export type ToolPermissionRequestPayload = {
   input: Record<string, unknown>
   inputPreview: string
   createdAt: number
-  expiresAt: number
   suggestions: PermissionUpdate[]
   autoApprove?: boolean
 }
