@@ -39,6 +39,7 @@ import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
+import { installBuiltinSkills } from './utils/builtinSkills'
 import { isOvmsSupported } from './services/OvmsManager'
 
 const logger = loggerService.withContext('MainEntry')
@@ -186,6 +187,11 @@ if (!app.requestSingleInstanceLock()) {
 
     //start selection assistant service
     initSelectionService()
+
+    // Install built-in skills to user-level .claude/skills directory (non-blocking)
+    installBuiltinSkills().catch((error) => {
+      logger.error('Failed to install built-in skills', error)
+    })
 
     runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
