@@ -1,10 +1,10 @@
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
@@ -28,8 +28,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
   const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
     useSessions(agentId)
-  const { chat } = useRuntime()
-  const { activeSessionIdMap } = chat
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DynamicVirtualListRef>(null)
@@ -74,13 +73,11 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     }
   }, [handleScroll])
 
-  const setActiveSessionId = useCallback(
-    (agentId: string, sessionId: string | null) => {
-      dispatch(setActiveSessionIdAction({ agentId, sessionId }))
-      dispatch(setActiveTopicOrSessionAction('session'))
-    },
-    [dispatch]
-  )
+  const setActiveSessionId = useCallback((agentId: string, sessionId: string | null) => {
+    const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+    cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
+    cacheService.set('chat.active_view', 'session')
+  }, [])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -92,13 +89,14 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       if (success) {
         const newSessionId = sessions.find((s) => s.id !== id)?.id
         if (newSessionId) {
-          dispatch(setActiveSessionIdAction({ agentId, sessionId: newSessionId }))
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: newSessionId })
         } else {
           // may clear messages instead of forbidden deletion
         }
       }
     },
-    [agentId, deleteSession, dispatch, sessions, t]
+    [agentId, deleteSession, sessions, t]
   )
 
   const activeSessionId = activeSessionIdMap[agentId]

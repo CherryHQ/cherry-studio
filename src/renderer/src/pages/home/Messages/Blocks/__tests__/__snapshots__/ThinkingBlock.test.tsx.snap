@@ -85,9 +85,7 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
         style="font-family: var(--font-family); font-size: 14px;"
       >
         <div
-          data-mouse-enter-delay="0.8"
           data-testid="tooltip"
-          title="Copy"
         >
           <button
             aria-label="Copy"

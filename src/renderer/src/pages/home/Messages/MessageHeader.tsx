@@ -1,21 +1,23 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox, Tooltip } from 'antd'
+import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
@@ -41,9 +43,10 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { userName, sidebarIcons } = useSettings()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
+  const [userName] = usePreference('app.user.name')
+  const showMinappIcon = useSidebarIconShow('minapp')
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent } = useAgent(activeAgentId)
   const isAgentView = activeTopicOrSession === 'session'
   const { t } = useTranslation()
@@ -74,7 +77,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
-  const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
@@ -96,7 +98,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isAssistantMessage ? (
         <Avatar
           src={avatarSource}
-          size={35}
+          className="h-[35px] w-[35px]"
           style={{
             borderRadius: '25%',
             cursor: showMinappIcon ? 'pointer' : 'default',
@@ -115,7 +117,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           ) : (
             <Avatar
               src={avatar}
-              size={35}
+              className="h-[35px] w-[35px]"
               style={{ borderRadius: '25%', cursor: 'pointer' }}
               onClick={() => UserPopup.show()}
             />
@@ -123,16 +125,16 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </>
       )}
       <UserWrap>
-        <HStack alignItems="center" justifyContent={userNameJustifyContent}>
+        <RowFlex className="items-center" style={{ justifyContent: userNameJustifyContent }}>
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
           {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
+            <Tooltip content={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}
-        </HStack>
+        </RowFlex>
         <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
           {isBubbleStyle && message.usage !== undefined && (

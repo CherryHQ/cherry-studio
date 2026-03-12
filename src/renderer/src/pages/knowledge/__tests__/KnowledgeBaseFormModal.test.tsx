@@ -25,6 +25,15 @@ vi.mock('lucide-react', () => ({
   ChevronUp: () => <span data-testid="chevron-up">▲</span>
 }))
 
+// Mock HStack component
+vi.mock('@cherrystudio/ui', () => ({
+  RowFlex: ({ children, ...props }: any) => (
+    <div data-testid="hstack" {...props}>
+      {children}
+    </div>
+  )
+}))
+
 // Mock antd components
 vi.mock('antd', () => ({
   Modal: ({ children, open, footer, ...props }: any) =>

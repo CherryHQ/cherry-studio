@@ -1,4 +1,5 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -6,13 +7,13 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   Code,
   FileSearch,
@@ -30,21 +31,22 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { useTabs } from '../../hooks/useTabs'
 import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
-  const { minappShow } = useRuntime()
-  const { sidebarIcons } = useSettings()
-  const { pinned } = useMinapps()
+  const { pinned, minappShow } = useMinapps()
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const { tabs, activeTabId, updateTab } = useTabs()
 
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
+  // 获取当前 Tab 的 URL 作为 pathname
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+  const pathname = activeTab?.url || '/'
 
   const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
@@ -54,11 +56,14 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
+  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
 
+  // 在当前 Tab 内跳转
   const to = async (path: string) => {
     await modelGenerating()
-    navigate(path)
+    if (activeTabId) {
+      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+    }
   }
 
   const isFullscreen = useFullscreen()
@@ -90,7 +95,7 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
-        <Tooltip title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} placement="right">
+        <Tooltip placement="right" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -101,7 +106,7 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
+        <Tooltip placement="right" content={t('settings.title')} delay={800}>
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
@@ -119,13 +124,17 @@ const Sidebar: FC = () => {
 
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
-  const { pathname } = useLocation()
-  const { sidebarIcons, defaultPaintingProvider } = useSettings()
-  const { minappShow } = useRuntime()
-  const navigate = useNavigate()
+  const { minappShow } = useMinapps()
+  const { tabs, activeTabId, updateTab } = useTabs()
+
+  // 获取当前 Tab 的 URL 作为 pathname
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+  const pathname = activeTab?.url || '/'
+
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const { defaultPaintingProvider } = useSettings()
   const { theme } = useTheme()
 
-  const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
@@ -142,29 +151,36 @@ const MainMenus: FC = () => {
   }
 
   const pathMap = {
-    assistants: '/',
-    store: '/store',
-    paintings: `/paintings/${defaultPaintingProvider}`,
-    translate: '/translate',
-    minapp: '/apps',
-    knowledge: '/knowledge',
-    files: '/files',
-    code_tools: '/code',
-    notes: '/notes',
+    assistants: '/app/chat',
+    store: '/app/assistant',
+    paintings: `/app/paintings/${defaultPaintingProvider}`,
+    translate: '/app/translate',
+    minapp: '/app/minapp',
+    knowledge: '/app/knowledge',
+    files: '/app/files',
+    code_tools: '/app/code',
+    notes: '/app/notes',
     openclaw: '/openclaw'
   }
 
-  return sidebarIcons.visible.map((icon) => {
+  // 在当前 Tab 内跳转
+  const to = async (path: string) => {
+    await modelGenerating()
+    if (activeTabId) {
+      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
+    }
+  }
+
+  return visibleSidebarIcons.map((icon) => {
     const path = pathMap[icon]
-    const isActive = path === '/' ? isRoute(path) : isRoutes(path)
+    const isActive = isRoutes(path)
 
     return (
-      <Tooltip key={icon} title={getSidebarIconLabel(icon)} mouseEnterDelay={0.8} placement="right">
+      <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()
-            await modelGenerating()
-            navigate(path)
+            await to(path)
           }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}

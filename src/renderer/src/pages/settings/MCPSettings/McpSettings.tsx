@@ -1,3 +1,5 @@
+import { Flex, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -10,13 +12,13 @@ import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import type { TabsProps } from 'antd'
-import { Badge, Button, Flex, Form, Input, Modal, Radio, Select, Switch, Tabs, Tag, Typography } from 'antd'
+import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -67,7 +69,8 @@ type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const { serverId } = useParams<{ serverId: string }>()
+  const params = useParams({ strict: false }) as { serverId?: string }
+  const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
@@ -409,7 +412,7 @@ const McpSettings: React.FC = () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.toast.success(t('settings.mcp.deleteSuccess'))
-            navigate('/settings/mcp')
+            navigate({ to: '/settings/mcp' })
           }
         })
       } catch (error: any) {
@@ -672,7 +675,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="small" style={{ marginLeft: 10 }} />
+            <Switch className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -766,35 +769,32 @@ const McpSettings: React.FC = () => {
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
         <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
           <SettingTitle>
-            <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-              <Flex align="center" gap={8}>
+            <Flex className="mr-10 items-center justify-between gap-5">
+              <Flex className="items-center gap-2">
                 <ServerName className="text-nowrap">{server?.name}</ServerName>
                 {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
               </Flex>
-              <Button size="small" onClick={() => setLogModalOpen(true)}>
+              <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
                 {t('settings.mcp.logs', 'View Logs')}
               </Button>
-              <Button
-                danger
-                icon={<DeleteIcon size={14} className="lucide-custom" />}
-                type="text"
-                onClick={() => onDeleteMcpServer(server)}
-              />
+              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                <DeleteIcon size={14} className="lucide-custom text-destructive" />
+              </Button>
             </Flex>
-            <Flex align="center" gap={16}>
+            <Flex className="items-center gap-4">
               <Switch
-                value={server.isActive}
+                checked={server.isActive}
                 key={server.id}
                 loading={loadingServer === server.id}
-                onChange={onToggleActive}
+                onCheckedChange={onToggleActive}
               />
               <Button
-                type="primary"
-                icon={<SaveIcon size={14} />}
+                size="sm"
+                variant="default"
                 onClick={onSave}
-                loading={loading}
-                shape="round"
-                disabled={!isFormChanged || activeTab !== 'settings'}>
+                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                className="rounded-full">
+                <SaveIcon size={14} />
                 {t('common.save')}
               </Button>
             </Flex>

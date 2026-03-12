@@ -1,11 +1,11 @@
+import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { HelpTooltip } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
-import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -35,10 +35,10 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
+import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -335,14 +335,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
     return (
       <>
-        <Tooltip title={apiKeyConnectivity.error?.message || t('settings.models.check.failed')}>
-          <TriangleAlert
-            size={16}
-            color="var(--color-status-warning)"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setShowErrorModal(true)}
-          />
-        </Tooltip>
+        <WarnTooltip
+          content={
+            <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
+          }
+          iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+          onClick={() => setShowErrorModal(true)}
+        />
         <ErrorDetailModal
           open={showErrorModal}
           onClose={() => setShowErrorModal(false)}
@@ -411,28 +410,30 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
+              <Button variant="ghost" size="sm">
+                <SquareArrowOutUpRight size={14} />
+              </Button>
             </Link>
           )}
           {(!isSystemProvider(provider) || isSupportAnthropicPromptCacheProvider(provider)) && (
-            <Tooltip title={t('settings.provider.api.options.label')}>
+            <Tooltip content={t('settings.provider.api.options.label')}>
               <Button
-                type="text"
-                icon={<Bolt size={14} />}
-                size="small"
-                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
-              />
+                variant="ghost"
+                size="sm"
+                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}>
+                <Bolt size={14} />
+              </Button>
             </Tooltip>
           )}
         </Flex>
         <Switch
-          value={provider.enabled}
+          checked={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => {
+          onCheckedChange={(enabled) => {
             updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)
@@ -474,8 +475,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                 }}>
                 {t('settings.provider.api_key.label')}
                 {provider.id !== 'copilot' && (
-                  <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                    <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
+                  <Tooltip title={t('settings.provider.api.key.list.open')} delay={500}>
+                    <Button variant="ghost" onClick={openApiKeyList} size="icon">
+                      <Settings2 size={16} />
+                    </Button>
                   </Tooltip>
                 )}
               </SettingSubtitle>
@@ -490,13 +493,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   suffix={renderStatusIndicator()}
                 />
                 <Button
-                  type={isApiKeyConnectable ? 'primary' : 'default'}
-                  ghost={isApiKeyConnectable}
+                  variant={isApiKeyConnectable ? 'ghost' : undefined}
                   onClick={onCheckApi}
                   disabled={!apiHost || apiKeyConnectivity.checking}>
                   {apiKeyConnectivity.checking ? (
                     <LoadingIcon />
-                  ) : apiKeyConnectivity.status === 'success' ? (
+                  ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
                     <Check size={16} className="lucide-custom" />
                   ) : (
                     t('settings.provider.check')
@@ -504,13 +506,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                 </Button>
               </Space.Compact>
               <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-                <HStack>
+                <RowFlex>
                   {apiKeyWebsite && !isDmxapi && (
                     <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                       {t('settings.provider.get_api_key')}
                     </SettingHelpLink>
                   )}
-                </HStack>
+                </RowFlex>
                 <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
               </SettingHelpTextRow>
             </>
@@ -519,7 +521,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div className="flex items-center gap-1">
-                  <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
+                  <Tooltip title={hostSelectorTooltip} delay={300}>
                     <div>
                       <Selector
                         size={14}
@@ -533,13 +535,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </Tooltip>
                   <HelpTooltip title={t('settings.provider.api.url.tip')}></HelpTooltip>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Button
-                    type="text"
-                    onClick={() => CustomHeaderPopup.show({ provider })}
-                    icon={<Settings2 size={16} />}
-                  />
-                </div>
+                <Button variant="ghost" onClick={() => CustomHeaderPopup.show({ provider })} size="icon">
+                  <Settings2 size={16} />
+                </Button>
               </SettingSubtitle>
               {activeHostField === 'apiHost' && (
                 <>
@@ -554,7 +552,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                         onBlur={onUpdateApiHost}
                       />
                       {isApiHostResettable && (
-                        <Button danger onClick={onReset}>
+                        <Button variant="destructive" onClick={onReset}>
                           {t('settings.provider.api.url.reset')}
                         </Button>
                       )}
@@ -635,6 +633,14 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
   margin-right: -2px;
+`
+
+const ErrorOverlay = styled.div`
+  max-height: 200px;
+  overflow-y: auto;
+  max-width: 300px;
+  word-wrap: break-word;
+  user-select: text;
 `
 
 export default ProviderSetting

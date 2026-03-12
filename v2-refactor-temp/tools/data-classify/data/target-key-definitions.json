@@ -1,0 +1,114 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
+    "lastUpdated": "2026-03-06"
+  },
+  "definitions": [
+    {
+      "targetKey": "app.window.position.x",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window X position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.position.y",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "pending",
+      "description": "Window Y position (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.width",
+      "type": "number",
+      "defaultValue": 800,
+      "status": "pending",
+      "description": "Window width (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "app.window.size.height",
+      "type": "number",
+      "defaultValue": 600,
+      "status": "pending",
+      "description": "Window height (from complex mapping) - Example, not active"
+    },
+    {
+      "targetKey": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search compression cutoff limit (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.cutoff_unit",
+      "type": "PreferenceTypes.WebSearchCompressionCutoffUnit",
+      "defaultValue": "char",
+      "status": "classified",
+      "description": "Web search compression cutoff unit (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.method",
+      "type": "PreferenceTypes.WebSearchCompressionMethod",
+      "defaultValue": "none",
+      "status": "classified",
+      "description": "Web search compression method (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_document_count",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Web search RAG document count (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_embedding_dimensions",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG embedding dimensions (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_embedding_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_rerank_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.exclude_domains",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search excluded domains (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.max_results",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Web search max results (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.provider_overrides",
+      "type": "PreferenceTypes.WebSearchProviderOverrides",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.search_with_time",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Web search include time filter (from complex migration)"
+    }
+  ]
+}

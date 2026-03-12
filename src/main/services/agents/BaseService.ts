@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
-import type { ModelValidationError } from '@main/apiServer/utils'
-import { validateModelId } from '@main/apiServer/utils'
+import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
 import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
@@ -10,8 +9,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { DatabaseManager } from './database/DatabaseManager'
-import type { AgentModelField } from './errors'
-import { AgentModelValidationError } from './errors'
+import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 

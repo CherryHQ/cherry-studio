@@ -12,15 +12,12 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Flex, Tag } from 'antd'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import styled from 'styled-components'
-
-import WebSearchGeneralSettings from './WebSearchGeneralSettings'
-import WebSearchProviderSettings from './WebSearchProviderSettings'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
@@ -85,7 +82,7 @@ const WebSearchSettings: FC = () => {
           <ListItem
             title={t('settings.tool.websearch.title')}
             active={activeView === 'general'}
-            onClick={() => navigate('/settings/websearch/general')}
+            onClick={() => navigate({ to: '/settings/websearch/general' })}
             icon={<Search size={18} />}
             titleStyle={{ fontWeight: 500 }}
           />
@@ -98,7 +95,9 @@ const WebSearchSettings: FC = () => {
                 key={provider.id}
                 title={provider.name}
                 active={activeView === provider.id}
-                onClick={() => navigate(`/settings/websearch/provider/${provider.id}`)}
+                onClick={() =>
+                  navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
+                }
                 icon={
                   logo ? (
                     <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
@@ -128,7 +127,9 @@ const WebSearchSettings: FC = () => {
                     key={provider.id}
                     title={provider.name}
                     active={activeView === provider.id}
-                    onClick={() => navigate(`/settings/websearch/provider/${provider.id}`)}
+                    onClick={() =>
+                      navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
+                    }
                     icon={
                       logo ? (
                         <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
@@ -151,11 +152,7 @@ const WebSearchSettings: FC = () => {
           )}
         </MenuList>
         <RightContainer>
-          <Routes>
-            <Route index element={<Navigate to="general" replace />} />
-            <Route path="general" element={<WebSearchGeneralSettings />} />
-            <Route path="provider/:providerId" element={<WebSearchProviderSettings />} />
-          </Routes>
+          <Outlet />
         </RightContainer>
       </MainContainer>
     </Container>

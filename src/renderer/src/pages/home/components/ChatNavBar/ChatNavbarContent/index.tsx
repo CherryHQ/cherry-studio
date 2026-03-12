@@ -1,5 +1,5 @@
+import { useCache } from '@data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { Assistant } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -11,8 +11,7 @@ interface Props {
 }
 
 const ChatNavbarContent: FC<Props> = ({ assistant }) => {
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent: activeAgent } = useActiveAgent()
 
   return (

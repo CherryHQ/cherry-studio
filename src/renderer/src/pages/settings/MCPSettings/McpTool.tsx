@@ -1,9 +1,10 @@
+import { ColFlex, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Info, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -55,8 +56,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
 
     return (
-      <Flex vertical gap={4}>
-        <Flex align="center" gap={8}>
+      <ColFlex className="gap-1">
+        <Flex className="items-center gap-2">
           {itemType && (
             <Badge
               color={getTypeColor(prop.type)}
@@ -94,7 +95,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
-      </Flex>
+      </ColFlex>
     )
   }
 
@@ -106,7 +107,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           <Descriptions.Item
             key={key}
             label={
-              <Flex gap={4}>
+              <Flex className="gap-1">
                 <Typography.Text strong>{key}</Typography.Text>
                 {required?.includes(key) && (
                   <Tooltip title={t('common.required_field')}>
@@ -140,14 +141,12 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       onFilter: (value, record) => record.name === value,
       filterSearch: true,
       render: (_, tool) => (
-        <Flex vertical align="flex-start" gap={4}>
-          <Flex align="center" gap={4}>
+        <ColFlex className="gap-1">
+          <Flex className="items-center gap-1">
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
-            <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
-              <Info size={14} />
-            </Tooltip>
+            <InfoTooltip content={`ID: ${tool.id}`} />
           </Flex>
           {tool.description && (
             <Typography.Paragraph
@@ -157,12 +156,12 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               {tool.description}
             </Typography.Paragraph>
           )}
-        </Flex>
+        </ColFlex>
       )
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
@@ -171,12 +170,12 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       width: 150, // Fixed width might be good for alignment
       align: 'center',
       render: (_, tool) => (
-        <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} size="small" />
+        <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
       )
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
           <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
         </Flex>
@@ -186,19 +185,17 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       align: 'center',
       render: (_, tool) => (
         <Tooltip
-          title={
+          content={
             !isToolEnabled(tool)
               ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
               : isToolAutoApproved(tool, server)
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
-          }
-          placement="top">
+          }>
           <Switch
             checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}
-            onChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            size="small"
+            onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
           />
         </Tooltip>
       )

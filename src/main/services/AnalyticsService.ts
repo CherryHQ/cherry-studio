@@ -1,5 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { app } from 'electron'
 
@@ -25,7 +26,7 @@ class AnalyticsService {
       onError: (error) => logger.error('Analytics error:', error)
     })
 
-    this.client.trackAppLaunch({
+    this.client.track('app_launch', {
       version: app.getVersion(),
       os: process.platform
     })
@@ -34,7 +35,7 @@ class AnalyticsService {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    const enableDataCollection = configManager.getEnableDataCollection()
+    const enableDataCollection = preferenceService.get('app.privacy.data_collection.enabled')
 
     if (!this.client || !enableDataCollection) {
       return
