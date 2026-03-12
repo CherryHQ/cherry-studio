@@ -6,7 +6,7 @@
 import type { TextStreamPart, ToolSet } from 'ai'
 
 import { definePlugin } from '../../index'
-import type { AiRequestContext } from '../../types'
+import type { AiPlugin, StreamTextParams, StreamTextResult } from '../../types'
 import { StreamEventManager } from './StreamEventManager'
 import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
@@ -280,7 +280,9 @@ function defaultParseToolUse(content: string, tools: ToolSet): { results: ToolUs
   return { results, content: contentToProcess }
 }
 
-export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
+export const createPromptToolUsePlugin = (
+  config: PromptToolUseConfig = {}
+): AiPlugin<StreamTextParams, StreamTextResult> => {
   const {
     enabled = true,
     buildSystemPrompt = defaultBuildSystemPrompt,
@@ -288,20 +290,20 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
     mcpMode
   } = config
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'built-in:prompt-tool-use',
-    transformParams: (params: any, context: AiRequestContext) => {
+    transformParams: (params, context) => {
       if (!enabled || !params.tools || typeof params.tools !== 'object') {
         return params
       }
 
-      // 分离 provider-defined 和其他类型的工具
+      // 分离 provider 和其他类型的工具
       const providerDefinedTools: ToolSet = {}
       const promptTools: ToolSet = {}
 
       for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
-        if (tool.type === 'provider-defined') {
-          // provider-defined 类型的工具保留在 tools 参数中
+        if (tool.type === 'provider') {
+          // provider 类型的工具保留在 tools 参数中
           providerDefinedTools[toolName] = tool
         } else {
           // 其他工具转换为 prompt 模式
@@ -309,7 +311,7 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         }
       }
 
-      // 只有当有非 provider-defined 工具时才保存到 context
+      // 只有当有非 provider 工具时才保存到 context
       if (Object.keys(promptTools).length > 0) {
         context.mcpTools = promptTools
       }
@@ -324,25 +326,20 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         return transformedParams
       }
 
-      // 构建系统提示符（只包含非 provider-defined 工具）
+      // 构建系统提示符（只包含非 provider 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
       const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools, mcpMode)
-      let systemMessage: string | null = systemPrompt
-      if (config.createSystemMessage) {
-        // 🎯 如果用户提供了自定义处理函数，使用它
-        systemMessage = config.createSystemMessage(systemPrompt, params, context)
-      }
 
-      // 保留 provider-defined tools，移除其他 tools
+      // 保留 provide tools，移除其他 tools
       const transformedParams = {
         ...params,
-        ...(systemMessage ? { system: systemMessage } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
         tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
       }
       context.originalParams = transformedParams
       return transformedParams
     },
-    transformStream: (_: any, context: AiRequestContext) => () => {
+    transformStream: (_, context) => () => {
       let textBuffer = ''
       // let stepId = ''
 

@@ -7,7 +7,9 @@
         "invalid_agent": "無効なエージェント"
       },
       "model": {
-        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+        "supported_providers": "サポートされているプロバイダー",
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。",
+        "view_providers": "サポートされているプロバイダーを表示"
       },
       "title": "エージェントを追加",
       "type": {
@@ -85,6 +87,7 @@
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
+        "default_hint": "デフォルト: {{path}}",
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
@@ -134,6 +137,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "エージェントランタイム用のカスタム環境変数を設定します。",
+          "helper": "カスタム環境変数を入力（1行に1つ、形式: KEY=value）",
+          "label": "環境変数"
+        },
         "maxTurns": {
           "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
           "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
@@ -283,7 +291,7 @@
         },
         "tab": "ツール",
         "tools": {
-          "title": "ツール"
+          "title": "事前承認済みツール"
         }
       }
     },
@@ -1100,6 +1108,7 @@
       },
       "export": {
         "image": "画像としてエクスポート",
+        "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
           "label": "Markdownとしてエクスポート",
@@ -2145,6 +2154,7 @@
     "tools": {
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
+      "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
       "completed": "完了",
@@ -2519,6 +2529,9 @@
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
+      "batch_error": "{{failed}}件のアイテムの処理に失敗しました",
+      "batch_mixed": "{{succeeded}}件が成功し、{{failed}}件が失敗しました",
+      "batch_success": "{{succeeded}} 個のアイテムが正常に処理されました",
       "error": "{{error}}",
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
@@ -2956,7 +2969,9 @@
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
     "no_results": "プラグインが見つかりません",
+    "no_results_skills": "スキルが見つかりません",
     "search_placeholder": "検索プラグイン...",
+    "search_placeholder_skills": "検索スキル…",
     "showing_results": "{{count}} 個のプラグインを表示",
     "showing_results_one": "{{count}} 個のプラグインを表示",
     "showing_results_other": "{{count}} 個のプラグインを表示",
@@ -4849,6 +4864,7 @@
         "logout_failed": "ログアウトに失敗しました。もう一度お試しください",
         "logout_success": "Anthropic からログアウトしました",
         "oauth": "WebページOAuth",
+        "oauth_disabled_warning": "Anthropicは、OAuth経由でのClaudeの利用を一時的に停止しました。この認証方法は現在ご利用いただけません。今のところはAPIキーをご利用ください。",
         "start_auth": "開始承認",
         "submit_code": "ログインを完了する"
       },
@@ -5009,6 +5025,11 @@
       },
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
+      "filter": {
+        "agent": "エージェントサポート",
+        "all": "すべてのプロバイダー"
+      },
+      "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
       "misc": "その他",
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
@@ -5528,6 +5549,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
+    "stop": "翻訳を停止",
     "success": {
       "custom": {
         "delete": "削除が成功しました",

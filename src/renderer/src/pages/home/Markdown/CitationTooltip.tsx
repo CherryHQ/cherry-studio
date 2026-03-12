@@ -1,4 +1,7 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import MarqueeText from '@renderer/components/MarqueeText'
+import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
+import { useQuery } from '@tanstack/react-query'
 import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
@@ -24,9 +27,25 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     }
   }, [citation.url])
 
+  const isXPost = useMemo(() => isXPostUrl(citation.url), [citation.url])
+
+  const { data: oembedData } = useQuery({
+    queryKey: ['xOembed', citation.url],
+    queryFn: () => fetchXOEmbed(citation.url),
+    enabled: isXPost && !citation.content?.trim(),
+    staleTime: Infinity
+  })
+
   const sourceTitle = useMemo(() => {
+    if (isXPost && oembedData?.author) return `@${oembedData.author}`
     return citation.title?.trim() || hostname
-  }, [citation.title, hostname])
+  }, [citation.title, hostname, isXPost, oembedData])
+
+  const displayContent = useMemo(() => {
+    if (citation.content?.trim()) return citation.content
+    if (isXPost && oembedData?.text) return oembedData.text
+    return undefined
+  }, [citation.content, isXPost, oembedData])
 
   const handleClick = useCallback(() => {
     window.open(citation.url, '_blank', 'noopener,noreferrer')
@@ -39,12 +58,12 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
           <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
-            {sourceTitle}
+            <MarqueeText>{sourceTitle}</MarqueeText>
           </TooltipTitle>
         </TooltipHeader>
-        {citation.content?.trim() && (
+        {displayContent && (
           <TooltipBody role="article" aria-label="Citation content">
-            {citation.content}
+            {displayContent}
           </TooltipBody>
         )}
         <TooltipFooter role="button" aria-label={`Visit ${hostname}`} onClick={handleClick}>
@@ -52,7 +71,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
         </TooltipFooter>
       </div>
     ),
-    [citation.content, hostname, handleClick, sourceTitle]
+    [displayContent, hostname, handleClick, sourceTitle]
   )
 
   return (

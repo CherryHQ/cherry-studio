@@ -122,7 +122,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
-const DEDICATED_IMAGE_MODELS_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
+const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
@@ -172,7 +172,7 @@ const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('
 export function isDedicatedImageModel(model: Model): boolean {
   if (!model) return false
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS_REGEX.test(modelId)
+  return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
 }
 
 // Backward compatible aliases
