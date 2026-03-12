@@ -2595,9 +2595,9 @@
     "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
     "migration": {
-      "description": "[to be translated]:An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
-      "install_button": "[to be translated]:Reinstall OpenClaw",
-      "title": "[to be translated]:OpenClaw Needs Update"
+      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "install_button": "Réinstaller OpenClaw",
+      "title": "OpenClaw nécessite une mise à jour"
     },
     "model_config": {
       "auth_token": "Jeton d'authentification",
@@ -2634,7 +2634,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
-      "check_update": "[to be translated]:Check for Updates",
+      "check_update": "Vérifier les mises à jour",
       "open_dashboard": "Ouvrir le tableau de bord",
       "title": "Actions rapides",
       "uninstall": "Désinstaller",
@@ -2663,10 +2663,14 @@
       "title": "Désinstallation d'OpenClaw"
     },
     "update": {
-      "available": "[to be translated]:New version available: v{{latest}} (current: v{{current}})",
-      "checking": "[to be translated]:Checking for updates...",
-      "failed": "[to be translated]:Failed to check for updates",
-      "up_to_date": "[to be translated]:Already up to date (v{{current}})"
+      "available": "Nouvelle version disponible : v{{latest}} (actuelle : v{{current}})",
+      "checking": "Vérification des mises à jour...",
+      "confirm_button": "Mettre à jour maintenant",
+      "failed": "Échec de la vérification des mises à jour",
+      "modal_title": "Mise à jour d'OpenClaw",
+      "success": "Mise à jour terminée avec succès !",
+      "up_to_date": "Déjà à jour (v{{current}})",
+      "updating": "Mise à jour..."
     }
   },
   "ovms": {
