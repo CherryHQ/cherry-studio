@@ -22,9 +22,8 @@ import Sessions from './components/Sessions'
 
 const AgentChat: FC = () => {
   const { t } = useTranslation()
-  const { messageNavigation } = useSettings()
+  const { messageNavigation, topicPosition } = useSettings()
   const { isTopNavbar } = useNavbarPosition()
-  const { topicPosition } = useSettings()
   const { showTopics } = useShowTopics()
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
