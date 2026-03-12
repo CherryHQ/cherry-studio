@@ -71,7 +71,7 @@ const AgentChat: FC = () => {
                   <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
                 </div>
               )}
-              {activeAgentId && activeSessionId && (
+              {!isInitializing && activeAgentId && activeSessionId && (
                 <>
                   <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
                   <div className="mt-auto px-4.5 pb-2">
