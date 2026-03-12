@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { isMac } from '@renderer/config/constant'
 import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { Alert, Button, Modal } from 'antd'
@@ -11,7 +12,7 @@ import styled from 'styled-components'
 
 const logger = loggerService.withContext('UpdateDialog')
 
-// Old Team ID that requires manual download after v1.8.0
+// Old Team ID that requires manual download
 const OLD_TEAM_ID = 'Q24M7JR2C4'
 const DOWNLOAD_URL = 'https://www.cherry-ai.com/download'
 
@@ -30,8 +31,6 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const [requiresManualDownload, setRequiresManualDownload] = useState(false)
   const dispatch = useAppDispatch()
 
-  const isMac = window.electron.process.platform === 'darwin'
-
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
@@ -46,7 +45,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         }
       })
     }
-  }, [releaseInfo, isMac])
+  }, [releaseInfo])
 
   const handleInstall = async () => {
     setIsInstalling(true)
