@@ -59,7 +59,9 @@ export interface OpenClawConfig {
       model?: {
         primary?: string
       }
-      imageModel?: string
+      imageModel?: {
+        primary?: string
+      }
     }
   }
   models?: {
@@ -858,7 +860,7 @@ class OpenClawService {
         primary: `${providerKey}/${primaryModel.id}`
       }
       if (visionModel) {
-        config.agents.defaults.imageModel = `${providerKey}/${visionModel.id}`
+        config.agents.defaults.imageModel = { primary: `${providerKey}/${visionModel.id}` }
       } else {
         delete config.agents.defaults.imageModel
       }

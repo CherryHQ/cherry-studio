@@ -113,7 +113,7 @@ describe('OpenClawService.syncProviderConfig', () => {
 
     const config = getWrittenConfig()
     expect(config.agents.defaults.model.primary).toBe('cherry-test-provider/gpt-4o')
-    expect(config.agents.defaults.imageModel).toBe('cherry-test-provider/gpt-4o-mini')
+    expect(config.agents.defaults.imageModel).toEqual({ primary: 'cherry-test-provider/gpt-4o-mini' })
   })
 
   it('removes existing imageModel when vision model is not provided', async () => {
@@ -122,7 +122,7 @@ describe('OpenClawService.syncProviderConfig', () => {
       agents: {
         defaults: {
           model: { primary: 'old/model' },
-          imageModel: 'old/vision-model'
+          imageModel: { primary: 'old/vision-model' }
         }
       }
     }
@@ -144,7 +144,7 @@ describe('OpenClawService.syncProviderConfig', () => {
       agents: {
         defaults: {
           model: { primary: 'old/model' },
-          imageModel: 'old/vision-model'
+          imageModel: { primary: 'old/vision-model' }
         }
       }
     }
@@ -158,7 +158,7 @@ describe('OpenClawService.syncProviderConfig', () => {
     expect(result.success).toBe(true)
 
     const config = getWrittenConfig()
-    expect(config.agents.defaults.imageModel).toBe('cherry-test-provider/gpt-4o-mini')
+    expect(config.agents.defaults.imageModel).toEqual({ primary: 'cherry-test-provider/gpt-4o-mini' })
   })
 
   it('writes provider config with correct structure', async () => {
