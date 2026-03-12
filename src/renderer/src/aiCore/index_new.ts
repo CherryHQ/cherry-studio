@@ -337,8 +337,12 @@ export default class ModernAiProvider {
         config.enableWebSearch,
         undefined,
         undefined,
+<<<<<<< HEAD
         this.config!.providerId,
         config.idleTimeout
+=======
+        this.config!.providerId
+>>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
       )
 
       const streamResult = await executor.streamText({

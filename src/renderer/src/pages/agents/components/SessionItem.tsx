@@ -132,18 +132,26 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
+<<<<<<< HEAD:src/renderer/src/pages/agents/components/SessionItem.tsx
         onClick: async () => {
+=======
+        onClick: () => {
+>>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent):src/renderer/src/pages/home/Tabs/components/SessionItem.tsx
           const agentSession = {
             agentId: agentId,
             sessionId: targetSession.id
           }
           dispatch(loadTopicMessagesThunk(sessionTopicId))
+<<<<<<< HEAD:src/renderer/src/pages/agents/components/SessionItem.tsx
           try {
             startTopicRenaming(sessionTopicId)
             await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
           } finally {
             finishTopicRenaming(sessionTopicId)
           }
+=======
+          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+>>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent):src/renderer/src/pages/home/Tabs/components/SessionItem.tsx
         }
       },
       {

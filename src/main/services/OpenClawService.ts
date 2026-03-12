@@ -176,10 +176,43 @@ class OpenClawService {
    * Create a symlink in /usr/local/bin (macOS/Linux) or add bin dir to user PATH (Windows).
    * Removes any existing symlink first to ensure a clean state.
    */
+<<<<<<< HEAD
   private async linkBinary(): Promise<void> {
     const binaryPath = await getBinaryPath('openclaw')
     if (isWin) {
       const binDir = await getBinaryPath()
+=======
+  public async install(): Promise<{ success: boolean; message: string }> {
+    const inChina = await isUserInChina()
+
+    const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
+    const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
+
+    const npmPath = (await findExecutableInEnv('npm')) || 'npm'
+
+    const npmArgs = ['install', '-g', packageName]
+    if (registryArg) npmArgs.push(registryArg)
+
+    // Keep the command string for logging and sudo retry.
+    // On macOS/Linux, prepend npm's parent dir to PATH so that sudo (which runs in a
+    // clean environment without user PATH) can resolve `node` via npm's shebang
+    // (#!/usr/bin/env node).
+    const nodeDir = path.dirname(npmPath)
+    const npmCommand = isWin
+      ? `"${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+      : `PATH="${nodeDir}:$PATH" "${npmPath}" install -g ${packageName} ${registryArg}`.trim()
+
+    // On Windows, wrap npm path in quotes if it contains spaces and is not already quoted
+    const needsQuotes = isWin && npmPath.includes(' ') && !npmPath.startsWith('"')
+    const processedNpmPath = needsQuotes ? `"${npmPath}"` : npmPath
+
+    logger.info(`Installing OpenClaw with command: ${processedNpmPath} ${npmArgs.join(' ')}`)
+    this.sendInstallProgress(`Running: ${processedNpmPath} ${npmArgs.join(' ')}`)
+
+    const spawnEnv = await getShellEnv()
+
+    return new Promise((resolve) => {
+>>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
       try {
         const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
         const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
@@ -289,7 +322,16 @@ class OpenClawService {
 
       this.sendInstallProgress('Removing OpenClaw binary...')
 
+<<<<<<< HEAD
       await this.unlinkBinary()
+=======
+    // Keep the command string for logging and sudo retry.
+    // On macOS/Linux, prepend npm's parent dir to PATH so that sudo can resolve `node`.
+    const nodeDir = path.dirname(npmPath)
+    const npmCommand = isWin
+      ? `"${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+      : `PATH="${nodeDir}:$PATH" "${npmPath}" uninstall -g openclaw @qingchencloud/openclaw-zh`
+>>>>>>> 1a5499914 (Squash merge main into feat/cherry-claw-agent)
 
       if (fs.existsSync(binaryPath)) {
         fs.unlinkSync(binaryPath)
