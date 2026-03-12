@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveFilesystemBaseDir } from '../config'
 import { handleGlobTool } from '../tools/glob'
 import { handleLsTool } from '../tools/ls'
+import * as types from '../types'
 import { validatePath } from '../types'
 
 describe('filesystem MCP security', () => {
@@ -90,11 +91,20 @@ describe('filesystem MCP security', () => {
     const outsideRoot = await createTempDir('glob-symlink-outside-')
 
     // Create a file inside the workspace and one outside
-    await fs.writeFile(path.join(workspaceRoot, 'legit.txt'), 'legit')
-    await fs.writeFile(path.join(outsideRoot, 'secret.txt'), 'secret')
+    const legitFile = path.join(workspaceRoot, 'legit.txt')
+    const secretFile = path.join(outsideRoot, 'secret.txt')
+    await fs.writeFile(legitFile, 'legit')
+    await fs.writeFile(secretFile, 'secret')
 
     // Create a symlink inside workspace pointing to the outside directory
     await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
+
+    // Mock ripgrep to return both files (simulating --follow traversing the symlink)
+    vi.spyOn(types, 'runRipgrep').mockResolvedValue({
+      ok: true,
+      stdout: [legitFile, secretFile].join('\n'),
+      exitCode: 0
+    })
 
     const result = await handleGlobTool({ pattern: '*.txt' }, workspaceRoot)
     const text = result.content[0].text
