@@ -305,6 +305,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Setați variabile de mediu personalizate pentru runtime-ul agentului.",
+          "helper": "Introduceți variabile de mediu personalizate (una pe linie, format: CHEIE=valoare)",
+          "label": "Variabile de mediu"
+        },
         "maxTurns": {
           "description": "Definește câte cicluri cerere/răspuns poate finaliza automat agentul.",
           "helper": "Valorile mai mari permit rulări autonome mai lungi; valorile mai mici mențin sesiunile scurte.",

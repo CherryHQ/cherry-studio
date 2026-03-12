@@ -1201,7 +1201,8 @@ class CodeToolsService {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
-        env: processEnv
+        env: processEnv,
+        shell: isWin
       })
 
       const successMessage = `Launched ${cliTool} in new terminal window`

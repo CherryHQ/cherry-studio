@@ -7,7 +7,9 @@
         "invalid_agent": "無効なエージェント"
       },
       "model": {
-        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+        "supported_providers": "サポートされているプロバイダー",
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。",
+        "view_providers": "サポートされているプロバイダーを表示"
       },
       "title": "エージェントを追加",
       "type": {
@@ -305,6 +307,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "エージェントランタイム用のカスタム環境変数を設定します。",
+          "helper": "カスタム環境変数を入力（1行に1つ、形式: KEY=value）",
+          "label": "環境変数"
+        },
         "maxTurns": {
           "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
           "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
@@ -5188,6 +5195,11 @@
       },
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
+      "filter": {
+        "agent": "エージェントサポート",
+        "all": "すべてのプロバイダー"
+      },
+      "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
       "misc": "その他",
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
