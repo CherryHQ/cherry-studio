@@ -14,13 +14,15 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown, Input, Tag } from 'antd'
-import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
+import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 import useSWRImmutable from 'swr/immutable'
 
@@ -44,6 +46,7 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
 }
 
 const ProviderList: FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
   const location = useLocation()
@@ -54,6 +57,7 @@ const ProviderList: FC = () => {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
+  const [agentFilterEnabled, setAgentFilterEnabled] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
 
@@ -85,7 +89,16 @@ const ProviderList: FC = () => {
   }, [providers])
 
   useEffect(() => {
-    if (search.id) {
+    let shouldUpdate = false
+    const hasFilterParam = searchParams.get('filter') === 'agent'
+
+    // Handle filter param first - when filter is enabled, ignore id param
+    if (hasFilterParam) {
+      setAgentFilterEnabled(true)
+      searchParams.delete('filter')
+      searchParams.delete('id') // Clear id param when filter is enabled
+      shouldUpdate = true
+    } else if (search.id) {
       const providerId = search.id
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
@@ -102,15 +115,12 @@ const ProviderList: FC = () => {
       } else {
         setSelectedProvider(providers[0])
       }
-      // 清除 id 参数
-      navigate({
-        to: location.pathname,
-        search: ({ id, ...rest }) => {
-          void id
-          return rest
-        },
-        replace: true
-      })
+      searchParams.delete('id')
+      shouldUpdate = true
+    }
+
+    if (shouldUpdate) {
+      setSearchParams(searchParams)
     }
   }, [providers, search.id, navigate, location.pathname, setSelectedProvider, setTimeoutTimer])
 
@@ -304,6 +314,11 @@ const ProviderList: FC = () => {
       return false
     }
 
+    // Filter by agent support
+    if (agentFilterEnabled && !isAnthropicSupportedProvider(provider)) {
+      return false
+    }
+
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
     const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
@@ -338,7 +353,34 @@ const ProviderList: FC = () => {
             placeholder={t('settings.provider.search')}
             value={searchText}
             style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
-            suffix={<Search size={14} />}
+            prefix={<Search size={14} />}
+            suffix={
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      label: t('settings.provider.filter.all'),
+                      key: 'all',
+                      icon: agentFilterEnabled ? <CheckPlaceholder /> : <Check size={14} />,
+                      onClick: () => setAgentFilterEnabled(false)
+                    },
+                    {
+                      label: t('settings.provider.filter.agent'),
+                      key: 'agent',
+                      icon: agentFilterEnabled ? <Check size={14} /> : <CheckPlaceholder />,
+                      onClick: () => setAgentFilterEnabled(true)
+                    }
+                  ]
+                }}
+                trigger={['click']}>
+                <FilterButton>
+                  <Filter
+                    size={14}
+                    className={agentFilterEnabled ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-3)]'}
+                  />
+                </FilterButton>
+              </Dropdown>
+            }
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -478,6 +520,22 @@ const AddButtonWrapper = styled.div`
   justify-content: center;
   align-items: center;
   padding: 10px 8px;
+`
+
+const FilterButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+`
+
+const CheckPlaceholder = styled.span`
+  display: inline-block;
+  width: 14px;
+  height: 14px;
 `
 
 export default ProviderList
