@@ -136,9 +136,9 @@
     "settings": {
       "advance": {
         "envVars": {
-          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
-          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
-          "label": "[to be translated]:Environment Variables"
+          "description": "Establece variables de entorno personalizadas para el tiempo de ejecución del agente.",
+          "helper": "Introduce variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
+          "label": "Variables de entorno"
         },
         "maxTurns": {
           "description": "Establece el número de rondas de solicitud/respuesta que el agente ejecutará automáticamente.",

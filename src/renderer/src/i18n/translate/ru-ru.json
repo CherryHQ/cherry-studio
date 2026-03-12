@@ -136,9 +136,9 @@
     "settings": {
       "advance": {
         "envVars": {
-          "description": "[to be translated]:Set custom environment variables for the agent runtime.",
-          "helper": "[to be translated]:Enter custom environment variables (one per line, format: KEY=value)",
-          "label": "[to be translated]:Environment Variables"
+          "description": "Задайте пользовательские переменные окружения для среды выполнения агента.",
+          "helper": "Введите пользовательские переменные окружения (по одной в строке, формат: КЛЮЧ=значение)",
+          "label": "Переменные окружения"
         },
         "maxTurns": {
           "description": "Установить количество циклов запрос/ответ, выполняемых автоматически через прокси.",
