@@ -1,5 +1,5 @@
 // Primitive Components
-export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './primitives/Avatar'
+export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copyButton'
 export { default as CustomTag } from './primitives/customTag'
@@ -16,15 +16,13 @@ export { Tooltip, type TooltipProps } from './primitives/tooltip'
 // Composite Components
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
+export { default as EmojiAvatar } from './composites/EmojiAvatar'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
 export { default as Scrollbar } from './composites/Scrollbar'
 
-// Icon Components
-
-// Brand Logo Icons (Colorful brand logo icons - 81 items)
-// Recommended to import using '@cherrystudio/ui/icons' path
-export * from './icons'
+// Icon Components — import from '@cherrystudio/ui/icons' path
+export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps } from './icons/types'
 
 /* Additional Composite Components */
 // CodeEditor
