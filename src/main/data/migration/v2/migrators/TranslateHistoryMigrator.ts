@@ -44,7 +44,8 @@ interface NewTranslateHistory {
 }
 
 function transformRecord(old: OldTranslateHistory): NewTranslateHistory {
-  const createdAt = new Date(old.createdAt).getTime() || Date.now()
+  const parsed = new Date(old.createdAt).getTime()
+  const createdAt = Number.isNaN(parsed) ? Date.now() : parsed
   return {
     id: old.id,
     sourceText: old.sourceText,

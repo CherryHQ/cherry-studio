@@ -7,5 +7,4 @@ CREATE TABLE `translate_language` (
 	`updated_at` integer
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `translate_language_langCode_unique` ON `translate_language` (`lang_code`);--> statement-breakpoint
-CREATE INDEX `translate_language_lang_code_idx` ON `translate_language` (`lang_code`);
+CREATE UNIQUE INDEX `translate_language_langCode_unique` ON `translate_language` (`lang_code`);

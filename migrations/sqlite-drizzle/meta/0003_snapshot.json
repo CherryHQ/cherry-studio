@@ -727,11 +727,6 @@
           "name": "translate_language_langCode_unique",
           "columns": ["lang_code"],
           "isUnique": true
-        },
-        "translate_language_lang_code_idx": {
-          "name": "translate_language_lang_code_idx",
-          "columns": ["lang_code"],
-          "isUnique": false
         }
       },
       "foreignKeys": {},

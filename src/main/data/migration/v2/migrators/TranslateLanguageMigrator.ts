@@ -51,7 +51,7 @@ export class TranslateLanguageMigrator extends BaseMigrator {
   readonly id = 'translate-language'
   readonly name = 'TranslateLanguage'
   readonly description = 'Migrate custom translate languages'
-  readonly order = 5
+  readonly order = 6
 
   private sourceCount = 0
   private skippedCount = 0

@@ -1,4 +1,4 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -7,16 +7,12 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
  *
  * Design notes:
  * - Very small dataset (tens of records at most)
- * - langCode must be unique per language
+ * - langCode must be unique per language (UNIQUE constraint creates implicit index)
  */
-export const translateLanguageTable = sqliteTable(
-  'translate_language',
-  {
-    id: uuidPrimaryKey(),
-    langCode: text().notNull().unique(),
-    value: text().notNull(),
-    emoji: text().notNull(),
-    ...createUpdateTimestamps
-  },
-  (t) => [index('translate_language_lang_code_idx').on(t.langCode)]
-)
+export const translateLanguageTable = sqliteTable('translate_language', {
+  id: uuidPrimaryKey(),
+  langCode: text().notNull().unique(),
+  value: text().notNull(),
+  emoji: text().notNull(),
+  ...createUpdateTimestamps
+})
