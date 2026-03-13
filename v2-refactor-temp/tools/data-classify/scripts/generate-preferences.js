@@ -175,8 +175,8 @@ class PreferencesGenerator {
       targetKeyGroups[item.targetKey].push(item)
     })
 
-    // 去重：按redux > localStorage > electronStore优先级选择
-    const sourcePriority = { redux: 3, dexieSettings: 2, localStorage: 2, electronStore: 1 }
+    // 去重：按redux > dexieSettings > localStorage > electronStore优先级选择
+    const sourcePriority = { redux: 4, dexieSettings: 3, localStorage: 2, electronStore: 1 }
     const deduplicatedData = []
 
     Object.keys(targetKeyGroups).forEach((targetKey) => {
