@@ -99,7 +99,7 @@ export class TranslateLanguageMigrator extends BaseMigrator {
 
       const newRecords: NewTranslateLanguage[] = []
       for (const old of this.cachedRecords) {
-        if (!old.id || !old.langCode || !old.value) {
+        if (!old.id || !old.langCode || !old.value || !old.emoji) {
           logger.warn(`Skipping invalid translate language record: ${old.id}`)
           this.skippedCount++
           continue
@@ -107,9 +107,11 @@ export class TranslateLanguageMigrator extends BaseMigrator {
         newRecords.push(transformRecord(old))
       }
 
-      // Small dataset, single insert is fine
+      // Small dataset, single insert within transaction
       if (newRecords.length > 0) {
-        await db.insert(translateLanguageTable).values(newRecords)
+        await db.transaction(async (tx) => {
+          await tx.insert(translateLanguageTable).values(newRecords)
+        })
         processedCount = newRecords.length
       }
 

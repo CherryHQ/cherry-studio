@@ -110,7 +110,7 @@ export class TranslateHistoryMigrator extends BaseMigrator {
 
       const newRecords: NewTranslateHistory[] = []
       for (const old of this.cachedRecords) {
-        if (!old.id || !old.sourceText || !old.targetText) {
+        if (!old.id || !old.sourceText || !old.targetText || !old.sourceLanguage || !old.targetLanguage) {
           logger.warn(`Skipping invalid translate history record: ${old.id}`)
           this.skippedCount++
           continue
