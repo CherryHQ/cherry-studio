@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-13T08:05:08.148Z
+ * Generated at: 2026-03-13T08:47:13.159Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -100,7 +100,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.target_language'
+      targetKey: 'feature.translate.chat.target_language'
     },
     {
       originalKey: 'proxyMode',

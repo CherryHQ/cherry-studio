@@ -850,7 +850,7 @@
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.target_language"
+          "targetKey": "feature.translate.chat.target_language"
         },
         {
           "originalKey": "proxyMode",
