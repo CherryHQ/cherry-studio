@@ -36,12 +36,14 @@ function checkGitignore(filePath: string, expected: string, displayPath: string,
 /**
  * Verifies `.claude/skills/<skillName>/SKILL.md` is correctly synced with
  * `.agents/skills/<skillName>/SKILL.md`.
- * Requires regular files (symlinks are disallowed for cross-platform compatibility).
+ * SKILL.md must be a regular file (symlinks disallowed for cross-platform compatibility).
+ * Other entries must be relative symlinks pointing back to `.agents/skills/<skillName>/`.
  */
 function checkClaudeSkillFile(skillName: string, errors: string[]) {
   const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
   const skillFile = path.join(skillDir, 'SKILL.md')
-  const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
+  const agentsSkillDir = path.join(AGENTS_SKILLS_DIR, skillName)
+  const agentsSkillFile = path.join(agentsSkillDir, 'SKILL.md')
 
   if (!fs.existsSync(skillDir)) {
     errors.push(`.claude/skills/${skillName} is missing`)
@@ -53,6 +55,7 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
     return
   }
 
+  // --- Check SKILL.md (must be a real file) ---
   let stat: fs.Stats
   try {
     stat = fs.lstatSync(skillFile)
@@ -80,6 +83,37 @@ function checkClaudeSkillFile(skillName: string, errors: string[]) {
 
   if (actualContent !== expectedContent) {
     errors.push(`.claude/skills/${skillName}/SKILL.md content differs from .agents/skills/${skillName}/SKILL.md`)
+  }
+
+  // --- Check other entries (must be symlinks to agents dir) ---
+  if (!fs.existsSync(agentsSkillDir)) {
+    return
+  }
+
+  const agentsEntries = fs.readdirSync(agentsSkillDir).filter((e) => e !== 'SKILL.md')
+  for (const entry of agentsEntries) {
+    const claudeEntry = path.join(skillDir, entry)
+    const expectedTarget = path.relative(skillDir, path.join(agentsSkillDir, entry))
+
+    let entryStat: fs.Stats
+    try {
+      entryStat = fs.lstatSync(claudeEntry)
+    } catch {
+      errors.push(`.claude/skills/${skillName}/${entry} is missing (run pnpm skills:sync)`)
+      continue
+    }
+
+    if (!entryStat.isSymbolicLink()) {
+      errors.push(`.claude/skills/${skillName}/${entry} must be a symlink, not a regular file/directory`)
+      continue
+    }
+
+    const actualTarget = fs.readlinkSync(claudeEntry)
+    if (actualTarget !== expectedTarget) {
+      errors.push(
+        `.claude/skills/${skillName}/${entry} symlink target is '${actualTarget}', expected '${expectedTarget}'`
+      )
+    }
   }
 }
 
