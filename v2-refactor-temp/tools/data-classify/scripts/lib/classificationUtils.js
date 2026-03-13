@@ -72,8 +72,8 @@ function loadInventory(dataDir = DATA_DIR) {
  * Higher number = higher priority
  */
 const SOURCE_PRIORITY = {
-  redux: 3,
-  dexieSettings: 2,
+  redux: 4,
+  dexieSettings: 3,
   localStorage: 2,
   electronStore: 1
 }
