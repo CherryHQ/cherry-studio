@@ -10,6 +10,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
+import { PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -23,7 +24,6 @@ import Sessions from './components/Sessions'
 const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, topicPosition } = useSettings()
-  const { isTopNavbar } = useNavbarPosition()
   const { showTopics } = useShowTopics()
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
@@ -55,50 +55,45 @@ const AgentChat = () => {
 
   if (isInitializing) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center">
+      <Container className="flex flex-1 flex-col items-center justify-center">
         <Spin />
-      </div>
+      </Container>
     )
   }
 
   // Initialized
   if (agents.length === 0) {
     return (
-      <div className="flex flex-1 flex-col justify-between">
+      <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
           <Alert type="info" message={t('chat.alerts.create_agent')} style={{ margin: '5px 16px' }} />
         </div>
-      </div>
+      </Container>
     )
   }
 
   if (!activeAgentId) {
     return (
-      <div className="flex flex-1 flex-col justify-between">
+      <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
           <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
         </div>
-      </div>
+      </Container>
     )
   }
 
   if (!activeSessionId) {
     return (
-      <div className="flex flex-1 flex-col justify-between">
+      <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
           <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
         </div>
-      </div>
+      </Container>
     )
   }
 
   return (
-    // Wrapper
-    <div
-      className={cn(
-        'flex flex-1 overflow-hidden',
-        isTopNavbar && 'rounded-tl-2xl rounded-bl-2xl bg-(--color-background)'
-      )}>
+    <Container>
       <QuickPanelProvider>
         {/* Main Chat */}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -138,6 +133,21 @@ const AgentChat = () => {
           </motion.div>
         </AnimatePresence>
       )}
+    </Container>
+  )
+}
+
+const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
+  const { isTopNavbar } = useNavbarPosition()
+
+  return (
+    <div
+      className={cn(
+        'flex flex-1 overflow-hidden',
+        isTopNavbar && 'rounded-tl-2xl rounded-bl-2xl bg-(--color-background)',
+        className
+      )}>
+      {children}
     </div>
   )
 }
