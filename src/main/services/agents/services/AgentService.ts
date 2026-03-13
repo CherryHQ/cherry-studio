@@ -177,7 +177,8 @@ export class AgentService extends BaseService {
           scheduler_enabled: false,
           scheduler_type: 'interval',
           heartbeat_enabled: true,
-          heartbeat_interval: 30
+          heartbeat_interval: 30,
+          env_vars: {}
         }
       }
 
