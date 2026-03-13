@@ -465,7 +465,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Агенты",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} задач выполнено"
@@ -1557,7 +1557,7 @@
     "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Сеансы",
     "settings": "Настройки",
     "sort": {
       "pinyin": {

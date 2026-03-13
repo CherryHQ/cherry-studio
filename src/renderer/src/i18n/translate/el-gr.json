@@ -465,7 +465,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Πράκτορες",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} εργασίες ολοκληρώθηκαν"
@@ -1557,7 +1557,7 @@
     "selected": "Επιλεγμένο",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Συνεδρίες",
     "settings": "Ρυθμίσεις",
     "sort": {
       "pinyin": {

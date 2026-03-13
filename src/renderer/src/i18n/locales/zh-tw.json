@@ -33,22 +33,22 @@
         "comingSoon": "即將推出",
         "description": "將您的 Agent 連接到訊息平台。",
         "feishu": {
-          "appId": "[to be translated]:App ID",
-          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
-          "appSecret": "[to be translated]:App Secret",
-          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
-          "chatIds": "[to be translated]:Allowed Chat IDs",
-          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
-          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
-          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
-          "domain": "[to be translated]:Domain",
-          "domainFeishu": "[to be translated]:Feishu (China)",
-          "domainLark": "[to be translated]:Lark (International)",
-          "encryptKey": "[to be translated]:Encrypt Key",
-          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
-          "title": "[to be translated]:Feishu",
-          "verificationToken": "[to be translated]:Verification Token",
-          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+          "appId": "應用程式 ID",
+          "appIdPlaceholder": "輸入您的飛書應用程式 ID",
+          "appSecret": "應用程式密鑰",
+          "appSecretPlaceholder": "輸入您的飛書應用程式密鑰",
+          "chatIds": "允許的聊天 ID",
+          "chatIdsHint": "以逗號分隔的聊天 ID。留空則允許所有聊天。",
+          "chatIdsPlaceholder": "oc_xxxxx、oc_yyyyy",
+          "description": "透過 WebSocket 使用 Feishu/Lark 機器人接收並回覆訊息。",
+          "domain": "領域",
+          "domainFeishu": "飛書（中國）",
+          "domainLark": "Lark（國際版）",
+          "encryptKey": "加密金鑰",
+          "encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
+          "title": "飛書",
+          "verificationToken": "驗證權杖",
+          "verificationTokenPlaceholder": "請輸入您 Feishu 應用程式中的驗證碼"
         },
         "notifyReceiver": "接收任務通知",
         "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
@@ -465,7 +465,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "代理人",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -1557,7 +1557,7 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "會議",
     "settings": "設定",
     "sort": {
       "pinyin": {

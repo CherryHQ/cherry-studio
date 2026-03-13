@@ -465,7 +465,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tareas completadas"
@@ -1557,7 +1557,7 @@
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Sesiones",
     "settings": "Configuración",
     "sort": {
       "pinyin": {
