@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "Enable API Server to use agents."
+      "enable_server": "Enable API Server to use agents.",
+      "server_not_running": "API Server is enabled but not running. Please check the server configuration."
     }
   },
   "apiServer": {

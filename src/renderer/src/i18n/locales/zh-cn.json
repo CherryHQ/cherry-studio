@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "请启用 API 服务器以使用智能体功能"
+      "enable_server": "请启用 API 服务器以使用智能体功能",
+      "server_not_running": "API 服务器已启用但未运行，请检查服务器配置。"
     }
   },
   "apiServer": {

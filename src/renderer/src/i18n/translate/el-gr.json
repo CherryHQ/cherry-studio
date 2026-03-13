@@ -295,7 +295,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Πράκτορες",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} εργασίες ολοκληρώθηκαν"
@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων."
+      "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων.",
+      "server_not_running": "Ο API Server είναι ενεργοποιημένος αλλά δεν εκτελείται. Παρακαλούμε ελέγξτε τη διαμόρφωση του διακομιστή."
     }
   },
   "apiServer": {
@@ -1386,7 +1387,7 @@
     "selected": "Επιλεγμένο",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Συνεδρίες",
     "settings": "Ρυθμίσεις",
     "sort": {
       "pinyin": {

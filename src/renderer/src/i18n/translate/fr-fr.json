@@ -295,7 +295,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tâches terminées"
@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "Permettre au serveur API d'utiliser des agents."
+      "enable_server": "Permettre au serveur API d'utiliser des agents.",
+      "server_not_running": "Le serveur API est activé mais ne fonctionne pas. Veuillez vérifier la configuration du serveur."
     }
   },
   "apiServer": {
@@ -1386,7 +1387,7 @@
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
       "pinyin": {

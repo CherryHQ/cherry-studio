@@ -1,11 +1,12 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { Alert } from 'antd'
+import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,11 +20,12 @@ const AgentPage = () => {
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()
   const { showTopics } = useShowTopics()
-  const { topicPosition, apiServer } = useSettings()
+  const { topicPosition } = useSettings()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
+  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
 
   // Auto-select first agent when none is active
   useEffect(() => {
@@ -40,7 +42,7 @@ const AgentPage = () => {
     }
   }, [showAssistants, showTopics, topicPosition])
 
-  if (!apiServer.enabled) {
+  if (!apiServerConfig.enabled) {
     return (
       <div
         id="agent-page"
@@ -48,6 +50,32 @@ const AgentPage = () => {
         style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
         <div className="flex flex-1 items-center justify-center">
           <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (apiServerLoading) {
+    return (
+      <div
+        id="agent-page"
+        className="flex flex-1 flex-col"
+        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
+        <div className="flex flex-1 items-center justify-center">
+          <Spin />
+        </div>
+      </div>
+    )
+  }
+
+  if (!apiServerRunning) {
+    return (
+      <div
+        id="agent-page"
+        className="flex flex-1 flex-col"
+        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
+        <div className="flex flex-1 items-center justify-center">
+          <Alert type="error" message={t('agent.warning.server_not_running')} style={{ margin: '5px 16px' }} />
         </div>
       </div>
     )

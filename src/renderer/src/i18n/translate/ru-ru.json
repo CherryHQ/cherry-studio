@@ -295,7 +295,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Агенты",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} задач выполнено"
@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "Разрешить серверу API использовать агентов."
+      "enable_server": "Разрешить серверу API использовать агентов.",
+      "server_not_running": "Сервер API включен, но не запущен. Пожалуйста, проверьте конфигурацию сервера."
     }
   },
   "apiServer": {
@@ -1386,7 +1387,7 @@
     "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "Сессии",
     "settings": "Настройки",
     "sort": {
       "pinyin": {

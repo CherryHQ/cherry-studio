@@ -295,7 +295,7 @@
         }
       }
     },
-    "sidebar_title": "[to be translated]:Agents",
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -396,7 +396,8 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_server": "啟用 API 伺服器以使用 Agent。",
+      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。"
     }
   },
   "apiServer": {
@@ -1386,7 +1387,7 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
-    "sessions": "[to be translated]:Sessions",
+    "sessions": "會話",
     "settings": "設定",
     "sort": {
       "pinyin": {
