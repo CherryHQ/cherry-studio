@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
     },
+    "prompts": {
+      "add": "添加提示词",
+      "assistant": "助手提示词",
+      "contentLabel": "内容",
+      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量名} 作为模板变量。\n例如：帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "current": "当前",
+      "delete": "删除提示词",
+      "deleteConfirm": "删除提示词后将无法恢复，所有版本历史也将被删除，是否继续？",
+      "edit": "编辑提示词",
+      "global": "全局提示词",
+      "locationLabel": "添加位置",
+      "rollback": "回滚",
+      "rollbackConfirm": "确定回滚到此版本？将以该版本内容创建新版本。",
+      "title": "提示词管理",
+      "titleLabel": "标题",
+      "titlePlaceholder": "请输入提示词标题",
+      "versionHistory": "版本历史"
+    },
     "provider": {
       "add": {
         "name": {

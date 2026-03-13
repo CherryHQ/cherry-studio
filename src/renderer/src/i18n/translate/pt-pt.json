@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
       "title": "Configurações de Privacidade"
     },
+    "prompts": {
+      "add": "Adicionar Prompt",
+      "assistant": "Prompts do Assistente",
+      "contentLabel": "Conteúdo",
+      "contentPlaceholder": "Introduza o conteúdo do prompt. Utilize ${variable} para variáveis de modelo.\nExemplo: Ajuda-me a planear uma rota de ${from} para ${to} e envia-a para ${email}",
+      "current": "Atual",
+      "delete": "Eliminar Prompt",
+      "deleteConfirm": "Após a eliminação, o prompt não poderá ser recuperado e todo o histórico de versões será apagado. Continuar?",
+      "edit": "Editar Prompt",
+      "global": "Prompts Globais",
+      "locationLabel": "Localização da Inserção",
+      "rollback": "Reverter",
+      "rollbackConfirm": "Confirmar a reversão para esta versão? Será criada uma nova versão com este conteúdo.",
+      "title": "Gestão de Prompts",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Introduza o título do prompt",
+      "versionHistory": "Histórico de Versões"
+    },
     "provider": {
       "add": {
         "name": {

@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
     },
+    "prompts": {
+      "add": "Prompt hinzufügen",
+      "assistant": "Assistenten-Prompts",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "Geben Sie den Prompt-Inhalt ein. Verwenden Sie ${variable} für Vorlagenvariablen.\nBeispiel: Hilf mir, eine Route von ${from} nach ${to} zu planen und an ${email} zu senden.",
+      "current": "Aktuell",
+      "delete": "Prompt löschen",
+      "deleteConfirm": "Nach dem Löschen kann der Prompt nicht wiederhergestellt werden. Auch der gesamte Versionsverlauf wird gelöscht. Fortfahren?",
+      "edit": "Prompt bearbeiten",
+      "global": "Globale Prompts",
+      "locationLabel": "Einfügeposition",
+      "rollback": "Rollback",
+      "rollbackConfirm": "Möchten Sie wirklich auf diese Version zurücksetzen? Es wird eine neue Version basierend auf diesem Inhalt erstellt.",
+      "title": "Prompt-Verwaltung",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein",
+      "versionHistory": "Versionsverlauf"
+    },
     "provider": {
       "add": {
         "name": {

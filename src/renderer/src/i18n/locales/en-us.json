@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
     },
+    "prompts": {
+      "add": "Add Prompt",
+      "assistant": "Assistant Prompts",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Enter prompt content. Use ${variable} for template variables.\nExample: Help me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "current": "current",
+      "delete": "Delete Prompt",
+      "deleteConfirm": "The prompt and all its versions will be permanently deleted. Continue?",
+      "edit": "Edit Prompt",
+      "global": "Global Prompts",
+      "locationLabel": "Add Location",
+      "rollback": "Rollback",
+      "rollbackConfirm": "Rollback to this version? A new version will be created with this content.",
+      "title": "Prompt Management",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter prompt title",
+      "versionHistory": "Version History"
+    },
     "provider": {
       "add": {
         "name": {

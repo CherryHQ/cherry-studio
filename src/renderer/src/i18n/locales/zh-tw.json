@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
     },
+    "prompts": {
+      "add": "新增提示詞",
+      "assistant": "助手提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入提示詞內容，支援使用 ${變量名} 作為模板變數。\n例如：幫我規劃從 ${from} 到 ${to} 的路線，並發送到 ${email}",
+      "current": "當前",
+      "delete": "刪除提示詞",
+      "deleteConfirm": "刪除提示詞後將無法恢復，所有版本歷史也將被刪除，是否繼續？",
+      "edit": "編輯提示詞",
+      "global": "全域提示詞",
+      "locationLabel": "加入位置",
+      "rollback": "回退",
+      "rollbackConfirm": "確定要回退到此版本嗎？系統將以此版本內容建立一個新版本。",
+      "title": "提示詞管理",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入提示詞標題",
+      "versionHistory": "版本歷史"
+    },
     "provider": {
       "add": {
         "name": {

@@ -4837,6 +4837,24 @@
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
     },
+    "prompts": {
+      "add": "Ajouter un prompt",
+      "assistant": "Prompts de l'assistant",
+      "contentLabel": "Contenu",
+      "contentPlaceholder": "Saisissez le contenu du prompt. Utilisez ${variable} pour les variables de modèle.\nExemple : Aide-moi à planifier un itinéraire de ${from} à ${to} et envoie-le à ${email}",
+      "current": "Actuel",
+      "delete": "Supprimer le prompt",
+      "deleteConfirm": "Une fois supprimé, le prompt ne pourra pas être récupéré et tout l'historique des versions sera effacé. Continuer ?",
+      "edit": "Modifier le prompt",
+      "global": "Prompts globaux",
+      "locationLabel": "Emplacement d'ajout",
+      "rollback": "Restaurer",
+      "rollbackConfirm": "Confirmer la restauration de cette version ? Une nouvelle version sera créée avec ce contenu.",
+      "title": "Gestion des prompts",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Saisissez le titre du prompt",
+      "versionHistory": "Historique des versions"
+    },
     "provider": {
       "add": {
         "name": {
