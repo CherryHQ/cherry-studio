@@ -1,6 +1,14 @@
+import fs from 'fs/promises'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { NoteMigrator } from '../NoteMigrator'
+
+vi.mock('fs/promises')
+vi.mock('@main/utils/file', () => ({
+  getNotesDir: () => '/default/notes'
+}))
+
+const mockFs = vi.mocked(fs)
 
 // --- helpers ---
 
@@ -43,7 +51,20 @@ function createMockContext(reduxData: Record<string, Record<string, unknown>> = 
   }
 }
 
-// --- toRelativePath tests ---
+function mockDirEntries(entries: Array<{ name: string; isDir: boolean }>) {
+  return entries.map((e) => ({
+    name: e.name,
+    isDirectory: () => e.isDir,
+    isFile: () => !e.isDir,
+    isBlockDevice: () => false,
+    isCharacterDevice: () => false,
+    isSymbolicLink: () => false,
+    isFIFO: () => false,
+    isSocket: () => false,
+    path: '',
+    parentPath: ''
+  }))
+}
 
 describe('NoteMigrator', () => {
   let migrator: NoteMigrator
@@ -51,6 +72,7 @@ describe('NoteMigrator', () => {
   beforeEach(() => {
     migrator = new NoteMigrator()
     migrator.setProgressCallback(vi.fn())
+    vi.resetAllMocks()
   })
 
   describe('metadata', () => {
@@ -61,61 +83,104 @@ describe('NoteMigrator', () => {
   })
 
   describe('prepare', () => {
-    it('should return 0 items when no starred paths exist', async () => {
-      const { ctx } = createMockContext({})
+    it('should return 0 when notes directory does not exist', async () => {
+      const { ctx } = createMockContext({ note: { notesPath: '/nonexistent', starredPaths: [] } })
+      mockFs.access.mockRejectedValue(new Error('ENOENT'))
+
       const result = await migrator.prepare(ctx as never)
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(0)
     })
 
-    it('should return 0 items when starredPaths is empty array', async () => {
-      const { ctx } = createMockContext({ note: { starredPaths: [], notesPath: '/notes' } })
+    it('should use default notesDir when Redux notesPath is empty', async () => {
+      const { ctx } = createMockContext({ note: { notesPath: '', starredPaths: [] } })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(mockDirEntries([{ name: 'a.md', isDir: false }]) as never)
+
       const result = await migrator.prepare(ctx as never)
       expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(0)
+      expect(result.itemCount).toBe(1)
+      // Used /default/notes from getNotesDir()
+      expect(mockFs.access).toHaveBeenCalledWith('/default/notes')
     })
 
-    it('should count starred paths', async () => {
-      const { ctx } = createMockContext({
-        note: { starredPaths: ['/notes/a.md', '/notes/b.md'], notesPath: '/notes' }
-      })
+    it('should scan .md files recursively', async () => {
+      const { ctx } = createMockContext({ note: { notesPath: '/notes', starredPaths: [] } })
+      mockFs.access.mockResolvedValue(undefined)
+      // Root dir has a.md and a subfolder
+      mockFs.readdir
+        .mockResolvedValueOnce(
+          mockDirEntries([
+            { name: 'a.md', isDir: false },
+            { name: 'sub', isDir: true }
+          ]) as never
+        )
+        // Sub dir has b.md
+        .mockResolvedValueOnce(mockDirEntries([{ name: 'b.md', isDir: false }]) as never)
+
       const result = await migrator.prepare(ctx as never)
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(2)
     })
 
-    it('should deduplicate starred paths', async () => {
-      const { ctx } = createMockContext({
-        note: { starredPaths: ['/notes/a.md', '/notes/a.md', '/notes/b.md'], notesPath: '/notes' }
-      })
+    it('should ignore non-md files', async () => {
+      const { ctx } = createMockContext({ note: { notesPath: '/notes', starredPaths: [] } })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(
+        mockDirEntries([
+          { name: 'a.md', isDir: false },
+          { name: 'b.txt', isDir: false },
+          { name: 'c.pdf', isDir: false }
+        ]) as never
+      )
+
       const result = await migrator.prepare(ctx as never)
       expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(2)
+      expect(result.itemCount).toBe(1)
     })
 
-    it('should filter out empty/invalid paths', async () => {
+    it('should collect starred paths for lookup', async () => {
       const { ctx } = createMockContext({
-        note: { starredPaths: ['/notes/a.md', '', '  ', null, undefined, '/notes/b.md'], notesPath: '/notes' }
+        note: { notesPath: '/notes', starredPaths: ['/notes/a.md', '/notes/b.md'] }
       })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(
+        mockDirEntries([
+          { name: 'a.md', isDir: false },
+          { name: 'b.md', isDir: false },
+          { name: 'c.md', isDir: false }
+        ]) as never
+      )
+
       const result = await migrator.prepare(ctx as never)
       expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(2)
+      expect(result.itemCount).toBe(3)
     })
   })
 
   describe('execute', () => {
-    it('should return 0 when no items to migrate', async () => {
-      const { ctx } = createMockContext({})
+    it('should return 0 when no files to migrate', async () => {
+      const { ctx } = createMockContext({ note: { notesPath: '/notes', starredPaths: [] } })
+      mockFs.access.mockRejectedValue(new Error('ENOENT'))
+
       await migrator.prepare(ctx as never)
       const result = await migrator.execute(ctx as never)
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(0)
     })
 
-    it('should insert starred paths with isStarred=true', async () => {
+    it('should insert all files with correct isStarred', async () => {
       const { ctx, mocks } = createMockContext({
-        note: { starredPaths: ['/notes/a.md', '/notes/sub/b.md'], notesPath: '/notes' }
+        note: { notesPath: '/notes', starredPaths: ['/notes/a.md'] }
       })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(
+        mockDirEntries([
+          { name: 'a.md', isDir: false },
+          { name: 'b.md', isDir: false }
+        ]) as never
+      )
+
       await migrator.prepare(ctx as never)
       const result = await migrator.execute(ctx as never)
 
@@ -124,20 +189,25 @@ describe('NoteMigrator', () => {
       expect(mocks.insertValues).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ relativePath: 'a.md', isStarred: true }),
-          expect.objectContaining({ relativePath: 'sub/b.md', isStarred: true })
+          expect.objectContaining({ relativePath: 'b.md', isStarred: false })
         ])
       )
     })
 
-    it('should use raw path when notesRoot is empty', async () => {
+    it('should compute relative paths for nested files', async () => {
       const { ctx, mocks } = createMockContext({
-        note: { starredPaths: ['/some/path.md'], notesPath: '' }
+        note: { notesPath: '/notes', starredPaths: [] }
       })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir
+        .mockResolvedValueOnce(mockDirEntries([{ name: 'sub', isDir: true }]) as never)
+        .mockResolvedValueOnce(mockDirEntries([{ name: 'deep.md', isDir: false }]) as never)
+
       await migrator.prepare(ctx as never)
       await migrator.execute(ctx as never)
 
       expect(mocks.insertValues).toHaveBeenCalledWith(
-        expect.arrayContaining([expect.objectContaining({ relativePath: '/some/path.md' })])
+        expect.arrayContaining([expect.objectContaining({ relativePath: 'sub/deep.md' })])
       )
     })
   })
@@ -145,8 +215,15 @@ describe('NoteMigrator', () => {
   describe('validate', () => {
     it('should pass when counts match', async () => {
       const { ctx, mocks } = createMockContext({
-        note: { starredPaths: ['/notes/a.md', '/notes/b.md'], notesPath: '/notes' }
+        note: { notesPath: '/notes', starredPaths: [] }
       })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(
+        mockDirEntries([
+          { name: 'a.md', isDir: false },
+          { name: 'b.md', isDir: false }
+        ]) as never
+      )
       mocks.selectFromGet.mockResolvedValue({ count: 2 })
 
       await migrator.prepare(ctx as never)
@@ -159,6 +236,7 @@ describe('NoteMigrator', () => {
 
     it('should pass with 0 items', async () => {
       const { ctx, mocks } = createMockContext({})
+      mockFs.access.mockRejectedValue(new Error('ENOENT'))
       mocks.selectFromGet.mockResolvedValue({ count: 0 })
 
       await migrator.prepare(ctx as never)
@@ -171,8 +249,10 @@ describe('NoteMigrator', () => {
 
     it('should handle db error gracefully', async () => {
       const { ctx, mocks } = createMockContext({
-        note: { starredPaths: ['/notes/a.md'], notesPath: '/notes' }
+        note: { notesPath: '/notes', starredPaths: [] }
       })
+      mockFs.access.mockResolvedValue(undefined)
+      mockFs.readdir.mockResolvedValue(mockDirEntries([{ name: 'a.md', isDir: false }]) as never)
       mocks.selectFromGet.mockRejectedValue(new Error('DB error'))
 
       await migrator.prepare(ctx as never)

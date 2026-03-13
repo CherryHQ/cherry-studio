@@ -1,15 +1,18 @@
 /**
- * Note migrator - migrates starred note paths from Redux to SQLite note table
+ * Note migrator - scans notes directory and migrates file metadata to SQLite
  *
  * Data sources:
- *   - Redux note slice (note.starredPaths, note.notesPath)
+ *   - File system: all .md files under notesRoot
+ *   - Redux note slice: starredPaths (to mark starred), notesPath (notes root dir)
  * Target table: note
  */
 
 import { noteTable } from '@data/db/schemas/note'
 import { loggerService } from '@logger'
+import { getNotesDir } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
+import fs from 'fs/promises'
 import path from 'path'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -21,33 +24,72 @@ function toRelativePath(absolutePath: string, notesRoot: string): string {
   return path.relative(notesRoot, absolutePath).split(path.sep).join('/')
 }
 
+async function scanMarkdownFiles(dir: string): Promise<string[]> {
+  const results: string[] = []
+
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        const subFiles = await scanMarkdownFiles(fullPath)
+        results.push(...subFiles)
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+        results.push(fullPath)
+      }
+    }
+  } catch (error) {
+    logger.warn(`Failed to read directory: ${dir}`, { error: (error as Error).message })
+  }
+
+  return results
+}
+
 export class NoteMigrator extends BaseMigrator {
   readonly id = 'note'
   readonly name = 'Notes'
-  readonly description = 'Migrate note metadata (starred paths)'
+  readonly description = 'Migrate note file metadata and starred status'
   readonly order = 5
 
-  private starredPaths: string[] = []
   private notesRoot = ''
+  private allFiles: string[] = []
+  private starredSet: Set<string> = new Set()
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
-      const rawPaths = ctx.sources.reduxState.get<string[]>('note', 'starredPaths')
-      this.notesRoot = ctx.sources.reduxState.get<string>('note', 'notesPath') || ''
+      // Resolve notes root: Redux notesPath > default
+      this.notesRoot = ctx.sources.reduxState.get<string>('note', 'notesPath') || getNotesDir()
 
-      if (!rawPaths || !Array.isArray(rawPaths) || rawPaths.length === 0) {
-        logger.info('No starred paths found in Redux state')
+      // Check if notes directory exists
+      try {
+        await fs.access(this.notesRoot)
+      } catch {
+        logger.info('Notes directory does not exist, skipping', { notesRoot: this.notesRoot })
         return { success: true, itemCount: 0 }
       }
 
-      // Deduplicate and filter valid paths
-      this.starredPaths = [...new Set(rawPaths.filter((p) => typeof p === 'string' && p.trim()))]
+      // Scan all .md files
+      this.allFiles = await scanMarkdownFiles(this.notesRoot)
 
-      logger.info(`Found ${this.starredPaths.length} starred paths to migrate`, { notesRoot: this.notesRoot })
+      // Build starred set from Redux for quick lookup
+      const rawPaths = ctx.sources.reduxState.get<string[]>('note', 'starredPaths')
+      if (rawPaths && Array.isArray(rawPaths)) {
+        for (const p of rawPaths) {
+          if (typeof p === 'string' && p.trim()) {
+            this.starredSet.add(p)
+          }
+        }
+      }
+
+      logger.info('Prepare completed', {
+        notesRoot: this.notesRoot,
+        totalFiles: this.allFiles.length,
+        starredCount: this.starredSet.size
+      })
 
       return {
         success: true,
-        itemCount: this.starredPaths.length
+        itemCount: this.allFiles.length
       }
     } catch (error) {
       logger.error('Preparation failed', error as Error)
@@ -60,40 +102,42 @@ export class NoteMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    if (this.starredPaths.length === 0) {
+    if (this.allFiles.length === 0) {
       return { success: true, processedCount: 0 }
     }
 
     try {
       const db = ctx.db
       const timestamp = Date.now()
+      const BATCH_SIZE = 100
+      let processed = 0
 
       await db.transaction(async (tx) => {
-        const BATCH_SIZE = 100
-        for (let i = 0; i < this.starredPaths.length; i += BATCH_SIZE) {
-          const batch = this.starredPaths.slice(i, i + BATCH_SIZE)
+        for (let i = 0; i < this.allFiles.length; i += BATCH_SIZE) {
+          const batch = this.allFiles.slice(i, i + BATCH_SIZE)
           await tx.insert(noteTable).values(
-            batch.map((notePath) => ({
-              relativePath: this.notesRoot ? toRelativePath(notePath, this.notesRoot) : notePath,
-              isStarred: true,
+            batch.map((filePath) => ({
+              relativePath: toRelativePath(filePath, this.notesRoot),
+              isStarred: this.starredSet.has(filePath),
               createdAt: timestamp,
               updatedAt: timestamp
             }))
           )
 
-          const progress = Math.round(((i + batch.length) / this.starredPaths.length) * 100)
-          this.reportProgress(progress, `Migrated ${i + batch.length}/${this.starredPaths.length} starred paths`, {
+          processed += batch.length
+          const progress = Math.round((processed / this.allFiles.length) * 100)
+          this.reportProgress(progress, `Migrated ${processed}/${this.allFiles.length} notes`, {
             key: 'migration.progress.migrated_notes',
-            params: { processed: i + batch.length, total: this.starredPaths.length }
+            params: { processed, total: this.allFiles.length }
           })
         }
       })
 
-      logger.info('Execute completed', { processedCount: this.starredPaths.length })
+      logger.info('Execute completed', { processedCount: processed })
 
       return {
         success: true,
-        processedCount: this.starredPaths.length
+        processedCount: processed
       }
     } catch (error) {
       logger.error('Execute failed', error as Error)
@@ -117,7 +161,7 @@ export class NoteMigrator extends BaseMigrator {
         success: true,
         errors: [],
         stats: {
-          sourceCount: this.starredPaths.length,
+          sourceCount: this.allFiles.length,
           targetCount,
           skippedCount: 0
         }
@@ -128,7 +172,7 @@ export class NoteMigrator extends BaseMigrator {
         success: false,
         errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
         stats: {
-          sourceCount: this.starredPaths.length,
+          sourceCount: this.allFiles.length,
           targetCount: 0,
           skippedCount: 0
         }

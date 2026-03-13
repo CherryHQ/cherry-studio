@@ -1,13 +1,14 @@
 # NoteMigrator
 
-Migrates note metadata (starred paths) from the legacy Redux `note` slice into the SQLite `note` table.
+Migrates all note files from the filesystem into the SQLite `note` table, preserving starred status from Redux.
 
 ## Data Sources
 
 | Source | Key | Type |
 |--------|-----|------|
-| Redux `note` | `starredPaths` | `string[]` (absolute file paths) |
-| Redux `note` | `notesPath` | `string` (notes root directory) |
+| File system | `notesRoot/**/*.md` | Recursive directory scan |
+| Redux `note` | `notesPath` | `string` (notes root directory, fallback: `getNotesDir()`) |
+| Redux `note` | `starredPaths` | `string[]` (absolute paths of starred notes) |
 
 ## Target Table
 
@@ -18,26 +19,31 @@ Migrates note metadata (starred paths) from the legacy Redux `note` slice into t
 | Source | Target Column | Transform |
 |--------|---------------|-----------|
 | (generated) | `id` | UUID v4 auto-generated |
-| `starredPaths[i]` | `relative_path` | `path.relative(notesRoot, absolutePath)`, forward-slash normalized |
-| (constant) | `is_starred` | Always `true` (only starred paths are migrated) |
+| file path | `relative_path` | `path.relative(notesRoot, absolutePath)`, forward-slash normalized |
+| `starredPaths` membership | `is_starred` | `true` if file path is in starredPaths set, `false` otherwise |
 | (generated) | `created_at` | `Date.now()` at migration time |
 | (generated) | `updated_at` | `Date.now()` at migration time |
 
 ## Key Transformations
 
-- **Absolute → Relative path**: Uses `path.relative()` to convert absolute file paths to paths relative to `notesRoot`, then normalizes separators to forward slashes (`/`) for cross-platform compatibility (Mac ↔ Windows backup-restore).
-- **Deduplication**: Duplicate paths are removed via `Set` before insertion.
-- **Filtering**: Empty strings, whitespace-only strings, and non-string values are filtered out.
+- **File system scan**: Recursively walks `notesRoot` for all `.md` files, creating a `note` row for each.
+- **Starred status**: Builds a `Set` from Redux `starredPaths` for O(1) lookup; files in the set get `isStarred: true`.
+- **Absolute → Relative path**: Uses `path.relative()` then normalizes to forward slashes for cross-platform compatibility.
+- **Notes root fallback**: If Redux `note.notesPath` is empty, falls back to `getNotesDir()` (default: `userData/Data/Notes`).
 
 ## Dropped Fields
 
 | Redux Field | Reason |
 |-------------|--------|
-| `note.activeNotePath` | Runtime UI state → moved to PersistCache (`notes.active_file_path`) |
-| `note.expandedKeys` | Runtime UI state → moved to PersistCache (`notes.expanded_paths`) |
+| `note.activeFilePath` | Runtime UI state → PersistCache (`notes.active_file_path`) |
+| `note.expandedPaths` | Runtime UI state → PersistCache (`notes.expanded_paths`) |
+| `note.settings.*` | User preferences → migrated by PreferencesMigrator |
+| `note.sortType` | User preference → migrated by PreferencesMigrator |
 
 ## Edge Cases
 
-- **Empty `notesPath`**: If notes root is empty/undefined, the raw path is stored as-is.
-- **No starred paths**: Migration succeeds with `processedCount: 0`.
-- **Non-string entries in array**: Filtered out during prepare phase.
+- **Notes directory doesn't exist**: Migration succeeds with `processedCount: 0`.
+- **Empty directory**: Migration succeeds with `processedCount: 0`.
+- **Non-.md files**: Ignored during scan.
+- **Unreadable subdirectory**: Logged as warning, skipped, other files still processed.
+- **Starred path not found on disk**: The file was deleted; no row is created since the file doesn't exist.
