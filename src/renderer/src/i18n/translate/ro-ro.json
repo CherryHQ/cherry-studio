@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent."
+        "supported_providers": "[to be translated]:Supported Providers",
+        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
+        "view_providers": "[to be translated]:View supported providers"
       },
       "title": "Adaugă agent",
       "type": {
@@ -5023,6 +5025,11 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "filter": {
+        "agent": "[to be translated]:Agent Supported",
+        "all": "[to be translated]:All Providers"
+      },
+      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
@@ -5233,9 +5240,9 @@
         "api_providers": "Furnizori API",
         "apikey": "Cheie API",
         "blacklist": "Listă neagră",
+        "blacklist_description": "Rezultatele de pe următoarele site-uri web nu vor apărea în rezultatele căutării",
         "blacklist_rules_one": "{{count}} Regulă",
         "blacklist_rules_other": "{{count}} Reguli",
-        "blacklist_description": "Rezultatele de pe următoarele site-uri web nu vor apărea în rezultatele căutării",
         "blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",
         "check": "Verifică",
         "check_failed": "Verificare eșuată",
@@ -5276,6 +5283,7 @@
         "content_limit_tooltip": "Limitează lungimea conținutului rezultatelor căutării; conținutul care depășește limita va fi trunchiat.",
         "default_provider": "Furnizor implicit",
         "free": "Gratuit",
+        "get_api_key": "[to be translated]:Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "Implicit",
         "local_provider": {
           "hint": "Conectează-te la site pentru a obține rezultate mai bune ale căutării și pentru a personaliza setările de căutare.",
@@ -5392,6 +5400,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicații",

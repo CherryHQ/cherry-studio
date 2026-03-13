@@ -5240,9 +5240,9 @@
         "api_providers": "API-Anbieter",
         "apikey": "API-Schlüssel",
         "blacklist": "Schwarze Liste",
+        "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
         "blacklist_rules_one": "{{count}} Regel",
         "blacklist_rules_other": "{{count}} Regeln",
-        "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
         "blacklist_tooltip": "Verwenden Sie das folgende Format (Zeilenumbruch getrennt)\nÜbereinstimmungsmodus: *://*.example.com/*\nRegex: /example\\.(net|org)/",
         "check": "Erkennen",
         "check_failed": "Erkennung fehlgeschlagen",
@@ -5283,6 +5283,7 @@
         "content_limit_tooltip": "Begrenzen Sie die Länge der Suchergebnisse, überschreitende Inhalte werden abgeschnitten",
         "default_provider": "Standardanbieter",
         "free": "Kostenlos",
+        "get_api_key": "[to be translated]:Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "Standard",
         "local_provider": {
           "hint": "Melden Sie sich auf der Website an, um bessere Suchergebnisse zu erhalten und Ihre Sucheinstellungen zu personalisieren.",
