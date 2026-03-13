@@ -6,7 +6,13 @@ import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
@@ -504,11 +510,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Row align="middle" style={{ marginTop: 5, marginBottom: 5 }}>
           <Col span={24}>
             <InputNumber
-              min={1}
-              max={100}
+              min={MIN_TOOL_CALLS}
+              max={MAX_TOOL_CALLS}
               step={1}
               value={maxToolCalls}
-              changeOnBlur
               onChange={(value) => {
                 if (!isNull(value)) {
                   setMaxToolCalls(value)

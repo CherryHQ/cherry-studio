@@ -13,6 +13,7 @@ import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -48,10 +49,6 @@ import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
-
-// Max tool calls validation constants
-const MIN_TOOL_CALLS = 1
-const MAX_TOOL_CALLS = 100
 
 /**
  * Validates and clamps maxToolCalls to valid range
