@@ -10,6 +10,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+
   return (
     <SettingGroup theme={theme}>
       <SettingRow>
@@ -19,7 +20,18 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
-          <Button onClick={ImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
+          <Button onClick={() => ImportPopup.show('chatgpt')}>{t('settings.data.import_settings.button')}</Button>
+        </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>
+          {t('settings.data.import_settings.claude', { defaultValue: 'Import from Claude' })}
+        </SettingRowTitle>
+        <HStack gap="5px" justifyContent="space-between">
+          <Button onClick={() => ImportPopup.show('claude')}>
+            {t('settings.data.import_settings.button_folder', { defaultValue: 'Import Folder' })}
+          </Button>
         </HStack>
       </SettingRow>
     </SettingGroup>
