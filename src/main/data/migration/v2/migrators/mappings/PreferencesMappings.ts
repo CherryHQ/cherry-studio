@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-13T05:24:08.021Z
+ * Generated at: 2026-03-13T06:52:25.030Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -879,7 +879,7 @@ export const REDUX_STORE_MAPPINGS = {
  * For complex transformations (value conversion, multi-key merging, etc.),
  * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
  */
-export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = []
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
 
 // === AUTO-GENERATED CONTENT END ===
 

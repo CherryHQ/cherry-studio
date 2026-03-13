@@ -196,7 +196,7 @@ export const REDUX_STORE_MAPPINGS = ${JSON.stringify(reduxMappings, null, 2)} as
  * For complex transformations (value conversion, multi-key merging, etc.),
  * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
  */
-export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(dexieSettingsMappings, null, 2)}
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = ${JSON.stringify(dexieSettingsMappings, null, 2)} as const
 
 // === AUTO-GENERATED CONTENT END ===
 
