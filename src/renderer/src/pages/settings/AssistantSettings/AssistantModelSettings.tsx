@@ -44,7 +44,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     [assistant?.settings?.toolUseMode]
   )
   const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
-  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? false)
+  const enableMaxToolCalls = useMemo(
+    () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
+    [assistant?.settings?.enableMaxToolCalls]
+  )
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
@@ -200,7 +203,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
-    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
@@ -491,7 +493,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={enableMaxToolCalls}
           onChange={(enabled) => {
-            setEnableMaxToolCalls(enabled)
             updateAssistantSettings({ enableMaxToolCalls: enabled })
           }}
         />
