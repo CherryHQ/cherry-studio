@@ -195,8 +195,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
     setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
-    setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls ?? 20)
-    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls ?? true)
+    setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+    setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
