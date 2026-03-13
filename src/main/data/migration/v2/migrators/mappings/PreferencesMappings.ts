@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-06T11:31:55.102Z
+ * Generated at: 2026-03-13T05:24:08.021Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -886,10 +886,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
+ * - Redux Store项: 206
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, websearch, note
  * - DexieSettings项: 0
- * - 总配置项: 204
+ * - 总配置项: 207
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
