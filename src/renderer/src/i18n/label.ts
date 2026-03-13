@@ -90,6 +90,8 @@ const providerKeyMap = {
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
+  'minimax-global': 'provider.minimax-global',
+  zai: 'provider.zai',
   'volcano-coding': 'provider.volcano-coding',
   'byteplus-coding': 'provider.byteplus-coding'
 } as const

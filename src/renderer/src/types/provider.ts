@@ -200,6 +200,8 @@ export const SystemProviderIdSchema = z.enum([
   'gateway',
   'cerebras',
   'mimo',
+  'minimax-global',
+  'zai',
   'volcano-coding',
   'byteplus-coding'
 ])
@@ -273,7 +275,9 @@ export const SystemProviderIds = {
   huggingface: 'huggingface',
   gateway: 'gateway',
   cerebras: 'cerebras',
-  mimo: 'mimo'
+  mimo: 'mimo',
+  'minimax-global': 'minimax-global',
+  zai: 'zai'
 } as const satisfies Record<SystemProviderId, SystemProviderId>
 
 type SystemProviderIdTypeMap = typeof SystemProviderIds

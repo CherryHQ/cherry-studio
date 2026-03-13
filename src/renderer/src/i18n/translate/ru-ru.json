@@ -1494,7 +1494,6 @@
     "originalError": "Исходная ошибка",
     "originalMessage": "исходное сообщение",
     "parameter": "параметр",
-    "pause_placeholder": "Получение ответа приостановлено",
     "prompt": "подсказка",
     "provider": "поставщик",
     "providerId": "ID поставщика",
@@ -1508,6 +1507,7 @@
     "requestBody": "Запрашиваемый контент",
     "requestBodyValues": "Тело запроса",
     "requestUrl": "Путь запроса",
+    "request_timeout": "Время ожидания запроса истекло",
     "response": "ответ",
     "responseBody": "Содержание ответа",
     "responseHeaders": "Заголовки ответа",
@@ -1517,6 +1517,7 @@
     "status": "Код статуса",
     "statusCode": "Код состояния",
     "statusText": "Текст состояния",
+    "stream_paused": "Получение ответа приостановлено",
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
@@ -2290,8 +2291,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2591,6 +2595,11 @@
     },
     "install_progress": "Прогресс установки",
     "installed_at": "OpenClaw установлен в",
+    "migration": {
+      "description": "Обнаружена устаревшая версия OpenClaw, установленная через npm. Пожалуйста, переустановите её, чтобы получить последнюю официальную версию.",
+      "install_button": "Переустановите OpenClaw",
+      "title": "OpenClaw требует обновления"
+    },
     "model_config": {
       "auth_token": "Токен аутентификации",
       "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",
@@ -2626,6 +2635,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Проверить обновления",
       "open_dashboard": "Открыть панель управления",
       "title": "Быстрые действия",
       "uninstall": "Удалить",
@@ -2652,6 +2662,16 @@
     "uninstalling": {
       "description": "Пожалуйста, подождите, пока OpenClaw удаляется...",
       "title": "Удаление OpenClaw"
+    },
+    "update": {
+      "available": "Новая версия доступна: v{{latest}} (текущая: v{{current}})",
+      "checking": "Проверка обновлений...",
+      "confirm_button": "Обновить сейчас",
+      "failed": "Не удалось проверить наличие обновлений",
+      "modal_title": "Обновление OpenClaw",
+      "success": "Обновление завершено успешно!",
+      "up_to_date": "Уже актуально (v{{current}})",
+      "updating": "Обновление..."
     }
   },
   "ovms": {
@@ -3052,7 +3072,8 @@
     "lmstudio": "LM Studio",
     "longcat": "Тоторо",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3080,6 +3101,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
+    "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },

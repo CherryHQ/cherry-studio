@@ -1494,7 +1494,6 @@
     "originalError": "元のエラー",
     "originalMessage": "元のメッセージ",
     "parameter": "パラメータ",
-    "pause_placeholder": "応答を一時停止しました",
     "prompt": "プロンプトを表示する",
     "provider": "プロバイダー",
     "providerId": "プロバイダーID",
@@ -1508,6 +1507,7 @@
     "requestBody": "要求されたコンテンツ",
     "requestBodyValues": "リクエストボディ",
     "requestUrl": "リクエストパス",
+    "request_timeout": "リクエストがタイムアウトしました",
     "response": "応答",
     "responseBody": "レスポンス内容",
     "responseHeaders": "レスポンスヘッダー",
@@ -1517,6 +1517,7 @@
     "status": "ステータスコード",
     "statusCode": "ステータスコード",
     "statusText": "状態テキスト",
+    "stream_paused": "応答を一時停止しました",
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
@@ -2290,8 +2291,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "当贝AI",
     "doubao": "豆包",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "通義千問",
@@ -2591,6 +2595,11 @@
     },
     "install_progress": "インストール進行状況",
     "installed_at": "OpenClawのインストール先",
+    "migration": {
+      "description": "npm経由でインストールされた古いバージョンのOpenClawが検出されました。最新の公式バージョンを入手するために、再インストールをお願いします。",
+      "install_button": "OpenClawを再インストール",
+      "title": "OpenClawはアップデートが必要"
+    },
     "model_config": {
       "auth_token": "認証トークン",
       "auth_token_hint": "ゲートウェイ認証用のトークン。認証を無効にする場合は空のままにしてください。",
@@ -2626,6 +2635,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "アップデートを確認",
       "open_dashboard": "ダッシュボードを開く",
       "title": "クイックアクション",
       "uninstall": "アンインストール",
@@ -2652,6 +2662,16 @@
     "uninstalling": {
       "description": "OpenClawがアンインストールされるまでお待ちください...",
       "title": "OpenClawのアンインストール"
+    },
+    "update": {
+      "available": "新しいバージョンが利用可能です: v{{latest}}（現在: v{{current}}）",
+      "checking": "アップデートを確認中...",
+      "confirm_button": "今すぐアップデート",
+      "failed": "アップデートの確認に失敗しました",
+      "modal_title": "OpenClawアップデート",
+      "success": "アップデートが正常に完了しました！",
+      "up_to_date": "すでに最新です (v{{current}})",
+      "updating": "更新中..."
     }
   },
   "ovms": {
@@ -3052,7 +3072,8 @@
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "月の暗面",
@@ -3080,6 +3101,7 @@
     "voyageai": "Voyage AI",
     "xirang": "天翼クラウド 息壤",
     "yi": "零一万物",
+    "zai": "Z.ai",
     "zhinao": "360智脳",
     "zhipu": "BigModel"
   },

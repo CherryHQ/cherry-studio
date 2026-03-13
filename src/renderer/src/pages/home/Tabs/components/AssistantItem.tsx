@@ -314,7 +314,7 @@ function getMenuItems({
       key: 'save-to-agent',
       icon: <Save size={14} />,
       onClick: async () => {
-        const preset = omit(assistant, ['model', 'emoji'])
+        const preset = omit(assistant, ['model'])
         preset.id = uuid()
         preset.type = 'agent'
         addPreset(preset)

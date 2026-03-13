@@ -1494,7 +1494,6 @@
     "originalError": "Erreur d'origine",
     "originalMessage": "message original",
     "parameter": "paramètre",
-    "pause_placeholder": "Прервано",
     "prompt": "mot-clé",
     "provider": "fournisseur",
     "providerId": "ID du fournisseur",
@@ -1508,6 +1507,7 @@
     "requestBody": "Contenu de la demande",
     "requestBodyValues": "Corps de la requête",
     "requestUrl": "Chemin de la requête",
+    "request_timeout": "Délai d'attente de la requête dépassé",
     "response": "réponse",
     "responseBody": "Contenu de la réponse",
     "responseHeaders": "En-têtes de réponse",
@@ -1517,6 +1517,7 @@
     "status": "Code d'état",
     "statusCode": "Code d'état",
     "statusText": "Texte d'état",
+    "stream_paused": "Interrompu",
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
@@ -2290,8 +2291,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2591,6 +2595,11 @@
     },
     "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
+    "migration": {
+      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "install_button": "Réinstaller OpenClaw",
+      "title": "OpenClaw nécessite une mise à jour"
+    },
     "model_config": {
       "auth_token": "Jeton d'authentification",
       "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",
@@ -2626,6 +2635,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Vérifier les mises à jour",
       "open_dashboard": "Ouvrir le tableau de bord",
       "title": "Actions rapides",
       "uninstall": "Désinstaller",
@@ -2652,6 +2662,16 @@
     "uninstalling": {
       "description": "Veuillez patienter pendant la désinstallation d'OpenClaw...",
       "title": "Désinstallation d'OpenClaw"
+    },
+    "update": {
+      "available": "Nouvelle version disponible : v{{latest}} (actuelle : v{{current}})",
+      "checking": "Vérification des mises à jour...",
+      "confirm_button": "Mettre à jour maintenant",
+      "failed": "Échec de la vérification des mises à jour",
+      "modal_title": "Mise à jour d'OpenClaw",
+      "success": "Mise à jour terminée avec succès !",
+      "up_to_date": "Déjà à jour (v{{current}})",
+      "updating": "Mise à jour..."
     }
   },
   "ovms": {
@@ -3052,7 +3072,8 @@
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
     "moonshot": "Face Sombre de la Lune",
@@ -3080,6 +3101,7 @@
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
+    "zai": "Z.ai",
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
   },
