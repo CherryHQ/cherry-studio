@@ -13,6 +13,8 @@ export interface ChannelInfo {
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
+  uptime?: number
+  version?: string
 }
 
 export interface OpenClawState {
