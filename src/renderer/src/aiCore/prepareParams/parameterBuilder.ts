@@ -13,6 +13,7 @@ import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -27,7 +28,7 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
-import { getDefaultModel } from '@renderer/services/AssistantService'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
@@ -48,6 +49,19 @@ import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
+
+/**
+ * Validates and clamps maxToolCalls to valid range
+ * Falls back to DEFAULT_ASSISTANT_SETTINGS.maxToolCalls if invalid
+ * @param value - The maxToolCalls value from settings
+ * @returns Validated maxToolCalls value
+ */
+function validateMaxToolCalls(value: number | undefined): number {
+  if (value === undefined || value < MIN_TOOL_CALLS || value > MAX_TOOL_CALLS) {
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  }
+  return value
+}
 
 type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
@@ -229,6 +243,12 @@ export async function buildStreamTextParams(
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
+
+  // Get max tool calls from assistant settings
+  // When enabled, validate and use user-defined value (1-100)
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
@@ -239,9 +259,15 @@ export async function buildStreamTextParams(
     abortSignal: finalSignal,
     headers,
     providerOptions,
-    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+
+  // Only add stopWhen when explicitly enabled and validated
+  if (enableMaxToolCalls) {
+    const maxToolCalls = validateMaxToolCalls(assistant.settings?.maxToolCalls)
+    params.stopWhen = stepCountIs(maxToolCalls)
+  }
+  // When disabled, don't pass stopWhen - let AI SDK use its own default
 
   if (tools) {
     params.tools = tools

@@ -621,6 +621,10 @@
           "tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle"
         }
       },
+      "max_tool_calls": {
+        "label": "Maximiser les appels d'outils",
+        "tip": "Nombre maximum d'appels d'outils autorisés dans une seule conversation. Des valeurs plus élevées permettent des opérations multi-étapes plus complexes, mais peuvent augmenter l'utilisation de tokens et le temps de réponse."
+      },
       "mcp": {
         "description": "Serveur MCP activé par défaut",
         "enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
