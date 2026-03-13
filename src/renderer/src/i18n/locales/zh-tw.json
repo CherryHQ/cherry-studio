@@ -28,6 +28,176 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "即將推出",
+        "description": "將您的 Agent 連接到訊息平台。",
+        "feishu": {
+          "appId": "[to be translated]:App ID",
+          "appIdPlaceholder": "[to be translated]:Enter your Feishu app ID",
+          "appSecret": "[to be translated]:App Secret",
+          "appSecretPlaceholder": "[to be translated]:Enter your Feishu app secret",
+          "chatIds": "[to be translated]:Allowed Chat IDs",
+          "chatIdsHint": "[to be translated]:Comma-separated chat IDs. Leave empty to allow all chats.",
+          "chatIdsPlaceholder": "[to be translated]:oc_xxxxx, oc_yyyyy",
+          "description": "[to be translated]:Receive and respond to messages via a Feishu/Lark bot using WebSocket.",
+          "domain": "[to be translated]:Domain",
+          "domainFeishu": "[to be translated]:Feishu (China)",
+          "domainLark": "[to be translated]:Lark (International)",
+          "encryptKey": "[to be translated]:Encrypt Key",
+          "encryptKeyPlaceholder": "[to be translated]:Enter the Encrypt Key from your Feishu app",
+          "title": "[to be translated]:Feishu",
+          "verificationToken": "[to be translated]:Verification Token",
+          "verificationTokenPlaceholder": "[to be translated]:Enter the Verification Token from your Feishu app"
+        },
+        "notifyReceiver": "接收任務通知",
+        "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
+          "chatIds": "允許的對話 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允許所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
+          "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
+          "title": "QQ",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
+        },
+        "tab": "頻道",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "輸入您的 Telegram 機器人 Token",
+          "chatIds": "允許的對話 ID",
+          "chatIdsHint": "用逗號分隔。留空表示允許所有對話。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "透過 Telegram 機器人使用長輪詢方式接收和回覆訊息。",
+          "title": "Telegram"
+        },
+        "title": "頻道"
+      },
+      "heartbeat": {
+        "enabled": "啟用心跳",
+        "enabledHelper": "啟用後，如果工作區存在 heartbeat.md 檔案，排程器會按設定的間隔讀取其內容並傳送到主對話。",
+        "interval": "間隔（分鐘）",
+        "intervalHelper": "心跳執行的頻率，單位為分鐘。"
+      },
+      "sandbox": {
+        "description": "使用作業系統級沙箱限制 Agent 的檔案系統和網路存取，僅限於工作區目錄。",
+        "helper": "將檔案系統和命令存取限制在工作區路徑內。",
+        "label": "沙箱模式"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "標準 cron 表達式（例如 '*/30 * * * *' 表示每 30 分鐘）。",
+          "label": "Cron 表達式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "排程器按計劃自動觸發 Agent 執行。",
+        "enabled": "啟用排程器",
+        "enabledHelper": "啟用後，Agent 將根據設定的計劃自動執行。",
+        "errors": {
+          "invalidCron": "無效的 cron 表達式",
+          "invalidDelay": "延遲必須是正數",
+          "invalidInterval": "間隔必須是正數"
+        },
+        "interval": {
+          "helper": "Agent 執行的頻率，單位為秒。",
+          "label": "間隔（秒）"
+        },
+        "lastRun": "上次執行",
+        "never": "從未",
+        "nextRun": "下次執行",
+        "oneTime": {
+          "helper": "Agent 執行前的一次性延遲，單位為秒。",
+          "label": "延遲（秒）"
+        },
+        "status": {
+          "running": "執行中",
+          "stopped": "已停止",
+          "tickInProgress": "執行中"
+        },
+        "tab": "排程器",
+        "title": "排程器設定",
+        "type": {
+          "cron": "Cron 表達式",
+          "interval": "固定間隔",
+          "label": "排程類型",
+          "one-time": "一次性延遲"
+        }
+      },
+      "soul": {
+        "description": "靈魂定義了 Agent 的個性和基礎行為。它從工作區根目錄的 soul.md 檔案中讀取。",
+        "empty": "在工作區根目錄未找到 soul.md 檔案。建立一個來定義 Agent 的個性。",
+        "enabled": "啟用靈魂",
+        "enabledHelper": "啟用後，Agent 會從工作區根目錄讀取 soul.md 並將其添加到系統提示詞前面。",
+        "fileLabel": "soul.md",
+        "preview": "靈魂預覽",
+        "tab": "靈魂",
+        "title": "靈魂設定"
+      },
+      "tasks": {
+        "add": "新增任務",
+        "cancel": "取消",
+        "contextMode": {
+          "isolated": "隔離",
+          "isolatedDesc": "每次執行建立新對話",
+          "label": "上下文模式",
+          "session": "重複使用對話",
+          "sessionDesc": "重複使用最近的對話"
+        },
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
+        "delete": {
+          "confirm": "確定要刪除此任務嗎？",
+          "label": "刪除"
+        },
+        "edit": "編輯",
+        "empty": "暫無排程任務。新增一個開始吧。",
+        "intervalPlaceholder": "間隔（分鐘）",
+        "lastRun": "上次執行",
+        "logs": {
+          "duration": "耗時",
+          "empty": "暫無執行歷史。",
+          "error": "錯誤",
+          "label": "執行歷史",
+          "result": "結果",
+          "runAt": "執行時間",
+          "status": "狀態"
+        },
+        "name": {
+          "label": "名稱",
+          "placeholder": "例如：每日程式碼審查"
+        },
+        "nextRun": "下次執行",
+        "oncePlaceholder": "選擇日期和時間",
+        "pause": "暫停",
+        "prompt": {
+          "label": "提示詞",
+          "placeholder": "此任務執行時 Agent 應該做什麼？"
+        },
+        "resume": "恢復",
+        "run": "執行",
+        "runTriggered": "任務已觸發",
+        "save": "儲存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "間隔",
+          "label": "排程類型",
+          "once": "一次性"
+        },
+        "scheduleValue": "排程值",
+        "status": {
+          "active": "活躍",
+          "completed": "已完成",
+          "paused": "已暫停"
+        },
+        "tab": "任務",
+        "title": "排程任務"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
+      }
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {

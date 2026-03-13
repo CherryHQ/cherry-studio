@@ -25,8 +25,52 @@ export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
-export const AgentTypeSchema = z.enum(['claude-code'])
+export const AgentTypeSchema = z.enum(['claude-code', 'cherry-claw'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
+
+// ------------------ CherryClaw-specific types ------------------
+export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
+
+export const TelegramChannelConfigSchema = z.object({
+  bot_token: z.string().min(1),
+  allowed_chat_ids: z.array(z.string()).default([])
+})
+
+export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>
+
+export const QQChannelConfigSchema = z.object({
+  app_id: z.string().min(1),
+  client_secret: z.string().min(1),
+  allowed_chat_ids: z.array(z.string()).default([])
+})
+
+export type QQChannelConfig = z.infer<typeof QQChannelConfigSchema>
+
+export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
+export type FeishuDomain = z.infer<typeof FeishuDomainSchema>
+
+export const FeishuChannelConfigSchema = z.object({
+  app_id: z.string().min(1),
+  app_secret: z.string().min(1),
+  encrypt_key: z.string().default(''),
+  verification_token: z.string().default(''),
+  allowed_chat_ids: z.array(z.string()).default([]),
+  domain: FeishuDomainSchema.default('feishu')
+})
+
+export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>
+
+export const CherryClawChannelSchema = z.object({
+  id: z.string(),
+  type: z.enum(['telegram', 'feishu', 'qq']),
+  name: z.string(),
+  enabled: z.boolean().default(true),
+  config: z.union([TelegramChannelConfigSchema, FeishuChannelConfigSchema, QQChannelConfigSchema]),
+  is_notify_receiver: z.boolean().default(false)
+})
+
+export type CherryClawChannel = z.infer<typeof CherryClawChannelSchema>
 
 export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
@@ -64,6 +108,68 @@ export const AgentConfigurationSchema = z
   .loose()
 
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+
+// CherryClaw extends AgentConfiguration with scheduler/soul/heartbeat fields.
+// Since AgentConfigurationSchema uses .loose(), these are stored in the same JSON field.
+export type CherryClawConfiguration = AgentConfiguration & {
+  // Soul
+  soul_enabled?: boolean
+
+  // Scheduler
+  scheduler_enabled?: boolean
+  scheduler_type?: SchedulerType
+  scheduler_cron?: string
+  scheduler_interval?: number
+  scheduler_one_time_delay?: number
+  scheduler_last_run?: string
+
+  // Heartbeat
+  heartbeat_enabled?: boolean
+  heartbeat_interval?: number // minutes, default 30
+
+  // Channels (placeholder)
+  channels?: CherryClawChannel[]
+}
+
+// ------------------ Scheduled Task types ------------------
+export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
+export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
+
+export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
+export type TaskStatus = z.infer<typeof TaskStatusSchema>
+
+export const TaskContextModeSchema = z.enum(['session', 'isolated'])
+export type TaskContextMode = z.infer<typeof TaskContextModeSchema>
+
+export const ScheduledTaskEntitySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  name: z.string(),
+  prompt: z.string(),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string(),
+  context_mode: TaskContextModeSchema,
+  next_run: z.string().nullable().optional(),
+  last_run: z.string().nullable().optional(),
+  last_result: z.string().nullable().optional(),
+  status: TaskStatusSchema,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime()
+})
+
+export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+
+export const TaskRunLogEntitySchema = z.object({
+  id: z.number(),
+  task_id: z.string(),
+  run_at: z.string(),
+  duration_ms: z.number(),
+  status: z.enum(['success', 'error']),
+  result: z.string().nullable().optional(),
+  error: z.string().nullable().optional()
+})
+
+export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
@@ -327,6 +433,50 @@ export const AgentServerErrorSchema = z.object({
 })
 
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// ------------------ Task API types ------------------
+export const CreateTaskRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  prompt: z.string().min(1, 'Prompt is required'),
+  schedule_type: TaskScheduleTypeSchema,
+  schedule_value: z.string().min(1, 'Schedule value is required'),
+  context_mode: TaskContextModeSchema.optional().default('session')
+})
+
+export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
+
+export const UpdateTaskRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  prompt: z.string().min(1).optional(),
+  schedule_type: TaskScheduleTypeSchema.optional(),
+  schedule_value: z.string().min(1).optional(),
+  context_mode: TaskContextModeSchema.optional(),
+  status: TaskStatusSchema.optional()
+})
+
+export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
+
+export const ListTasksResponseSchema = z.object({
+  data: z.array(ScheduledTaskEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
+
+export const ListTaskLogsResponseSchema = z.object({
+  data: z.array(TaskRunLogEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
+
+export const TaskIdParamSchema = z.object({
+  taskId: z.string().min(1, 'Task ID is required')
+})
 
 // ------------------ API validation schemas ------------------
 

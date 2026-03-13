@@ -19,6 +19,13 @@ import type {
   UpdateSessionForm,
   UpdateSessionRequest
 } from '@types'
+import type {
+  CreateTaskRequest,
+  ListTaskLogsResponse,
+  ListTasksResponse,
+  ScheduledTaskEntity,
+  UpdateTaskRequest
+} from '@types'
 import {
   AgentServerErrorSchema,
   ApiModelsResponseSchema,
@@ -29,8 +36,11 @@ import {
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
+  ListTaskLogsResponseSchema,
+  ListTasksResponseSchema,
   objectEntries,
   objectKeys,
+  ScheduledTaskEntitySchema,
   UpdateAgentResponseSchema
 } from '@types'
 import type { Axios, AxiosRequestConfig } from 'axios'
@@ -84,6 +94,13 @@ export class AgentApiClient {
   public getSessionMessagesPaths = (agentId: string, sessionId: string) => ({
     base: `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`,
     withId: (id: number) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
+  })
+
+  public getTaskPaths = (agentId: string) => ({
+    base: `/${this.apiVersion}/agents/${agentId}/tasks`,
+    withId: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}`,
+    run: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/run`,
+    logs: (taskId: string) => `/${this.apiVersion}/agents/${agentId}/tasks/${taskId}/logs`
   })
 
   public getModelsPath = (props?: ApiModelsFilter) => {
@@ -255,6 +272,87 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to get models.')
+    }
+  }
+
+  // --- Task CRUD ---
+
+  public async listTasks(agentId: string, options?: ListOptions): Promise<ListTasksResponse> {
+    const url = this.getTaskPaths(agentId).base
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTasksResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid Tasks response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to list tasks.')
+    }
+  }
+
+  public async createTask(agentId: string, task: CreateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.getTaskPaths(agentId).base
+    try {
+      const response = await this.axios.post(url, task)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to create task.')
+    }
+  }
+
+  public async getTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity> {
+    const url = this.getTaskPaths(agentId).withId(taskId)
+    try {
+      const response = await this.axios.get(url)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to get task.')
+    }
+  }
+
+  public async updateTask(agentId: string, taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity> {
+    const url = this.getTaskPaths(agentId).withId(taskId)
+    try {
+      const response = await this.axios.patch(url, updates)
+      const data = ScheduledTaskEntitySchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to update task.')
+    }
+  }
+
+  public async deleteTask(agentId: string, taskId: string): Promise<void> {
+    const url = this.getTaskPaths(agentId).withId(taskId)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete task.')
+    }
+  }
+
+  public async runTask(agentId: string, taskId: string): Promise<void> {
+    const url = this.getTaskPaths(agentId).run(taskId)
+    try {
+      await this.axios.post(url)
+    } catch (error) {
+      throw processError(error, 'Failed to run task.')
+    }
+  }
+
+  public async getTaskLogs(agentId: string, taskId: string, options?: ListOptions): Promise<ListTaskLogsResponse> {
+    const url = this.getTaskPaths(agentId).logs(taskId)
+    try {
+      const response = await this.axios.get(url, { params: options })
+      const result = ListTaskLogsResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid TaskLogs response.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to get task logs.')
     }
   }
 }

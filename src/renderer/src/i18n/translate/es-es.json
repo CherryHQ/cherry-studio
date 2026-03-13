@@ -28,6 +28,176 @@
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "Próximamente",
+        "description": "Conecte su agente a plataformas de mensajería.",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Introduzca el App ID de su aplicación Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Introduzca el App Secret de su aplicación Feishu",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "IDs de chat separados por comas. Deje vacío para permitir todos los chats.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Recibir y responder mensajes a través de un bot de Feishu/Lark usando WebSocket.",
+          "domain": "Dominio",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (Internacional)",
+          "encryptKey": "Clave de cifrado",
+          "encryptKeyPlaceholder": "Introduzca la clave de cifrado de su aplicación Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token de verificación",
+          "verificationTokenPlaceholder": "Introduzca el token de verificación de su aplicación Feishu"
+        },
+        "notifyReceiver": "Recibir notificaciones de tareas",
+        "notifyReceiverHint": "Enviar resultados de tareas programadas a este canal.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Ingrese su App ID de QQ Bot",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Formato: c2c:openid, group:groupid, channel:channelid. Dejar vacío para permitir todos.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
+          "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
+        },
+        "tab": "Canales",
+        "telegram": {
+          "botToken": "Token del bot",
+          "botTokenPlaceholder": "Ingrese su token de bot de Telegram",
+          "chatIds": "IDs de chat permitidos",
+          "chatIdsHint": "Separados por comas. Dejar vacío para permitir todos los chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Recibir y responder mensajes a través de un bot de Telegram usando long polling.",
+          "title": "Telegram"
+        },
+        "title": "Canales"
+      },
+      "heartbeat": {
+        "enabled": "Habilitar Heartbeat",
+        "enabledHelper": "Cuando está habilitado y heartbeat.md existe en el espacio de trabajo, el programador lee su contenido y lo envía a la sesión principal en el intervalo configurado.",
+        "interval": "Intervalo (minutos)",
+        "intervalHelper": "Con qué frecuencia se ejecuta el heartbeat, en minutos."
+      },
+      "sandbox": {
+        "description": "Restringe el acceso al sistema de archivos y red del agente al directorio del espacio de trabajo usando sandboxing a nivel de sistema operativo.",
+        "helper": "Restringir el acceso al sistema de archivos y comandos a la ruta del espacio de trabajo.",
+        "label": "Modo Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Expresión cron estándar (ej: '*/30 * * * *' para cada 30 minutos).",
+          "label": "Expresión Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "El programador activa el agente automáticamente según un horario.",
+        "enabled": "Habilitar programador",
+        "enabledHelper": "Cuando está habilitado, el agente se ejecutará automáticamente según el horario configurado.",
+        "errors": {
+          "invalidCron": "Expresión cron inválida",
+          "invalidDelay": "El retraso debe ser un número positivo",
+          "invalidInterval": "El intervalo debe ser un número positivo"
+        },
+        "interval": {
+          "helper": "Con qué frecuencia debe ejecutarse el agente, en segundos.",
+          "label": "Intervalo (segundos)"
+        },
+        "lastRun": "Última ejecución",
+        "never": "Nunca",
+        "nextRun": "Próxima ejecución",
+        "oneTime": {
+          "helper": "Retraso único en segundos antes de que el agente se ejecute.",
+          "label": "Retraso (segundos)"
+        },
+        "status": {
+          "running": "Ejecutando",
+          "stopped": "Detenido",
+          "tickInProgress": "Tick en progreso"
+        },
+        "tab": "Programador",
+        "title": "Configuración del programador",
+        "type": {
+          "cron": "Expresión Cron",
+          "interval": "Intervalo fijo",
+          "label": "Tipo de programación",
+          "one-time": "Retraso único"
+        }
+      },
+      "soul": {
+        "description": "El alma define la personalidad y el comportamiento base del agente. Se lee desde soul.md en la raíz del espacio de trabajo.",
+        "empty": "No se encontró soul.md en la raíz del espacio de trabajo. Cree uno para definir la personalidad del agente.",
+        "enabled": "Habilitar alma",
+        "enabledHelper": "Cuando está habilitado, el agente lee soul.md desde la raíz del espacio de trabajo y lo antepone al prompt del sistema.",
+        "fileLabel": "soul.md",
+        "preview": "Vista previa del alma",
+        "tab": "Alma",
+        "title": "Configuración del alma"
+      },
+      "tasks": {
+        "add": "Agregar tarea",
+        "cancel": "Cancelar",
+        "contextMode": {
+          "isolated": "Aislado",
+          "isolatedDesc": "Crear una nueva sesión en cada ejecución",
+          "label": "Modo de contexto",
+          "session": "Reutilizar sesión",
+          "sessionDesc": "Reutilizar la sesión más reciente"
+        },
+        "cronPlaceholder": "ej: 0 9 * * * (todos los días a las 9 AM)",
+        "delete": {
+          "confirm": "¿Está seguro de que desea eliminar esta tarea?",
+          "label": "Eliminar"
+        },
+        "edit": "Editar",
+        "empty": "No hay tareas programadas. Agregue una para comenzar.",
+        "intervalPlaceholder": "Intervalo en minutos",
+        "lastRun": "Última ejecución",
+        "logs": {
+          "duration": "Duración",
+          "empty": "Aún no hay historial de ejecución.",
+          "error": "Error",
+          "label": "Historial de ejecución",
+          "result": "Resultado",
+          "runAt": "Ejecutado en",
+          "status": "Estado"
+        },
+        "name": {
+          "label": "Nombre",
+          "placeholder": "ej: Revisión de código diaria"
+        },
+        "nextRun": "Próxima ejecución",
+        "oncePlaceholder": "Seleccionar fecha y hora",
+        "pause": "Pausar",
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "¿Qué debe hacer el agente cuando se ejecute esta tarea?"
+        },
+        "resume": "Reanudar",
+        "run": "Ejecutar",
+        "runTriggered": "Tarea activada",
+        "save": "Guardar",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Intervalo",
+          "label": "Tipo de programación",
+          "once": "Una vez"
+        },
+        "scheduleValue": "Valor de programación",
+        "status": {
+          "active": "Activo",
+          "completed": "Completado",
+          "paused": "Pausado"
+        },
+        "tab": "Tareas",
+        "title": "Tareas programadas"
+      },
+      "warning": {
+        "bypassPermissions": "Los agentes CherryClaw se ejecutan en modo automático completo por defecto. Todas las herramientas se ejecutan sin pedir aprobación."
+      }
+    },
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
       "error": {

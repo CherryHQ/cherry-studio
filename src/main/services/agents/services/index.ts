@@ -9,11 +9,24 @@
 export { AgentService } from './AgentService'
 export { SessionMessageService } from './SessionMessageService'
 export { SessionService } from './SessionService'
+export { TaskService } from './TaskService'
 
 // Service instances (singletons)
 export { agentService } from './AgentService'
 export { sessionMessageService } from './SessionMessageService'
 export { sessionService } from './SessionService'
+export { taskService } from './TaskService'
+
+// Agent service registry
+export { agentServiceRegistry } from './AgentServiceRegistry'
+
+// Register agent services — claude-code first (CherryClaw delegates to it at runtime)
+import { agentServiceRegistry } from './AgentServiceRegistry'
+import { CherryClawService } from './cherryclaw'
+import ClaudeCodeService from './claudecode'
+
+agentServiceRegistry.register('claude-code', new ClaudeCodeService())
+agentServiceRegistry.register('cherry-claw', new CherryClawService())
 
 // Type definitions for service requests and responses
 export type { AgentEntity, AgentSessionEntity, CreateAgentRequest, UpdateAgentRequest } from '@types'

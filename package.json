@@ -77,12 +77,15 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.71",
     "@expo/sudo-prompt": "^9.3.2",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
+    "cron-parser": "^5.5.0",
     "express": "5.1.0",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
+    "grammy": "^1.41.1",
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
     "node-stream-zip": "1.15.0",
@@ -92,7 +95,8 @@
     "sharp": "0.34.3",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -243,6 +247,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
+    "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
     "@uiw/codemirror-extensions-langs": "4.25.7",
     "@uiw/codemirror-themes-all": "4.25.7",

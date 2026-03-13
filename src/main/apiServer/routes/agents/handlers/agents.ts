@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
-import type { ListAgentsResponse } from '@types'
+import { channelManager } from '@main/services/agents/services/channels'
+import { schedulerService } from '@main/services/agents/services/SchedulerService'
+import type { CherryClawConfiguration, ListAgentsResponse } from '@types'
 import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import type { Request, Response } from 'express'
 
@@ -62,8 +64,14 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
       logger.debug('Creating default session for agent', { agentId: agent.id })
 
       await sessionService.createSession(agent.id, {})
-
       logger.info('Default session created for agent', { agentId: agent.id })
+
+      // Create heartbeat task for CherryClaw agents
+      if (agent.type === 'cherry-claw') {
+        const config = (agent.configuration ?? {}) as CherryClawConfiguration
+        await schedulerService.ensureHeartbeatTask(agent.id, config.heartbeat_interval ?? 30)
+      }
+
       return res.status(201).json(agent)
     } catch (sessionError: any) {
       logger.error('Failed to create default session for new agent, rolling back agent creation', {
@@ -350,6 +358,20 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
+    // Restart scheduler if this is a cherry-claw agent
+    if (agent.type === 'cherry-claw') {
+      schedulerService.stopScheduler(agentId)
+      schedulerService.startScheduler(agent)
+      channelManager.syncAgent(agentId)
+      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      schedulerService.ensureHeartbeatTask(agentId, config.heartbeat_interval ?? 30).catch((err) => {
+        logger.warn('Failed to sync heartbeat task', {
+          agentId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+    }
+
     logger.info('Agent updated', { agentId })
     return res.json(agent)
   } catch (error: any) {
@@ -496,6 +518,20 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
       })
     }
 
+    // Restart scheduler if this is a cherry-claw agent with scheduler config changes
+    if (agent.type === 'cherry-claw') {
+      schedulerService.stopScheduler(agentId)
+      schedulerService.startScheduler(agent)
+      channelManager.syncAgent(agentId)
+      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      schedulerService.ensureHeartbeatTask(agentId, config.heartbeat_interval ?? 30).catch((err) => {
+        logger.warn('Failed to sync heartbeat task', {
+          agentId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+    }
+
     logger.info('Agent patched', { agentId })
     return res.json(agent)
   } catch (error: any) {
@@ -556,6 +592,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
     const { agentId } = req.params
     logger.debug('Deleting agent', { agentId })
 
+    // Stop scheduler before deleting agent
+    schedulerService.stopScheduler(agentId)
+
     const deleted = await agentService.deleteAgent(agentId)
 
     if (!deleted) {
@@ -568,6 +607,9 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
         }
       })
     }
+
+    // Sync channels after deletion so syncAgent finds no agent and disconnects adapters
+    channelManager.syncAgent(agentId)
 
     logger.info('Agent deleted', { agentId })
     return res.status(204).send()

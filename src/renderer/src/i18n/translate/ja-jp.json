@@ -28,6 +28,176 @@
       "submit": "送信",
       "title": "エージェントからの質問"
     },
+    "cherryClaw": {
+      "channels": {
+        "comingSoon": "近日公開",
+        "description": "エージェントをメッセージングプラットフォームに接続します。",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
+          "chatIds": "許可するチャットID",
+          "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
+          "domain": "ドメイン",
+          "domainFeishu": "Feishu（中国）",
+          "domainLark": "Lark（国際版）",
+          "encryptKey": "暗号化キー",
+          "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
+          "title": "Feishu",
+          "verificationToken": "検証トークン",
+          "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
+        },
+        "notifyReceiver": "タスク通知を受信",
+        "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "QQ Bot の App ID を入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
+          "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+          "title": "QQ",
+          "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
+        },
+        "tab": "チャンネル",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Telegram ボットトークンを入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
+          "title": "Telegram"
+        },
+        "title": "チャンネル"
+      },
+      "heartbeat": {
+        "enabled": "ハートビートを有効化",
+        "enabledHelper": "有効にすると、ワークスペースに heartbeat.md が存在する場合、スケジューラが設定された間隔でその内容を読み取り、メインセッションに送信します。",
+        "interval": "間隔（分）",
+        "intervalHelper": "ハートビートの実行頻度（分単位）。"
+      },
+      "sandbox": {
+        "description": "OS レベルのサンドボックスを使用して、エージェントのファイルシステムとネットワークアクセスをワークスペースディレクトリに制限します。",
+        "helper": "ファイルシステムとコマンドアクセスをワークスペースパスに制限します。",
+        "label": "サンドボックスモード"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "標準の cron 式（例: '*/30 * * * *' で 30 分ごと）。",
+          "label": "Cron 式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "スケジューラはスケジュールに従ってエージェントを自動的にトリガーします。",
+        "enabled": "スケジューラを有効化",
+        "enabledHelper": "有効にすると、エージェントは設定されたスケジュールに基づいて自動的に実行されます。",
+        "errors": {
+          "invalidCron": "無効な cron 式",
+          "invalidDelay": "遅延は正の数である必要があります",
+          "invalidInterval": "間隔は正の数である必要があります"
+        },
+        "interval": {
+          "helper": "エージェントの実行頻度（秒単位）。",
+          "label": "間隔（秒）"
+        },
+        "lastRun": "前回の実行",
+        "never": "なし",
+        "nextRun": "次回の実行",
+        "oneTime": {
+          "helper": "エージェント実行前の一回限りの遅延（秒単位）。",
+          "label": "遅延（秒）"
+        },
+        "status": {
+          "running": "実行中",
+          "stopped": "停止中",
+          "tickInProgress": "実行中"
+        },
+        "tab": "スケジューラ",
+        "title": "スケジューラ設定",
+        "type": {
+          "cron": "Cron 式",
+          "interval": "固定間隔",
+          "label": "スケジュールタイプ",
+          "one-time": "一回限りの遅延"
+        }
+      },
+      "soul": {
+        "description": "ソウルはエージェントの個性と基本動作を定義します。ワークスペースルートの soul.md から読み込まれます。",
+        "empty": "ワークスペースルートに soul.md が見つかりません。エージェントの個性を定義するために作成してください。",
+        "enabled": "ソウルを有効化",
+        "enabledHelper": "有効にすると、エージェントはワークスペースルートから soul.md を読み取り、システムプロンプトの先頭に追加します。",
+        "fileLabel": "soul.md",
+        "preview": "ソウルプレビュー",
+        "tab": "ソウル",
+        "title": "ソウル設定"
+      },
+      "tasks": {
+        "add": "タスクを追加",
+        "cancel": "キャンセル",
+        "contextMode": {
+          "isolated": "隔離",
+          "isolatedDesc": "実行ごとに新しいセッションを作成",
+          "label": "コンテキストモード",
+          "session": "セッションを再利用",
+          "sessionDesc": "最新のセッションを再利用"
+        },
+        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
+        "delete": {
+          "confirm": "このタスクを削除してもよろしいですか？",
+          "label": "削除"
+        },
+        "edit": "編集",
+        "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+        "intervalPlaceholder": "間隔（分）",
+        "lastRun": "前回の実行",
+        "logs": {
+          "duration": "所要時間",
+          "empty": "実行履歴がありません。",
+          "error": "エラー",
+          "label": "実行履歴",
+          "result": "結果",
+          "runAt": "実行時刻",
+          "status": "ステータス"
+        },
+        "name": {
+          "label": "名前",
+          "placeholder": "例: 毎日のコードレビュー"
+        },
+        "nextRun": "次回の実行",
+        "oncePlaceholder": "日時を選択",
+        "pause": "一時停止",
+        "prompt": {
+          "label": "プロンプト",
+          "placeholder": "このタスク実行時にエージェントが行うべきことは？"
+        },
+        "resume": "再開",
+        "run": "実行",
+        "runTriggered": "タスクがトリガーされました",
+        "save": "保存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "間隔",
+          "label": "スケジュールタイプ",
+          "once": "一回限り"
+        },
+        "scheduleValue": "スケジュール値",
+        "status": {
+          "active": "アクティブ",
+          "completed": "完了",
+          "paused": "一時停止中"
+        },
+        "tab": "タスク",
+        "title": "スケジュールタスク"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
+      }
+    },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
       "error": {
