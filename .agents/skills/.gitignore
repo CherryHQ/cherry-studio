@@ -20,3 +20,5 @@
 !v2-migrator/**
 !v2-renderer/
 !v2-renderer/**
+!vercel-composition-patterns/
+!vercel-composition-patterns/**
