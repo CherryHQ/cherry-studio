@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2025-01-18"
+    "lastUpdated": "2026-03-06"
   },
   "definitions": [
     {
@@ -34,67 +34,81 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
-      "targetKey": "feature.translate.settings.auto_detection_method",
-      "type": "PreferenceTypes.AutoDetectionMethod",
-      "defaultValue": "auto",
+      "targetKey": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": null,
       "status": "classified",
-      "description": "Translate language auto detection method."
+      "description": "Web search compression cutoff limit (from complex migration)"
     },
     {
-      "targetKey": "feature.translate.page.bidirectional_enabled",
+      "targetKey": "chat.web_search.compression.cutoff_unit",
+      "type": "PreferenceTypes.WebSearchCompressionCutoffUnit",
+      "defaultValue": "char",
+      "status": "classified",
+      "description": "Web search compression cutoff unit (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.method",
+      "type": "PreferenceTypes.WebSearchCompressionMethod",
+      "defaultValue": "none",
+      "status": "classified",
+      "description": "Web search compression method (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_document_count",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Web search RAG document count (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_embedding_dimensions",
+      "type": "number",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG embedding dimensions (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_embedding_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.compression.rag_rerank_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.exclude_domains",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search excluded domains (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.max_results",
+      "type": "number",
+      "defaultValue": 5,
+      "status": "classified",
+      "description": "Web search max results (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.provider_overrides",
+      "type": "PreferenceTypes.WebSearchProviderOverrides",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.search_with_time",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
-      "description": "Enable bidirectional translation mode on main translate page (v2 new, migrated from Dexie settings 'translate:bidirectional:enabled')."
-    },
-    {
-      "targetKey": "feature.translate.page.bidirectional_pair",
-      "type": "PreferenceTypes.TranslateBidirectionalPair",
-      "defaultValue": ["zh-cn", "en-us"],
-      "status": "classified",
-      "description": "Main translate page bidirectional translation language pair (symmetric, order does not matter)."
-    },
-    {
-      "targetKey": "feature.translate.page.enable_markdown",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Enable Markdown rendering in translate output."
-    },
-    {
-      "targetKey": "feature.translate.page.scroll_sync",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Enable scroll synchronization between source and translate output."
-    },
-    {
-      "targetKey": "feature.translate.page.source_language",
-      "type": "PreferenceTypes.TranslateSourceLanguage",
-      "defaultValue": "auto",
-      "status": "classified",
-      "description": "Main translate page current source language."
-    },
-    {
-      "targetKey": "feature.translate.page.target_language",
-      "type": "PreferenceTypes.TranslateLanguageCode",
-      "defaultValue": "zh-cn",
-      "status": "classified",
-      "description": "Main translate page current target language."
-    },
-    {
-      "targetKey": "feature.translate.selection.preferred_language",
-      "type": "PreferenceTypes.TranslateLanguageCode",
-      "defaultValue": "zh-cn",
-      "status": "classified",
-      "description": "Selection action translate preferred target language."
-    },
-    {
-      "targetKey": "feature.translate.selection.alter_language",
-      "type": "PreferenceTypes.TranslateLanguageCode",
-      "defaultValue": "en-us",
-      "status": "classified",
-      "description": "Selection action translate alter language (fallback when source matches preferred)."
+      "description": "Web search include time filter (from complex migration)"
     }
   ]
 }

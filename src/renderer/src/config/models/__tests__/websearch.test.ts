@@ -230,7 +230,8 @@ describe('websearch helpers', () => {
       providerMock.mockReturnValueOnce(createProvider({ id: 'openrouter' }))
       expect(isWebSearchModel(createModel())).toBe(true)
 
-      providerMock.mockReturnValueOnce(createProvider({ id: 'grok' }))
+      providerMock.mockReturnValueOnce(createProvider({ id: 'grok', type: 'openai-response' }))
+      providerMocks.isOpenAIProvider.mockReturnValueOnce(true)
       expect(isWebSearchModel(createModel({ id: 'grok-2' }))).toBe(true)
 
       // zhipu provider does not have built-in search capability
