@@ -1,6 +1,6 @@
 import type { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { describe, expect, it, vi } from 'vitest'
 
 import { getTemperature, getTimeout, getTopP } from '../modelParameters'
@@ -212,7 +212,7 @@ describe('modelParameters', () => {
     it('falls back to the default timeout otherwise', () => {
       const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
 
-      expect(getTimeout(model)).toBe(defaultTimeout)
+      expect(getTimeout(model)).toBe(DEFAULT_TIMEOUT)
     })
   })
 })
