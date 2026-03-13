@@ -25,7 +25,7 @@ const AgentPage = () => {
   const { activeAgentId } = chat
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
-  const { apiServerConfig, apiServerRunning } = useApiServer()
+  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
 
   // Auto-select first agent when none is active
   useEffect(() => {
@@ -52,7 +52,7 @@ const AgentPage = () => {
     )
   }
 
-  if (!apiServerRunning) {
+  if (!apiServerLoading && !apiServerRunning) {
     return (
       <div
         id="agent-page"
