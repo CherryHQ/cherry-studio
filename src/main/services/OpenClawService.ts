@@ -230,13 +230,11 @@ class OpenClawService {
   }
 
   /**
-   * Install OpenClaw using npm with China mirror acceleration
-   * For users in China, install @qingchencloud/openclaw-zh package instead
+   * Install OpenClaw using npm with China mirror acceleration for users in China
    */
   public async install(): Promise<{ success: boolean; message: string }> {
     const inChina = await isUserInChina()
-
-    const packageName = inChina ? '@qingchencloud/openclaw-zh@latest' : 'openclaw@latest'
+    const packageName = 'openclaw@latest'
     const registryArg = inChina ? `--registry=${NPM_MIRROR_CN}` : ''
 
     const npmPath = (await findExecutableInEnv('npm')) || 'npm'
@@ -341,7 +339,7 @@ class OpenClawService {
 
   /**
    * Uninstall OpenClaw using npm
-   * Uninstalls both the standard and Chinese packages to ensure clean removal
+   * Uninstalls both openclaw and legacy @qingchencloud/openclaw-zh package
    */
   public async uninstall(): Promise<{ success: boolean; message: string }> {
     // First stop the gateway if running
