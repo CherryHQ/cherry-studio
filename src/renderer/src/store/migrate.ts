@@ -3303,6 +3303,18 @@ const migrateConfig = {
       logger.error('migrate 201 error', error as Error)
       return state
     }
+  },
+  '202': (state: RootState) => {
+    try {
+      const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
+      if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
+        filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 202 error', error as Error)
+      return state
+    }
   }
 }
 
