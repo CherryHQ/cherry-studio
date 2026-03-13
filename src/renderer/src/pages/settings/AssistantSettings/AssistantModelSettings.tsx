@@ -48,7 +48,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
     [assistant?.settings?.enableMaxToolCalls]
   )
-  const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
+  const defaultModel = useMemo(
+    () => assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
+    [assistant?.defaultModel]
+  )
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
@@ -211,13 +214,12 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     const currentModel = defaultModel ? assistant?.model : undefined
     const selectedModel = await SelectModelPopup.show({ model: currentModel, filter: modelFilter })
     if (selectedModel) {
-      setDefaultModel(selectedModel)
       updateAssistant({
         ...assistant,
         model: selectedModel,
         defaultModel: selectedModel
       })
-      // TODO: 需要根据配置来设置默认值
+      // TODO: 移除根据模型自动修改参数的逻辑
       if (selectedModel.name.includes('kimi-k2')) {
         setTemperature(0.6)
         setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
@@ -254,7 +256,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               variant="filled"
               icon={<DeleteIcon size={14} className="lucide-custom" />}
               onClick={() => {
-                setDefaultModel(undefined)
                 updateAssistant({ ...assistant, defaultModel: undefined })
               }}
               danger
