@@ -53,7 +53,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     [assistant?.defaultModel]
   )
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
-  const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
+  const enableTopP = useMemo(
+    () => assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
+    [assistant?.settings?.enableTopP]
+  )
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
@@ -203,7 +206,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
-    setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
@@ -325,7 +327,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={enableTopP}
           onChange={(enabled) => {
-            setEnableTopP(enabled)
             updateAssistantSettings({ enableTopP: enabled })
           }}
         />
