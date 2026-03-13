@@ -99,10 +99,10 @@ const SettingsPage: FC = () => {
               {t('settings.tool.preprocess.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/quickphrase">
-            <MenuItem className={isRoute('/settings/quickphrase')}>
+          <MenuItemLink to="/settings/prompts">
+            <MenuItem className={isRoute('/settings/prompts')}>
               <Zap size={18} />
-              {t('settings.quickPhrase.title')}
+              {t('settings.prompts.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
