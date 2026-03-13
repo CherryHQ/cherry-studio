@@ -243,7 +243,7 @@ function normalizeVersion(tag: string): string {
 }
 
 function detectChannel(version: string): UpgradeChannel | null {
-  const parsed = semver.parse(version, { loose: true, includePrerelease: true })
+  const parsed = semver.parse(version, { loose: true })
   if (!parsed) {
     return null
   }
@@ -375,7 +375,7 @@ function resolveVersionKey(existingKey: string | null, segment: SegmentDefinitio
 }
 
 function getBaseVersion(version: string): string | null {
-  const parsed = semver.parse(version, { loose: true, includePrerelease: true })
+  const parsed = semver.parse(version, { loose: true })
   if (!parsed) {
     return null
   }

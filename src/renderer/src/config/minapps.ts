@@ -24,7 +24,8 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       ...app,
       type: 'Custom',
       logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
-      addTime: app.addTime || now
+      addTime: app.addTime || now,
+      supportedRegions: ['CN', 'Global'] // Custom mini apps should always be visible for all regions
     }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
@@ -38,211 +39,245 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'openai',
     name: 'ChatGPT',
     url: 'https://chatgpt.com/',
-    logo: resolveProviderIcon('openai')
+    logo: resolveProviderIcon('openai'),
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
-    logo: MODEL_ICON_CATALOG.gemini
+    logo: MODEL_ICON_CATALOG.gemini,
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'silicon',
     name: 'SiliconFlow',
     url: 'https://cloud.siliconflow.cn/playground/chat',
-    logo: resolveProviderIcon('silicon')
+    logo: resolveProviderIcon('silicon'),
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'deepseek',
     name: 'DeepSeek',
     url: 'https://chat.deepseek.com/',
-    logo: resolveProviderIcon('deepseek')
+    logo: resolveProviderIcon('deepseek'),
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'yi',
     name: 'Wanzhi',
     nameKey: 'minapps.wanzhi',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.wanzhi.com/',
-    logo: resolveProviderIcon('yi')
+    logo: resolveProviderIcon('yi'),
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'zhipu',
     name: 'ChatGLM',
     nameKey: 'minapps.chatglm',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: resolveProviderIcon('zhipu')
+    logo: resolveProviderIcon('zhipu'),
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'moonshot',
     name: 'Kimi',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://kimi.moonshot.cn/',
-    logo: resolveProviderIcon('moonshot')
+    logo: resolveProviderIcon('moonshot'),
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baichuan',
     name: 'Baichuan',
     nameKey: 'minapps.baichuan',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ying.baichuan-ai.com/chat',
-    logo: resolveProviderIcon('baichuan')
+    logo: resolveProviderIcon('baichuan'),
+    supportedRegions: ['CN']
   },
   {
     id: 'dashscope',
     name: 'Qwen',
     nameKey: 'minapps.qwen',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.qianwen.com',
-    logo: PROVIDER_ICON_CATALOG.qwen
+    logo: PROVIDER_ICON_CATALOG.qwen,
+    supportedRegions: ['CN']
   },
   {
     id: 'stepfun',
     name: 'Stepfun',
     nameKey: 'minapps.stepfun',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://stepfun.com',
-    logo: resolveProviderIcon('stepfun')
+    logo: resolveProviderIcon('stepfun'),
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'doubao',
     name: 'Doubao',
     nameKey: 'minapps.doubao',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.doubao.com/chat/',
-    logo: PROVIDER_ICON_CATALOG.doubao
+    logo: PROVIDER_ICON_CATALOG.doubao,
+    supportedRegions: ['CN']
   },
   {
     id: 'cici',
-    name: 'Dola',
-    url: 'https://www.dola.com/chat/',
-    logo: PROVIDER_ICON_CATALOG.dola
+    name: 'Cici',
+    url: 'https://www.cici.com/chat/',
+    logo: PROVIDER_ICON_CATALOG.dola,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'minimax',
     name: 'Hailuo',
     nameKey: 'minapps.hailuo',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chat.minimaxi.com/',
-    logo: resolveProviderIcon('minimax')
+    logo: resolveProviderIcon('minimax'),
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'groq',
     name: 'Groq',
     url: 'https://chat.groq.com/',
-    logo: resolveProviderIcon('groq')
+    logo: resolveProviderIcon('groq'),
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'anthropic',
     name: 'Claude',
     url: 'https://claude.ai/',
-    logo: resolveProviderIcon('anthropic')
+    logo: resolveProviderIcon('anthropic'),
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'google',
     name: 'Google',
     url: 'https://google.com/',
-    logo: PROVIDER_ICON_CATALOG.google
+    logo: PROVIDER_ICON_CATALOG.google,
+    bodered: true,
+    style: {
+      padding: 5
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baidu-ai-chat',
     name: 'Wenxin',
     nameKey: 'minapps.wenxin',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.wenxin,
-    url: 'https://yiyan.baidu.com/'
+    url: 'https://yiyan.baidu.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baidu-ai-search',
     name: 'Baidu AI Search',
     nameKey: 'minapps.baidu-ai-search',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.baidu,
-    url: 'https://chat.baidu.com/'
+    url: 'https://chat.baidu.com/',
+    bodered: true,
+    style: {
+      padding: 5
+    },
+    supportedRegions: ['CN']
   },
   {
     id: 'tencent-yuanbao',
     name: 'Tencent Yuanbao',
     nameKey: 'minapps.tencent-yuanbao',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.yuanbao,
-    url: 'https://yuanbao.tencent.com/chat'
+    url: 'https://yuanbao.tencent.com/chat',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'sensetime-chat',
     name: 'Sensechat',
     nameKey: 'minapps.sensechat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.sensetime,
-    url: 'https://chat.sensetime.com/wb/chat'
+    url: 'https://chat.sensetime.com/wb/chat',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'spark-desk',
     name: 'SparkDesk',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.xinghuo,
-    url: 'https://xinghuo.xfyun.cn/desk'
+    url: 'https://xinghuo.xfyun.cn/desk',
+    supportedRegions: ['CN']
   },
   {
     id: 'metaso',
     name: 'Metaso',
     nameKey: 'minapps.metaso',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.metaso,
-    url: 'https://metaso.cn/'
+    url: 'https://metaso.cn/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'poe',
     name: 'Poe',
     logo: resolveProviderIcon('poe'),
-    url: 'https://poe.com'
+    url: 'https://poe.com',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'perplexity',
     name: 'Perplexity',
     logo: resolveProviderIcon('perplexity'),
-    url: 'https://www.perplexity.ai/'
+    url: 'https://www.perplexity.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'devv',
     name: 'DEVV_',
     logo: PROVIDER_ICON_CATALOG.devv,
-    url: 'https://devv.ai/'
+    url: 'https://devv.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'tiangong-ai',
     name: 'Tiangong AI',
     nameKey: 'minapps.tiangong-ai',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.skywork,
-    url: 'https://www.tiangong.cn/'
+    url: 'https://www.tiangong.cn/',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'Felo',
     name: 'Felo',
     logo: PROVIDER_ICON_CATALOG.felo,
-    url: 'https://felo.ai/'
+    url: 'https://felo.ai/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'duckduckgo',
     name: 'DuckDuckGo',
     logo: PROVIDER_ICON_CATALOG.duck,
-    url: 'https://duck.ai'
+    url: 'https://duck.ai',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'bolt',
     name: 'bolt',
     logo: PROVIDER_ICON_CATALOG.boltNew,
-    url: 'https://bolt.new/'
+    url: 'https://bolt.new/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'nm',
     name: 'Nami AI',
     nameKey: 'minapps.nami-ai',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.namiAi,
-    url: 'https://bot.n.cn/'
+    url: 'https://bot.n.cn/',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'thinkany',
@@ -252,174 +287,222 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'github-copilot',
     name: 'GitHub Copilot',
     logo: PROVIDER_ICON_CATALOG.github,
-    url: 'https://github.com/copilot'
+    url: 'https://github.com/copilot',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'genspark',
     name: 'Genspark',
     logo: PROVIDER_ICON_CATALOG.genspark,
-    url: 'https://www.genspark.ai/'
+    url: 'https://www.genspark.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'grok',
     name: 'Grok',
     logo: resolveProviderIcon('grok'),
-    url: 'https://grok.com'
+    url: 'https://grok.com',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'grok-x',
     name: 'Grok / X',
     logo: PROVIDER_ICON_CATALOG.twitter,
-    url: 'https://x.com/i/grok'
+    url: 'https://x.com/i/grok',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'qwenlm',
     name: 'QwenChat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.qwen,
-    url: 'https://chat.qwen.ai'
+    url: 'https://chat.qwen.ai',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'flowith',
     name: 'Flowith',
     logo: PROVIDER_ICON_CATALOG.flowith,
-    url: 'https://www.flowith.io/'
+    url: 'https://www.flowith.io/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: '3mintop',
     name: '3MinTop',
     logo: PROVIDER_ICON_CATALOG['3minTop'],
-    url: 'https://3min.top'
+    url: 'https://3min.top',
+    bodered: false,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'aistudio',
     name: 'AI Studio',
     logo: PROVIDER_ICON_CATALOG.aiStudio,
-    url: 'https://aistudio.google.com/'
+    url: 'https://aistudio.google.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'xiaoyi',
     name: 'Xiaoyi',
     nameKey: 'minapps.xiaoyi',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.xiaoyi,
-    url: 'https://xiaoyi.huawei.com/chat/'
+    url: 'https://xiaoyi.huawei.com/chat/',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'notebooklm',
     name: 'NotebookLM',
     logo: PROVIDER_ICON_CATALOG.notebooklm,
-    url: 'https://notebooklm.google.com/'
+    url: 'https://notebooklm.google.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'coze',
     name: 'Coze',
     logo: PROVIDER_ICON_CATALOG.coze,
-    url: 'https://www.coze.com/space'
+    url: 'https://www.coze.com/space',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'dify',
     name: 'Dify',
     logo: PROVIDER_ICON_CATALOG.dify,
-    url: 'https://cloud.dify.ai/apps'
+    url: 'https://cloud.dify.ai/apps',
+    bodered: true,
+    style: {
+      padding: 5
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'wpslingxi',
     name: 'WPS AI',
     nameKey: 'minapps.wps-copilot',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.lingxi,
-    url: 'https://copilot.wps.cn/'
+    url: 'https://copilot.wps.cn/',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'lechat',
     name: 'LeChat',
     logo: resolveProviderIcon('mistral'),
-    url: 'https://chat.mistral.ai/chat'
+    url: 'https://chat.mistral.ai/chat',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'abacus',
     name: 'Abacus',
     logo: PROVIDER_ICON_CATALOG.abacus,
-    url: 'https://apps.abacus.ai/chatllm'
+    url: 'https://apps.abacus.ai/chatllm',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'lambdachat',
     name: 'Lambda Chat',
     logo: PROVIDER_ICON_CATALOG.lambda,
     url: 'https://lambda.chat/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'monica',
     name: 'Monica',
     logo: PROVIDER_ICON_CATALOG.monica,
-    url: 'https://monica.im/home/'
+    url: 'https://monica.im/home/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'you',
     name: 'You',
     logo: PROVIDER_ICON_CATALOG.you,
-    url: 'https://you.com/'
+    url: 'https://you.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'zhihu',
     name: 'Zhihu Zhida',
     nameKey: 'minapps.zhihu',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.zhida,
-    url: 'https://zhida.zhihu.com/'
+    url: 'https://zhida.zhihu.com/',
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'dangbei',
     name: 'Dangbei AI',
     nameKey: 'minapps.dangbei',
-    locales: ['zh-CN', 'zh-TW'],
     logo: PROVIDER_ICON_CATALOG.dangbei,
-    url: 'https://ai.dangbei.com/'
+    url: 'https://ai.dangbei.com/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: `zai`,
     name: `Z.ai`,
     logo: PROVIDER_ICON_CATALOG.zAi,
-    url: `https://chat.z.ai/`
+    url: `https://chat.z.ai/`,
+    bodered: true,
+    style: {
+      padding: 10
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'n8n',
     name: 'n8n',
     logo: PROVIDER_ICON_CATALOG.n8n,
-    url: 'https://app.n8n.cloud/'
+    url: 'https://app.n8n.cloud/',
+    bodered: true,
+    style: {
+      padding: 5
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'longcat',
     name: 'LongCat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: resolveProviderIcon('longcat'),
-    url: 'https://longcat.chat/'
+    url: 'https://longcat.chat/',
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'ling',
     name: 'Ant Ling',
     nameKey: 'minapps.ant-ling',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ling.tbox.cn/chat',
     logo: resolveProviderIcon('ling'),
     bodered: true,
     style: {
       padding: 6
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'huggingchat',
     name: 'HuggingChat',
     url: 'https://huggingface.co/chat/',
-    logo: PROVIDER_ICON_CATALOG.huggingface
+    logo: PROVIDER_ICON_CATALOG.huggingface,
+    bodered: true,
+    style: {
+      padding: 6
+    },
+    supportedRegions: ['CN', 'Global']
   }
 ]
 

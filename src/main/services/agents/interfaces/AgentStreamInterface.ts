@@ -3,6 +3,7 @@
 
 import type { EventEmitter } from 'node:events'
 
+import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { GetAgentSessionResponse } from '@types'
 import type { TextStreamPart } from 'ai'
 
@@ -20,12 +21,18 @@ export interface AgentStream extends EventEmitter {
   once(event: 'data', listener: (data: AgentStreamEvent) => void): this
 }
 
+export interface AgentThinkingOptions {
+  effort?: Options['effort']
+  thinking?: Options['thinking']
+}
+
 // Base agent service interface
 export interface AgentServiceInterface {
   invoke(
     prompt: string,
     session: GetAgentSessionResponse,
     abortController: AbortController,
-    lastAgentSessionId?: string
+    lastAgentSessionId?: string,
+    thinkingOptions?: AgentThinkingOptions
   ): Promise<AgentStream>
 }

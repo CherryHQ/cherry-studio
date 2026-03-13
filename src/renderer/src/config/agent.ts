@@ -26,41 +26,33 @@ export const permissionModeCards: PermissionModeCard[] = [
     mode: 'default',
     // t('agent.settings.tooling.permissionMode.default.title')
     titleKey: 'agent.settings.tooling.permissionMode.default.title',
-    titleFallback: 'Default (ask before continuing)',
+    titleFallback: 'Normal Mode',
     descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
-    descriptionFallback: 'Read-only tools are pre-approved; everything else still needs permission.',
-    behaviorKey: 'agent.settings.tooling.permissionMode.default.behavior',
-    behaviorFallback: 'Read-only tools are pre-approved automatically.'
+    descriptionFallback: 'Can read files freely. Asks before editing or running commands.'
   },
   {
     mode: 'plan',
     // t('agent.settings.tooling.permissionMode.plan.title')
     titleKey: 'agent.settings.tooling.permissionMode.plan.title',
-    titleFallback: 'Planning mode',
+    titleFallback: 'Plan Mode',
     descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Shares the default read-only tool set but presents a plan before execution.',
-    behaviorKey: 'agent.settings.tooling.permissionMode.plan.behavior',
-    behaviorFallback: 'Read-only defaults are pre-approved while execution remains disabled.'
+    descriptionFallback: 'Can only read files and make plans. Cannot edit files or run commands.'
   },
   {
     mode: 'acceptEdits',
     // t('agent.settings.tooling.permissionMode.acceptEdits.title')
     titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
-    titleFallback: 'Auto-accept file edits',
+    titleFallback: 'Auto-edit Mode',
     descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
-    descriptionFallback: 'File edits and filesystem operations are automatically approved.',
-    behaviorKey: 'agent.settings.tooling.permissionMode.acceptEdits.behavior',
-    behaviorFallback: 'Pre-approves trusted filesystem tools so edits run immediately.'
+    descriptionFallback: 'Can read and edit files freely. Asks before running commands.'
   },
   {
     mode: 'bypassPermissions',
     // t('agent.settings.tooling.permissionMode.bypassPermissions.title')
     titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
-    titleFallback: 'Bypass permission checks',
+    titleFallback: 'Full Auto Mode',
     descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'All permission prompts are skipped — use with caution.',
-    behaviorKey: 'agent.settings.tooling.permissionMode.bypassPermissions.behavior',
-    behaviorFallback: 'Every tool is pre-approved automatically.',
+    descriptionFallback: 'Can do everything without asking. Use with caution.',
     caution: true
   }
 ]

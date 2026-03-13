@@ -1,7 +1,7 @@
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
 import { useAgentToolApproval } from './useAgentToolApproval'
-import { useMcpToolApproval, type UseMcpToolApprovalOptions } from './useMcpToolApproval'
+import { useMcpToolApproval } from './useMcpToolApproval'
 
 /**
  * Unified tool approval state
@@ -11,14 +11,6 @@ export interface ToolApprovalState {
   isWaiting: boolean
   /** Whether the tool is currently executing after approval */
   isExecuting: boolean
-  /** Countdown seconds (MCP only) */
-  countdown?: number
-  /** Expiration timestamp (Agent only) */
-  expiresAt?: number
-  /** Remaining seconds until auto-confirm (MCP) or expiration (Agent) */
-  remainingSeconds: number
-  /** Whether the request has expired (Agent only) */
-  isExpired: boolean
   /** Whether a submission is in progress (Agent only) */
   isSubmitting: boolean
   /** Tool input from permission request (Agent only) */
@@ -37,7 +29,7 @@ export interface ToolApprovalActions {
   autoApprove?: () => void | Promise<void>
 }
 
-export interface UseToolApprovalOptions extends UseMcpToolApprovalOptions {
+export interface UseToolApprovalOptions {
   /** Force a specific approval type */
   forceType?: 'mcp' | 'agent'
 }
@@ -54,13 +46,15 @@ export function useToolApproval(
   block: ToolMessageBlock,
   options: UseToolApprovalOptions = {}
 ): ToolApprovalState & ToolApprovalActions {
-  const { forceType, ...mcpOptions } = options
+  const { forceType } = options
 
   const toolResponse = block.metadata?.rawMcpToolResponse
   const tool = toolResponse?.tool
 
-  const isMcpTool = forceType === 'mcp' || (forceType !== 'agent' && tool?.type === 'mcp')
-  const mcpApproval = useMcpToolApproval(block, mcpOptions)
+  const isMcpTool =
+    forceType === 'mcp' ||
+    (forceType !== 'agent' && (tool?.type === 'mcp' || tool?.type === 'builtin' || tool?.type === 'provider'))
+  const mcpApproval = useMcpToolApproval(block)
   const agentApproval = useAgentToolApproval(block)
 
   return isMcpTool ? mcpApproval : agentApproval
@@ -74,4 +68,4 @@ export function isBlockWaitingApproval(block: ToolMessageBlock): boolean {
 }
 
 export { useAgentToolApproval, type UseAgentToolApprovalOptions } from './useAgentToolApproval'
-export { useMcpToolApproval, type UseMcpToolApprovalOptions } from './useMcpToolApproval'
+export { useMcpToolApproval } from './useMcpToolApproval'

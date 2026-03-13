@@ -4,13 +4,14 @@
  */
 
 import { loggerService } from '@logger'
-import { type Chunk, ChunkType } from '@renderer/types/chunk'
+import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
-import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@types'
-import { WebSearchSource } from '@types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'
@@ -31,6 +32,7 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private providerId?: string
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -38,13 +40,15 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    providerId?: string
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.providerId = providerId
   }
 
   private markFirstTokenIfNeeded() {
@@ -64,13 +68,23 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    // 如果是流式且有 fullStream
-    if (aiSdkResult.fullStream) {
-      await this.readFullStream(aiSdkResult.fullStream)
-    }
+    try {
+      // 如果是流式且有 fullStream
+      if (aiSdkResult.fullStream) {
+        await this.readFullStream(aiSdkResult.fullStream)
+      }
 
-    // 使用 streamResult.text 获取最终结果
-    return await aiSdkResult.text
+      // 使用 streamResult.text 获取最终结果
+      return await aiSdkResult.text
+    } catch (error: any) {
+      // abort 时，AI SDK 通常会先通过流发送 'abort' chunk（在 readFullStream 中 convertAndEmitChunk
+      // 转为 ERROR chunk 发出）。随后 aiSdkResult.text 会抛出 AbortError
+      // 这里捕获它以避免 transformMessagesAndFetch 的 catch 再次发送重复的 ERROR chunk
+      if (isAbortError(error)) {
+        return ''
+      }
+      throw error
+    }
   }
 
   /**
@@ -83,7 +97,8 @@ export class AiSdkToChunkAdapter {
       text: '',
       reasoningContent: '',
       webSearchResults: [],
-      reasoningId: ''
+      reasoningId: '',
+      providerMetadata: undefined as ProviderMetadata | undefined
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -140,7 +155,13 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
+    final: {
+      text: string
+      reasoningContent: string
+      webSearchResults: AISDKWebSearchResult[]
+      reasoningId: string
+      providerMetadata: ProviderMetadata | undefined
+    }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -196,12 +217,25 @@ export class AiSdkToChunkAdapter {
           final.text = finalText
         }
 
+        // Extract thoughtSignature from providerMetadata.google and preserve it
+        const newSignature = chunk.providerMetadata?.google?.thoughtSignature as string | undefined
+        if (newSignature) {
+          final.providerMetadata = {
+            ...final.providerMetadata,
+            google: {
+              ...final.providerMetadata?.google,
+              thoughtSignature: newSignature
+            }
+          }
+        }
+
         // Only emit chunk if there's text to send
         if (finalText) {
           this.markFirstTokenIfNeeded()
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
-            text: this.accumulate ? final.text : finalText
+            text: this.accumulate ? final.text : finalText,
+            providerMetadata: final.providerMetadata
           })
         }
         break
@@ -209,9 +243,12 @@ export class AiSdkToChunkAdapter {
       case 'text-end':
         this.onChunk({
           type: ChunkType.TEXT_COMPLETE,
-          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? ''
+          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? '',
+          providerMetadata: final.providerMetadata
         })
         final.text = ''
+        // Clear providerMetadata for next text block
+        final.providerMetadata = undefined
         break
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {
@@ -286,24 +323,25 @@ export class AiSdkToChunkAdapter {
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
             llm_web_search: {
               results: providerMetadata.google?.groundingMetadata as WebSearchResults,
-              source: WebSearchSource.GEMINI
+              source: WEB_SEARCH_SOURCE.GEMINI
             }
           })
         } else if (final.webSearchResults.length) {
-          const providerName = Object.keys(providerMetadata || {})[0]
+          const providerName: string | undefined = Object.keys(providerMetadata || {})[0] || this.providerId
           const sourceMap: Record<string, WebSearchSource> = {
-            [WebSearchSource.OPENAI]: WebSearchSource.OPENAI_RESPONSE,
-            [WebSearchSource.ANTHROPIC]: WebSearchSource.ANTHROPIC,
-            [WebSearchSource.OPENROUTER]: WebSearchSource.OPENROUTER,
-            [WebSearchSource.GEMINI]: WebSearchSource.GEMINI,
+            [WEB_SEARCH_SOURCE.OPENAI]: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
+            [WEB_SEARCH_SOURCE.ANTHROPIC]: WEB_SEARCH_SOURCE.ANTHROPIC,
+            [WEB_SEARCH_SOURCE.OPENROUTER]: WEB_SEARCH_SOURCE.OPENROUTER,
+            [WEB_SEARCH_SOURCE.GEMINI]: WEB_SEARCH_SOURCE.GEMINI,
             // [WebSearchSource.PERPLEXITY]: WebSearchSource.PERPLEXITY,
-            [WebSearchSource.QWEN]: WebSearchSource.QWEN,
-            [WebSearchSource.HUNYUAN]: WebSearchSource.HUNYUAN,
-            [WebSearchSource.ZHIPU]: WebSearchSource.ZHIPU,
-            [WebSearchSource.GROK]: WebSearchSource.GROK,
-            [WebSearchSource.WEBSEARCH]: WebSearchSource.WEBSEARCH
+            [WEB_SEARCH_SOURCE.QWEN]: WEB_SEARCH_SOURCE.QWEN,
+            [WEB_SEARCH_SOURCE.HUNYUAN]: WEB_SEARCH_SOURCE.HUNYUAN,
+            [WEB_SEARCH_SOURCE.ZHIPU]: WEB_SEARCH_SOURCE.ZHIPU,
+            [WEB_SEARCH_SOURCE.GROK]: WEB_SEARCH_SOURCE.GROK,
+            xai: WEB_SEARCH_SOURCE.GROK,
+            [WEB_SEARCH_SOURCE.WEBSEARCH]: WEB_SEARCH_SOURCE.WEBSEARCH
           }
-          const source = sourceMap[providerName] || WebSearchSource.AISDK
+          const source = (providerName && sourceMap[providerName]) || WEB_SEARCH_SOURCE.AISDK
 
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,

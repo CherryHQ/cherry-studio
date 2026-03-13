@@ -16,7 +16,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
 import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -84,7 +84,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const textareaRef = useRef<any>(null)
@@ -171,10 +170,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleProviderChange = (providerId: string) => {
-    const routeName = location.pathname.split('/').pop()
-    if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
-    }
+    navigate({ to: '../' + providerId, replace: true })
   }
 
   const handleModeChange = (value: string) => {

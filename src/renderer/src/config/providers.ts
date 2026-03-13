@@ -410,7 +410,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'MiniMax',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.minimaxi.com/v1',
+    apiHost: 'https://api.minimaxi.com/v1/',
     anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
@@ -1275,9 +1275,9 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.aiionly.com',
-      apiKey: 'https://www.aiionly.com/keyApi',
-      docs: 'https://www.aiionly.com/document',
-      models: 'https://www.aiionly.com'
+      apiKey: 'https://maas.aiionly.com/keyApi',
+      docs: 'https://maas.aiionly.com/document',
+      models: 'https://maas.aiionly.com'
     }
   },
   longcat: {

@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
@@ -179,7 +179,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           const citationBlock = createCitationBlock(
             assistantMsgId,
             {
-              response: { results: toolResponse.response, source: WebSearchSource.WEBSEARCH }
+              response: { results: toolResponse.response, source: WEB_SEARCH_SOURCE.WEBSEARCH }
             },
             {
               status: MessageBlockStatus.SUCCESS
