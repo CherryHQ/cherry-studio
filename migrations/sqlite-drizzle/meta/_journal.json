@@ -21,6 +21,13 @@
       "when": 1773365863180,
       "tag": "0002_open_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773399141919,
+      "tag": "0003_foamy_matthew_murdock",
+      "breakpoints": true
     }
   ],
   "version": "7"

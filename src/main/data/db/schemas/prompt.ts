@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -14,9 +14,9 @@ export const promptTable = sqliteTable(
     title: text().notNull(),
     content: text().notNull(),
     // Current active version number
-    currentVersion: integer().default(1),
+    currentVersion: integer().notNull().default(1),
     // Sort order
-    sortOrder: integer().default(0),
+    sortOrder: integer().notNull().default(0),
 
     ...createUpdateTimestamps
   },
@@ -44,5 +44,5 @@ export const promptVersionTable = sqliteTable(
 
     createdAt: integer().$defaultFn(() => Date.now())
   },
-  (t) => [index('prompt_version_prompt_id_idx').on(t.promptId, t.version)]
+  (t) => [uniqueIndex('prompt_version_prompt_id_version_idx').on(t.promptId, t.version)]
 )
