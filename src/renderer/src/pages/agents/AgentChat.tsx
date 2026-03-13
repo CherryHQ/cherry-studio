@@ -118,8 +118,8 @@ const AgentChat = () => {
       </QuickPanelProvider>
 
       {/* Sessions Panel */}
-      {showRightSessions && (
-        <AnimatePresence initial={false}>
+      <AnimatePresence initial={false}>
+        {showRightSessions && (
           <motion.div
             key="right-sessions"
             initial={{ width: 0, opacity: 0 }}
@@ -131,8 +131,8 @@ const AgentChat = () => {
               <Sessions agentId={activeAgentId!} />
             </div>
           </motion.div>
-        </AnimatePresence>
-      )}
+        )}
+      </AnimatePresence>
     </Container>
   )
 }
