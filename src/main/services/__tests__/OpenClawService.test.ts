@@ -230,9 +230,14 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
-    it('reuses existing gateway when port is in use and gateway is ours', async () => {
-      checkPortOpenSpy.mockResolvedValue(true)
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+    it('stops stale gateway and restarts when port is in use by our gateway', async () => {
+      // First call: port occupied; after stop: port free
+      checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
+      checkHealthSpy
+        .mockResolvedValueOnce({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
+        .mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // waitForGatewayStop confirms stopped
+      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
+      startAndWaitSpy.mockResolvedValue(undefined)
 
       const result = await service.startGateway(event)
 

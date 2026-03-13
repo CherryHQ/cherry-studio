@@ -337,15 +337,24 @@ class OpenClawService {
     if (isPortOpen) {
       // Check if this is our gateway already running on this port
       const { status } = await this.checkGatewayHealth()
-      const alreadyRunning = status === 'healthy'
-      if (alreadyRunning) {
-        this.gatewayStatus = 'running'
-        logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
-        return { success: true }
-      }
-      return {
-        success: false,
-        message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
+      if (status === 'healthy') {
+        // Stop the stale gateway (e.g. respawned orphan from a previous session)
+        logger.info('Detected stale gateway on port, stopping before restart...')
+        await this.stopGateway()
+
+        // Verify port is now free
+        const stillOpen = await this.checkPortOpen(this.gatewayPort)
+        if (stillOpen) {
+          return {
+            success: false,
+            message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
+          }
+        }
+      } else {
+        return {
+          success: false,
+          message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
+        }
       }
     }
 
@@ -446,24 +455,31 @@ class OpenClawService {
   }
 
   /**
-   * Stop the OpenClaw Gateway by killing the process directly
+   * Stop the OpenClaw Gateway.
+   * Kills the stored process reference first, then falls back to killing
+   * whatever process is listening on the gateway port (handles respawned orphans).
    */
   public async stopGateway(): Promise<OperationResult> {
     try {
+      // 1. Kill the stored process reference
       if (this.gatewayProcess) {
-        // Kill the process directly
-        // On Unix with detached process, we need to kill the process group
         if (!isWin && this.gatewayProcess.pid) {
           try {
             process.kill(-this.gatewayProcess.pid, 'SIGTERM')
           } catch {
-            // Process group kill failed, try killing the process directly
             this.gatewayProcess.kill('SIGTERM')
           }
         } else {
           this.gatewayProcess.kill('SIGTERM')
         }
         this.gatewayProcess = null
+      }
+
+      // 2. If the port is still occupied (e.g. respawned orphan), kill by port
+      const stillOpen = await this.checkPortOpen(this.gatewayPort)
+      if (stillOpen) {
+        logger.info('Port still occupied after process kill, killing process by port...')
+        await this.killProcessOnPort(this.gatewayPort)
       }
 
       const stillRunning = await this.waitForGatewayStop()
@@ -480,6 +496,46 @@ class OpenClawService {
       logger.error('Failed to stop gateway:', error as Error)
       this.gatewayStatus = 'error'
       return { success: false, message: errorMessage }
+    }
+  }
+
+  /**
+   * Find and kill the process listening on a given port.
+   */
+  private async killProcessOnPort(port: number): Promise<void> {
+    try {
+      if (isWin) {
+        // netstat -ano | findstr :PORT → extract PID → taskkill
+        const output = execSync(`netstat -ano | findstr ":${port}"`, { encoding: 'utf-8' })
+        const pids = new Set<string>()
+        for (const line of output.split('\n')) {
+          const match = line.trim().match(/LISTENING\s+(\d+)/)
+          if (match) pids.add(match[1])
+        }
+        for (const pid of pids) {
+          try {
+            execSync(`taskkill /PID ${pid} /F`)
+            logger.info(`Killed process ${pid} on port ${port}`)
+          } catch {
+            logger.warn(`Failed to kill process ${pid}`)
+          }
+        }
+      } else {
+        // lsof -ti :PORT → kill each PID
+        const output = execSync(`lsof -ti :${port}`, { encoding: 'utf-8' }).trim()
+        if (output) {
+          for (const pid of output.split('\n')) {
+            try {
+              process.kill(Number(pid), 'SIGTERM')
+              logger.info(`Killed process ${pid} on port ${port}`)
+            } catch {
+              logger.warn(`Failed to kill process ${pid}`)
+            }
+          }
+        }
+      }
+    } catch {
+      logger.debug(`No process found on port ${port} to kill`)
     }
   }
 
