@@ -18,7 +18,7 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
-import { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
