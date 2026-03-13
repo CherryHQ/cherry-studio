@@ -3,6 +3,12 @@
  *
  * All operations use relativePath (relative to notesRoot preference).
  * Absolute path = notesRoot + relativePath, computed at runtime.
+ *
+ * TODO: Add syncDirectory(notesRoot) method for lazy registration.
+ * When the notes directory is first loaded at runtime, scan all .md files
+ * and create `note` rows for files not already in the table.
+ * Migration only handles starred paths from Redux; all other files need
+ * lazy-register here. This is renderer-layer integration work (v2-renderer).
  */
 
 import { dbService } from '@data/db/DbService'
