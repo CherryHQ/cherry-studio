@@ -15,7 +15,6 @@ import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -100,9 +99,9 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
             ) : session ? (
               <PermissionModeDisplay session={session} agentId={agentId} />
             ) : (
-              <LoadingState>
+              <div className="flex items-center justify-center py-5">
                 <Spin size="small" />
-              </LoadingState>
+              </div>
             )}
           </ScrollContainer>
         </ContextMenu>
@@ -111,13 +110,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     </MessagesContainer>
   )
 }
-
-const LoadingState = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px 0;
-`
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 

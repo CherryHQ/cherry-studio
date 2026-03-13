@@ -55,10 +55,8 @@ const AgentChat = () => {
 
   if (isInitializing) {
     return (
-      <div className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <Spin />
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <Spin />
       </div>
     )
   }
