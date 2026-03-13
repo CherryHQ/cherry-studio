@@ -670,20 +670,23 @@ class OpenClawService {
 
       socket.on('connect', () => {
         socket.destroy()
+        logger.debug(`Port ${port} is open (connected)`)
         resolve(true)
       })
 
       socket.on('timeout', () => {
         socket.destroy()
+        logger.debug(`Port ${port} check timed out`)
         resolve(false)
       })
 
-      socket.on('error', () => {
+      socket.on('error', (err) => {
         socket.destroy()
+        logger.debug(`Port ${port} is not open: ${err.message}`)
         resolve(false)
       })
 
-      socket.connect(port, 'localhost')
+      socket.connect(port, '127.0.0.1')
     })
   }
 
