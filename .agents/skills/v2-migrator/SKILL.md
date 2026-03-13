@@ -56,7 +56,7 @@ Renderer Process                          Main Process
                                                     v
 +-----------------------+                 +---------------------------+
 | Dexie settings table  |---JSON export-->| DexieSettingsReader        |
-| (KV: translate,       |                 |   .get(key) / .getAll()   |
+| (KV: translate,       |                 |   .get(key) / .keys()     |
 |  pinned, images...)   |                 +---------------------------+
 +-----------------------+                           |
                                                     v
@@ -153,7 +153,7 @@ const sample = await reader.readSample(5)  // validation sampling
 
 // Dexie settings table (KV store)
 const translateModel = ctx.sources.dexieSettings.get('translate:model')
-const allSettings = ctx.sources.dexieSettings.getAll()
+const allKeys = ctx.sources.dexieSettings.keys()
 
 // ElectronStore
 const zoomFactor = ctx.sources.config.get('ZoomFactor')
