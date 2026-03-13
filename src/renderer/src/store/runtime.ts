@@ -49,6 +49,8 @@ export interface UpdateState {
   downloadProgress: number
   available: boolean
   ignore: boolean
+  /** Whether the update check was manually triggered by user clicking the button */
+  manualCheck: boolean
 }
 
 export interface RuntimeState {
@@ -99,7 +101,8 @@ const initialState: RuntimeState = {
     downloaded: false,
     downloadProgress: 0,
     available: false,
-    ignore: false
+    ignore: false,
+    manualCheck: false
   },
   export: {
     isExporting: false

@@ -68,6 +68,22 @@ describe('websearch utils', () => {
       })
     })
 
+    it('should return extra_body with web_search for poe provider', () => {
+      const model: Model = {
+        id: 'Gemini-3-Flash',
+        name: 'Gemini 3 Flash',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({
+        extra_body: {
+          web_search: true
+        }
+      })
+    })
+
     it('should return empty object for other providers', () => {
       const model: Model = {
         id: 'gpt-4',
