@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -383,12 +383,15 @@ class OpenClawService {
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
-    // Spawn detached — the gateway runs independently, we poll for readiness.
-    // Use 'pipe' for stderr so we can capture error details on early exit.
-    const proc = crossPlatformSpawn(openclawPath, args, {
+    // Spawn the gateway process. We poll for readiness via health check.
+    // On Windows, avoid detached: true as it creates a visible console window.
+    // Instead, use windowsHide: true without detached - proc.unref() ensures
+    // the parent can exit independently.
+    const proc = spawn(openclawPath, args, {
       env: shellEnv,
-      detached: true,
-      stdio: ['ignore', 'ignore', 'pipe']
+      detached: !isWin, // Only detach on non-Windows to avoid console flash
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true
     })
     proc.unref()
 
