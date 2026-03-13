@@ -38,6 +38,10 @@
     "edit": {
       "title": "Éditer Agent"
     },
+    "empty": {
+      "description": "Créez un agent pour gérer des tâches complexes avec des outils alimentés par l'IA",
+      "title": "Pas encore d'agents"
+    },
     "get": {
       "error": {
         "failed": "Échec de l'obtention de l'agent.",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "Créer un agent pour commencer",
       "create_session": "Créer une session",
       "select_agent": "Sélectionnez un agent"
     },

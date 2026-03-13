@@ -38,6 +38,10 @@
     "edit": {
       "title": "Editează agentul"
     },
+    "empty": {
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente bazate pe IA",
+      "title": "Niciun agent încă"
+    },
     "get": {
       "error": {
         "failed": "Nu s-a putut obține agentul.",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "Creează un agent pentru a începe",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },

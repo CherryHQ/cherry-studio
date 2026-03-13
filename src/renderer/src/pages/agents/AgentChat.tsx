@@ -61,17 +61,7 @@ const AgentChat = () => {
     )
   }
 
-  // Initialized
-  if (agents.length === 0) {
-    return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <Alert type="info" message={t('chat.alerts.create_agent')} style={{ margin: '5px 16px' }} />
-        </div>
-      </Container>
-    )
-  }
-
+  // Initialized — agents.length === 0 is handled by AgentPage
   if (!activeAgentId) {
     return (
       <Container className="flex flex-1 flex-col justify-between">

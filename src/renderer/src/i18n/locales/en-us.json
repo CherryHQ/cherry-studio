@@ -38,6 +38,10 @@
     "edit": {
       "title": "Edit Agent"
     },
+    "empty": {
+      "description": "Create an agent to handle complex tasks with AI-powered tools",
+      "title": "No agents yet"
+    },
     "get": {
       "error": {
         "failed": "Failed to get the agent.",

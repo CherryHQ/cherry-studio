@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
+import AgentEmpty from './AgentEmpty'
 import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
 
@@ -61,6 +62,14 @@ const AgentPage = () => {
         <div className="flex flex-1 items-center justify-center">
           <Alert type="error" message={t('agent.warning.server_not_running')} style={{ margin: '5px 16px' }} />
         </div>
+      </div>
+    )
+  }
+
+  if (agents && agents.length === 0) {
+    return (
+      <div id="agent-page" className="flex flex-1 flex-col bg-background">
+        <AgentEmpty />
       </div>
     )
   }

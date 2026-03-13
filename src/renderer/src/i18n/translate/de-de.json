@@ -38,6 +38,10 @@
     "edit": {
       "title": "Agent bearbeiten"
     },
+    "empty": {
+      "description": "Erstellen Sie einen Agenten zur Bewältigung komplexer Aufgaben mit KI-gestützten Tools.",
+      "title": "Noch keine Agenten"
+    },
     "get": {
       "error": {
         "failed": "Agent abrufen fehlgeschlagen",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "Erstellen Sie einen Agenten, um loszulegen.",
       "create_session": "Erstelle eine Sitzung",
       "select_agent": "Wählen Sie einen Agenten"
     },

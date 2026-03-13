@@ -38,6 +38,10 @@
     "edit": {
       "title": "Редактировать агент"
     },
+    "empty": {
+      "description": "Создайте агента для решения сложных задач с помощью инструментов на базе ИИ",
+      "title": "Агентов пока нет"
+    },
     "get": {
       "error": {
         "failed": "Не удалось получить агента.",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "Создайте агента, чтобы начать работу",
       "create_session": "Создать сессию",
       "select_agent": "Выберите агента"
     },

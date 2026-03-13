@@ -38,6 +38,10 @@
     "edit": {
       "title": "編集エージェント"
     },
+    "empty": {
+      "description": "AI搭載ツールで複雑なタスクを処理するエージェントを作成する",
+      "title": "エージェントがまだありません"
+    },
     "get": {
       "error": {
         "failed": "エージェントの取得に失敗しました。",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "開始するにはエージェントを作成してください",
       "create_session": "セッションを作成",
       "select_agent": "エージェントを選択してください"
     },

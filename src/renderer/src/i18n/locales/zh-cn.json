@@ -38,6 +38,10 @@
     "edit": {
       "title": "编辑 Agent"
     },
+    "empty": {
+      "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
+      "title": "还没有 Agent"
+    },
     "get": {
       "error": {
         "failed": "获取智能体失败",

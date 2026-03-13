@@ -38,6 +38,10 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "empty": {
+      "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
+      "title": "尚無 Agent"
+    },
     "get": {
       "error": {
         "failed": "無法取得 Agent。",
@@ -751,7 +755,7 @@
       }
     },
     "alerts": {
-      "create_agent": "[to be translated]:Create an agent to get started",
+      "create_agent": "建立 Agent 以開始",
       "create_session": "建立工作階段",
       "select_agent": "選擇一個智能體"
     },
