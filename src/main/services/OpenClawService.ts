@@ -313,22 +313,29 @@ class OpenClawService {
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
-    // Spawn detached — the gateway runs independently, we poll for readiness
+    // Spawn detached — the gateway runs independently, we poll for readiness.
+    // Use 'pipe' for stderr so we can capture error details on early exit.
     const proc = crossPlatformSpawn(openclawPath, args, {
       env: { ...shellEnv, OPENCLAW_CONFIG_PATH },
       detached: true,
-      stdio: 'ignore'
+      stdio: ['ignore', 'ignore', 'pipe']
     })
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
+    let stderrOutput = ''
+    proc.stderr?.on('data', (data) => {
+      stderrOutput += data.toString()
+    })
     proc.on('error', (err) => {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
       if (code !== 0) {
-        earlyExitError = `gateway exited with code ${code}`
+        // Extract the most useful line from stderr for the error message
+        const detail = stderrOutput.trim().split('\n').filter(Boolean).slice(0, 3).join('\n')
+        earlyExitError = detail || `gateway exited with code ${code}`
       }
     })
 
@@ -482,13 +489,19 @@ class OpenClawService {
    * Get Gateway status. Probes the port when idle to detect externally-started gateways.
    */
   public async getStatus(): Promise<{ status: GatewayStatus; port: number }> {
-    if (this.gatewayStatus === 'stopped' || this.gatewayStatus === 'error') {
-      const { status } = await this.probeGatewayHealth()
-      if (status === 'healthy') {
-        logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
-        this.gatewayStatus = 'running'
-      }
+    if (this.gatewayStatus === 'starting') {
+      return { status: this.gatewayStatus, port: this.gatewayPort }
     }
+
+    const { status } = await this.probeGatewayHealth()
+    if (status === 'healthy' && this.gatewayStatus !== 'running') {
+      logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
+      this.gatewayStatus = 'running'
+    } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
+      logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
+      this.gatewayStatus = 'stopped'
+    }
+
     return {
       status: this.gatewayStatus,
       port: this.gatewayPort
@@ -503,7 +516,12 @@ class OpenClawService {
     if (this.gatewayStatus !== 'running') {
       return { status: 'unhealthy', gatewayPort: this.gatewayPort }
     }
-    return this.probeGatewayHealth()
+    const healthInfo = await this.probeGatewayHealth()
+    if (healthInfo.status === 'unhealthy') {
+      logger.warn(`Gateway health check failed, marking as stopped`)
+      this.gatewayStatus = 'stopped'
+    }
+    return healthInfo
   }
 
   /**
