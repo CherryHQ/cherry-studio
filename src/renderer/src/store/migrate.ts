@@ -3315,6 +3315,17 @@ const migrateConfig = {
       logger.error('migrate 202 error', error as Error)
       return state
     }
+  },
+  '203': (state: RootState) => {
+    try {
+      addProvider(state, 'volcano-coding')
+      addProvider(state, 'byteplus-coding')
+      logger.info('migrate 201 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 201 error', error as Error)
+      return state
+    }
   }
 }
 
