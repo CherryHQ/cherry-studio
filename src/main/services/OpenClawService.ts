@@ -257,6 +257,14 @@ class OpenClawService {
 
     const spawnEnv = await getShellEnv()
 
+    // Force git to use HTTPS instead of SSH to avoid "Permission denied (publickey)" errors
+    // when users have git config url."git@github.com:".insteadOf set (common on Windows)
+    // Environment-level config overrides global/system gitconfig
+    const existingCount = parseInt(spawnEnv.GIT_CONFIG_COUNT || '0', 10)
+    spawnEnv.GIT_CONFIG_COUNT = String(existingCount + 1)
+    spawnEnv[`GIT_CONFIG_KEY_${existingCount}`] = 'url.https://github.com/.insteadOf'
+    spawnEnv[`GIT_CONFIG_VALUE_${existingCount}`] = 'git@github.com:'
+
     return new Promise((resolve) => {
       try {
         const installProcess = crossPlatformSpawn(processedNpmPath, npmArgs, { env: spawnEnv })
@@ -317,6 +325,8 @@ class OpenClawService {
                 }
               })
             } else if (stderr.includes('Permission denied (publickey)')) {
+              // Fallback: env-level HTTPS override didn't cover this case
+              logger.warn('SSH auth failed despite GIT_CONFIG env override')
               const msg = t('openclaw.error.git_ssh_failed')
               this.sendInstallProgress(msg, 'error')
               resolve({ success: false, message: msg })
