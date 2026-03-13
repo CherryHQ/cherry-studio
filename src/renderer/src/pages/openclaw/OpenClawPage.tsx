@@ -466,7 +466,7 @@ const OpenClawPage: FC = () => {
             <Alert
               message={
                 <div className="flex items-start justify-between gap-2">
-                  <span className="max-h-25 flex-1 overflow-y-auto break-all whitespace-pre-wrap">{error}</span>
+                  <span className="max-h-25 flex-1 overflow-y-auto whitespace-pre-wrap break-all">{error}</span>
                   <Button
                     type="link"
                     className="h-auto! w-3! shrink-0 p-0!"

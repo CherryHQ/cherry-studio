@@ -23,6 +23,7 @@ const logger = loggerService.withContext('OpenClawService')
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+const OPENCLAW_CONFIG_BAK_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json.bak')
 const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
@@ -683,13 +684,12 @@ class OpenClawService {
 
       // Migrate legacy openclaw.cherry.json → openclaw.json
       if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
-        if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) {
-          fs.renameSync(OPENCLAW_LEGACY_CONFIG_PATH, OPENCLAW_CONFIG_PATH)
-          logger.info('Migrated openclaw.cherry.json → openclaw.json')
-        } else {
-          fs.unlinkSync(OPENCLAW_LEGACY_CONFIG_PATH)
-          logger.info('Removed legacy openclaw.cherry.json (openclaw.json already exists)')
+        if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+          fs.renameSync(OPENCLAW_CONFIG_PATH, OPENCLAW_CONFIG_BAK_PATH)
+          logger.info('Migrated openclaw.json → openclaw.json.bak')
         }
+        fs.renameSync(OPENCLAW_LEGACY_CONFIG_PATH, OPENCLAW_CONFIG_PATH)
+        logger.info('Migrated openclaw.cherry.json → openclaw.json')
       }
 
       // Read existing config
