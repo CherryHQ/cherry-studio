@@ -110,7 +110,7 @@ const AgentChat = () => {
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden">
-            <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden border-(--color-border) border-l-[0.5px]">
+            <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
               <Sessions agentId={activeAgentId!} />
             </div>
           </motion.div>
