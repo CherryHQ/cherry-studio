@@ -140,45 +140,64 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.24 - Features & Improvements
+    Cherry Studio 1.7.25 - Security & Stability
 
     ✨ New Features
-    - [Agent] Agent creation no longer requires selecting a workspace folder - a default workspace is automatically created
-    - [Agent] Added thinking/reasoning effort control (low/medium/high/max/adaptive) for Claude Code agent sessions
+    - [Web Search] Add Querit search provider (1,000 free requests for new users)
+    - [Provider] Add MiniMax Global and Z.ai providers
+    - [Mini Apps] Add MiniMax Agent and IMA mini apps
+    - [Provider] Add agent support filter in provider settings
+    - [Agent] Add custom environment variables support
+    - [Models] Add GPT-5.4 support
 
     🐛 Bug Fixes
-    - [Tools] Fix prompt caching crash when using OpenRouter or other non-Anthropic providers
-    - [Models] Fix Gemini 3 models not sending reasoning_effort parameter when deep thinking mode is enabled
-    - [Editor] Fix CodeMirror highlight crash caused by version conflict
-    - [MCP] Fix MCP tool parameter parsing and nested schema display
-    - [MCP] Fix MCP tools not being auto-approved when configured through agent allowed_tools
-    - [UI] Fix duplicate error blocks in aborting
-    - [Plugins] Fix plugin size displaying as 0 in the plugin detail modal
-    - [UI] Fix PinnedTodoPanel ignoring narrow mode width setting
+    - [Security] Built-in filesystem MCP now requires manual approval for write/edit/delete operations
+    - [Security] Fix MCP hub mode bypassing tool permission checks
+    - [Security] Remove auto-execution countdown - tools now wait for user confirmation
+    - [Agent] Fix tool status not stopping when aborting on Windows
+    - [Chat] Fix auto backup interrupting streaming responses
+    - [Chat] Fix topic renaming errors with image-capable models
+    - [UI] Fix "Move To" submenu overflow with long assistant lists
+    - [Editor] Render SVG code blocks as previews
+    - [Models] Fix Gemini 3 and Qwen 3.5 reasoning parameter issues
+    - [xAI] Upgrade to new Responses API with X/Twitter search support
+    - [API Server] Fix tool calling message validation
+    - [Plugins] Fix install/uninstall button state issues
+    - [Update] Fix update dialog not showing on manual check
+    - [Update] Prevent unexpected auto-updates on app quit
 
     💄 Improvements
-    - [Sessions] Implement infinite scroll for sessions list
-    - [Plugins] Improve plugin detail modal UI with better layout and styling
-    - [Performance] Fix renderer crash when agent streams large file writes by optimizing tool input delta handling
+    - [Provider] Improve agent model selector ordering and highlighting
+    - [MCP] Add system notifications when tool approval is required
+
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.24 - 功能与改进
+    Cherry Studio 1.7.25 - 安全与稳定性
 
     ✨ 新功能
-    - [智能体] 创建智能体不再需要选择工作区文件夹 - 会自动创建默认工作区
-    - [智能体] 为 Claude Code 智能体会话添加思考/推理强度控制（低/中/高/最大/自适应）
+    - [网络搜索] 新增 Querit 搜索引擎（新用户 1,000 次免费请求）
+    - [服务商] 新增 MiniMax Global 和 Z.ai 服务商
+    - [小程序] 新增 MiniMax Agent 和 IMA 小程序
+    - [服务商] 添加智能体支持筛选器
+    - [智能体] 支持自定义环境变量配置
+    - [模型] 新增 GPT-5.4 支持
 
     🐛 问题修复
-    - [工具] 修复使用 OpenRouter 或其他非 Anthropic 提供商时的提示缓存崩溃问题
-    - [模型] 修复启用深度思考模式时 Gemini 3 模型不发送 reasoning_effort 参数的问题
-    - [编辑器] 修复由版本冲突导致的 CodeMirror 高亮崩溃
-    - [MCP] 修复 MCP 工具参数解析和嵌套架构显示问题
-    - [MCP] 修复通过智能体 allowed_tools 配置时 MCP 工具无法自动批准的问题
-    - [UI] 修复中止时出现重复错误块的问题
-    - [插件] 修复插件详情弹窗中插件大小显示为 0 的问题
-    - [UI] 修复 PinnedTodoPanel 忽略窄模式宽度设置的问题
+    - [安全] 内置文件系统 MCP 的写入/编辑/删除操作现需手动批准
+    - [安全] 修复 MCP Hub 模式绕过工具权限检查的问题
+    - [安全] 移除自动执行倒计时 - 工具现在等待用户确认
+    - [智能体] 修复 Windows 上中止时工具状态未停止的问题
+    - [对话] 修复自动备份中断流式响应的问题
+    - [对话] 修复使用图像模型时话题重命名出错的问题
+    - [UI] 修复助手列表过长时"移动到"子菜单溢出
+    - [编辑器] SVG 代码块现在显示为预览图
+    - [模型] 修复 Gemini 3 和 Qwen 3.5 推理参数问题
+    - [xAI] 升级到新版 Responses API，支持 X/Twitter 搜索
+    - [API 服务] 修复工具调用消息验证问题
+    - [插件] 修复安装/卸载按钮状态问题
+    - [更新] 修复手动检查更新时对话框不显示的问题
+    - [更新] 防止退出应用时意外自动更新
 
     💄 改进
-    - [会话] 实现会话列表的无限滚动
-    - [插件] 改进插件详情弹窗的 UI，布局和样式更优化
-    - [性能] 通过优化工具输入增量处理，修复智能体流式传输大文件时的渲染器崩溃
+    - [服务商] 优化智能体模型选择器排序和高亮
+    - [MCP] 工具需要批准时发送系统通知
     <!--LANG:END-->
