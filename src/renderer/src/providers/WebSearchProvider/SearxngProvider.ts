@@ -130,14 +130,9 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
         try {
           // Logger.log(`Fetching content for ${item.url}...`)
-          const result = await fetchWebContent(
-            item.url,
-            'markdown',
-            this.provider.usingBrowser,
-            {
-              signal: controller.signal
-            }
-          )
+          const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, {
+            signal: controller.signal
+          })
           clearTimeout(timeoutId)
           return result
         } catch (error) {
