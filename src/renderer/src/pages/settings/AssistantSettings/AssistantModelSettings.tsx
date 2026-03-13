@@ -60,7 +60,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
-  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? false)
+  const enableTemperature = useMemo(
+    () => assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
+    [assistant?.settings?.enableTemperature]
+  )
 
   const customParametersRef = useRef(customParameters)
 
@@ -202,7 +205,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
-    setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
@@ -279,7 +281,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={enableTemperature}
           onChange={(enabled) => {
-            setEnableTemperature(enabled)
             updateAssistantSettings({ enableTemperature: enabled })
           }}
         />
