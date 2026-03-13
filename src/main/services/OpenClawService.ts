@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'node:child_process'
+import { type ChildProcess, execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -115,6 +115,7 @@ class OpenClawService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private gatewayProcess: ChildProcess | null = null
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
@@ -395,6 +396,9 @@ class OpenClawService {
     })
     proc.unref()
 
+    // Store process reference for later termination
+    this.gatewayProcess = proc
+
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
     let stderrOutput = ''
@@ -442,23 +446,30 @@ class OpenClawService {
   }
 
   /**
-   * Stop the OpenClaw Gateway
+   * Stop the OpenClaw Gateway by killing the process directly
    */
   public async stopGateway(): Promise<OperationResult> {
     try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        this.gatewayStatus = 'error'
-        return { success: false, message: 'OpenClaw binary not found' }
+      if (this.gatewayProcess) {
+        // Kill the process directly
+        // On Unix with detached process, we need to kill the process group
+        if (!isWin && this.gatewayProcess.pid) {
+          try {
+            process.kill(-this.gatewayProcess.pid, 'SIGTERM')
+          } catch {
+            // Process group kill failed, try killing the process directly
+            this.gatewayProcess.kill('SIGTERM')
+          }
+        } else {
+          this.gatewayProcess.kill('SIGTERM')
+        }
+        this.gatewayProcess = null
       }
-
-      const shellEnv = await getShellEnv()
-      await this.runGatewayStop(openclawPath, shellEnv)
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
         this.gatewayStatus = 'error'
-        return { success: false, message: 'Failed to stop gateway. Try running: openclaw gateway stop' }
+        return { success: false, message: 'Failed to stop gateway' }
       }
 
       this.gatewayStatus = 'stopped'
@@ -489,10 +500,6 @@ class OpenClawService {
       }
     }
     return true
-  }
-
-  private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
-    await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'stop'], env)
   }
 
   private async execOpenClawCommandWithResult(

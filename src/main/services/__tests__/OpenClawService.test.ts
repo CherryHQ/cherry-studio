@@ -58,7 +58,6 @@ describe('OpenClawService gateway status state machine', () => {
   let service: Awaited<ReturnType<typeof createService>>
   let checkHealthSpy: ReturnType<typeof vi.spyOn>
   let findBinarySpy: ReturnType<typeof vi.spyOn>
-  let execCommandSpy: ReturnType<typeof vi.spyOn>
   let checkPortOpenSpy: ReturnType<typeof vi.spyOn>
   let startAndWaitSpy: ReturnType<typeof vi.spyOn>
 
@@ -77,7 +76,6 @@ describe('OpenClawService gateway status state machine', () => {
     // Spy on private methods via prototype
     checkHealthSpy = vi.spyOn(service as any, 'checkGatewayHealth')
     findBinarySpy = vi.spyOn(service as any, 'findOpenClawBinary')
-    execCommandSpy = vi.spyOn(service as any, 'execOpenClawCommandWithResult')
     checkPortOpenSpy = vi.spyOn(service as any, 'checkPortOpen')
     startAndWaitSpy = vi.spyOn(service as any, 'startAndWaitForGateway')
   })
@@ -322,8 +320,6 @@ describe('OpenClawService gateway status state machine', () => {
     it('transitions to stopped on successful stop', async () => {
       // @ts-expect-error -- accessing private field
       service.gatewayStatus = 'running'
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
-      execCommandSpy.mockResolvedValue({ code: 0, stdout: '', stderr: '' })
       checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 }) // gateway stopped
 
       const result = await service.stopGateway()
@@ -333,41 +329,31 @@ describe('OpenClawService gateway status state machine', () => {
       expect(service.gatewayStatus).toBe('stopped')
     })
 
-    it('transitions to error when binary not found', async () => {
+    it('kills the gateway process directly when available', async () => {
       // @ts-expect-error -- accessing private field
       service.gatewayStatus = 'running'
-      findBinarySpy.mockResolvedValue(null)
+      const mockProcess = { pid: 12345, kill: vi.fn() }
+      // @ts-expect-error -- accessing private field
+      service.gatewayProcess = mockProcess
+      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
 
       const result = await service.stopGateway()
 
-      expect(result).toEqual({ success: false, message: 'OpenClaw binary not found' })
+      expect(result).toEqual({ success: true })
       // @ts-expect-error -- accessing private field
-      expect(service.gatewayStatus).toBe('error')
+      expect(service.gatewayProcess).toBeNull()
+      // @ts-expect-error -- accessing private field
+      expect(service.gatewayStatus).toBe('stopped')
     })
 
     it('transitions to error when gateway fails to stop', async () => {
       // @ts-expect-error -- accessing private field
       service.gatewayStatus = 'running'
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
-      execCommandSpy.mockResolvedValue({ code: 0, stdout: '', stderr: '' })
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // still running
 
       const result = await service.stopGateway()
 
       expect(result.success).toBe(false)
-      // @ts-expect-error -- accessing private field
-      expect(service.gatewayStatus).toBe('error')
-    })
-
-    it('transitions to error on exception', async () => {
-      // @ts-expect-error -- accessing private field
-      service.gatewayStatus = 'running'
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
-      execCommandSpy.mockRejectedValue(new Error('spawn failed'))
-
-      const result = await service.stopGateway()
-
-      expect(result).toEqual({ success: false, message: 'spawn failed' })
       // @ts-expect-error -- accessing private field
       expect(service.gatewayStatus).toBe('error')
     })
