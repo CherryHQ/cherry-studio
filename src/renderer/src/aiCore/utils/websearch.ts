@@ -25,6 +25,15 @@ export function getWebSearchParams(model: Model): Record<string, any> {
     }
   }
 
+  // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
+  if (model.provider === 'poe') {
+    return {
+      extra_body: {
+        web_search: true
+      }
+    }
+  }
+
   if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
     return {
       web_search_options: {}

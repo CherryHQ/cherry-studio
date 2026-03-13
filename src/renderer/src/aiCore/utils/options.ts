@@ -40,6 +40,7 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
+import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
@@ -634,10 +635,7 @@ function buildGenericProviderOptions(
 
   if (enableWebSearch) {
     const webSearchParams = getWebSearchParams(model)
-    providerOptions = {
-      ...providerOptions,
-      ...webSearchParams
-    }
+    providerOptions = merge({}, providerOptions, webSearchParams)
   }
 
   // 特殊处理 Qwen MT
