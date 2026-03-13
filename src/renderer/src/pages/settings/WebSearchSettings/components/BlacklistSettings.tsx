@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
 import { Alert } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -9,7 +9,7 @@ import { t } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { useWebSearchSettings } from '../hooks/useWebSearchSettings'
 
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)

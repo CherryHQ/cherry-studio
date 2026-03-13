@@ -1,8 +1,8 @@
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 
+import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
 import CutoffSettings from './CutoffSettings'
 import RagSettings from './RagSettings'
 
@@ -20,7 +20,7 @@ const CompressionSettings = () => {
   ]
 
   const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
-    updateCompressionConfig({ method })
+    void updateCompressionConfig({ method })
   }
 
   return (

@@ -1,10 +1,10 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { SettingContainer } from '@renderer/pages/settings'
 import type { FC } from 'react'
 
-import { SettingContainer } from '..'
-import BasicSettings from './BasicSettings'
-import BlacklistSettings from './BlacklistSettings'
-import CompressionSettings from './CompressionSettings'
+import BasicSettings from './components/BasicSettings'
+import BlacklistSettings from './components/BlacklistSettings'
+import CompressionSettings from './components/CompressionSettings'
 
 const WebSearchGeneralSettings: FC = () => {
   const { theme } = useTheme()

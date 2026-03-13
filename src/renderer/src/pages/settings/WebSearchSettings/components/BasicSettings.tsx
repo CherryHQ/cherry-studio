@@ -1,11 +1,11 @@
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { useWebSearchSettings } from '../hooks/useWebSearchSettings'
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()

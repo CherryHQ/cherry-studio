@@ -5,7 +5,6 @@ import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
@@ -13,6 +12,8 @@ import { Slider } from 'antd'
 import { find } from 'lodash'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
 
 const INPUT_BOX_WIDTH = 'min(350px, 60%)'
 
@@ -22,33 +23,35 @@ const RagSettings = () => {
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
   const embeddingModels = useMemo(() => {
-    return providers.flatMap((p) => p.models).filter((model) => isEmbeddingModel(model))
+    return providers.flatMap((provider) => provider.models).filter((model) => isEmbeddingModel(model))
   }, [providers])
 
   const rerankModels = useMemo(() => {
-    return providers.flatMap((p) => p.models).filter((model) => isRerankModel(model))
+    return providers.flatMap((provider) => provider.models).filter((model) => isRerankModel(model))
   }, [providers])
 
   const rerankProviders = useMemo(() => {
-    return providers.filter((p) => !NOT_SUPPORTED_RERANK_PROVIDERS.some((pid) => p.id === pid))
+    return providers.filter(
+      (provider) => !NOT_SUPPORTED_RERANK_PROVIDERS.some((providerId) => provider.id === providerId)
+    )
   }, [providers])
 
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
-    updateCompressionConfig({ embeddingModel: selectedModel })
+    void updateCompressionConfig({ embeddingModel: selectedModel })
   }
 
   const handleRerankModelChange = (modelValue?: string) => {
     const selectedModel = modelValue ? (find(rerankModels, JSON.parse(modelValue)) as Model) : undefined
-    updateCompressionConfig({ rerankModel: selectedModel })
+    void updateCompressionConfig({ rerankModel: selectedModel })
   }
 
   const handleEmbeddingDimensionsChange = (value: number | null) => {
-    updateCompressionConfig({ embeddingDimensions: value || undefined })
+    void updateCompressionConfig({ embeddingDimensions: value || undefined })
   }
 
   const handleDocumentCountChange = (value: number) => {
-    updateCompressionConfig({ documentCount: value })
+    void updateCompressionConfig({ documentCount: value })
   }
 
   return (

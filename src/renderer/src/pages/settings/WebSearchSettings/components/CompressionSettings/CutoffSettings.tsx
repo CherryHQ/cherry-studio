@@ -1,9 +1,10 @@
 import { InfoTooltip } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { Input, Select, Space } from 'antd'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
 
 const INPUT_BOX_WIDTH = '200px'
 
@@ -12,11 +13,11 @@ const CutoffSettings = () => {
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    updateCompressionConfig({ cutoffLimit: value || undefined })
+    void updateCompressionConfig({ cutoffLimit: value || undefined })
   }
 
   const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    updateCompressionConfig({ cutoffUnit: unit })
+    void updateCompressionConfig({ cutoffUnit: unit })
   }
 
   const unitOptions = [
