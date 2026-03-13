@@ -1,13 +1,10 @@
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Select } from 'antd'
+import { Divider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
+import { WebSearchSettingsField, WebSearchSettingsSection } from '../WebSearchSettingsLayout'
 import CutoffSettings from './CutoffSettings'
 import RagSettings from './RagSettings'
-
-const INPUT_BOX_WIDTH_CUTOFF = '200px'
-const INPUT_BOX_WIDTH_RAG = 'min(350px, 60%)'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
@@ -19,29 +16,31 @@ const CompressionSettings = () => {
     { value: 'rag', label: t('settings.tool.websearch.compression.method.rag') }
   ]
 
-  const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
-    void updateCompressionConfig({ method })
+  const handleCompressionMethodChange = (method: string) => {
+    void updateCompressionConfig({ method: method as 'none' | 'cutoff' | 'rag' })
   }
 
   return (
-    <SettingGroup>
-      <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
-        <Select
-          value={compressionConfig?.method || 'none'}
-          style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}
-          onChange={handleCompressionMethodChange}
-          options={compressionMethodOptions}
-        />
-      </SettingRow>
-      <SettingDivider />
+    <WebSearchSettingsSection title={t('settings.tool.websearch.compression.title')}>
+      <WebSearchSettingsField title={t('settings.tool.websearch.compression.method.label')}>
+        <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
+          <SelectTrigger className="w-full lg:max-w-90">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {compressionMethodOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </WebSearchSettingsField>
+      <Divider className="my-0" />
 
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
       {compressionConfig?.method === 'rag' && <RagSettings />}
-    </SettingGroup>
+    </WebSearchSettingsSection>
   )
 }
 

@@ -1,10 +1,9 @@
-import DividerWithText from '@renderer/components/DividerWithText'
-import ListItem from '@renderer/components/ListItem'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearch/logo'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import type { FC } from 'react'
 
 import type { WebSearchSettingsView } from '../hooks/useWebSearchSettingsNavigation'
+import { WebSearchSettingsSidebarItem, WebSearchSettingsSidebarSection } from './WebSearchSettingsLayout'
 
 interface Props {
   title: string
@@ -19,13 +18,12 @@ const WebSearchProviderListSection: FC<Props> = ({ activeView, onSelect, provide
   }
 
   return (
-    <>
-      <DividerWithText text={title} style={{ margin: '10px 0 8px 0' }} />
+    <WebSearchSettingsSidebarSection title={title}>
       {providers.map((provider) => {
         const logo = getWebSearchProviderLogo(provider.id)
 
         return (
-          <ListItem
+          <WebSearchSettingsSidebarItem
             key={provider.id}
             title={provider.name}
             active={activeView === provider.id}
@@ -37,11 +35,10 @@ const WebSearchProviderListSection: FC<Props> = ({ activeView, onSelect, provide
                 <div className="h-5 w-5 rounded bg-(--color-background-soft)" />
               )
             }
-            titleStyle={{ fontWeight: 500 }}
           />
         )
       })}
-    </>
+    </WebSearchSettingsSidebarSection>
   )
 }
 

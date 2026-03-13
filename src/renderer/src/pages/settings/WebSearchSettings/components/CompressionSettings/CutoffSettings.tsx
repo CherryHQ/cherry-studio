@@ -1,23 +1,28 @@
-import { InfoTooltip } from '@cherrystudio/ui'
-import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Input, Select, Space } from 'antd'
-import { ChevronDown } from 'lucide-react'
+import {
+  Divider,
+  InfoTooltip,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
-
-const INPUT_BOX_WIDTH = '200px'
+import { WebSearchSettingsField } from '../WebSearchSettingsLayout'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
-  const handleCutoffLimitChange = (value: number | null) => {
-    void updateCompressionConfig({ cutoffLimit: value || undefined })
+  const handleCutoffLimitChange = (value?: number) => {
+    void updateCompressionConfig({ cutoffLimit: value })
   }
 
-  const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    void updateCompressionConfig({ cutoffUnit: unit })
+  const handleCutoffUnitChange = (unit: string) => {
+    void updateCompressionConfig({ cutoffUnit: unit as 'char' | 'token' })
   }
 
   const unitOptions = [
@@ -26,42 +31,58 @@ const CutoffSettings = () => {
   ]
 
   return (
-    <SettingRow>
-      <SettingRowTitle>
-        {t('settings.tool.websearch.compression.cutoff.limit.label')}
-        <InfoTooltip
-          placement="right"
-          content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
-          iconProps={{
-            size: 16,
-            color: 'var(--color-icon)',
-            className: 'ml-1 cursor-pointer'
-          }}
-        />
-      </SettingRowTitle>
-      <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
-        <Input
-          style={{ maxWidth: '60%' }}
-          placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
-          value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
-          onChange={(e) => {
-            const value = e.target.value
-            if (value === '') {
-              handleCutoffLimitChange(null)
-            } else if (!isNaN(Number(value)) && Number(value) > 0) {
-              handleCutoffLimitChange(Number(value))
-            }
-          }}
-        />
-        <Select
-          value={compressionConfig?.cutoffUnit || 'char'}
-          style={{ minWidth: '40%' }}
-          onChange={handleCutoffUnitChange}
-          options={unitOptions}
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
-        />
-      </Space.Compact>
-    </SettingRow>
+    <>
+      <WebSearchSettingsField
+        title={
+          <>
+            {t('settings.tool.websearch.compression.cutoff.limit.label')}
+            <InfoTooltip
+              placement="right"
+              content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'cursor-pointer'
+              }}
+            />
+          </>
+        }>
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <Input
+            type="number"
+            min={1}
+            className="sm:max-w-34"
+            placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
+            value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
+            onChange={(e) => {
+              const value = e.target.value.trim()
+              if (value === '') {
+                handleCutoffLimitChange(undefined)
+                return
+              }
+
+              const nextValue = Number(value)
+              if (Number.isFinite(nextValue) && nextValue > 0) {
+                handleCutoffLimitChange(nextValue)
+              }
+            }}
+          />
+          <Select value={compressionConfig?.cutoffUnit || 'char'} onValueChange={handleCutoffUnitChange}>
+            <SelectTrigger className="w-full sm:max-w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {unitOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </WebSearchSettingsField>
+      <Divider className="my-0" />
+    </>
   )
 }
 

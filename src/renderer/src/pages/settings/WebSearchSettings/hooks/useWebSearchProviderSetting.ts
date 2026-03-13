@@ -98,7 +98,13 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
 
     try {
       setApiChecking(true)
-      const { error, valid } = await WebSearchService.checkSearch(provider)
+      const { error, valid } = await WebSearchService.checkSearch({
+        ...provider,
+        apiHost: apiHost.trim().replace(/\/$/, ''),
+        apiKey,
+        basicAuthPassword,
+        basicAuthUsername
+      })
 
       const errorMessage = error?.message ? ` ${error.message}` : ''
       window.toast[valid ? 'success' : 'error']({
@@ -120,7 +126,7 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       setApiChecking(false)
       setTimeoutTimer('checkSearch', () => setApiValid(false), 2500)
     }
-  }, [apiKey, openApiKeyList, provider, setTimeoutTimer, t])
+  }, [apiHost, apiKey, basicAuthPassword, basicAuthUsername, openApiKeyList, provider, setTimeoutTimer, t])
 
   const openLocalProviderSettings = useCallback(async () => {
     if (officialWebsite) {

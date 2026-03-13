@@ -1,47 +1,37 @@
-import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
-import {
-  SettingDivider,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingSubtitle,
-  SettingTitle
-} from '@renderer/pages/settings'
+import { Button, InfoTooltip, Input, Tooltip } from '@cherrystudio/ui'
 import { formatApiKeys } from '@renderer/utils'
-import { Divider, Form, Input } from 'antd'
-import Link from 'antd/es/typography/Link'
-import { List } from 'lucide-react'
+import { Check, ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+
+import { WebSearchSettingsField, WebSearchSettingsHint } from './WebSearchSettingsLayout'
 
 interface HeaderProps {
   logo?: string
-  name: string
+  name?: string
   officialWebsite?: string
 }
 
 export const WebSearchProviderHeader: FC<HeaderProps> = ({ logo, name, officialWebsite }) => {
+  if (officialWebsite) {
+    return (
+      <Button variant="ghost" size="icon-sm" asChild>
+        <a href={officialWebsite} target="_blank" rel="noreferrer" aria-label={name ?? officialWebsite}>
+          <ExternalLink />
+        </a>
+      </Button>
+    )
+  }
+
   return (
-    <>
-      <SettingTitle>
-        <Flex className="items-center gap-2" style={{ width: '100%' }}>
-          {logo ? (
-            <img src={logo} alt={name} className="h-5 w-5 object-contain" />
-          ) : (
-            <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
-          )}
-          <ProviderName>{name}</ProviderName>
-          {officialWebsite && (
-            <Link target="_blank" href={officialWebsite}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
-            </Link>
-          )}
-        </Flex>
-      </SettingTitle>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
-    </>
+    <div className="flex items-center gap-3">
+      {logo ? (
+        <img src={logo} alt={name} className="h-9 w-9 rounded-lg object-contain" />
+      ) : (
+        <div className="h-9 w-9 rounded-lg bg-(--color-background-soft)" />
+      )}
+      <span className="truncate font-semibold text-(--color-text-1) text-base">{name}</span>
+    </div>
   )
 }
 
@@ -54,18 +44,16 @@ export const WebSearchLocalProviderSection: FC<LocalSectionProps> = ({ onOpenSet
   const { t } = useTranslation()
 
   return (
-    <>
-      <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-        {t('settings.tool.websearch.local_provider.settings')}
-      </SettingSubtitle>
-      <Button variant="default" onClick={onOpenSettings}>
-        <ExportOutlined />
-        {t('settings.tool.websearch.local_provider.open_settings', { provider: providerName })}
-      </Button>
-      <SettingHelpTextRow style={{ marginTop: 10 }}>
-        <SettingHelpText>{t('settings.tool.websearch.local_provider.hint')}</SettingHelpText>
-      </SettingHelpTextRow>
-    </>
+    <WebSearchSettingsField
+      title={t('settings.tool.websearch.local_provider.settings')}
+      description={t('settings.tool.websearch.local_provider.hint')}>
+      <div className="flex justify-start lg:justify-end">
+        <Button variant="default" onClick={onOpenSettings}>
+          <ExternalLink />
+          {t('settings.tool.websearch.local_provider.open_settings', { provider: providerName })}
+        </Button>
+      </div>
+    </WebSearchSettingsField>
   )
 }
 
@@ -93,47 +81,52 @@ export const WebSearchProviderApiKeySection: FC<ApiKeySectionProps> = ({
   const { t } = useTranslation()
 
   return (
-    <>
-      <SettingSubtitle
-        style={{
-          marginTop: 5,
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-        {t('settings.provider.api_key.label')}
-        <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-          <Button variant="ghost" size="icon-sm" onClick={onOpenApiKeyList}>
-            <List size={14} />
+    <WebSearchSettingsField
+      title={
+        <span className="flex items-center gap-2">
+          <span>{t('settings.provider.api_key.label')}</span>
+          <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+            <Button variant="ghost" size="icon-sm" onClick={onOpenApiKeyList}>
+              <List size={14} />
+            </Button>
+          </Tooltip>
+        </span>
+      }>
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="password"
+            value={apiKey}
+            placeholder={t('settings.provider.api_key.label')}
+            onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
+            onBlur={onUpdateApiKey}
+            spellCheck={false}
+            autoFocus={apiKey === ''}
+            className="flex-1"
+          />
+          <Button variant={apiValid ? 'outline' : 'default'} onClick={onCheck} loading={apiChecking}>
+            {!apiChecking && apiValid && <Check />}
+            {t('settings.tool.websearch.check')}
           </Button>
-        </Tooltip>
-      </SettingSubtitle>
-      <Flex className="gap-2">
-        <Input.Password
-          value={apiKey}
-          placeholder={t('settings.provider.api_key.label')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
-          spellCheck={false}
-          type="password"
-          autoFocus={apiKey === ''}
-        />
-        <Button variant={apiValid ? 'ghost' : 'default'} onClick={onCheck} disabled={apiChecking}>
-          {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.tool.websearch.check')}
-        </Button>
-      </Flex>
-      <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-        <RowFlex>
-          {apiKeyWebsite && (
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-          )}
-        </RowFlex>
-        <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-      </SettingHelpTextRow>
-    </>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="order-2 sm:order-1">
+            {apiKeyWebsite && (
+              <a
+                target="_blank"
+                rel="noreferrer"
+                href={apiKeyWebsite}
+                className="text-(--color-primary) text-xs hover:underline">
+                {t('settings.provider.get_api_key')}
+              </a>
+            )}
+          </div>
+          <WebSearchSettingsHint className="order-1 sm:order-2">
+            {t('settings.provider.api_key.tip')}
+          </WebSearchSettingsHint>
+        </div>
+      </div>
+    </WebSearchSettingsField>
   )
 }
 
@@ -147,17 +140,14 @@ export const WebSearchProviderApiHostSection: FC<ApiHostSectionProps> = ({ apiHo
   const { t } = useTranslation()
 
   return (
-    <>
-      <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_host')}</SettingSubtitle>
-      <Flex className="gap-2">
-        <Input
-          value={apiHost}
-          placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
-        />
-      </Flex>
-    </>
+    <WebSearchSettingsField title={t('settings.provider.api_host')}>
+      <Input
+        value={apiHost}
+        placeholder={t('settings.provider.api_host')}
+        onChange={(e) => setApiHost(e.target.value)}
+        onBlur={onUpdateApiHost}
+      />
+    </WebSearchSettingsField>
   )
 }
 
@@ -181,29 +171,27 @@ export const WebSearchProviderBasicAuthSection: FC<BasicAuthSectionProps> = ({
   const { t } = useTranslation()
 
   return (
-    <>
-      <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
-      <SettingSubtitle
-        style={{
-          marginTop: 5,
-          marginBottom: 10,
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center'
-        }}>
-        {t('settings.provider.basic_auth.label')}
-        <InfoTooltip
-          placement="right"
-          content={t('settings.provider.basic_auth.tip')}
-          iconProps={{
-            size: 16,
-            color: 'var(--color-icon)',
-            className: 'ml-1 cursor-pointer'
-          }}
-        />
-      </SettingSubtitle>
-      <Form layout="vertical">
-        <Form.Item label={t('settings.provider.basic_auth.user_name.label')}>
+    <WebSearchSettingsField
+      title={
+        <>
+          {t('settings.provider.basic_auth.label')}
+          <InfoTooltip
+            placement="right"
+            content={t('settings.provider.basic_auth.tip')}
+            iconProps={{
+              size: 16,
+              color: 'var(--color-icon)',
+              className: 'cursor-pointer'
+            }}
+          />
+        </>
+      }
+      description={t('settings.provider.basic_auth.tip')}>
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <label className="block font-medium text-(--color-text-2) text-xs">
+            {t('settings.provider.basic_auth.user_name.label')}
+          </label>
           <Input
             value={basicAuthUsername}
             onChange={(e) => setBasicAuthUsername(e.target.value)}
@@ -211,22 +199,21 @@ export const WebSearchProviderBasicAuthSection: FC<BasicAuthSectionProps> = ({
             placeholder={t('settings.provider.basic_auth.user_name.tip')}
             spellCheck={false}
           />
-        </Form.Item>
-        <Form.Item label={t('settings.provider.basic_auth.password.label')} style={{ marginBottom: 0 }}>
-          <Input.Password
+        </div>
+        <div className="space-y-1.5">
+          <label className="block font-medium text-(--color-text-2) text-xs">
+            {t('settings.provider.basic_auth.password.label')}
+          </label>
+          <Input
+            type="password"
             value={basicAuthPassword}
             onChange={(e) => setBasicAuthPassword(e.target.value)}
             onBlur={onUpdateBasicAuthPassword}
             placeholder={t('settings.provider.basic_auth.password.tip')}
             spellCheck={false}
           />
-        </Form.Item>
-      </Form>
-    </>
+        </div>
+      </div>
+    </WebSearchSettingsField>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 16px;
-  font-weight: 500;
-`

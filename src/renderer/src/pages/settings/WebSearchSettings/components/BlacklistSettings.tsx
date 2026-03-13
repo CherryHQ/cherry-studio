@@ -1,21 +1,17 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
+import { Button, Textarea } from '@cherrystudio/ui'
 import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
-import { Alert } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { t } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../hooks/useWebSearchSettings'
+import { WebSearchSettingsHint, WebSearchSettingsSection } from './WebSearchSettingsLayout'
 
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
   const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
-  const { theme } = useTheme()
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (excludeDomains) {
@@ -55,32 +51,33 @@ const BlacklistSettings: FC = () => {
     void setExcludeDomains(validDomains)
     window.toast.info({
       title: t('message.save.success.title'),
-      timeout: 4000,
-      icon: <InfoCircleOutlined />
+      timeout: 4000
     })
   }
 
   return (
-    <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow style={{ marginBottom: 10 }}>
-        <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
-      </SettingRow>
-      <TextArea
-        value={blacklistInput}
-        onChange={(e) => setBlacklistInput(e.target.value)}
-        placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-        autoSize={{ minRows: 4, maxRows: 8 }}
-        rows={4}
-      />
-      <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
-        {t('common.save')}
-      </Button>
-      {errFormat && (
-        <Alert style={{ marginTop: 10 }} message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
-      )}
-    </SettingGroup>
+    <WebSearchSettingsSection
+      title={t('settings.tool.websearch.blacklist')}
+      description={t('settings.tool.websearch.blacklist_description')}>
+      <div className="space-y-3">
+        <Textarea.Input
+          value={blacklistInput}
+          onValueChange={setBlacklistInput}
+          placeholder={t('settings.tool.websearch.blacklist_tooltip')}
+          rows={6}
+          hasError={errFormat}
+          className="min-h-32"
+        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button onClick={() => updateManualBlacklist(blacklistInput)}>{t('common.save')}</Button>
+          {errFormat && (
+            <WebSearchSettingsHint tone="danger">
+              {t('settings.tool.websearch.blacklist_tooltip')}
+            </WebSearchSettingsHint>
+          )}
+        </div>
+      </div>
+    </WebSearchSettingsSection>
   )
 }
 

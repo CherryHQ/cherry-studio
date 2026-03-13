@@ -1,21 +1,20 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { Divider, InfoTooltip, Slider } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_RERANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
-import { Slider } from 'antd'
 import { find } from 'lodash'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
+import { WebSearchSettingsField, WebSearchSettingsHint } from '../WebSearchSettingsLayout'
 
-const INPUT_BOX_WIDTH = 'min(350px, 60%)'
+const CONTROL_WIDTH = { width: '100%', maxWidth: 360 }
 
 const RagSettings = () => {
   const { t } = useTranslation()
@@ -56,83 +55,90 @@ const RagSettings = () => {
 
   return (
     <>
-      <SettingRow>
-        <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
+      <WebSearchSettingsField title={t('models.embedding_model')}>
         <ModelSelector
           providers={providers}
           predicate={isEmbeddingModel}
           value={compressionConfig?.embeddingModel ? getModelUniqId(compressionConfig.embeddingModel) : undefined}
-          style={{ width: INPUT_BOX_WIDTH }}
+          style={CONTROL_WIDTH}
           placeholder={t('settings.models.empty')}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
         />
-      </SettingRow>
-      <SettingDivider />
+      </WebSearchSettingsField>
+      <Divider className="my-0" />
 
-      <SettingRow>
-        <SettingRowTitle>
-          {t('models.embedding_dimensions')}
-          <InfoTooltip
-            content={t('knowledge.dimensions_size_tooltip')}
-            iconProps={{
-              size: 16,
-              color: 'var(--color-icon)',
-              className: 'ml-1 cursor-pointer'
-            }}
-          />
-        </SettingRowTitle>
+      <WebSearchSettingsField
+        title={
+          <>
+            {t('models.embedding_dimensions')}
+            <InfoTooltip
+              content={t('knowledge.dimensions_size_tooltip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'cursor-pointer'
+              }}
+            />
+          </>
+        }>
         <InputEmbeddingDimension
           value={compressionConfig?.embeddingDimensions}
           onChange={handleEmbeddingDimensionsChange}
           model={compressionConfig?.embeddingModel}
           disabled={!compressionConfig?.embeddingModel}
-          style={{ width: INPUT_BOX_WIDTH }}
+          style={CONTROL_WIDTH}
         />
-      </SettingRow>
-      <SettingDivider />
+      </WebSearchSettingsField>
+      <Divider className="my-0" />
 
-      <SettingRow>
-        <SettingRowTitle>{t('models.rerank_model')}</SettingRowTitle>
+      <WebSearchSettingsField title={t('models.rerank_model')}>
         <ModelSelector
           providers={rerankProviders}
           predicate={isRerankModel}
           value={compressionConfig?.rerankModel ? getModelUniqId(compressionConfig.rerankModel) : undefined}
-          style={{ width: INPUT_BOX_WIDTH }}
+          style={CONTROL_WIDTH}
           placeholder={t('settings.models.empty')}
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingRow>
-      <SettingDivider />
+      </WebSearchSettingsField>
+      <Divider className="my-0" />
 
-      <SettingRow>
-        <SettingRowTitle>
-          {t('settings.tool.websearch.compression.rag.document_count.label')}
-          <InfoTooltip
-            content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
-            iconProps={{
-              size: 16,
-              color: 'var(--color-icon)',
-              className: 'ml-1 cursor-pointer'
-            }}
-          />
-        </SettingRowTitle>
-        <div style={{ width: INPUT_BOX_WIDTH }}>
+      <WebSearchSettingsField
+        title={
+          <>
+            {t('settings.tool.websearch.compression.rag.document_count.label')}
+            <InfoTooltip
+              content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'cursor-pointer'
+              }}
+            />
+          </>
+        }>
+        <div className="space-y-2">
           <Slider
-            value={compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
             min={1}
             max={10}
             step={1}
-            onChange={handleDocumentCountChange}
-            marks={{
-              1: t('common.default'),
-              3: '3',
-              10: '10'
-            }}
+            value={[compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
+            onValueChange={([value]) => handleDocumentCountChange(value)}
+            marks={[
+              { value: 1, label: t('common.default') },
+              { value: 3, label: '3' },
+              { value: 10, label: '10' }
+            ]}
+            showValueLabel
           />
+          <WebSearchSettingsHint>
+            {t('settings.tool.websearch.compression.rag.document_count.label') +
+              `: ${compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}`}
+          </WebSearchSettingsHint>
         </div>
-      </SettingRow>
+      </WebSearchSettingsField>
     </>
   )
 }
