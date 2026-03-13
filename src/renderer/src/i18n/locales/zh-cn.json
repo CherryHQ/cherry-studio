@@ -751,6 +751,7 @@
       }
     },
     "alerts": {
+      "create_agent": "请创建一个智能体以开始使用",
       "create_session": "请创建会话",
       "select_agent": "请选择智能体"
     },

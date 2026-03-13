@@ -37,7 +37,7 @@ const AgentChat = () => {
   // Don't show select/create alerts while data is still loading
   // apiServerRunning is guaranteed by AgentPage guard
   const isInitializing =
-    isAgentsLoading || isAgentLoading || !isSessionInitialized || (!activeAgentId && agents.length > 0)
+    isAgentsLoading || isAgentLoading || !isSessionInitialized || !agents || (!activeAgentId && agents.length > 0)
 
   const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
 
@@ -53,50 +53,80 @@ const AgentChat = () => {
     }
   )
 
+  if (isInitializing) {
+    return (
+      <div className="flex flex-1 flex-col justify-between">
+        <div className="flex h-full w-full items-center justify-center">
+          <Spin />
+        </div>
+      </div>
+    )
+  }
+
+  // Initialized
+  if (agents.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col justify-between">
+        <div className="flex h-full w-full items-center justify-center">
+          <Alert type="info" message={t('chat.alerts.create_agent')} style={{ margin: '5px 16px' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!activeAgentId) {
+    return (
+      <div className="flex flex-1 flex-col justify-between">
+        <div className="flex h-full w-full items-center justify-center">
+          <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!activeSessionId) {
+    return (
+      <div className="flex flex-1 flex-col justify-between">
+        <div className="flex h-full w-full items-center justify-center">
+          <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
+        </div>
+      </div>
+    )
+  }
+
   return (
+    // Wrapper
     <div
       className={cn(
         'flex flex-1 overflow-hidden',
         isTopNavbar && 'rounded-tl-2xl rounded-bl-2xl bg-(--color-background)'
       )}>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between">
-          <QuickPanelProvider>
-            {activeAgent && <AgentChatNavbar activeAgent={activeAgent} />}
-            <div className="flex flex-1 flex-col justify-between">
-              {isInitializing && (
-                <div className="flex h-full w-full items-center justify-center">
-                  <Spin />
-                </div>
-              )}
-              {!isInitializing && !activeAgentId && (
-                <div className="flex h-full w-full items-center justify-center">
-                  <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
-                </div>
-              )}
-              {!isInitializing && activeAgentId && !activeSessionId && (
-                <div className="flex h-full w-full items-center justify-center">
-                  <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
-                </div>
-              )}
-              {!isInitializing && activeAgentId && activeSessionId && (
-                <>
-                  <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                  <div className="mt-auto px-4.5 pb-2">
-                    <NarrowLayout>
-                      <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-                    </NarrowLayout>
-                  </div>
-                  {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                  <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-                </>
-              )}
+      <QuickPanelProvider>
+        {/* Main Chat */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Header */}
+          <div className="flex h-fit w-full min-w-0">
+            {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
+          </div>
+
+          {/* Messages */}
+          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto">
+            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+            <div className="mt-auto px-4.5 pb-2">
+              <NarrowLayout>
+                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
+              </NarrowLayout>
             </div>
-          </QuickPanelProvider>
+            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+          </div>
+          {/* Inputbar */}
+          <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
         </div>
-      </div>
-      <AnimatePresence initial={false}>
-        {showRightSessions && (
+      </QuickPanelProvider>
+
+      {/* Sessions Panel */}
+      {showRightSessions && (
+        <AnimatePresence initial={false}>
           <motion.div
             key="right-sessions"
             initial={{ width: 0, opacity: 0 }}
@@ -108,8 +138,8 @@ const AgentChat = () => {
               <Sessions agentId={activeAgentId!} />
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>
+      )}
     </div>
   )
 }

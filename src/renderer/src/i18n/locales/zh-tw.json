@@ -751,6 +751,7 @@
       }
     },
     "alerts": {
+      "create_agent": "[to be translated]:Create an agent to get started",
       "create_session": "建立工作階段",
       "select_agent": "選擇一個智能體"
     },

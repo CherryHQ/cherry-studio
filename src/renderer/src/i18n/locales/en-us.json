@@ -751,6 +751,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Create an agent to get started",
       "create_session": "Create a session",
       "select_agent": "Select an agent"
     },

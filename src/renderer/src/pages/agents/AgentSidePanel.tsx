@@ -86,7 +86,7 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
               {error && <div className="p-5 text-center text-(--color-error) text-[13px]">{error.message}</div>}
               {!isLoading &&
                 !error &&
-                agents.map((agent) => (
+                agents?.map((agent) => (
                   <AgentItem
                     key={agent.id}
                     agent={agent}

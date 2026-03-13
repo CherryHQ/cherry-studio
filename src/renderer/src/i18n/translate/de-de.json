@@ -751,6 +751,7 @@
       }
     },
     "alerts": {
+      "create_agent": "[to be translated]:Create an agent to get started",
       "create_session": "Erstelle eine Sitzung",
       "select_agent": "Wählen Sie einen Agenten"
     },

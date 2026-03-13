@@ -751,6 +751,7 @@
       }
     },
     "alerts": {
+      "create_agent": "[to be translated]:Create an agent to get started",
       "create_session": "セッションを作成",
       "select_agent": "エージェントを選択してください"
     },

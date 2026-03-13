@@ -29,7 +29,7 @@ const AgentPage = () => {
 
   // Auto-select first agent when none is active
   useEffect(() => {
-    if (!activeAgentId && agents.length > 0) {
+    if (!activeAgentId && agents && agents.length > 0) {
       setActiveAgentId(agents[0].id)
     }
   }, [activeAgentId, agents, setActiveAgentId])
