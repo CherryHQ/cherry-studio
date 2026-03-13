@@ -10,7 +10,6 @@ import anthropicService from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
-  checkGitAvailable,
   getBinaryPath,
   getGitBashPathInfo,
   isBinaryExists,
@@ -1151,10 +1150,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckNodeVersion, openClawService.checkNodeVersion)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckGitAvailable, checkGitAvailable)
-  ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
-  ipcMain.handle(IpcChannel.OpenClaw_GetGitDownloadUrl, openClawService.getGitDownloadUrl)
   ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
   ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
   ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
@@ -1165,6 +1160,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
   ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
+  ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
 
   // Analytics
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>

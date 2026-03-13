@@ -2766,6 +2766,11 @@
     },
     "install_progress": "Прогресс установки",
     "installed_at": "OpenClaw установлен в",
+    "migration": {
+      "description": "Обнаружена устаревшая версия OpenClaw, установленная через npm. Пожалуйста, переустановите её, чтобы получить последнюю официальную версию.",
+      "install_button": "Переустановите OpenClaw",
+      "title": "OpenClaw требует обновления"
+    },
     "model_config": {
       "auth_token": "Токен аутентификации",
       "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",
@@ -2801,6 +2806,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Проверить обновления",
       "open_dashboard": "Открыть панель управления",
       "title": "Быстрые действия",
       "uninstall": "Удалить",
@@ -2827,6 +2833,16 @@
     "uninstalling": {
       "description": "Пожалуйста, подождите, пока OpenClaw удаляется...",
       "title": "Удаление OpenClaw"
+    },
+    "update": {
+      "available": "Новая версия доступна: v{{latest}} (текущая: v{{current}})",
+      "checking": "Проверка обновлений...",
+      "confirm_button": "Обновить сейчас",
+      "failed": "Не удалось проверить наличие обновлений",
+      "modal_title": "Обновление OpenClaw",
+      "success": "Обновление завершено успешно!",
+      "up_to_date": "Уже актуально (v{{current}})",
+      "updating": "Обновление..."
     }
   },
   "ovms": {

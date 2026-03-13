@@ -2766,6 +2766,11 @@
     },
     "install_progress": "Installationsfortschritt",
     "installed_at": "OpenClaw installiert unter",
+    "migration": {
+      "description": "Eine veraltete Version von OpenClaw, die über npm installiert wurde, wurde erkannt. Bitte installiere sie erneut, um die neueste offizielle Version zu erhalten.",
+      "install_button": "OpenClaw neu installieren",
+      "title": "OpenClaw benötigt ein Update"
+    },
     "model_config": {
       "auth_token": "Auth-Token",
       "auth_token_hint": "Token für Gateway-Authentifizierung. Leer lassen, um die Authentifizierung zu deaktivieren.",
@@ -2801,6 +2806,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Nach Updates suchen",
       "open_dashboard": "Dashboard öffnen",
       "title": "Schnellaktionen",
       "uninstall": "Deinstallieren",
@@ -2827,6 +2833,16 @@
     "uninstalling": {
       "description": "Bitte warten Sie, während OpenClaw deinstalliert wird...",
       "title": "Deinstallation von OpenClaw"
+    },
+    "update": {
+      "available": "Neue Version verfügbar: v{{latest}} (aktuell: v{{current}})",
+      "checking": "Nach Updates wird gesucht...",
+      "confirm_button": "Jetzt aktualisieren",
+      "failed": "Fehler bei der Überprüfung auf Updates",
+      "modal_title": "OpenClaw-Update",
+      "success": "Aktualisierung erfolgreich abgeschlossen!",
+      "up_to_date": "Bereits auf dem neuesten Stand (v{{current}})",
+      "updating": "Aktualisierung..."
     }
   },
   "ovms": {
