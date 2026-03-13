@@ -140,45 +140,105 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.24 - Features & Improvements
+    Cherry Studio 1.7.25 - Features & Improvements
 
     ✨ New Features
-    - [Agent] Agent creation no longer requires selecting a workspace folder - a default workspace is automatically created
-    - [Agent] Added thinking/reasoning effort control (low/medium/high/max/adaptive) for Claude Code agent sessions
+    - [WebSearch] Add Querit search provider with 1,000 free API requests for new users
+    - [Providers] Add MiniMax Agent, IMA mini apps, MiniMax Global, and Z.ai providers
+    - [Agent] Add custom environment variables support to agent configuration
+    - [Providers] Add agent support filter to quickly find providers that support the Agent feature
+    - [OpenClaw] Switch to binary download install and add auto update check
+    - [Models] Add GPT-5.4 support and auto-fallback for future GPT-5.x sub-versions
+    - [Gemini] Add thought signature persistence for conversation replay
 
     🐛 Bug Fixes
-    - [Tools] Fix prompt caching crash when using OpenRouter or other non-Anthropic providers
-    - [Models] Fix Gemini 3 models not sending reasoning_effort parameter when deep thinking mode is enabled
-    - [Editor] Fix CodeMirror highlight crash caused by version conflict
-    - [MCP] Fix MCP tool parameter parsing and nested schema display
-    - [MCP] Fix MCP tools not being auto-approved when configured through agent allowed_tools
-    - [UI] Fix duplicate error blocks in aborting
-    - [Plugins] Fix plugin size displaying as 0 in the plugin detail modal
-    - [UI] Fix PinnedTodoPanel ignoring narrow mode width setting
+    - [Error Handling] Use i18nKey for localized error display while preserving original error info, add timeout enforcement via AbortSignal.timeout() in the modern AI SDK path
+    - [MCP] action required: The built-in filesystem MCP server now enforces the configured workspace root and requires manual approval for write, edit, and delete operations by default
+    - [Update] Update dialog now automatically shows when user manually checks for updates; disable autoInstallOnAppQuit to prevent unexpected auto-updates on restart or system shutdown
+    - [Settings] Preserve emoji when saving assistant to library
+    - [Settings] Remove 32-char truncation for user-defined filter paths
+    - [API] Support local providers (Ollama, new-api, aihubmix) for extended thinking and API server
+    - [Models] Correct Gemini reasoning params for none effort and Gemini 3 thinkingLevel
+    - [WebSearch] Upgrade xAI web search from deprecated Live Search to Responses API with xSearch support and rich citation previews
+    - [Topic] Use default assistant for topic auto-renaming to prevent 400 errors when using image-capable models
+    - [Windows] Resolve spawn ENOENT on Windows for Code Tools
+    - [UI] Fix Move To submenu overflow issue by limiting height and enabling scrolling
+    - [UI] Install or uninstall button state issues in plugin browser
+    - [Database] Unify agents.db path between dev and prod environments
+    - [OpenClaw] Prepend node directory to PATH for sudo OpenClaw install/uninstall
+    - [Models] Auto-convert reasoning_effort to reasoningEffort for OpenAI-compatible providers
+    - [UI] Use consistent OpenClaw icon in sidebar settings
+    - [UI] Replace p with span to resolve invalid nesting warning
+    - [Auth] Add warning for temporarily unavailable Anthropic OAuth authentication
+    - [Settings] Remove scrollbar width override in responsive.css (increased from 5px to 6px for better usability)
+    - [Editor] Respect pasteLongTextAsFile setting in MessageEditor
+    - [Agent] Agent tool status now properly stops on abort
+    - [Tools] Check underlying tool permissions for hub invoke/exec
+    - [UI] Remove approval countdown timers and add system notifications
+    - [Backup] Defer auto backup during streaming response
+    - [i18n] Clarify tool permission title as 'Pre-approved Tools'
+    - [Knowledge] Aggregate knowledge base notifications to prevent toast storm
+    - [Documents] Ensure temp directory exists before document parsing
+    - [Translate] Save swapped source and target languages to database
+    - [API] Relax chat completion validation for tool calling messages in API server
+    - [Timer] Update thinking_millsec during streaming to prevent timer reset on remount
+    - [Navigation] Reset selected index when returning to home from feature routes
+    - [Models] Improve Qwen 3.5 reasoning model detection and thinking param handling
 
     💄 Improvements
-    - [Sessions] Implement infinite scroll for sessions list
-    - [Plugins] Improve plugin detail modal UI with better layout and styling
-    - [Performance] Fix renderer crash when agent streams large file writes by optimizing tool input delta handling
+    - [Analytics] Track app launch event on startup
+    - [UI] Upgrade @anthropic-ai/claude-agent-sdk from 0.2.56 to 0.2.71
+    - [UI] Migrate OGCard component layout to TailwindCSS
+    - [Docs] Expand CLAUDE.md with comprehensive architecture and development guide
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.24 - 功能与改进
+    Cherry Studio 1.7.25 - 功能与改进
 
     ✨ 新功能
-    - [智能体] 创建智能体不再需要选择工作区文件夹 - 会自动创建默认工作区
-    - [智能体] 为 Claude Code 智能体会话添加思考/推理强度控制（低/中/高/最大/自适应）
+    - [网络搜索] 添加 Querit 搜索提供商，新用户可获得 1,000 次免费 API 请求
+    - [提供商] 添加 MiniMax Agent、IMA 小程序、MiniMax Global 和 Z.ai 提供商
+    - [智能体] 为智能体配置添加自定义环境变量支持
+    - [提供商] 添加智能体支持过滤器，快速查找支持智能体功能的提供商
+    - [OpenClaw] 切换到二进制下载安装并添加自动更新检查
+    - [模型] 添加 GPT-5.4 支持及未来 GPT-5.x 子版本的自动回退
+    - [Gemini] 添加思考签名持久化以支持对话回放
 
     🐛 问题修复
-    - [工具] 修复使用 OpenRouter 或其他非 Anthropic 提供商时的提示缓存崩溃问题
-    - [模型] 修复启用深度思考模式时 Gemini 3 模型不发送 reasoning_effort 参数的问题
-    - [编辑器] 修复由版本冲突导致的 CodeMirror 高亮崩溃
-    - [MCP] 修复 MCP 工具参数解析和嵌套架构显示问题
-    - [MCP] 修复通过智能体 allowed_tools 配置时 MCP 工具无法自动批准的问题
-    - [UI] 修复中止时出现重复错误块的问题
-    - [插件] 修复插件详情弹窗中插件大小显示为 0 的问题
-    - [UI] 修复 PinnedTodoPanel 忽略窄模式宽度设置的问题
+    - [错误处理] 使用 i18nKey 进行本地化错误显示，同时保留原始错误信息，在现代 AI SDK 路径中通过 AbortSignal.timeout() 添加超时强制执行
+    - [MCP] 注意事项：内置文件系统 MCP 服务器现在强制执行配置的工作区根目录，默认情况下写入、编辑和删除操作需要手动批准
+    - [更新] 用户手动检查更新时，更新对话框现在会自动显示；禁用 autoInstallOnAppQuit 以防止在重启或系统关闭时意外自动更新
+    - [设置] 保存助手到库时保留表情符号
+    - [设置] 移除用户定义筛选路径的 32 字符截断
+    - [API] 支持本地提供商（Ollama、new-api、aihubmix）的扩展思考和 API 服务器
+    - [模型] 修正 Gemini 的 none effort 和 Gemini 3 thinkingLevel 推理参数
+    - [网络搜索] 将 xAI 网络搜索从已弃用的 Live Search 升级到 Responses API，支持 xSearch 和丰富的引用预览
+    - [主题] 使用默认助手进行主题自动重命名，防止在使用支持图像的模型时出现 400 错误
+    - [Windows] 解决 Windows 上 Code Tools 的 spawn ENOENT 问题
+    - [UI] 修复"移动到"子菜单溢出问题，通过限制高度并启用滚动
+    - [UI] 修复插件浏览器中安装/卸载按钮状态问题
+    - [数据库] 统一开发环境和生产环境中的 agents.db 路径
+    - [OpenClaw] 在 sudo OpenClaw 安装/卸载时将 node 目录添加到 PATH
+    - [模型] 自动将 OpenAI 兼容提供商的 reasoning_effort 转换为 reasoningEffort
+    - [UI] 在侧边栏设置中使用一致的 OpenClaw 图标
+    - [UI] 将 p 替换为 span 以解决无效嵌套警告
+    - [认证] 为暂时不可用的 Anthropic OAuth 认证添加警告
+    - [设置] 移除 responsive.css 中的滚动条宽度覆盖（从 5px 增加到 6px 以提高可用性）
+    - [编辑器] 在消息编辑器中遵守 pasteLongTextAsFile 设置
+    - [智能体] 智能体工具状态现在在中止时正确停止
+    - [工具] 检查 hub invoke/exec 的底层工具权限
+    - [UI] 移除批准倒计时时钟并添加系统通知
+    - [备份] 在流式响应期间延迟自动备份
+    - [i18n] 将工具权限标题明确为"预批准工具"
+    - [知识库] 聚合知识库通知以防止通知风暴
+    - [文档] 在文档解析之前确保临时目录存在
+    - [翻译] 将交换的源语言和目标语言保存到数据库
+    - [API] 放宽 API 服务器中工具调用消息的聊天完成验证
+    - [计时器] 在流式传输期间更新 thinking_millsec 以防止重新挂载时计时器重置
+    - [导航] 从功能路由返回主页时重置选中索引
+    - [模型] 改进 Qwen 3.5 推理模型检测和思考参数处理
 
     💄 改进
-    - [会话] 实现会话列表的无限滚动
-    - [插件] 改进插件详情弹窗的 UI，布局和样式更优化
-    - [性能] 通过优化工具输入增量处理，修复智能体流式传输大文件时的渲染器崩溃
+    - [分析] 在启动时跟踪应用启动事件
+    - [UI] 将 @anthropic-ai/claude-agent-sdk 从 0.2.56 升级到 0.2.71
+    - [UI] 将 OGCard 组件布局迁移到 TailwindCSS
+    - [文档] 扩展 CLAUDE.md 包含全面的架构和开发指南
     <!--LANG:END-->
