@@ -17,7 +17,7 @@ import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, 
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -30,7 +30,10 @@ interface Props {
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
+  const enableMaxTokens = useMemo(
+    () => assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
+    [assistant?.settings?.enableMaxTokens]
+  )
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
   const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
@@ -188,7 +191,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
     setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
-    setEnableMaxTokens(DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens ?? false)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
     setStreamOutput(DEFAULT_ASSISTANT_SETTINGS.streamOutput)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
@@ -426,8 +428,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               })
               if (!confirmed) return
             }
-
-            setEnableMaxTokens(enabled)
             updateAssistantSettings({ enableMaxTokens: enabled })
           }}
         />
