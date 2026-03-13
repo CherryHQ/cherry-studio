@@ -10,7 +10,7 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
-import { PropsWithChildren } from 'react'
+import type { PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
