@@ -24,6 +24,8 @@ Before writing a migrator, confirm which data needs migration:
 | **cache** (favicon, computed results) | CacheService | No - regenerable |
 | **runtime** (selected topic, UI state) | CacheService or React state | No - session only |
 
+**Dexie Settings source:** The Dexie `settings` table is a generic KV store (`{ id: string, value: any }`) that also contains user preferences. These are classified under `dexieSettings` in `classification.json` (separate from the `dexie` section which covers business data tables). String literal keys are auto-extracted by `extract-inventory.js`; dynamic keys (template literals) must be added manually. For the full key inventory, see [PR #10162 comment](https://github.com/CherryHQ/cherry-studio/pull/10162#issuecomment-4010796619). Note that `dexieSettings` entries currently only support `category: "preferences"`, and dynamic keys (containing `${}` patterns) require complex mapping logic — they cannot use simple 1:1 `DEXIE_SETTINGS_MAPPINGS`.
+
 **Cross-category migration:** In the legacy Redux store, some data that is logically a user preference lives under domain slices (e.g., `knowledge`, `memory`, `nutstore`) rather than `settings`. During migration, these fields must be reclassified and routed to `preferenceTable` instead of domain tables. Examples:
 
 | Redux Slice | Legacy Key | v2 Target | Rationale |
@@ -50,6 +52,12 @@ Renderer Process                          Main Process
 | Dexie IndexedDB       |---JSON export-->| DexieFileReader            |
 | (topics, messages,    |                 |   .readTable() / stream    |
 |  blocks, files...)    |                 +---------------------------+
++-----------------------+                           |
+                                                    v
++-----------------------+                 +---------------------------+
+| Dexie settings table  |---JSON export-->| DexieSettingsReader        |
+| (KV: translate,       |                 |   .get(key) / .getAll()   |
+|  pinned, images...)   |                 +---------------------------+
 +-----------------------+                           |
                                                     v
 +-----------------------+                 +---------------------------+
@@ -143,6 +151,10 @@ const count = await reader.count()
 await reader.readInBatches(50, async (batch) => { /* process */ })
 const sample = await reader.readSample(5)  // validation sampling
 
+// Dexie settings table (KV store)
+const translateModel = ctx.sources.dexieSettings.get('translate:model')
+const allSettings = ctx.sources.dexieSettings.getAll()
+
 // ElectronStore
 const zoomFactor = ctx.sources.config.get('ZoomFactor')
 
@@ -156,6 +168,7 @@ const idMap = ctx.sharedData.get('assistantIdMap')  // consumer (later migrator)
 ### 1. Understand Source Data
 - Read the Redux slice in `src/renderer/src/store/` for data shape
 - Check Dexie tables in `src/renderer/src/services/db.ts` if applicable
+- Check Dexie `settings` table keys (classified under `dexieSettings` in `classification.json`) — these are KV pairs that may also need preference migration
 - Confirm classification in `v2-refactor-temp/tools/data-classify/data/classification.json`
 
 ### 2. Understand Target Schema
@@ -167,6 +180,8 @@ const idMap = ctx.sharedData.get('assistantIdMap')  // consumer (later migrator)
 ### 3. Create Mapping File (if needed)
 
 **For preference migrations:** `PreferencesMappings.ts` and `preferenceSchemas.ts` are **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain. For simple 1:1 preference mappings, update `classification.json` and run `npm run generate` instead of editing the generated files directly. See the `v2-data-api` skill for the full workflow. For complex mappings or keys with custom types, you may need to add entries manually.
+
+The generated `PreferencesMappings.ts` includes a `DEXIE_SETTINGS_MAPPINGS` array for simple 1:1 mappings from Dexie settings keys to preference target keys. For complex Dexie settings mappings (dynamic keys, value transformations), use `ComplexPreferenceMappings` with `source: 'dexie-settings'` instead.
 
 **Simple 1:1 mapping** (like PreferencesMappings):
 ```typescript
