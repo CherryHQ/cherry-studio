@@ -811,6 +811,20 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  websearch: [
+    {
+      originalKey: 'searchWithTime',
+      targetKey: 'chat.web_search.search_with_time'
+    },
+    {
+      originalKey: 'maxResults',
+      targetKey: 'chat.web_search.max_results'
+    },
+    {
+      originalKey: 'excludeDomains',
+      targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',

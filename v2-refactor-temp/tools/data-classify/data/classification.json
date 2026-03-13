@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-01-23T10:27:37.752Z",
-    "totalItems": 391,
-    "classified": 255,
-    "pending": 130,
+    "lastUpdated": "2026-03-08T07:44:43.216Z",
+    "totalItems": 389,
+    "classified": 265,
+    "pending": 118,
     "deleted": 0
   },
   "classifications": {
@@ -2793,90 +2793,72 @@
           "originalKey": "defaultProvider",
           "type": "string",
           "defaultValue": "local-bing",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "providers",
           "type": "string",
           "defaultValue": "WEB_SEARCH_PROVIDERS",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "searchWithTime",
           "type": "boolean",
           "defaultValue": true,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.search_with_time"
         },
         {
           "originalKey": "maxResults",
           "type": "number",
           "defaultValue": 5,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.max_results"
         },
         {
           "originalKey": "excludeDomains",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.web_search.exclude_domains"
         },
         {
           "originalKey": "subscribeSources",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "overwrite",
           "type": "boolean",
           "defaultValue": false,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         },
         {
           "originalKey": "compressionConfig",
           "type": "unknown",
           "defaultValue": "{ method: 'none', cutoffUnit: 'char' }",
-          "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": null,
-              "defaultValue": "none",
-              "originalKey": "method",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            },
-            {
-              "category": null,
-              "defaultValue": "char",
-              "originalKey": "cutoffUnit",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            }
-          ]
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
         },
         {
           "originalKey": "providerConfig",
           "type": "object",
           "defaultValue": {},
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         }
       ],

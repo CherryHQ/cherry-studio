@@ -176,6 +176,28 @@ export interface PreferenceSchemas {
     'chat.message.thought.auto_collapse': boolean
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.cutoff_limit': number | null
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.cutoff_unit': PreferenceTypes.WebSearchCompressionCutoffUnit
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.method': PreferenceTypes.WebSearchCompressionMethod
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.rag_document_count': number
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.rag_embedding_dimensions': number | null
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.rag_embedding_model_id': string | null
+    // target-key-definitions/complex/complex
+    'chat.web_search.compression.rag_rerank_model_id': string | null
+    // target-key-definitions/complex/complex
+    'chat.web_search.exclude_domains': string[]
+    // target-key-definitions/complex/complex
+    'chat.web_search.max_results': number
+    // target-key-definitions/complex/complex
+    'chat.web_search.provider_overrides': PreferenceTypes.WebSearchProviderOverrides
+    // target-key-definitions/complex/complex
+    'chat.web_search.search_with_time': boolean
     // redux/settings/skipBackupFile
     'data.backup.general.skip_backup_file': boolean
     // redux/settings/localBackupAutoSync
@@ -520,6 +542,17 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.style': 'plain',
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': false,
+    'chat.web_search.compression.cutoff_limit': null,
+    'chat.web_search.compression.cutoff_unit': 'char',
+    'chat.web_search.compression.method': 'none',
+    'chat.web_search.compression.rag_document_count': 5,
+    'chat.web_search.compression.rag_embedding_dimensions': null,
+    'chat.web_search.compression.rag_embedding_model_id': null,
+    'chat.web_search.compression.rag_rerank_model_id': null,
+    'chat.web_search.exclude_domains': [],
+    'chat.web_search.max_results': 5,
+    'chat.web_search.provider_overrides': {},
+    'chat.web_search.search_with_time': true,
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',
@@ -718,7 +751,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 204
+ * - 总配置项: 215
  * - electronStore项: 1
  * - redux项: 203
  * - localStorage项: 0
