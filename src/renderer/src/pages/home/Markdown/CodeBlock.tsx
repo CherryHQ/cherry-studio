@@ -19,7 +19,14 @@ interface Props {
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
-  const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
+  const language = useMemo(() => {
+    return detectedLanguage !== 'xml'
+      ? detectedLanguage
+      : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(children)
+        ? 'svg'
+        : detectedLanguage
+  }, [children, detectedLanguage])
   const { codeFancyBlock } = useSettings()
 
   // 代码块 id
