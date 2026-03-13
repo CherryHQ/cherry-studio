@@ -5240,11 +5240,14 @@
         "api_providers": "API 服務商",
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
+        "blacklist_rules_one": "{{count}} 規則",
+        "blacklist_rules_other": "{{count}} 規則",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
         "check_failed": "驗證失敗",
         "check_success": "驗證成功",
+        "get_api_key": "從 <provider>{{providerId}}</provider> 取得您的 API 金鑰",
         "compression": {
           "cutoff": {
             "limit": {

@@ -1,4 +1,4 @@
-import { Divider, InfoTooltip, Slider } from '@cherrystudio/ui'
+import { InfoTooltip, Slider } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
@@ -12,7 +12,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
-import { WebSearchSettingsField, WebSearchSettingsHint } from '../WebSearchSettingsLayout'
+import { WebSearchSettingsBadge, WebSearchSettingsField } from '../WebSearchSettingsLayout'
 
 const CONTROL_WIDTH = { width: '100%', maxWidth: 360 }
 
@@ -66,7 +66,6 @@ const RagSettings = () => {
           allowClear={false}
         />
       </WebSearchSettingsField>
-      <Divider className="my-0" />
 
       <WebSearchSettingsField
         title={
@@ -90,7 +89,6 @@ const RagSettings = () => {
           style={CONTROL_WIDTH}
         />
       </WebSearchSettingsField>
-      <Divider className="my-0" />
 
       <WebSearchSettingsField title={t('models.rerank_model')}>
         <ModelSelector
@@ -103,9 +101,13 @@ const RagSettings = () => {
           allowClear
         />
       </WebSearchSettingsField>
-      <Divider className="my-0" />
 
       <WebSearchSettingsField
+        meta={
+          <WebSearchSettingsBadge>
+            {compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
+          </WebSearchSettingsBadge>
+        }
         title={
           <>
             {t('settings.tool.websearch.compression.rag.document_count.label')}
@@ -119,24 +121,19 @@ const RagSettings = () => {
             />
           </>
         }>
-        <div className="space-y-2">
-          <Slider
-            min={1}
-            max={10}
-            step={1}
-            value={[compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
-            onValueChange={([value]) => handleDocumentCountChange(value)}
-            marks={[
-              { value: 1, label: t('common.default') },
-              { value: 3, label: '3' },
-              { value: 10, label: '10' }
-            ]}
-            showValueLabel
-          />
-          <WebSearchSettingsHint>
-            {t('settings.tool.websearch.compression.rag.document_count.label') +
-              `: ${compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}`}
-          </WebSearchSettingsHint>
+        <div className="flex items-center gap-2.5">
+          <span className="w-3 shrink-0 text-right text-[9px] text-foreground">1</span>
+          <div className="flex-1">
+            <Slider
+              size="sm"
+              min={1}
+              max={10}
+              step={1}
+              value={[compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT]}
+              onValueChange={([value]) => handleDocumentCountChange(value)}
+            />
+          </div>
+          <span className="w-6 shrink-0 text-[9px] text-foreground">10</span>
         </div>
       </WebSearchSettingsField>
     </>

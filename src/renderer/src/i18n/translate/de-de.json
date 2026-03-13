@@ -5240,6 +5240,8 @@
         "api_providers": "API-Anbieter",
         "apikey": "API-Schlüssel",
         "blacklist": "Schwarze Liste",
+        "blacklist_rules_one": "{{count}} Regel",
+        "blacklist_rules_other": "{{count}} Regeln",
         "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
         "blacklist_tooltip": "Verwenden Sie das folgende Format (Zeilenumbruch getrennt)\nÜbereinstimmungsmodus: *://*.example.com/*\nRegex: /example\\.(net|org)/",
         "check": "Erkennen",

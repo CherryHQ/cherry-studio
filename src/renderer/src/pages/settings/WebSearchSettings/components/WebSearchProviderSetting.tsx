@@ -1,6 +1,6 @@
-import { Divider } from '@cherrystudio/ui'
 import type { WebSearchProviderId } from '@renderer/types'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useWebSearchProviderSetting } from '../hooks/useWebSearchProviderSetting'
 import {
@@ -10,13 +10,14 @@ import {
   WebSearchProviderBasicAuthSection,
   WebSearchProviderHeader
 } from './WebSearchProviderSettingSections'
-import { WebSearchSettingsSection } from './WebSearchSettingsLayout'
+import { WebSearchSettingsPanelHeader } from './WebSearchSettingsLayout'
 
 interface Props {
   providerId: WebSearchProviderId
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
+  const { t } = useTranslation()
   const {
     apiChecking,
     apiHost,
@@ -28,12 +29,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     checkSearch,
     isLocalProvider,
     needsApiKey,
-    officialWebsite,
     onUpdateApiHost,
     onUpdateApiKey,
     onUpdateBasicAuthPassword,
     onUpdateBasicAuthUsername,
-    openApiKeyList,
     openLocalProviderSettings,
     provider,
     providerLogo,
@@ -45,38 +44,33 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   } = useWebSearchProviderSetting(providerId)
 
   return (
-    <WebSearchSettingsSection
-      title={<WebSearchProviderHeader logo={providerLogo} name={provider.name} />}
-      actions={officialWebsite ? <WebSearchProviderHeader officialWebsite={officialWebsite} /> : null}>
+    <>
+      <WebSearchSettingsPanelHeader
+        icon={<WebSearchProviderHeader logo={providerLogo} name={provider.name} compact />}
+        title={provider.name}
+        subtitle={
+          isLocalProvider ? t('settings.tool.websearch.local_providers') : t('settings.tool.websearch.api_providers')
+        }
+      />
       {isLocalProvider && (
         <WebSearchLocalProviderSection providerName={provider.name} onOpenSettings={openLocalProviderSettings} />
       )}
 
       {!isLocalProvider && needsApiKey && (
-        <>
-          <WebSearchProviderApiKeySection
-            apiChecking={apiChecking}
-            apiKey={apiKey}
-            apiKeyWebsite={apiKeyWebsite}
-            apiValid={apiValid}
-            onCheck={checkSearch}
-            onOpenApiKeyList={openApiKeyList}
-            onUpdateApiKey={onUpdateApiKey}
-            setApiKey={setApiKey}
-          />
-          <Divider className="my-0" />
-        </>
+        <WebSearchProviderApiKeySection
+          apiChecking={apiChecking}
+          apiKey={apiKey}
+          apiKeyProviderLabel={provider.name}
+          apiKeyWebsite={apiKeyWebsite}
+          apiValid={apiValid}
+          onCheck={checkSearch}
+          onUpdateApiKey={onUpdateApiKey}
+          setApiKey={setApiKey}
+        />
       )}
 
       {!isLocalProvider && (
-        <>
-          <WebSearchProviderApiHostSection
-            apiHost={apiHost}
-            onUpdateApiHost={onUpdateApiHost}
-            setApiHost={setApiHost}
-          />
-          {supportsBasicAuth && <Divider className="my-0" />}
-        </>
+        <WebSearchProviderApiHostSection apiHost={apiHost} onUpdateApiHost={onUpdateApiHost} setApiHost={setApiHost} />
       )}
 
       {!isLocalProvider && supportsBasicAuth && (
@@ -89,7 +83,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           setBasicAuthUsername={setBasicAuthUsername}
         />
       )}
-    </WebSearchSettingsSection>
+    </>
   )
 }
 

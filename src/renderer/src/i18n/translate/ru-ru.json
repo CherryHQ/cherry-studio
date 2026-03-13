@@ -5240,6 +5240,8 @@
         "api_providers": "Поставщики API",
         "apikey": "API ключ",
         "blacklist": "Черный список",
+        "blacklist_rules_one": "{{count}} Правило",
+        "blacklist_rules_other": "{{count}} Правила",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",

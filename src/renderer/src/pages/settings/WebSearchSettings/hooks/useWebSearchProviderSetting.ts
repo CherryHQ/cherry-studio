@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearch/logo'
 import {
   isLocalWebSearchProvider,
@@ -83,25 +82,18 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
     }
   }, [basicAuthPassword, provider.basicAuthPassword, updateProvider])
 
-  const openApiKeyList = useCallback(async () => {
-    await ApiKeyListPopup.show({
-      providerId: provider.id,
-      title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
-    })
-  }, [provider.id, provider.name, t])
-
   const checkSearch = useCallback(async () => {
-    if (apiKey.includes(',')) {
-      await openApiKeyList()
-      return
-    }
+    const resolvedApiKey = apiKey
+      .split(',')
+      .map((key) => key.trim())
+      .find(Boolean)
 
     try {
       setApiChecking(true)
       const { error, valid } = await WebSearchService.checkSearch({
         ...provider,
         apiHost: apiHost.trim().replace(/\/$/, ''),
-        apiKey,
+        apiKey: resolvedApiKey ?? '',
         basicAuthPassword,
         basicAuthUsername
       })
@@ -126,7 +118,7 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       setApiChecking(false)
       setTimeoutTimer('checkSearch', () => setApiValid(false), 2500)
     }
-  }, [apiHost, apiKey, basicAuthPassword, basicAuthUsername, openApiKeyList, provider, setTimeoutTimer, t])
+  }, [apiHost, apiKey, basicAuthPassword, basicAuthUsername, provider, setTimeoutTimer, t])
 
   const openLocalProviderSettings = useCallback(async () => {
     if (officialWebsite) {
@@ -147,12 +139,10 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       checkSearch,
       isLocalProvider,
       needsApiKey,
-      officialWebsite,
       onUpdateApiHost,
       onUpdateApiKey,
       onUpdateBasicAuthPassword,
       onUpdateBasicAuthUsername,
-      openApiKeyList,
       openLocalProviderSettings,
       provider,
       providerLogo,
@@ -173,12 +163,10 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       checkSearch,
       isLocalProvider,
       needsApiKey,
-      officialWebsite,
       onUpdateApiHost,
       onUpdateApiKey,
       onUpdateBasicAuthPassword,
       onUpdateBasicAuthUsername,
-      openApiKeyList,
       openLocalProviderSettings,
       provider,
       providerLogo,

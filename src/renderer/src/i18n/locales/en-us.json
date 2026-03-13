@@ -5240,11 +5240,14 @@
         "api_providers": "API Providers",
         "apikey": "API key",
         "blacklist": "Blacklist",
+        "blacklist_rules_one": "{{count}} Rule",
+        "blacklist_rules_other": "{{count}} Rules",
         "blacklist_description": "Results from the following websites will not appear in search results",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
+        "get_api_key": "Get your API key from <provider>{{providerId}}</provider>",
         "compression": {
           "cutoff": {
             "limit": {

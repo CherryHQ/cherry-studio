@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +7,8 @@ import WebSearchProviderListSection from './components/WebSearchProviderListSect
 import {
   WebSearchSettingsShell,
   WebSearchSettingsSidebar,
+  WebSearchSettingsSidebarBody,
+  WebSearchSettingsSidebarHeader,
   WebSearchSettingsSidebarItem
 } from './components/WebSearchSettingsLayout'
 import { useWebSearchSettingsNavigation } from './hooks/useWebSearchSettingsNavigation'
@@ -19,25 +21,27 @@ const WebSearchSettings: FC = () => {
     <WebSearchSettingsShell
       sidebar={
         <WebSearchSettingsSidebar aria-label={t('settings.tool.websearch.title')}>
-          <WebSearchSettingsSidebarItem
-            title={t('settings.tool.websearch.title')}
-            active={activeView === 'general'}
-            onClick={goToGeneral}
-            icon={<Search size={18} />}
-            subtitle={t('settings.general.title')}
-          />
-          <WebSearchProviderListSection
-            title={t('settings.tool.websearch.api_providers')}
-            providers={apiProviders}
-            activeView={activeView}
-            onSelect={goToProvider}
-          />
-          <WebSearchProviderListSection
-            title={t('settings.tool.websearch.local_providers')}
-            providers={localProviders}
-            activeView={activeView}
-            onSelect={goToProvider}
-          />
+          <WebSearchSettingsSidebarHeader>{t('settings.tool.websearch.title')}</WebSearchSettingsSidebarHeader>
+          <WebSearchSettingsSidebarBody className="space-y-3">
+            <WebSearchSettingsSidebarItem
+              title={t('settings.general.title')}
+              active={activeView === 'general'}
+              onClick={goToGeneral}
+              icon={<Settings2 size={14} />}
+            />
+            <WebSearchProviderListSection
+              title={t('settings.tool.websearch.api_providers')}
+              providers={apiProviders}
+              activeView={activeView}
+              onSelect={goToProvider}
+            />
+            <WebSearchProviderListSection
+              title={t('settings.tool.websearch.local_providers')}
+              providers={localProviders}
+              activeView={activeView}
+              onSelect={goToProvider}
+            />
+          </WebSearchSettingsSidebarBody>
         </WebSearchSettingsSidebar>
       }>
       <Outlet />

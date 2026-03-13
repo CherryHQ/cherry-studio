@@ -5240,6 +5240,8 @@
         "api_providers": "APIプロバイダー",
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
+        "blacklist_rules_one": "{{count}} ルール",
+        "blacklist_rules_other": "{{count}} ルール",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",

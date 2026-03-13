@@ -5240,6 +5240,8 @@
         "api_providers": "Πάροχοι API",
         "apikey": "Κλειδί API",
         "blacklist": "Μαύρη Λίστα",
+        "blacklist_rules_one": "{{count}} Κανόνας",
+        "blacklist_rules_other": "{{count}} Κανόνες",
         "blacklist_description": "Τα αποτελέσματα από τους παρακάτω ιστότοπους δεν θα εμφανίζονται στα αποτελέσματα αναζήτησης",
         "blacklist_tooltip": "Παρακαλώ χρησιμοποιήστε την ακόλουθη μορφή (διαχωρισμός με αλλαγή γραμμής)\nΜοτίβο αντιστοίχισης: *://*.example.com/*\nΚανονική έκφραση: /example\\.(net|org)/",
         "check": "Έλεγχος",

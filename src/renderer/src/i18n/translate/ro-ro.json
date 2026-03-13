@@ -5233,6 +5233,8 @@
         "api_providers": "Furnizori API",
         "apikey": "Cheie API",
         "blacklist": "Listă neagră",
+        "blacklist_rules_one": "{{count}} Regulă",
+        "blacklist_rules_other": "{{count}} Reguli",
         "blacklist_description": "Rezultatele de pe următoarele site-uri web nu vor apărea în rezultatele căutării",
         "blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",
         "check": "Verifică",

@@ -1,11 +1,10 @@
 import { InfoTooltip, Slider, Switch } from '@cherrystudio/ui'
-import { Divider } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../hooks/useWebSearchSettings'
-import { WebSearchSettingsField, WebSearchSettingsHint, WebSearchSettingsSection } from './WebSearchSettingsLayout'
+import { WebSearchSettingsBadge, WebSearchSettingsField, WebSearchSettingsSection } from './WebSearchSettingsLayout'
 
 const BasicSettings: FC = () => {
   const { t } = useTranslation()
@@ -18,11 +17,8 @@ const BasicSettings: FC = () => {
 
   return (
     <WebSearchSettingsSection title={t('settings.general.title')}>
-      <WebSearchSettingsField title={t('settings.tool.websearch.search_with_time')}>
-        <Switch checked={searchWithTime} onCheckedChange={setSearchWithTime} />
-      </WebSearchSettingsField>
-      <Divider className="my-0" />
       <WebSearchSettingsField
+        meta={<WebSearchSettingsBadge>{maxResultsValue}</WebSearchSettingsBadge>}
         title={
           <>
             {t('settings.tool.websearch.search_max_result.label')}
@@ -34,27 +30,28 @@ const BasicSettings: FC = () => {
             )}
           </>
         }>
-        <div className="space-y-2">
-          <Slider
-            min={1}
-            max={100}
-            step={1}
-            value={[maxResultsValue]}
-            onValueChange={([value]) => setMaxResultsValue(value)}
-            onValueCommit={([value]) => void setMaxResults(value)}
-            marks={[
-              { value: 1, label: '1' },
-              { value: 5, label: '5' },
-              { value: 20, label: '20' },
-              { value: 50, label: '50' },
-              { value: 100, label: '100' }
-            ]}
-            showValueLabel
-          />
-          <WebSearchSettingsHint>
-            {t('settings.tool.websearch.search_max_result.label') + `: ${maxResultsValue}`}
-          </WebSearchSettingsHint>
+        <div className="flex items-center gap-2.5">
+          <span className="w-3 shrink-0 text-right text-[9px] text-foreground">1</span>
+          <div className="flex-1">
+            <Slider
+              size="sm"
+              min={1}
+              max={100}
+              step={1}
+              value={[maxResultsValue]}
+              onValueChange={([value]) => setMaxResultsValue(value)}
+              onValueCommit={([value]) => void setMaxResults(value)}
+            />
+          </div>
+          <span className="w-6 shrink-0 text-[9px] text-foreground">100</span>
         </div>
+      </WebSearchSettingsField>
+      <WebSearchSettingsField layout="inline" title={t('settings.tool.websearch.search_with_time')}>
+        <Switch
+          checked={searchWithTime}
+          onCheckedChange={setSearchWithTime}
+          className="data-[state=checked]:bg-emerald-500"
+        />
       </WebSearchSettingsField>
     </WebSearchSettingsSection>
   )

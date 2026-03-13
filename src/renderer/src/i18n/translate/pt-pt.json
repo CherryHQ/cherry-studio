@@ -5240,6 +5240,8 @@
         "api_providers": "Provedores de API",
         "apikey": "Chave API",
         "blacklist": "Lista Negra",
+        "blacklist_rules_one": "{{count}} Regra",
+        "blacklist_rules_other": "{{count}} Regras",
         "blacklist_description": "Os resultados dos seguintes sites não aparecerão nos resultados de pesquisa",
         "blacklist_tooltip": "Por favor, utilize o seguinte formato (separado por quebras de linha)\nPadrão de correspondência: *://*.exemplo.com/*\nExpressão regular: /exemplo\\.(net|org)/",
         "check": "Verificar",

@@ -1,5 +1,5 @@
-import { Divider } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
+import { ChevronRight } from 'lucide-react'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 
 interface WebSearchSettingsShellProps {
@@ -9,20 +9,41 @@ interface WebSearchSettingsShellProps {
 
 export const WebSearchSettingsShell = ({ children, sidebar }: WebSearchSettingsShellProps) => {
   return (
-    <section className="flex h-[calc(100vh-var(--navbar-height)-6px)] min-h-0 w-full flex-col overflow-hidden lg:flex-row">
-      <aside className="min-h-0 shrink-0 border-(--color-border) border-b bg-(--color-background) lg:w-[288px] lg:border-r lg:border-b-0">
+    <section className="my-2 mr-2 flex h-[calc(100vh-var(--navbar-height)-10px)] min-h-0 w-full flex-1 overflow-hidden rounded-2xl border border-foreground/6 bg-foreground/2 lg:flex-row">
+      <aside className="min-h-0 shrink-0 border-foreground/5 border-b lg:w-40 lg:border-r lg:border-b-0">
         {sidebar}
       </aside>
-      <div className="min-h-0 min-w-0 flex-1 bg-(--color-background-soft)">{children}</div>
+      <div className="min-h-0 min-w-0 flex-1">{children}</div>
     </section>
   )
 }
 
 export const WebSearchSettingsSidebar = ({ children, className, ...props }: HTMLAttributes<HTMLElement>) => {
   return (
-    <nav className={cn('flex h-full min-h-0 flex-col gap-5 overflow-y-auto p-4', className)} {...props}>
+    <nav className={cn('flex h-full min-h-0 flex-col', className)} {...props}>
       {children}
     </nav>
+  )
+}
+
+export const WebSearchSettingsSidebarHeader = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div className={cn('px-3.5 pt-4 pb-2 font-medium text-[11px] text-foreground', className)} {...props}>
+      {children}
+    </div>
+  )
+}
+
+export const WebSearchSettingsSidebarBody = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div
+      className={cn(
+        'flex-1 overflow-y-auto px-2.5 pb-3 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-0.5',
+        className
+      )}
+      {...props}>
+      {children}
+    </div>
   )
 }
 
@@ -33,9 +54,9 @@ interface WebSearchSettingsSidebarSectionProps {
 
 export const WebSearchSettingsSidebarSection = ({ children, title }: WebSearchSettingsSidebarSectionProps) => {
   return (
-    <section className="flex flex-col gap-2">
-      <div className="px-2 font-semibold text-(--color-text-3) text-[11px] uppercase tracking-[0.08em]">{title}</div>
-      <div className="flex flex-col gap-1">{children}</div>
+    <section className="flex flex-col gap-1">
+      <div className="px-3 font-medium text-[10px] text-foreground uppercase tracking-[0.08em]">{title}</div>
+      <div className="space-y-0.5">{children}</div>
     </section>
   )
 }
@@ -45,6 +66,7 @@ interface WebSearchSettingsSidebarItemProps extends Omit<ButtonHTMLAttributes<HT
   icon?: ReactNode
   subtitle?: string
   title: ReactNode
+  trailing?: ReactNode
 }
 
 export const WebSearchSettingsSidebarItem = ({
@@ -53,6 +75,7 @@ export const WebSearchSettingsSidebarItem = ({
   icon,
   subtitle,
   title,
+  trailing,
   type = 'button',
   ...props
 }: WebSearchSettingsSidebarItemProps) => {
@@ -60,53 +83,121 @@ export const WebSearchSettingsSidebarItem = ({
     <button
       type={type}
       className={cn(
-        'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors',
-        active
-          ? 'border-primary/30 bg-primary/10 text-primary'
-          : 'border-transparent bg-transparent text-(--color-text-1) hover:border-(--color-border) hover:bg-(--color-background-soft)',
+        'group relative flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-left transition-all',
+        'text-foreground hover:bg-foreground/3',
+        active && 'bg-foreground/5.5',
         className
       )}
       {...props}>
-      {icon && (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-(--color-background-soft)">
-          {icon}
-        </span>
+      {active && (
+        <>
+          <span className="pointer-events-none absolute inset-0 rounded-xl border border-foreground/10" />
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
+            <span className="h-6 w-2.5 rounded-l-3xs bg-emerald-500/15 blur-[6px]" />
+            <span className="absolute right-0 h-2.5 w-0.75 rounded-full bg-emerald-400/75 blur-[2px]" />
+          </span>
+        </>
       )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-sm">{title}</span>
-        {subtitle && <span className="mt-0.5 block truncate text-(--color-text-3) text-xs">{subtitle}</span>}
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        {icon && <span className="flex shrink-0 items-center justify-center text-foreground">{icon}</span>}
+        <span className="min-w-0 flex-1">
+          <span className={cn('block truncate text-[10px] text-foreground', active ? 'font-medium' : 'font-normal')}>
+            {title}
+          </span>
+          {subtitle && <span className="mt-0.5 block truncate text-[9px] text-foreground">{subtitle}</span>}
+        </span>
       </span>
+      <span className="shrink-0 text-foreground transition-colors">{trailing ?? <ChevronRight size={9} />}</span>
     </button>
+  )
+}
+
+export const WebSearchSettingsBadge = ({ children, className, ...props }: HTMLAttributes<HTMLSpanElement>) => {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-px font-medium text-[9px] text-emerald-500',
+        className
+      )}
+      {...props}>
+      {children}
+    </span>
+  )
+}
+
+interface WebSearchSettingsPanelProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode
+}
+
+export const WebSearchSettingsPanel = ({ children, className, ...props }: WebSearchSettingsPanelProps) => {
+  return (
+    <section className={cn('min-h-full rounded-[22px] px-6 py-5', className)} {...props}>
+      {children}
+    </section>
+  )
+}
+
+interface WebSearchSettingsPanelHeaderProps {
+  actions?: ReactNode
+  icon: ReactNode
+  subtitle?: ReactNode
+  title: ReactNode
+}
+
+export const WebSearchSettingsPanelHeader = ({ actions, icon, subtitle, title }: WebSearchSettingsPanelHeaderProps) => {
+  return (
+    <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xs bg-foreground/4 text-foreground">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-[13px] text-foreground">{title}</h3>
+          {subtitle && <p className="mt-0.5 truncate text-[9px] text-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {actions && <div className="shrink-0">{actions}</div>}
+    </div>
   )
 }
 
 export const WebSearchSettingsContent = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
   return (
-    <div className={cn('flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6 sm:py-5', className)} {...props}>
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">{children}</div>
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-y-auto px-6 py-5 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-0.75',
+        className
+      )}
+      {...props}>
+      {children}
     </div>
   )
 }
 
 interface WebSearchSettingsSectionProps {
   actions?: ReactNode
+  badge?: ReactNode
   children: ReactNode
   description?: ReactNode
   title: ReactNode
 }
 
-export const WebSearchSettingsSection = ({ actions, children, description, title }: WebSearchSettingsSectionProps) => {
+export const WebSearchSettingsSection = ({
+  actions,
+  badge,
+  children,
+  description,
+  title
+}: WebSearchSettingsSectionProps) => {
   return (
-    <section className="rounded-2xl border border-(--color-border) bg-(--color-background) p-5 shadow-xs">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-(--color-text-1) text-base">{title}</div>
-          {description && <p className="mt-2 text-(--color-text-2) text-sm leading-6">{description}</p>}
-        </div>
-        {actions && <div className="shrink-0">{actions}</div>}
+    <section className="mb-5 last:mb-0">
+      <div className="mb-3 flex items-center gap-2">
+        <h4 className="font-medium text-[11px] text-foreground">{title}</h4>
+        {badge}
+        {actions && <div className="ml-auto">{actions}</div>}
       </div>
-      <Divider className="my-4" />
-      <div className="flex flex-col gap-4">{children}</div>
+      {description && <p className="mb-3 text-[9px] text-foreground leading-4">{description}</p>}
+      <div className="space-y-3.5">{children}</div>
     </section>
   )
 }
@@ -116,7 +207,9 @@ interface WebSearchSettingsFieldProps {
   className?: string
   contentClassName?: string
   description?: ReactNode
-  title: ReactNode
+  layout?: 'inline' | 'stacked'
+  meta?: ReactNode
+  title?: ReactNode
 }
 
 export const WebSearchSettingsField = ({
@@ -124,15 +217,30 @@ export const WebSearchSettingsField = ({
   className,
   contentClassName,
   description,
+  layout = 'stacked',
+  meta,
   title
 }: WebSearchSettingsFieldProps) => {
   return (
-    <div className={cn('flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between', className)}>
-      <div className="min-w-0 flex-1 lg:max-w-2xl">
-        <div className="flex items-center gap-1.5 font-medium text-(--color-text-1) text-sm">{title}</div>
-        {description && <p className="mt-1 text-(--color-text-2) text-sm leading-6">{description}</p>}
+    <div
+      className={cn(
+        layout === 'inline' ? 'flex items-center justify-between gap-3' : 'flex flex-col gap-1.5',
+        className
+      )}>
+      <div className={cn('min-w-0', layout === 'inline' && 'flex-1')}>
+        {(title || meta) && (
+          <div className="flex items-center gap-1.5">
+            {title && (
+              <div className="flex min-h-4 min-w-0 flex-wrap items-center gap-1.5 font-medium text-[10px] text-foreground leading-4">
+                {title}
+              </div>
+            )}
+            {meta}
+          </div>
+        )}
+        {description && <p className="mt-1 text-[9px] text-foreground leading-4">{description}</p>}
       </div>
-      <div className={cn('w-full lg:max-w-90', contentClassName)}>{children}</div>
+      <div className={cn(layout === 'inline' ? 'shrink-0' : 'w-full', contentClassName)}>{children}</div>
     </div>
   )
 }
@@ -149,7 +257,7 @@ export const WebSearchSettingsHint = ({
 }: WebSearchSettingsHintProps) => {
   return (
     <p
-      className={cn('text-xs leading-5', tone === 'danger' ? 'text-destructive' : 'text-(--color-text-3)', className)}
+      className={cn('text-[9px] leading-4', tone === 'danger' ? 'text-destructive' : 'text-foreground', className)}
       {...props}>
       {children}
     </p>

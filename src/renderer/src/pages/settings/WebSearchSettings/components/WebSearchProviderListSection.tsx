@@ -28,13 +28,7 @@ const WebSearchProviderListSection: FC<Props> = ({ activeView, onSelect, provide
             title={provider.name}
             active={activeView === provider.id}
             onClick={() => onSelect(provider.id)}
-            icon={
-              logo ? (
-                <img src={logo} alt={provider.name} className="h-5 w-5 rounded object-contain" />
-              ) : (
-                <div className="h-5 w-5 rounded bg-(--color-background-soft)" />
-              )
-            }
+            icon={<img src={logo} alt={provider.name} className="size-5 rounded object-contain" />}
           />
         )
       })}

@@ -1,4 +1,4 @@
-import { Divider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchSettings } from '../../hooks/useWebSearchSettings'
@@ -24,7 +24,7 @@ const CompressionSettings = () => {
     <WebSearchSettingsSection title={t('settings.tool.websearch.compression.title')}>
       <WebSearchSettingsField title={t('settings.tool.websearch.compression.method.label')}>
         <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger className="w-full lg:max-w-90">
+          <SelectTrigger className="w-full border-0 bg-foreground/6 px-3 py-1.25 text-[10px] text-foreground shadow-none hover:bg-foreground/8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -36,7 +36,6 @@ const CompressionSettings = () => {
           </SelectContent>
         </Select>
       </WebSearchSettingsField>
-      <Divider className="my-0" />
 
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
       {compressionConfig?.method === 'rag' && <RagSettings />}

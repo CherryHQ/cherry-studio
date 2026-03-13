@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 
 import WebSearchProviderSetting from './components/WebSearchProviderSetting'
-import { WebSearchSettingsContent } from './components/WebSearchSettingsLayout'
+import { WebSearchSettingsContent, WebSearchSettingsPanel } from './components/WebSearchSettingsLayout'
 
 const WebSearchProviderSettings: FC = () => {
   const params = useParams({ strict: false }) as { providerId?: string }
@@ -15,7 +15,9 @@ const WebSearchProviderSettings: FC = () => {
 
   return (
     <WebSearchSettingsContent>
-      <WebSearchProviderSetting providerId={providerId as WebSearchProviderId} />
+      <WebSearchSettingsPanel>
+        <WebSearchProviderSetting providerId={providerId as WebSearchProviderId} />
+      </WebSearchSettingsPanel>
     </WebSearchSettingsContent>
   )
 }
