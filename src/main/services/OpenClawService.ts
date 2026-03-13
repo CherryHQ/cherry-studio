@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -23,6 +24,7 @@ const logger = loggerService.withContext('OpenClawService')
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
 const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
+const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -170,6 +172,75 @@ class OpenClawService {
   }
 
   /**
+   * Create a symlink in /usr/local/bin (macOS/Linux) or add bin dir to user PATH (Windows).
+   * Removes any existing symlink first to ensure a clean state.
+   */
+  private async linkBinary(): Promise<void> {
+    const binaryPath = await getBinaryPath('openclaw')
+    if (isWin) {
+      const binDir = await getBinaryPath()
+      try {
+        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
+        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
+        if (!currentPath.split(';').some((p) => p.toLowerCase() === binDir.toLowerCase())) {
+          const newPath = currentPath ? `${currentPath};${binDir}` : binDir
+          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
+          // Broadcast WM_SETTINGCHANGE so new shells pick up the change
+          execSync('setx OPENCLAW_PATH_REFRESH ""')
+          logger.info(`Added ${binDir} to user PATH`)
+        }
+      } catch {
+        // User PATH key may not exist yet
+        execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${binDir}" /f`)
+        logger.info(`Created user PATH with ${binDir}`)
+      }
+    } else {
+      try {
+        // Remove existing symlink or file at target path
+        if (fs.existsSync(SYMLINK_PATH)) {
+          fs.unlinkSync(SYMLINK_PATH)
+        }
+        fs.symlinkSync(binaryPath, SYMLINK_PATH)
+        logger.info(`Created symlink: ${SYMLINK_PATH} -> ${binaryPath}`)
+      } catch (err) {
+        logger.warn(`Failed to create symlink at ${SYMLINK_PATH} (may need elevated permissions):`, err as Error)
+      }
+    }
+  }
+
+  /**
+   * Remove the symlink from /usr/local/bin (macOS/Linux) or remove bin dir from user PATH (Windows).
+   */
+  private async unlinkBinary(): Promise<void> {
+    if (isWin) {
+      const binDir = await getBinaryPath()
+      try {
+        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
+        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
+        const parts = currentPath.split(';').filter((p) => p.toLowerCase() !== binDir.toLowerCase())
+        const newPath = parts.join(';')
+        if (newPath) {
+          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
+        } else {
+          execSync('reg delete "HKCU\\Environment" /v Path /f')
+        }
+        logger.info(`Removed ${binDir} from user PATH`)
+      } catch {
+        logger.debug('No user PATH to clean up')
+      }
+    } else {
+      try {
+        if (fs.existsSync(SYMLINK_PATH)) {
+          fs.unlinkSync(SYMLINK_PATH)
+          logger.info(`Removed symlink: ${SYMLINK_PATH}`)
+        }
+      } catch (err) {
+        logger.warn(`Failed to remove symlink at ${SYMLINK_PATH}:`, err as Error)
+      }
+    }
+  }
+
+  /**
    * Install OpenClaw by downloading the binary from releases.
    * Uses gitcode.com mirror for China users, GitHub releases for others.
    */
@@ -186,6 +257,8 @@ class OpenClawService {
 
       this.sendInstallProgress('Downloading and installing OpenClaw...')
       await runInstallScript('install-openclaw.js', extraEnv)
+
+      await this.linkBinary()
 
       this.sendInstallProgress('OpenClaw installed successfully!')
       logger.info('OpenClaw binary installed via install script')
@@ -214,6 +287,8 @@ class OpenClawService {
       const binaryPath = path.join(binDir, binaryName)
 
       this.sendInstallProgress('Removing OpenClaw binary...')
+
+      await this.unlinkBinary()
 
       if (fs.existsSync(binaryPath)) {
         fs.unlinkSync(binaryPath)
