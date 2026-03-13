@@ -21,10 +21,7 @@ import { windowService } from './WindowService'
 const logger = loggerService.withContext('OpenClawService')
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
-// Original user config (read-only, used as template for first-time setup)
-const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
-// Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
-const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
+const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -315,7 +312,7 @@ class OpenClawService {
     // Spawn detached — the gateway runs independently, we poll for readiness.
     // Use 'pipe' for stderr so we can capture error details on early exit.
     const proc = crossPlatformSpawn(openclawPath, args, {
-      env: { ...shellEnv, OPENCLAW_CONFIG_PATH },
+      env: shellEnv,
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe']
     })
@@ -432,9 +429,7 @@ class OpenClawService {
     timeoutMs = 20000
   ): Promise<{ code: number | null; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
-      const proc = crossPlatformSpawn(openclawPath, args, {
-        env: { ...env, OPENCLAW_CONFIG_PATH }
-      })
+      const proc = crossPlatformSpawn(openclawPath, args, { env })
 
       let stdout = ''
       let stderr = ''
@@ -610,22 +605,14 @@ class OpenClawService {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
       }
 
-      // Read existing cherry config, or copy from original openclaw.json as base
+      // Read existing config
       let config: OpenClawConfig = {}
       if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
         try {
           const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
           config = JSON.parse(content)
         } catch {
-          logger.warn('Failed to parse existing Cherry OpenClaw config, creating new one')
-        }
-      } else if (fs.existsSync(OPENCLAW_ORIGINAL_CONFIG_PATH)) {
-        try {
-          const content = fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8')
-          config = JSON.parse(content)
-          logger.info('Using original openclaw.json as base template for openclaw.cherry.json')
-        } catch {
-          logger.warn('Failed to parse original openclaw.json, creating new config')
+          logger.warn('Failed to parse existing OpenClaw config, creating new one')
         }
       }
 
@@ -818,9 +805,7 @@ class OpenClawService {
    */
   private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
     return new Promise((resolve) => {
-      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status'], {
-        env: { ...env, OPENCLAW_CONFIG_PATH }
-      })
+      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status'], { env })
 
       let stdout = ''
       let resolved = false
