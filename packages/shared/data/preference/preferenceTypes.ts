@@ -89,7 +89,7 @@ export type ProxyMode = 'system' | 'custom' | 'none'
 
 export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
 
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+export type MathEngine = 'KaTeX' | 'none'
 
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本

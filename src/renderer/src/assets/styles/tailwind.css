@@ -3,6 +3,7 @@
 
 @import '../../../../../packages/ui/src/styles/theme.css';
 @source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
+@source '../../../../../node_modules/streamdown/dist/*.js';
 @custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:

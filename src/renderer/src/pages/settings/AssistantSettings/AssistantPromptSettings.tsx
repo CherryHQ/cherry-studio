@@ -24,7 +24,7 @@ import { Input } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
@@ -143,7 +143,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
                 setShowPreview(false)
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
               }}>
-              <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
+              <Streamdown mode="static">{processedPrompt || prompt}</Streamdown>
             </MarkdownContainer>
           ) : (
             <CodeEditor

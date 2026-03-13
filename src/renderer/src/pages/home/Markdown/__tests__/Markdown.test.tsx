@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Markdown from '../Markdown'
 
 // Mock dependencies
-const mockUseSettings = vi.fn()
+const mockUsePreference = vi.fn()
 const mockUseTranslation = vi.fn()
 
 // Mock hooks
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => mockUseSettings()
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (...args: any[]) => mockUsePreference(...args)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -102,20 +102,13 @@ vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
 }))
 
 // Mock plugins
-vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
+vi.mock('remark-github-blockquote-alert', () => ({ __esModule: true, default: vi.fn() }))
+vi.mock('@streamdown/code', () => ({ code: vi.fn() }))
+vi.mock('@streamdown/cjk', () => ({ cjk: vi.fn() }))
+vi.mock('@streamdown/math', () => ({ math: vi.fn(), createMathPlugin: vi.fn(() => vi.fn()) }))
+vi.mock('@streamdown/mermaid', () => ({ mermaid: vi.fn() }))
 
 // Mock custom plugins
-vi.mock('../plugins/remarkDisableConstructs', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
-
 vi.mock('../plugins/rehypeHeadingIds', () => ({
   __esModule: true,
   default: vi.fn()
@@ -126,10 +119,9 @@ vi.mock('../plugins/rehypeScalableSvg', () => ({
   default: vi.fn()
 }))
 
-// Mock ReactMarkdown with realistic rendering
-vi.mock('react-markdown', () => ({
-  __esModule: true,
-  default: ({ children, components, className }: any) => (
+// Mock Streamdown with realistic rendering
+vi.mock('streamdown', () => ({
+  Streamdown: ({ children, components, className }: any) => (
     <div data-testid="markdown-content" className={className}>
       {children}
       {/* Simulate component rendering */}
@@ -147,15 +139,28 @@ vi.mock('react-markdown', () => ({
       {components?.img && <span data-testid="has-img-component">img</span>}
       {components?.style && <span data-testid="has-style-component">style</span>}
     </div>
-  )
+  ),
+  defaultRehypePlugins: {
+    raw: vi.fn(),
+    sanitize: [vi.fn(), { tagNames: [], attributes: {} }],
+    harden: vi.fn()
+  },
+  defaultUrlTransform: vi.fn((url: string) => url),
+  useIsCodeFenceIncomplete: vi.fn(() => false)
 }))
 
 describe('Markdown', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
 
-    // Default settings
-    mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
+    // Default settings - usePreference returns [value, setter] for each key
+    mockUsePreference.mockImplementation((key: string) => {
+      const values: Record<string, any> = {
+        'chat.message.math.engine': 'KaTeX',
+        'chat.message.math.single_dollar': true
+      }
+      return [values[key], vi.fn()]
+    })
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
@@ -277,7 +282,13 @@ describe('Markdown', () => {
 
   describe('math engine configuration', () => {
     it('should configure KaTeX when mathEngine is KaTeX', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
+      mockUsePreference.mockImplementation((key: string) => {
+        const values: Record<string, any> = {
+          'chat.message.math.engine': 'KaTeX',
+          'chat.message.math.single_dollar': true
+        }
+        return [values[key], vi.fn()]
+      })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -285,17 +296,14 @@ describe('Markdown', () => {
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
 
-    it('should configure MathJax when mathEngine is MathJax', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
-
-      render(<Markdown block={createMainTextBlock()} />)
-
-      // Component should render successfully with MathJax configuration
-      expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-
     it('should not load math plugins when mathEngine is none', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'none', mathEnableSingleDollar: true })
+      mockUsePreference.mockImplementation((key: string) => {
+        const values: Record<string, any> = {
+          'chat.message.math.engine': 'none',
+          'chat.message.math.single_dollar': true
+        }
+        return [values[key], vi.fn()]
+      })
 
       render(<Markdown block={createMainTextBlock()} />)
 
@@ -379,15 +387,27 @@ describe('Markdown', () => {
     })
 
     it('should re-render when math engine changes', () => {
-      mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
+      mockUsePreference.mockImplementation((key: string) => {
+        const values: Record<string, any> = {
+          'chat.message.math.engine': 'KaTeX',
+          'chat.message.math.single_dollar': true
+        }
+        return [values[key], vi.fn()]
+      })
       const { rerender } = render(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
+      mockUsePreference.mockImplementation((key: string) => {
+        const values: Record<string, any> = {
+          'chat.message.math.engine': 'none',
+          'chat.message.math.single_dollar': true
+        }
+        return [values[key], vi.fn()]
+      })
       rerender(<Markdown block={createMainTextBlock()} />)
 
-      // Should still render correctly with new math engine
+      // Should still render correctly with math disabled
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
   })
