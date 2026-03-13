@@ -35,7 +35,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     [assistant?.settings?.enableMaxTokens]
   )
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
+  const streamOutput = useMemo(
+    () => assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
+    [assistant?.settings?.streamOutput]
+  )
   const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
     assistant?.settings?.toolUseMode ?? 'function'
   )
@@ -192,7 +195,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setEnableTemperature(DEFAULT_ASSISTANT_SETTINGS.enableTemperature ?? false)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
     setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
-    setStreamOutput(DEFAULT_ASSISTANT_SETTINGS.streamOutput)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
     setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
@@ -459,7 +461,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Switch
           checked={streamOutput}
           onChange={(checked) => {
-            setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}
         />
