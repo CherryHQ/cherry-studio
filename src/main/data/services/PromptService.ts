@@ -30,8 +30,8 @@ function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
     id: row.id,
     title: row.title,
     content: row.content,
-    currentVersion: row.currentVersion ?? 1,
-    sortOrder: row.sortOrder ?? 0,
+    currentVersion: row.currentVersion,
+    sortOrder: row.sortOrder,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
   }
@@ -91,25 +91,27 @@ export class PromptService {
   async create(dto: CreatePromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    const [row] = await db
-      .insert(promptTable)
-      .values({
-        title: dto.title,
-        content: dto.content,
-        currentVersion: 1
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(promptTable)
+        .values({
+          title: dto.title,
+          content: dto.content,
+          currentVersion: 1
+        })
+        .returning()
+
+      // Create v1 version snapshot
+      await tx.insert(promptVersionTable).values({
+        promptId: row.id,
+        version: 1,
+        content: dto.content
       })
-      .returning()
 
-    // Create v1 version snapshot
-    await db.insert(promptVersionTable).values({
-      promptId: row.id,
-      version: 1,
-      content: dto.content
+      logger.info('Created prompt', { id: row.id, title: dto.title })
+
+      return rowToPrompt(row)
     })
-
-    logger.info('Created prompt', { id: row.id, title: dto.title })
-
-    return rowToPrompt(row)
   }
 
   /**
@@ -118,33 +120,39 @@ export class PromptService {
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    const existing = await this.getById(id)
+    return await db.transaction(async (tx) => {
+      // Read inside transaction to prevent race conditions on currentVersion
+      const [existing] = await tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
+      if (!existing) {
+        throw DataApiErrorFactory.notFound('Prompt', id)
+      }
 
-    const updates: Partial<typeof promptTable.$inferInsert> = {}
-    if (dto.title !== undefined) updates.title = dto.title
-    if (dto.content !== undefined) updates.content = dto.content
+      const updates: Partial<typeof promptTable.$inferInsert> = {}
+      if (dto.title !== undefined) updates.title = dto.title
+      if (dto.content !== undefined) updates.content = dto.content
 
-    // Check if content changed — if so, create a new version
-    const contentChanged = dto.content !== undefined && dto.content !== existing.content
+      // Check if content changed — if so, create a new version
+      const contentChanged = dto.content !== undefined && dto.content !== existing.content
 
-    if (contentChanged) {
-      const newVersion = existing.currentVersion + 1
-      updates.currentVersion = newVersion
+      if (contentChanged) {
+        const newVersion = existing.currentVersion + 1
+        updates.currentVersion = newVersion
 
-      await db.insert(promptVersionTable).values({
-        promptId: id,
-        version: newVersion,
-        content: dto.content!
-      })
+        await tx.insert(promptVersionTable).values({
+          promptId: id,
+          version: newVersion,
+          content: dto.content!
+        })
 
-      logger.info('Created prompt version', { id, version: newVersion })
-    }
+        logger.info('Created prompt version', { id, version: newVersion })
+      }
 
-    const [row] = await db.update(promptTable).set(updates).where(eq(promptTable.id, id)).returning()
+      const [row] = await tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).returning()
 
-    logger.info('Updated prompt', { id, changes: Object.keys(dto) })
+      logger.info('Updated prompt', { id, changes: Object.keys(dto) })
 
-    return rowToPrompt(row)
+      return rowToPrompt(row)
+    })
   }
 
   /**
@@ -166,9 +174,11 @@ export class PromptService {
   async reorder(dto: ReorderPromptsDto): Promise<void> {
     const db = dbService.getDb()
 
-    for (const item of dto.items) {
-      await db.update(promptTable).set({ sortOrder: item.sortOrder }).where(eq(promptTable.id, item.id))
-    }
+    await db.transaction(async (tx) => {
+      for (const item of dto.items) {
+        await tx.update(promptTable).set({ sortOrder: item.sortOrder }).where(eq(promptTable.id, item.id))
+      }
+    })
 
     logger.info('Reordered prompts', { count: dto.items.length })
   }
@@ -197,43 +207,49 @@ export class PromptService {
   async rollback(promptId: string, dto: RollbackPromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    const existing = await this.getById(promptId)
+    return await db.transaction(async (tx) => {
+      // Read inside transaction to prevent race conditions on currentVersion
+      const [existing] = await tx.select().from(promptTable).where(eq(promptTable.id, promptId)).limit(1)
+      if (!existing) {
+        throw DataApiErrorFactory.notFound('Prompt', promptId)
+      }
 
-    // Find the target version
-    const versions = await db.select().from(promptVersionTable).where(eq(promptVersionTable.promptId, promptId))
+      // Find the target version
+      const versions = await tx.select().from(promptVersionTable).where(eq(promptVersionTable.promptId, promptId))
 
-    const targetVersion = versions.find((v) => v.version === dto.version)
-    if (!targetVersion) {
-      throw DataApiErrorFactory.notFound('PromptVersion', `${promptId}@v${dto.version}`)
-    }
+      const targetVersion = versions.find((v) => v.version === dto.version)
+      if (!targetVersion) {
+        throw DataApiErrorFactory.notFound('PromptVersion', `${promptId}@v${dto.version}`)
+      }
 
-    // Create a new version with the target's content
-    const newVersion = existing.currentVersion + 1
+      // Create a new version with the target's content
+      const newVersion = existing.currentVersion + 1
 
-    await db.insert(promptVersionTable).values({
-      promptId,
-      version: newVersion,
-      content: targetVersion.content
-    })
-
-    // Update prompt to the rolled-back content
-    const [row] = await db
-      .update(promptTable)
-      .set({
-        content: targetVersion.content,
-        currentVersion: newVersion
+      await tx.insert(promptVersionTable).values({
+        promptId,
+        version: newVersion,
+        content: targetVersion.content
       })
-      .where(eq(promptTable.id, promptId))
-      .returning()
 
-    logger.info('Rolled back prompt', {
-      id: promptId,
-      fromVersion: existing.currentVersion,
-      toVersion: dto.version,
-      newVersion
+      // Update prompt to the rolled-back content
+      const [row] = await tx
+        .update(promptTable)
+        .set({
+          content: targetVersion.content,
+          currentVersion: newVersion
+        })
+        .where(eq(promptTable.id, promptId))
+        .returning()
+
+      logger.info('Rolled back prompt', {
+        id: promptId,
+        fromVersion: existing.currentVersion,
+        toVersion: dto.version,
+        newVersion
+      })
+
+      return rowToPrompt(row)
     })
-
-    return rowToPrompt(row)
   }
 }
 
