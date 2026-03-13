@@ -361,6 +361,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'Gemini 2.5'
     },
     {
+      id: 'gemini-3.1-flash-image-preview',
+      provider: 'gemini',
+      name: 'Gemini 3.1 Flash Image Preview',
+      group: 'Gemini 3'
+    },
+    {
       id: 'gemini-3-pro-image-preview',
       provider: 'gemini',
       name: 'Gemini 3 Pro Image Preview',
@@ -1382,6 +1388,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       id: 'google/gemini-2.5-flash-image-preview',
       provider: 'openrouter',
       name: 'Google: Gemini 2.5 Flash Image',
+      group: 'google'
+    },
+    {
+      id: 'google/gemini-3.1-flash-image-preview',
+      provider: 'openrouter',
+      name: 'Google: Gemini 3.1 Flash Image Preview',
       group: 'google'
     },
     {

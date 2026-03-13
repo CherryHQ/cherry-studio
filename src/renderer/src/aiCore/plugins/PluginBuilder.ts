@@ -8,7 +8,6 @@ import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
-import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
@@ -96,8 +95,8 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createQwenThinkingPlugin(enableThinking))
   }
 
-  // 0.6 OpenRouter Gemini image generation
-  if (isOpenRouterGeminiGenerateImageModel(model, provider)) {
+  // 0.6 OpenRouter image generation
+  if (provider.id === SystemProviderIds.openrouter && config.enableGenerateImage) {
     plugins.push(createOpenrouterGenerateImagePlugin())
   }
 
