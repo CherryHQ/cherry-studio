@@ -1,5 +1,3 @@
-import type { TranslateLanguageCode } from '@types'
-
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
