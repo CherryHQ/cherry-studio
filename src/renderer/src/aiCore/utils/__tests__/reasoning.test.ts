@@ -1169,7 +1169,7 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should return thinkingLevel minimal for Gemini 3 model with minimal effort', () => {
+    it('should return thinkingLevel low for Gemini 3 model with minimal effort', () => {
       vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
       vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
       vi.mocked(mockModels.isGemini3ThinkingTokenModel).mockReturnValue(true)
@@ -1190,7 +1190,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         thinkingConfig: {
           includeThoughts: true,
-          thinkingLevel: 'minimal'
+          thinkingLevel: 'low'
         }
       })
     })

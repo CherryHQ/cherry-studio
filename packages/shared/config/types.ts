@@ -16,6 +16,11 @@ export interface CodeToolsRunResult {
 
 export type OperationResult = { success: true } | { success: false; message: string }
 
+export type NodeCheckResult =
+  | { status: 'not_found' }
+  | { status: 'version_low'; version: string; path: string }
+  | { status: 'ok'; version: string; path: string }
+
 export type LoaderReturn = {
   entriesAdded: number
   uniqueId: string

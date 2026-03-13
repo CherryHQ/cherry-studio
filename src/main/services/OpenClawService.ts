@@ -6,14 +6,22 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isLinux, isMac, isWin } from '@main/constant'
 import { isUserInChina } from '@main/utils/ipService'
-import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
+import {
+  checkGitAvailable,
+  crossPlatformSpawn,
+  executeCommand,
+  findExecutableInEnv,
+  getBinaryPath,
+  runInstallScript
+} from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
-import type { OperationResult } from '@shared/config/types'
+import type { NodeCheckResult, OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
+import semver from 'semver'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
 import VertexAIService from './VertexAIService'
@@ -27,6 +35,13 @@ const OPENCLAW_CONFIG_BAK_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json.b
 const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
+
+interface OpenClawUpdateInfo {
+  hasUpdate: boolean
+  currentVersion: string | null
+  latestVersion: string | null
+  message?: string
+}
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -135,6 +150,10 @@ class OpenClawService {
 
   constructor() {
     this.checkInstalled = this.checkInstalled.bind(this)
+    this.checkNodeVersion = this.checkNodeVersion.bind(this)
+    this.checkGitAvailable = this.checkGitAvailable.bind(this)
+    this.getNodeDownloadUrl = this.getNodeDownloadUrl.bind(this)
+    this.getGitDownloadUrl = this.getGitDownloadUrl.bind(this)
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
@@ -222,6 +241,80 @@ class OpenClawService {
     const localPath = await getBinaryPath('openclaw')
     if (fs.existsSync(localPath)) return localPath
     return null
+  }
+
+  public async checkNodeVersion(): Promise<NodeCheckResult> {
+    const MINIMUM_VERSION = '22.0.0'
+    try {
+      await refreshShellEnv()
+      const nodePath = await findExecutableInEnv('node')
+      if (!nodePath) {
+        logger.debug('Node.js not found in environment')
+        return { status: 'not_found' }
+      }
+
+      const output = await executeCommand(nodePath, ['--version'], { capture: true, timeout: 5000 })
+      const version = semver.valid(semver.coerce(output.trim()))
+
+      if (!version || semver.lt(version, MINIMUM_VERSION)) {
+        logger.debug(`Node.js version too low: ${version} at ${nodePath}`)
+        return { status: 'version_low', version: version ?? output.trim(), path: nodePath }
+      }
+
+      logger.debug(`Node.js version OK: ${version} at ${nodePath}`)
+      return { status: 'ok', version, path: nodePath }
+    } catch (error) {
+      logger.warn('Failed to check Node.js version:', error as Error)
+      return { status: 'not_found' }
+    }
+  }
+
+  /**
+   * Check if Git is available in the current shell environment.
+   */
+  public async checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
+    try {
+      return await checkGitAvailable()
+    } catch (error) {
+      logger.warn('Failed to check Git availability:', error as Error)
+      return { available: false, path: null }
+    }
+  }
+
+  /**
+   * Get Node.js download URL based on current OS and architecture
+   */
+  public getNodeDownloadUrl(): string {
+    const version = 'v22.13.1'
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+
+    if (isWin) {
+      return `https://nodejs.org/dist/${version}/node-${version}-${arch}.msi`
+    } else if (isMac) {
+      // macOS: .pkg installer (universal)
+      return `https://nodejs.org/dist/${version}/node-${version}.pkg`
+    } else if (isLinux) {
+      return `https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.xz`
+    }
+    // Fallback to official download page
+    return 'https://nodejs.org/en/download'
+  }
+
+  /**
+   * Get Git download URL based on current OS and architecture
+   */
+  public getGitDownloadUrl(): string {
+    const version = '2.53.0'
+
+    if (isWin) {
+      const winArch = process.arch === 'arm64' ? 'arm64' : '64-bit'
+      return `https://github.com/git-for-windows/git/releases/download/v${version}.windows.1/Git-${version}-${winArch}.exe`
+    } else if (isMac) {
+      return 'https://git-scm.com/download/mac'
+    } else if (isLinux) {
+      return 'https://git-scm.com/download/linux'
+    }
+    return 'https://git-scm.com/downloads'
   }
 
   /**
@@ -348,7 +441,6 @@ class OpenClawService {
       const binaryPath = path.join(binDir, binaryName)
 
       this.sendInstallProgress('Removing OpenClaw binary...')
-
       await this.unlinkBinary()
 
       if (fs.existsSync(binaryPath)) {
