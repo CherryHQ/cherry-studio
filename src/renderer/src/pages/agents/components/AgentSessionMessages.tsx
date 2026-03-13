@@ -4,6 +4,11 @@ import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
+import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
+import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
+import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import PermissionModeDisplay from '@renderer/pages/home/Messages/PermissionModeDisplay'
+import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import { type Topic, TopicType } from '@renderer/types'
@@ -12,12 +17,6 @@ import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import styled from 'styled-components'
 
-import MessageAnchorLine from './MessageAnchorLine'
-import MessageGroup from './MessageGroup'
-import NarrowLayout from './NarrowLayout'
-import PermissionModeDisplay from './PermissionModeDisplay'
-import { MessagesContainer, ScrollContainer } from './shared'
-
 const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
@@ -25,7 +24,7 @@ type Props = {
   sessionId: string
 }
 
-const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
+const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   // Use the same hook as Messages.tsx for consistent behavior

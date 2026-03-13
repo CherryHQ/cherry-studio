@@ -4,21 +4,21 @@ import type { Assistant } from '@renderer/types'
 import { useCallback } from 'react'
 import * as tinyPinyin from 'tiny-pinyin'
 
-import type { UnifiedItem } from './useUnifiedItems'
+import type { AssistantListItem } from './useAssistantListItems'
 
-interface UseUnifiedSortingOptions {
-  unifiedItems: UnifiedItem[]
+interface UseAssistantListSortingOptions {
+  assistantItems: AssistantListItem[]
   updateAssistants: (assistants: Assistant[]) => void
 }
 
-export const useUnifiedSorting = (options: UseUnifiedSortingOptions) => {
-  const { unifiedItems, updateAssistants } = options
+export const useAssistantListSorting = (options: UseAssistantListSortingOptions) => {
+  const { assistantItems, updateAssistants } = options
   const dispatch = useAppDispatch()
 
-  const sortUnifiedItemsByPinyin = useCallback((items: UnifiedItem[], isAscending: boolean) => {
+  const sortAssistantItemsByPinyin = useCallback((items: AssistantListItem[], isAscending: boolean) => {
     return [...items].sort((a, b) => {
-      const nameA = a.type === 'agent' ? a.data.name || a.data.id : a.data.name
-      const nameB = b.type === 'agent' ? b.data.name || b.data.id : b.data.name
+      const nameA = a.data.name
+      const nameB = b.data.name
       const pinyinA = tinyPinyin.convertToPinyin(nameA, '', true)
       const pinyinB = tinyPinyin.convertToPinyin(nameB, '', true)
       return isAscending ? pinyinA.localeCompare(pinyinB) : pinyinB.localeCompare(pinyinA)
@@ -26,28 +26,26 @@ export const useUnifiedSorting = (options: UseUnifiedSortingOptions) => {
   }, [])
 
   const sortByPinyinAsc = useCallback(() => {
-    const sorted = sortUnifiedItemsByPinyin(unifiedItems, true)
+    const sorted = sortAssistantItemsByPinyin(assistantItems, true)
     const orderToSave = sorted.map((item) => ({
       type: item.type,
       id: item.data.id
     }))
     dispatch(setUnifiedListOrder(orderToSave))
-    // Also update assistants order
-    const newAssistants = sorted.filter((item) => item.type === 'assistant').map((item) => item.data)
+    const newAssistants = sorted.map((item) => item.data)
     updateAssistants(newAssistants)
-  }, [unifiedItems, sortUnifiedItemsByPinyin, dispatch, updateAssistants])
+  }, [assistantItems, sortAssistantItemsByPinyin, dispatch, updateAssistants])
 
   const sortByPinyinDesc = useCallback(() => {
-    const sorted = sortUnifiedItemsByPinyin(unifiedItems, false)
+    const sorted = sortAssistantItemsByPinyin(assistantItems, false)
     const orderToSave = sorted.map((item) => ({
       type: item.type,
       id: item.data.id
     }))
     dispatch(setUnifiedListOrder(orderToSave))
-    // Also update assistants order
-    const newAssistants = sorted.filter((item) => item.type === 'assistant').map((item) => item.data)
+    const newAssistants = sorted.map((item) => item.data)
     updateAssistants(newAssistants)
-  }, [unifiedItems, sortUnifiedItemsByPinyin, dispatch, updateAssistants])
+  }, [assistantItems, sortAssistantItemsByPinyin, dispatch, updateAssistants])
 
   return {
     sortByPinyinAsc,

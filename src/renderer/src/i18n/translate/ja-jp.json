@@ -465,6 +465,7 @@
         }
       }
     },
+    "sidebar_title": "[to be translated]:Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} タスク完了"
@@ -1556,6 +1557,7 @@
     "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
+    "sessions": "[to be translated]:Sessions",
     "settings": "設定",
     "sort": {
       "pinyin": {

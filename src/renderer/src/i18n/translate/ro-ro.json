@@ -465,6 +465,7 @@
         }
       }
     },
+    "sidebar_title": "[to be translated]:Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -1556,6 +1557,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
+    "sessions": "[to be translated]:Sessions",
     "settings": "Setări",
     "sort": {
       "pinyin": {

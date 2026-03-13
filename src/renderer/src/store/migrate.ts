@@ -3315,6 +3315,31 @@ const migrateConfig = {
       logger.error('migrate 202 error', error as Error)
       return state
     }
+  },
+  '203': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        // Add 'agents' to visible icons if not already present
+        if (!state.settings.sidebarIcons.visible.includes('agents')) {
+          // Insert after 'assistants' if present, otherwise append
+          const assistantsIndex = state.settings.sidebarIcons.visible.indexOf('assistants')
+          if (assistantsIndex !== -1) {
+            state.settings.sidebarIcons.visible = [
+              ...state.settings.sidebarIcons.visible.slice(0, assistantsIndex + 1),
+              'agents',
+              ...state.settings.sidebarIcons.visible.slice(assistantsIndex + 1)
+            ]
+          } else {
+            state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'agents']
+          }
+        }
+      }
+      logger.info('migrate 203 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 203 error', error as Error)
+      return state
+    }
   }
 }
 

@@ -1,24 +1,20 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import type { Assistant, AssistantsSortType, Topic } from '@renderer/types'
+import type { Assistant, AssistantsSortType } from '@renderer/types'
 import type { FC } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import UnifiedAddButton from './components/UnifiedAddButton'
-import { UnifiedList } from './components/UnifiedList'
-import { UnifiedTagGroups } from './components/UnifiedTagGroups'
-import { useActiveAgent } from './hooks/useActiveAgent'
-import { useUnifiedGrouping } from './hooks/useUnifiedGrouping'
-import { useUnifiedItems } from './hooks/useUnifiedItems'
-import { useUnifiedSorting } from './hooks/useUnifiedSorting'
+import AssistantAddButton from './components/AssistantAddButton'
+import { AssistantList } from './components/AssistantList'
+import { AssistantTagGroups } from './components/AssistantTagGroups'
+import { useAssistantListGrouping } from './hooks/useAssistantListGrouping'
+import { useAssistantListItems } from './hooks/useAssistantListItems'
+import { useAssistantListSorting } from './hooks/useAssistantListSorting'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -30,15 +26,7 @@ interface AssistantsTabProps {
 const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
-  const { apiServerConfig } = useApiServer()
-  const apiServerEnabled = apiServerConfig.enabled
-  const { chat } = useRuntime()
   const { t } = useTranslation()
-
-  // Agent related hooks
-  const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
-  const { activeAgentId } = chat
-  const { setActiveAgentId } = useActiveAgent()
 
   // Assistant related hooks
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
@@ -47,30 +35,22 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const [dragging, setDragging] = useState(false)
 
-  // Unified items management
-  const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
-    agents,
+  // Assistant list items management
+  const { assistantItems, handleAssistantListReorder } = useAssistantListItems({
     assistants,
-    apiServerEnabled,
-    agentsLoading,
-    agentsError,
     updateAssistants
   })
 
   // Sorting
-  const { sortByPinyinAsc, sortByPinyinDesc } = useUnifiedSorting({
-    unifiedItems,
+  const { sortByPinyinAsc, sortByPinyinDesc } = useAssistantListSorting({
+    assistantItems,
     updateAssistants
   })
 
   // Grouping
-  const { groupedUnifiedItems, handleUnifiedGroupReorder } = useUnifiedGrouping({
-    unifiedItems,
+  const { groupedAssistantItems, handleAssistantGroupReorder } = useAssistantListGrouping({
+    assistantItems,
     assistants,
-    agents,
-    apiServerEnabled,
-    agentsLoading,
-    agentsError,
     updateAssistants
   })
 
@@ -98,53 +78,22 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     [setAssistantsTabSortType]
   )
 
-  const handleAgentPress = useCallback(
-    (agentId: string) => {
-      setActiveAgentId(agentId)
-      // TODO: should allow it to be null
-      setActiveAssistant({
-        id: 'fake',
-        name: '',
-        prompt: '',
-        topics: [
-          {
-            id: 'fake',
-            assistantId: 'fake',
-            name: 'fake',
-            createdAt: '',
-            updatedAt: '',
-            messages: []
-          } as unknown as Topic
-        ],
-        type: 'chat'
-      })
-    },
-    [setActiveAgentId, setActiveAssistant]
-  )
-
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <UnifiedAddButton
-        onCreateAssistant={onCreateAssistant}
-        setActiveAssistant={setActiveAssistant}
-        setActiveAgentId={setActiveAgentId}
-      />
+      <AssistantAddButton onCreateAssistant={onCreateAssistant} />
 
       {assistantsTabSortType === 'tags' ? (
-        <UnifiedTagGroups
-          groupedItems={groupedUnifiedItems}
+        <AssistantTagGroups
+          groupedItems={groupedAssistantItems}
           activeAssistantId={activeAssistant.id}
-          activeAgentId={activeAgentId}
           sortBy={assistantsTabSortType}
           collapsedTags={collapsedTags}
-          onGroupReorder={handleUnifiedGroupReorder}
+          onGroupReorder={handleAssistantGroupReorder}
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}
           onToggleTagCollapse={toggleTagCollapse}
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
-          onAgentDelete={deleteAgent}
-          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}
@@ -153,18 +102,15 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           sortByPinyinDesc={sortByPinyinDesc}
         />
       ) : (
-        <UnifiedList
-          items={unifiedItems}
+        <AssistantList
+          items={assistantItems}
           activeAssistantId={activeAssistant.id}
-          activeAgentId={activeAgentId}
           sortBy={assistantsTabSortType}
-          onReorder={handleUnifiedListReorder}
+          onReorder={handleAssistantListReorder}
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
-          onAgentDelete={deleteAgent}
-          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}

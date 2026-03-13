@@ -3,7 +3,17 @@ import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import {
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MousePointerClick,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +28,12 @@ const LaunchpadPage: FC = () => {
   const { openedKeepAliveMinapps } = useRuntime()
 
   const appMenuItems = [
+    {
+      icon: <MousePointerClick size={32} className="icon" />,
+      text: t('agent.sidebar_title'),
+      path: '/agents',
+      bgColor: 'linear-gradient(135deg, #0EA5E9, #38BDF8)' // 智能体：天蓝色，代表智能和交互
+    },
     {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),

@@ -1,18 +1,12 @@
-import type { Assistant } from '@renderer/types'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import { Drawer, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
-import type { FC } from 'react'
 import { useState } from 'react'
 
-import NavbarIcon from '../../../../../components/NavbarIcon'
-import { AssistantSettingsTab } from './SettingsTab'
+import AgentSettingsTab from '../../../AgentSettingsTab'
 
-interface Props {
-  assistant?: Assistant
-}
-
-const SettingsButton: FC<Props> = ({ assistant }) => {
+const SettingsButton = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
@@ -29,7 +23,7 @@ const SettingsButton: FC<Props> = ({ assistant }) => {
         width="var(--assistants-width)"
         closable={false}
         styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        {assistant && <AssistantSettingsTab assistant={assistant} />}
+        <AgentSettingsTab />
       </Drawer>
     </>
   )
