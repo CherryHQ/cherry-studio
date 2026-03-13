@@ -335,15 +335,12 @@ class OpenClawService {
     const isPortOpen = await this.checkPortOpen(this.gatewayPort)
     if (isPortOpen) {
       // Check if this is our gateway already running on this port
-      const shellEnv = await refreshShellEnv()
-      const openclawPath = await this.findOpenClawBinary()
-      if (openclawPath) {
-        const alreadyRunning = await this.checkGatewayStatus()
-        if (alreadyRunning) {
-          this.gatewayStatus = 'running'
-          logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
-          return { success: true }
-        }
+      const { status } = await this.checkGatewayHealth()
+      const alreadyRunning = status === 'healthy'
+      if (alreadyRunning) {
+        this.gatewayStatus = 'running'
+        logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
+        return { success: true }
       }
       return {
         success: false,
@@ -429,7 +426,7 @@ class OpenClawService {
       }
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const { status, error: healthError } = await this.probeGatewayHealthWithError()
+      const { status, error: healthError } = await this.checkGatewayHealthWithError()
       if (status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
         return
@@ -478,7 +475,8 @@ class OpenClawService {
    */
   private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const stillRunning = await this.checkGatewayStatus()
+      const { status } = await this.checkGatewayHealth()
+      const stillRunning = status === 'healthy'
       if (!stillRunning) {
         return false
       }
@@ -541,7 +539,7 @@ class OpenClawService {
       return { status: this.gatewayStatus, port: this.gatewayPort }
     }
 
-    const { status } = await this.probeGatewayHealth()
+    const { status } = await this.checkGatewayHealth()
     if (status === 'healthy' && this.gatewayStatus !== 'running') {
       logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
       this.gatewayStatus = 'running'
@@ -564,7 +562,7 @@ class OpenClawService {
     if (this.gatewayStatus !== 'running') {
       return { status: 'unhealthy', gatewayPort: this.gatewayPort }
     }
-    const healthInfo = await this.probeGatewayHealth()
+    const healthInfo = await this.checkGatewayHealth()
     if (healthInfo.status === 'unhealthy') {
       logger.warn(`Gateway health check failed, marking as stopped`)
       this.gatewayStatus = 'stopped'
@@ -579,7 +577,7 @@ class OpenClawService {
    * Does NOT check gatewayStatus — callers that need to detect
    * externally-started gateways should call this directly.
    */
-  private async probeGatewayHealth(): Promise<HealthInfo> {
+  private async checkGatewayHealth(): Promise<HealthInfo> {
     try {
       const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
         signal: AbortSignal.timeout(3000)
@@ -884,30 +882,11 @@ class OpenClawService {
   }
 
   /**
-   * Check gateway status via HTTP health endpoint.
-   * Returns true if gateway is running.
-   */
-  private async checkGatewayStatus(): Promise<boolean> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
-        signal: AbortSignal.timeout(3000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
-        return data.ok === true && data.status === 'live'
-      }
-    } catch {
-      // Connection refused or timeout means gateway is not running
-    }
-    return false
-  }
-
-  /**
-   * Like probeGatewayHealth but also returns error message when unhealthy.
+   * Like checkGatewayHealth but also returns error message when unhealthy.
    * Uses HTTP request for faster health checks.
    * Expected response: {"ok":true,"status":"live"}
    */
-  private async probeGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+  private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
     try {
       const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
         signal: AbortSignal.timeout(3000)
