@@ -25,6 +25,7 @@
 - Define the source of truth for shared Zhipu credentials between LLM provider settings and Web Search provider settings.
 - Update both UI write paths and runtime read paths to use the same backend.
 - Avoid adding more temporary Redux-only sync logic.
+- Add follow-up support for managing multiple API keys in Web Search settings.
 - Preserve unresolved compression model ids when editing unrelated settings.
 - Add regression coverage for:
   changing Zhipu API key from general Provider Settings,
