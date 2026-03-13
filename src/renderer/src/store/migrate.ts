@@ -3306,6 +3306,18 @@ const migrateConfig = {
   },
   '202': (state: RootState) => {
     try {
+      const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
+      if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
+        filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 202 error', error as Error)
+      return state
+    }
+  },
+  '203': (state: RootState) => {
+    try {
       if (state.settings && state.settings.sidebarIcons) {
         // Add 'agents' to visible icons if not already present
         if (!state.settings.sidebarIcons.visible.includes('agents')) {
@@ -3322,10 +3334,10 @@ const migrateConfig = {
           }
         }
       }
-      logger.info('migrate 202 success')
+      logger.info('migrate 203 success')
       return state
     } catch (error) {
-      logger.error('migrate 202 error', error as Error)
+      logger.error('migrate 203 error', error as Error)
       return state
     }
   }

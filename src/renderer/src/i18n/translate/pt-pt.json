@@ -1496,7 +1496,6 @@
     "originalError": "Erro original",
     "originalMessage": "Mensagem original",
     "parameter": "parâmetro",
-    "pause_placeholder": "Interrompido",
     "prompt": "prompt",
     "provider": "fornecedor",
     "providerId": "ID do fornecedor",
@@ -1510,6 +1509,7 @@
     "requestBody": "Conteúdo da solicitação",
     "requestBodyValues": "Corpo da solicitação",
     "requestUrl": "Caminho da solicitação",
+    "request_timeout": "Tempo limite esgotado",
     "response": "resposta",
     "responseBody": "Conteúdo da resposta",
     "responseHeaders": "Cabeçalho de resposta",
@@ -1519,6 +1519,7 @@
     "status": "Código de status",
     "statusCode": "Código de status",
     "statusText": "Texto de estado",
+    "stream_paused": "Interrompido",
     "text": "texto",
     "toolInput": "ferramenta de entrada",
     "toolName": "Nome da ferramenta",
@@ -2596,6 +2597,11 @@
     },
     "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
+    "migration": {
+      "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
+      "install_button": "Reinstale o OpenClaw",
+      "title": "OpenClaw Precisa de Atualização"
+    },
     "model_config": {
       "auth_token": "Token de Autenticação",
       "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",
@@ -2631,6 +2637,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Verificar Atualizações",
       "open_dashboard": "Abrir Painel",
       "title": "Ações Rápidas",
       "uninstall": "Desinstalar",
@@ -2657,6 +2664,16 @@
     "uninstalling": {
       "description": "Aguarde enquanto o OpenClaw está sendo desinstalado...",
       "title": "Desinstalando OpenClaw"
+    },
+    "update": {
+      "available": "Nova versão disponível: v{{latest}} (atual: v{{current}})",
+      "checking": "Verificando atualizações...",
+      "confirm_button": "Atualizar agora",
+      "failed": "Falha ao verificar atualizações",
+      "modal_title": "Atualização do OpenClaw",
+      "success": "Atualização concluída com sucesso!",
+      "up_to_date": "Já está atualizado (v{{current}})",
+      "updating": "Atualizando..."
     }
   },
   "ovms": {

@@ -1496,7 +1496,6 @@
     "originalError": "Original Error",
     "originalMessage": "Original Message",
     "parameter": "Parameter",
-    "pause_placeholder": "Paused",
     "prompt": "Prompt",
     "provider": "Provider",
     "providerId": "Provider ID",
@@ -1510,6 +1509,7 @@
     "requestBody": "Request Body",
     "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "request_timeout": "Request timed out",
     "response": "Response",
     "responseBody": "Response Body",
     "responseHeaders": "Response Header",
@@ -1519,6 +1519,7 @@
     "status": "Status Code",
     "statusCode": "Status Code",
     "statusText": "Status Text",
+    "stream_paused": "Paused",
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
@@ -2596,6 +2597,11 @@
     },
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
+    "migration": {
+      "description": "An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "Reinstall OpenClaw",
+      "title": "OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Auth Token",
       "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
@@ -2631,6 +2637,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Check for Updates",
       "open_dashboard": "Open Dashboard",
       "title": "Quick Actions",
       "uninstall": "Uninstall",
@@ -2657,6 +2664,16 @@
     "uninstalling": {
       "description": "Please wait while OpenClaw is being uninstalled...",
       "title": "Uninstalling OpenClaw"
+    },
+    "update": {
+      "available": "New version available: v{{latest}} (current: v{{current}})",
+      "checking": "Checking for updates...",
+      "confirm_button": "Update Now",
+      "failed": "Failed to check for updates",
+      "modal_title": "OpenClaw Update",
+      "success": "Update completed successfully!",
+      "up_to_date": "Already up to date (v{{current}})",
+      "updating": "Updating..."
     }
   },
   "ovms": {

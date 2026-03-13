@@ -1496,7 +1496,6 @@
     "originalError": "原錯誤",
     "originalMessage": "原始訊息",
     "parameter": "參數",
-    "pause_placeholder": "回應已暫停",
     "prompt": "提示詞",
     "provider": "供應商",
     "providerId": "提供者 ID",
@@ -1510,6 +1509,7 @@
     "requestBody": "請求內容",
     "requestBodyValues": "請求本文參數",
     "requestUrl": "請求路徑",
+    "request_timeout": "請求逾時",
     "response": "回應",
     "responseBody": "回應本文",
     "responseHeaders": "回應標頭",
@@ -1519,6 +1519,7 @@
     "status": "狀態碼",
     "statusCode": "狀態碼",
     "statusText": "狀態文字",
+    "stream_paused": "回應已暫停",
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
@@ -2596,6 +2597,11 @@
     },
     "install_progress": "安裝進度",
     "installed_at": "OpenClaw 安裝路徑",
+    "migration": {
+      "description": "偵測到透過 npm 安裝的舊版本 OpenClaw，請重新安裝以取得最新官方版本。",
+      "install_button": "重新安裝 OpenClaw",
+      "title": "OpenClaw 需要更新"
+    },
     "model_config": {
       "auth_token": "認證令牌",
       "auth_token_hint": "閘道認證令牌（必填）。留空時將自動產生。",
@@ -2631,6 +2637,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "檢查更新",
       "open_dashboard": "開啟控制面板",
       "title": "快捷操作",
       "uninstall": "解除安裝",
@@ -2657,6 +2664,16 @@
     "uninstalling": {
       "description": "請稍候，正在解除安裝 OpenClaw...",
       "title": "解除安裝 OpenClaw"
+    },
+    "update": {
+      "available": "發現新版本：v{{latest}}（目前版本：v{{current}}）",
+      "checking": "正在檢查更新...",
+      "confirm_button": "立即更新",
+      "failed": "檢查更新失敗",
+      "modal_title": "OpenClaw 更新",
+      "success": "更新成功！",
+      "up_to_date": "已是最新版本（v{{current}}）",
+      "updating": "更新中..."
     }
   },
   "ovms": {
