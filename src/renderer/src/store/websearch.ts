@@ -81,60 +81,56 @@ const websearchSlice = createSlice({
   name: 'websearch',
   initialState,
   reducers: {
-    setDefaultProvider: (state, action: PayloadAction<string>) => {
-      state.defaultProvider = action.payload
-    },
-    setWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
-      state.providers = action.payload
-    },
-    updateWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
-      state.providers = action.payload
-    },
+    // setDefaultProvider: (state, action: PayloadAction<string>) => {
+    //   state.defaultProvider = action.payload
+    // },
+    // setWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
+    //   state.providers = action.payload
+    // },
+    // updateWebSearchProviders: (state, action: PayloadAction<WebSearchProvider[]>) => {
+    //   state.providers = action.payload
+    // },
     updateWebSearchProvider: (state, action: PayloadAction<Partial<WebSearchProvider>>) => {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
       }
-    },
-    setSearchWithTime: (state, action: PayloadAction<boolean>) => {
-      state.searchWithTime = action.payload
-    },
-    setMaxResult: (state, action: PayloadAction<number>) => {
-      state.maxResults = action.payload
-    },
-    setExcludeDomains: (state, action: PayloadAction<string[]>) => {
-      state.excludeDomains = action.payload
-    },
-    // 添加订阅源
-    addSubscribeSource: (state, action: PayloadAction<Omit<SubscribeSource, 'key'>>) => {
-      state.subscribeSources = state.subscribeSources || []
-      const newKey =
-        state.subscribeSources.length > 0 ? Math.max(...state.subscribeSources.map((item) => item.key)) + 1 : 0
-      state.subscribeSources.push({
-        key: newKey,
-        url: action.payload.url,
-        name: action.payload.name,
-        blacklist: action.payload.blacklist
-      })
-    },
-    // 删除订阅源
-    removeSubscribeSource: (state, action: PayloadAction<number>) => {
-      state.subscribeSources = state.subscribeSources.filter((source) => source.key !== action.payload)
-    },
-    // 更新订阅源的黑名单
-    updateSubscribeBlacklist: (state, action: PayloadAction<{ key: number; blacklist: string[] }>) => {
-      const source = state.subscribeSources.find((s) => s.key === action.payload.key)
-      if (source) {
-        source.blacklist = action.payload.blacklist
-      }
-    },
-    // 更新订阅源列表
-    setSubscribeSources: (state, action: PayloadAction<SubscribeSource[]>) => {
-      state.subscribeSources = action.payload
-    },
-    setOverwrite: (state, action: PayloadAction<boolean>) => {
-      state.overwrite = action.payload
-    },
+    }
+    // setSearchWithTime: (state, action: PayloadAction<boolean>) => {
+    //   state.searchWithTime = action.payload
+    // },
+    // setMaxResult: (state, action: PayloadAction<number>) => {
+    //   state.maxResults = action.payload
+    // },
+    // setExcludeDomains: (state, action: PayloadAction<string[]>) => {
+    //   state.excludeDomains = action.payload
+    // },
+    // addSubscribeSource: (state, action: PayloadAction<Omit<SubscribeSource, 'key'>>) => {
+    //   state.subscribeSources = state.subscribeSources || []
+    //   const newKey =
+    //     state.subscribeSources.length > 0 ? Math.max(...state.subscribeSources.map((item) => item.key)) + 1 : 0
+    //   state.subscribeSources.push({
+    //     key: newKey,
+    //     url: action.payload.url,
+    //     name: action.payload.name,
+    //     blacklist: action.payload.blacklist
+    //   })
+    // },
+    // removeSubscribeSource: (state, action: PayloadAction<number>) => {
+    //   state.subscribeSources = state.subscribeSources.filter((source) => source.key !== action.payload)
+    // },
+    // updateSubscribeBlacklist: (state, action: PayloadAction<{ key: number; blacklist: string[] }>) => {
+    //   const source = state.subscribeSources.find((s) => s.key === action.payload.key)
+    //   if (source) {
+    //     source.blacklist = action.payload.blacklist
+    //   }
+    // },
+    // setSubscribeSources: (state, action: PayloadAction<SubscribeSource[]>) => {
+    //   state.subscribeSources = action.payload
+    // },
+    // setOverwrite: (state, action: PayloadAction<boolean>) => {
+    //   state.overwrite = action.payload
+    // },
     // addWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
     //   const exists = state.providers.some((provider) => provider.id === action.payload.id)
     //
@@ -142,42 +138,42 @@ const websearchSlice = createSlice({
     //     state.providers.push(action.payload)
     //   }
     // },
-    setCompressionConfig: (state, action: PayloadAction<CompressionConfig>) => {
-      state.compressionConfig = action.payload
-    },
-    updateCompressionConfig: (state, action: PayloadAction<Partial<CompressionConfig>>) => {
-      state.compressionConfig = {
-        ...state.compressionConfig,
-        ...action.payload
-      } as CompressionConfig
-    },
-    setProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
-      state.providerConfig = action.payload
-    },
-    updateProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
-      state.providerConfig = { ...state.providerConfig, ...action.payload }
-    }
+    // setCompressionConfig: (state, action: PayloadAction<CompressionConfig>) => {
+    //   state.compressionConfig = action.payload
+    // },
+    // updateCompressionConfig: (state, action: PayloadAction<Partial<CompressionConfig>>) => {
+    //   state.compressionConfig = {
+    //     ...state.compressionConfig,
+    //     ...action.payload
+    //   } as CompressionConfig
+    // },
+    // setProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
+    //   state.providerConfig = action.payload
+    // },
+    // updateProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
+    //   state.providerConfig = { ...state.providerConfig, ...action.payload }
+    // }
   }
 })
 
 export const {
-  setWebSearchProviders,
-  updateWebSearchProvider,
-  updateWebSearchProviders,
-  setDefaultProvider,
-  setSearchWithTime,
-  setExcludeDomains,
-  setMaxResult,
-  addSubscribeSource,
-  removeSubscribeSource,
-  updateSubscribeBlacklist,
-  setSubscribeSources,
-  setOverwrite,
+  updateWebSearchProvider
+  // setWebSearchProviders,
+  // updateWebSearchProviders,
+  // setDefaultProvider,
+  // setSearchWithTime,
+  // setExcludeDomains,
+  // setMaxResult,
+  // addSubscribeSource,
+  // removeSubscribeSource,
+  // updateSubscribeBlacklist,
+  // setSubscribeSources,
+  // setOverwrite,
   // addWebSearchProvider,
-  setCompressionConfig,
-  updateCompressionConfig,
-  setProviderConfig,
-  updateProviderConfig
+  // setCompressionConfig,
+  // updateCompressionConfig,
+  // setProviderConfig,
+  // updateProviderConfig
 } = websearchSlice.actions
 
 export default websearchSlice.reducer
