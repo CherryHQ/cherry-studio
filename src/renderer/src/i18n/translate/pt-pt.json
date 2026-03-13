@@ -4779,6 +4779,7 @@
         "setting_title": "Configuração rápida do modelo",
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
       },
+      "show_cherry_ai_models": "[to be translated]:Show CherryAI Models",
       "topic_naming": {
         "auto": "Renomeação automática de tópicos",
         "label": "Nomeação do tópico",
