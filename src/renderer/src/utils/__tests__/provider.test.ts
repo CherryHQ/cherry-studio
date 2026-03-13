@@ -2,9 +2,11 @@ import { type AzureOpenAIProvider, type Provider, SystemProviderIds } from '@ren
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  getAnthropicSupportedProviders,
   getClaudeSupportedProviders,
   isAIGatewayProvider,
   isAnthropicProvider,
+  isAnthropicSupportedProvider,
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
@@ -65,6 +67,26 @@ describe('provider utils', () => {
     ]
 
     expect(getClaudeSupportedProviders(providers)).toEqual(providers.slice(0, 3))
+  })
+
+  it('filters Anthropic supported providers', () => {
+    const providers = [
+      createProvider({ id: 'anthropic-official', type: 'anthropic' }),
+      createProvider({ id: 'custom-host', anthropicApiHost: 'https://anthropic.local' }),
+      createProvider({ id: 'aihubmix' }),
+      createProvider({ id: 'other' })
+    ]
+
+    expect(getAnthropicSupportedProviders(providers)).toEqual(providers.slice(0, 2))
+  })
+
+  it('checks Anthropic supported provider', () => {
+    expect(isAnthropicSupportedProvider(createProvider({ id: 'anthropic-official', type: 'anthropic' }))).toBe(true)
+    expect(
+      isAnthropicSupportedProvider(createProvider({ id: 'custom-host', anthropicApiHost: 'https://anthropic.local' }))
+    ).toBe(true)
+    expect(isAnthropicSupportedProvider(createProvider({ id: 'aihubmix' }))).toBe(false)
+    expect(isAnthropicSupportedProvider(createProvider({ id: 'other' }))).toBe(false)
   })
 
   it('evaluates message array content support', () => {

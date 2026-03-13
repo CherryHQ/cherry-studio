@@ -192,10 +192,10 @@ class WebSearchService {
    */
   private async setWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number) {
     // Use ?? {} to handle cache miss (cacheService.get returns undefined when not cached)
-    const activeSearches = cacheService.get('chat.websearch.active_searches') ?? {}
+    const activeSearches = cacheService.get('chat.web_search.active_searches') ?? {}
     activeSearches[requestId] = status
 
-    cacheService.set('chat.websearch.active_searches', activeSearches)
+    cacheService.set('chat.web_search.active_searches', activeSearches)
 
     if (delayMs) {
       await new Promise((resolve) => setTimeout(resolve, delayMs))

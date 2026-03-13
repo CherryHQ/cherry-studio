@@ -1,5 +1,5 @@
 /**
- * Preferences migrator - migrates preferences from ElectronStore and Redux to SQLite
+ * Preferences migrator - migrates preferences from ElectronStore, Redux, and Dexie settings to SQLite
  */
 
 import { preferenceTable } from '@data/db/schemas/preference'
@@ -11,7 +11,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingTargetKeys } from './mappings/ComplexPreferenceMappings'
-import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from './mappings/PreferencesMappings'
+import { DEXIE_SETTINGS_MAPPINGS, ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from './mappings/PreferencesMappings'
 
 const logger = loggerService.withContext('PreferencesMigrator')
 
@@ -19,14 +19,14 @@ interface MigrationItem {
   originalKey: string
   targetKey: string
   defaultValue: unknown
-  source: 'electronStore' | 'redux'
+  source: 'electronStore' | 'redux' | 'dexie-settings'
   sourceCategory?: string
 }
 
 interface PreparedData {
   targetKey: string
   value: unknown
-  source: 'electronStore' | 'redux' | 'complex'
+  source: 'electronStore' | 'redux' | 'dexie-settings' | 'complex'
   originalKey: string
 }
 
@@ -73,6 +73,8 @@ export class PreferencesMigrator extends BaseMigrator {
             originalValue = ctx.sources.electronStore.get(item.originalKey)
           } else if (item.source === 'redux' && item.sourceCategory) {
             originalValue = ctx.sources.reduxState.get(item.sourceCategory, item.originalKey)
+          } else if (item.source === 'dexie-settings') {
+            originalValue = ctx.sources.dexieSettings.get(item.originalKey)
           }
 
           // Determine value to migrate
@@ -110,6 +112,8 @@ export class PreferencesMigrator extends BaseMigrator {
                 sourceValues[name] = ctx.sources.electronStore.get(def.key)
               } else if (def.source === 'redux' && def.category) {
                 sourceValues[name] = ctx.sources.reduxState.get(def.category, def.key)
+              } else if (def.source === 'dexie-settings') {
+                sourceValues[name] = ctx.sources.dexieSettings.get(def.key)
               }
             }
 
@@ -301,6 +305,17 @@ export class PreferencesMigrator extends BaseMigrator {
       }
     }
 
+    // Process Dexie settings mappings
+    for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
+      const defaultValue = DefaultPreferences.default[mapping.targetKey] ?? null
+      items.push({
+        originalKey: mapping.originalKey,
+        targetKey: mapping.targetKey,
+        defaultValue,
+        source: 'dexie-settings'
+      })
+    }
+
     return items
   }
 
@@ -320,6 +335,11 @@ export class PreferencesMigrator extends BaseMigrator {
       for (const mapping of mappings) {
         keys.push(mapping.targetKey)
       }
+    }
+
+    // Collect from Dexie settings mappings
+    for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
+      keys.push(mapping.targetKey)
     }
 
     return keys
