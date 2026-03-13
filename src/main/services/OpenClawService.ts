@@ -22,6 +22,7 @@ const logger = loggerService.withContext('OpenClawService')
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -603,6 +604,17 @@ class OpenClawService {
       // Ensure config directory exists
       if (!fs.existsSync(OPENCLAW_CONFIG_DIR)) {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
+      }
+
+      // Migrate legacy openclaw.cherry.json → openclaw.json
+      if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
+        if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+          fs.renameSync(OPENCLAW_LEGACY_CONFIG_PATH, OPENCLAW_CONFIG_PATH)
+          logger.info('Migrated openclaw.cherry.json → openclaw.json')
+        } else {
+          fs.unlinkSync(OPENCLAW_LEGACY_CONFIG_PATH)
+          logger.info('Removed legacy openclaw.cherry.json (openclaw.json already exists)')
+        }
       }
 
       // Read existing config
