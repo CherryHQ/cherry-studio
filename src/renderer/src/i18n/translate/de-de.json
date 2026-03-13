@@ -395,11 +395,6 @@
     },
     "settings": {
       "advance": {
-        "envVars": {
-          "description": "Legen Sie benutzerdefinierte Umgebungsvariablen für die Agent-Laufzeit fest.",
-          "helper": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: SCHLÜSSEL=wert)",
-          "label": "Umgebungsvariablen"
-        },
         "maxTurns": {
           "description": "Legen Sie die Anzahl der Anfrage-/Antwort-Runden fest, die der Agent automatisch ausführt.",
           "helper": "Höhere Werte ermöglichen längere autonome Ausführung; niedrigere Werte bieten bessere Kontrolle.",

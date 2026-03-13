@@ -395,11 +395,6 @@
     },
     "settings": {
       "advance": {
-        "envVars": {
-          "description": "Définir des variables d’environnement personnalisées pour l’exécution de l’agent.",
-          "helper": "Entrez des variables d'environnement personnalisées (une par ligne, format : CLÉ=valeur)",
-          "label": "Variables d'environnement"
-        },
         "maxTurns": {
           "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
           "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",

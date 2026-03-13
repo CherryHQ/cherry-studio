@@ -395,11 +395,6 @@
     },
     "settings": {
       "advance": {
-        "envVars": {
-          "description": "Definir variáveis de ambiente personalizadas para o tempo de execução do agente.",
-          "helper": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
-          "label": "Variáveis de Ambiente"
-        },
         "maxTurns": {
           "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
           "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",

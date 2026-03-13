@@ -1,5 +1,5 @@
-import AddButton from '@renderer/components/AddButton'
 import type { DragStart } from '@hello-pangea/dnd'
+import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
@@ -532,7 +532,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.move_to'),
         key: 'move',
         icon: <FolderOpen size={14} />,
-        popupClassName: 'move-to-submenu',
         children: assistants
           .filter((a) => a.id !== assistant.id)
           .map((a) => ({
