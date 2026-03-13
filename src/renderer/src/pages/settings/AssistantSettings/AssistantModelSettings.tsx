@@ -39,8 +39,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     () => assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
     [assistant?.settings?.streamOutput]
   )
-  const [toolUseMode, setToolUseMode] = useState<AssistantSettings['toolUseMode']>(
-    assistant?.settings?.toolUseMode ?? 'function'
+  const toolUseMode = useMemo(
+    () => assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
+    [assistant?.settings?.toolUseMode]
   )
   const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
   const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? false)
@@ -198,7 +199,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
     setEnableTopP(DEFAULT_ASSISTANT_SETTINGS.enableTopP ?? false)
     setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
-    setToolUseMode(DEFAULT_ASSISTANT_SETTINGS.toolUseMode)
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     setEnableMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
@@ -475,7 +475,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             { label: t('assistants.settings.tool_use_mode.function'), value: 'function' }
           ]}
           onChange={(value) => {
-            setToolUseMode(value)
             updateAssistantSettings({ toolUseMode: value })
           }}
           size={14}
