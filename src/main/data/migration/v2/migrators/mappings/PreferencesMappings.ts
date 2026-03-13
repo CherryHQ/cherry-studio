@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-03-13T07:25:17.846Z
+ * Generated at: 2026-03-13T08:05:08.148Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -885,7 +885,36 @@ export const REDUX_STORE_MAPPINGS = {
  * For complex transformations (value conversion, multi-key merging, etc.),
  * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
  */
-export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [
+  {
+    originalKey: 'translate:detect:method',
+    targetKey: 'feature.translate.auto_detection_method'
+  },
+  {
+    originalKey: 'translate:markdown:enabled',
+    targetKey: 'feature.translate.page.enable_markdown'
+  },
+  {
+    originalKey: 'translate:scroll:sync',
+    targetKey: 'feature.translate.page.scroll_sync'
+  },
+  {
+    originalKey: 'translate:bidirectional:pair',
+    targetKey: 'feature.translate.page.bidirectional_pair'
+  },
+  {
+    originalKey: 'translate:bidirectional:enabled',
+    targetKey: 'feature.translate.page.bidirectional_enabled'
+  },
+  {
+    originalKey: 'translate:source:language',
+    targetKey: 'feature.translate.page.source_language'
+  },
+  {
+    originalKey: 'translate:target:language',
+    targetKey: 'feature.translate.page.target_language'
+  }
+] as const
 
 // === AUTO-GENERATED CONTENT END ===
 
@@ -894,8 +923,8 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
  * - ElectronStore项: 1
  * - Redux Store项: 207
  * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, translate, websearch, note
- * - DexieSettings项: 0
- * - 总配置项: 208
+ * - DexieSettings项: 7
+ * - 总配置项: 215
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

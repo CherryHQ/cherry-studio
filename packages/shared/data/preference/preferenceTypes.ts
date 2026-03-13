@@ -107,11 +107,11 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
-export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
-
 // ============================================================================
 // Translate Types
 // ============================================================================
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
 // 为了支持自定义语言，设置为string别名
 /** zh-cn, en-us, etc. */
