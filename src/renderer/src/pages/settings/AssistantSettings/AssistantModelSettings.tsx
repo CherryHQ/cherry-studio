@@ -37,7 +37,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     assistant?.settings?.toolUseMode ?? 'function'
   )
   const [maxToolCalls, setMaxToolCalls] = useState(assistant?.settings?.maxToolCalls ?? 20)
-  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? true)
+  const [enableMaxToolCalls, setEnableMaxToolCalls] = useState(assistant?.settings?.enableMaxToolCalls ?? false)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [enableTopP, setEnableTopP] = useState(assistant?.settings?.enableTopP ?? false)
