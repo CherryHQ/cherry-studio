@@ -5241,6 +5241,8 @@
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+        "blacklist_rules_one": "{{count}} 规则",
+        "blacklist_rules_other": "{{count}} 规则",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "check": "检测",
         "check_failed": "验证失败",
@@ -5281,6 +5283,7 @@
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
         "default_provider": "默认搜索引擎",
         "free": "免费",
+        "get_api_key": "从 <provider>{{providerId}}</provider> 获取您的API密钥",
         "is_default": "默认搜索",
         "local_provider": {
           "hint": "登录网站可以获得更好的搜索结果，也可以对搜索进行个性化设置。",

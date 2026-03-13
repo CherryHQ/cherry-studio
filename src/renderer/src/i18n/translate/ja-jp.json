@@ -5241,6 +5241,8 @@
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
+        "blacklist_rules_one": "{{count}} ルール",
+        "blacklist_rules_other": "{{count}} ルール",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
         "check_failed": "検証に失敗しました",
@@ -5281,6 +5283,7 @@
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
         "default_provider": "デフォルトプロバイダー",
         "free": "無料",
+        "get_api_key": "[to be translated]:Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "デフォルト",
         "local_provider": {
           "hint": "ウェブサイトにログインして、より良い検索結果を得て、検索設定をパーソナライズしてください。",

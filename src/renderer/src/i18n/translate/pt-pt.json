@@ -5241,6 +5241,8 @@
         "apikey": "Chave API",
         "blacklist": "Lista Negra",
         "blacklist_description": "Os resultados dos seguintes sites não aparecerão nos resultados de pesquisa",
+        "blacklist_rules_one": "{{count}} Regra",
+        "blacklist_rules_other": "{{count}} Regras",
         "blacklist_tooltip": "Por favor, utilize o seguinte formato (separado por quebras de linha)\nPadrão de correspondência: *://*.exemplo.com/*\nExpressão regular: /exemplo\\.(net|org)/",
         "check": "Verificar",
         "check_failed": "Falha na verificação",
@@ -5281,6 +5283,7 @@
         "content_limit_tooltip": "Limita o comprimento do conteúdo dos resultados de pesquisa; o conteúdo excedente será truncado",
         "default_provider": "Provedor Padrão",
         "free": "Grátis",
+        "get_api_key": "[to be translated]:Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "Padrão",
         "local_provider": {
           "hint": "Faça login no site para obter melhores resultados de pesquisa e personalizar suas configurações de busca.",

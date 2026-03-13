@@ -1,6 +1,18 @@
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
+import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import {
+  isLocalWebSearchProvider,
+  resolveWebSearchProviders,
+  webSearchProviderRequiresApiKey
+} from '@renderer/config/webSearch/provider'
+import {
+  readWebSearchSettings,
+  resolveWebSearchCompressionConfig,
+  resolveWebSearchConfig
+} from '@renderer/config/webSearch/setting'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
@@ -15,7 +27,7 @@ import type {
   WebSearchProviderResult,
   WebSearchStatus
 } from '@renderer/types'
-import { hasObjectKey, removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
+import { removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { ExtractResults } from '@renderer/utils/extract'
@@ -92,32 +104,45 @@ class WebSearchService {
     return store.getState().websearch
   }
 
+  private getRuntimeWebSearchProviders() {
+    const providerOverrides = preferenceService.getCachedValue('chat.web_search.provider_overrides')
+    return resolveWebSearchProviders(providerOverrides)
+  }
+
+  private getResolvedWebSearchState(): WebSearchState {
+    const baseState = this.getWebSearchState()
+    const preferenceValues = readWebSearchSettings((key) => preferenceService.getCachedValue(key))
+    const allProviders = [...store.getState().llm.providers, CHERRYAI_PROVIDER]
+
+    return {
+      ...baseState,
+      ...resolveWebSearchConfig(preferenceValues),
+      providers: this.getRuntimeWebSearchProviders(),
+      compressionConfig: resolveWebSearchCompressionConfig(preferenceValues, allProviders)
+    }
+  }
+
   /**
    * 检查网络搜索功能是否启用
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
   public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
-    const { providers } = this.getWebSearchState()
-    const provider = providers.find((provider) => provider.id === providerId)
+    const provider = this.getRuntimeWebSearchProviders().find((item) => item.id === providerId)
 
     if (!provider) {
       return false
     }
 
-    if (provider.id.startsWith('local-')) {
+    if (isLocalWebSearchProvider(provider)) {
       return true
     }
 
-    if (hasObjectKey(provider, 'apiKey')) {
-      return provider.apiKey !== ''
+    if (webSearchProviderRequiresApiKey(provider)) {
+      return provider.apiKey.trim() !== ''
     }
 
-    if (hasObjectKey(provider, 'apiHost')) {
-      return provider.apiHost !== ''
-    }
-
-    return false
+    return provider.apiHost.trim() !== ''
   }
 
   /**
@@ -138,7 +163,7 @@ class WebSearchService {
    * @returns 网络搜索提供商
    */
   public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
-    const { providers } = this.getWebSearchState()
+    const providers = this.getRuntimeWebSearchProviders()
     logger.debug('providers', providers)
     const provider = providers.find((provider) => provider.id === providerId)
 
@@ -158,7 +183,7 @@ class WebSearchService {
     httpOptions?: RequestInit,
     spanId?: string
   ): Promise<WebSearchProviderResponse> {
-    const websearch = this.getWebSearchState()
+    const websearch = this.getResolvedWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     let formattedQuery = query
@@ -515,7 +540,7 @@ class WebSearchService {
       }
     }
 
-    const { compressionConfig } = this.getWebSearchState()
+    const { compressionConfig } = this.getResolvedWebSearchState()
 
     // RAG压缩处理
     if (compressionConfig?.method === 'rag' && requestId) {

@@ -5241,6 +5241,8 @@
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_rules_one": "{{count}} Rule",
+        "blacklist_rules_other": "{{count}} Rules",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
@@ -5281,6 +5283,7 @@
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
         "free": "Free",
+        "get_api_key": "Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "Default",
         "local_provider": {
           "hint": "Log in to the website to get better search results and personalize your search settings.",
