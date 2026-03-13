@@ -3407,7 +3407,16 @@
       ]
     },
     "dexieSettings": {
-      "settings": []
+      "settings": [
+        {
+          "originalKey": "example.original.key",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": "example.target.key"
+        }
+      ]
     },
     "dexie": {
       "files": [
