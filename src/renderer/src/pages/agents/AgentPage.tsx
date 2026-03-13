@@ -6,7 +6,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { Alert, Spin } from 'antd'
+import { Alert } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,25 +44,9 @@ const AgentPage = () => {
 
   if (!apiServerConfig.enabled) {
     return (
-      <div
-        id="agent-page"
-        className="flex flex-1 flex-col"
-        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
+      <div id="agent-page" className="flex flex-1 flex-col">
         <div className="flex flex-1 items-center justify-center">
           <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
-        </div>
-      </div>
-    )
-  }
-
-  if (apiServerLoading) {
-    return (
-      <div
-        id="agent-page"
-        className="flex flex-1 flex-col"
-        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
-        <div className="flex flex-1 items-center justify-center">
-          <Spin />
         </div>
       </div>
     )
