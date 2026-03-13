@@ -206,9 +206,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onReset = () => {
     setTemperature(DEFAULT_ASSISTANT_SETTINGS.temperature)
     setContextCount(DEFAULT_ASSISTANT_SETTINGS.contextCount)
-    setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens ?? 0)
+    setMaxTokens(DEFAULT_ASSISTANT_SETTINGS.maxTokens)
     setTopP(DEFAULT_ASSISTANT_SETTINGS.topP)
-    setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters ?? [])
+    setCustomParameters(DEFAULT_ASSISTANT_SETTINGS.customParameters)
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
