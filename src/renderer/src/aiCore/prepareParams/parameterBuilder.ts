@@ -43,6 +43,7 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
+import { normalizeMaxToolSteps } from '../utils/toolSteps'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
@@ -239,7 +240,7 @@ export async function buildStreamTextParams(
     abortSignal: finalSignal,
     headers,
     providerOptions,
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(normalizeMaxToolSteps(provider.maxToolSteps)),
     maxRetries: 0
   }
 

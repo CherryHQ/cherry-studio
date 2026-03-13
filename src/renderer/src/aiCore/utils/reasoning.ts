@@ -660,7 +660,6 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
     case 'none':
       return 'minimal'
     case 'minimal':
-      return 'minimal'
     case 'low':
       return 'low'
     case 'medium':
