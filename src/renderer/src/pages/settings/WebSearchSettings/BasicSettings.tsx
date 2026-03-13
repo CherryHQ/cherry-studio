@@ -8,16 +8,14 @@ import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import Selector from '@renderer/components/Selector'
+import { isLocalWebSearchProvider, webSearchProviderRequiresApiKey } from '@renderer/config/webSearch/provider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import {
   useDefaultWebSearchProvider,
   useWebSearchProviders,
   useWebSearchSettings
 } from '@renderer/hooks/useWebSearchProviders'
-import { useAppDispatch } from '@renderer/store'
-import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
 import { Slider } from 'antd'
 import type { FC } from 'react'
@@ -55,16 +53,13 @@ const BasicSettings: FC = () => {
   const { t } = useTranslation()
   const { providers } = useWebSearchProviders()
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
-  const { searchWithTime, maxResults, compressionConfig } = useWebSearchSettings()
+  const { compressionConfig, maxResults, searchWithTime, setMaxResults, setSearchWithTime } = useWebSearchSettings()
   const navigate = useNavigate()
-
-  const dispatch = useAppDispatch()
 
   const updateSelectedWebSearchProvider = (providerId: string) => {
     const provider = providers.find((p) => p.id === providerId)
     if (provider) {
-      // Check if provider needs API key but doesn't have one
-      const needsApiKey = hasObjectKey(provider, 'apiKey')
+      const needsApiKey = webSearchProviderRequiresApiKey(provider)
       const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
 
       if (needsApiKey && !hasApiKey) {
@@ -88,8 +83,8 @@ const BasicSettings: FC = () => {
 
   // Sort providers: API providers first, then local providers
   const sortedProviders = [...providers].sort((a, b) => {
-    const aIsLocal = a.id.startsWith('local')
-    const bIsLocal = b.id.startsWith('local')
+    const aIsLocal = isLocalWebSearchProvider(a)
+    const bIsLocal = isLocalWebSearchProvider(b)
     if (aIsLocal && !bIsLocal) return 1
     if (!aIsLocal && bIsLocal) return -1
     return 0
@@ -97,7 +92,7 @@ const BasicSettings: FC = () => {
 
   const renderProviderLabel = (provider: WebSearchProvider) => {
     const logo = getProviderLogo(provider.id)
-    const needsApiKey = hasObjectKey(provider, 'apiKey')
+    const needsApiKey = webSearchProviderRequiresApiKey(provider)
 
     return (
       <div className="flex items-center gap-2">
@@ -138,7 +133,7 @@ const BasicSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
-          <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
+          <Switch checked={searchWithTime} onCheckedChange={setSearchWithTime} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
@@ -158,7 +153,7 @@ const BasicSettings: FC = () => {
             max={100}
             step={1}
             marks={{ 1: '1', 5: '5', 20: '20', 50: '50', 100: '100' }}
-            onChangeComplete={(value) => dispatch(setMaxResult(value))}
+            onChangeComplete={setMaxResults}
           />
         </SettingRow>
       </SettingGroup>

@@ -10,12 +10,17 @@ import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import {
+  isLocalWebSearchProvider,
+  WEB_SEARCH_PROVIDER_CONFIG,
+  webSearchProviderRequiresApiKey,
+  webSearchProviderSupportsBasicAuth
+} from '@renderer/config/webSearch/provider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
-import { formatApiKeys, hasObjectKey } from '@renderer/utils'
+import { formatApiKeys } from '@renderer/utils'
 import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
@@ -163,7 +168,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const isLocalProvider = provider.id.startsWith('local')
+  const isLocalProvider = isLocalWebSearchProvider(provider)
 
   const openLocalProviderSettings = async () => {
     if (officialWebsite) {
@@ -178,7 +183,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const isDefault = defaultProvider?.id === provider.id
 
   // Check if provider needs API key but doesn't have one configured
-  const needsApiKey = hasObjectKey(provider, 'apiKey')
+  const needsApiKey = webSearchProviderRequiresApiKey(provider)
   const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
   const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
 
@@ -225,7 +230,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiKey') && (
+      {!isLocalProvider && needsApiKey && (
         <>
           <SettingSubtitle
             style={{
@@ -274,7 +279,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiHost') && (
+      {!isLocalProvider && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
@@ -289,7 +294,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </Flex>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'basicAuthUsername') && (
+      {!isLocalProvider && webSearchProviderSupportsBasicAuth(provider) && (
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle

@@ -9,9 +9,9 @@ import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isLocalWebSearchProvider } from '@renderer/config/webSearch/provider'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { WebSearchProviderId } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Flex, Tag } from 'antd'
 import { Search } from 'lucide-react'
@@ -46,9 +46,8 @@ const WebSearchSettings: FC = () => {
 
   const activeView = getActiveView()
 
-  // Filter providers that have API settings (apiKey or apiHost)
-  const apiProviders = providers.filter((p) => hasObjectKey(p, 'apiKey') || hasObjectKey(p, 'apiHost'))
-  const localProviders = providers.filter((p) => p.id.startsWith('local'))
+  const apiProviders = providers.filter((provider) => !isLocalWebSearchProvider(provider))
+  const localProviders = providers.filter((provider) => isLocalWebSearchProvider(provider))
 
   // Provider logos map
   const getProviderLogo = (providerId: WebSearchProviderId): string | undefined => {

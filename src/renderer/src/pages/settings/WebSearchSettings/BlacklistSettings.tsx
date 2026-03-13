@@ -3,9 +3,7 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setExcludeDomains } from '@renderer/store/websearch'
+import { useBlacklist, useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import type { TableProps } from 'antd'
 import { Alert, Table } from 'antd'
@@ -38,7 +36,7 @@ const columns: TableProps<DataType>['columns'] = [
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
-  const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
+  const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
   const { websearch, setSubscribeSources, addSubscribeSource } = useBlacklist()
   const { theme } = useTheme()
   const [subscribeChecking, setSubscribeChecking] = useState(false)
@@ -52,9 +50,6 @@ const BlacklistSettings: FC = () => {
     })) || []
   )
   const { setTimeoutTimer } = useTimer()
-
-  const dispatch = useAppDispatch()
-
   useEffect(() => {
     setDataSource(
       (websearch.subscribeSources || []).map((source) => ({
@@ -100,7 +95,7 @@ const BlacklistSettings: FC = () => {
     setErrFormat(hasError)
     if (hasError) return
 
-    dispatch(setExcludeDomains(validDomains))
+    void setExcludeDomains(validDomains)
     window.toast.info({
       title: t('message.save.success.title'),
       timeout: 4000,

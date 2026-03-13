@@ -5,6 +5,7 @@ import '@ant-design/v5-patch-for-react-19'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { WEB_SEARCH_SETTINGS_PREFERENCE_KEYS } from '@renderer/config/webSearch/setting'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
@@ -27,7 +28,8 @@ await preferenceService.preload([
   'ui.theme_user.color_primary',
   'feature.selection.auto_close',
   'feature.selection.auto_pin',
-  'feature.selection.action_window_opacity'
+  'feature.selection.action_window_opacity',
+  ...WEB_SEARCH_SETTINGS_PREFERENCE_KEYS
 ])
 
 //subscribe to store sync

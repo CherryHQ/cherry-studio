@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearchProviders'
+import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearch/provider'
 import type { Model, WebSearchProvider } from '@renderer/types'
 export interface SubscribeSource {
   key: number
@@ -135,15 +135,13 @@ const websearchSlice = createSlice({
     setOverwrite: (state, action: PayloadAction<boolean>) => {
       state.overwrite = action.payload
     },
-    addWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
-      // Check if provider with same ID already exists
-      const exists = state.providers.some((provider) => provider.id === action.payload.id)
-
-      if (!exists) {
-        // Add the new provider to the array
-        state.providers.push(action.payload)
-      }
-    },
+    // addWebSearchProvider: (state, action: PayloadAction<WebSearchProvider>) => {
+    //   const exists = state.providers.some((provider) => provider.id === action.payload.id)
+    //
+    //   if (!exists) {
+    //     state.providers.push(action.payload)
+    //   }
+    // },
     setCompressionConfig: (state, action: PayloadAction<CompressionConfig>) => {
       state.compressionConfig = action.payload
     },
@@ -175,7 +173,7 @@ export const {
   updateSubscribeBlacklist,
   setSubscribeSources,
   setOverwrite,
-  addWebSearchProvider,
+  // addWebSearchProvider,
   setCompressionConfig,
   updateCompressionConfig,
   setProviderConfig,
