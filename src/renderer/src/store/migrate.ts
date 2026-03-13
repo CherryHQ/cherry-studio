@@ -3334,6 +3334,14 @@ const migrateConfig = {
           }
         }
       }
+
+      // Add 'agents' tab if not already present
+      if (state.tabs && !state.tabs.tabs.some((tab: { id: string }) => tab.id === 'agents')) {
+        const homeIndex = state.tabs.tabs.findIndex((tab: { id: string }) => tab.id === 'home')
+        const insertIndex = homeIndex !== -1 ? homeIndex + 1 : state.tabs.tabs.length
+        state.tabs.tabs.splice(insertIndex, 0, { id: 'agents', path: '/agents' })
+      }
+
       logger.info('migrate 203 success')
       return state
     } catch (error) {
