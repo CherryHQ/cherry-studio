@@ -18,15 +18,8 @@
     {
       "idx": 2,
       "version": "6",
-      "when": 1772787346324,
-      "tag": "0002_sleepy_harry_osborn",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1772788271427,
-      "tag": "0003_hesitant_silverclaw",
+      "when": 1773390445315,
+      "tag": "0002_last_hemingway",
       "breakpoints": true
     }
   ],
