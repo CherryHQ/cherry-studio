@@ -125,7 +125,6 @@ class OpenClawService {
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
     this.stopGateway = this.stopGateway.bind(this)
-    this.restartGateway = this.restartGateway.bind(this)
     this.getStatus = this.getStatus.bind(this)
     this.checkHealth = this.checkHealth.bind(this)
     this.getDashboardUrl = this.getDashboardUrl.bind(this)
@@ -465,24 +464,6 @@ class OpenClawService {
         resolve({ code: null, stdout, stderr: err.message })
       })
     })
-  }
-
-  /**
-   * Restart the OpenClaw Gateway
-   */
-  public async restartGateway(): Promise<OperationResult> {
-    const openclawPath = await this.findOpenClawBinary()
-    if (!openclawPath) {
-      this.gatewayStatus = 'error'
-      return { success: false, message: 'OpenClaw binary not found' }
-    }
-    const shellEnv = await getShellEnv()
-    const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'restart'], shellEnv)
-    if (code !== 0) {
-      this.gatewayStatus = 'error'
-      return { success: false, message: stderr.trim() || `Restart failed with code ${code}` }
-    }
-    return { success: true }
   }
 
   /**

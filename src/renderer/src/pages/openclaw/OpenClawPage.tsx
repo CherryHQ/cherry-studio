@@ -15,7 +15,7 @@ import {
 } from '@renderer/store/openclaw'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Alert, Avatar, Button, Result, Space, Spin } from 'antd'
-import { Download, ExternalLink, Play, RefreshCw, Square } from 'lucide-react'
+import { Download, ExternalLink, Play, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -82,8 +82,6 @@ const OpenClawPage: FC = () => {
   const [isUninstalling, setIsUninstalling] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
-  const [isRestarting, setIsRestarting] = useState(false)
-
   // Install progress logs
   const [installLogs, setInstallLogs] = useState<Array<{ message: string; type: 'info' | 'warn' | 'error' }>>([])
   const [showLogs, setShowLogs] = useState(false)
@@ -307,22 +305,6 @@ const OpenClawPage: FC = () => {
     }
   }
 
-  const handleRestartGateway = async () => {
-    setIsRestarting(true)
-    try {
-      const result = await window.api.openclaw.restartGateway()
-      if (result.success) {
-        dispatch(setGatewayStatus('running'))
-      } else {
-        setError(result.message)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setIsRestarting(false)
-    }
-  }
-
   const handleOpenDashboard = async () => {
     const dashboardUrl = await window.api.openclaw.getDashboardUrl()
     openSmartMinapp({
@@ -413,8 +395,8 @@ const OpenClawPage: FC = () => {
       <div className="m-auto min-h-fit w-130">
         <TitleSection title={t('openclaw.title')} description={t('openclaw.description')} clickable docsUrl={docsUrl} />
 
-        {/* Install Path - hide when gateway is running or restarting */}
-        {installPath && gatewayStatus !== 'running' && !isRestarting && (
+        {/* Install Path - hide when gateway is running */}
+        {installPath && gatewayStatus !== 'running' && (
           <div
             className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
@@ -451,8 +433,8 @@ const OpenClawPage: FC = () => {
           </div>
         )}
 
-        {/* Gateway Status Card - show when running or restarting */}
-        {(gatewayStatus === 'running' || isRestarting) && (
+        {/* Gateway Status Card - show when running */}
+        {gatewayStatus === 'running' && (
           <div
             className="mb-6 flex items-center justify-between rounded-lg p-3"
             style={{ background: 'var(--color-background-soft)' }}>
@@ -465,27 +447,16 @@ const OpenClawPage: FC = () => {
                 :{gatewayPort}
               </span>
             </div>
-            <div className="flex gap-1">
-              <Button
-                size="small"
-                type="text"
-                icon={<RefreshCw size={14} />}
-                onClick={handleRestartGateway}
-                loading={isRestarting}
-                disabled={isStopping || isRestarting}>
-                {t('openclaw.gateway.restart')}
-              </Button>
-              <Button
-                size="small"
-                type="text"
-                icon={<Square size={14} />}
-                onClick={handleStopGateway}
-                loading={isStopping}
-                disabled={isStopping || isRestarting}
-                danger>
-                {t('openclaw.gateway.stop')}
-              </Button>
-            </div>
+            <Button
+              size="small"
+              type="text"
+              icon={<Square size={14} />}
+              onClick={handleStopGateway}
+              loading={isStopping}
+              disabled={isStopping}
+              danger>
+              {t('openclaw.gateway.stop')}
+            </Button>
           </div>
         )}
 
@@ -520,8 +491,8 @@ const OpenClawPage: FC = () => {
           </div>
         )}
 
-        {/* Model Selector - only show when not running and not restarting */}
-        {gatewayStatus !== 'running' && !isRestarting && (
+        {/* Model Selector - only show when not running */}
+        {gatewayStatus !== 'running' && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
               {t('openclaw.model_config.model')}
@@ -555,8 +526,7 @@ const OpenClawPage: FC = () => {
 
         {showLogs && installLogs.length > 0 && renderLogContainer()}
 
-        {/* Action Button - hide when restarting */}
-        {gatewayStatus !== 'running' && !isRestarting && (
+        {gatewayStatus !== 'running' && (
           <Button
             type="primary"
             icon={<Play size={16} />}
@@ -570,7 +540,7 @@ const OpenClawPage: FC = () => {
             {t('openclaw.gateway.start')}
           </Button>
         )}
-        {(gatewayStatus === 'running' || isRestarting) && (
+        {gatewayStatus === 'running' && (
           <Button type="primary" onClick={handleOpenDashboard} size="large" block>
             {t('openclaw.quick_actions.open_dashboard')}
           </Button>

@@ -377,40 +377,6 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
-  // ─── restartGateway ──────────────────────────────────────────
-
-  describe('restartGateway', () => {
-    it('returns success when restart command succeeds', async () => {
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
-      execCommandSpy.mockResolvedValue({ code: 0, stdout: 'restarted', stderr: '' })
-
-      const result = await service.restartGateway()
-
-      expect(result).toEqual({ success: true })
-    })
-
-    it('transitions to error when binary not found', async () => {
-      findBinarySpy.mockResolvedValue(null)
-
-      const result = await service.restartGateway()
-
-      expect(result).toEqual({ success: false, message: 'OpenClaw binary not found' })
-      // @ts-expect-error -- accessing private field
-      expect(service.gatewayStatus).toBe('error')
-    })
-
-    it('transitions to error when restart command fails', async () => {
-      findBinarySpy.mockResolvedValue('/mock/bin/openclaw')
-      execCommandSpy.mockResolvedValue({ code: 1, stdout: '', stderr: 'restart failed' })
-
-      const result = await service.restartGateway()
-
-      expect(result).toEqual({ success: false, message: 'restart failed' })
-      // @ts-expect-error -- accessing private field
-      expect(service.gatewayStatus).toBe('error')
-    })
-  })
-
   // ─── Full state transition scenarios ─────────────────────────
 
   describe('full lifecycle transitions', () => {
