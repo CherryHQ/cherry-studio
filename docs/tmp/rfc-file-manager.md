@@ -56,6 +56,7 @@
 |--------|-------------|-----------|----------------|---------|
 | Files | `local_managed` | `{id}.{ext}` | DB | App → 文件系统 |
 | Notes | `local_external` | `{name}.{ext}` | 文件系统 | 文件系统 ↔ DB |
+| Trash | `system` | 无自有存储 | DB | — |
 | *(未来)* | `remote` | `{cache_path}/{remote_id}` | 远程 API | 远程 ↔ 本地缓存 ↔ DB |
 
 ### 4.3 路径计算规则
@@ -67,6 +68,41 @@
 - **`remote`**：`{mount.cache_path}/{node.remoteId}`（本地缓存），实际文件通过 API 访问，按需下载/同步
 
 `path` 不作为持久化字段，运行时由树关系与挂载点配置构建。建议维护内存级路径缓存 `Map<nodeId, absolutePath>`，树变更时重建。
+
+#### `ext` 格式规范
+
+- 节点表中 `ext` 统一存储为**不含前导点**的格式（如 `'pdf'`、`'md'`、`'png'`）。
+- 迁移时对旧数据执行 `ext.replace(/^\./, '')` 做一次性 normalize。
+- `resolvePhysicalPath` 拼接时**始终加点**：`${id}.${ext}`。
+- 若 `ext` 为 `null`（目录/挂载点），路径无扩展名。
+
+```typescript
+/**
+ * 解析节点的物理文件路径。
+ * 外部调用时仅传 node，mount 由内部通过 node.mountId 查询。
+ * 内部实现接受可选的 mount 参数以避免重复查询。
+ */
+function resolvePhysicalPath(node: FileNode, mount?: FileNode): string {
+  const resolvedMount = mount ?? getMountNode(node.mountId)  // 内存缓存查询
+  const extSuffix = node.ext ? `.${node.ext}` : ''
+
+  switch (resolvedMount.providerConfig?.provider_type) {
+    case 'local_managed':
+      return path.join(resolvedMount.providerConfig.base_path, `${node.id}${extSuffix}`)
+    case 'local_external':
+      const ancestors = getAncestorNames(node, resolvedMount) // 不含 mount 自身
+      return path.join(resolvedMount.providerConfig.base_path, ...ancestors, `${node.name}${extSuffix}`)
+    case 'system':
+      // system mount（如 Trash）无自有物理存储
+      // Trash 中的文件路径由其原始 mountId 对应的 mount 决定
+      throw new Error('System mount has no physical storage. Use original mount to resolve path.')
+    default:
+      throw new Error(`Unknown provider type: ${resolvedMount.providerConfig?.provider_type}`)
+  }
+}
+```
+
+> **Trash 中文件的路径解析**：Trash 中的节点保持原 `mountId` 不变，因此解析路径时应使用原 `mountId` 对应的 mount，而非 `system_trash`。对于 `local_managed` 模式，物理文件位置不变（UUID 命名）；对于 `local_external` 模式，物理文件已移至 `{原mount.base_path}/.trash/{nodeId}/`。
 
 ### 4.4 各模式同步策略
 
@@ -93,7 +129,27 @@
 
 - **启动时**：全量扫描文件系统 → diff 节点表 → 增删改对齐
 - **运行时**：chokidar 监听 → 防抖 → 增量更新节点表
+  - chokidar 必须排除 `.trash` 目录：`ignored: ['**/.trash/**']`
 - **冲突处理**：文件系统 wins
+- **操作锁**：应用内发起的文件系统变更（trash / restore / move / rename）必须在操作期间挂起 chokidar 事件处理，避免同步引擎将应用自身的操作误判为外部变更。实现方式：维护 `Set<string>` 记录"正在操作中的路径"，同步引擎在处理事件前检查该集合，命中则跳过。操作完成后移除路径。
+
+```
+┌──────────────┐        ┌──────────────┐        ┌──────────────┐
+│ FileNodeSvc  │        │OperationLock │        │  SyncEngine  │
+│ trashNode()  │        │ Set<path>    │        │ (chokidar)   │
+└──────┬───────┘        └──────┬───────┘        └──────┬───────┘
+       │ 1. lock(oldPath)      │                       │
+       │──────────────────────→│                       │
+       │ 2. fs.rename()        │                       │
+       │───────────────────────┼──────────────────────→│ unlink(oldPath)
+       │                       │  3. check lock        │
+       │                       │←──────────────────────│
+       │                       │  4. "locked, skip"    │
+       │                       │──────────────────────→│ (ignored)
+       │ 5. db.update()        │                       │
+       │ 6. unlock(oldPath)    │                       │
+       │──────────────────────→│                       │
+```
 
 #### remote 模式（远程文件 API）
 
@@ -176,6 +232,7 @@ export const MountProviderTypeSchema = z.enum([
   'local_managed',
   'local_external',
   'remote',
+  'system',         // 系统内部挂载点（如 Trash），无物理存储
 ])
 export type MountProviderType = z.infer<typeof MountProviderTypeSchema>
 
@@ -212,11 +269,17 @@ export const RemoteConfigSchema = z.object({
   options: z.record(z.string(), z.unknown()).default({}),  // 各 API 专属配置
 })
 
+/** 系统内部挂载点：无物理存储，仅用于组织结构（如 Trash） */
+export const SystemConfigSchema = z.object({
+  provider_type: z.literal('system'),
+})
+
 // ─── 判别联合 ───
 export const MountProviderConfigSchema = z.discriminatedUnion('provider_type', [
   LocalManagedConfigSchema,
   LocalExternalConfigSchema,
   RemoteConfigSchema,
+  SystemConfigSchema,
 ])
 export type MountProviderConfig = z.infer<typeof MountProviderConfigSchema>
 ```
@@ -252,11 +315,12 @@ class OpenAIFilesProvider implements RemoteProvider {
 | 挂载点与节点同表/分表 | **同表** | 挂载点极少（2-5 个），字段浪费可忽略 |
 | managed 模式目录 | **平坦存储** | 物理无子目录，目录仅逻辑存在于 DB |
 | 主键策略 | **UUID v7**（时间有序） | 大数据量表，顺序插入性能更优 |
-| 删除策略 | **OS 风格 Trash** | 移动到 Trash 节点下，记录 previousParentId |
+| 删除策略 | **OS 风格 Trash** | 移动到 Trash mount 下，记录 previousParentId |
+| Trash 节点类型 | **mount（`provider_type: 'system'`）** | 与其他顶层节点模式统一，`type='mount'` + `mountId=self` + `parentId=null`。`getMounts()` 通过 `includeSystem` 参数区分 |
 | `mountId` 冗余字段 | **保留** | 避免递归 CTE 查挂载点，查询性能关键 |
 | `parentId` 级联删除 | **CASCADE** | Trash 清空时物理级联删除子节点 |
 | `sourceType`/`role` 枚举约束 | **应用层 Zod 验证** | 避免新增来源需要 migration |
-| `file_ref` 防重复 | **UNIQUE 约束** | 防止应用层 bug 导致重复引用 |
+| `file_ref` 防重复 | **UNIQUE 约束** | 同一业务对象以同一角色引用同一文件至多一条记录，防止应用层 bug 导致重复引用。业务语义：一条消息不会以 `attachment` 角色引用同一个文件两次——如需附加同一文件多次，应创建文件副本（独立 nodeId） |
 
 ### 6.2 nodeTable
 
@@ -272,7 +336,7 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  *
  * Uses adjacency list pattern (parentId) for tree navigation.
  * Mount nodes (type='mount') serve as root nodes with provider configuration.
- * Trash is a system directory node for OS-style soft deletion.
+ * Trash is a system mount node (provider_type='system') for OS-style soft deletion.
  */
 export const nodeTable = sqliteTable(
   'node',
@@ -288,10 +352,10 @@ export const nodeTable = sqliteTable(
     ext: text(),
 
     // ─── 树结构 ───
-    // 父节点 ID。挂载点和 Trash 为 null（顶层）
+    // 父节点 ID。挂载点为 null（顶层）
     parentId: text(),
     // 所属挂载点 ID（冗余，便于查询）。挂载点自身 mountId = id
-    // Trash 中的节点保持原 mountId 不变
+    // Trash 中的节点保持原 mountId 不变（指向被删前所属的挂载点）
     mountId: text().notNull(),
 
     // ─── 文件属性 ───
@@ -405,10 +469,13 @@ const SYSTEM_NODES = [
   },
   {
     id: 'system_trash',
-    type: 'dir',
+    type: 'mount',
     name: 'Trash',
-    mountId: 'system_trash',     // Trash 不属于任何挂载点
+    mountId: 'system_trash',     // 自引用，与其他 mount 一致
     parentId: null,
+    providerConfig: {
+      provider_type: 'system',   // 系统挂载点，无物理存储
+    },
   },
 ]
 ```
@@ -507,12 +574,60 @@ interface CreateFileRefDto {
 - **恢复 = 移回 `previousParentId`**
 - **永久删除 = 从 Trash 中硬删**（CASCADE 级联子节点 + 物理文件清理）
 
+#### Provider 模式对物理文件的影响
+
+不同存储模式下，Trash 操作对物理文件的处理不同：
+
+| 操作 | `local_managed` | `local_external` |
+|------|-----------------|-------------------|
+| **Trash（软删）** | 仅 DB 操作（物理文件名为 UUID，用户不可见） | **物理移动**到 `{mount.base_path}/.trash/{nodeId}/` |
+| **Restore（恢复）** | 仅 DB 操作 | **物理移回**原路径 |
+| **永久删除** | 删物理文件 + 删 DB | 删 `.trash` 中的物理文件 + 删 DB |
+
+**为什么 `local_external` 必须移动物理文件**：external 模式的目录对用户可见（如 Notes 文件夹），如果 Trash 只做 DB 标记而不移动物理文件，用户在 Finder/文件管理器中仍能看到"已删除"的文件，造成应用状态与文件系统不一致的困惑。
+
+**`.trash` 目录规范**：
+
+- 位置：`{mount.base_path}/.trash/`（以 `.` 开头，在 macOS/Linux 下默认隐藏）
+- 内部结构：`{mount.base_path}/.trash/{nodeId}/{原始相对路径}`（用 nodeId 做隔离，避免不同删除批次的同名文件冲突）
+- chokidar 监听必须排除 `.trash` 目录（`ignored: ['**/.trash/**']`）
+- 首次 Trash 操作时自动创建 `.trash` 目录
+
 #### 删除节点
 
 ```typescript
+const SYSTEM_NODE_IDS = new Set(['mount_files', 'mount_notes', 'system_trash'])
+
 async function trashNode(nodeId: string): Promise<void> {
+  // 系统节点不可删除
+  if (SYSTEM_NODE_IDS.has(nodeId)) {
+    throw new Error('System nodes cannot be trashed.')
+  }
+
   const node = await getNode(nodeId)
-  // 移动到 Trash 下，记录原始位置
+
+  // 挂载点节点不可删除
+  if (node.type === 'mount') {
+    throw new Error('Mount nodes cannot be trashed.')
+  }
+
+  const mount = await getNode(node.mountId)
+
+  // local_external 模式：先移动物理文件到 .trash
+  if (mount.providerConfig?.provider_type === 'local_external') {
+    const physicalPath = resolvePhysicalPath(node)
+    const trashPath = path.join(
+      mount.providerConfig.base_path,
+      '.trash',
+      nodeId,
+      path.relative(mount.providerConfig.base_path, physicalPath),
+    )
+    await fs.ensureDir(path.dirname(trashPath))
+    await fs.rename(physicalPath, trashPath)
+    // 如果是目录，整个子树的物理文件都随 fs.rename 一起移走了
+  }
+
+  // 更新 DB：移动到 Trash 下，记录原始位置
   await db.update(nodeTable)
     .set({
       parentId: SYSTEM_TRASH_ID,
@@ -533,9 +648,32 @@ async function restoreNode(nodeId: string): Promise<void> {
   // 检查原始父节点是否存在且可达
   const originalParent = await getNode(node.previousParentId)
   if (!originalParent || isInTrash(originalParent)) {
-    // 原路径不可达：选项 A - 恢复到挂载点根目录
-    // 选项 B - 提示用户先恢复父目录
     throw new Error('Original parent is in Trash. Restore parent first.')
+  }
+
+  const mount = await getNode(node.mountId)
+
+  // local_external 模式：将物理文件从 .trash 移回原位
+  if (mount.providerConfig?.provider_type === 'local_external') {
+    // 计算恢复后的物理路径（基于 previousParentId 的祖先链）
+    const restoredPath = resolvePhysicalPath({ ...node, parentId: node.previousParentId })
+    const trashPath = path.join(
+      mount.providerConfig.base_path,
+      '.trash',
+      nodeId,
+      path.relative(mount.providerConfig.base_path, restoredPath),
+    )
+
+    // 检查目标路径冲突
+    if (await fs.pathExists(restoredPath)) {
+      throw new Error(`Cannot restore: path already exists at ${restoredPath}`)
+    }
+
+    await fs.ensureDir(path.dirname(restoredPath))
+    await fs.rename(trashPath, restoredPath)
+
+    // 清理空的 .trash/{nodeId} 目录
+    await fs.remove(path.join(mount.providerConfig.base_path, '.trash', nodeId))
   }
 
   await db.update(nodeTable)
@@ -551,19 +689,44 @@ async function restoreNode(nodeId: string): Promise<void> {
 
 ```typescript
 async function permanentDelete(nodeId: string): Promise<void> {
-  // 收集所有后代节点的物理文件路径（用于清理）
-  const descendants = await getDescendants(nodeId) // 递归 CTE
-  const filesToDelete = descendants
-    .filter(n => n.type === 'file')
-    .map(n => resolvePhysicalPath(n))
+  // 系统节点 / 挂载点不可永久删除
+  if (SYSTEM_NODE_IDS.has(nodeId)) {
+    throw new Error('System nodes cannot be permanently deleted.')
+  }
+  const node = await getNode(nodeId)
+  if (node.type === 'mount') {
+    throw new Error('Mount nodes cannot be permanently deleted.')
+  }
 
-  // 硬删节点（CASCADE 自动删除子节点 + file_ref）
+  const mount = await getNode(node.mountId)
+
+  if (mount.providerConfig?.provider_type === 'local_external') {
+    // external 模式：物理文件已在 .trash/{nodeId}/ 中，直接删除整个目录
+    const trashDir = path.join(mount.providerConfig.base_path, '.trash', nodeId)
+    await fs.remove(trashDir).catch(() => {})
+  } else {
+    // managed 模式：收集所有后代的物理文件路径
+    const descendants = await getDescendants(nodeId) // 递归 CTE
+    const filesToDelete = descendants
+      .filter(n => n.type === 'file')
+      .map(n => resolvePhysicalPath(n))
+
+    // 先删物理文件（失败时 DB 记录仍在，可重试）
+    const deleteResults = await Promise.allSettled(
+      filesToDelete.map(p => fs.unlink(p))
+    )
+    const failed = deleteResults.filter(r => r.status === 'rejected' && r.reason?.code !== 'ENOENT')
+    if (failed.length > 0) {
+      logger.warn(`${failed.length} files failed to delete, proceeding with DB cleanup`)
+    }
+  }
+
+  // 删节点（CASCADE 自动删除子节点 + file_ref）
   await db.delete(nodeTable).where(eq(nodeTable.id, nodeId))
-
-  // 清理物理文件
-  await Promise.all(filesToDelete.map(p => fs.unlink(p).catch(() => {})))
 }
 ```
+
+> **顺序说明**：先删物理文件、再删 DB 记录。如果物理文件删除部分失败，DB 记录仍在可重试；如果反过来先删 DB，则丢失了文件路径信息无法追溯。已不存在的文件（`ENOENT`）不视为错误。
 
 #### 回收站展示
 
@@ -578,6 +741,9 @@ async function permanentDelete(nodeId: string): Promise<void> {
 | 恢复目录 | 目录及其所有子节点恢复到原位（子节点 parentId 未变，自然跟随） |
 | Trash 中目录包含子文件 | 子文件跟随目录，不单独展示为 Trash 条目 |
 | 永久删除目录 | CASCADE 删除所有后代 + 清理物理文件 |
+| **external: 用户在外部删除 .trash 中文件** | 下次永久删除时 `ENOENT` 静默忽略，DB 正常清理 |
+| **external: 恢复时目标路径已被占用** | 拒绝恢复，提示用户先处理冲突（重命名或删除占位文件） |
+| **external: chokidar 检测到 .trash 变动** | chokidar 配置 `ignored: ['**/.trash/**']`，不触发同步 |
 
 ### 7.4 内容编辑
 
@@ -588,9 +754,57 @@ async function permanentDelete(nodeId: string): Promise<void> {
 
 - 更新节点字段（如 `name`、`ext`）。
 - `local_external` 模式需要同步更新真实文件名（文件系统 rename）。
+  - 重命名前必须检查目标路径是否已存在同名文件/目录，若冲突则拒绝并返回错误。
 - `local_managed` 模式仅更新 DB（物理文件名为 UUID，不受影响）。
 
-### 7.6 元数据统一入口（问题 13）
+### 7.6 移动节点
+
+- **同 mount 内移动**：更新 `parentId`。`local_external` 模式需同步物理文件 rename。
+- **跨 mount 移动**：**禁止**。不同 mount 的存储模式（managed vs external vs remote）不兼容，跨 mount 移动需要物理文件格式转换和全子树 `mountId` 递归更新，复杂度高且易出错。用户如需跨 mount，应使用"复制到目标 mount → 删除源文件"的显式流程。
+
+```typescript
+async function moveNode(nodeId: string, targetParentId: string): Promise<FileNode> {
+  const node = await getNode(nodeId)
+  const targetParent = await getNode(targetParentId)
+
+  // 禁止移动到自身
+  if (nodeId === targetParentId) {
+    throw new Error('Cannot move a node into itself.')
+  }
+
+  // 禁止跨 mount 移动
+  if (node.mountId !== targetParent.mountId) {
+    throw new Error('Cross-mount move is not supported. Use copy + delete instead.')
+  }
+
+  // 禁止移动到自身后代（防止形成环）
+  if (node.type === 'dir') {
+    const ancestors = await getAncestors(targetParentId) // 递归 CTE 查祖先链
+    if (ancestors.some(a => a.id === nodeId)) {
+      throw new Error('Cannot move a directory into its own descendant.')
+    }
+  }
+
+  // local_external 模式：同步物理文件移动
+  if (getProviderType(node.mountId) === 'local_external') {
+    const oldPath = resolvePhysicalPath(node)
+    const newPath = resolvePhysicalPath({ ...node, parentId: targetParentId })
+    // 检查目标路径是否已存在同名文件/目录
+    if (await fs.pathExists(newPath)) {
+      throw new Error(`Target path already exists: ${newPath}`)
+    }
+    await fs.rename(oldPath, newPath)
+  }
+
+  await db.update(nodeTable)
+    .set({ parentId: targetParentId })
+    .where(eq(nodeTable.id, nodeId))
+
+  return getNode(nodeId)
+}
+```
+
+### 7.7 元数据统一入口（问题 13）
 
 - `FileMetadata` 等元数据生成收口到统一工厂入口。
 - 保证 `ext`/`type` 生成策略一致，避免多入口规则漂移。
@@ -686,22 +900,28 @@ class OrphanRefScanner {
     this.checkers.set(checker.sourceType, checker)
   }
 
-  /** 扫描一种 sourceType 的孤儿引用，分批处理 */
+  /** 扫描一种 sourceType 的孤儿引用，分批处理（cursor-based 分页） */
   async scanOneType(sourceType: string): Promise<number> {
     const checker = this.checkers.get(sourceType)
     if (!checker) return 0
 
     let cleaned = 0
-    let offset = 0
+    let lastSeenId = ''
 
     while (true) {
+      // 使用 cursor-based 分页，避免删除记录后 offset 跳过数据
       const refs = await db.select({ id: fileRefTable.id, sourceId: fileRefTable.sourceId })
         .from(fileRefTable)
-        .where(eq(fileRefTable.sourceType, sourceType))
+        .where(and(
+          eq(fileRefTable.sourceType, sourceType),
+          gt(fileRefTable.id, lastSeenId),
+        ))
+        .orderBy(asc(fileRefTable.id))
         .limit(this.BATCH_SIZE)
-        .offset(offset)
 
       if (refs.length === 0) break
+
+      lastSeenId = refs[refs.length - 1].id
 
       const sourceIds = refs.map(r => r.sourceId)
       const existingIds = await checker.checkExists(sourceIds)
@@ -714,8 +934,6 @@ class OrphanRefScanner {
           .where(inArray(fileRefTable.id, orphanRefIds))
         cleaned += orphanRefIds.length
       }
-
-      offset += this.BATCH_SIZE
     }
     return cleaned
   }
@@ -807,8 +1025,18 @@ export type FileSchemas = {
   // ─── 树操作 ───
 
   '/files/nodes/:id/children': {
-    /** 获取子节点（文件树懒加载） */
-    GET: { params: { id: string }; query: { recursive?: boolean }; response: FileNode[] }
+    /** 获取子节点（文件树懒加载，支持排序和分页） */
+    GET: {
+      params: { id: string }
+      query: {
+        recursive?: boolean
+        sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
+        sortOrder?: 'asc' | 'desc'
+        limit?: number
+        offset?: number
+      }
+      response: FileNode[]
+    }
   }
 
   '/files/nodes/:id/move': {
@@ -842,11 +1070,31 @@ export type FileSchemas = {
     DELETE: { query: { sourceType: string; sourceId: string }; response: void }
   }
 
+  // ─── 批量操作 ───
+
+  '/files/nodes/batch/trash': {
+    /** 批量移入 Trash */
+    PUT: { body: { ids: string[] }; response: void }
+  }
+
+  '/files/nodes/batch/move': {
+    /** 批量移动到目标目录 */
+    PUT: { body: { ids: string[]; targetParentId: string }; response: void }
+  }
+
+  '/files/nodes/batch/delete': {
+    /** 批量永久删除 */
+    DELETE: { body: { ids: string[] }; response: void }
+  }
+
   // ─── 挂载点 ───
 
   '/files/mounts': {
-    /** 获取所有挂载点 */
-    GET: { response: FileNode[] }
+    /** 获取挂载点列表 */
+    GET: {
+      query: { includeSystem?: boolean }  // 默认 false，不返回 Trash 等系统挂载点
+      response: FileNode[]
+    }
   }
 }
 ```
@@ -863,11 +1111,21 @@ class FileNodeService {
   async update(id: string, dto: UpdateNodeDto): Promise<FileNode>
   async permanentDelete(id: string): Promise<void>  // 硬删 + 物理文件清理
   async list(filters: NodeListFilters): Promise<FileNode[]>
-  async getChildren(parentId: string, recursive?: boolean): Promise<FileNode[]>
-  async getMounts(): Promise<FileNode[]>
+  async getChildren(parentId: string, options?: {
+    recursive?: boolean
+    sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
+    sortOrder?: 'asc' | 'desc'
+    limit?: number
+    offset?: number
+  }): Promise<FileNode[]>
+  /** 获取挂载点列表。includeSystem=false 时排除系统挂载点（如 Trash） */
+  async getMounts(includeSystem?: boolean): Promise<FileNode[]>
   async move(id: string, targetParentId: string): Promise<FileNode>
+  async moveBatch(ids: string[], targetParentId: string): Promise<void>
   async trash(id: string): Promise<void>
+  async trashBatch(ids: string[]): Promise<void>
   async restore(id: string): Promise<FileNode>
+  async permanentDeleteBatch(ids: string[]): Promise<void>
   async resolvePhysicalPath(id: string): Promise<string>
 }
 
@@ -897,7 +1155,13 @@ export const fileHandlers = {
     DELETE: async ({ params }) => { await nodeService.permanentDelete(params.id) },
   },
   '/files/nodes/:id/children': {
-    GET: async ({ params, query }) => nodeService.getChildren(params.id, query?.recursive),
+    GET: async ({ params, query }) => nodeService.getChildren(params.id, {
+      recursive: query?.recursive,
+      sortBy: query?.sortBy,
+      sortOrder: query?.sortOrder,
+      limit: query?.limit,
+      offset: query?.offset,
+    }),
   },
   '/files/nodes/:id/move': {
     PUT: async ({ params, body }) => nodeService.move(params.id, body.targetParentId),
@@ -916,8 +1180,17 @@ export const fileHandlers = {
     GET: async ({ query }) => fileRefService.getBySource(query.sourceType, query.sourceId),
     DELETE: async ({ query }) => { await fileRefService.cleanupBySource(query.sourceType, query.sourceId) },
   },
+  '/files/nodes/batch/trash': {
+    PUT: async ({ body }) => { await nodeService.trashBatch(body.ids) },
+  },
+  '/files/nodes/batch/move': {
+    PUT: async ({ body }) => { await nodeService.moveBatch(body.ids, body.targetParentId) },
+  },
+  '/files/nodes/batch/delete': {
+    DELETE: async ({ body }) => { await nodeService.permanentDeleteBatch(body.ids) },
+  },
   '/files/mounts': {
-    GET: async () => nodeService.getMounts(),
+    GET: async ({ query }) => nodeService.getMounts(query?.includeSystem),
   },
 }
 
@@ -1148,40 +1421,46 @@ async validate(ctx: MigrationContext): Promise<ValidateResult> {
 
 ```typescript
 // KnowledgeMigrator.execute() 中
+const fileIdMap = ctx.sharedData.get('fileIdMap') as Map<string, string>
+
 if (item.type === 'file' && item.content?.id) {
-  await ctx.db.insert(fileRefTable).values({
-    id: generateUUID(),
-    nodeId: item.content.id,        // FileMetadata.id = nodeTable.id
-    sourceType: 'knowledge_item',
-    sourceId: newKnowledgeItemId,
-    role: 'source',
-  })
+  if (fileIdMap.has(item.content.id)) {
+    await ctx.db.insert(fileRefTable).values({
+      id: generateUUID(),
+      nodeId: item.content.id,        // FileMetadata.id = nodeTable.id
+      sourceType: 'knowledge_item',
+      sourceId: newKnowledgeItemId,
+      role: 'source',
+    })
+  } else {
+    logger.warn(`Skipping file_ref: node ${item.content.id} not found in nodeTable`)
+  }
 }
 ```
 
 **ChatMigrator（order=4）**：
 
-迁移消息 blocks 时，对于含 `fileId` 的 block，创建 file_ref 记录：
+迁移消息 blocks 时，对于含 `fileId` 的 block，创建 file_ref 记录。
+
+> **容错要求**：旧数据中可能存在文件已被删除但消息/知识库条目未清理的情况，此时 `block.fileId` 指向的节点不存在于 `nodeTable` 中。由于 `fileRefTable.nodeId` 有 FK 约束，直接插入会失败。因此必须**先验证节点存在性**，不存在的跳过并记录 warning。
 
 ```typescript
 // ChatMigrator 的 block 转换中
-if (block.type === 'file' && block.fileId) {
-  fileRefsToInsert.push({
-    id: generateUUID(),
-    nodeId: block.fileId,
-    sourceType: 'chat_message',
-    sourceId: messageId,
-    role: 'attachment',
-  })
-}
-if (block.type === 'image' && block.fileId) {
-  fileRefsToInsert.push({
-    id: generateUUID(),
-    nodeId: block.fileId,
-    sourceType: 'chat_message',
-    sourceId: messageId,
-    role: 'attachment',
-  })
+const fileIdMap = ctx.sharedData.get('fileIdMap') as Map<string, string>
+
+if ((block.type === 'file' || block.type === 'image') && block.fileId) {
+  // 验证文件节点存在（已迁移）后才创建引用
+  if (fileIdMap.has(block.fileId)) {
+    fileRefsToInsert.push({
+      id: generateUUID(),
+      nodeId: block.fileId,
+      sourceType: 'chat_message',
+      sourceId: messageId,
+      role: 'attachment',
+    })
+  } else {
+    logger.warn(`Skipping file_ref: node ${block.fileId} not found in nodeTable`)
+  }
 }
 ```
 
@@ -1358,8 +1637,8 @@ function toFileMetadata(node: FileNode): FileMetadata {
 
 **关键任务**：
 
-1. **启动同步**：扫描 `notesPath` → diff 与 `mount_notes` 下的节点表 → 增删改对齐
-2. **运行时同步**：chokidar 事件 → 防抖（200ms）→ 增量更新节点表
+1. **启动同步**：扫描 `notesPath` → diff 与 `mount_notes` 下的节点表 → 增删改对齐（排除 `.trash` 目录）
+2. **运行时同步**：chokidar 事件 → 防抖（200ms）→ 增量更新节点表（`ignored: ['**/.trash/**']`）
 3. **冲突策略**：文件系统 wins（见第四章 4.4 节）
 4. **迁移**：首次启动时执行全量 reconcile，将现有笔记文件扫描入库
 5. **页面重构**：`NotesPage.tsx` 从直接调用 `getDirectoryStructure` 改为查询 `nodeTable`
@@ -1428,7 +1707,7 @@ Phase 5                │
 | 风险 | 影响 | 缓解措施 |
 |------|------|---------|
 | `FileMetadata` 引用面太广（274 处） | Consumer Migration 工作量大 | `toFileMetadata` 适配函数 + 分批迁移 |
-| 旧文件 `ext` 含点/不含点不统一 | 路径解析错误 | `resolvePhysicalPath` 兼容两种格式 |
+| 旧文件 `ext` 含点/不含点不统一 | 路径解析错误 | 迁移时统一 normalize 为不含点格式（§4.3），`resolvePhysicalPath` 拼接时始终加点 |
 | KnowledgeMigrator 尚未实现 | File ref 创建时机不确定 | FileMigrator 不依赖 Knowledge，仅通过 `sharedData` 提供数据 |
 | Painting 的 file_ref 暂缺 | 文件页面无法追溯 painting 引用 | 文件节点已存在可访问，file_ref 随 Painting 重构补建 |
 | Notes 双向同步复杂度 | 冲突、数据不一致 | 文件系统 wins + 启动时全量 reconcile 兜底 |
