@@ -113,6 +113,10 @@ const ThinkingTimeSeconds = memo(
 
     useEffect(() => {
       if (isThinking) {
+        // Reset displayTime when starting new thinking session
+        if (blockThinkingTime === 0) {
+          setDisplayTime(0)
+        }
         if (!timer.current) {
           timer.current = setInterval(() => {
             setDisplayTime((prev) => prev + 100)
