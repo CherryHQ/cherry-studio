@@ -336,7 +336,11 @@ export const reorderSessions = async (req: Request, res: Response): Promise<Resp
   try {
     const { ordered_ids } = req.body
 
-    if (!Array.isArray(ordered_ids) || ordered_ids.length === 0) {
+    if (
+      !Array.isArray(ordered_ids) ||
+      ordered_ids.length === 0 ||
+      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
+    ) {
       return res.status(400).json({
         error: {
           message: 'ordered_ids must be a non-empty array of session IDs',
