@@ -1,11 +1,18 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CitationTooltip from '../CitationTooltip'
 
 // Mock dependencies
 const mockWindowOpen = vi.fn()
+
+vi.mock('@renderer/utils/fetch', () => ({
+  fetchXOEmbed: vi.fn().mockResolvedValue(null),
+  isXPostUrl: vi.fn().mockReturnValue(false)
+}))
 
 vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
   __esModule: true,
@@ -47,8 +54,17 @@ describe('CitationTooltip', () => {
     ...overrides
   })
 
+  const createWrapper = () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } }
+    })
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+  }
+
   const renderCitationTooltip = (citation: any, children = <span>Trigger</span>) => {
-    return render(<CitationTooltip citation={citation}>{children}</CitationTooltip>)
+    return render(<CitationTooltip citation={citation}>{children}</CitationTooltip>, { wrapper: createWrapper() })
   }
 
   const expectWindowOpenCalled = (url: string) => {
@@ -89,7 +105,8 @@ describe('CitationTooltip', () => {
       const { container } = render(
         <CitationTooltip citation={citation}>
           <span>Test content</span>
-        </CitationTooltip>
+        </CitationTooltip>,
+        { wrapper: createWrapper() }
       )
       expect(container.firstChild).toMatchSnapshot()
     })
@@ -308,7 +325,7 @@ describe('CitationTooltip', () => {
       const citation = createCitationData()
 
       expect(() => {
-        render(<CitationTooltip citation={citation}>{null}</CitationTooltip>)
+        render(<CitationTooltip citation={citation}>{null}</CitationTooltip>, { wrapper: createWrapper() })
       }).not.toThrow()
     })
 

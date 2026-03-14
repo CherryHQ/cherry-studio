@@ -30,16 +30,27 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   model: Model
   assistantId: string
+  // Controlled mode: external state management (for agent sessions)
+  reasoningEffort?: ThinkingOption
+  onReasoningEffortChange?: (option: ThinkingOption) => void
 }
 
-const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactElement => {
+const ThinkingButton: FC<Props> = ({
+  quickPanel,
+  model,
+  assistantId,
+  reasoningEffort: controlledEffort,
+  onReasoningEffortChange
+}): ReactElement => {
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
+  const isControlled = controlledEffort !== undefined
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
   const currentReasoningEffort = useMemo(() => {
+    if (isControlled) return controlledEffort
     return assistant.settings?.reasoning_effort || 'none'
-  }, [assistant.settings?.reasoning_effort])
+  }, [isControlled, controlledEffort, assistant.settings?.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
@@ -58,9 +69,14 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   }, [model, modelType])
 
   const onThinkingChange = useCallback(
-    (option?: ThinkingOption) => {
-      const isEnabled = option !== undefined && option !== 'none'
-      // 然后更新设置
+    (option: ThinkingOption) => {
+      const isEnabled = option !== 'none'
+
+      if (isControlled) {
+        onReasoningEffortChange?.(option)
+        return
+      }
+
       if (!isEnabled) {
         updateAssistantSettings({
           reasoning_effort: option,
@@ -83,9 +99,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
         reasoning_effort_cache: option,
         qwenThinkMode: true
       })
-      return
     },
-    [updateAssistantSettings, assistant.enableWebSearch, model, t]
+    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistant.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = {
@@ -131,6 +146,11 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   const isThinkingEnabled =
     currentReasoningEffort !== undefined && currentReasoningEffort !== 'none' && currentReasoningEffort !== 'default'
 
+  // Check if model supports multiple thinking levels (more than one of: low, medium, high, xhigh, minimal)
+  const hasMultipleLevels = useMemo(() => {
+    return supportedOptions.filter((opt) => ['low', 'medium', 'high', 'xhigh', 'minimal'].includes(opt)).length > 1
+  }, [supportedOptions])
+
   const disableThinking = useCallback(() => {
     onThinkingChange('none')
   }, [onThinkingChange])
@@ -151,12 +171,21 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       return
     }
 
-    if (isThinkingEnabled && supportedOptions.includes('none')) {
+    // If model has only single level (doesn't support multiple levels), directly disable thinking
+    if (isThinkingEnabled && supportedOptions.includes('none') && !hasMultipleLevels) {
       disableThinking()
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking, isFixedReasoning])
+  }, [
+    openQuickPanel,
+    quickPanelHook,
+    isThinkingEnabled,
+    supportedOptions,
+    hasMultipleLevels,
+    disableThinking,
+    isFixedReasoning
+  ])
 
   useEffect(() => {
     if (isFixedReasoning) return
@@ -179,11 +208,15 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     }
   }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
 
+  // Determine tooltip label, consistent with handleOpenQuickPanel behavior:
+  // - Fixed reasoning models: always show "Thinking"
+  // - Multi-level models: always show "Reasoning Effort" (opens panel)
+  // - Single-level models: show "Close" when thinking enabled, otherwise "Reasoning Effort"
   const ariaLabel = isFixedReasoning
     ? t('chat.input.thinking.label')
-    : isThinkingEnabled && supportedOptions.includes('none')
-      ? t('common.close')
-      : t('assistants.settings.reasoning_effort.label')
+    : hasMultipleLevels || !isThinkingEnabled
+      ? t('assistants.settings.reasoning_effort.label')
+      : t('common.close')
 
   return (
     <Tooltip placement="top" content={ariaLabel} closeDelay={0}>

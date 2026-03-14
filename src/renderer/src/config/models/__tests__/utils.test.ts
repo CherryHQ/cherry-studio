@@ -3,6 +3,7 @@ import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT5SeriesReasoningModel,
@@ -20,8 +21,10 @@ import {
   getModelSupportedVerbosity,
   groupQwenModels,
   isAnthropicModel,
+  isClaude46SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
+  isGemini31ProModel,
   isGeminiModel,
   isGemmaModel,
   isGenerateImageModels,
@@ -173,13 +176,46 @@ describe('model utils', () => {
   })
 
   describe('GPT-5 family detection', () => {
-    describe('isGPT5SeriesModel', () => {
-      it('returns true for GPT-5 models', () => {
-        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+    describe('isGPT5FamilyModel', () => {
+      it('returns true for GPT-5 base models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-pro' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5-chat' }))).toBe(true)
       })
 
-      it('returns false for GPT-5.1 models', () => {
+      it('returns true for GPT-5.x sub-version models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.1' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.1-mini' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.2-pro' }))).toBe(true)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'gpt-4.1' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'claude-3.5' }))).toBe(false)
+        expect(isGPT5FamilyModel(createModel({ id: 'o3-mini' }))).toBe(false)
+      })
+    })
+
+    describe('isGPT5SeriesModel', () => {
+      it('returns true for GPT-5 base models', () => {
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5' }))).toBe(true)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-preview' }))).toBe(true)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5-pro' }))).toBe(true)
+      })
+
+      it('returns false for GPT-5.x sub-version models', () => {
         expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.2' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.4' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-5.9-turbo' }))).toBe(false)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isGPT5SeriesModel(createModel({ id: 'gpt-4.1' }))).toBe(false)
       })
     })
 
@@ -215,33 +251,65 @@ describe('model utils', () => {
         expect(isSupportVerbosityModel(createModel({ id: 'gpt-5' }))).toBe(true)
       })
 
-      it('returns false for GPT-5 chat models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
+      it('returns true for GPT-5.x sub-version models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.2' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
       })
 
-      it('returns true for GPT-5.1 models', () => {
-        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      it('returns true for GPT-5 chat and codex models (granular exclusion handled by validators)', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(true)
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(true)
+      })
+
+      it('returns false for non-GPT-5 models', () => {
+        expect(isSupportVerbosityModel(createModel({ id: 'gpt-4o' }))).toBe(false)
       })
     })
 
     describe('getModelSupportedVerbosity', () => {
-      it('returns only "high" for GPT-5 Pro models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, null, 'high'])
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([
-          undefined,
-          null,
-          'high'
-        ])
+      const allLevels = [undefined, null, 'low', 'medium', 'high']
+      const mediumOnly = [undefined, null, 'medium']
+
+      it('GPT-5 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-mini' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-nano' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-chat' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for non-Pro GPT-5 models', () => {
-        const previewModel = createModel({ id: 'gpt-5-preview' })
-        expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, null, 'low', 'medium', 'high'])
+      it('GPT-5.1 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-chat-latest' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.1-codex-max' }))).toEqual(mediumOnly)
       })
 
-      it('returns all levels for GPT-5.1 models', () => {
-        const gpt51Model = createModel({ id: 'gpt-5.1-preview' })
-        expect(getModelSupportedVerbosity(gpt51Model)).toEqual([undefined, null, 'low', 'medium', 'high'])
+      it('GPT-5.2 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-codex' }))).toEqual(mediumOnly)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.2-chat-latest' }))).toEqual(mediumOnly)
+      })
+
+      it('GPT-5.3 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.3-chat-latest' }))).toEqual(mediumOnly)
+      })
+
+      it('GPT-5.4 models', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.4-pro' }))).toEqual(allLevels)
+      })
+
+      it('future GPT-5.5+ models fallback correctly', () => {
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-pro' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-codex' }))).toEqual(allLevels)
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5.5-chat-latest' }))).toEqual(mediumOnly)
       })
 
       it('returns only undefined for non-GPT-5 models', () => {
@@ -497,11 +565,6 @@ describe('model utils', () => {
         expect(isGemini3ProModel(createModel({ id: 'gemini-3-pro-exp-1234' }))).toBe(true)
       })
 
-      it('detects gemini-pro-latest alias', () => {
-        expect(isGemini3ProModel(createModel({ id: 'gemini-pro-latest' }))).toBe(true)
-        expect(isGemini3ProModel(createModel({ id: 'Gemini-Pro-Latest' }))).toBe(true)
-      })
-
       it('detects gemini-3-pro with uppercase', () => {
         expect(isGemini3ProModel(createModel({ id: 'Gemini-3-Pro' }))).toBe(true)
         expect(isGemini3ProModel(createModel({ id: 'GEMINI-3-PRO-PREVIEW' }))).toBe(true)
@@ -526,6 +589,56 @@ describe('model utils', () => {
       it('returns false for null/undefined models', () => {
         expect(isGemini3ProModel(null)).toBe(false)
         expect(isGemini3ProModel(undefined)).toBe(false)
+      })
+    })
+
+    describe('isGemini31ProModel', () => {
+      it('detects gemini-3.1-pro model', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro-preview model', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro with version suffixes', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-latest' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-preview-09-2025' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-exp-1234' }))).toBe(true)
+      })
+
+      it('detects gemini-pro-latest alias', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-pro-latest' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'Gemini-Pro-Latest' }))).toBe(true)
+      })
+
+      it('detects gemini-3.1-pro with uppercase', () => {
+        expect(isGemini31ProModel(createModel({ id: 'Gemini-3.1-Pro' }))).toBe(true)
+        expect(isGemini31ProModel(createModel({ id: 'GEMINI-3.1-PRO-PREVIEW' }))).toBe(true)
+      })
+
+      it('excludes gemini-3.1-pro-image models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image-preview' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3.1-pro-image-latest' }))).toBe(false)
+      })
+
+      it('returns false for non-3.1 gemini-3-pro models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro-preview' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-pro-latest' }))).toBe(false)
+      })
+
+      it('returns false for other gemini models', () => {
+        expect(isGemini31ProModel(createModel({ id: 'gemini-2-pro' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-2.5-pro-preview-09-2025' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-flash' }))).toBe(false)
+        expect(isGemini31ProModel(createModel({ id: 'gemini-3-flash-preview' }))).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isGemini31ProModel(null)).toBe(false)
+        expect(isGemini31ProModel(undefined)).toBe(false)
       })
     })
 
@@ -669,6 +782,82 @@ describe('model utils', () => {
         expect(isMaxTemperatureOneModel(createModel({ id: 'gpt-4-turbo' }))).toBe(false)
         expect(isMaxTemperatureOneModel(createModel({ id: 'qwen-max' }))).toBe(false)
         expect(isMaxTemperatureOneModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+      })
+    })
+  })
+
+  describe('Claude 4.6 Models Detection', () => {
+    describe('isClaude46SeriesModel', () => {
+      it('detects Opus 4.6 in direct API format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 with version suffixes', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-6-preview' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 in AWS Bedrock format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-6-v2:0' }))).toBe(true)
+      })
+
+      it('detects Opus 4.6 with provider prefix', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-opus-4-6' }))).toBe(true)
+      })
+
+      it('handles case insensitivity', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Opus-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Opus-4-6-V1' }))).toBe(true)
+      })
+
+      it('returns false for other Claude models', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.5' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-0' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+      })
+
+      it('detects Sonnet 4.6 in direct API format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with version suffixes', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4.6-20251201' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-6-preview' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 in AWS Bedrock format', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('detects Sonnet 4.6 with provider prefix', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic/claude-sonnet-4-6' }))).toBe(true)
+      })
+
+      it('handles case insensitivity for Sonnet', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'CLAUDE-SONNET-4-6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Claude-Sonnet-4.6' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Sonnet-4-6-V1' }))).toBe(true)
+      })
+
+      it('returns false for non-Claude models', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'gemini-pro' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'qwen-max' }))).toBe(false)
+      })
+
+      it('returns false for undefined and null', () => {
+        expect(isClaude46SeriesModel(undefined as unknown as Model)).toBe(false)
+        expect(isClaude46SeriesModel(null as unknown as Model)).toBe(false)
       })
     })
   })

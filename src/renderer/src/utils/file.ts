@@ -1,5 +1,5 @@
-import type { FileMetadata } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import type { FileMetadata, FileType } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import { audioExts, documentExts, GB, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
 import mime from 'mime-types'
 
@@ -116,28 +116,28 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
   return validationResults.filter((result) => result.isValid).map((result) => result.file)
 }
 
-export const mime2type = (mimeStr: string): FileTypes => {
+export const mime2type = (mimeStr: string): FileType => {
   const mimeType = mimeStr.toLowerCase()
   const ext = mime.extension(mimeType)
   if (ext) {
     if (textExts.includes(ext)) {
-      return FileTypes.TEXT
+      return FILE_TYPE.TEXT
     } else if (imageExts.includes(ext)) {
-      return FileTypes.IMAGE
+      return FILE_TYPE.IMAGE
     } else if (documentExts.includes(ext)) {
-      return FileTypes.DOCUMENT
+      return FILE_TYPE.DOCUMENT
     } else if (audioExts.includes(ext)) {
-      return FileTypes.AUDIO
+      return FILE_TYPE.AUDIO
     } else if (videoExts.includes(ext)) {
-      return FileTypes.VIDEO
+      return FILE_TYPE.VIDEO
     }
   }
-  return FileTypes.OTHER
+  return FILE_TYPE.OTHER
 }
 
-export function parseFileTypes(str: string): FileTypes | null {
-  if (Object.values(FileTypes).includes(str as FileTypes)) {
-    return str as FileTypes
+export function parseFileTypes(str: string): FileType | null {
+  if (Object.values(FILE_TYPE).some((type) => type === str)) {
+    return str as FileType
   }
   return null
 }

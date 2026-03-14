@@ -40,12 +40,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       navigator.clipboard
         .writeText(block.content)
         .then(() => {
-          window.toast.success(t('message.copied'))
+          window.toast.success({ title: t('message.copied'), key: 'copy-message' })
           setCopied(true)
         })
         .catch((error) => {
           logger.error('Failed to copy text:', error)
-          window.toast.error(t('message.copy.failed'))
+          window.toast.error({ title: t('message.copy.failed'), key: 'copy-message-error' })
         })
     }
   }, [block.content, setCopied, t])

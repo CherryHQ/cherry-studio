@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 export * from './types'
 
 // 导入所有渲染器
+import { AskUserQuestionCard } from '../AskUserQuestionCard'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
@@ -24,7 +25,6 @@ import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
 import { SkillTool } from './SkillTool'
 import { TaskTool } from './TaskTool'
-import { TodoWriteTool } from './TodoWriteTool'
 import type { ToolInput, ToolOutput } from './types'
 import { AgentToolsType } from './types'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
@@ -39,7 +39,6 @@ export const toolRenderers = {
   [AgentToolsType.Bash]: BashTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
-  [AgentToolsType.TodoWrite]: TodoWriteTool,
   [AgentToolsType.WebSearch]: WebSearchTool,
   [AgentToolsType.Grep]: GrepTool,
   [AgentToolsType.Write]: WriteTool,
@@ -144,6 +143,21 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
       return undefined
     }
   }, [partialArguments])
+
+  // AskUserQuestion uses a unified card for both pending and completed states
+  if (tool?.name === AgentToolsType.AskUserQuestion) {
+    const isLoading = status === 'streaming' || status === 'invoking'
+    return (
+      <StreamingContext value={isLoading}>
+        <AskUserQuestionCard toolResponse={toolResponse} />
+      </StreamingContext>
+    )
+  }
+
+  // TodoWrite tools are always shown in PinnedTodoPanel, never in message stream
+  if (tool?.name === AgentToolsType.TodoWrite) {
+    return null
+  }
 
   const effectiveStatus = getEffectiveStatus(status, !!pendingPermission)
 

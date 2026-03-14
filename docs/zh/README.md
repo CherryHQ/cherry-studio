@@ -248,7 +248,7 @@ https://docs.cherry-ai.com
 >
 > 企业版目前处于早期公开测试阶段，我们正在积极迭代和优化其功能。我们知道它可能还不够完全稳定。如果您在试用过程中遇到任何问题或有宝贵建议，我们非常感谢您能通过邮件联系我们提供反馈。
 
-**🔗 [Cherry Studio 企业版](https://www.cherry-ai.com/enterprise)**
+**🔗 [Cherry Studio 企业版](https://enterprise.cherry-ai.com)**
 
 ## 版本对比
 

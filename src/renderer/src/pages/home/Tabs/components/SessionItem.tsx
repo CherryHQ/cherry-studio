@@ -11,7 +11,7 @@ import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
-import type { AgentSessionEntity, Assistant } from '@renderer/types'
+import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
@@ -100,7 +100,12 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
 
   useEffect(() => {
     if (isFulfilled && activeSessionId === session.id) {
-      dispatch(newMessagesActions.setTopicFulfilled({ topicId: sessionTopicId, fulfilled: false }))
+      dispatch(
+        newMessagesActions.setTopicFulfilled({
+          topicId: sessionTopicId,
+          fulfilled: false
+        })
+      )
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
@@ -125,10 +130,12 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
         onClick: () => {
-          const assistant = {} as Assistant
-          const agentSession = { agentId: agentId, sessionId: targetSession.id }
+          const agentSession = {
+            agentId: agentId,
+            sessionId: targetSession.id
+          }
           dispatch(loadTopicMessagesThunk(sessionTopicId))
-          renameAgentSessionIfNeeded(agentSession, assistant, sessionTopicId, store.getState)
+          renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
         }
       },
       {

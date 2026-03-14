@@ -280,12 +280,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           if (messages.length >= 2) {
             startTopicRenaming(topic.id)
             try {
-              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              const { text: summaryText, error } = await fetchMessagesSummary({ messages })
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
-              } else {
-                window.toast?.error(t('message.error.fetchTopicName'))
+              } else if (error) {
+                window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
               }
             } finally {
               finishTopicRenaming(topic.id)
@@ -498,6 +498,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.move_to'),
         key: 'move',
         icon: <FolderOpen size={14} />,
+        popupClassName: 'move-to-submenu',
         children: assistants
           .filter((a) => a.id !== assistant.id)
           .map((a) => ({

@@ -35,7 +35,7 @@ import MiMoProviderLogo from '@renderer/assets/images/providers/mimo.svg'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
-import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.webp'
 import NewAPIProviderLogo from '@renderer/assets/images/providers/newapi.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
@@ -470,7 +470,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'MiniMax',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.minimaxi.com/v1',
+    apiHost: 'https://api.minimaxi.com/v1/',
     anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
@@ -1400,9 +1400,9 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.aiionly.com',
-      apiKey: 'https://www.aiionly.com/keyApi',
-      docs: 'https://www.aiionly.com/document',
-      models: 'https://www.aiionly.com'
+      apiKey: 'https://maas.aiionly.com/keyApi',
+      docs: 'https://maas.aiionly.com/document',
+      models: 'https://maas.aiionly.com'
     }
   },
   longcat: {

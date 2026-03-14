@@ -27,7 +27,6 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
-import { fetchAllActiveServerTools } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
@@ -49,7 +48,7 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
-type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider' }>
 
 function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
   if (isAnthropicModel(model)) {
@@ -64,9 +63,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   if (isOpenAIModel(model)) {
     return 'openai'
   }
-  logger.warn(
-    `[mapVertexAIGatewayModelToProviderId] Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`
-  )
+  logger.warn(`Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`)
   return undefined
 }
 
@@ -80,6 +77,7 @@ export async function buildStreamTextParams(
   provider: Provider,
   options: {
     mcpTools?: MCPTool[]
+    allowedTools?: string[]
     webSearchProviderId?: string
     webSearchConfig?: CherryWebSearchConfig
     requestOptions?: {
@@ -131,7 +129,7 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  let tools = setupToolsConfig(mcpTools)
+  let tools = setupToolsConfig(mcpTools, options.allowedTools)
 
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
@@ -197,17 +195,12 @@ export async function buildStreamTextParams(
       case 'anthropic':
       case 'azure-anthropic':
       case 'google-vertex-anthropic':
-        tools.web_fetch = (
-          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
-            ? anthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-            : vertexAnthropic.tools.webFetch_20250910({
-                maxUses: webSearchConfig.maxResults,
-                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-              })
-        ) as ProviderDefinedTool
+        if (['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)) {
+          tools.web_fetch = anthropic.tools.webFetch_20250910({
+            maxUses: webSearchConfig.maxResults,
+            blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+          }) as ProviderDefinedTool
+        }
         break
     }
   }
@@ -248,8 +241,7 @@ export async function buildStreamTextParams(
   let systemPrompt = assistant.prompt ? await replacePromptVariables(assistant.prompt, model.name) : ''
 
   if (getEffectiveMcpMode(assistant) === 'auto') {
-    const allActiveTools = await fetchAllActiveServerTools()
-    const autoModePrompt = getHubModeSystemPrompt(allActiveTools)
+    const autoModePrompt = getHubModeSystemPrompt()
     if (autoModePrompt) {
       systemPrompt = systemPrompt ? `${systemPrompt}\n\n${autoModePrompt}` : autoModePrompt
     }
@@ -278,6 +270,7 @@ export async function buildGenerateTextParams(
   provider: Provider,
   options: {
     mcpTools?: MCPTool[]
+    allowedTools?: string[]
     enableTools?: boolean
   } = {}
 ): Promise<any> {

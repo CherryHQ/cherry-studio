@@ -6,14 +6,14 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useTimer } from '@renderer/hooks/useTimer'
+import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { FileMetadata } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
@@ -51,6 +51,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
+  const { pasteLongTextAsFile } = useSettings()
+
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -60,7 +62,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  const { setTimeoutTimer } = useTimer()
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({
@@ -142,14 +143,14 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         extensions,
         setFiles,
         undefined, // 不需要setText
-        false, // 不需要 pasteLongTextAsFile
+        pasteLongTextAsFile,
         pasteLongTextThreshold,
         undefined, // 不需要text
         undefined, // 不需要 resizeTextArea
         t
       )
     },
-    [extensions, pasteLongTextThreshold, t]
+    [extensions, pasteLongTextThreshold, t, pasteLongTextAsFile]
   )
 
   // 添加全局粘贴事件处理
@@ -210,7 +211,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
       uploadedFiles.forEach((file) => {
-        if (file.type === FileTypes.IMAGE) {
+        if (file.type === FILE_TYPE.IMAGE) {
           const imgBlock = createImageBlock(message.id, { file, status: MessageBlockStatus.SUCCESS })
           updatedBlocks.push(imgBlock)
         } else {
@@ -236,7 +237,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     onResend(updatedBlocks)
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (message.role !== 'user') {
       return
     }
@@ -253,30 +254,6 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
         handleResend()
         return event.preventDefault()
-      } else {
-        if (!event.shiftKey) {
-          event.preventDefault()
-
-          const textArea = textareaRef.current?.resizableTextArea?.textArea
-          if (textArea) {
-            const start = textArea.selectionStart
-            const end = textArea.selectionEnd
-            const text = textArea.value
-            const newText = text.substring(0, start) + '\n' + text.substring(end)
-
-            //same with onChange()
-            handleTextChange(blockId, newText)
-
-            // set cursor position in the next render cycle
-            setTimeoutTimer(
-              'handleKeyDown',
-              () => {
-                textArea.selectionStart = textArea.selectionEnd = start + 1
-              },
-              0
-            )
-          }
-        }
       }
     }
   }
@@ -302,7 +279,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               onChange={(e) => {
                 handleTextChange(block.id, e.target.value)
               }}
-              onKeyDown={(e) => handleKeyDown(e, block.id)}
+              onKeyDown={handleKeyDown}
               autoFocus
               spellCheck={enableSpellCheck}
               onPaste={(e) => onPaste(e.nativeEvent)}

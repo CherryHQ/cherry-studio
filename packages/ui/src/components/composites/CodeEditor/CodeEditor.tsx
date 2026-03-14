@@ -3,7 +3,7 @@ import CodeMirror, { Annotation, EditorView } from '@uiw/react-codemirror'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
 
-import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
+import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap, useScrollToLine } from './hooks'
 import type { CodeEditorProps } from './types'
 import { prepareCodeChanges } from './utils'
 
@@ -98,8 +98,12 @@ const CodeEditor = ({
     ].flat()
   }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
+  const scrollToLine = useScrollToLine(editorViewRef)
+
   useImperativeHandle(ref, () => ({
-    save: handleSave
+    save: handleSave,
+    getContent: () => editorViewRef.current?.state.doc.toString() ?? '',
+    scrollToLine
   }))
 
   return (

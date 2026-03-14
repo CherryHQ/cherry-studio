@@ -1,5 +1,5 @@
 import type { Assistant, FileMetadata, Usage } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
@@ -19,7 +19,7 @@ async function getFileContent(file: FileMetadata) {
     return ''
   }
 
-  if (file.type === FileTypes.TEXT) {
+  if (file.type === FILE_TYPE.TEXT) {
     return await window.api.file.read(file.id + file.ext, true)
   }
 
@@ -93,7 +93,7 @@ export async function estimateUserPromptUsage({
   let imageTokens = 0
 
   if (files && files.length > 0) {
-    const images = files.filter((f) => f.type === FileTypes.IMAGE)
+    const images = files.filter((f) => f.type === FILE_TYPE.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
         imageTokens = estimateImageTokens(image) + imageTokens
@@ -126,7 +126,7 @@ export async function estimateMessageUsage(message: Partial<Message>): Promise<U
   let imageTokens = 0
 
   if (files.length > 0) {
-    const images = files.filter((f) => f.type === FileTypes.IMAGE)
+    const images = files.filter((f) => f.type === FILE_TYPE.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
         imageTokens = estimateImageTokens(image) + imageTokens

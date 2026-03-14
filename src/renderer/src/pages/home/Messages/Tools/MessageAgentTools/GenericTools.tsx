@@ -1,9 +1,9 @@
 // 通用工具组件 - 减少重复代码
 
 import { LoadingIcon } from '@renderer/components/Icons'
+import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { MCPToolResponseStatus } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils/file'
-import { Skeleton } from 'antd'
 import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,20 +15,7 @@ export { default as ToolHeader, type ToolHeaderProps } from '../ToolHeader'
 export const StreamingContext = createContext<boolean>(false)
 export const useIsStreaming = () => use(StreamingContext)
 
-export function SkeletonSpan({ width = '60px' }: { width?: string }) {
-  return (
-    <Skeleton.Input
-      active
-      size="small"
-      style={{
-        width,
-        minWidth: width,
-        height: '1em',
-        verticalAlign: 'middle'
-      }}
-    />
-  )
-}
+export { SkeletonSpan }
 
 /**
  * SkeletonValue - 流式时显示 skeleton，否则显示值

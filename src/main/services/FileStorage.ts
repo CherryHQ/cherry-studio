@@ -12,8 +12,8 @@ import {
 import { t } from '@main/utils/language'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
-import type { FileMetadata, NotesTreeNode } from '@types'
-import { FileTypes } from '@types'
+import type { FileMetadata, FileType, NotesTreeNode } from '@types'
+import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
@@ -27,7 +27,6 @@ import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
-import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
@@ -149,13 +148,20 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
 class FileStorage {
   private storageDir = getFilesDir()
   private notesDir = getNotesDir()
-  private tempDir = getTempDir()
+  private _tempDir = getTempDir()
   private watcher?: FSWatcher
   private watcherSender?: Electron.WebContents
   private currentWatchPath?: string
   private debounceTimer?: NodeJS.Timeout
   private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
   private isPaused = false
+
+  private get tempDir(): string {
+    if (!fs.existsSync(this._tempDir)) {
+      fs.mkdirSync(this._tempDir, { recursive: true })
+    }
+    return this._tempDir
+  }
 
   constructor() {
     this.initStorageDir()
@@ -168,9 +174,6 @@ class FileStorage {
       }
       if (!fs.existsSync(this.notesDir)) {
         fs.mkdirSync(this.notesDir, { recursive: true })
-      }
-      if (!fs.existsSync(this.tempDir)) {
-        fs.mkdirSync(this.tempDir, { recursive: true })
       }
     } catch (error) {
       logger.error('Failed to initialize storage directories:', error as Error)
@@ -228,11 +231,11 @@ class FileStorage {
     return null
   }
 
-  public getFileType = async (filePath: string): Promise<FileTypes> => {
+  public getFileType = async (filePath: string): Promise<FileType> => {
     const ext = path.extname(filePath)
     const fileType = getFileTypeByExt(ext)
 
-    return fileType === FileTypes.OTHER && (await this._isTextFile(filePath)) ? FileTypes.TEXT : fileType
+    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -504,22 +507,18 @@ class FileStorage {
     const fileExtension = path.extname(filePath)
 
     if (documentExts.includes(fileExtension)) {
-      const originalCwd = process.cwd()
       try {
-        chdir(this.tempDir)
-
         if (fileExtension === '.doc') {
           const extractor = new WordExtractor()
           const extracted = await extractor.extract(filePath)
-          chdir(originalCwd)
           return extracted.getBody()
         }
 
-        const data = await officeParser.parseOfficeAsync(filePath)
-        chdir(originalCwd)
+        const data = await officeParser.parseOfficeAsync(filePath, {
+          tempFilesLocation: this.tempDir
+        })
         return data
       } catch (error) {
-        chdir(originalCwd)
         logger.error('Failed to read document file:', error as Error)
         throw error
       }
@@ -611,10 +610,6 @@ class FileStorage {
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true })
-    }
-
     return path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
   }
 
@@ -1458,7 +1453,7 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<void> => {
+  public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
       const filePath = dialog.showSaveDialogSync({
         defaultPath: `${name}.png`,
@@ -1468,10 +1463,12 @@ class FileStorage {
       if (filePath) {
         const parseResult = parseDataUrl(data)
         fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
+        return true
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
+    return false
   }
 
   public selectFolder = async (_: Electron.IpcMainInvokeEvent, options: OpenDialogOptions): Promise<string | null> => {
@@ -1851,6 +1848,15 @@ class FileStorage {
       return false
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
+      return false
+    }
+  }
+
+  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const stat = await fs.promises.stat(filePath)
+      return stat.isDirectory()
+    } catch {
       return false
     }
   }

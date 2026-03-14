@@ -73,7 +73,7 @@ describe('ModelAdapter', () => {
         name: 'OpenAI GPT-4o',
         description: 'Gateway entry',
         specification: {
-          specificationVersion: 'v2',
+          specificationVersion: 'v3',
           provider: 'openai',
           modelId: 'gpt-4o'
         }

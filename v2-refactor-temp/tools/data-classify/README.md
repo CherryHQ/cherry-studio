@@ -145,6 +145,8 @@ npm run extract
 - **LocalStorage**: 所有使用 localStorage 的文件
 - **Dexie 数据库**: `src/renderer/src/databases/index.ts`
 
+> **注意**: `dexieSettings` 数据源中的字符串字面量 key 会被自动提取，但动态 key（如模板字符串拼接的）需要手动维护。详见下方 [dexieSettings 数据源](#dexiesettings-数据源) 章节。
+
 ### 2. 分类数据
 
 编辑 `data/classification.json` 对每个数据项进行分类：
@@ -464,10 +466,105 @@ npm run validate:gen
     },
     "electronStore": { ... },
     "localStorage": { ... },
+    "dexieSettings": {
+      "settings": [
+        {
+          "originalKey": "字段名",
+          "type": "数据类型",
+          "status": "classified|pending",
+          "category": "preferences",
+          "targetKey": "target.key.name"
+        }
+      ]
+    },
     "dexie": { ... }
   }
 }
 ```
+
+### dexieSettings 数据源
+
+`dexieSettings` 是 classification.json 中与 `redux`、`electronStore`、`localStorage`、`dexie` 并列的第五个顶级数据源，专门用于分类 Dexie IndexedDB 中 `settings` 表的 KV 配置项。
+
+**与 `dexie` 数据源的区别**:
+
+| 数据源 | 用途 | 数据结构 | 典型分类 |
+| --- | --- | --- | --- |
+| `dexie` | Dexie 的业务数据表（files, topics 等） | 表级别，使用 `targetTable` | `user_data` |
+| `dexieSettings` | Dexie 的 `settings` 表（KV 配置） | 字段级别，使用 `targetKey` | `preferences`（目前仅支持此分类） |
+
+**classification.json 中的结构**:
+
+```json
+{
+  "classifications": {
+    "dexieSettings": {
+      "settings": [
+        {
+          "originalKey": "settingKeyName",
+          "type": "string",
+          "defaultValue": "defaultValue",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "namespace.key_name"
+        }
+      ]
+    }
+  }
+}
+```
+
+**在代码生成中的作用**:
+
+1. **`generate-preferences.js`**: 作为四大偏好数据源之一（`electronStore`、`redux`、`localStorage`、`dexieSettings`），参与生成 `preferenceSchemas.ts`
+2. **`generate-migration.js`**: 生成独立的 `DEXIE_SETTINGS_MAPPINGS` 映射数组，用于迁移器从 Dexie settings 表读取数据
+
+**去重优先级**（当多个数据源映射到相同 targetKey 时）:
+
+```
+redux (最高) > dexieSettings > localStorage > electronStore (最低)
+```
+
+**已知字段清单**（参考 [PR #10162 comment](https://github.com/CherryHQ/cherry-studio/pull/10162#issuecomment-4010796619)）:
+
+Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`），所有 `image://` 键由 `ImageStorage` 服务管理。
+
+*固定键*:
+
+| Key | Value Type | 迁移目标 |
+| --- | --- | --- |
+| `translate:model` | `string` (model id) | preference |
+| `translate:target:language` | `string` (langCode) | preference |
+| `translate:source:language` | `string` (langCode) | preference |
+| `translate:bidirectional:enabled` | `boolean` | preference |
+| `translate:bidirectional:pair` | `[string, string]` (langCode pair) | preference |
+| `translate:scroll:sync` | `boolean` | preference |
+| `translate:markdown:enabled` | `boolean` | preference |
+| `translate:detect:method` | `string` ('franc'/'llm'/'auto') | preference |
+| `pinned:models` | `Model[]` | preference |
+| `image://avatar` | `string` (base64 data URL \| emoji) | preference / file manager |
+
+*动态键（基于 pattern）*:
+
+| Key Pattern | Value Type | 迁移目标 |
+| --- | --- | --- |
+| `image://provider-${providerId}` | `string` (base64 data URL \| emoji \| `''`) | file manager |
+| `mcp:provider:${provider.key}:servers` | `MCPServer[]` | new table |
+
+*已知遗留键（代码中无引用，运行时 IndexedDB 中存在）*:
+
+| Key | 说明 |
+| --- | --- |
+| `translate:model:prompt` | 已被 Redux `settings.translateModelPrompt` 取代，已迁移到 preference `feature.translate.model_prompt`，跳过 |
+
+**注意事项**:
+
+- `extract-inventory.js` 会自动提取 `db.settings.get/put/add()` 调用中的**字符串字面量** key；动态 key（模板字符串拼接）无法自动提取，需要**手动添加**
+- 手动添加的条目在重新提取时会被保留（不会被覆盖或删除）
+- `dexieSettings` 的 `category` 目前仅支持 `preferences`，代码生成脚本只处理该分类
+- `validate-consistency.js` 不会检查 `dexieSettings` 与 inventory 的一致性
+- 迁移时通过 `ctx.sources.dexieSettings.get(mapping.originalKey)` 读取数据
+- 动态键（含 `${}` 模板的 pattern）需要特殊的迁移逻辑，不能用简单 1:1 映射处理
 
 ### 状态值说明
 

@@ -79,7 +79,8 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
       ...app,
       type: 'Custom',
       logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
-      addTime: app.addTime || now
+      addTime: app.addTime || now,
+      supportedRegions: ['CN', 'Global'] // Custom mini apps should always be visible for all regions
     }))
   } catch (error) {
     logger.error('Failed to load custom mini apps:', error as Error)
@@ -94,111 +95,118 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ChatGPT',
     url: 'https://chatgpt.com/',
     logo: OpenAiProviderLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
     logo: GeminiAppLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'silicon',
     name: 'SiliconFlow',
     url: 'https://cloud.siliconflow.cn/playground/chat',
-    logo: SiliconFlowProviderLogo
+    logo: SiliconFlowProviderLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'deepseek',
     name: 'DeepSeek',
     url: 'https://chat.deepseek.com/',
-    logo: DeepSeekProviderLogo
+    logo: DeepSeekProviderLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'yi',
     name: 'Wanzhi',
     nameKey: 'minapps.wanzhi',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.wanzhi.com/',
     logo: WanZhiAppLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'zhipu',
     name: 'ChatGLM',
     nameKey: 'minapps.chatglm',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: ZhipuProviderLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'moonshot',
     name: 'Kimi',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://kimi.moonshot.cn/',
-    logo: KimiAppLogo
+    logo: KimiAppLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baichuan',
     name: 'Baichuan',
     nameKey: 'minapps.baichuan',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ying.baichuan-ai.com/chat',
-    logo: BaicuanAppLogo
+    logo: BaicuanAppLogo,
+    supportedRegions: ['CN']
   },
   {
     id: 'dashscope',
     name: 'Qwen',
     nameKey: 'minapps.qwen',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.qianwen.com',
-    logo: QwenModelLogo
+    logo: QwenModelLogo,
+    supportedRegions: ['CN']
   },
   {
     id: 'stepfun',
     name: 'Stepfun',
     nameKey: 'minapps.stepfun',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://stepfun.com',
     logo: StepfunAppLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'doubao',
     name: 'Doubao',
     nameKey: 'minapps.doubao',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://www.doubao.com/chat/',
-    logo: DoubaoAppLogo
+    logo: DoubaoAppLogo,
+    supportedRegions: ['CN']
   },
   {
     id: 'cici',
     name: 'Cici',
     url: 'https://www.cici.com/chat/',
-    logo: CiciAppLogo
+    logo: CiciAppLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'minimax',
     name: 'Hailuo',
     nameKey: 'minapps.hailuo',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://chat.minimaxi.com/',
     logo: HailuoModelLogo,
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'groq',
     name: 'Groq',
     url: 'https://chat.groq.com/',
-    logo: GroqProviderLogo
+    logo: GroqProviderLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'anthropic',
     name: 'Claude',
     url: 'https://claude.ai/',
-    logo: ClaudeAppLogo
+    logo: ClaudeAppLogo,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'google',
@@ -208,116 +216,123 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baidu-ai-chat',
     name: 'Wenxin',
     nameKey: 'minapps.wenxin',
-    locales: ['zh-CN', 'zh-TW'],
     logo: BaiduAiAppLogo,
-    url: 'https://yiyan.baidu.com/'
+    url: 'https://yiyan.baidu.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'baidu-ai-search',
     name: 'Baidu AI Search',
     nameKey: 'minapps.baidu-ai-search',
-    locales: ['zh-CN', 'zh-TW'],
     logo: BaiduAiSearchLogo,
     url: 'https://chat.baidu.com/',
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN']
   },
   {
     id: 'tencent-yuanbao',
     name: 'Tencent Yuanbao',
     nameKey: 'minapps.tencent-yuanbao',
-    locales: ['zh-CN', 'zh-TW'],
     logo: TencentYuanbaoAppLogo,
     url: 'https://yuanbao.tencent.com/chat',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'sensetime-chat',
     name: 'Sensechat',
     nameKey: 'minapps.sensechat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: SensetimeAppLogo,
     url: 'https://chat.sensetime.com/wb/chat',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'spark-desk',
     name: 'SparkDesk',
-    locales: ['zh-CN', 'zh-TW'],
     logo: SparkDeskAppLogo,
-    url: 'https://xinghuo.xfyun.cn/desk'
+    url: 'https://xinghuo.xfyun.cn/desk',
+    supportedRegions: ['CN']
   },
   {
     id: 'metaso',
     name: 'Metaso',
     nameKey: 'minapps.metaso',
-    locales: ['zh-CN', 'zh-TW'],
     logo: MetasoAppLogo,
-    url: 'https://metaso.cn/'
+    url: 'https://metaso.cn/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'poe',
     name: 'Poe',
     logo: PoeAppLogo,
-    url: 'https://poe.com'
+    url: 'https://poe.com',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'perplexity',
     name: 'Perplexity',
     logo: PerplexityAppLogo,
-    url: 'https://www.perplexity.ai/'
+    url: 'https://www.perplexity.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'devv',
     name: 'DEVV_',
     logo: DevvAppLogo,
-    url: 'https://devv.ai/'
+    url: 'https://devv.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'tiangong-ai',
     name: 'Tiangong AI',
     nameKey: 'minapps.tiangong-ai',
-    locales: ['zh-CN', 'zh-TW'],
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'Felo',
     name: 'Felo',
     logo: FeloAppLogo,
     url: 'https://felo.ai/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'duckduckgo',
     name: 'DuckDuckGo',
     logo: DuckDuckGoAppLogo,
-    url: 'https://duck.ai'
+    url: 'https://duck.ai',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'bolt',
     name: 'bolt',
     logo: BoltAppLogo,
     url: 'https://bolt.new/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'nm',
     name: 'Nami AI',
     nameKey: 'minapps.nami-ai',
-    locales: ['zh-CN', 'zh-TW'],
     logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'thinkany',
@@ -327,82 +342,92 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'github-copilot',
     name: 'GitHub Copilot',
     logo: GithubCopilotLogo,
-    url: 'https://github.com/copilot'
+    url: 'https://github.com/copilot',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'genspark',
     name: 'Genspark',
     logo: GensparkLogo,
-    url: 'https://www.genspark.ai/'
+    url: 'https://www.genspark.ai/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'grok',
     name: 'Grok',
     logo: GrokAppLogo,
     url: 'https://grok.com',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'grok-x',
     name: 'Grok / X',
     logo: GrokXAppLogo,
     url: 'https://x.com/i/grok',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'qwenlm',
     name: 'QwenChat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: QwenlmAppLogo,
-    url: 'https://chat.qwen.ai'
+    url: 'https://chat.qwen.ai',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'flowith',
     name: 'Flowith',
     logo: FlowithAppLogo,
     url: 'https://www.flowith.io/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: '3mintop',
     name: '3MinTop',
     logo: ThreeMinTopAppLogo,
     url: 'https://3min.top',
-    bodered: false
+    bodered: false,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'aistudio',
     name: 'AI Studio',
     logo: AIStudioLogo,
-    url: 'https://aistudio.google.com/'
+    url: 'https://aistudio.google.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'xiaoyi',
     name: 'Xiaoyi',
     nameKey: 'minapps.xiaoyi',
-    locales: ['zh-CN', 'zh-TW'],
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'notebooklm',
     name: 'NotebookLM',
     logo: NotebookLMAppLogo,
-    url: 'https://notebooklm.google.com/'
+    url: 'https://notebooklm.google.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'coze',
     name: 'Coze',
     logo: CozeAppLogo,
     url: 'https://www.coze.com/space',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'dify',
@@ -412,68 +437,74 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'wpslingxi',
     name: 'WPS AI',
     nameKey: 'minapps.wps-copilot',
-    locales: ['zh-CN', 'zh-TW'],
     logo: WPSLingXiLogo,
     url: 'https://copilot.wps.cn/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'lechat',
     name: 'LeChat',
     logo: LeChatLogo,
     url: 'https://chat.mistral.ai/chat',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'abacus',
     name: 'Abacus',
     logo: AbacusLogo,
     url: 'https://apps.abacus.ai/chatllm',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'lambdachat',
     name: 'Lambda Chat',
     logo: LambdaChatLogo,
     url: 'https://lambda.chat/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'monica',
     name: 'Monica',
     logo: MonicaLogo,
     url: 'https://monica.im/home/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'you',
     name: 'You',
     logo: YouLogo,
-    url: 'https://you.com/'
+    url: 'https://you.com/',
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'zhihu',
     name: 'Zhihu Zhida',
     nameKey: 'minapps.zhihu',
-    locales: ['zh-CN', 'zh-TW'],
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN']
   },
   {
     id: 'dangbei',
     name: 'Dangbei AI',
     nameKey: 'minapps.dangbei',
-    locales: ['zh-CN', 'zh-TW'],
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: `zai`,
@@ -483,7 +514,8 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 10
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'n8n',
@@ -493,27 +525,28 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 5
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'longcat',
     name: 'LongCat',
-    locales: ['zh-CN', 'zh-TW'],
     logo: LongCatAppLogo,
     url: 'https://longcat.chat/',
-    bodered: true
+    bodered: true,
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'ling',
     name: 'Ant Ling',
     nameKey: 'minapps.ant-ling',
-    locales: ['zh-CN', 'zh-TW'],
     url: 'https://ling.tbox.cn/chat',
     logo: LingAppLogo,
     bodered: true,
     style: {
       padding: 6
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   },
   {
     id: 'huggingchat',
@@ -523,7 +556,8 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true,
     style: {
       padding: 6
-    }
+    },
+    supportedRegions: ['CN', 'Global']
   }
 ]
 

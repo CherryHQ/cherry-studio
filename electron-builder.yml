@@ -75,10 +75,6 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
-  # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
-  - from: "./node_modules/claude-code-plugins/plugins/"
-    to: "claude-code-plugins"
-
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -146,60 +142,45 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.14 - New Features & Improvements
+    Cherry Studio 1.7.24 - Features & Improvements
 
     ✨ New Features
-    - [Notes] Add export to Word document functionality
-    - [Code Tools] Add Kimi CLI support with auto-configuration
-    - [Code Tools] Support custom providers
-    - [Settings] Support viewing detailed error messages when model detection fails
-    - [Topics] Display year in topic timestamps (YYYY/MM/DD format)
-    - [Linux] Add system title bar setting option
-    - [Models] Add Baichuan m3/m3-plus models
-    - [Models] Add Qwen text-embedding models
-
-    🎨 Improvements
-    - [Translate] Simplify translation with single target language selector
-    - [Topics] Unpinned topics now move to top with auto-scroll
-    - [Minapps] Add locale-based filtering support
-    - [i18n] Update Romanian localization
+    - [Agent] Agent creation no longer requires selecting a workspace folder - a default workspace is automatically created
+    - [Agent] Added thinking/reasoning effort control (low/medium/high/max/adaptive) for Claude Code agent sessions
 
     🐛 Bug Fixes
-    - [Linux] Fix icon display and deb/rpm installation issues
-    - [Linux] Fix window not coming to front when clicking tray
-    - [Linux] Add Alpine Linux (musl) support
-    - [Code Tools] Fix Windows Terminal issues
-    - [Azure] Fix API preview link for completion mode
-    - [Images] Fix trailing slashes in API URLs for image generation
-    - [OpenRouter] Fix MCP tools support
-    - [Chat] Fix image enhancement model conversation history
+    - [Tools] Fix prompt caching crash when using OpenRouter or other non-Anthropic providers
+    - [Models] Fix Gemini 3 models not sending reasoning_effort parameter when deep thinking mode is enabled
+    - [Editor] Fix CodeMirror highlight crash caused by version conflict
+    - [MCP] Fix MCP tool parameter parsing and nested schema display
+    - [MCP] Fix MCP tools not being auto-approved when configured through agent allowed_tools
+    - [UI] Fix duplicate error blocks in aborting
+    - [Plugins] Fix plugin size displaying as 0 in the plugin detail modal
+    - [UI] Fix PinnedTodoPanel ignoring narrow mode width setting
 
+    💄 Improvements
+    - [Sessions] Implement infinite scroll for sessions list
+    - [Plugins] Improve plugin detail modal UI with better layout and styling
+    - [Performance] Fix renderer crash when agent streams large file writes by optimizing tool input delta handling
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.14 - 新功能与改进
+    Cherry Studio 1.7.24 - 功能与改进
 
     ✨ 新功能
-    - [笔记] 支持导出为 Word 文档
-    - [代码工具] 新增 Kimi CLI 支持，自动配置环境
-    - [代码工具] 支持自定义服务商
-    - [设置] 模型检测失败时可查看详细错误信息
-    - [话题] 时间戳显示年份（YYYY/MM/DD 格式）
-    - [Linux] 新增系统标题栏设置选项
-    - [模型] 新增百川 m3/m3-plus 模型
-    - [模型] 新增通义 Embedding 模型
-
-    🎨 改进
-    - [翻译] 简化翻译操作，使用单一目标语言选择
-    - [话题] 取消置顶的话题移动到顶部并自动滚动
-    - [小程序] 支持按语言筛选小程序
-    - [国际化] 更新罗马尼亚语翻译
+    - [智能体] 创建智能体不再需要选择工作区文件夹 - 会自动创建默认工作区
+    - [智能体] 为 Claude Code 智能体会话添加思考/推理强度控制（低/中/高/最大/自适应）
 
     🐛 问题修复
-    - [Linux] 修复图标显示和 deb/rpm 安装问题
-    - [Linux] 修复点击托盘后窗口无法置顶的问题
-    - [Linux] 新增 Alpine Linux (musl) 支持
-    - [代码工具] 修复 Windows 终端问题
-    - [Azure] 修复完成模式下 API 预览链接
-    - [图片生成] 修复 API 地址结尾斜杠问题
-    - [OpenRouter] 修复 MCP 工具支持
-    - [对话] 修复图片增强模型对话历史丢失问题
+    - [工具] 修复使用 OpenRouter 或其他非 Anthropic 提供商时的提示缓存崩溃问题
+    - [模型] 修复启用深度思考模式时 Gemini 3 模型不发送 reasoning_effort 参数的问题
+    - [编辑器] 修复由版本冲突导致的 CodeMirror 高亮崩溃
+    - [MCP] 修复 MCP 工具参数解析和嵌套架构显示问题
+    - [MCP] 修复通过智能体 allowed_tools 配置时 MCP 工具无法自动批准的问题
+    - [UI] 修复中止时出现重复错误块的问题
+    - [插件] 修复插件详情弹窗中插件大小显示为 0 的问题
+    - [UI] 修复 PinnedTodoPanel 忽略窄模式宽度设置的问题
+
+    💄 改进
+    - [会话] 实现会话列表的无限滚动
+    - [插件] 改进插件详情弹窗的 UI，布局和样式更优化
+    - [性能] 通过优化工具输入增量处理，修复智能体流式传输大文件时的渲染器崩溃
     <!--LANG:END-->

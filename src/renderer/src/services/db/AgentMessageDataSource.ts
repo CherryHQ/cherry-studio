@@ -17,7 +17,8 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
 import { throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -212,9 +213,32 @@ export class AgentMessageDataSource implements MessageDataSource {
       const isStreaming = this.isMessageStreaming(message)
       const agentSessionId = message.agentSessionId ?? ''
 
+      // Extract thoughtSignatures from blocks' metadata for Gemini persistence
+      const thoughtSignatures: Record<string, string> = {}
+      for (const block of blocks) {
+        if (block.type === MessageBlockType.MAIN_TEXT && (block as MainTextMessageBlock).metadata?.thoughtSignature) {
+          thoughtSignatures[block.id] = (block as MainTextMessageBlock).metadata!.thoughtSignature
+        }
+      }
+
+      // Add thoughtSignatures to message's providerMetadata for persistence
+      const messageWithMetadata =
+        Object.keys(thoughtSignatures).length > 0
+          ? {
+              ...message,
+              providerMetadata: {
+                ...message.providerMetadata,
+                google: {
+                  ...((message.providerMetadata as Record<string, unknown>)?.google as Record<string, unknown>),
+                  geminiThoughtSignatures: thoughtSignatures
+                }
+              } as Message['providerMetadata']
+            }
+          : message
+
       // Always persist immediately for visibility in UI
       const payload: AgentPersistedMessage = {
-        message,
+        message: messageWithMetadata,
         blocks
       }
 
@@ -655,10 +679,32 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Additional Methods for Interface Compatibility ============
 
-  // oxlint-disable-next-line no-unused-vars
-  async updateSingleBlock(blockId: string, _updates: Partial<MessageBlock>): Promise<void> {
-    // Agent session blocks are immutable once persisted
-    logger.warn(`updateSingleBlock called for agent session block ${blockId}, operation not supported`)
+  async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
+    const state = store.getState()
+    const existingBlock = state.messageBlocks.entities[blockId]
+
+    if (!existingBlock) {
+      logger.warn(`Block ${blockId} not found in store for updateSingleBlock`)
+      return
+    }
+
+    const mergedBlock = { ...existingBlock, ...updates } as MessageBlock
+    await this.updateBlocks([mergedBlock])
+  }
+
+  /**
+   * Get streaming cache info for a message ID if available.
+   * Used by DbService for routing fallback when message is not in Redux state.
+   */
+  getStreamingCacheInfo(messageId: string): { sessionId: string; message?: Message } | undefined {
+    const cached = streamingMessageCache.get(messageId)
+    if (cached) {
+      return {
+        sessionId: cached.sessionId,
+        message: cached.message
+      }
+    }
+    return undefined
   }
 
   // oxlint-disable-next-line no-unused-vars

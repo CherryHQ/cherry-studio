@@ -7,10 +7,16 @@ import type { ReasoningPart } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type {
+  FileMessageBlock,
+  ImageMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock
+} from '@renderer/types/newMessage'
 import {
   findFileBlocks,
   findImageBlocks,
+  findMainTextBlocks,
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
@@ -42,10 +48,18 @@ export async function convertMessageToSdkParam(
   const fileBlocks = findFileBlocks(message)
   const imageBlocks = findImageBlocks(message)
   const reasoningBlocks = findThinkingBlocks(message)
+  const mainTextBlocks = findMainTextBlocks(message)
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantModelMessage(
+      content,
+      fileBlocks,
+      imageBlocks,
+      reasoningBlocks,
+      mainTextBlocks,
+      model
+    )
   }
 }
 
@@ -155,20 +169,44 @@ async function convertMessageToUserModelMessage(
 
 /**
  * 转换为助手模型消息
+ * 注意：当助手消息只包含图片（如图片生成模型的响应）而没有文本时，
+ * 需要添加占位文本，因为某些 API（如 Gemini）不接受空的 assistant 消息
  */
 async function convertMessageToAssistantModelMessage(
   content: string,
   fileBlocks: FileMessageBlock[],
+  imageBlocks: ImageMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
+  mainTextBlocks: MainTextMessageBlock[],
   model?: Model
 ): Promise<AssistantModelMessage> {
   const parts: Array<TextPart | ReasoningPart | FilePart> = []
-  if (content) {
-    parts.push({ type: 'text', text: content })
-  }
 
+  // Add reasoning blocks first (required by AWS Bedrock for Claude extended thinking)
   for (const thinkingBlock of thinkingBlocks) {
     parts.push({ type: 'reasoning', text: thinkingBlock.content })
+  }
+
+  // Add text content after reasoning blocks, only if non-empty after trimming
+  // Also add thoughtSignature from MainTextBlock metadata for Gemini thought signature persistence
+  const trimmedContent = content?.trim()
+  if (trimmedContent) {
+    // Find the first MainTextBlock with thoughtSignature
+    const thoughtSignature = mainTextBlocks.find((block) => block.metadata?.thoughtSignature)?.metadata
+      ?.thoughtSignature
+
+    const textPart: TextPart = { type: 'text', text: trimmedContent }
+
+    // Add providerOptions with thoughtSignature if available (for Gemini)
+    if (thoughtSignature) {
+      textPart.providerOptions = {
+        google: {
+          thoughtSignature
+        }
+      }
+    }
+
+    parts.push(textPart)
   }
 
   for (const fileBlock of fileBlocks) {
@@ -186,6 +224,12 @@ async function convertMessageToAssistantModelMessage(
     if (textPart) {
       parts.push(textPart)
     }
+  }
+
+  // 当 parts 为空但有图片时，添加占位文本
+  // 这对于图片生成模型的继续对话很重要，因为助手消息可能只包含生成的图片
+  if (parts.length === 0 && imageBlocks.length > 0) {
+    parts.push({ type: 'text', text: '[Image]' })
   }
 
   return {

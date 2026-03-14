@@ -1,10 +1,11 @@
 import type { Message, Model } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types/file'
-import { FileTypes } from '@renderer/types/file'
+import { FILE_TYPE } from '@renderer/types/file'
 import {
   AssistantMessageStatus,
   type FileMessageBlock,
   type ImageMessageBlock,
+  type MainTextMessageBlock,
   MessageBlockStatus,
   MessageBlockType,
   type ThinkingMessageBlock,
@@ -35,13 +36,15 @@ type MockableMessage = Message & {
   __mockFileBlocks?: FileMessageBlock[]
   __mockImageBlocks?: ImageMessageBlock[]
   __mockThinkingBlocks?: ThinkingMessageBlock[]
+  __mockMainTextBlocks?: MainTextMessageBlock[]
 }
 
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   getMainTextContent: (message: Message) => (message as MockableMessage).__mockContent ?? '',
   findFileBlocks: (message: Message) => (message as MockableMessage).__mockFileBlocks ?? [],
   findImageBlocks: (message: Message) => (message as MockableMessage).__mockImageBlocks ?? [],
-  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? []
+  findThinkingBlocks: (message: Message) => (message as MockableMessage).__mockThinkingBlocks ?? [],
+  findMainTextBlocks: (message: Message) => (message as MockableMessage).__mockMainTextBlocks ?? []
 }))
 
 import { convertMessagesToSdkMessages, convertMessageToSdkParam } from '../messageConverter'
@@ -87,7 +90,7 @@ const createFileBlock = (
       path: file?.path ?? '/tmp/document.txt',
       size: file?.size ?? 1024,
       ext: file?.ext ?? '.txt',
-      type: file?.type ?? FileTypes.TEXT,
+      type: file?.type ?? FILE_TYPE.TEXT,
       created_at: file?.created_at ?? timestamp,
       count: file?.count ?? 1,
       ...file
@@ -120,6 +123,19 @@ const createThinkingBlock = (
   status: overrides.status ?? MessageBlockStatus.SUCCESS,
   content: overrides.content ?? 'Let me think...',
   thinking_millsec: overrides.thinking_millsec ?? 1000,
+  ...overrides
+})
+
+const createMainTextBlock = (
+  messageId: string,
+  overrides: Partial<Omit<MainTextMessageBlock, 'type' | 'messageId'>> = {}
+): MainTextMessageBlock => ({
+  id: overrides.id ?? `main-text-block-${++blockCounter}`,
+  messageId,
+  type: MessageBlockType.MAIN_TEXT,
+  createdAt: overrides.createdAt ?? new Date(2024, 0, 1, 0, 0, blockCounter).toISOString(),
+  status: overrides.status ?? MessageBlockStatus.SUCCESS,
+  content: overrides.content ?? '',
   ...overrides
 })
 
@@ -252,11 +268,160 @@ describe('messageConverter', () => {
 
       const result = await convertMessageToSdkParam(message, false, model)
 
+      // Reasoning blocks must come before text blocks (required by AWS Bedrock for Claude extended thinking)
       expect(result).toEqual({
         role: 'assistant',
         content: [
-          { type: 'text', text: 'Here is my answer' },
-          { type: 'reasoning', text: 'Let me think...' }
+          { type: 'reasoning', text: 'Let me think...' },
+          { type: 'text', text: 'Here is my answer' }
+        ]
+      })
+    })
+
+    it('excludes empty content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Empty content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('excludes whitespace-only content from assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '   \n\t  '
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking only' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Whitespace-only content should not create a text block
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'Thinking only' }]
+      })
+    })
+
+    it('trims content in assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = '  Trimmed answer  \n'
+      message.__mockThinkingBlocks = []
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Trimmed answer' }]
+      })
+    })
+
+    it('includes thoughtSignature in providerOptions for Gemini thought signature persistence', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Here is my answer'
+      message.__mockMainTextBlocks = [
+        createMainTextBlock(message.id, {
+          content: 'Here is my answer',
+          metadata: { thoughtSignature: 'test-thought-signature-token' }
+        })
+      ]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Here is my answer',
+            providerOptions: {
+              google: {
+                thoughtSignature: 'test-thought-signature-token'
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    it('does not include providerOptions when no thoughtSignature is present', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Plain answer'
+      message.__mockMainTextBlocks = [createMainTextBlock(message.id, { content: 'Plain answer' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Plain answer' }]
+      })
+    })
+
+    it('uses thoughtSignature from the first matching MainTextBlock when multiple exist', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Answer text'
+      message.__mockMainTextBlocks = [
+        createMainTextBlock(message.id, { content: 'Answer text', metadata: { thoughtSignature: 'first-signature' } }),
+        createMainTextBlock(message.id, {
+          content: 'Another block',
+          metadata: { thoughtSignature: 'second-signature' }
+        })
+      ]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Answer text',
+            providerOptions: {
+              google: {
+                thoughtSignature: 'first-signature'
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    it('combines reasoning blocks with thoughtSignature text part', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = 'Final answer'
+      message.__mockThinkingBlocks = [createThinkingBlock(message.id, { content: 'Thinking step' })]
+      message.__mockMainTextBlocks = [
+        createMainTextBlock(message.id, {
+          content: 'Final answer',
+          metadata: { thoughtSignature: 'sig-with-reasoning' }
+        })
+      ]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'Thinking step' },
+          {
+            type: 'text',
+            text: 'Final answer',
+            providerOptions: {
+              google: {
+                thoughtSignature: 'sig-with-reasoning'
+              }
+            }
+          }
         ]
       })
     })
@@ -301,7 +466,7 @@ describe('messageConverter', () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const fileUser = createMessage('user')
       fileUser.__mockContent = 'Use this document as inspiration'
-      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FileTypes.DOCUMENT } })]
+      fileUser.__mockFileBlocks = [createFileBlock(fileUser.id, { file: { ext: '.pdf', type: FILE_TYPE.DOCUMENT } })]
       convertFileBlockToFilePartMock.mockResolvedValueOnce({
         type: 'file',
         filename: 'reference.pdf',

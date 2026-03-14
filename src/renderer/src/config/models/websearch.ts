@@ -68,6 +68,11 @@ export function isWebSearchModel(model: Model): boolean {
       return true
     }
 
+    // v2
+    if (provider.id === SystemProviderIds.grok) {
+      return true
+    }
+
     return false
   }
 
@@ -103,7 +108,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'zhipu') {
-    return modelId?.startsWith('glm-4-')
+    return false
   }
 
   if (provider.id === 'dashscope') {
@@ -113,10 +118,6 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'openrouter') {
-    return true
-  }
-
-  if (provider.id === 'grok') {
     return true
   }
 

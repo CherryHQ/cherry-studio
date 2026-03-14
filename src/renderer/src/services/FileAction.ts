@@ -3,7 +3,7 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
 
@@ -13,7 +13,7 @@ export type SortOrder = 'asc' | 'desc'
 
 const logger = loggerService.withContext('FileAction')
 
-export function tempFilesSort(files: FileType[]): FileType[] {
+export function tempFilesSort(files: FileMetadata[]): FileMetadata[] {
   return files.sort((a, b) => {
     const aIsTemp = a.origin_name.startsWith('temp_file')
     const bIsTemp = b.origin_name.startsWith('temp_file')
@@ -23,7 +23,7 @@ export function tempFilesSort(files: FileType[]): FileType[] {
   })
 }
 
-export function sortFiles(files: FileType[], sortField: SortField, sortOrder: SortOrder): FileType[] {
+export function sortFiles(files: FileMetadata[], sortField: SortField, sortOrder: SortOrder): FileMetadata[] {
   return [...files].sort((a, b) => {
     let comparison = 0
     switch (sortField) {

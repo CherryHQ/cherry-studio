@@ -127,8 +127,9 @@ export async function reset() {
         onOk: async () => {
           await localStorage.clear()
           await clearDatabase()
-          await window.api.file.clear()
-          window.api.reload()
+          await window.api.resetData()
+          window.toast.success(i18n.t('message.reset.success'))
+          setTimeout(() => window.api.relaunchApp(), 1000)
         }
       })
     }
@@ -714,6 +715,16 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
       return
     }
 
+    // Check if any topic is currently streaming/loading
+    const state = store.getState()
+    const anyTopicLoading = Object.values(state.messages.loadingByTopic).some((loading) => loading === true)
+
+    if (anyTopicLoading) {
+      logger.info(`${logPrefix} Streaming in progress, deferring backup`)
+      scheduleNextBackup('fromNow', backupType)
+      return
+    }
+
     // 设置运行状态
     if (backupType === 'webdav') {
       isWebdavAutoBackupRunning = true
@@ -903,7 +914,7 @@ export async function handleData(data: Record<string, any>) {
 
     await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.reload(), 1000)
+    setTimeout(() => window.api.relaunchApp(), 1000)
     return
   }
 
@@ -931,7 +942,7 @@ export async function handleData(data: Record<string, any>) {
     }
 
     window.toast.success(i18n.t('message.restore.success'))
-    setTimeout(() => window.api.reload(), 1000)
+    setTimeout(() => window.api.relaunchApp(), 1000)
     return
   }
 

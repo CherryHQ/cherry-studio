@@ -9,6 +9,7 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
+  isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDoubaoSeed18Model,
   isDoubaoSeedAfter251015,
@@ -18,6 +19,7 @@ import {
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIReasoningModel,
+  isQwen35Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -41,6 +43,7 @@ import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { getLowerBaseModelName } from '@renderer/utils'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
 
@@ -86,9 +89,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (isSupportEnableThinkingProvider(provider) &&
         (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
       (provider.id === SystemProviderIds.dashscope &&
-        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
+        (isDeepSeekHybridInferenceModel(model) ||
+          isSupportedThinkingTokenZhipuModel(model) ||
+          isSupportedThinkingTokenKimiModel(model)))
     ) {
       return { enable_thinking: false }
+    }
+
+    // together
+    if (provider.id === SystemProviderIds.together) {
+      return { reasoning: { enabled: false } }
     }
 
     // gemini
@@ -132,6 +142,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     if (isSupportNoneReasoningEffortModel(model)) {
       return {
         reasoningEffort: 'none'
+      }
+    }
+
+    // Qwen 3.5 without direct enable_thinking
+    // https://huggingface.co/Qwen/Qwen3.5-397B-A17B#instruct-or-non-thinking-mode
+    if (isQwen35Model(model)) {
+      return {
+        chat_template_kwargs: {
+          enable_thinking: false
+        }
       }
     }
 
@@ -283,6 +303,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         case SystemProviderIds.openrouter:
+        case SystemProviderIds.together:
           return {
             reasoning: {
               enabled: true
@@ -295,9 +316,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         default:
-          logger.warn(
-            `Skipping thinking options for provider ${provider.name} as DeepSeek v3.1 thinking control method is unknown`
-          )
+          break
+      }
+    }
+    logger.warn(
+      `Use default thinking options for provider ${provider.name} as DeepSeek v3.1+ thinking control method is unknown`
+    )
+    return {
+      thinking: {
+        type: 'enabled'
       }
     }
   }
@@ -318,7 +345,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (provider.id === SystemProviderIds.dashscope) {
     // For dashscope: Qwen, DeepSeek, and GLM models use enable_thinking to control thinking
     // No effort, only on/off
-    if (isQwenReasoningModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+    if (
+      isQwenReasoningModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenKimiModel(model)
+    ) {
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens
@@ -326,13 +357,47 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  // https://docs.together.ai/reference/chat-completions-1#body-reasoning-effort
+  if (provider.id === SystemProviderIds.together) {
+    let adjustedReasoningEffort: 'low' | 'medium' | 'high' = 'medium'
+    switch (reasoningEffort) {
+      case 'minimal':
+        adjustedReasoningEffort = 'low'
+        break
+      case 'xhigh':
+        adjustedReasoningEffort = 'high'
+        break
+      case 'auto':
+        adjustedReasoningEffort = 'medium'
+        break
+      default:
+        adjustedReasoningEffort = reasoningEffort
+        break
+    }
+    return {
+      // Only low, medium, high
+      reasoningEffort: adjustedReasoningEffort,
+      reasoning: { enabled: true }
+    }
+  }
+
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const thinkConfig = {
-      enable_thinking: isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(provider) ? undefined : true,
-      thinking_budget: budgetTokens
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
+    const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    if (supportEnableThinking) {
+      return {
+        ...enableThinkingConfig,
+        thinking_budget: budgetTokens
+      }
+    } else {
+      return {
+        thinking_budget: budgetTokens,
+        chat_template_kwargs: {
+          ...enableThinkingConfig
+        }
+      }
     }
-    return thinkConfig
   }
 
   // Hunyuan models, use enable_thinking
@@ -363,7 +428,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
     if (isGemini3ThinkingTokenModel(model)) {
       return {
-        reasoning_effort: reasoningEffort
+        reasoningEffort
       }
     }
     if (reasoningEffort === 'auto') {
@@ -486,7 +551,7 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
-export function getAnthropicThinkingBudget(
+export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
   modelId: string
@@ -512,13 +577,19 @@ export function getAnthropicThinkingBudget(
 }
 
 /**
- * 获取 Anthropic 推理参数
- * 从 AnthropicAPIClient 中提取的逻辑
+ * Get Anthropic reasoning parameters.
+ * Extracted from AnthropicAPIClient logic.
+ *
+ * Returns different parameter shapes depending on the model:
+ * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
+ *   Uses the new adaptive thinking API with effort-based control.
+ * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
+ *   Uses the classic thinking API with explicit token budget.
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): Pick<AnthropicProviderOptions, 'thinking'> {
+): Pick<AnthropicProviderOptions, 'thinking' | 'effort'> {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -537,10 +608,33 @@ export function getAnthropicReasoningParams(
     }
   }
 
-  // Claude 推理参数
+  // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
+    // Claude 4.6 uses adaptive thinking + effort parameters
+    // Map reasoningEffort to Claude 4.6 supported effort values
+    if (isClaude46SeriesModel(model)) {
+      // Claude 4.6 supports: low, medium, high, max
+      // Mapping rules: default/none -> no effort (uses default high)
+      //                minimal/low -> low
+      //                medium -> medium
+      //                high -> high
+      //                xhigh -> max
+      const effortMap = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'max'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effortMap[reasoningEffort]
+      return effort ? { thinking: { type: 'adaptive' }, effort } : { thinking: { type: 'adaptive' } }
+    }
+
+    // Other Claude models continue using enabled + budgetTokens
     const { maxTokens } = getAssistantSettings(assistant)
-    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
       thinking: {
@@ -548,17 +642,23 @@ export function getAnthropicReasoningParams(
         budgetTokens: budgetTokens
       }
     }
+  } else {
+    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    const { maxTokens } = getAssistantSettings(assistant)
+    const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    return budgetTokens ? { thinking: { type: 'enabled', budgetTokens } } : { thinking: { type: 'enabled' } }
   }
-
-  return {}
 }
 
 type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
 
 function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogleThinkingLevel {
   switch (reasoningEffort) {
+    case 'auto':
     case 'default':
       return undefined
+    case 'none':
+      return 'minimal'
     case 'minimal':
       return 'minimal'
     case 'low':
@@ -566,10 +666,12 @@ function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): Googl
     case 'medium':
       return 'medium'
     case 'high':
+    case 'xhigh':
       return 'high'
     default:
-      logger.warn('Unknown thinking level for Gemini. Fallback to medium instead.', { reasoningEffort })
-      return 'medium'
+      // Enforce all possible values are handled
+      reasoningEffort satisfies never
+      return undefined
   }
 }
 
@@ -583,7 +685,7 @@ export function getGeminiReasoningParams(
   assistant: Assistant,
   model: Model
 ): Pick<GoogleGenerativeAIProviderOptions, 'thinkingConfig'> {
-  if (!isReasoningModel(model)) {
+  if (!isReasoningModel(model) || !isSupportedThinkingTokenGeminiModel(model)) {
     return {}
   }
 
@@ -593,34 +695,43 @@ export function getGeminiReasoningParams(
     return {}
   }
 
-  // Gemini 推理参数
-  if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (reasoningEffort === undefined || reasoningEffort === 'none') {
-      return {
-        thinkingConfig: {
-          includeThoughts: false,
-          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
-        }
+  let thinkingLevel: GoogleThinkingLevel | null = null
+  const includeThoughts = reasoningEffort !== 'none'
+
+  // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
+  if (isGemini3ThinkingTokenModel(model)) {
+    thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
+    if (thinkingLevel === 'minimal' && getLowerBaseModelName(model.id).includes('pro')) {
+      thinkingLevel = 'low'
+    }
+  }
+
+  if (thinkingLevel !== null) {
+    // Gemini 3 branch. thinkingLevel can be undefined (auto) or a specific level.
+    return {
+      thinkingConfig: {
+        includeThoughts,
+        thinkingLevel
       }
     }
-
-    // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    if (isGemini3ThinkingTokenModel(model)) {
-      return {
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-        }
-      }
-    }
-
+  } else {
+    // Old models
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (effortRatio > 1) {
+    if (reasoningEffort === 'auto') {
       return {
         thinkingConfig: {
-          thinkingBudget: -1,
-          includeThoughts: true
+          includeThoughts,
+          thinkingBudget: -1
+        }
+      }
+    }
+
+    if (reasoningEffort === 'none') {
+      return {
+        thinkingConfig: {
+          includeThoughts,
+          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
         }
       }
     }
@@ -630,13 +741,11 @@ export function getGeminiReasoningParams(
 
     return {
       thinkingConfig: {
-        ...(budget > 0 ? { thinkingBudget: budget } : {}),
-        includeThoughts: true
+        includeThoughts,
+        ...(budget > 0 ? { thinkingBudget: budget } : {})
       }
     }
   }
-
-  return {}
 }
 
 /**
@@ -700,8 +809,28 @@ export function getBedrockReasoningParams(
     return {}
   }
 
+  // Claude 4.6 uses adaptive thinking + maxReasoningEffort
+  if (isClaude46SeriesModel(model)) {
+    const effortMap = {
+      auto: undefined,
+      minimal: 'low',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'max'
+    } as const satisfies Record<
+      Exclude<ReasoningEffortOption, 'none' | 'default'>,
+      NonNullable<BedrockProviderOptions['reasoningConfig']>['maxReasoningEffort']
+    >
+    const maxReasoningEffort = effortMap[reasoningEffort]
+    return maxReasoningEffort
+      ? { reasoningConfig: { type: 'adaptive', maxReasoningEffort } }
+      : { reasoningConfig: { type: 'adaptive' } }
+  }
+
+  // Other Claude models use enabled + budgetTokens
   const { maxTokens } = getAssistantSettings(assistant)
-  const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+  const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
     reasoningConfig: {
       type: 'enabled',
@@ -741,4 +870,22 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
       }
     }, {}) || {}
   )
+}
+
+/**
+ * Get reasoning tag name based on model ID
+ * Used for extractReasoningMiddleware configuration
+ */
+export function getReasoningTagName(modelId: string | undefined): string {
+  const tagName = {
+    reasoning: 'reasoning',
+    think: 'think',
+    thought: 'thought',
+    seedThink: 'seed:think'
+  }
+
+  if (modelId?.includes('gpt-oss')) return tagName.reasoning
+  if (modelId?.includes('gemini')) return tagName.thought
+  if (modelId?.includes('seed-oss-36b')) return tagName.seedThink
+  return tagName.think
 }
