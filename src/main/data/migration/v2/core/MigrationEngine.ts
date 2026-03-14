@@ -5,6 +5,7 @@
 
 import { dbService } from '@data/db/DbService'
 import { appStateTable } from '@data/db/schemas/appState'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
@@ -201,6 +202,7 @@ export class MigrationEngine {
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
+      { table: mcpServerTable, name: 'mcp_server' },
       { table: preferenceTable, name: 'preference' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
@@ -221,6 +223,7 @@ export class MigrationEngine {
     // Messages reference topics, so delete messages first
     await db.delete(messageTable)
     await db.delete(topicTable)
+    await db.delete(mcpServerTable)
     await db.delete(preferenceTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-13T06:11:12.842Z",
+    "generatedAt": "2026-03-14T12:03:25.406Z",
     "version": "2.0.0",
     "description": "Cherry Studio data inventory"
   },
@@ -1566,13 +1566,13 @@
     }
   },
   "localStorage": {
-    "memory_currentUserId": {
-      "file": "src/renderer/src/store/memory.ts",
+    "persist:cherry-studio": {
+      "file": "src/main/utils/index.ts",
       "type": "string",
       "defaultValue": null
     },
-    "persist:cherry-studio": {
-      "file": "src/renderer/src/services/BackupService.ts",
+    "memory_currentUserId": {
+      "file": "src/renderer/src/store/memory.ts",
       "type": "string",
       "defaultValue": null
     }
