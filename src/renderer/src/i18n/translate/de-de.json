@@ -138,6 +138,11 @@
       },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"

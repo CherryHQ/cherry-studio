@@ -138,6 +138,11 @@
       },
       "label_one": "会话",
       "label_other": "会话",
+      "reorder": {
+        "error": {
+          "failed": "会话排序失败"
+        }
+      },
       "update": {
         "error": {
           "failed": "更新会话失败"

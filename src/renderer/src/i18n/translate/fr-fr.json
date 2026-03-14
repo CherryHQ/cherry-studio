@@ -138,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Séances",
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "id": "2bde7356-6a69-4445-b163-3299b4b4972f",
   "prevId": "0cf3d79e-69bf-4dba-8df4-996b9b67d2e8",
   "tables": {
     "agents": {
@@ -114,13 +114,7 @@
           "autoincrement": false
         }
       },
-      "indexes": {
-        "idx_agents_sort_order": {
-          "name": "idx_agents_sort_order",
-          "columns": ["sort_order"],
-          "isUnique": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -324,6 +318,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",

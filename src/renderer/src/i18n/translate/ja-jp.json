@@ -138,6 +138,11 @@
       },
       "label_one": "セッション",
       "label_other": "セッション",
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "セッションの更新に失敗しました"

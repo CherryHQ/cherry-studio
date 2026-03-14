@@ -181,6 +181,15 @@ export class AgentApiClient {
     }
   }
 
+  public async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const url = `${this.getSessionPaths(agentId).base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder sessions.')
+    }
+  }
+
   public async listSessions(agentId: string, options?: ListOptions): Promise<ListAgentSessionsResponse> {
     const url = this.getSessionPaths(agentId).base
     try {

@@ -138,6 +138,11 @@
       },
       "label_one": "Сессия",
       "label_other": "Сессии",
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"

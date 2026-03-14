@@ -138,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Sessions",
+      "reorder": {
+        "error": {
+          "failed": "Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"

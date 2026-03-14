@@ -1,5 +1,5 @@
 import AddButton from '@renderer/components/AddButton'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -27,13 +27,23 @@ const SCROLL_THROTTLE_DELAY = 150
 
 const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
-    useSessions(agentId)
+  const {
+    sessions,
+    isLoading,
+    error,
+    deleteSession,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    isValidating,
+    reload,
+    reorderSessions
+  } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
   // Use refs to always read the latest values inside the throttled handler,
   // avoiding stale closures caused by recreating the throttle on each render.
@@ -156,9 +166,9 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
         className="sessions-tab"
         list={sessions}
         estimateSize={() => 9 * 4}
-        // FIXME: This component only supports CSSProperties
         scrollerStyle={{ overflowX: 'hidden' }}
-        autoHideScrollbar
+        onUpdate={reorderSessions}
+        itemKey={(index) => sessions[index]?.id ?? index}
         header={
           <div className="mt-0.5">
             <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-1 mb-1.5">
@@ -188,12 +198,12 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   )
 }
 
-const StyledVirtualList = styled(DynamicVirtualList)`
+const StyledVirtualList = styled(DraggableVirtualList)`
   display: flex;
   flex-direction: column;
   padding: 12px 10px;
   flex: 1;
   min-height: 0;
-` as typeof DynamicVirtualList
+` as typeof DraggableVirtualList
 
 export default memo(Sessions)
