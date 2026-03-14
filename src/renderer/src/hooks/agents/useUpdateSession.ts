@@ -1,3 +1,4 @@
+import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
 import type { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -7,7 +8,6 @@ import { mutate } from 'swr'
 import { unstable_serialize } from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
-import { DEFAULT_PAGE_SIZE } from './useSessions'
 
 type InfiniteData = ListAgentSessionsResponse[]
 
@@ -40,7 +40,7 @@ export const useUpdateSession = (agentId: string | null) => {
       const listKey = paths.base
       const sessionId = form.id
       const itemKey = paths.withId(sessionId)
-      const infKey = unstable_serialize(() => [listKey, 0, DEFAULT_PAGE_SIZE])
+      const infKey = unstable_serialize(() => [listKey, 0, DEFAULT_SESSION_PAGE_SIZE])
 
       // Optimistic update
       mutateInfiniteList(infKey, sessionId, (session) => ({ ...session, ...form }))

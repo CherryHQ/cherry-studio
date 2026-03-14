@@ -1,3 +1,4 @@
+import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
 import type {
   CreateAgentSessionResponse,
   CreateSessionForm,
@@ -11,9 +12,7 @@ import useSWRInfinite from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
 
-export const DEFAULT_PAGE_SIZE = 20
-
-export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE) => {
+export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
   const client = useAgentClient()
 
