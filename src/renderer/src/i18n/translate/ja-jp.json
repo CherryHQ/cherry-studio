@@ -5605,8 +5605,11 @@
     "show_window": "ウィンドウを表示"
   },
   "update": {
+    "download": "ダウンロード",
     "install": "今すぐインストール",
     "later": "後で",
+    "manualInstallError": "インストールに失敗しました。公式ウェブサイトから手動でダウンロードしてください。",
+    "manualInstallInfo": "インストールをクリックすると、システムが更新をご案内します。",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",

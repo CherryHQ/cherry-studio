@@ -5605,8 +5605,11 @@
     "show_window": "显示窗口"
   },
   "update": {
+    "download": "前往下载",
     "install": "立即安装",
     "later": "稍后",
+    "manualInstallError": "安装失败，请前往官网手动下载安装。",
+    "manualInstallInfo": "点击安装后，系统将引导您完成更新。",
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "saveDataError": "保存数据失败，请重试",

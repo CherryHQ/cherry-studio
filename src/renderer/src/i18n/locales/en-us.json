@@ -5605,8 +5605,11 @@
     "show_window": "Show Window"
   },
   "update": {
+    "download": "Download",
     "install": "Install",
     "later": "Later",
+    "manualInstallError": "Installation failed, please download manually from the official website.",
+    "manualInstallInfo": "Click install and the system will guide you through the update.",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",

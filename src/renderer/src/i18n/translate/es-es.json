@@ -5605,8 +5605,11 @@
     "show_window": "Mostrar ventana"
   },
   "update": {
+    "download": "Descargar",
     "install": "Instalar",
     "later": "Más tarde",
+    "manualInstallError": "La instalación falló, por favor descarga manualmente desde el sitio web oficial.",
+    "manualInstallInfo": "Haz clic en instalar y el sistema te guiará a través de la actualización.",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",

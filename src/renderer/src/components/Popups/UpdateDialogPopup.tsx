@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { isMac } from '@renderer/config/constant'
 import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { Button, Modal } from 'antd'
+import { Alert, Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +11,10 @@ import Markdown from 'react-markdown'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('UpdateDialog')
+
+// Old Team ID that requires manual install
+const OLD_TEAM_ID = 'Q24M7JR2C4'
+const DOWNLOAD_URL = 'https://www.cherry-ai.com/download'
 
 interface ShowParams {
   releaseInfo: UpdateInfo | null
@@ -23,11 +28,22 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
+  const [requiresManualInstall, setRequiresManualInstall] = useState(false)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
+    }
+
+    // Check if macOS user with old Team ID needs manual install
+    if (isMac) {
+      window.api.getSigningInfo().then((signingInfo) => {
+        if (signingInfo.teamId === OLD_TEAM_ID) {
+          setRequiresManualInstall(true)
+          logger.info('Manual install required', { teamId: signingInfo.teamId })
+        }
+      })
     }
   }, [releaseInfo])
 
@@ -41,6 +57,32 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       logger.error('Failed to save data before update', error as Error)
       setIsInstalling(false)
       window.toast.error(t('update.saveDataError'))
+    }
+  }
+
+  const handleManualInstall = async () => {
+    setIsInstalling(true)
+    try {
+      await handleSaveData()
+      const result = await window.api.manualInstallUpdate()
+
+      if (!result.success) {
+        setIsInstalling(false)
+        if (result.error === 'User cancelled') {
+          // User cancelled password dialog, do nothing
+          return
+        }
+        logger.error('Manual install failed', { error: result.error })
+        window.toast.error(t('update.manualInstallError'))
+        // Fallback to download page
+        window.api.openWebsite(DOWNLOAD_URL)
+      }
+      // If success, app will relaunch automatically
+    } catch (error) {
+      logger.error('Manual install error', error as Error)
+      setIsInstalling(false)
+      window.toast.error(t('update.manualInstallError'))
+      window.api.openWebsite(DOWNLOAD_URL)
     }
   }
 
@@ -80,11 +122,20 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         <Button key="later" onClick={onIgnore} disabled={isInstalling}>
           {t('update.later')}
         </Button>,
-        <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
-          {t('update.install')}
-        </Button>
+        requiresManualInstall ? (
+          <Button key="install" type="primary" onClick={handleManualInstall} loading={isInstalling}>
+            {t('update.install')}
+          </Button>
+        ) : (
+          <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
+            {t('update.install')}
+          </Button>
+        )
       ]}>
       <ModalBodyWrapper>
+        {requiresManualInstall && (
+          <Alert type="info" showIcon message={t('update.manualInstallInfo')} style={{ marginBottom: 16 }} />
+        )}
         <ReleaseNotesWrapper className="markdown">
           <Markdown>
             {typeof releaseNotes === 'string'

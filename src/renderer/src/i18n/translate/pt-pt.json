@@ -5605,8 +5605,11 @@
     "show_window": "Exibir Janela"
   },
   "update": {
+    "download": "Baixar",
     "install": "Instalar",
     "later": "Mais tarde",
+    "manualInstallError": "A instalação falhou, por favor, faça o download manualmente no site oficial.",
+    "manualInstallInfo": "Clique em instalar e o sistema irá guiá-lo através da atualização.",
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
     "noReleaseNotes": "Sem notas de versão",
     "saveDataError": "Falha ao salvar os dados, tente novamente",

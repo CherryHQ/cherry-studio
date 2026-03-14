@@ -5605,8 +5605,11 @@
     "show_window": "Fenster anzeigen"
   },
   "update": {
+    "download": "Herunterladen",
     "install": "Jetzt installieren",
     "later": "Später",
+    "manualInstallError": "Installation fehlgeschlagen, bitte manuell von der offiziellen Website herunterladen.",
+    "manualInstallInfo": "Klicken Sie auf Installieren und das System führt Sie durch das Update.",
     "message": "Neue Version {{version}} gefunden. Jetzt installieren?",
     "noReleaseNotes": "Kein Changelog verfügbar",
     "saveDataError": "Speichern fehlgeschlagen, bitte erneut versuchen",

@@ -165,6 +165,8 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     installPath: path.dirname(app.getPath('exe'))
   }))
 
+  ipcMain.handle(IpcChannel.App_GetSigningInfo, () => appService.getSigningInfo())
+
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string, bypassRules?: string) => {
     let proxyConfig: ProxyConfig
 
@@ -186,6 +188,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Update
   ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
+  ipcMain.handle(IpcChannel.App_ManualInstallUpdate, () => appUpdater.manualInstallUpdate())
 
   // language
   ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {

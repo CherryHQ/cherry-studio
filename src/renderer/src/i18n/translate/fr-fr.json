@@ -5605,8 +5605,11 @@
     "show_window": "Afficher la fenêtre"
   },
   "update": {
+    "download": "Télécharger",
     "install": "Installer",
     "later": "Plus tard",
+    "manualInstallError": "L'installation a échoué, veuillez télécharger manuellement depuis le site officiel.",
+    "manualInstallInfo": "Cliquez sur installer et le système vous guidera à travers la mise à jour.",
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "saveDataError": "Échec de la sauvegarde des données, veuillez réessayer",
