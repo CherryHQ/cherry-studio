@@ -718,8 +718,8 @@
             "name": "sortBy",
             "schema": {
               "type": "string",
-              "enum": ["created_at", "updated_at", "name"],
-              "default": "created_at"
+              "enum": ["created_at", "updated_at", "name", "sort_order"],
+              "default": "sort_order"
             },
             "description": "Field to sort by"
           },
@@ -1066,6 +1066,58 @@
           },
           "404": {
             "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents/reorder": {
+      "put": {
+        "summary": "Reorder agents",
+        "description": "Sets the display order of agents based on the provided array of agent IDs",
+        "tags": ["Agents"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ordered_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Array of agent IDs in the desired display order"
+                  }
+                },
+                "required": ["ordered_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agents reordered successfully"
+          },
+          "400": {
+            "description": "Validation error",
             "content": {
               "application/json": {
                 "schema": {

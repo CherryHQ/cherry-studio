@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
-import type { AddAgentForm, CreateAgentResponse } from '@renderer/types'
+import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +37,7 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    const result = await client.listAgents({ sortBy: 'created_at', orderBy: 'desc' })
+    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
@@ -51,7 +51,7 @@ export const useAgents = () => {
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
         const result = await client.createAgent(form)
-        mutate((prev) => [...(prev ?? []), result])
+        mutate((prev) => [result, ...(prev ?? [])])
         window.toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {
@@ -97,12 +97,28 @@ export const useAgents = () => {
     [client, mutate]
   )
 
+  const reorderAgents = useCallback(
+    async (reorderedList: GetAgentResponse[]) => {
+      const orderedIds = reorderedList.map((a) => a.id)
+      // Optimistic update
+      mutate(reorderedList, false)
+      try {
+        await client.reorderAgents(orderedIds)
+      } catch (error) {
+        // Revert on failure
+        mutate()
+      }
+    },
+    [client, mutate]
+  )
+
   return {
     agents: data,
     error,
     isLoading,
     addAgent,
     deleteAgent,
-    getAgent
+    getAgent,
+    reorderAgents
   }
 }

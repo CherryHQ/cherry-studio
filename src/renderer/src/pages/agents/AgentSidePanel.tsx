@@ -1,4 +1,5 @@
 import AddButton from '@renderer/components/AddButton'
+import { DraggableList } from '@renderer/components/DraggableList'
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
@@ -21,7 +22,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
   const { t } = useTranslation()
-  const { agents, deleteAgent, isLoading, error } = useAgents()
+  const { agents, deleteAgent, isLoading, error, reorderAgents } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
@@ -79,22 +80,23 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
             <div className="-mt-0.5 mb-1.5 px-2.5">
               <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
             </div>
-            <div className="flex flex-col gap-0.5 px-2.5">
+            <div className="flex flex-col px-2.5">
               {isLoading && (
                 <div className="p-5 text-center text-(--color-text-secondary) text-[13px]">{t('common.loading')}</div>
               )}
               {error && <div className="p-5 text-center text-(--color-error) text-[13px]">{error.message}</div>}
-              {!isLoading &&
-                !error &&
-                agents?.map((agent) => (
-                  <AgentItem
-                    key={agent.id}
-                    agent={agent}
-                    isActive={agent.id === activeAgentId}
-                    onDelete={() => deleteAgent(agent.id)}
-                    onPress={() => handleAgentPress(agent.id)}
-                  />
-                ))}
+              {!isLoading && !error && agents && (
+                <DraggableList list={agents} onUpdate={reorderAgents}>
+                  {(agent) => (
+                    <AgentItem
+                      agent={agent}
+                      isActive={agent.id === activeAgentId}
+                      onDelete={() => deleteAgent(agent.id)}
+                      onPress={() => handleAgentPress(agent.id)}
+                    />
+                  )}
+                </DraggableList>
+              )}
             </div>
           </Scrollbar>
         )}

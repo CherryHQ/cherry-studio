@@ -387,6 +387,9 @@ const agentsRouter = express.Router()
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+// Reorder route — must be before /:agentId to avoid treating "reorder" as an agentId
+agentsRouter.put('/reorder', agentHandlers.reorderAgents)
+
 // Agent CRUD routes
 agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.createAgent)
 

@@ -10,7 +10,7 @@ import type {
   UpdateAgentResponse
 } from '@types'
 import { AgentBaseSchema } from '@types'
-import { asc, count, desc, eq } from 'drizzle-orm'
+import { asc, count, desc, eq, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
@@ -55,11 +55,14 @@ export class AgentService extends BaseService {
       small_model: req.small_model,
       configuration: serializedReq.configuration,
       accessible_paths: serializedReq.accessible_paths,
+      sort_order: 0,
       created_at: now,
       updated_at: now
     }
 
     const database = await this.getDatabase()
+    // Shift all existing agents' sort_order up by 1 to make room at position 0
+    await database.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
     await database.insert(agentsTable).values(insertData)
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
@@ -108,8 +111,8 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     const totalResult = await database.select({ count: count() }).from(agentsTable)
 
-    const sortBy = options.sortBy || 'created_at'
-    const orderBy = options.orderBy || 'desc'
+    const sortBy = options.sortBy || 'sort_order'
+    const orderBy = options.orderBy || (sortBy === 'sort_order' ? 'asc' : 'desc')
 
     const sortField = agentsTable[sortBy]
     const orderFn = orderBy === 'asc' ? asc : desc
@@ -184,6 +187,14 @@ export class AgentService extends BaseService {
     const database = await this.getDatabase()
     await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
     return await this.getAgent(id)
+  }
+
+  async reorderAgents(orderedIds: string[]): Promise<void> {
+    const database = await this.getDatabase()
+    for (let i = 0; i < orderedIds.length; i++) {
+      await database.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))
+    }
+    logger.info('Agents reordered', { count: orderedIds.length })
   }
 
   async deleteAgent(id: string): Promise<boolean> {

@@ -99,6 +99,15 @@ export class AgentApiClient {
     }
   }
 
+  public async reorderAgents(orderedIds: string[]): Promise<void> {
+    const url = `${this.agentPaths.base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder agents.')
+    }
+  }
+
   public async listAgents(options?: ListOptions): Promise<ListAgentsResponse> {
     const url = this.agentPaths.base
     try {
