@@ -16,11 +16,11 @@
       "when": 1767455592181
     },
     {
+      "breakpoints": true,
       "idx": 2,
+      "tag": "0002_perpetual_molten_man",
       "version": "6",
-      "when": 1773468388991,
-      "tag": "0002_misty_dakota_north",
-      "breakpoints": true
+      "when": 1773477695180
     }
   ],
   "version": "7"

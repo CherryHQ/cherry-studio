@@ -44,8 +44,9 @@ export const nodeTable = sqliteTable(
     // ─── Remote file fields (files under remote mounts) ───
     // Remote file ID (e.g. OpenAI file-abc123)
     remoteId: text(),
-    // Whether a local cache copy exists
-    isCached: integer({ mode: 'boolean' }).default(false),
+    // When the local cache was last downloaded (ms epoch). Null if not cached.
+    // Compare with remote updatedAt to detect staleness.
+    cachedAt: integer(),
 
     // ─── Trash fields ───
     // Original parent ID before moving to Trash (only set on Trash direct children)

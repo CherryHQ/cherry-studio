@@ -180,7 +180,7 @@ function resolvePhysicalPath(node: FileNode, mount?: FileNode): string {
 
 - **启动时**：调用远程 API list files → diff 本地节点表 → 增删改对齐
 - **运行时**：轮询或 webhook 接收变更 → 下载/更新本地缓存 → 更新节点表
-- **本地访问**：优先读本地缓存，`isCached=true` 时直接返回缓存路径；未缓存时按需下载
+- **本地访问**：优先读本地缓存，`cachedAt` 非 null 时直接返回缓存路径（可与远程 `updatedAt` 比较判断缓存是否过期）；未缓存时按需下载
 - **冲突处理**：远程 wins（本地修改后需显式上传）
 - **离线支持**：缓存文件可离线访问，联网后同步变更
 
@@ -371,8 +371,9 @@ export const nodeTable = sqliteTable(
     // ─── 远程文件预留（仅远程挂载点下的文件）───
     // 远程端文件 ID（如 OpenAI file-abc123）
     remoteId: text(),
-    // 是否有本地缓存副本
-    isCached: integer({ mode: 'boolean' }).default(false),
+    // 本地缓存最后下载时间（ms epoch）。null 表示未缓存。
+    // 与远程 updatedAt 比较可判断缓存是否过期。
+    cachedAt: integer(),
 
     // ─── Trash 相关 ───
     // 被移入 Trash 前的原始父节点 ID（仅 Trash 直接子节点有值）
@@ -497,7 +498,7 @@ interface FileNode {
   providerConfig: MountProviderConfig | null
   isReadonly: boolean
   remoteId: string | null
-  isCached: boolean
+  cachedAt: number | null
   previousParentId: string | null
   createdAt: number
   updatedAt: number

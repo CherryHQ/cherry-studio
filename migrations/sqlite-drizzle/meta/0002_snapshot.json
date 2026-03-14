@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "390e52af-bd1f-44d1-9d26-294b670571e7",
+  "id": "6bb0f9c3-8fc7-423f-ab6c-5dd81e8c30cd",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -441,13 +441,12 @@
           "notNull": false,
           "autoincrement": false
         },
-        "is_cached": {
-          "name": "is_cached",
+        "cached_at": {
+          "name": "cached_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": false
+          "autoincrement": false
         },
         "previous_parent_id": {
           "name": "previous_parent_id",

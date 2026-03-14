@@ -16,7 +16,7 @@
  * | ext              | null                    | null         | string or null (null for extensionless files) |
  * | size             | null                    | null         | number or null         |
  * | remoteId         | null                    | null         | set under remote mount |
- * | isCached         | false                   | false        | set under remote mount |
+ * | cachedAt         | null                    | null         | ms epoch or null under remote mount |
  *
  * ## Node lifecycle state machine
  *
@@ -99,8 +99,8 @@ export const FileNodeSchema = z
     isReadonly: z.boolean(),
     /** Remote file ID (e.g. OpenAI file-abc123) */
     remoteId: z.string().nullable(),
-    /** Whether a local cache copy exists */
-    isCached: z.boolean(),
+    /** When the local cache was last downloaded (ms epoch). Null if not cached. Compare with remote updatedAt to detect staleness */
+    cachedAt: z.int().nullable(),
     /** Original parent ID before moving to Trash (only for Trash direct children) */
     previousParentId: NodeIdSchema.nullable(),
     /** Creation timestamp (ms epoch) */
@@ -130,8 +130,8 @@ export const FileNodeSchema = z
         if (node.remoteId !== null) {
           ctx.addIssue({ code: 'custom', path: ['remoteId'], message: 'Mount nodes must not have remoteId' })
         }
-        if (node.isCached !== false) {
-          ctx.addIssue({ code: 'custom', path: ['isCached'], message: 'Mount nodes must have isCached = false' })
+        if (node.cachedAt !== null) {
+          ctx.addIssue({ code: 'custom', path: ['cachedAt'], message: 'Mount nodes must have cachedAt = null' })
         }
         break
       case 'dir':
@@ -150,8 +150,8 @@ export const FileNodeSchema = z
         if (node.remoteId !== null) {
           ctx.addIssue({ code: 'custom', path: ['remoteId'], message: 'Dir nodes must not have remoteId' })
         }
-        if (node.isCached !== false) {
-          ctx.addIssue({ code: 'custom', path: ['isCached'], message: 'Dir nodes must have isCached = false' })
+        if (node.cachedAt !== null) {
+          ctx.addIssue({ code: 'custom', path: ['cachedAt'], message: 'Dir nodes must have cachedAt = null' })
         }
         break
       case 'file':

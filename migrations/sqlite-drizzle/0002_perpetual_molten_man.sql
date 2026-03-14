@@ -23,7 +23,7 @@ CREATE TABLE `node` (
 	`provider_config` text,
 	`is_readonly` integer DEFAULT false,
 	`remote_id` text,
-	`is_cached` integer DEFAULT false,
+	`cached_at` integer,
 	`previous_parent_id` text,
 	`created_at` integer,
 	`updated_at` integer,
