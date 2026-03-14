@@ -731,7 +731,7 @@
               "enum": ["asc", "desc"],
               "default": "desc"
             },
-            "description": "Sort order (asc = ascending, desc = descending)"
+            "description": "Sort order (asc = ascending, desc = descending). Defaults to asc when sortBy is sort_order."
           }
         ],
         "responses": {

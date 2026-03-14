@@ -146,7 +146,7 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
  *           type: string
  *           enum: [asc, desc]
  *           default: desc
- *         description: Sort order (asc = ascending, desc = descending)
+ *         description: Sort order (asc = ascending, desc = descending). Defaults to asc when sortBy is sort_order.
  *     responses:
  *       200:
  *         description: List of agents

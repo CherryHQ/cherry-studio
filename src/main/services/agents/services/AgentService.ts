@@ -61,9 +61,11 @@ export class AgentService extends BaseService {
     }
 
     const database = await this.getDatabase()
-    // Shift all existing agents' sort_order up by 1 to make room at position 0
-    await database.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
-    await database.insert(agentsTable).values(insertData)
+    // Shift all existing agents' sort_order up by 1 and insert new agent at position 0 atomically
+    await database.transaction(async (tx) => {
+      await tx.update(agentsTable).set({ sort_order: sql`${agentsTable.sort_order} + 1` })
+      await tx.insert(agentsTable).values(insertData)
+    })
     const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
       throw new Error('Failed to create agent')

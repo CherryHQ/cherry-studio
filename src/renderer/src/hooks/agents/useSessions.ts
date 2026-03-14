@@ -134,6 +134,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
+      if (!agentId) return
       const orderedIds = reorderedList.map((s) => s.id)
       // Optimistic update: replace all pages with single page containing reordered list
       mutate(
@@ -144,7 +145,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
         { revalidate: false }
       )
       try {
-        await client.reorderSessions(agentId!, orderedIds)
+        await client.reorderSessions(agentId, orderedIds)
       } catch (error) {
         mutate()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
