@@ -386,18 +386,17 @@
           "originalKey": "servers",
           "type": "array",
           "defaultValue": [],
-          "status": "done",
-          "category": "user_data",
-          "targetKey": "mcp_server (SQLite table)"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "isUvInstalled",
           "type": "boolean",
           "defaultValue": true,
-          "status": "done",
-          "category": "runtime",
-          "targetKey": null,
-          "note": "Re-detected at startup, not migrated"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "memory": [
