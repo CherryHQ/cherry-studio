@@ -846,7 +846,7 @@
         },
         {
           "originalKey": "targetLanguage",
-          "type": "string",
+          "type": "PreferenceTypes.TranslateLanguageCode",
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
