@@ -29,8 +29,6 @@ export interface ChatState {
   /** UI state. Map agent id to active session id.
    *  null represents no active session  */
   activeSessionIdMap: Record<string, string | null>
-  /** meanwhile active Assistants or Agents */
-  activeTopicOrSession: 'topic' | 'session'
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
@@ -77,6 +75,9 @@ export interface RuntimeState {
   detectedRegion: MinAppRegion | null
   /** Query whether a task is processing or not. undefined and false share same semantics.  */
   loadingMap: Record<string, boolean>
+  // Migrated from useApiServer, it's global state now
+  /** Is the api server running */
+  apiServerRunning: boolean
 }
 
 export interface ExportState {
@@ -112,7 +113,6 @@ const initialState: RuntimeState = {
     selectedMessageIds: [],
     activeTopic: null,
     activeAgentId: null,
-    activeTopicOrSession: 'topic',
     activeSessionIdMap: {},
     renamingTopics: [],
     newlyRenamedTopics: []
@@ -121,7 +121,8 @@ const initialState: RuntimeState = {
     activeSearches: {}
   },
   detectedRegion: null,
-  loadingMap: {}
+  loadingMap: {},
+  apiServerRunning: false
 }
 
 const runtimeSlice = createSlice({
@@ -188,9 +189,6 @@ const runtimeSlice = createSlice({
       const { agentId, sessionId } = action.payload
       state.chat.activeSessionIdMap[agentId] = sessionId
     },
-    setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
-      state.chat.activeTopicOrSession = action.payload
-    },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
     },
@@ -218,6 +216,9 @@ const runtimeSlice = createSlice({
     },
     setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
       state.detectedRegion = action.payload
+    },
+    setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {
+      state.apiServerRunning = action.payload
     }
   }
 })
@@ -242,7 +243,6 @@ export const {
   setActiveTopic,
   setActiveAgentId,
   setActiveSessionIdAction,
-  setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,
   startLoadingAction,
@@ -251,7 +251,8 @@ export const {
   setActiveSearches,
   setWebSearchStatus,
   // Region detection
-  setDetectedRegion
+  setDetectedRegion,
+  setApiServerRunningAction
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

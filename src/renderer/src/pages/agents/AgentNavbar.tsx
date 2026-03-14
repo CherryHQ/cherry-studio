@@ -1,48 +1,28 @@
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
-import type { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
-import styled from 'styled-components'
 
-import NavbarIcon from '../../components/NavbarIcon'
-import AssistantsDrawer from './components/AssistantsDrawer'
-import UpdateAppButton from './components/UpdateAppButton'
+import UpdateAppButton from '../home/components/UpdateAppButton'
+import AgentSidePanelDrawer from './components/AgentSidePanelDrawer'
 
-interface Props {
-  activeAssistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  setActiveAssistant: (assistant: Assistant) => void
-  position: 'left' | 'right'
-}
-
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const AgentNavbar = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
+  const { narrowMode, topicPosition } = useSettings()
   const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
-
-  useShortcut('toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      toggleShowTopics()
-    } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    }
-  })
 
   useShortcut('search_message', () => {
     SearchPopup.show()
@@ -53,17 +33,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     dispatch(setNarrowMode(!narrowMode))
   }
 
-  const onShowAssistantsDrawer = () => {
-    AssistantsDrawer.show({
-      activeAssistant,
-      setActiveAssistant,
-      activeTopic,
-      setActiveTopic
-    })
-  }
-
   return (
-    <Navbar className="home-navbar">
+    <Navbar className="agent-navbar">
       <AnimatePresence initial={false}>
         {showAssistants && (
           <motion.div
@@ -96,40 +67,32 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
-          <AnimatePresence initial={false}>
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
-                <Menu size={18} />
-              </NavbarIcon>
-            </motion.div>
-          </AnimatePresence>
+          <NavbarIcon onClick={() => AgentSidePanelDrawer.show()} style={{ marginRight: 5 }}>
+            <Menu size={18} />
+          </NavbarIcon>
         </NavbarLeft>
       )}
       <NavbarCenter></NavbarCenter>
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
-          flex: 1,
+          flex: 'none',
           position: 'relative',
-          paddingRight: '15px'
+          paddingRight: '15px',
+          minWidth: 'auto'
         }}
-        className="home-navbar-right">
+        className="agent-navbar-right">
         <HStack alignItems="center" gap={6}>
           <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-            <NarrowIcon onClick={() => SearchPopup.show()}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={() => SearchPopup.show()}>
               <Search size={18} />
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-            <NarrowIcon onClick={handleNarrowModeToggle}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
@@ -151,10 +114,4 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   )
 }
 
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
-`
-
-export default HeaderNavbar
+export default AgentNavbar

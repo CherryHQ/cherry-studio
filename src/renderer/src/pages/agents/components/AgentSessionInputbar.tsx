@@ -10,6 +10,17 @@ import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { InputbarCore } from '@renderer/pages/home/Inputbar/components/InputbarCore'
+import {
+  InputbarToolsProvider,
+  useInputbarToolsDispatch,
+  useInputbarToolsInternalDispatch,
+  useInputbarToolsState
+} from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
+import InputbarTools from '@renderer/pages/home/Inputbar/InputbarTools'
+import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
+import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
+import { TopicType } from '@renderer/pages/home/Inputbar/types'
 import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
@@ -32,18 +43,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
 
-import { InputbarCore } from './components/InputbarCore'
-import {
-  InputbarToolsProvider,
-  useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
-  useInputbarToolsState
-} from './context/InputbarToolsProvider'
-import InputbarTools from './InputbarTools'
-import { getInputbarConfig } from './registry'
-import type { ToolContext } from './types'
-import { TopicType } from './types'
-
 const logger = loggerService.withContext('AgentSessionInputbar')
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -55,7 +54,7 @@ type Props = {
   sessionId: string
 }
 
-const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
+const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
   const { session } = useSession(agentId, sessionId)
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({

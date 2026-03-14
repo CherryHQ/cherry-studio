@@ -38,6 +38,10 @@
     "edit": {
       "title": "编辑 Agent"
     },
+    "empty": {
+      "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
+      "title": "还没有 Agent"
+    },
     "get": {
       "error": {
         "failed": "获取智能体失败",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "智能体",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "请启用 API 服务器以使用智能体功能"
+      "enable_and_start": "启用并启动",
+      "enable_server": "请启用 API 服务器以使用智能体功能",
+      "enable_server_description": "智能体功能需要启用 API 服务器。你可以直接启用，或前往设置页面进行配置。",
+      "server_not_running": "API 服务器已启用但未运行，请检查服务器配置。",
+      "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "请创建一个智能体以开始使用",
       "create_session": "请创建会话",
       "select_agent": "请选择智能体"
     },
@@ -1389,6 +1399,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "sessions": "会话",
     "settings": "设置",
     "sort": {
       "pinyin": {

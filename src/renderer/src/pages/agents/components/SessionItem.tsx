@@ -16,7 +16,6 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
-import type { FC } from 'react'
 import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,7 +30,7 @@ interface SessionItemProps {
   onPress: () => void
 }
 
-const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
+const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { updateSession } = useUpdateSession(agentId)

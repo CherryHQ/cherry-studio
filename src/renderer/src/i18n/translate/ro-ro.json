@@ -38,6 +38,10 @@
     "edit": {
       "title": "Editează agentul"
     },
+    "empty": {
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente bazate pe IA",
+      "title": "Niciun agent încă"
+    },
     "get": {
       "error": {
         "failed": "Nu s-a putut obține agentul.",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agenți",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "Activează serverul API pentru a folosi agenți."
+      "enable_and_start": "Activează și pornește",
+      "enable_server": "Activează serverul API pentru a folosi agenți.",
+      "enable_server_description": "Serverul API trebuie să fie activat pentru ca agenții să funcționeze. Îl puteți activa direct sau îl puteți configura în setări.",
+      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
+      "server_not_running_description": "Serverul API trebuie să ruleze pentru ca agenții să funcționeze. Îl puteți porni direct sau puteți verifica setările."
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Creează un agent pentru a începe",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },
@@ -1389,6 +1399,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
+    "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
       "pinyin": {

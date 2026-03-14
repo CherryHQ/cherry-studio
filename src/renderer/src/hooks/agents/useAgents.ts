@@ -98,7 +98,7 @@ export const useAgents = () => {
   )
 
   return {
-    agents: data ?? [],
+    agents: data,
     error,
     isLoading,
     addAgent,
