@@ -85,6 +85,8 @@ export interface FileSchemas {
       params: { id: string }
       query: {
         recursive?: boolean
+        /** Max tree depth when recursive=true. Clamped to server maximum (default: 20) */
+        maxDepth?: number
         sortBy?: 'name' | 'updatedAt' | 'size' | 'type'
         sortOrder?: 'asc' | 'desc'
         limit?: number
