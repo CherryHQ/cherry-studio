@@ -386,16 +386,16 @@
           "originalKey": "servers",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
-          "targetTable": "mcp_server"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "isUvInstalled",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "runtime",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         }
       ],
