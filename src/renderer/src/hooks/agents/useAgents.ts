@@ -109,7 +109,7 @@ export const useAgents = () => {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
-    [client, mutate]
+    [client, mutate, t]
   )
 
   return {
