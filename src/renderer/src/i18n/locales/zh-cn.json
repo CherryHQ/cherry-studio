@@ -38,6 +38,10 @@
     "edit": {
       "title": "编辑 Agent"
     },
+    "empty": {
+      "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
+      "title": "还没有 Agent"
+    },
     "get": {
       "error": {
         "failed": "获取智能体失败",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "智能体",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "请启用 API 服务器以使用智能体功能"
+      "enable_and_start": "启用并启动",
+      "enable_server": "请启用 API 服务器以使用智能体功能",
+      "enable_server_description": "智能体功能需要启用 API 服务器。你可以直接启用，或前往设置页面进行配置。",
+      "server_not_running": "API 服务器已启用但未运行，请检查服务器配置。",
+      "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
     }
   },
   "apiServer": {
@@ -621,6 +630,10 @@
           "tip": "助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
         }
       },
+      "max_tool_calls": {
+        "label": "最大工具调用次数",
+        "tip": "单次对话中允许的最大工具调用次数。较高的值支持更复杂的多步操作，但可能增加 Token 消耗和响应时间。"
+      },
       "mcp": {
         "description": "默认启用的 MCP 服务器",
         "enableFirst": "请先在 MCP 设置中启用此服务器",
@@ -749,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "请创建一个智能体以开始使用",
       "create_session": "请创建会话",
       "select_agent": "请选择智能体"
     },
@@ -1389,6 +1403,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "sessions": "会话",
     "settings": "设置",
     "sort": {
       "pinyin": {
@@ -2599,6 +2614,11 @@
     },
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
+    "migration": {
+      "description": "检测到通过 npm 安装的旧版本 OpenClaw，请重新安装以获取最新官方版本。",
+      "install_button": "重新安装 OpenClaw",
+      "title": "OpenClaw 需要更新"
+    },
     "model_config": {
       "auth_token": "认证令牌",
       "auth_token_hint": "网关认证令牌（必填）。留空时将自动生成。",
@@ -2634,6 +2654,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "检查更新",
       "open_dashboard": "打开控制面板",
       "title": "快捷操作",
       "uninstall": "卸载",
@@ -2660,6 +2681,16 @@
     "uninstalling": {
       "description": "正在卸载 OpenClaw，请稍候...",
       "title": "正在卸载 OpenClaw"
+    },
+    "update": {
+      "available": "发现新版本：v{{latest}}（当前版本：v{{current}}）",
+      "checking": "正在检查更新...",
+      "confirm_button": "立即更新",
+      "failed": "检查更新失败",
+      "modal_title": "OpenClaw 更新",
+      "success": "更新成功！",
+      "up_to_date": "已是最新版本（v{{current}}）",
+      "updating": "更新中..."
     }
   },
   "ovms": {

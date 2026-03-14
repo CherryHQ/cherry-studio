@@ -38,6 +38,10 @@
     "edit": {
       "title": "Agent Editor"
     },
+    "empty": {
+      "description": "Crie um agente para lidar com tarefas complexas com ferramentas baseadas em IA",
+      "title": "Ainda não há agentes"
+    },
     "get": {
       "error": {
         "failed": "Falha ao obter o agente.",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tarefas concluídas"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "Ativar o Servidor de API para usar agentes."
+      "enable_and_start": "Ativar & Iniciar",
+      "enable_server": "Ativar o Servidor de API para usar agentes.",
+      "enable_server_description": "O servidor de API deve estar habilitado para que os agentes funcionem. Você pode habilitá-lo diretamente ou configurá-lo nas configurações.",
+      "server_not_running": "O Servidor API está ativado, mas não está em execução. Verifique a configuração do servidor.",
+      "server_not_running_description": "O servidor da API precisa estar em execução para que os agentes funcionem. Você pode iniciá-lo diretamente ou verificar as configurações."
     }
   },
   "apiServer": {
@@ -621,6 +630,10 @@
           "tip": "O agente usará a capacidade de reconhecimento de intenção do grande modelo para decidir se deve chamar a base de conhecimento para responder. Esta função depende da capacidade do modelo"
         }
       },
+      "max_tool_calls": {
+        "label": "Máximo de Chamadas de Ferramentas",
+        "tip": "Número máximo de chamadas de ferramentas permitidas em uma única conversa. Valores mais altos permitem operações mais complexas de múltiplas etapas, mas podem aumentar o uso de tokens e o tempo de resposta."
+      },
       "mcp": {
         "description": "Servidor MCP ativado por padrão",
         "enableFirst": "Por favor, ative este servidor nas configurações do MCP primeiro",
@@ -749,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Crie um agente para começar",
       "create_session": "Criar uma sessão",
       "select_agent": "Selecione um agente"
     },
@@ -1389,6 +1403,7 @@
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
+    "sessions": "Sessões",
     "settings": "Configurações",
     "sort": {
       "pinyin": {
@@ -2599,6 +2614,11 @@
     },
     "install_progress": "Progresso da Instalação",
     "installed_at": "OpenClaw instalado em",
+    "migration": {
+      "description": "Foi detectada uma versão desatualizada do OpenClaw instalada via npm. Por favor, reinstale para obter a versão oficial mais recente.",
+      "install_button": "Reinstale o OpenClaw",
+      "title": "OpenClaw Precisa de Atualização"
+    },
     "model_config": {
       "auth_token": "Token de Autenticação",
       "auth_token_hint": "Token para autenticação do gateway. Deixe vazio para desativar a autenticação.",
@@ -2634,6 +2654,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Verificar Atualizações",
       "open_dashboard": "Abrir Painel",
       "title": "Ações Rápidas",
       "uninstall": "Desinstalar",
@@ -2660,6 +2681,16 @@
     "uninstalling": {
       "description": "Aguarde enquanto o OpenClaw está sendo desinstalado...",
       "title": "Desinstalando OpenClaw"
+    },
+    "update": {
+      "available": "Nova versão disponível: v{{latest}} (atual: v{{current}})",
+      "checking": "Verificando atualizações...",
+      "confirm_button": "Atualizar agora",
+      "failed": "Falha ao verificar atualizações",
+      "modal_title": "Atualização do OpenClaw",
+      "success": "Atualização concluída com sucesso!",
+      "up_to_date": "Já está atualizado (v{{current}})",
+      "updating": "Atualizando..."
     }
   },
   "ovms": {

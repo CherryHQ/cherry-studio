@@ -4,19 +4,17 @@ import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
+import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
+import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
+import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import PermissionModeDisplay from '@renderer/pages/home/Messages/PermissionModeDisplay'
+import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import styled from 'styled-components'
-
-import MessageAnchorLine from './MessageAnchorLine'
-import MessageGroup from './MessageGroup'
-import NarrowLayout from './NarrowLayout'
-import PermissionModeDisplay from './PermissionModeDisplay'
-import { MessagesContainer, ScrollContainer } from './shared'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -25,7 +23,7 @@ type Props = {
   sessionId: string
 }
 
-const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
+const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   // Use the same hook as Messages.tsx for consistent behavior
@@ -101,9 +99,9 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
             ) : session ? (
               <PermissionModeDisplay session={session} agentId={agentId} />
             ) : (
-              <LoadingState>
+              <div className="flex items-center justify-center py-5">
                 <Spin size="small" />
-              </LoadingState>
+              </div>
             )}
           </ScrollContainer>
         </ContextMenu>
@@ -112,13 +110,6 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
     </MessagesContainer>
   )
 }
-
-const LoadingState = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px 0;
-`
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 

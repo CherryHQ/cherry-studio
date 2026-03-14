@@ -11,7 +11,7 @@ import { apiModelAdapter } from '@renderer/utils/model'
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -34,7 +34,7 @@ interface Props {
   containerClassName?: string
 }
 
-const SelectAgentBaseModelButton: FC<Props> = ({
+const SelectAgentBaseModelButton = ({
   agentBase: agent,
   onSelect,
   isDisabled,
@@ -45,7 +45,7 @@ const SelectAgentBaseModelButton: FC<Props> = ({
   fontSize = 12,
   iconSize = 14,
   containerClassName
-}) => {
+}: Props) => {
   const { t } = useTranslation()
   const model = useApiModel({ id: agent?.model })
 
@@ -89,7 +89,7 @@ const SelectAgentBaseModelButton: FC<Props> = ({
       <div className={containerClassName || 'flex w-full items-center gap-1.5'}>
         <div className="flex flex-1 items-center gap-1.5 overflow-x-hidden">
           <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={avatarSize} />
-          <span className="truncate text-[var(--color-text)]">
+          <span className="truncate text-(--color-text)">
             {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
           </span>
         </div>

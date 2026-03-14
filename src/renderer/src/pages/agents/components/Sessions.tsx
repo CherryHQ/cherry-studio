@@ -1,10 +1,11 @@
+import AddButton from '@renderer/components/AddButton'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction } from '@renderer/store/runtime'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
@@ -14,17 +15,17 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AddButton from './AddButton'
 import SessionItem from './SessionItem'
 
 interface SessionsProps {
   agentId: string
+  onSelectItem?: () => void
 }
 
 const LOAD_MORE_THRESHOLD = 100
 const SCROLL_THROTTLE_DELAY = 150
 
-const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
+const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
   const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
     useSessions(agentId)
@@ -77,7 +78,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
       dispatch(setActiveSessionIdAction({ agentId, sessionId }))
-      dispatch(setActiveTopicOrSessionAction('session'))
     },
     [dispatch]
   )
@@ -172,7 +172,10 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             session={session}
             agentId={agentId}
             onDelete={() => handleDeleteSession(session.id)}
-            onPress={() => setActiveSessionId(agentId, session.id)}
+            onPress={() => {
+              setActiveSessionId(agentId, session.id)
+              onSelectItem?.()
+            }}
           />
         )}
       </StyledVirtualList>
