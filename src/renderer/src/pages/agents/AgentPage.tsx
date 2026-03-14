@@ -5,10 +5,12 @@ import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { Button } from 'antd'
 import { ServerCrash, ServerOff, Settings } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -52,7 +54,7 @@ const AgentPage = () => {
 
   if (!apiServerConfig.enabled) {
     return (
-      <div id="agent-page" className="flex flex-1 flex-col bg-background">
+      <Container className="bg-background">
         <motion.div
           className="flex h-full w-full flex-col items-center justify-center gap-4"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -74,13 +76,13 @@ const AgentPage = () => {
             </Button>
           </div>
         </motion.div>
-      </div>
+      </Container>
     )
   }
 
   if (!apiServerLoading && !apiServerRunning) {
     return (
-      <div id="agent-page" className="flex flex-1 flex-col bg-background">
+      <Container className="bg-background">
         <motion.div
           className="flex h-full w-full flex-col items-center justify-center gap-4"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -102,23 +104,20 @@ const AgentPage = () => {
             </Button>
           </div>
         </motion.div>
-      </div>
+      </Container>
     )
   }
 
   if (agents && agents.length === 0) {
     return (
-      <div id="agent-page" className="flex flex-1 flex-col bg-background">
+      <Container className="bg-background">
         <AgentEmpty />
-      </div>
+      </Container>
     )
   }
 
   return (
-    <div
-      id="agent-page"
-      className="flex flex-1 flex-col"
-      style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
+    <Container>
       {isLeftNavbar && <AgentNavbar />}
       <div
         id={isLeftNavbar ? 'content-container' : undefined}
@@ -142,6 +141,14 @@ const AgentPage = () => {
           <AgentChat />
         </ErrorBoundary>
       </div>
+    </Container>
+  )
+}
+
+const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
+  return (
+    <div id="agent-page" className={cn('flex flex-1 flex-col', className)}>
+      {children}
     </div>
   )
 }
