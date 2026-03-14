@@ -35,8 +35,7 @@ interface NewTranslateLanguage {
   updatedAt: number
 }
 
-function transformRecord(old: OldCustomTranslateLanguage): NewTranslateLanguage {
-  const now = Date.now()
+function transformRecord(old: OldCustomTranslateLanguage, now: number): NewTranslateLanguage {
   return {
     id: old.id,
     langCode: old.langCode,
@@ -97,6 +96,7 @@ export class TranslateLanguageMigrator extends BaseMigrator {
     try {
       const db = ctx.db
 
+      const now = Date.now()
       const newRecords: NewTranslateLanguage[] = []
       for (const old of this.cachedRecords) {
         if (!old.id || !old.langCode || !old.value || !old.emoji) {
@@ -104,7 +104,7 @@ export class TranslateLanguageMigrator extends BaseMigrator {
           this.skippedCount++
           continue
         }
-        newRecords.push(transformRecord(old))
+        newRecords.push(transformRecord(old, now))
       }
 
       // Small dataset, single insert within transaction

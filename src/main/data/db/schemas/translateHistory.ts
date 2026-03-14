@@ -20,7 +20,7 @@ export const translateHistoryTable = sqliteTable(
     targetText: text().notNull(),
     sourceLanguage: text().notNull(),
     targetLanguage: text().notNull(),
-    star: integer({ mode: 'boolean' }).default(false),
+    star: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
   (t) => [

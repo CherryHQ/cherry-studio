@@ -43,9 +43,14 @@ interface NewTranslateHistory {
   updatedAt: number
 }
 
+function parseTimestamp(value: string): number {
+  if (!value) return Date.now()
+  const parsed = new Date(value).getTime()
+  return !parsed || Number.isNaN(parsed) ? Date.now() : parsed
+}
+
 function transformRecord(old: OldTranslateHistory): NewTranslateHistory {
-  const parsed = new Date(old.createdAt).getTime()
-  const createdAt = Number.isNaN(parsed) ? Date.now() : parsed
+  const createdAt = parseTimestamp(old.createdAt)
   return {
     id: old.id,
     sourceText: old.sourceText,
@@ -103,8 +108,6 @@ export class TranslateHistoryMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    let processedCount = 0
-
     try {
       const db = ctx.db
 
@@ -123,16 +126,17 @@ export class TranslateHistoryMigrator extends BaseMigrator {
         for (let i = 0; i < newRecords.length; i += INSERT_BATCH_SIZE) {
           const batch = newRecords.slice(i, i + INSERT_BATCH_SIZE)
           await tx.insert(translateHistoryTable).values(batch)
-          processedCount += batch.length
 
-          const progress = Math.round((processedCount / newRecords.length) * 100)
-          this.reportProgress(progress, `Migrated ${processedCount}/${newRecords.length} translate history records`, {
+          const processed = Math.min(i + INSERT_BATCH_SIZE, newRecords.length)
+          const progress = Math.round((processed / newRecords.length) * 100)
+          this.reportProgress(progress, `Migrated ${processed}/${newRecords.length} translate history records`, {
             key: 'migration.progress.migrated_translate_history',
-            params: { processed: processedCount, total: newRecords.length }
+            params: { processed, total: newRecords.length }
           })
         }
       })
 
+      const processedCount = newRecords.length
       logger.info('Execute completed', { processedCount, skipped: this.skippedCount })
 
       return { success: true, processedCount }
@@ -140,7 +144,7 @@ export class TranslateHistoryMigrator extends BaseMigrator {
       logger.error('Execute failed', error as Error)
       return {
         success: false,
-        processedCount,
+        processedCount: 0,
         error: error instanceof Error ? error.message : String(error)
       }
     }
