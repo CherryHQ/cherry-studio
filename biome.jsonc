@@ -48,8 +48,7 @@
       "!*.cjs",
       "!*.md",
       "!src/main/integration/**",
-      "!**/tailwind.css",
-      "!.zed/**"
+      "!**/tailwind.css"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
