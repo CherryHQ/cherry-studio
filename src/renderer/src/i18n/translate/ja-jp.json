@@ -83,6 +83,11 @@
         "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "エージェントの並び替えに失敗しました"
+      }
+    },
     "server": {
       "error": {
         "not_running": "APIサーバーは有効になっていますが、正常に動作していません。"
@@ -133,6 +138,11 @@
       },
       "label_one": "セッション",
       "label_other": "セッション",
+      "reorder": {
+        "error": {
+          "failed": "セッションの並び替えに失敗しました"
+        }
+      },
       "update": {
         "error": {
           "failed": "セッションの更新に失敗しました"

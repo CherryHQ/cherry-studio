@@ -2,7 +2,7 @@
  * Drizzle ORM schema for sessions and session_logs tables
  */
 
-import { foreignKey, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { agentsTable } from './agents.schema'
 
@@ -26,6 +26,8 @@ export const sessionsTable = sqliteTable('sessions', {
 
   configuration: text('configuration'), // JSON, extensible settings
 
+  sort_order: integer('sort_order').notNull().default(0), // Manual sort order (lower = first)
+
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
 })
@@ -41,6 +43,7 @@ export const sessionsFkAgent = foreignKey({
 export const sessionsCreatedAtIdx = index('idx_sessions_created_at').on(sessionsTable.created_at)
 export const sessionsMainAgentIdIdx = index('idx_sessions_agent_id').on(sessionsTable.agent_id)
 export const sessionsModelIdx = index('idx_sessions_model').on(sessionsTable.model)
+export const sessionsSortOrderIdx = index('idx_sessions_sort_order').on(sessionsTable.sort_order)
 
 export type SessionRow = typeof sessionsTable.$inferSelect
 export type InsertSessionRow = typeof sessionsTable.$inferInsert

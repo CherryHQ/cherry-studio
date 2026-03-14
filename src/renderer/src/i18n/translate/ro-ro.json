@@ -83,6 +83,11 @@
         "failed": "Nu s-a putut afișa lista de agenți."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Nu s-a reușit reordonarea agenților"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Serverul API este activat, dar nu rulează corect."
@@ -133,6 +138,11 @@
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
+      "reorder": {
+        "error": {
+          "failed": "Nu s-au putut reordona sesiunile"
+        }
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"

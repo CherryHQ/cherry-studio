@@ -83,6 +83,11 @@
         "failed": "Falha ao listar agentes."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Falha ao reordenar agentes"
+      }
+    },
     "server": {
       "error": {
         "not_running": "O servidor de API está habilitado, mas não está funcionando corretamente."
@@ -133,6 +138,11 @@
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
+      "reorder": {
+        "error": {
+          "failed": "Falha ao reordenar as sessões"
+        }
+      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"

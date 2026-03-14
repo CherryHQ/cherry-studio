@@ -83,6 +83,11 @@
         "failed": "Échec de la liste des agents."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Échec du réordonnancement des agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Le serveur API est activé mais ne fonctionne pas correctement."
@@ -133,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Séances",
+      "reorder": {
+        "error": {
+          "failed": "Échec du réordonnancement des sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"
