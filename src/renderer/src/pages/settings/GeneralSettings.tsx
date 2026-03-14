@@ -4,11 +4,13 @@ import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCherryAiSettings, useProviders } from '@renderer/hooks/useProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
+import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
 import {
   setEnableDataCollection,
   setEnableSpellCheck,
@@ -69,8 +71,35 @@ const GeneralSettings: FC = () => {
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
+  const { showCherryAiModels, setShowCherryAiModels } = useCherryAiSettings()
+  const { providers } = useProviders()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
   const { setTimeoutTimer } = useTimer()
+
+  const defaultModel = useSelector((state: RootState) => state.llm.defaultModel)
+  const quickModel = useSelector((state: RootState) => state.llm.quickModel)
+  const translateModel = useSelector((state: RootState) => state.llm.translateModel)
+
+  const handleShowCherryAiModelsChange = (checked: boolean) => {
+    setShowCherryAiModels(checked)
+
+    if (!checked) {
+      // Find the first non-cherryai model from enabled providers
+      const firstAvailableModel = providers.filter((p) => p.id !== 'cherryai')[0]?.models?.[0]
+
+      if (firstAvailableModel) {
+        if (defaultModel.provider === 'cherryai') {
+          dispatch(setDefaultModel({ model: firstAvailableModel }))
+        }
+        if (quickModel.provider === 'cherryai') {
+          dispatch(setQuickModel({ model: firstAvailableModel }))
+        }
+        if (translateModel.provider === 'cherryai') {
+          dispatch(setTranslateModel({ model: firstAvailableModel }))
+        }
+      }
+    }
+  }
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -290,6 +319,11 @@ const GeneralSettings: FC = () => {
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onChange={handleHardwareAccelerationChange} />
         </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.models.show_cherry_ai_models')}</SettingRowTitle>
+          <Switch checked={showCherryAiModels} onChange={handleShowCherryAiModelsChange} />
+        </SettingRow>
+        <SettingDivider />
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>

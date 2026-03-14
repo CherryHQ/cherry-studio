@@ -4810,6 +4810,7 @@
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
       },
+      "show_cherry_ai_models": "[to be translated]:Show CherryAI Models",
       "topic_naming": {
         "auto": "トピックの自動命名",
         "label": "トピック名",

@@ -4810,6 +4810,7 @@
         "setting_title": "快速模型設定",
         "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
       },
+      "show_cherry_ai_models": "顯示 CherryAI 模型",
       "topic_naming": {
         "auto": "話題自動重新命名",
         "label": "話題命名",

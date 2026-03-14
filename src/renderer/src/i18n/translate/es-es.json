@@ -4810,6 +4810,7 @@
         "setting_title": "Configuración del modelo rápido",
         "tooltip": "Se recomienda elegir un modelo ligero y no se recomienda elegir un modelo de razonamiento"
       },
+      "show_cherry_ai_models": "[to be translated]:Show CherryAI Models",
       "topic_naming": {
         "auto": "Renombrar temas automáticamente",
         "label": "Nombramiento del tema",

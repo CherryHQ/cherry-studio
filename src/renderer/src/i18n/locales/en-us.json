@@ -4810,6 +4810,7 @@
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
       },
+      "show_cherry_ai_models": "Show CherryAI Models",
       "topic_naming": {
         "auto": "Topic Auto Naming",
         "label": "Topic naming",
