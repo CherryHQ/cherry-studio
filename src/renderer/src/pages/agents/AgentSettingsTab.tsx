@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -6,7 +5,6 @@ import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
@@ -46,11 +44,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const logger = loggerService.withContext('AgentSettingsTab')
-
 const AgentSettingsTab = () => {
-  const { chat } = useRuntime()
-
   const { messageStyle, fontSize, language } = useSettings()
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
@@ -115,12 +109,6 @@ const AgentSettingsTab = () => {
     },
     [dispatch, theme, codeEditor.enabled]
   )
-
-  const isAgentSettings = chat.activeTopicOrSession === 'session'
-  if (!isAgentSettings) {
-    logger.warn('AgentSettingsTab is rendered when not session activated.')
-    return null
-  }
 
   return (
     <Container className="settings-tab">

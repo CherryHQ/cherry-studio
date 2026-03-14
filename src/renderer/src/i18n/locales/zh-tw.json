@@ -38,6 +38,10 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "empty": {
+      "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
+      "title": "尚無 Agent"
+    },
     "get": {
       "error": {
         "failed": "無法取得 Agent。",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_and_start": "啟用並啟動",
+      "enable_server": "啟用 API 伺服器以使用 Agent。",
+      "enable_server_description": "智能體功能需要啟用 API 伺服器。你可以直接啟用，或前往設定頁面進行配置。",
+      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
+      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "建立 Agent 以開始",
       "create_session": "建立工作階段",
       "select_agent": "選擇一個智能體"
     },
@@ -1389,6 +1399,7 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
+    "sessions": "會話",
     "settings": "設定",
     "sort": {
       "pinyin": {

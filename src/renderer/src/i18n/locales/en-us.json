@@ -38,6 +38,10 @@
     "edit": {
       "title": "Edit Agent"
     },
+    "empty": {
+      "description": "Create an agent to handle complex tasks with AI-powered tools",
+      "title": "No agents yet"
+    },
     "get": {
       "error": {
         "failed": "Failed to get the agent.",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tasks completed"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "Enable API Server to use agents."
+      "enable_and_start": "Enable & Start",
+      "enable_server": "Enable API Server to use agents.",
+      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Create an agent to get started",
       "create_session": "Create a session",
       "select_agent": "Select an agent"
     },
@@ -1389,6 +1399,7 @@
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
+    "sessions": "Sessions",
     "settings": "Settings",
     "sort": {
       "pinyin": {

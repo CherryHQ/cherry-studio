@@ -38,6 +38,10 @@
     "edit": {
       "title": "Agent de edición"
     },
+    "empty": {
+      "description": "Crea un agente para gestionar tareas complejas con herramientas impulsadas por IA.",
+      "title": "Aún no hay agentes"
+    },
     "get": {
       "error": {
         "failed": "No se pudo obtener el agente.",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tareas completadas"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "Habilitar el servidor API para usar agentes."
+      "enable_and_start": "Habilitar e iniciar",
+      "enable_server": "Habilitar el servidor API para usar agentes.",
+      "enable_server_description": "El servidor de la API debe estar habilitado para que los agentes funcionen. Puede habilitarlo directamente o configurarlo en los ajustes.",
+      "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor.",
+      "server_not_running_description": "El servidor de la API debe estar en ejecución para que los agentes funcionen. Puede iniciarlo directamente o comprobar los ajustes."
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Crea un agente para empezar",
       "create_session": "Crear una sesión",
       "select_agent": "Selecciona un agente"
     },
@@ -1389,6 +1399,7 @@
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
+    "sessions": "Sesiones",
     "settings": "Configuración",
     "sort": {
       "pinyin": {

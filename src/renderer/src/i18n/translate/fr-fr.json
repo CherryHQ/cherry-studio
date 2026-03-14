@@ -38,6 +38,10 @@
     "edit": {
       "title": "Éditer Agent"
     },
+    "empty": {
+      "description": "Créez un agent pour gérer des tâches complexes avec des outils alimentés par l'IA",
+      "title": "Pas encore d'agents"
+    },
     "get": {
       "error": {
         "failed": "Échec de l'obtention de l'agent.",
@@ -295,6 +299,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tâches terminées"
@@ -395,7 +400,11 @@
       }
     },
     "warning": {
-      "enable_server": "Permettre au serveur API d'utiliser des agents."
+      "enable_and_start": "Activer & Démarrer",
+      "enable_server": "Permettre au serveur API d'utiliser des agents.",
+      "enable_server_description": "Le serveur API doit être activé pour que les agents fonctionnent. Vous pouvez l'activer directement ou le configurer dans les paramètres.",
+      "server_not_running": "Le serveur API est activé mais ne fonctionne pas. Veuillez vérifier la configuration du serveur.",
+      "server_not_running_description": "Le serveur API doit être en cours d'exécution pour que les agents fonctionnent. Vous pouvez le démarrer directement ou vérifier les paramètres."
     }
   },
   "apiServer": {
@@ -753,6 +762,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Créer un agent pour commencer",
       "create_session": "Créer une session",
       "select_agent": "Sélectionnez un agent"
     },
@@ -1389,6 +1399,7 @@
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
+    "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
       "pinyin": {

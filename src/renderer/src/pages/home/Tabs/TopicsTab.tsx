@@ -1,11 +1,7 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { Assistant, Topic } from '@renderer/types'
 import type { FC } from 'react'
 
 import { Topics } from './components/Topics'
-import SessionsTab from './SessionsTab'
-
-// const logger = loggerService.withContext('TopicsTab')
 
 interface Props {
   assistant: Assistant
@@ -15,15 +11,7 @@ interface Props {
 }
 
 const TopicsTab: FC<Props> = (props) => {
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
-  if (activeTopicOrSession === 'topic') {
-    return <Topics {...props} />
-  }
-  if (activeTopicOrSession === 'session') {
-    return <SessionsTab />
-  }
-  return 'Not a valid state.'
+  return <Topics {...props} />
 }
 
 export default TopicsTab
