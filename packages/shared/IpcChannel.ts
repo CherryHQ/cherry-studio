@@ -417,7 +417,6 @@ export enum IpcChannel {
   OpenClaw_InstallProgress = 'openclaw:install-progress',
   OpenClaw_StartGateway = 'openclaw:start-gateway',
   OpenClaw_StopGateway = 'openclaw:stop-gateway',
-  OpenClaw_RestartGateway = 'openclaw:restart-gateway',
   OpenClaw_GetStatus = 'openclaw:get-status',
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',

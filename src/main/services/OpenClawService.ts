@@ -1,3 +1,4 @@
+import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -21,10 +22,10 @@ import { windowService } from './WindowService'
 const logger = loggerService.withContext('OpenClawService')
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
-// Original user config (read-only, used as template for first-time setup)
-const OPENCLAW_ORIGINAL_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
-// Cherry Studio's isolated config (read/write) — OpenClaw reads the OPENCLAW_CONFIG_PATH env var to locate this
-const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
+const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
+const OPENCLAW_CONFIG_BAK_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json.bak')
+const OPENCLAW_LEGACY_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.cherry.json')
+const SYMLINK_PATH = '/usr/local/bin/openclaw'
 const DEFAULT_GATEWAY_PORT = 18790
 
 export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -125,7 +126,6 @@ class OpenClawService {
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
     this.stopGateway = this.stopGateway.bind(this)
-    this.restartGateway = this.restartGateway.bind(this)
     this.getStatus = this.getStatus.bind(this)
     this.checkHealth = this.checkHealth.bind(this)
     this.getDashboardUrl = this.getDashboardUrl.bind(this)
@@ -173,6 +173,75 @@ class OpenClawService {
   }
 
   /**
+   * Create a symlink in /usr/local/bin (macOS/Linux) or add bin dir to user PATH (Windows).
+   * Removes any existing symlink first to ensure a clean state.
+   */
+  private async linkBinary(): Promise<void> {
+    const binaryPath = await getBinaryPath('openclaw')
+    if (isWin) {
+      const binDir = await getBinaryPath()
+      try {
+        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
+        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
+        if (!currentPath.split(';').some((p) => p.toLowerCase() === binDir.toLowerCase())) {
+          const newPath = currentPath ? `${currentPath};${binDir}` : binDir
+          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
+          // Broadcast WM_SETTINGCHANGE so new shells pick up the change
+          execSync('setx OPENCLAW_PATH_REFRESH ""')
+          logger.info(`Added ${binDir} to user PATH`)
+        }
+      } catch {
+        // User PATH key may not exist yet
+        execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${binDir}" /f`)
+        logger.info(`Created user PATH with ${binDir}`)
+      }
+    } else {
+      try {
+        // Remove existing symlink or file at target path
+        if (fs.existsSync(SYMLINK_PATH)) {
+          fs.unlinkSync(SYMLINK_PATH)
+        }
+        fs.symlinkSync(binaryPath, SYMLINK_PATH)
+        logger.info(`Created symlink: ${SYMLINK_PATH} -> ${binaryPath}`)
+      } catch (err) {
+        logger.warn(`Failed to create symlink at ${SYMLINK_PATH} (may need elevated permissions):`, err as Error)
+      }
+    }
+  }
+
+  /**
+   * Remove the symlink from /usr/local/bin (macOS/Linux) or remove bin dir from user PATH (Windows).
+   */
+  private async unlinkBinary(): Promise<void> {
+    if (isWin) {
+      const binDir = await getBinaryPath()
+      try {
+        const regQuery = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8' })
+        const currentPath = regQuery.match(/Path\s+REG_\w+\s+(.*)/)?.[1]?.trim() || ''
+        const parts = currentPath.split(';').filter((p) => p.toLowerCase() !== binDir.toLowerCase())
+        const newPath = parts.join(';')
+        if (newPath) {
+          execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`)
+        } else {
+          execSync('reg delete "HKCU\\Environment" /v Path /f')
+        }
+        logger.info(`Removed ${binDir} from user PATH`)
+      } catch {
+        logger.debug('No user PATH to clean up')
+      }
+    } else {
+      try {
+        if (fs.existsSync(SYMLINK_PATH)) {
+          fs.unlinkSync(SYMLINK_PATH)
+          logger.info(`Removed symlink: ${SYMLINK_PATH}`)
+        }
+      } catch (err) {
+        logger.warn(`Failed to remove symlink at ${SYMLINK_PATH}:`, err as Error)
+      }
+    }
+  }
+
+  /**
    * Install OpenClaw by downloading the binary from releases.
    * Uses gitcode.com mirror for China users, GitHub releases for others.
    */
@@ -189,6 +258,8 @@ class OpenClawService {
 
       this.sendInstallProgress('Downloading and installing OpenClaw...')
       await runInstallScript('install-openclaw.js', extraEnv)
+
+      await this.linkBinary()
 
       this.sendInstallProgress('OpenClaw installed successfully!')
       logger.info('OpenClaw binary installed via install script')
@@ -217,6 +288,8 @@ class OpenClawService {
       const binaryPath = path.join(binDir, binaryName)
 
       this.sendInstallProgress('Removing OpenClaw binary...')
+
+      await this.unlinkBinary()
 
       if (fs.existsSync(binaryPath)) {
         fs.unlinkSync(binaryPath)
@@ -262,19 +335,25 @@ class OpenClawService {
     const isPortOpen = await this.checkPortOpen(this.gatewayPort)
     if (isPortOpen) {
       // Check if this is our gateway already running on this port
-      const shellEnv = await refreshShellEnv()
-      const openclawPath = await this.findOpenClawBinary()
-      if (openclawPath) {
-        const alreadyRunning = await this.checkGatewayStatus(openclawPath, shellEnv)
-        if (alreadyRunning) {
-          this.gatewayStatus = 'running'
-          logger.info(`Reusing existing gateway on port ${this.gatewayPort}`)
-          return { success: true }
+      const { status } = await this.checkGatewayHealth()
+      if (status === 'healthy') {
+        // Stop the stale gateway (e.g. respawned orphan from a previous session)
+        logger.info('Detected stale gateway on port, stopping before restart...')
+        await this.stopGateway()
+
+        // Verify port is now free
+        const stillOpen = await this.checkPortOpen(this.gatewayPort)
+        if (stillOpen) {
+          return {
+            success: false,
+            message: `Port ${this.gatewayPort} is still in use after stopping the old gateway.`
+          }
         }
-      }
-      return {
-        success: false,
-        message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
+      } else {
+        return {
+          success: false,
+          message: `Port ${this.gatewayPort} is already in use by another application. Please choose a different port.`
+        }
       }
     }
 
@@ -304,31 +383,41 @@ class OpenClawService {
   }
 
   /**
-   * Start gateway via `openclaw gateway --force` and wait for it to become ready.
+   * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
    * Spawns the gateway as a detached process so its lifecycle is independent.
-   * Uses `openclaw gateway stop` to stop it later.
+   * Uses process termination to stop it later.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    const args = ['gateway', '--force']
+    const args = ['gateway', 'run', '--force']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
-    // Spawn detached — the gateway runs independently, we poll for readiness
-    const proc = crossPlatformSpawn(openclawPath, args, {
-      env: { ...shellEnv, OPENCLAW_CONFIG_PATH },
-      detached: true,
-      stdio: 'ignore'
+    // Spawn the gateway process. We poll for readiness via health check.
+    // On Windows, avoid detached: true as it creates a visible console window.
+    // Instead, use windowsHide: true without detached - proc.unref() ensures
+    // the parent can exit independently.
+    const proc = spawn(openclawPath, args, {
+      env: shellEnv,
+      detached: !isWin, // Only detach on non-Windows to avoid console flash
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true
     })
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
+    let stderrOutput = ''
+    proc.stderr?.on('data', (data) => {
+      stderrOutput += data.toString()
+    })
     proc.on('error', (err) => {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
       if (code !== 0) {
-        earlyExitError = `gateway exited with code ${code}`
+        // Extract the most useful line from stderr for the error message
+        const detail = stderrOutput.trim().split('\n').filter(Boolean).slice(0, 3).join('\n')
+        earlyExitError = detail || `gateway exited with code ${code}`
       }
     })
 
@@ -349,7 +438,7 @@ class OpenClawService {
       }
 
       logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const { status, error: healthError } = await this.probeGatewayHealthWithError(openclawPath, shellEnv)
+      const { status, error: healthError } = await this.checkGatewayHealthWithError()
       if (status === 'healthy') {
         logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
         return
@@ -362,23 +451,17 @@ class OpenClawService {
   }
 
   /**
-   * Stop the OpenClaw Gateway
+   * Stop the OpenClaw Gateway.
+   * Kills all openclaw processes to ensure clean shutdown.
    */
   public async stopGateway(): Promise<OperationResult> {
     try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        this.gatewayStatus = 'error'
-        return { success: false, message: 'OpenClaw binary not found' }
-      }
+      this.killAllOpenClawProcesses()
 
-      const shellEnv = await getShellEnv()
-      await this.runGatewayStop(openclawPath, shellEnv)
-
-      const stillRunning = await this.waitForGatewayStop(openclawPath, shellEnv)
+      const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
         this.gatewayStatus = 'error'
-        return { success: false, message: 'Failed to stop gateway. Try running: openclaw gateway stop' }
+        return { success: false, message: 'Failed to stop gateway' }
       }
 
       this.gatewayStatus = 'stopped'
@@ -393,17 +476,46 @@ class OpenClawService {
   }
 
   /**
+   * Kill all openclaw processes by finding processes on the gateway port.
+   * This works reliably on Windows where process name may show as bun.exe.
+   */
+  private killAllOpenClawProcesses(): void {
+    const currentPid = process.pid
+    try {
+      if (isWin) {
+        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
+        const pids = new Set<string>()
+        for (const line of output.split('\n')) {
+          const match = line.trim().match(/LISTENING\s+(\d+)/)
+          if (match && Number(match[1]) !== currentPid) {
+            pids.add(match[1])
+          }
+        }
+        for (const pid of pids) {
+          try {
+            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
+            logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
+          } catch {
+            // ignore
+          }
+        }
+      } else {
+        execSync('pkill -9 openclaw', { stdio: 'ignore' })
+        logger.info('Killed all openclaw processes')
+      }
+    } catch {
+      logger.debug('No openclaw processes to kill')
+    }
+  }
+
+  /**
    * Wait for gateway to actually stop, with retries.
    * Returns true if gateway is still running after all retries.
    */
-  private async waitForGatewayStop(
-    openclawPath: string,
-    env: Record<string, string>,
-    maxRetries = 3,
-    intervalMs = 1000
-  ): Promise<boolean> {
+  private async waitForGatewayStop(maxRetries = 3, intervalMs = 1000): Promise<boolean> {
     for (let i = 0; i < maxRetries; i++) {
-      const stillRunning = await this.checkGatewayStatus(openclawPath, env)
+      const { status } = await this.checkGatewayHealth()
+      const stillRunning = status === 'healthy'
       if (!stillRunning) {
         return false
       }
@@ -415,10 +527,6 @@ class OpenClawService {
     return true
   }
 
-  private async runGatewayStop(openclawPath: string, env: Record<string, string>): Promise<void> {
-    await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'stop'], env)
-  }
-
   private async execOpenClawCommandWithResult(
     openclawPath: string,
     args: string[],
@@ -426,9 +534,7 @@ class OpenClawService {
     timeoutMs = 20000
   ): Promise<{ code: number | null; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
-      const proc = crossPlatformSpawn(openclawPath, args, {
-        env: { ...env, OPENCLAW_CONFIG_PATH }
-      })
+      const proc = crossPlatformSpawn(openclawPath, args, { env })
 
       let stdout = ''
       let stderr = ''
@@ -461,34 +567,22 @@ class OpenClawService {
   }
 
   /**
-   * Restart the OpenClaw Gateway
-   */
-  public async restartGateway(): Promise<OperationResult> {
-    const openclawPath = await this.findOpenClawBinary()
-    if (!openclawPath) {
-      this.gatewayStatus = 'error'
-      return { success: false, message: 'OpenClaw binary not found' }
-    }
-    const shellEnv = await getShellEnv()
-    const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'restart'], shellEnv)
-    if (code !== 0) {
-      this.gatewayStatus = 'error'
-      return { success: false, message: stderr.trim() || `Restart failed with code ${code}` }
-    }
-    return { success: true }
-  }
-
-  /**
    * Get Gateway status. Probes the port when idle to detect externally-started gateways.
    */
   public async getStatus(): Promise<{ status: GatewayStatus; port: number }> {
-    if (this.gatewayStatus === 'stopped' || this.gatewayStatus === 'error') {
-      const { status } = await this.probeGatewayHealth()
-      if (status === 'healthy') {
-        logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
-        this.gatewayStatus = 'running'
-      }
+    if (this.gatewayStatus === 'starting') {
+      return { status: this.gatewayStatus, port: this.gatewayPort }
     }
+
+    const { status } = await this.checkGatewayHealth()
+    if (status === 'healthy' && this.gatewayStatus !== 'running') {
+      logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
+      this.gatewayStatus = 'running'
+    } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
+      logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
+      this.gatewayStatus = 'stopped'
+    }
+
     return {
       status: this.gatewayStatus,
       port: this.gatewayPort
@@ -503,24 +597,31 @@ class OpenClawService {
     if (this.gatewayStatus !== 'running') {
       return { status: 'unhealthy', gatewayPort: this.gatewayPort }
     }
-    return this.probeGatewayHealth()
+    const healthInfo = await this.checkGatewayHealth()
+    if (healthInfo.status === 'unhealthy') {
+      logger.warn(`Gateway health check failed, marking as stopped`)
+      this.gatewayStatus = 'stopped'
+    }
+    return healthInfo
   }
 
   /**
-   * Probe gateway health by running `openclaw gateway health`.
+   * Probe gateway health via HTTP request to the health endpoint.
+   * This is faster than spawning the openclaw binary.
+   * Expected response: {"ok":true,"status":"live"}
    * Does NOT check gatewayStatus — callers that need to detect
    * externally-started gateways should call this directly.
    */
-  private async probeGatewayHealth(): Promise<HealthInfo> {
+  private async checkGatewayHealth(): Promise<HealthInfo> {
     try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        return { status: 'unhealthy', gatewayPort: this.gatewayPort }
-      }
-      const shellEnv = await getShellEnv()
-      const { code } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], shellEnv)
-      if (code === 0) {
-        return { status: 'healthy', gatewayPort: this.gatewayPort }
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+        signal: AbortSignal.timeout(3000)
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { ok?: boolean; status?: string }
+        if (data.ok && data.status === 'live') {
+          return { status: 'healthy', gatewayPort: this.gatewayPort }
+        }
       }
     } catch (error) {
       logger.debug('Health probe failed:', error as Error)
@@ -538,20 +639,23 @@ class OpenClawService {
 
       socket.on('connect', () => {
         socket.destroy()
+        logger.debug(`Port ${port} is open (connected)`)
         resolve(true)
       })
 
       socket.on('timeout', () => {
         socket.destroy()
+        logger.debug(`Port ${port} check timed out`)
         resolve(false)
       })
 
-      socket.on('error', () => {
+      socket.on('error', (err) => {
         socket.destroy()
+        logger.debug(`Port ${port} is not open: ${err.message}`)
         resolve(false)
       })
 
-      socket.connect(port, 'localhost')
+      socket.connect(port, '127.0.0.1')
     })
   }
 
@@ -611,22 +715,24 @@ class OpenClawService {
         fs.mkdirSync(OPENCLAW_CONFIG_DIR, { recursive: true })
       }
 
-      // Read existing cherry config, or copy from original openclaw.json as base
+      // Migrate legacy openclaw.cherry.json → openclaw.json
+      if (fs.existsSync(OPENCLAW_LEGACY_CONFIG_PATH)) {
+        if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
+          fs.renameSync(OPENCLAW_CONFIG_PATH, OPENCLAW_CONFIG_BAK_PATH)
+          logger.info('Migrated openclaw.json → openclaw.json.bak')
+        }
+        fs.renameSync(OPENCLAW_LEGACY_CONFIG_PATH, OPENCLAW_CONFIG_PATH)
+        logger.info('Migrated openclaw.cherry.json → openclaw.json')
+      }
+
+      // Read existing config
       let config: OpenClawConfig = {}
       if (fs.existsSync(OPENCLAW_CONFIG_PATH)) {
         try {
           const content = fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8')
           config = JSON.parse(content)
         } catch {
-          logger.warn('Failed to parse existing Cherry OpenClaw config, creating new one')
-        }
-      } else if (fs.existsSync(OPENCLAW_ORIGINAL_CONFIG_PATH)) {
-        try {
-          const content = fs.readFileSync(OPENCLAW_ORIGINAL_CONFIG_PATH, 'utf-8')
-          config = JSON.parse(content)
-          logger.info('Using original openclaw.json as base template for openclaw.cherry.json')
-        } catch {
-          logger.warn('Failed to parse original openclaw.json, creating new config')
+          logger.warn('Failed to parse existing OpenClaw config, creating new one')
         }
       }
 
@@ -814,65 +920,23 @@ class OpenClawService {
   }
 
   /**
-   * Check gateway status using `openclaw gateway status` command
-   * Returns true if gateway is running
+   * Like checkGatewayHealth but also returns error message when unhealthy.
+   * Uses HTTP request for faster health checks.
+   * Expected response: {"ok":true,"status":"live"}
    */
-  private async checkGatewayStatus(openclawPath: string, env: Record<string, string>): Promise<boolean> {
-    return new Promise((resolve) => {
-      const statusProcess = crossPlatformSpawn(openclawPath, ['gateway', 'status'], {
-        env: { ...env, OPENCLAW_CONFIG_PATH }
-      })
-
-      let stdout = ''
-      let resolved = false
-
-      const doResolve = (value: boolean) => {
-        if (resolved) return
-        resolved = true
-        resolve(value)
-      }
-
-      const timeoutId = setTimeout(() => {
-        // On timeout, check stdout accumulated so far before giving up
-        const lowerStdout = stdout.toLowerCase()
-        const isRunning = lowerStdout.includes('listening')
-        logger.debug(`Gateway status check timed out after 10s, stdout indicates running: ${isRunning}`)
-        statusProcess.kill('SIGKILL')
-        doResolve(isRunning)
-      }, 10_000)
-
-      statusProcess.stdout?.on('data', (data) => {
-        stdout += data.toString()
-      })
-
-      statusProcess.on('close', (code) => {
-        clearTimeout(timeoutId)
-        const lowerStdout = stdout.toLowerCase()
-        const isRunning = (code === 0 || code === null) && lowerStdout.includes('listening')
-        logger.debug('Gateway status check result:', { code, stdout: stdout.trim(), isRunning })
-        doResolve(isRunning)
-      })
-
-      statusProcess.on('error', () => {
-        clearTimeout(timeoutId)
-        doResolve(false)
-      })
-    })
-  }
-
-  /**
-   * Like probeGatewayHealth but also returns stderr when unhealthy.
-   */
-  private async probeGatewayHealthWithError(
-    openclawPath: string,
-    env: Record<string, string>
-  ): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
+  private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
     try {
-      const { code, stderr } = await this.execOpenClawCommandWithResult(openclawPath, ['gateway', 'health'], env)
-      if (code === 0) {
-        return { status: 'healthy' }
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+        signal: AbortSignal.timeout(3000)
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { ok?: boolean; status?: string }
+        if (data.ok && data.status === 'live') {
+          return { status: 'healthy' }
+        }
+        return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
       }
-      return { status: 'unhealthy', error: stderr.trim() || undefined }
+      return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
     }

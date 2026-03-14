@@ -421,6 +421,9 @@ export function crossPlatformSpawn(
   args: string[],
   options: SpawnOptions & { env: Record<string, string> }
 ): ChildProcess {
+  // Always hide console window on Windows
+  const baseOptions: SpawnOptions = { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' }
+
   if (isWin && !command.toLowerCase().endsWith('.exe')) {
     // When shell: true, Node passes the command to cmd.exe as:
     //   cmd /d /s /c "command arg1 arg2"
@@ -428,9 +431,9 @@ export function crossPlatformSpawn(
     // cmd.exe splits on the space. Wrapping in quotes fixes this:
     //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
     const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
-    return spawn(quotedCommand, args, { ...options, shell: true, stdio: options.stdio ?? 'pipe' })
+    return spawn(quotedCommand, args, { ...baseOptions, shell: true })
   }
-  return spawn(command, args, { ...options, stdio: options.stdio ?? 'pipe' })
+  return spawn(command, args, baseOptions)
 }
 
 /**
