@@ -42,6 +42,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
+  const [timeout, setTimeout] = useState(provider.timeout || 10000)
   const { setTimeoutTimer } = useTimer()
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
@@ -83,6 +84,17 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
+    }
+  }
+
+  const onUpdateTimeout = () => {
+    const timeoutValue = Number(timeout)
+    if (timeoutValue > 0 && timeoutValue !== provider.timeout) {
+      updateProvider({ timeout: timeoutValue })
+    } else if (!timeoutValue && provider.timeout) {
+      updateProvider({ timeout: undefined })
+    } else {
+      setTimeout(provider.timeout || 10000)
     }
   }
 
@@ -139,7 +151,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost ?? '')
     setBasicAuthUsername(provider.basicAuthUsername ?? '')
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
-  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
+    setTimeout(provider.timeout ?? 10000)
+  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword, provider.timeout])
 
   const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
     switch (providerId) {
@@ -342,6 +355,28 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               </Form.Item>
             </Form>
           </Flex>
+        </>
+      )}
+      {!isLocalProvider && (
+        <>
+          <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+            {t('settings.provider.timeout.label')}
+          </SettingSubtitle>
+          <Flex gap={8}>
+            <Input
+              type="number"
+              value={timeout}
+              placeholder="10000"
+              onChange={(e) => setTimeout(Number(e.target.value))}
+              onBlur={onUpdateTimeout}
+              min="1000"
+              step="1000"
+            />
+          </Flex>
+          <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
+            <SettingHelpText>{t('settings.provider.timeout.tip')}</SettingHelpText>
+          </SettingHelpTextRow>
         </>
       )}
     </>

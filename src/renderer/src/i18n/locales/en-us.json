@@ -4974,6 +4974,10 @@
         "label": "API Key",
         "tip": "Use commas to separate multiple keys"
       },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "tip": "Request timeout for web search in milliseconds (default: 10000)"
+      },
       "api_version": "API Version",
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",

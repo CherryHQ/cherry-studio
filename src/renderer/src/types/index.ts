@@ -709,6 +709,7 @@ export type WebSearchProvider = {
   allowedTools?: string[]
   parentSpanId?: string
   modelName?: string
+  timeout?: number
 }
 
 export type WebSearchProviderResult = {
