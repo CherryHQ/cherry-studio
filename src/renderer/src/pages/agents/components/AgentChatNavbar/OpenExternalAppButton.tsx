@@ -1,24 +1,13 @@
 import { EllipsisOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Button, Dropdown, type MenuProps, Space } from 'antd'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OpenExternalAppButton')
-
-const getEditorIcon = (app: ExternalAppInfo) => {
-  switch (app.id) {
-    case 'vscode':
-      return <VSCodeIcon className={'size-4'} />
-    case 'cursor':
-      return <CursorIcon className={'size-4'} />
-    case 'zed':
-      return <ZedIcon className={'size-4'} />
-  }
-}
 
 type OpenExternalAppButtonProps = {
   workdir: string
@@ -41,12 +30,7 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
         case 'vscode':
         case 'cursor':
         case 'zed':
-          // https://code.visualstudio.com/docs/configure/command-line#_opening-vs-code-with-urls
-          // cursor and zed are just same with vscode
-          const encodedPath = workdir.split(/[/\\]/).map(encodeURIComponent).join('/')
-          // https://github.com/microsoft/vscode/issues/141548#issuecomment-1102200617
-          const appUrl = `${app.protocol}file/${encodedPath}?windowId=_blank`
-          window.open(appUrl)
+          window.open(buildEditorUrl(app, workdir))
           break
         default:
           logger.error(`Unexpected Error: External app not found: ${app.id}`)

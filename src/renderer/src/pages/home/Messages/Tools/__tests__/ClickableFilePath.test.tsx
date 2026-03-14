@@ -36,10 +36,10 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   })
 }))
 
-vi.mock('@renderer/components/Icons/SVGIcon', () => ({
-  VSCodeIcon: ({ className }: { className: string }) => <span data-testid="vscode-icon" className={className} />,
-  CursorIcon: ({ className }: { className: string }) => <span data-testid="cursor-icon" className={className} />,
-  ZedIcon: ({ className }: { className: string }) => <span data-testid="zed-icon" className={className} />
+vi.mock('@renderer/utils/editorUtils', () => ({
+  getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />,
+  buildEditorUrl: (app: { protocol: string }, path: string) =>
+    `${app.protocol}file/${path.split('/').map(encodeURIComponent).join('/')}?windowId=_blank`
 }))
 
 describe('ClickableFilePath', () => {
@@ -74,5 +74,24 @@ describe('ClickableFilePath', () => {
   it('should render ellipsis dropdown trigger', () => {
     render(<ClickableFilePath path="/tmp/test.ts" />)
     expect(document.querySelector('.anticon-ellipsis')).toBeInTheDocument()
+  })
+
+  it('should have role="link" and tabIndex for keyboard accessibility', () => {
+    render(<ClickableFilePath path="/tmp/test.ts" />)
+    const span = screen.getByText('/tmp/test.ts')
+    expect(span).toHaveAttribute('role', 'link')
+    expect(span).toHaveAttribute('tabindex', '0')
+  })
+
+  it('should call openPath on Enter key', () => {
+    render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
+    fireEvent.keyDown(screen.getByText('/Users/foo/bar.tsx'), { key: 'Enter' })
+    expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+  })
+
+  it('should call openPath on Space key', () => {
+    render(<ClickableFilePath path="/Users/foo/bar.tsx" />)
+    fireEvent.keyDown(screen.getByText('/Users/foo/bar.tsx'), { key: ' ' })
+    expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
   })
 })

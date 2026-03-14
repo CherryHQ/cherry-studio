@@ -1,6 +1,6 @@
 import { EllipsisOutlined } from '@ant-design/icons'
-import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Dropdown, type MenuProps } from 'antd'
 import { FolderOpen } from 'lucide-react'
@@ -10,17 +10,6 @@ import { useTranslation } from 'react-i18next'
 interface ClickableFilePathProps {
   path: string
   displayName?: string
-}
-
-const getEditorIcon = (app: ExternalAppInfo) => {
-  switch (app.id) {
-    case 'vscode':
-      return <VSCodeIcon className="size-4" />
-    case 'cursor':
-      return <CursorIcon className="size-4" />
-    case 'zed':
-      return <ZedIcon className="size-4" />
-  }
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
@@ -34,20 +23,29 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      const encodedPath = path.split(/[/\\]/).map(encodeURIComponent).join('/')
-      window.open(`${app.protocol}file/${encodedPath}?windowId=_blank`)
+      window.open(buildEditorUrl(app, path))
     },
     [path]
   )
 
   const handleOpen = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation()
       window.api.file.openPath(path).catch(() => {
         window.toast.error(t('chat.input.tools.open_file_error', { path }))
       })
     },
     [path, t]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handleOpen(e)
+      }
+    },
+    [handleOpen]
   )
 
   const menuItems: MenuProps['items'] = useMemo(() => {
@@ -86,7 +84,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   return (
     <span className="inline-flex items-center gap-0.5">
       <span
+        role="link"
+        tabIndex={0}
         onClick={handleOpen}
+        onKeyDown={handleKeyDown}
         className="cursor-pointer hover:underline"
         style={{ color: 'var(--color-link)', wordBreak: 'break-all' }}>
         {displayName ?? path}
@@ -94,8 +95,8 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
       <Dropdown menu={{ items: menuItems }} trigger={['click']}>
         <EllipsisOutlined
           onClick={(e) => e.stopPropagation()}
-          className="cursor-pointer opacity-50 hover:opacity-100"
-          style={{ color: 'var(--color-link)', fontSize: '12px' }}
+          className="cursor-pointer rounded px-0.5 opacity-60 hover:bg-black/10 hover:opacity-100"
+          style={{ color: 'var(--color-link)', fontSize: '14px' }}
         />
       </Dropdown>
     </span>

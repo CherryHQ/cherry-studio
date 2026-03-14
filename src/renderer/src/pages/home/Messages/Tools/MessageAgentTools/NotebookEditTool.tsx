@@ -22,9 +22,7 @@ export function NotebookEditTool({
     label: (
       <div className="flex items-center gap-2">
         <ToolHeader toolName={AgentToolsType.NotebookEdit} variant="collapse-label" showStatus={false} />
-        <Tag color="blue">
-          {input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : input?.notebook_path}
-        </Tag>
+        <Tag color="blue">{input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}</Tag>
       </div>
     ),
     children: (

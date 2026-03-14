@@ -38,7 +38,7 @@ export function GrepTool({
       <div>
         <div>
           {truncatedOutput?.split('\n').map((line, i) => {
-            const match = line.match(/^(\/[^:]+)(:.*)?$/)
+            const match = line.match(/^(\/[\w./@+-][^:]*[^:])(:.*)?$/)
             if (match) {
               return (
                 <div key={i}>
