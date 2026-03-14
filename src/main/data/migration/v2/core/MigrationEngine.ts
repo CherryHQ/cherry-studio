@@ -102,7 +102,7 @@ export class MigrationEngine {
       await this.verifyAndClearNewTables()
 
       // Create migration context
-      const context = createMigrationContext(reduxData, dexieExportPath)
+      const context = await createMigrationContext(reduxData, dexieExportPath)
 
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]

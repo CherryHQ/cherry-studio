@@ -13,7 +13,8 @@ const SLICES_TO_EXPORT = [
   'llm', // LLM provider and model configurations
   'mcp', // MCP server configurations
   'note', // Note-related settings
-  'selectionStore' // Selection assistant settings
+  'selectionStore', // Selection assistant settings
+  'websearch' // Web search configurations
 ]
 
 export interface ReduxExportResult {

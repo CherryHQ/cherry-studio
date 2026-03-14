@@ -170,7 +170,10 @@ export class SessionMessageService extends BaseService {
       throw new Error('Unsupported agent type for streaming')
     }
 
-    const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId)
+    const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId, {
+      effort: req.effort,
+      thinking: req.thinking
+    })
     const accumulator = new TextStreamAccumulator()
 
     let resolveCompletion!: (value: {

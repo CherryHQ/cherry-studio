@@ -8,6 +8,7 @@ import { type LoggerService, loggerService } from '@logger'
 import Store from 'electron-store'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
+import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
 
 // Logger type for migration context (using actual LoggerService type)
@@ -25,6 +26,7 @@ export interface MigrationContext {
     electronStore: ElectronStoreReader
     reduxState: ReduxStateReader
     dexieExport: DexieFileReader
+    dexieSettings: DexieSettingsReader
   }
 
   // Target database
@@ -42,16 +44,30 @@ export interface MigrationContext {
  * @param reduxData - Parsed Redux state data from Renderer
  * @param dexieExportPath - Path to exported Dexie files
  */
-export function createMigrationContext(reduxData: Record<string, unknown>, dexieExportPath: string): MigrationContext {
+export async function createMigrationContext(
+  reduxData: Record<string, unknown>,
+  dexieExportPath: string
+): Promise<MigrationContext> {
   const db = dbService.getDb()
   const logger = loggerService.withContext('Migration')
   const electronStore = new Store()
+  const dexieFileReader = new DexieFileReader(dexieExportPath)
+
+  // Pre-load Dexie settings table into memory for synchronous access
+  let dexieSettingsRecords: DexieSettingsRecord[] = []
+  if (await dexieFileReader.tableExists('settings')) {
+    dexieSettingsRecords = await dexieFileReader.readTable<DexieSettingsRecord>('settings')
+    logger.info(`Loaded ${dexieSettingsRecords.length} Dexie settings records`)
+  } else {
+    logger.warn('Dexie settings table export not found, skipping')
+  }
 
   return {
     sources: {
       electronStore,
       reduxState: new ReduxStateReader(reduxData),
-      dexieExport: new DexieFileReader(dexieExportPath)
+      dexieExport: dexieFileReader,
+      dexieSettings: new DexieSettingsReader(dexieSettingsRecords)
     },
     db,
     sharedData: new Map(),

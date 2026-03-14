@@ -24,6 +24,8 @@ Before writing a migrator, confirm which data needs migration:
 | **cache** (favicon, computed results) | CacheService | No - regenerable |
 | **runtime** (selected topic, UI state) | CacheService or React state | No - session only |
 
+**Dexie Settings source:** The Dexie `settings` table is a generic KV store (`{ id: string, value: any }`) that also contains user preferences. These are classified under `dexieSettings` in `classification.json` (separate from the `dexie` section which covers business data tables). String literal keys are auto-extracted by `extract-inventory.js`; dynamic keys (template literals) must be added manually. For the full key inventory, see [PR #10162 comment](https://github.com/CherryHQ/cherry-studio/pull/10162#issuecomment-4010796619). Note that `dexieSettings` entries currently only support `category: "preferences"`, and dynamic keys (containing `${}` patterns) require complex mapping logic — they cannot use simple 1:1 `DEXIE_SETTINGS_MAPPINGS`.
+
 **Cross-category migration:** In the legacy Redux store, some data that is logically a user preference lives under domain slices (e.g., `knowledge`, `memory`, `nutstore`) rather than `settings`. During migration, these fields must be reclassified and routed to `preferenceTable` instead of domain tables. Examples:
 
 | Redux Slice | Legacy Key | v2 Target | Rationale |
@@ -50,6 +52,12 @@ Renderer Process                          Main Process
 | Dexie IndexedDB       |---JSON export-->| DexieFileReader            |
 | (topics, messages,    |                 |   .readTable() / stream    |
 |  blocks, files...)    |                 +---------------------------+
++-----------------------+                           |
+                                                    v
++-----------------------+                 +---------------------------+
+| Dexie settings table  |---JSON export-->| DexieSettingsReader        |
+| (KV: translate,       |                 |   .get(key) / .keys()     |
+|  pinned, images...)   |                 +---------------------------+
 +-----------------------+                           |
                                                     v
 +-----------------------+                 +---------------------------+
@@ -88,6 +96,9 @@ Renderer Process                          Main Process
 | `packages/shared/data/migration/v2/types.ts` | Shared types: stages, results, stats |
 | `src/main/data/migration/v2/window/MigrationIpcHandler.ts` | IPC flow control |
 | `src/renderer/src/store/` | Redux slices (source data shapes) |
+| `v2-refactor-temp/tools/data-classify/` | Toolchain: classification, code generation, validation |
+| `v2-refactor-temp/tools/data-classify/data/classification.json` | Authoritative classification of all 391 legacy data items |
+| `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` | Target keys for complex mappings and v2-new-only preferences |
 
 ## Migrator Contract
 
@@ -140,6 +151,10 @@ const count = await reader.count()
 await reader.readInBatches(50, async (batch) => { /* process */ })
 const sample = await reader.readSample(5)  // validation sampling
 
+// Dexie settings table (KV store)
+const translateModel = ctx.sources.dexieSettings.get('translate:model')
+const allKeys = ctx.sources.dexieSettings.keys()
+
 // ElectronStore
 const zoomFactor = ctx.sources.config.get('ZoomFactor')
 
@@ -153,14 +168,20 @@ const idMap = ctx.sharedData.get('assistantIdMap')  // consumer (later migrator)
 ### 1. Understand Source Data
 - Read the Redux slice in `src/renderer/src/store/` for data shape
 - Check Dexie tables in `src/renderer/src/services/db.ts` if applicable
-- Confirm classification in `v2-refactor-temp/tools/data-classify/classification.json`
+- Check Dexie `settings` table keys (classified under `dexieSettings` in `classification.json`) — these are KV pairs that may also need preference migration
+- Confirm classification in `v2-refactor-temp/tools/data-classify/data/classification.json`
 
 ### 2. Understand Target Schema
 - Read target SQLite schema in `src/main/data/db/schemas/`
 - Map source fields to target columns
 - Identify transformations (type conversions, restructuring, merging)
+- For preference migrations: check if target keys already exist in `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json`
 
 ### 3. Create Mapping File (if needed)
+
+**For preference migrations:** `PreferencesMappings.ts` and `preferenceSchemas.ts` are **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain. For simple 1:1 preference mappings, update `classification.json` and run `npm run generate` instead of editing the generated files directly. See the `v2-data-api` skill for the full workflow. For complex mappings or keys with custom types, you may need to add entries manually.
+
+The generated `PreferencesMappings.ts` includes a `DEXIE_SETTINGS_MAPPINGS` array for simple 1:1 mappings from Dexie settings keys to preference target keys. For complex Dexie settings mappings (dynamic keys, value transformations), use `ComplexPreferenceMappings` with `source: 'dexie-settings'` instead.
 
 **Simple 1:1 mapping** (like PreferencesMappings):
 ```typescript
@@ -187,6 +208,8 @@ export interface ComplexMapping {
   transform: (sources: Record<string, unknown>) => Record<string, unknown>
 }
 ```
+
+For complex mapping target keys, add them to `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` so that the generated `preferenceSchemas.ts` includes their type and default value.
 
 ### 4. Write Tests for Transformation Functions (TDD Red Phase)
 
@@ -399,13 +422,31 @@ async execute(ctx) {
 }
 ```
 
-### 8. Register
+### 8. Register ReduxExporter (if migrating a Redux slice)
+
+If the migrator reads from a Redux slice, the slice must be exported by the renderer during migration. Register it in:
+
+```typescript
+// src/renderer/src/windows/migrationV2/exporters/ReduxExporter.ts
+const SLICES_TO_EXPORT = [
+  'settings',
+  'llm',
+  // ... existing slices
+  'myNewSlice',  // <-- add your slice here
+]
+```
+
+**Why:** The migration runs in the Main process, but Redux state lives in the renderer's localStorage. `ReduxExporter` serializes registered slices and sends them to Main via IPC. If you forget this step, `ctx.sources.redux.get('mySlice', ...)` will return `undefined` for all keys.
+
+**When to skip:** If your migrator only reads from Dexie or ElectronStore (not Redux), skip this step.
+
+### 9. Register Migrator
 
 1. Add to `src/main/data/migration/v2/migrators/index.ts` with correct `order`
 2. Add target table to `MigrationEngine.verifyAndClearNewTables` (child tables before parents)
 3. **If migrating a Redux slice**: Add the slice name to `SLICES_TO_EXPORT` in `src/renderer/src/windows/migrationV2/exporters/ReduxExporter.ts`. Without this, the Renderer will not export the slice data to Main process, and `ctx.sources.reduxState.get()` will return `undefined`.
 
-### 9. Document
+### 10. Document
 
 Create `src/main/data/migration/v2/migrators/README-<MigratorName>.md`:
 - Data sources and target tables
@@ -453,6 +494,39 @@ function mergeTopicData(reduxTopic: ReduxTopic, dexieTopic: DexieTopic): MergedT
   }
 }
 ```
+
+## Layered Preset Pattern Recognition
+
+When analyzing a Redux slice for migration, check if the data follows the **Layered Preset** pattern — a predefined list of items with user customizations stored per-item. This is common for features with a fixed set of options (tools, providers, templates) where users can override individual settings.
+
+**How to recognize it in Redux:**
+- A hardcoded list of items in code (e.g., `CLI_TOOLS`, `PROVIDER_LIST`)
+- Per-item user state stored in Redux as `Record<itemId, value>` maps (e.g., `selectedModels: { 'tool-a': Model, 'tool-b': null }`)
+- Multiple such maps that share the same item keys
+
+**v2 migration strategy:** Convert to a single `overrides` preference key using delta-only storage:
+
+```typescript
+// Before (Redux): Multiple per-tool maps
+// codeTools.selectedModels = { 'tool-a': { id: 'm1', ... }, 'tool-b': null }
+// codeTools.environmentVariables = { 'tool-a': 'KEY=val', 'tool-b': '' }
+
+// After (v2): Single overrides preference (delta-only, non-default values only)
+// preference: 'feature.code_tools.overrides' = { 'tool-a': { modelId: 'm1', envVars: 'KEY=val' } }
+```
+
+**Implementation steps:**
+1. Define preset types and defaults in `packages/shared/data/presets/<domain>.ts`
+2. Add the overrides preference key to `preferenceSchemas.ts` with `{}` as default
+3. Use a `ComplexMapping` in `ComplexPreferenceMappings.ts` to merge multiple Redux maps into a single overrides object
+4. Write pure transform functions in a separate file (e.g., `CodeToolsTransforms.ts`)
+
+**Key principles:**
+- Store only non-default values (delta) — if a tool's settings all match the preset defaults, omit it entirely
+- Extract FK IDs from embedded full objects (e.g., `Model` → `modelId`)
+- Presets live in code (`packages/shared/data/presets/`), overrides live in preferences
+
+See `docs/en/references/data/best-practice-layered-preset-pattern.md` for full pattern documentation, and `packages/shared/data/presets/code-tools.ts` for a reference implementation.
 
 ## Cross-Domain References & Foreign Keys
 
@@ -643,6 +717,8 @@ try {
 - [ ] Streaming for large tables (>1000 records)
 - [ ] Duplicate ID handling
 - [ ] Progress via `reportProgress`
+- [ ] Redux slice registered in `ReduxExporter.SLICES_TO_EXPORT` (if reading from Redux)
+- [ ] Layered Preset pattern identified and applied (if source has predefined list + per-item overrides)
 - [ ] Registered in `migrators/index.ts` with correct `order`
 - [ ] Target table added to `MigrationEngine.verifyAndClearNewTables`
 - [ ] Redux slice added to `SLICES_TO_EXPORT` in `ReduxExporter.ts` (if migrating Redux data)

@@ -1,5 +1,5 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { SelectAgentModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { agentModelFilter } from '@renderer/config/models'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
@@ -58,7 +58,11 @@ const SelectAgentBaseModelButton: FC<Props> = ({
   if (!agent) return null
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectApiModelPopup.show({ model, apiFilter: apiFilter, modelFilter: agentModelFilter })
+    const selectedModel = await SelectAgentModelPopup.show({
+      model,
+      apiFilter: apiFilter,
+      modelFilter: agentModelFilter
+    })
     if (selectedModel && selectedModel.id !== agent.model) {
       onSelect(selectedModel)
     }

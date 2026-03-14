@@ -1,6 +1,7 @@
 import { RefreshIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import DynamicVirtualList from '@renderer/components/VirtualList/dynamic'
+import { useLoading } from '@renderer/hooks/useLoading'
 import { type MarketplaceEntry, useMarketplaceBrowser } from '@renderer/hooks/useMarketplaceBrowser'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { MarketplaceSort } from '@renderer/services/MarketplaceService'
@@ -18,8 +19,9 @@ export type PluginFilterType = 'plugin' | 'skill'
 
 export interface PluginBrowserProps {
   installedPlugins: InstalledPlugin[]
-  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
-  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
+  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => Promise<void>
+  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => Promise<void>
+  onUninstallPackage: (packageName: string) => Promise<void>
   /** The type of items to show - 'plugin' or 'skill'. If not provided, shows tabs to switch between them. */
   kind?: PluginFilterType
 }
@@ -40,7 +42,15 @@ type PluginRow = {
   entries: MarketplaceEntry[]
 }
 
-export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInstall, onUninstall, kind }) => {
+const createPluginLoadingKey = (plugin: PluginMetadata) => `plugin:${plugin.sourcePath}`
+
+export const PluginBrowser: FC<PluginBrowserProps> = ({
+  installedPlugins,
+  onInstall,
+  onUninstall,
+  onUninstallPackage,
+  kind
+}) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [searchQuery, setSearchQuery] = useState('')
@@ -51,10 +61,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
   const activeType = kind ?? internalActiveType
   const showTypeTabs = kind === undefined
   const [sortOption, setSortOption] = useState<MarketplaceSort>('relevance')
-  const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
+
+  const { loadingMap, startLoading, finishLoading } = useLoading()
 
   // Debounce search query
   const handleSearchChange = useCallback(
@@ -175,25 +186,40 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
 
   // Handle install with loading state
   const handleInstall = async (plugin: PluginMetadata) => {
-    setActioningPlugin(plugin.sourcePath)
+    const loadingKey = createPluginLoadingKey(plugin)
+    if (loadingMap[loadingKey]) {
+      return
+    }
+
+    startLoading(loadingKey)
     try {
       await onInstall(plugin.sourcePath, plugin.type)
     } finally {
-      setActioningPlugin(null)
+      finishLoading(loadingKey)
     }
   }
 
   // Handle uninstall with loading state
   const handleUninstall = async (plugin: PluginMetadata) => {
-    setActioningPlugin(plugin.sourcePath)
+    const loadingKey = createPluginLoadingKey(plugin)
+    if (loadingMap[loadingKey]) {
+      return
+    }
+
+    startLoading(loadingKey)
     try {
       // Find the actual installed plugin to get its real filename
       const installed = findInstalledPlugin(plugin)
-      if (installed) {
+      if (!installed) {
+        return
+      }
+      if (installed.metadata.packageName) {
+        await onUninstallPackage(installed.metadata.packageName)
+      } else {
         await onUninstall(installed.metadata.filename, installed.type)
       }
     } finally {
-      setActioningPlugin(null)
+      finishLoading(loadingKey)
     }
   }
 
@@ -255,7 +281,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
       {/* Search and Sort */}
       <div className="flex gap-2">
         <AntInput
-          placeholder={t('plugins.search_placeholder')}
+          placeholder={t(activeType === 'skill' ? 'plugins.search_placeholder_skills' : 'plugins.search_placeholder')}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           prefix={<Search className="h-4 w-4 text-default-400" />}
@@ -298,7 +324,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
 
       {/* Result Count */}
       <div className="flex items-center gap-2">
-        <p className="text-default-500 text-small">
+        <span className="text-default-500 text-small">
           {isInitialLoading ? (
             <>
               {showingResultsParts.prefix}
@@ -308,7 +334,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
           ) : (
             t(showingResultsKey, { count: total })
           )}
-        </p>
+        </span>
       </div>
 
       {/* Plugin Grid */}
@@ -325,7 +351,9 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
         </div>
       ) : entries.length === 0 && !isInitialLoading ? (
         <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-          <p className="text-default-400">{t('plugins.no_results')}</p>
+          <p className="text-default-400">
+            {t(activeType === 'skill' ? 'plugins.no_results_skills' : 'plugins.no_results')}
+          </p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
       ) : isInitialLoading ? (
@@ -364,7 +392,8 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
                 {row.entries.map((entry) => {
                   const plugin = entry.metadata
                   const installed = isPluginInstalled(plugin)
-                  const isActioning = actioningPlugin === plugin.sourcePath
+                  const loadingKey = createPluginLoadingKey(plugin)
+                  const isActioning = loadingMap[loadingKey] ?? false
 
                   return (
                     <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
@@ -394,7 +423,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({ installedPlugins, onInst
         installed={selectedPlugin ? isPluginInstalled(selectedPlugin) : false}
         onInstall={() => selectedPlugin && handleInstall(selectedPlugin)}
         onUninstall={() => selectedPlugin && handleUninstall(selectedPlugin)}
-        loading={selectedPlugin ? actioningPlugin === selectedPlugin.sourcePath : false}
+        loading={selectedPlugin ? (loadingMap[createPluginLoadingKey(selectedPlugin)] ?? false) : false}
       />
     </div>
   )
