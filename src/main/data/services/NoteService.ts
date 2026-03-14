@@ -9,6 +9,12 @@
  * and create `note` rows for files not already in the table.
  * Migration only handles starred paths from Redux; all other files need
  * lazy-register here. This is renderer-layer integration work (v2-renderer).
+ *
+ * TODO: When file manager (PR #13451) lands, add `nodeId` FK to note table.
+ * Each note file will have a corresponding `node` row under `mount_notes`.
+ * NoteService should resolve `nodeId` from the node tree instead of using
+ * `relativePath` directly. The lazy registration should create both `node`
+ * and `note` rows together.
  */
 
 import { dbService } from '@data/db/DbService'
