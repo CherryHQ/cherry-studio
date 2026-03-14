@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!*.json", "!**/package.json", "!coverage/**"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**"]
   },
   "css": {
     "formatter": {
@@ -47,11 +47,8 @@
       "!*.mjs",
       "!*.cjs",
       "!*.md",
-      "!*.json",
       "!src/main/integration/**",
-      "!**/tailwind.css",
-      "!**/package.json",
-      "!.zed/**"
+      "!**/tailwind.css"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
