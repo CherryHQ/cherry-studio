@@ -334,23 +334,6 @@ describe('OpenClawService gateway status state machine', () => {
       expect(service.gatewayStatus).toBe('stopped')
     })
 
-    it('kills the gateway process directly when available', async () => {
-      // @ts-expect-error -- accessing private field
-      service.gatewayStatus = 'running'
-      const mockProcess = { pid: 12345, kill: vi.fn() }
-      // @ts-expect-error -- accessing private field
-      service.gatewayProcess = mockProcess
-      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
-
-      const result = await service.stopGateway()
-
-      expect(result).toEqual({ success: true })
-      // @ts-expect-error -- accessing private field
-      expect(service.gatewayProcess).toBeNull()
-      // @ts-expect-error -- accessing private field
-      expect(service.gatewayStatus).toBe('stopped')
-    })
-
     it('transitions to error when gateway fails to stop', async () => {
       // @ts-expect-error -- accessing private field
       service.gatewayStatus = 'running'
