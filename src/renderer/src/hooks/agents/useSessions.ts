@@ -11,7 +11,7 @@ import useSWRInfinite from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
 
-const DEFAULT_PAGE_SIZE = 20
+export const DEFAULT_PAGE_SIZE = 20
 
 export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE) => {
   const { t } = useTranslation()
