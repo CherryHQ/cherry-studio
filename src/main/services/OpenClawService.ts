@@ -1,4 +1,4 @@
-import { type ChildProcess, execSync, spawn } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { Socket } from 'node:net'
@@ -115,7 +115,6 @@ class OpenClawService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
-  private gatewayProcess: ChildProcess | null = null
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
@@ -384,12 +383,12 @@ class OpenClawService {
   }
 
   /**
-   * Start gateway via `openclaw gateway --force` and wait for it to become ready.
+   * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
    * Spawns the gateway as a detached process so its lifecycle is independent.
-   * Uses `openclaw gateway stop` to stop it later.
+   * Uses process termination to stop it later.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
-    const args = ['gateway', '--force']
+    const args = ['gateway', 'run', '--force']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
@@ -404,9 +403,6 @@ class OpenClawService {
       windowsHide: true
     })
     proc.unref()
-
-    // Store process reference for later termination
-    this.gatewayProcess = proc
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
@@ -456,31 +452,11 @@ class OpenClawService {
 
   /**
    * Stop the OpenClaw Gateway.
-   * Kills the stored process reference first, then falls back to killing
-   * whatever process is listening on the gateway port (handles respawned orphans).
+   * Kills all openclaw processes to ensure clean shutdown.
    */
   public async stopGateway(): Promise<OperationResult> {
     try {
-      // 1. Kill the stored process reference
-      if (this.gatewayProcess) {
-        if (!isWin && this.gatewayProcess.pid) {
-          try {
-            process.kill(-this.gatewayProcess.pid, 'SIGTERM')
-          } catch {
-            this.gatewayProcess.kill('SIGTERM')
-          }
-        } else {
-          this.gatewayProcess.kill('SIGTERM')
-        }
-        this.gatewayProcess = null
-      }
-
-      // 2. If the port is still occupied (e.g. respawned orphan), kill by port
-      const stillOpen = await this.checkPortOpen(this.gatewayPort)
-      if (stillOpen) {
-        logger.info('Port still occupied after process kill, killing process by port...')
-        await this.killProcessOnPort(this.gatewayPort)
-      }
+      this.killAllOpenClawProcesses()
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
@@ -500,42 +476,35 @@ class OpenClawService {
   }
 
   /**
-   * Find and kill the process listening on a given port.
+   * Kill all openclaw processes by finding processes on the gateway port.
+   * This works reliably on Windows where process name may show as bun.exe.
    */
-  private async killProcessOnPort(port: number): Promise<void> {
+  private killAllOpenClawProcesses(): void {
+    const currentPid = process.pid
     try {
       if (isWin) {
-        // netstat -ano | findstr :PORT → extract PID → taskkill
-        const output = execSync(`netstat -ano | findstr ":${port}"`, { encoding: 'utf-8' })
+        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
         const pids = new Set<string>()
         for (const line of output.split('\n')) {
           const match = line.trim().match(/LISTENING\s+(\d+)/)
-          if (match) pids.add(match[1])
+          if (match && Number(match[1]) !== currentPid) {
+            pids.add(match[1])
+          }
         }
         for (const pid of pids) {
           try {
-            execSync(`taskkill /PID ${pid} /F`)
-            logger.info(`Killed process ${pid} on port ${port}`)
+            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
+            logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
           } catch {
-            logger.warn(`Failed to kill process ${pid}`)
+            // ignore
           }
         }
       } else {
-        // lsof -ti :PORT → kill each PID
-        const output = execSync(`lsof -ti :${port}`, { encoding: 'utf-8' }).trim()
-        if (output) {
-          for (const pid of output.split('\n')) {
-            try {
-              process.kill(Number(pid), 'SIGTERM')
-              logger.info(`Killed process ${pid} on port ${port}`)
-            } catch {
-              logger.warn(`Failed to kill process ${pid}`)
-            }
-          }
-        }
+        execSync('pkill -9 openclaw', { stdio: 'ignore' })
+        logger.info('Killed all openclaw processes')
       }
     } catch {
-      logger.debug(`No process found on port ${port} to kill`)
+      logger.debug('No openclaw processes to kill')
     }
   }
 
