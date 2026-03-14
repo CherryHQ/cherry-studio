@@ -2,6 +2,9 @@ import type { BrowserWindow } from 'electron'
 
 import { isDev, isWin } from '../constant'
 
+// see: https://www.electronjs.org/zh/docs/latest/api/base-window#winsetbackgroundmaterialmaterial-windows
+const WINDOWS_11_22H2_BUILD = 22621
+
 function isTilingWindowManager() {
   if (process.platform === 'darwin') {
     return false
@@ -72,6 +75,21 @@ export const replaceDevtoolsFont = (browserWindow: BrowserWindow) => {
     `)
     })
   }
+}
+
+export const isWindowsMicaSupported = () => {
+  if (!isWin) {
+    return false
+  }
+
+  const systemVersion = process.getSystemVersion()
+  const buildNumber = Number.parseInt(systemVersion.split('.')[2] ?? '', 10)
+
+  return Number.isFinite(buildNumber) && buildNumber >= WINDOWS_11_22H2_BUILD
+}
+
+export const getWindowsBackgroundMaterial = () => {
+  return isWindowsMicaSupported() ? 'mica' : undefined
 }
 
 export { isTilingWindowManager }
