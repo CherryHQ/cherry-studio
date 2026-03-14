@@ -66,6 +66,23 @@ describe('resolvePhysicalPath', () => {
     })
   })
 
+  describe('remote', () => {
+    const mount: MountInfo = {
+      providerConfig: {
+        provider_type: 'remote',
+        api_type: 'openai_files',
+        provider_id: 'p1',
+        auto_sync: false,
+        options: {}
+      }
+    }
+
+    it('throws error for remote mount (not yet implemented)', () => {
+      const node: PathResolvableNode = { id: 'r1', name: 'file', ext: 'txt', mountId: 'mount_remote' }
+      expect(() => resolvePhysicalPath(node, mount)).toThrow('not yet implemented')
+    })
+  })
+
   describe('edge cases', () => {
     it('throws when mount has no provider config', () => {
       const mount: MountInfo = { providerConfig: null }

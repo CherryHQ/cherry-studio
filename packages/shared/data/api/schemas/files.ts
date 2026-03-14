@@ -185,9 +185,9 @@ export interface FileSchemas {
     }
   }
 
-  /** Batch permanently delete nodes */
+  /** Batch permanently delete nodes (uses POST to avoid DELETE-with-body compatibility issues) */
   '/files/nodes/batch/delete': {
-    DELETE: {
+    POST: {
       body: { ids: string[] }
       response: void
     }

@@ -55,7 +55,7 @@ export const fileHandlers: {
     PUT: notImplemented
   },
   '/files/nodes/batch/delete': {
-    DELETE: notImplemented
+    POST: notImplemented
   },
   '/files/mounts': {
     GET: notImplemented
