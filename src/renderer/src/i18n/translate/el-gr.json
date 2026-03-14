@@ -401,7 +401,8 @@
     },
     "warning": {
       "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων.",
-      "server_not_running": "Ο API Server είναι ενεργοποιημένος αλλά δεν εκτελείται. Παρακαλούμε ελέγξτε τη διαμόρφωση του διακομιστή."
+      "server_not_running": "Ο API Server είναι ενεργοποιημένος αλλά δεν εκτελείται. Παρακαλούμε ελέγξτε τη διαμόρφωση του διακομιστή.",
+      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {

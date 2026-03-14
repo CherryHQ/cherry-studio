@@ -401,7 +401,8 @@
     },
     "warning": {
       "enable_server": "啟用 API 伺服器以使用 Agent。",
-      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。"
+      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
+      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
     }
   },
   "apiServer": {

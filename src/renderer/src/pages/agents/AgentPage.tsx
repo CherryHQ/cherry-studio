@@ -6,10 +6,12 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { Alert } from 'antd'
+import { Alert, Button } from 'antd'
+import { ServerCrash, Settings } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 
 import AgentChat from './AgentChat'
 import AgentEmpty from './AgentEmpty'
@@ -26,7 +28,12 @@ const AgentPage = () => {
   const { activeAgentId } = chat
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
-  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { apiServerConfig, apiServerRunning, apiServerLoading, startApiServer } = useApiServer()
+  const navigate = useNavigate()
+
+  const handleGoToSettings = useCallback(() => {
+    navigate('/settings/api-server')
+  }, [navigate])
 
   // Auto-select first agent when none is active
   useEffect(() => {
@@ -55,13 +62,28 @@ const AgentPage = () => {
 
   if (!apiServerLoading && !apiServerRunning) {
     return (
-      <div
-        id="agent-page"
-        className="flex flex-1 flex-col"
-        style={{ maxWidth: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw' }}>
-        <div className="flex flex-1 items-center justify-center">
-          <Alert type="error" message={t('agent.warning.server_not_running')} style={{ margin: '5px 16px' }} />
-        </div>
+      <div id="agent-page" className="flex flex-1 flex-col bg-background">
+        <motion.div
+          className="flex h-full w-full flex-col items-center justify-center gap-4"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}>
+          <ServerCrash size={56} strokeWidth={1.2} className="text-(--color-error)" />
+          <div className="flex flex-col items-center gap-2">
+            <h3 className="m-0 font-medium text-(--color-text) text-base">{t('agent.warning.server_not_running')}</h3>
+            <p className="m-0 max-w-xs text-center text-(--color-text-secondary) text-sm">
+              {t('agent.warning.server_not_running_description')}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button type="primary" onClick={startApiServer}>
+              {t('apiServer.actions.start')}
+            </Button>
+            <Button type="default" icon={<Settings size={16} />} onClick={handleGoToSettings}>
+              {t('common.go_to_settings')}
+            </Button>
+          </div>
+        </motion.div>
       </div>
     )
   }

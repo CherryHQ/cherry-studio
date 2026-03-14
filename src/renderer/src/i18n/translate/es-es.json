@@ -401,7 +401,8 @@
     },
     "warning": {
       "enable_server": "Habilitar el servidor API para usar agentes.",
-      "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor."
+      "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor.",
+      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {

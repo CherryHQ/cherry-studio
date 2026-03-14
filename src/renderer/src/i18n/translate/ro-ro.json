@@ -401,7 +401,8 @@
     },
     "warning": {
       "enable_server": "Activează serverul API pentru a folosi agenți.",
-      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului."
+      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
+      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {

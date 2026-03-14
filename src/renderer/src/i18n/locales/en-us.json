@@ -401,7 +401,8 @@
     },
     "warning": {
       "enable_server": "Enable API Server to use agents.",
-      "server_not_running": "API Server is enabled but not running. Please check the server configuration."
+      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {
