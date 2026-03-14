@@ -54,6 +54,57 @@ function ensureClaudeSkillFile(skillName: string): boolean {
 }
 
 /**
+ * Creates relative symlinks in `.claude/skills/<skillName>/` for every entry
+ * in `.agents/skills/<skillName>/` except `SKILL.md`.
+ * Returns the list of entries that were created or updated.
+ */
+function ensureClaudeSkillSymlinks(skillName: string): string[] {
+  const agentsSkillDir = path.join(AGENTS_SKILLS_DIR, skillName)
+  const claudeSkillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
+  const changed: string[] = []
+
+  if (!fs.existsSync(agentsSkillDir)) {
+    return changed
+  }
+
+  fs.mkdirSync(claudeSkillDir, { recursive: true })
+
+  const entries = fs.readdirSync(agentsSkillDir)
+
+  for (const entry of entries) {
+    if (entry === 'SKILL.md') {
+      continue
+    }
+
+    const agentsEntry = path.join(agentsSkillDir, entry)
+    const claudeEntry = path.join(claudeSkillDir, entry)
+    const relativeTarget = path.relative(claudeSkillDir, agentsEntry)
+
+    let stat: fs.Stats | null = null
+    try {
+      stat = fs.lstatSync(claudeEntry)
+    } catch {
+      // entry does not exist yet
+    }
+
+    if (stat?.isSymbolicLink()) {
+      const currentTarget = fs.readlinkSync(claudeEntry)
+      if (currentTarget === relativeTarget) {
+        continue
+      }
+      fs.unlinkSync(claudeEntry)
+    } else if (stat !== null) {
+      fs.rmSync(claudeEntry, { force: true, recursive: true })
+    }
+
+    fs.symlinkSync(relativeTarget, claudeEntry)
+    changed.push(`.claude/skills/${skillName}/${entry}`)
+  }
+
+  return changed
+}
+
+/**
  * Synchronizes skill infrastructure for all public skills:
  * - regenerates whitelist gitignore files
  * - syncs Claude-side SKILL.md files
@@ -84,6 +135,7 @@ function main() {
     if (ensureClaudeSkillFile(skillName)) {
       changedSkillFiles.push(`.claude/skills/${skillName}/SKILL.md`)
     }
+    changedSkillFiles.push(...ensureClaudeSkillSymlinks(skillName))
   }
 
   if (changedFiles.length === 0 && changedSkillFiles.length === 0) {
