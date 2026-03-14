@@ -188,9 +188,9 @@ const SessionItem = ({ session, agentId, onDelete, onPress }: SessionItemProps) 
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
-              <SessionName>
+              <div className="truncate text-[13px]">
                 <SessionLabel session={session} />
-              </SessionName>
+              </div>
               <DeleteButton />
             </>
           )}
@@ -255,15 +255,6 @@ const SessionNameContainer = styled.div`
   gap: 4px;
   height: 20px;
   justify-content: space-between;
-`
-
-const SessionName = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
 `
 
 const SessionEditInput = styled.input`
