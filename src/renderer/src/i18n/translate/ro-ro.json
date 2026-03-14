@@ -85,7 +85,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder agents"
+        "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
     "server": {
@@ -140,7 +140,7 @@
       "label_other": "Sesiuni",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "Nu s-au putut reordona sesiunile"
         }
       },
       "update": {

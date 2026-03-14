@@ -140,7 +140,7 @@
       "label_other": "工作階段",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "無法重新排序工作階段"
         }
       },
       "update": {

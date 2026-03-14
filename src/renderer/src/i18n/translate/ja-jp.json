@@ -85,7 +85,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder agents"
+        "failed": "エージェントの並び替えに失敗しました"
       }
     },
     "server": {
@@ -140,7 +140,7 @@
       "label_other": "セッション",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "セッションの並び替えに失敗しました"
         }
       },
       "update": {

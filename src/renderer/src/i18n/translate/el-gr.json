@@ -85,7 +85,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder agents"
+        "failed": "Αποτυχία αναδιάταξης πρακτόρων"
       }
     },
     "server": {
@@ -140,7 +140,7 @@
       "label_other": "Συνεδρίες",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "Αποτυχία αναδιάταξης συνεδριών"
         }
       },
       "update": {

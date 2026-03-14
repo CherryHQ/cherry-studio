@@ -85,7 +85,7 @@
     },
     "reorder": {
       "error": {
-        "failed": "[to be translated]:Failed to reorder agents"
+        "failed": "Не удалось изменить порядок агентов"
       }
     },
     "server": {
@@ -140,7 +140,7 @@
       "label_other": "Сессии",
       "reorder": {
         "error": {
-          "failed": "[to be translated]:Failed to reorder sessions"
+          "failed": "Не удалось изменить порядок сеансов"
         }
       },
       "update": {
