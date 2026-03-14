@@ -231,26 +231,8 @@
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[2]",
           "status": "pending",
-          "category": null,
-          "targetKey": null,
-          "children": [
-            {
-              "category": null,
-              "defaultValue": "claude-3",
-              "originalKey": "id",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            },
-            {
-              "category": null,
-              "defaultValue": "Claude 3",
-              "originalKey": "name",
-              "status": "pending",
-              "targetKey": null,
-              "type": "string"
-            }
-          ]
+          "category": "preferences",
+          "targetKey": "feature.translate.model"
         },
         {
           "originalKey": "quickAssistantId",
@@ -864,11 +846,11 @@
         },
         {
           "originalKey": "targetLanguage",
-          "type": "string",
+          "type": "PreferenceTypes.TranslateLanguageCode",
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.target_language"
+          "targetKey": "feature.translate.chat.target_language"
         },
         {
           "originalKey": "proxyMode",
@@ -2487,10 +2469,7 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "="
-                ],
+                "key": ["CommandOrControl", "="],
                 "system": true
               },
               "originalKey": "zoom_in",
@@ -2503,10 +2482,7 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "-"
-                ],
+                "key": ["CommandOrControl", "-"],
                 "system": true
               },
               "originalKey": "zoom_out",
@@ -2519,10 +2495,7 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "0"
-                ],
+                "key": ["CommandOrControl", "0"],
                 "system": true
               },
               "originalKey": "zoom_reset",
@@ -2535,10 +2508,7 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  ","
-                ],
+                "key": ["CommandOrControl", ","],
                 "system": true
               },
               "originalKey": "show_settings",
@@ -2564,10 +2534,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": [
-                  "CommandOrControl",
-                  "E"
-                ],
+                "key": ["CommandOrControl", "E"],
                 "system": true
               },
               "originalKey": "mini_window",
@@ -2606,10 +2573,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "N"
-                ],
+                "key": ["CommandOrControl", "N"],
                 "system": false
               },
               "originalKey": "new_topic",
@@ -2622,10 +2586,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": [
-                  "CommandOrControl",
-                  "T"
-                ],
+                "key": ["CommandOrControl", "T"],
                 "system": false
               },
               "originalKey": "rename_topic",
@@ -2638,10 +2599,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "["
-                ],
+                "key": ["CommandOrControl", "["],
                 "system": false
               },
               "originalKey": "toggle_show_assistants",
@@ -2654,11 +2612,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": [
-                  "CommandOrControl",
-                  "Shift",
-                  "C"
-                ],
+                "key": ["CommandOrControl", "Shift", "C"],
                 "system": false
               },
               "originalKey": "copy_last_message",
@@ -2671,11 +2625,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": false,
-                "key": [
-                  "CommandOrControl",
-                  "Shift",
-                  "E"
-                ],
+                "key": ["CommandOrControl", "Shift", "E"],
                 "system": false
               },
               "originalKey": "edit_last_user_message",
@@ -2688,10 +2638,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "F"
-                ],
+                "key": ["CommandOrControl", "F"],
                 "system": false
               },
               "originalKey": "search_message_in_chat",
@@ -2704,11 +2651,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "Shift",
-                  "F"
-                ],
+                "key": ["CommandOrControl", "Shift", "F"],
                 "system": false
               },
               "originalKey": "search_message",
@@ -2721,10 +2664,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "L"
-                ],
+                "key": ["CommandOrControl", "L"],
                 "system": false
               },
               "originalKey": "clear_topic",
@@ -2737,10 +2677,7 @@
               "defaultValue": {
                 "editable": true,
                 "enabled": true,
-                "key": [
-                  "CommandOrControl",
-                  "K"
-                ],
+                "key": ["CommandOrControl", "K"],
                 "system": false
               },
               "originalKey": "toggle_new_context",
@@ -2753,9 +2690,7 @@
               "defaultValue": {
                 "editable": false,
                 "enabled": true,
-                "key": [
-                  "Escape"
-                ],
+                "key": ["Escape"],
                 "system": true
               },
               "originalKey": "exit_fullscreen",
@@ -2807,33 +2742,31 @@
           "originalKey": "translateInput",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {
           "originalKey": "translatedContent",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {
           "originalKey": "settings",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        },
-        {
-          "originalKey": "autoCopy",
-          "type": "boolean",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "object",
+          "children": [
+            {
+              "originalKey": "autoCopy",
+              "type": "boolean",
+              "defaultValue": false,
+              "status": "classified",
+              "category": "preferences",
+              "targetKey": "feature.translate.page.auto_copy"
+            }
+          ]
         }
       ],
       "websearch": [
@@ -3458,11 +3391,11 @@
       "settings": [
         {
           "originalKey": "translate:detect:method",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.AutoDetectionMethod",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.auto_detection_method"
         },
         {
           "originalKey": "pinned:models",
@@ -3482,59 +3415,59 @@
         },
         {
           "originalKey": "translate:markdown:enabled",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.enable_markdown"
         },
         {
           "originalKey": "translate:scroll:sync",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.scroll_sync"
         },
         {
           "originalKey": "translate:bidirectional:pair",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.TranslateBidirectionalPair",
+          "defaultValue": ["zh-cn", "en-us"],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.bidirectional_pair"
         },
         {
           "originalKey": "translate:model",
           "type": "unknown",
           "defaultValue": null,
-          "status": "pending",
+          "status": "classified",
           "category": null,
           "targetKey": null
         },
         {
           "originalKey": "translate:bidirectional:enabled",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.bidirectional_enabled"
         },
         {
           "originalKey": "translate:source:language",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.TranslateSourceLanguage",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.source_language"
         },
         {
           "originalKey": "translate:target:language",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "PreferenceTypes.TranslateLanguageCode",
+          "defaultValue": "zh-cn",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.target_language"
         }
       ]
     },
@@ -3584,9 +3517,11 @@
           "originalKey": "translate_history",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "user_data",
+          "targetTable": "translate_history",
+          "targetKey": null,
+          "notes": "Migrated via TranslateHistoryMigrator to SQLite translate_history table"
         }
       ],
       "quick_phrases": [
@@ -3614,9 +3549,11 @@
           "originalKey": "translate_languages",
           "type": "table",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "user_data",
+          "targetTable": "translate_language",
+          "targetKey": null,
+          "notes": "Migrated via TranslateLanguageMigrator to SQLite translate_language table"
         }
       ]
     }

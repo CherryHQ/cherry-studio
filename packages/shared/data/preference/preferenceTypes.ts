@@ -106,6 +106,18 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 // ============================================================================
+// Translate Types
+// ============================================================================
+
+export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
+
+// 为了支持自定义语言，设置为string别名
+/** zh-cn, en-us, etc. */
+export type TranslateLanguageCode = string
+export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+
+// ============================================================================
 // WebSearch Types
 // ============================================================================
 
