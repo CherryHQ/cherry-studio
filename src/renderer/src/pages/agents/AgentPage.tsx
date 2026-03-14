@@ -17,7 +17,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentEmpty, AgentServerDisabled, AgentServerStopped } from './components/status'
 
 const AgentPage = () => {
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+  const { isLeftNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()
   const { showTopics } = useShowTopics()
   const { topicPosition } = useSettings()
@@ -69,7 +69,9 @@ const AgentPage = () => {
   return (
     <Container>
       {isLeftNavbar && <AgentNavbar />}
-      <div id={isLeftNavbar ? 'content-container' : undefined} className="flex flex-1 flex-row overflow-hidden">
+      <div
+        id={isLeftNavbar ? 'content-container' : undefined}
+        className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AnimatePresence initial={false}>
           {showAssistants && (
             <ErrorBoundary>
@@ -94,7 +96,7 @@ const AgentPage = () => {
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
-    <div id="agent-page" className={cn('flex flex-1 flex-col', className)}>
+    <div id="agent-page" className={cn('flex flex-1 flex-col overflow-hidden', className)}>
       {children}
     </div>
   )
