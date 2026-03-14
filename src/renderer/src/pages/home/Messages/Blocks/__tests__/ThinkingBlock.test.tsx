@@ -238,6 +238,31 @@ describe('ThinkingBlock', () => {
       expect(activeTimeText).toHaveTextContent('Thinking...')
     })
 
+    it('should reset display time when new thinking session starts', () => {
+      // Arrange: render a completed thinking block with 5s of thinking time
+      const completedBlock = createThinkingBlock({
+        thinking_millsec: 5000,
+        status: MessageBlockStatus.SUCCESS,
+        id: 'completed-block'
+      })
+      const { rerender } = renderThinkingBlock(completedBlock)
+
+      // Assert: verify it shows 5.0s
+      expect(getThinkingTimeText()).toHaveTextContent('5.0s')
+
+      // Act: switch to a new thinking session with 0ms thinking time
+      const newThinkingBlock = createThinkingBlock({
+        thinking_millsec: 0,
+        status: MessageBlockStatus.STREAMING,
+        id: 'new-thinking-block'
+      })
+      rerender(<ThinkingBlock block={newThinkingBlock} />)
+
+      // Assert: verify it shows 0.1s (minimum display value), confirming reset
+      expect(getThinkingTimeText()).toHaveTextContent('0.1s')
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking...')
+    })
+
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
         { thinking_millsec: 0, expectedTime: '0.1s' }, // New logic: values < 1000ms display as 0.1s
