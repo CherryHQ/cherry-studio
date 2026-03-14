@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DexieSettingsReader } from '../../utils/DexieSettingsReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { McpServerMigrator } from '../McpServerMigrator'
 
-function createMockContext(reduxData: Record<string, unknown> = {}) {
+function createMockContext(
+  reduxData: Record<string, unknown> = {},
+  dexieSettings: Array<{ id: string; value: unknown }> = []
+) {
   const reduxState = new ReduxStateReader(reduxData)
 
   return {
     sources: {
       electronStore: { get: vi.fn() },
       reduxState,
-      dexieExport: { readTable: vi.fn(), createStreamReader: vi.fn(), tableExists: vi.fn() }
+      dexieExport: { readTable: vi.fn(), createStreamReader: vi.fn(), tableExists: vi.fn() },
+      dexieSettings: new DexieSettingsReader(dexieSettings)
     },
     db: {
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
@@ -198,6 +203,73 @@ describe('McpServerMigrator', () => {
       expect(result.success).toBe(true)
       expect(result.stats.sourceCount).toBe(0)
       expect(result.stats.targetCount).toBe(0)
+    })
+  })
+
+  describe('provider catalog migration', () => {
+    const PROVIDER_CATALOG = [
+      {
+        id: 'mcp:provider:bailian:servers',
+        value: [
+          { id: 'bal-1', name: 'bailian-server-1', description: 'Test' },
+          { id: 'bal-2', name: 'bailian-server-2', description: 'Test 2' }
+        ]
+      },
+      {
+        id: 'mcp:provider:modelscope:servers',
+        value: [{ id: 'ms-1', name: 'modelscope-server', description: 'MS' }]
+      }
+    ]
+
+    it('should count provider catalog entries in prepare', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } }, PROVIDER_CATALOG)
+      const result = await migrator.prepare(ctx as any)
+
+      expect(result.success).toBe(true)
+      // 3 servers + 2 provider catalog entries
+      expect(result.itemCount).toBe(5)
+    })
+
+    it('should insert provider catalogs into preference table', async () => {
+      const ctx = createMockContext({ mcp: { servers: [] } }, PROVIDER_CATALOG)
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(true)
+      expect(result.processedCount).toBe(2)
+      expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('should handle empty provider catalog', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } }, [])
+      const result = await migrator.prepare(ctx as any)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(3)
+    })
+
+    it('should skip non-mcp-provider dexie settings', async () => {
+      const dexieSettings = [
+        { id: 'mcp:provider:bailian:servers', value: [{ id: 'b1', name: 'test' }] },
+        { id: 'translate:scroll:sync', value: true },
+        { id: 'other:key', value: 'ignored' }
+      ]
+      const ctx = createMockContext({ mcp: { servers: [] } }, dexieSettings)
+      const result = await migrator.prepare(ctx as any)
+
+      // Only 1 provider catalog entry
+      expect(result.itemCount).toBe(1)
+    })
+
+    it('should skip provider catalogs with empty arrays', async () => {
+      const dexieSettings = [
+        { id: 'mcp:provider:bailian:servers', value: [] },
+        { id: 'mcp:provider:modelscope:servers', value: [{ id: 'ms-1', name: 'test' }] }
+      ]
+      const ctx = createMockContext({ mcp: { servers: [] } }, dexieSettings)
+      const result = await migrator.prepare(ctx as any)
+
+      expect(result.itemCount).toBe(1)
     })
   })
 })
