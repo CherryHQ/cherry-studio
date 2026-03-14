@@ -26,6 +26,10 @@
 
 请确保阅读了[行为准则](../../../CODE_OF_CONDUCT.md)和[LICENSE](../../../LICENSE)。
 
+## 搭建开发环境
+
+请参阅[开发者指南](./development.md)了解如何搭建本地开发环境，包括前置条件、安装步骤和可用命令。
+
 ## 开始贡献
 
 为了让您更熟悉代码，建议您处理一些标记有以下标签之一或多个的问题：[good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue)、[help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted) 或 [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug)。任何帮助都会收到欢迎。

@@ -1,73 +1,80 @@
-# 🖥️ Develop
+# 🖥️ 开发指南
 
-## IDE Setup
+## IDE 配置
 
-- Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
-- Linter: [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- Formatter: [Biome](https://marketplace.visualstudio.com/items?itemName=biomejs.biome)
+### VSCode like
 
-## Project Setup
+- 编辑器：[Cursor](https://www.cursor.com/) 等，任何 VS Code 兼容编辑器均可。
+- 推荐扩展见 [`.vscode/extensions.json`](/.vscode/extensions.json)。
 
-### Install
+### Zed
+
+1. 安装扩展：[Biome](https://github.com/biomejs/biome-zed)、[oxc](https://github.com/oxc-project/zed-oxc)
+2. 复制示例配置文件到本地 Zed 配置目录：
+   ```bash
+   cp .zed/settings.json.example .zed/settings.json
+   ```
+3. 按需自定义 `.zed/settings.json`（该文件已被 git 忽略）。
+
+## 项目配置
+
+### 安装 Node.js
+
+项目所需的 Node.js 版本定义在 `.node-version` 文件中。推荐使用 [nvm](https://github.com/nvm-sh/nvm)、[fnm](https://github.com/Schniz/fnm) 等版本管理工具自动切换：
 
 ```bash
-pnpm install
+nvm install
 ```
 
-### Development
+### 安装 pnpm
 
-### Setup Node.js
-
-Download and install [Node.js v22.x.x](https://nodejs.org/en/download)
-
-### Setup pnpm
+pnpm 版本已锁定在 `package.json` 的 `packageManager` 字段中，通过 corepack 即可自动安装对应版本：
 
 ```bash
 corepack enable
-corepack prepare pnpm@10.27.0 --activate
 ```
 
-### Install Dependencies
+### 安装依赖
 
 ```bash
 pnpm install
 ```
 
-### ENV
+### 环境变量
 
 ```bash
 cp .env.example .env
 ```
 
-### Start
+### 启动开发
 
 ```bash
 pnpm dev
 ```
 
-### Debug
+### 调试
 
 ```bash
 pnpm debug
 ```
 
-Then input chrome://inspect in browser
+然后在浏览器中访问 chrome://inspect
 
-### Test
+### 测试
 
 ```bash
 pnpm test
 ```
 
-### Build
+### 构建
 
 ```bash
-# For windows
+# Windows
 $ pnpm build:win
 
-# For macOS
+# macOS
 $ pnpm build:mac
 
-# For Linux
+# Linux
 $ pnpm build:linux
 ```
