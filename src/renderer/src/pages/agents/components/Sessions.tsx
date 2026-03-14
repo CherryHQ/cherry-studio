@@ -162,15 +162,16 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     <div className="flex h-full flex-col">
       <DraggableVirtualList
         ref={listRef}
-        className="sessions-tab flex min-h-0 flex-1 flex-col px-2.5 py-3"
+        className="sessions-tab flex min-h-0 flex-1 flex-col"
+        itemStyle={{ marginBottom: 8 }}
         list={sessions}
         estimateSize={() => 9 * 4}
-        scrollerStyle={{ overflowX: 'hidden' }}
+        scrollerStyle={{ overflowX: 'hidden', padding: '12px 10px' }}
         onUpdate={reorderSessions}
         itemKey={(index) => sessions[index]?.id ?? index}
         header={
-          <div className="mt-0.5">
-            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-1 mb-1.5">
+          <div className="-mt-0.5 mb-1.5">
+            <AddButton onClick={createDefaultSession} disabled={creatingSession}>
               {t('agent.session.add.title')}
             </AddButton>
           </div>

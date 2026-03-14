@@ -51,17 +51,16 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
   return (
     <div className="flex h-full flex-col">
       <DraggableVirtualList
-        className="agents-tab flex min-h-0 flex-1 flex-col px-2.5 py-3"
+        className="agents-tab flex min-h-0 flex-1 flex-col"
+        itemStyle={{ marginBottom: 8 }}
         list={agents ?? []}
         estimateSize={() => 9 * 4}
-        scrollerStyle={{ overflowX: 'hidden' }}
+        scrollerStyle={{ overflowX: 'hidden', padding: '12px 10px' }}
         onUpdate={reorderAgents}
         itemKey={(index) => (agents ?? [])[index]?.id ?? index}
         header={
-          <div className="mt-0.5">
-            <AddButton onClick={handleAddAgent} className="-mt-1 mb-1.5">
-              {t('agent.sidebar_title')}
-            </AddButton>
+          <div className="-mt-0.5 mb-1.5">
+            <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
           </div>
         }>
         {(agent) => (
