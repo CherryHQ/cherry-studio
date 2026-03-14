@@ -864,7 +864,11 @@
         "collapse": "Свернуть",
         "collapse_in": "Свернуть",
         "collapse_out": "Развернуть",
-        "expand": "Развернуть"
+        "expand": "Развернуть",
+        "file_not_found": "[to be translated]:File not found: {{path}}",
+        "open_file": "[to be translated]:Open File",
+        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
+        "reveal_in_finder": "[to be translated]:Reveal in Finder"
       },
       "topics": " Топики ",
       "translate": "Перевести на {{target_language}}",

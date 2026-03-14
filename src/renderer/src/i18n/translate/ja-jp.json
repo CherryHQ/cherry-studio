@@ -864,7 +864,11 @@
         "collapse": "折りたたむ",
         "collapse_in": "折りたたむ",
         "collapse_out": "展開",
-        "expand": "展開"
+        "expand": "展開",
+        "file_not_found": "[to be translated]:File not found: {{path}}",
+        "open_file": "[to be translated]:Open File",
+        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
+        "reveal_in_finder": "[to be translated]:Reveal in Finder"
       },
       "topics": " トピック ",
       "translate": "{{target_language}}に翻訳",
