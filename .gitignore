@@ -64,6 +64,7 @@ CLAUDE.local.md
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
+.context/vitest-temp/
 
 # TypeScript incremental build
 .tsbuildinfo
