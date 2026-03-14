@@ -4,13 +4,12 @@ import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { AssistantListItem } from '../hooks/useAssistantListItems'
 import AssistantItem from './AssistantItem'
 import { TagGroup } from './TagGroup'
 
 interface GroupedItems {
   tag: string
-  items: AssistantListItem[]
+  items: Assistant[]
 }
 
 interface AssistantTagGroupsProps {
@@ -18,7 +17,7 @@ interface AssistantTagGroupsProps {
   activeAssistantId: string
   sortBy: AssistantsSortType
   collapsedTags: Record<string, boolean>
-  onGroupReorder: (tag: string, newList: AssistantListItem[]) => void
+  onGroupReorder: (tag: string, newList: Assistant[]) => void
   onDragStart: () => void
   onDragEnd: () => void
   onToggleTagCollapse: (tag: string) => void
@@ -55,12 +54,12 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
   const { t } = useTranslation()
 
   const renderAssistantItem = useCallback(
-    (item: AssistantListItem) => {
+    (assistant: Assistant) => {
       return (
         <AssistantItem
-          key={`assistant-${item.data.id}`}
-          assistant={item.data}
-          isActive={item.data.id === activeAssistantId}
+          key={`assistant-${assistant.id}`}
+          assistant={assistant}
+          isActive={assistant.id === activeAssistantId}
           sortBy={sortBy}
           onSwitch={onAssistantSwitch}
           onDelete={onAssistantDelete}
@@ -98,7 +97,7 @@ export const AssistantTagGroups: FC<AssistantTagGroupsProps> = (props) => {
           showTitle={group.tag !== t('assistants.tags.untagged')}>
           <DraggableList
             list={group.items}
-            itemKey={(item) => `assistant-${item.data.id}`}
+            itemKey={(assistant) => `assistant-${assistant.id}`}
             onUpdate={(newList) => onGroupReorder(group.tag, newList)}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}>

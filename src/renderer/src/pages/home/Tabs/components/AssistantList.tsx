@@ -3,14 +3,13 @@ import type { Assistant, AssistantsSortType } from '@renderer/types'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 
-import type { AssistantListItem } from '../hooks/useAssistantListItems'
 import AssistantItem from './AssistantItem'
 
 interface AssistantListProps {
-  items: AssistantListItem[]
+  items: Assistant[]
   activeAssistantId: string
   sortBy: AssistantsSortType
-  onReorder: (newList: AssistantListItem[]) => void
+  onReorder: (newList: Assistant[]) => void
   onDragStart: () => void
   onDragEnd: () => void
   onAssistantSwitch: (assistant: Assistant) => void
@@ -42,12 +41,12 @@ export const AssistantList: FC<AssistantListProps> = (props) => {
   } = props
 
   const renderAssistantItem = useCallback(
-    (item: AssistantListItem) => {
+    (assistant: Assistant) => {
       return (
         <AssistantItem
-          key={`assistant-${item.data.id}`}
-          assistant={item.data}
-          isActive={item.data.id === activeAssistantId}
+          key={`assistant-${assistant.id}`}
+          assistant={assistant}
+          isActive={assistant.id === activeAssistantId}
           sortBy={sortBy}
           onSwitch={onAssistantSwitch}
           onDelete={onAssistantDelete}
@@ -77,7 +76,7 @@ export const AssistantList: FC<AssistantListProps> = (props) => {
   return (
     <DraggableList
       list={items}
-      itemKey={(item) => `assistant-${item.data.id}`}
+      itemKey={(assistant) => `assistant-${assistant.id}`}
       onUpdate={onReorder}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}>

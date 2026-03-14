@@ -1,20 +1,21 @@
+import { createSelector } from '@reduxjs/toolkit'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
+import type { RootState } from '@renderer/store'
+import { useAppSelector } from '@renderer/store'
 import type { Assistant, AssistantsSortType } from '@renderer/types'
 import type { FC } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import * as tinyPinyin from 'tiny-pinyin'
 
 import AssistantAddButton from './components/AssistantAddButton'
 import { AssistantList } from './components/AssistantList'
 import { AssistantTagGroups } from './components/AssistantTagGroups'
-import { useAssistantListGrouping } from './hooks/useAssistantListGrouping'
-import { useAssistantListItems } from './hooks/useAssistantListItems'
-import { useAssistantListSorting } from './hooks/useAssistantListSorting'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -22,6 +23,11 @@ interface AssistantsTabProps {
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
+
+const selectTagsOrder = createSelector(
+  [(state: RootState) => state.assistants],
+  (assistants) => assistants.tagsOrder ?? []
+)
 
 const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
@@ -34,25 +40,73 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { collapsedTags, toggleTagCollapse } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const [dragging, setDragging] = useState(false)
-
-  // Assistant list items management
-  const { assistantItems, handleAssistantListReorder } = useAssistantListItems({
-    assistants,
-    updateAssistants
-  })
+  const savedTagsOrder = useAppSelector(selectTagsOrder)
 
   // Sorting
-  const { sortByPinyinAsc, sortByPinyinDesc } = useAssistantListSorting({
-    assistantItems,
-    updateAssistants
-  })
+  const sortByPinyin = useCallback(
+    (isAscending: boolean) => {
+      const sorted = [...assistants].sort((a, b) => {
+        const pinyinA = tinyPinyin.convertToPinyin(a.name, '', true)
+        const pinyinB = tinyPinyin.convertToPinyin(b.name, '', true)
+        return isAscending ? pinyinA.localeCompare(pinyinB) : pinyinB.localeCompare(pinyinA)
+      })
+      updateAssistants(sorted)
+    },
+    [assistants, updateAssistants]
+  )
+
+  const sortByPinyinAsc = useCallback(() => sortByPinyin(true), [sortByPinyin])
+  const sortByPinyinDesc = useCallback(() => sortByPinyin(false), [sortByPinyin])
 
   // Grouping
-  const { groupedAssistantItems, handleAssistantGroupReorder } = useAssistantListGrouping({
-    assistantItems,
-    assistants,
-    updateAssistants
-  })
+  const groupedAssistantItems = useMemo(() => {
+    const groups = new Map<string, Assistant[]>()
+
+    assistants.forEach((assistant) => {
+      const tags = assistant.tags?.length ? assistant.tags : [t('assistants.tags.untagged')]
+      tags.forEach((tag) => {
+        if (!groups.has(tag)) {
+          groups.set(tag, [])
+        }
+        groups.get(tag)!.push(assistant)
+      })
+    })
+
+    const untaggedKey = t('assistants.tags.untagged')
+    const sortedGroups = Array.from(groups.entries()).sort(([tagA], [tagB]) => {
+      if (tagA === untaggedKey) return -1
+      if (tagB === untaggedKey) return 1
+
+      if (savedTagsOrder.length > 0) {
+        const indexA = savedTagsOrder.indexOf(tagA)
+        const indexB = savedTagsOrder.indexOf(tagB)
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB
+        if (indexA !== -1) return -1
+        if (indexB !== -1) return 1
+      }
+
+      return 0
+    })
+
+    return sortedGroups.map(([tag, items]) => ({ tag, items }))
+  }, [assistants, t, savedTagsOrder])
+
+  const handleAssistantGroupReorder = useCallback(
+    (tag: string, newGroupList: Assistant[]) => {
+      let insertIndex = 0
+      const updatedAssistants = assistants.map((a) => {
+        const tags = a.tags?.length ? a.tags : [t('assistants.tags.untagged')]
+        if (tags.includes(tag)) {
+          const replaced = newGroupList[insertIndex]
+          insertIndex += 1
+          return replaced || a
+        }
+        return a
+      })
+      updateAssistants(updatedAssistants)
+    },
+    [assistants, t, updateAssistants]
+  )
 
   const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
@@ -103,10 +157,10 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       ) : (
         <AssistantList
-          items={assistantItems}
+          items={assistants}
           activeAssistantId={activeAssistant.id}
           sortBy={assistantsTabSortType}
-          onReorder={handleAssistantListReorder}
+          onReorder={updateAssistants}
           onDragStart={() => setDragging(true)}
           onDragEnd={() => setDragging(false)}
           onAssistantSwitch={setActiveAssistant}
