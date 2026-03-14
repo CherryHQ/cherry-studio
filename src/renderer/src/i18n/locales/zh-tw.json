@@ -83,6 +83,11 @@
         "failed": "無法列出 Agent。"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Agent 排序失敗"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 伺服器已啟用，但運作不正常。"

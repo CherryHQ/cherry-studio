@@ -83,6 +83,11 @@
         "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "APIサーバーは有効になっていますが、正常に動作していません。"

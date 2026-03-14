@@ -83,6 +83,11 @@
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API server is enabled but not running properly."

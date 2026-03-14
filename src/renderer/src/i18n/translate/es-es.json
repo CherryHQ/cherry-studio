@@ -83,6 +83,11 @@
         "failed": "Error al listar agentes."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "El servidor de API está habilitado pero no funciona correctamente."

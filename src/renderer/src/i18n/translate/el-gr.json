@@ -83,6 +83,11 @@
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Ο διακομιστής API είναι ενεργοποιημένος αλλά δεν λειτουργεί σωστά."

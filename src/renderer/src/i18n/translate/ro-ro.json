@@ -83,6 +83,11 @@
         "failed": "Nu s-a putut afișa lista de agenți."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Serverul API este activat, dar nu rulează corect."

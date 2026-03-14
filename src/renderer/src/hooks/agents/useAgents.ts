@@ -105,8 +105,8 @@ export const useAgents = () => {
       try {
         await client.reorderAgents(orderedIds)
       } catch (error) {
-        // Revert on failure
         mutate()
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
     [client, mutate]

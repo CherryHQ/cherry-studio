@@ -191,9 +191,11 @@ export class AgentService extends BaseService {
 
   async reorderAgents(orderedIds: string[]): Promise<void> {
     const database = await this.getDatabase()
-    for (let i = 0; i < orderedIds.length; i++) {
-      await database.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))
-    }
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(agentsTable).set({ sort_order: i }).where(eq(agentsTable.id, orderedIds[i]))
+      }
+    })
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
