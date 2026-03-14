@@ -400,7 +400,9 @@
       }
     },
     "warning": {
+      "enable_and_start": "[to be translated]:Enable & Start",
       "enable_server": "Activează serverul API pentru a folosi agenți.",
+      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
       "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
       "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
