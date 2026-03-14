@@ -117,7 +117,11 @@ export class AgentService extends BaseService {
     const sortField = agentsTable[sortBy]
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery = database.select().from(agentsTable).orderBy(orderFn(sortField))
+    // Use created_at DESC as secondary sort for tie-breaking (e.g., after migration when all sort_order = 0)
+    const baseQuery =
+      sortBy === 'sort_order'
+        ? database.select().from(agentsTable).orderBy(orderFn(sortField), desc(agentsTable.created_at))
+        : database.select().from(agentsTable).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
