@@ -1534,6 +1534,70 @@
         }
       }
     },
+    "/agents/{agentId}/sessions/reorder": {
+      "put": {
+        "summary": "Reorder sessions for an agent",
+        "tags": ["Sessions"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ordered_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Array of session IDs in desired order"
+                  }
+                },
+                "required": ["ordered_ids"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessions reordered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents/{agentId}/sessions/{sessionId}": {
       "get": {
         "summary": "Get session by ID",
