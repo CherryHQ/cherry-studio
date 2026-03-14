@@ -1,19 +1,11 @@
-import AddButton from '@renderer/components/AddButton'
-import { DraggableList } from '@renderer/components/DraggableList'
-import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
-import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AgentItem from './components/AgentItem'
+import Agents from './components/Agents'
 import Sessions from './components/Sessions'
 
 interface AgentSidePanelProps {
@@ -22,33 +14,13 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
   const { t } = useTranslation()
-  const { agents, deleteAgent, isLoading, error, reorderAgents } = useAgents()
-  const { apiServerRunning, startApiServer } = useApiServer()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
-  const { setActiveAgentId } = useActiveAgent()
   const { isLeftNavbar } = useNavbarPosition()
   const { topicPosition } = useSettings()
 
   const sessionsOnRight = topicPosition === 'right'
   const [tab, setTab] = useState<'agents' | 'sessions'>('agents')
-
-  const handleAgentPress = useCallback(
-    (agentId: string) => {
-      setActiveAgentId(agentId)
-      onSelectItem?.()
-    },
-    [setActiveAgentId, onSelectItem]
-  )
-
-  const handleAddAgent = useCallback(() => {
-    !apiServerRunning && startApiServer()
-    AgentModalPopup.show({
-      afterSubmit: (agent: AgentEntity) => {
-        setActiveAgentId(agent.id)
-      }
-    })
-  }, [apiServerRunning, startApiServer, setActiveAgentId])
 
   return (
     <div
@@ -75,31 +47,7 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
 
       {/* Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {(sessionsOnRight || tab === 'agents') && (
-          <Scrollbar className="flex flex-col py-3">
-            <div className="-mt-0.5 mb-1.5 px-2.5">
-              <AddButton onClick={handleAddAgent}>{t('agent.sidebar_title')}</AddButton>
-            </div>
-            <div className="flex flex-col px-2.5">
-              {isLoading && (
-                <div className="p-5 text-center text-(--color-text-secondary) text-[13px]">{t('common.loading')}</div>
-              )}
-              {error && <div className="p-5 text-center text-(--color-error) text-[13px]">{error.message}</div>}
-              {!isLoading && !error && agents && (
-                <DraggableList list={agents} onUpdate={reorderAgents}>
-                  {(agent) => (
-                    <AgentItem
-                      agent={agent}
-                      isActive={agent.id === activeAgentId}
-                      onDelete={() => deleteAgent(agent.id)}
-                      onPress={() => handleAgentPress(agent.id)}
-                    />
-                  )}
-                </DraggableList>
-              )}
-            </div>
-          </Scrollbar>
-        )}
+        {(sessionsOnRight || tab === 'agents') && <Agents onSelectItem={onSelectItem} />}
         {!sessionsOnRight && tab === 'sessions' && activeAgentId && (
           <Sessions agentId={activeAgentId} onSelectItem={onSelectItem} />
         )}

@@ -13,7 +13,6 @@ import { motion } from 'framer-motion'
 import { throttle } from 'lodash'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SessionItem from './SessionItem'
 
@@ -161,9 +160,9 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
 
   return (
     <div className="flex h-full flex-col">
-      <StyledVirtualList
+      <DraggableVirtualList
         ref={listRef}
-        className="sessions-tab"
+        className="sessions-tab flex min-h-0 flex-1 flex-col px-2.5 py-3"
         list={sessions}
         estimateSize={() => 9 * 4}
         scrollerStyle={{ overflowX: 'hidden' }}
@@ -188,7 +187,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
             }}
           />
         )}
-      </StyledVirtualList>
+      </DraggableVirtualList>
       {isLoadingMore && (
         <div className="flex justify-center py-2">
           <Spin size="small" />
@@ -197,13 +196,5 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     </div>
   )
 }
-
-const StyledVirtualList = styled(DraggableVirtualList)`
-  display: flex;
-  flex-direction: column;
-  padding: 12px 10px;
-  flex: 1;
-  min-height: 0;
-` as typeof DraggableVirtualList
 
 export default memo(Sessions)
