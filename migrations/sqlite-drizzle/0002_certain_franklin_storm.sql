@@ -4,7 +4,7 @@ CREATE TABLE `translate_history` (
 	`target_text` text NOT NULL,
 	`source_language` text NOT NULL,
 	`target_language` text NOT NULL,
-	`star` integer DEFAULT false,
+	`star` integer DEFAULT false NOT NULL,
 	`created_at` integer,
 	`updated_at` integer
 );

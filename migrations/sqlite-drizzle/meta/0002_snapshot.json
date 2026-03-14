@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "efe30246-0e76-4eaa-89bb-ad9bf526fd0c",
+  "id": "500ed26f-6d85-483d-bb80-9805aeff4da5",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -640,7 +640,7 @@
           "name": "star",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
