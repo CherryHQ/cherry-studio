@@ -400,11 +400,11 @@
       }
     },
     "warning": {
-      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_and_start": "Habilitar e iniciar",
       "enable_server": "Habilitar el servidor API para usar agentes.",
-      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "enable_server_description": "El servidor de la API debe estar habilitado para que los agentes funcionen. Puede habilitarlo directamente o configurarlo en los ajustes.",
       "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor.",
-      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "server_not_running_description": "El servidor de la API debe estar en ejecución para que los agentes funcionen. Puede iniciarlo directamente o comprobar los ajustes."
     }
   },
   "apiServer": {

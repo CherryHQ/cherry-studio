@@ -400,11 +400,11 @@
       }
     },
     "warning": {
-      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_and_start": "有効化 & 開始",
       "enable_server": "APIサーバーがエージェントを使用できるようにする。",
-      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "enable_server_description": "エージェントを動作させるには、API サーバーを有効にする必要があります。直接有効にするか、設定から構成することができます。",
       "server_not_running": "APIサーバーは有効になっていますが、実行されていません。サーバー設定を確認してください。",
-      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "server_not_running_description": "エージェントを動作させるには、APIサーバーが稼働している必要があります。直接起動するか、設定を確認してください。"
     }
   },
   "apiServer": {

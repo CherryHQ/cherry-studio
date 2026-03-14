@@ -400,11 +400,11 @@
       }
     },
     "warning": {
-      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_and_start": "Ενεργοποίηση & Εκκίνηση",
       "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων.",
-      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "enable_server_description": "Ο διακομιστής API πρέπει να είναι ενεργοποιημένος για να λειτουργήσουν οι πράκτορες. Μπορείτε να τον ενεργοποιήσετε απευθείας ή να τον ρυθμίσετε στις ρυθμίσεις.",
       "server_not_running": "Ο API Server είναι ενεργοποιημένος αλλά δεν εκτελείται. Παρακαλούμε ελέγξτε τη διαμόρφωση του διακομιστή.",
-      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "server_not_running_description": "Ο διακομιστής API πρέπει να βρίσκεται σε λειτουργία για να λειτουργήσουν οι πράκτορες. Μπορείτε να τον εκκινήσετε απευθείας ή να ελέγξετε τις ρυθμίσεις."
     }
   },
   "apiServer": {

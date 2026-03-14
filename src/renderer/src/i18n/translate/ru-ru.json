@@ -400,11 +400,11 @@
       }
     },
     "warning": {
-      "enable_and_start": "[to be translated]:Enable & Start",
+      "enable_and_start": "Включить и запустить",
       "enable_server": "Разрешить серверу API использовать агентов.",
-      "enable_server_description": "[to be translated]:The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "enable_server_description": "Для работы агентов необходимо включить API-сервер. Вы можете включить его напрямую или в настройках.",
       "server_not_running": "Сервер API включен, но не запущен. Пожалуйста, проверьте конфигурацию сервера.",
-      "server_not_running_description": "[to be translated]:The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "server_not_running_description": "Для работы агентов необходимо, чтобы API-сервер был запущен. Вы можете запустить его напрямую или проверить настройки."
     }
   },
   "apiServer": {
