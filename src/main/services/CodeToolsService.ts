@@ -977,7 +977,24 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      // Windows: Redirect bun output to log file to prevent cmd.exe from
+      // misinterpreting multiline output as separate commands
+      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
+      let installCommand: string
+      if (platform === 'win32') {
+        const logsDir = loggerService.getLogsDir()
+        const installLogPath = path.join(logsDir, 'cli-tools-install.log')
+
+        // Ensure logs directory exists
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true })
+        }
+
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
+      } else {
+        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      }
+
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
