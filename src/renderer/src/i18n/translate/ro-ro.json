@@ -878,7 +878,11 @@
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
-        "expand": "Extinde"
+        "expand": "Extinde",
+        "file_not_found": "[to be translated]:File not found: {{path}}",
+        "open_file": "[to be translated]:Open File",
+        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
+        "reveal_in_finder": "[to be translated]:Reveal in Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",

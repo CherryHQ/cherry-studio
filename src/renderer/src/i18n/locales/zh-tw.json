@@ -878,7 +878,11 @@
         "collapse": "折疊",
         "collapse_in": "加入折疊",
         "collapse_out": "移出折疊",
-        "expand": "展開"
+        "expand": "展開",
+        "file_not_found": "檔案不存在: {{path}}",
+        "open_file": "開啟檔案",
+        "open_file_error": "無法開啟檔案: {{path}}",
+        "reveal_in_finder": "在檔案管理器中顯示"
       },
       "topics": "話題",
       "translate": "翻譯成 {{target_language}}",

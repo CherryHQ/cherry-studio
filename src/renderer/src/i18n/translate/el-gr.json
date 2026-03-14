@@ -878,7 +878,11 @@
         "collapse": "Σύμπτυξη",
         "collapse_in": "Εισαγωγή σε σύμπτυξη",
         "collapse_out": "Αφαίρεση από σύμπτυξη",
-        "expand": "Επέκταση"
+        "expand": "Επέκταση",
+        "file_not_found": "[to be translated]:File not found: {{path}}",
+        "open_file": "[to be translated]:Open File",
+        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
+        "reveal_in_finder": "[to be translated]:Reveal in Finder"
       },
       "topics": "Θέματα",
       "translate": "Μετάφραση στο {{target_language}}",
