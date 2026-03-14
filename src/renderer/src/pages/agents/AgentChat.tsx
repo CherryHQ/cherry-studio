@@ -134,7 +134,7 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
     <div
       className={cn(
         'flex flex-1 overflow-hidden',
-        isTopNavbar && 'rounded-tl-2xl rounded-bl-2xl bg-(--color-background)',
+        isTopNavbar && 'rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
         className
       )}>
       {children}

@@ -61,7 +61,7 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
       {/* Tabs */}
       {!sessionsOnRight && (
         <div
-          className="mx-3 flex border-(--color-border) border-b bg-transparent py-1.5"
+          className="mx-3 flex border-(--color-border) border-b bg-transparent py-1.5 pt-0.5"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <TabButton active={tab === 'agents'} onClick={() => setTab('agents')}>
             {t('agent.sidebar_title')}
