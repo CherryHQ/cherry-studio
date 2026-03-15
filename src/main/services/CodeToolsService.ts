@@ -1004,7 +1004,8 @@ class CodeToolsService {
       let installCommand: string
       if (platform === 'win32') {
         const logsDir = loggerService.getLogsDir()
-        const installLogPath = path.join(logsDir, 'cli-tools-install.log')
+        // Use forward slashes for cmd.exe compatibility
+        const installLogPath = path.join(logsDir, 'cli-tools-install.log').replace(/\\/g, '/')
 
         // Ensure logs directory exists
         if (!fs.existsSync(logsDir)) {
