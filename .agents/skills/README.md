@@ -24,10 +24,19 @@ For each new public skill, run:
 pnpm skills:sync
 ```
 
-`skills:sync` will create/update `.claude/skills/<skill-name>/SKILL.md` as:
+`skills:sync` will create/update `.claude/skills/<skill-name>` as a symlink pointing to `../../.agents/skills/<skill-name>`.
 
-- a copied file from `.agents/skills/<skill-name>/SKILL.md`.
-- symlinks are not allowed; check enforces regular files for compatibility.
+## Windows Compatibility
+
+This project uses symlinks to synchronize files such as AGENTS.md and skills. Windows developers must enable symlink support:
+
+1. **Enable Developer Mode** (Settings → Update & Security → For developers), or
+2. **Grant `SeCreateSymbolicLinkPrivilege`** via Local Security Policy (`secpol.msc`).
+3. **Configure Git** to create symlinks:
+   ```bash
+   git config --global core.symlinks true
+   ```
+4. Re-clone the repository (or run `pnpm skills:sync`) after enabling symlink support.
 
 ## White-list Tracking Rules
 
@@ -53,4 +62,4 @@ The sync/check scripts manage and verify:
 
 - `.agents/skills/.gitignore`
 - `.claude/skills/.gitignore`
-- `.claude/skills/<skill-name>/SKILL.md` content matches `.agents/skills/<skill-name>/SKILL.md`
+- `.claude/skills/<skill-name>` is a valid symlink to `.agents/skills/<skill-name>`
