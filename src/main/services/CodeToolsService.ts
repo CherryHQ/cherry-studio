@@ -857,26 +857,32 @@ class CodeToolsService {
     // Check for updates and auto-update if requested
     let updateMessage = ''
     let installedVersion: string | null = null
-    if (isInstalled && options.autoUpdateToLatest) {
-      logger.info(`Auto update to latest enabled for ${cliTool}`)
+
+    // Get installed version if package is installed (needed for qwen-code auth-type check)
+    if (isInstalled) {
       try {
         const versionInfo = await this.getVersionInfo(cliTool)
         installedVersion = versionInfo.installed
-        if (versionInfo.needsUpdate) {
-          logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-          logger.info(`Auto-updating ${cliTool} to latest version`)
-          updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
-          const updateResult = await this.updatePackage(cliTool)
-          if (updateResult.success) {
-            logger.info(`Update completed successfully for ${cliTool}`)
-            updateMessage += ` && echo "Update completed successfully"`
-          } else {
-            logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-            updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+
+        // Handle auto-update if enabled
+        if (options.autoUpdateToLatest) {
+          logger.info(`Auto update to latest enabled for ${cliTool}`)
+          if (versionInfo.needsUpdate) {
+            logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
+            logger.info(`Auto-updating ${cliTool} to latest version`)
+            updateMessage = ` && echo "Updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}..."`
+            const updateResult = await this.updatePackage(cliTool)
+            if (updateResult.success) {
+              logger.info(`Update completed successfully for ${cliTool}`)
+              updateMessage += ` && echo "Update completed successfully"`
+            } else {
+              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
+              updateMessage += ` && echo "Update failed: ${updateResult.message}"`
+            }
+          } else if (versionInfo.installed && versionInfo.latest) {
+            logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
+            updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
           }
-        } else if (versionInfo.installed && versionInfo.latest) {
-          logger.info(`${cliTool} is already up to date (${versionInfo.installed})`)
-          updateMessage = ` && echo "${cliTool} is up to date (${versionInfo.installed})"`
         }
       } catch (error) {
         logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
