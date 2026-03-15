@@ -60,7 +60,7 @@ export function parseSiteMeta(content: string, filePath: string, source: 'local'
   }
 
   const tagPattern = /\/\/\s*@(\w+)[ \t]+(.*)/g
-  let match
+  let match: RegExpExecArray | null
   while ((match = tagPattern.exec(content)) !== null) {
     const [, key, value] = match
     switch (key) {
@@ -98,7 +98,7 @@ export function scanSites(dir: string, source: 'local' | 'community'): SiteMeta[
   const sites: SiteMeta[] = []
 
   function walk(currentDir: string): void {
-    let entries
+    let entries: import('node:fs').Dirent[]
     try {
       entries = readdirSync(currentDir, { withFileTypes: true })
     } catch {

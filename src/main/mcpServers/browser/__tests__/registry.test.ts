@@ -170,15 +170,13 @@ describe('scanSites', () => {
         return [
           { name: 'twitter', isDirectory: () => true, isFile: () => false },
           { name: '.git', isDirectory: () => true, isFile: () => false }
-        ] as unknown as ReturnType<typeof readdirSync>
+        ]
       }
       if (dir.endsWith('twitter')) {
-        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }]
       }
-      return [] as unknown as ReturnType<typeof readdirSync>
-    }) as typeof readdirSync)
+      return []
+    }) as unknown as typeof readdirSync)
 
     vi.mocked(readFileSync).mockReturnValue(`/* @meta
 { "description": "Search tweets", "domain": "x.com" }
@@ -217,17 +215,13 @@ describe('getAllSites', () => {
     vi.mocked(readdirSync).mockImplementation(((dirPath: string) => {
       const dir = String(dirPath)
       if (dir === COMMUNITY_SITES_DIR || dir === LOCAL_SITES_DIR) {
-        return [{ name: 'twitter', isDirectory: () => true, isFile: () => false }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'twitter', isDirectory: () => true, isFile: () => false }]
       }
       if (dir.includes('twitter')) {
-        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }]
       }
-      return [] as unknown as ReturnType<typeof readdirSync>
-    }) as typeof readdirSync)
+      return []
+    }) as unknown as typeof readdirSync)
 
     vi.mocked(readFileSync).mockImplementation(((filePath: string) => {
       const path = String(filePath)
@@ -270,17 +264,13 @@ describe('findSite', () => {
     vi.mocked(readdirSync).mockImplementation(((dirPath: string) => {
       const dir = String(dirPath)
       if (dir === COMMUNITY_SITES_DIR) {
-        return [{ name: 'hackernews', isDirectory: () => true, isFile: () => false }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'hackernews', isDirectory: () => true, isFile: () => false }]
       }
       if (dir.includes('hackernews')) {
-        return [{ name: 'top.js', isDirectory: () => false, isFile: () => true }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'top.js', isDirectory: () => false, isFile: () => true }]
       }
-      return [] as unknown as ReturnType<typeof readdirSync>
-    }) as typeof readdirSync)
+      return []
+    }) as unknown as typeof readdirSync)
     vi.mocked(readFileSync).mockReturnValue(`/* @meta
 { "name": "hackernews/top", "description": "Top HN stories", "domain": "news.ycombinator.com" }
 */`)
@@ -314,20 +304,16 @@ describe('searchSites', () => {
         return [
           { name: 'twitter', isDirectory: () => true, isFile: () => false },
           { name: 'reddit', isDirectory: () => true, isFile: () => false }
-        ] as unknown as ReturnType<typeof readdirSync>
+        ]
       }
       if (dir.includes('twitter')) {
-        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'search.js', isDirectory: () => false, isFile: () => true }]
       }
       if (dir.includes('reddit')) {
-        return [{ name: 'thread.js', isDirectory: () => false, isFile: () => true }] as unknown as ReturnType<
-          typeof readdirSync
-        >
+        return [{ name: 'thread.js', isDirectory: () => false, isFile: () => true }]
       }
-      return [] as unknown as ReturnType<typeof readdirSync>
-    }) as typeof readdirSync)
+      return []
+    }) as unknown as typeof readdirSync)
 
     vi.mocked(readFileSync).mockImplementation(((filePath: string) => {
       const path = String(filePath)
