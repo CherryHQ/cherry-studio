@@ -55,6 +55,8 @@ const processError = (error: unknown, fallbackMessage: string) => {
   return new Error(fallbackMessage, { cause: error })
 }
 
+export const DEFAULT_SESSION_PAGE_SIZE = 20
+
 export class AgentApiClient {
   private axios: Axios
   private apiVersion: ApiVersion = 'v1'
