@@ -19,6 +19,7 @@ import {
 } from '@shared/config/constant'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
+import semver from 'semver'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
@@ -78,26 +79,6 @@ class CodeToolsService {
     const bunName = await getBinaryName('bun')
     const bunPath = path.join(dir, bunName)
     return bunPath
-  }
-
-  /**
-   * Compare two semantic versions
-   * @param version1 - First version string (e.g., "1.2.3")
-   * @param version2 - Second version string (e.g., "1.2.4")
-   * @returns -1 if version1 < version2, 0 if equal, 1 if version1 > version2
-   */
-  private compareVersions(version1: string, version2: string): number {
-    const v1Parts = version1.split('.').map(Number)
-    const v2Parts = version2.split('.').map(Number)
-    const maxLength = Math.max(v1Parts.length, v2Parts.length)
-
-    for (let i = 0; i < maxLength; i++) {
-      const v1Part = v1Parts[i] || 0
-      const v2Part = v2Parts[i] || 0
-      if (v1Part < v2Part) return -1
-      if (v1Part > v2Part) return 1
-    }
-    return 0
   }
 
   public async getPackageName(cliTool: string) {
@@ -943,8 +924,8 @@ class CodeToolsService {
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
     if (cliTool === codeTools.qwenCode) {
-      // Check if installed version is >= 0.12.3
-      const needsAuthType = installedVersion && this.compareVersions(installedVersion, '0.12.3') >= 0
+      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
+      const needsAuthType = installedVersion && semver.gte(semver.coerce(installedVersion) || '0.0.0', '0.12.3')
       if (needsAuthType) {
         baseCommand = `${baseCommand} --auth-type openai`
         logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
