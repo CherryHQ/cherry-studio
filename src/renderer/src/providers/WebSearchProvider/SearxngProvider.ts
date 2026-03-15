@@ -154,7 +154,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      logger.error('Searxng search failed:', error as Error)
+      const logError = error instanceof Error ? error : { error }
+      logger.error('Searxng search failed:', logError)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
