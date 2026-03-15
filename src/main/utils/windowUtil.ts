@@ -77,7 +77,7 @@ export const replaceDevtoolsFont = (browserWindow: BrowserWindow) => {
   }
 }
 
-export const isWindowsMicaSupported = () => {
+const isWindowsMicaSupported = () => {
   if (!isWin) {
     return false
   }
