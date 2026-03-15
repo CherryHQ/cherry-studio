@@ -83,6 +83,11 @@
         "failed": "获取智能体列表失败"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "智能体排序失败"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 服务器已启用但未正常运行。"
@@ -133,6 +138,11 @@
       },
       "label_one": "会话",
       "label_other": "会话",
+      "reorder": {
+        "error": {
+          "failed": "会话排序失败"
+        }
+      },
       "update": {
         "error": {
           "failed": "更新会话失败"
