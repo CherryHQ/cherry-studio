@@ -140,64 +140,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.25 - Security & Stability
+    Cherry Studio 1.8.0-beta.1 - Agent Module & UX Improvements
 
     ✨ New Features
-    - [Web Search] Add Querit search provider (1,000 free requests for new users)
-    - [Provider] Add MiniMax Global and Z.ai providers
-    - [Mini Apps] Add MiniMax Agent and IMA mini apps
-    - [Provider] Add agent support filter in provider settings
-    - [Agent] Add custom environment variables support
-    - [Models] Add GPT-5.4 support
+    - [Agents] Add dedicated "Agents" page accessible from sidebar, separating agents from assistants for improved discoverability
+    - [Agents] Add drag-and-drop manual sorting for agent and session lists
+    - [Settings] Add configurable maximum tool calls setting for assistants (range: 1-100)
+    - [Models] Add MiniMax-M2.5-highspeed model support
+    - [OpenClaw] Switch to binary download installation with automatic update detection
 
     🐛 Bug Fixes
-    - [Security] Built-in filesystem MCP now requires manual approval for write/edit/delete operations
-    - [Security] Fix MCP hub mode bypassing tool permission checks
-    - [Security] Remove auto-execution countdown - tools now wait for user confirmation
-    - [Agent] Fix tool status not stopping when aborting on Windows
-    - [Chat] Fix auto backup interrupting streaming responses
-    - [Chat] Fix topic renaming errors with image-capable models
-    - [UI] Fix "Move To" submenu overflow with long assistant lists
-    - [Editor] Render SVG code blocks as previews
-    - [Models] Fix Gemini 3 and Qwen 3.5 reasoning parameter issues
-    - [xAI] Upgrade to new Responses API with X/Twitter search support
-    - [API Server] Fix tool calling message validation
-    - [Plugins] Fix install/uninstall button state issues
-    - [Update] Fix update dialog not showing on manual check
-    - [Update] Prevent unexpected auto-updates on app quit
+    - [UI] Fix web search provider options not showing for local LLM models (e.g., Ollama)
+    - [Provider] Fix reasoning effort and summary settings not working with third-party OpenAI-compatible providers
+    - [OpenClaw] Fix gateway status detection to correctly identify crashed or externally-stopped gateways
+    - [Provider] Fix Poe web_search parameter passing via extra_body when built-in search is enabled
 
     💄 Improvements
-    - [Provider] Improve agent model selector ordering and highlighting
-    - [MCP] Add system notifications when tool approval is required
+    - [Performance] Increase default request timeout from 10 to 30 minutes for slow local models
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.25 - 安全与稳定性
+    Cherry Studio 1.8.0-beta.1 - 智能体模块与体验改进
 
     ✨ 新功能
-    - [网络搜索] 新增 Querit 搜索引擎（新用户 1,000 次免费请求）
-    - [服务商] 新增 MiniMax Global 和 Z.ai 服务商
-    - [小程序] 新增 MiniMax Agent 和 IMA 小程序
-    - [服务商] 添加智能体支持筛选器
-    - [智能体] 支持自定义环境变量配置
-    - [模型] 新增 GPT-5.4 支持
+    - [智能体] 新增独立的"智能体"页面，可从侧边栏访问，将智能体与助手列表分离以提升可发现性
+    - [智能体] 新增智能体和会话列表的拖拽手动排序功能
+    - [设置] 新增助手最大工具调用次数配置项（范围：1-100）
+    - [模型] 新增 MiniMax-M2.5-highspeed 模型支持
+    - [OpenClaw] 切换到二进制下载安装，支持自动更新检测
 
     🐛 问题修复
-    - [安全] 内置文件系统 MCP 的写入/编辑/删除操作现需手动批准
-    - [安全] 修复 MCP Hub 模式绕过工具权限检查的问题
-    - [安全] 移除自动执行倒计时 - 工具现在等待用户确认
-    - [智能体] 修复 Windows 上中止时工具状态未停止的问题
-    - [对话] 修复自动备份中断流式响应的问题
-    - [对话] 修复使用图像模型时话题重命名出错的问题
-    - [UI] 修复助手列表过长时"移动到"子菜单溢出
-    - [编辑器] SVG 代码块现在显示为预览图
-    - [模型] 修复 Gemini 3 和 Qwen 3.5 推理参数问题
-    - [xAI] 升级到新版 Responses API，支持 X/Twitter 搜索
-    - [API 服务] 修复工具调用消息验证问题
-    - [插件] 修复安装/卸载按钮状态问题
-    - [更新] 修复手动检查更新时对话框不显示的问题
-    - [更新] 防止退出应用时意外自动更新
+    - [UI] 修复本地大模型（如 Ollama）无法显示网络搜索服务商选项的问题
+    - [服务商] 修复推理强度和摘要设置在第三方 OpenAI 兼容服务商上无效的问题
+    - [OpenClaw] 修复网关状态检测，正确识别崩溃或外部停止的网关
+    - [服务商] 修复启用内置搜索时 Poe web_search 参数未正确传递的问题
 
     💄 改进
-    - [服务商] 优化智能体模型选择器排序和高亮
-    - [MCP] 工具需要批准时发送系统通知
+    - [性能] 将默认请求超时时间从 10 分钟增加到 30 分钟，以支持慢速本地模型
     <!--LANG:END-->
