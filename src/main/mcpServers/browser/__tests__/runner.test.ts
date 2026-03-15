@@ -264,7 +264,8 @@ describe('runSiteAdapter', () => {
       'Login required',
       'unauthorized',
       'Please sign in to continue',
-      'auth token expired'
+      'auth token expired',
+      'auth failed'
     ]
 
     for (const pattern of authPatterns) {
@@ -283,7 +284,27 @@ describe('runSiteAdapter', () => {
       })
     }
 
-    const nonAuthPatterns = ['author not found', 'authentication successful', 'normal content with no errors']
+    const nonAuthPatterns = [
+      'author not found',
+      'authentication successful',
+      'normal content with no errors',
+      'authorize user'
+    ]
+
+    // Test that non-auth errors don't get login hints
+    it('does NOT add login hint for error "author not found"', async () => {
+      const site = makeSite({ domain: 'x.com' })
+      const controller = makeController({
+        listTabs: vi.fn().mockResolvedValue([{ tabId: 't1', url: 'https://x.com', title: 'X' }]),
+        execute: vi.fn().mockResolvedValue({ error: 'author not found' })
+      })
+
+      const result = await runSiteAdapter(controller, site, {})
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('author not found')
+      expect(result.hint).toBeUndefined()
+    })
 
     for (const pattern of nonAuthPatterns) {
       it(`does NOT false-positive on: "${pattern}"`, async () => {

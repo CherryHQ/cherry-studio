@@ -4,7 +4,8 @@ import type { CdpBrowserController } from '../controller'
 import type { SiteMeta } from '../types'
 import { logger } from '../types'
 
-const AUTH_ERROR_RE = /401|403|unauthorized|forbidden|not.?logged|login.?required|sign.?in|auth/i
+const AUTH_ERROR_RE =
+  /401|403|unauthorized|forbidden|not.?logged|login.?required|sign.?in|auth.?(?:failed|expired|required|error|token)/i
 
 type RunResult = {
   success: boolean
