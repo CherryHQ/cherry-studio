@@ -89,7 +89,7 @@ export class WindowService {
             frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
           }),
       ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
-      backgroundColor: mainWindowBackgroundColor,
+      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
       darkTheme: nativeTheme.shouldUseDarkColors,
       ...(isLinux ? { icon: linuxIcon } : {}),
       webPreferences: {
