@@ -22,3 +22,22 @@ export interface WindowInfo {
   lastActive: number
   tabBarView?: BrowserView
 }
+
+/** Adapter argument definition */
+export type ArgDef = {
+  required?: boolean
+  description?: string
+}
+
+/** Adapter metadata parsed from .js files */
+export type SiteMeta = {
+  name: string
+  description: string
+  domain: string
+  args: Record<string, ArgDef>
+  capabilities?: string[]
+  readOnly?: boolean
+  example?: string
+  filePath: string
+  source: 'local' | 'community'
+}
