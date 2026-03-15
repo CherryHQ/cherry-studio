@@ -1,6 +1,7 @@
 @import './color.css';
 @import './font.css';
 @import './markdown.css';
+@import './rtl-fix.css';
 @import './ant.css';
 @import './scrollbar.css';
 @import './container.css';
