@@ -107,6 +107,7 @@
     "@ai-sdk/google-vertex": "^4.0.66",
     "@ai-sdk/huggingface": "^1.0.32",
     "@ai-sdk/mistral": "^3.0.20",
+    "@ai-sdk/open-responses": "^1.0.6",
     "@ai-sdk/openai": "^3.0.36",
     "@ai-sdk/perplexity": "^3.0.19",
     "@ai-sdk/provider": "^3.0.8",
