@@ -29,7 +29,7 @@ export function parseSiteMeta(content: string, filePath: string, source: 'local'
   const defaultName = relPath.replace(/\.js$/, '').replace(/\\/g, '/')
 
   // Parse /* @meta { ... } */ block
-  const metaMatch = content.match(/\/\*\s*@meta\s*\n([\s\S]*?)\*\//)
+  const metaMatch = content.match(/\/\*\s*@meta\s*[\r\n]([\s\S]*?)\*\//)
   if (metaMatch) {
     try {
       const metaJson = JSON.parse(metaMatch[1])
@@ -268,8 +268,7 @@ export function backgroundUpdate(): void {
       detached: true
     })
     child.unref()
-    // Invalidate cache so next getAllSites() picks up changes
-    invalidateCache()
+    // Cache invalidation happens naturally via mtime change after git pull completes
   } catch (error) {
     logger.warn('Background update spawn failed', {
       error: error instanceof Error ? error.message : String(error)
