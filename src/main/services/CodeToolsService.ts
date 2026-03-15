@@ -80,6 +80,26 @@ class CodeToolsService {
     return bunPath
   }
 
+  /**
+   * Compare two semantic versions
+   * @param version1 - First version string (e.g., "1.2.3")
+   * @param version2 - Second version string (e.g., "1.2.4")
+   * @returns -1 if version1 < version2, 0 if equal, 1 if version1 > version2
+   */
+  private compareVersions(version1: string, version2: string): number {
+    const v1Parts = version1.split('.').map(Number)
+    const v2Parts = version2.split('.').map(Number)
+    const maxLength = Math.max(v1Parts.length, v2Parts.length)
+
+    for (let i = 0; i < maxLength; i++) {
+      const v1Part = v1Parts[i] || 0
+      const v2Part = v2Parts[i] || 0
+      if (v1Part < v2Part) return -1
+      if (v1Part > v2Part) return 1
+    }
+    return 0
+  }
+
   public async getPackageName(cliTool: string) {
     switch (cliTool) {
       case codeTools.claudeCode:
@@ -836,10 +856,12 @@ class CodeToolsService {
 
     // Check for updates and auto-update if requested
     let updateMessage = ''
+    let installedVersion: string | null = null
     if (isInstalled && options.autoUpdateToLatest) {
       logger.info(`Auto update to latest enabled for ${cliTool}`)
       try {
         const versionInfo = await this.getVersionInfo(cliTool)
+        installedVersion = versionInfo.installed
         if (versionInfo.needsUpdate) {
           logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
           logger.info(`Auto-updating ${cliTool} to latest version`)
@@ -911,6 +933,18 @@ class CodeToolsService {
     if (cliTool === codeTools.kimiCli) {
       const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
       baseCommand = `${uvPath} tool run ${packageName}`
+    }
+
+    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
+    if (cliTool === codeTools.qwenCode) {
+      // Check if installed version is >= 0.12.3
+      const needsAuthType = installedVersion && this.compareVersions(installedVersion, '0.12.3') >= 0
+      if (needsAuthType) {
+        baseCommand = `${baseCommand} --auth-type openai`
+        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
+      } else {
+        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
+      }
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
