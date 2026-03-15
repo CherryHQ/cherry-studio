@@ -225,11 +225,11 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': CacheValueTypes.TabsState
+  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' }
+  'ui.tab.pinned_tabs': []
 }
 
 // ============================================================================
