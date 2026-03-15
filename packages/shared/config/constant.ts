@@ -351,7 +351,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', `"${fullCommand}"`]
+      args: ['-p', `"Command Prompt"`, '--', 'cmd', '/c', fullCommand]
     })
   },
   {
