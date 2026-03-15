@@ -551,6 +551,30 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
+/**
+ * Get OpenAI Responses API reasoning params without model ID checks.
+ * Used for third-party providers where model IDs are non-canonical
+ * and cannot be reliably matched against known patterns.
+ * Only checks user settings — passes through whatever the user configured.
+ */
+export function getOpenAIResponsesReasoningParams(
+  assistant: Assistant
+): Pick<OpenAIResponsesProviderOptions, 'reasoningEffort' | 'reasoningSummary'> {
+  const reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (!reasoningEffort || reasoningEffort === 'default') {
+    return {}
+  }
+
+  const openAI = getStoreSetting('openAI')
+  const reasoningSummary: OpenAIReasoningSummary = openAI.summaryText
+
+  return {
+    reasoningEffort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort,
+    ...(reasoningSummary && { reasoningSummary })
+  }
+}
+
 export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,

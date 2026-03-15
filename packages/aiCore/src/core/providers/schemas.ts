@@ -7,6 +7,7 @@ import { createAzure } from '@ai-sdk/azure'
 import { type AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
@@ -83,7 +84,20 @@ export const baseProviders = [
   {
     id: 'openai-compatible',
     name: 'OpenAI Compatible',
-    creator: createOpenAICompatible,
+    creator: (options: any): ProviderV3 => {
+      // Use @ai-sdk/open-responses for Responses API mode,
+      // bypassing @ai-sdk/openai's model ID allowlist that silently drops reasoning params.
+      if (options?.mode === 'responses') {
+        return createOpenResponses({
+          name: 'openai',
+          url: `${options.baseURL}/responses`,
+          apiKey: options.apiKey,
+          headers: options.headers,
+          fetch: options.fetch
+        })
+      }
+      return createOpenAICompatible(options)
+    },
     supportsImageGeneration: true
   },
   {

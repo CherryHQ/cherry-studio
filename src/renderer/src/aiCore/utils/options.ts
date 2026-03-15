@@ -13,7 +13,6 @@ import {
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
-  isReasoningModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
@@ -53,6 +52,7 @@ import {
   getCustomParameters,
   getGeminiReasoningParams,
   getOpenAIReasoningParams,
+  getOpenAIResponsesReasoningParams,
   getReasoningEffort,
   getXAIReasoningParams
 } from './reasoning'
@@ -253,6 +253,18 @@ export function buildProviderOptions(
           providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
           break
         default:
+          // For third-party Responses API providers (type === 'openai-response'),
+          // build provider options under the 'openai' key (matched by @ai-sdk/open-responses's name: 'openai')
+          // using model-agnostic reasoning params (no model ID checks).
+          if (actualProvider.type === 'openai-response') {
+            providerSpecificOptions = buildOpenResponsesProviderOptions(
+              assistant,
+              capabilities,
+              serviceTier,
+              textVerbosity
+            )
+            break
+          }
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
           // Merge serviceTier and textVerbosity
@@ -383,12 +395,7 @@ function buildOpenAIProviderOptions(
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
-      ...reasoningParams,
-      // TODO: Remove this workaround after migrating to @ai-sdk/open-responses (#13462)
-      // Bypass @ai-sdk/openai's model ID allowlist for reasoning detection.
-      // Third-party providers often use non-canonical model IDs (e.g., "openai/gpt-5.2")
-      // that fail the SDK's startsWith() checks, causing reasoning params to be silently dropped.
-      ...(isReasoningModel(model) && { forceReasoning: true })
+      ...reasoningParams
     }
   }
   const provider = getProviderById(model.provider)
@@ -424,6 +431,33 @@ function buildOpenAIProviderOptions(
   return {
     openai: providerOptions
   }
+}
+
+/**
+ * 构建第三方 OpenAI Responses API 的 providerOptions
+ * 不做模型 ID 检查，直接传递用户配置的 reasoning 参数
+ */
+function buildOpenResponsesProviderOptions(
+  assistant: Assistant,
+  capabilities: { enableReasoning: boolean },
+  serviceTier: OpenAIServiceTier,
+  textVerbosity?: OpenAIVerbosity
+): Record<string, OpenAIResponsesProviderOptions> {
+  let providerOptions: OpenAIResponsesProviderOptions = {}
+
+  if (capabilities.enableReasoning) {
+    const reasoningParams = getOpenAIResponsesReasoningParams(assistant)
+    providerOptions = { ...providerOptions, ...reasoningParams }
+  }
+
+  providerOptions = {
+    ...providerOptions,
+    serviceTier,
+    textVerbosity,
+    store: false
+  }
+
+  return { openai: providerOptions }
 }
 
 /**
