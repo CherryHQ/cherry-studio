@@ -92,7 +92,7 @@ const CodeToolsPage: FC = () => {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
         // Allow local services (LMStudio, Ollama) that support Anthropic API endpoints
-        if (LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS.includes(m.provider as any)) {
+        if (LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS.includes(m.provider)) {
           return true
         }
         // Check if model belongs to an anthropic type provider (including custom providers)
