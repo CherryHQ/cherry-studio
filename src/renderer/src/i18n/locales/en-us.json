@@ -1650,19 +1650,11 @@
     "title": "Import External Conversations"
   },
   "json_render": {
-    "download": "Download Spec",
     "error": {
       "parse": "Failed to parse UI specification",
       "render": "Failed to render component"
     },
-    "expand": "Expand",
-    "generating": "Generating interactive UI...",
-    "popup": {
-      "title": "Interactive UI Preview"
-    },
-    "preview": "Preview",
-    "type_badge": "Interactive UI",
-    "view_source": "View Source"
+    "generating": "Generating interactive UI..."
   },
   "knowledge": {
     "add": {

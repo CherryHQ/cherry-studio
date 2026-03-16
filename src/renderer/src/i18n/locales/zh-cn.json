@@ -1650,19 +1650,11 @@
     "title": "导入外部对话"
   },
   "json_render": {
-    "download": "[to be translated]:Download Spec",
     "error": {
-      "parse": "[to be translated]:Failed to parse UI specification",
-      "render": "[to be translated]:Failed to render component"
+      "parse": "解析 UI 规格失败",
+      "render": "渲染组件失败"
     },
-    "expand": "[to be translated]:Expand",
-    "generating": "[to be translated]:Generating interactive UI...",
-    "popup": {
-      "title": "[to be translated]:Interactive UI Preview"
-    },
-    "preview": "[to be translated]:Preview",
-    "type_badge": "[to be translated]:Interactive UI",
-    "view_source": "[to be translated]:View Source"
+    "generating": "正在生成交互式 UI..."
   },
   "knowledge": {
     "add": {
