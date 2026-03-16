@@ -36,14 +36,27 @@ function mergeProcessorOverrides(
   current?: FileProcessorOverride,
   updates?: FileProcessorOverride
 ): FileProcessorOverride {
+  const currentRest: Partial<FileProcessorOverride> = current ? { ...current } : {}
+  const updateRest: Partial<FileProcessorOverride> = updates ? { ...updates } : {}
+  const mergedCapabilities = mergeCapabilityOverrides(current?.capabilities, updates?.capabilities)
+  const mergedOptions =
+    current?.options || updates?.options
+      ? {
+          ...current?.options,
+          ...updates?.options
+        }
+      : undefined
+
+  delete currentRest.capabilities
+  delete currentRest.options
+  delete updateRest.capabilities
+  delete updateRest.options
+
   return {
-    ...current,
-    ...updates,
-    capabilities: mergeCapabilityOverrides(current?.capabilities, updates?.capabilities),
-    options: {
-      ...current?.options,
-      ...updates?.options
-    }
+    ...currentRest,
+    ...updateRest,
+    ...(mergedCapabilities && Object.keys(mergedCapabilities).length > 0 ? { capabilities: mergedCapabilities } : {}),
+    ...(mergedOptions && Object.keys(mergedOptions).length > 0 ? { options: mergedOptions } : {})
   }
 }
 

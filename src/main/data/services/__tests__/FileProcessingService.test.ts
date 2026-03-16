@@ -136,5 +136,18 @@ describe('FileProcessingService', () => {
 
       expect(MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')).toEqual(existingOverrides)
     })
+
+    it('should not persist empty options when updates do not include options', async () => {
+      await fileProcessingService.updateProcessor('paddleocr', {
+        apiKeys: ['new-key']
+      })
+
+      const storedOverrides = MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')
+
+      expect(storedOverrides.paddleocr).toMatchObject({
+        apiKeys: ['new-key']
+      })
+      expect(storedOverrides.paddleocr).not.toHaveProperty('options')
+    })
   })
 })
