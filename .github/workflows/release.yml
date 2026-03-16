@@ -24,8 +24,7 @@ on:
     branches:
       - main
     types:
-      - opened
-      - synchronize
+      - closed
 
 permissions:
   contents: write
@@ -36,7 +35,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ${{ matrix.os }}
 
     strategy:
