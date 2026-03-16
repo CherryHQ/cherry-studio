@@ -12,11 +12,13 @@ import {
   ENDPOINT_TYPE,
   type EndpointType,
   MODEL_CAPABILITY,
-  type ModelCapability
+  type ModelCapability,
+  normalizeModelId
 } from '@cherrystudio/provider-catalog'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
-import type { ApiCompatibility, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
+import type { RuntimeModelPricing } from '@shared/data/types/model'
+import type { ApiFeatures, ApiKeyEntry, AuthConfig, ProviderSettings } from '@shared/data/types/provider'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -39,6 +41,10 @@ export interface OldLlmSettings {
     secretAccessKey?: string
     apiKey?: string
     region?: string
+  }
+  cherryIn?: {
+    accessToken?: string
+    refreshToken?: string
   }
 }
 
@@ -65,15 +71,30 @@ const CAPABILITY_MAP: Record<string, ModelCapability | undefined> = {
  * get their endpoint config from the catalog preset — no mapping needed here.
  */
 const ENDPOINT_MAP: Record<string, EndpointType> = {
-  openai: ENDPOINT_TYPE.CHAT_COMPLETIONS,
-  'openai-response': ENDPOINT_TYPE.RESPONSES,
-  anthropic: ENDPOINT_TYPE.MESSAGES,
-  gemini: ENDPOINT_TYPE.GENERATE_CONTENT,
-  'image-generation': ENDPOINT_TYPE.IMAGE_GENERATION,
-  'jina-rerank': ENDPOINT_TYPE.RERANK,
-  'new-api': ENDPOINT_TYPE.CHAT_COMPLETIONS,
-  gateway: ENDPOINT_TYPE.CHAT_COMPLETIONS,
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+  'new-api': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  gateway: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ollama: ENDPOINT_TYPE.OLLAMA_CHAT
+}
+
+/**
+ * Map legacy provider type → reasoning format type for custom providers.
+ * Preset providers get this from catalog via batchUpsert backfill,
+ * but custom providers need it derived from their legacy type.
+ */
+const REASONING_FORMAT_MAP: Record<string, string> = {
+  openai: 'openai-chat',
+  'openai-response': 'openai-responses',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  'new-api': 'openai-chat',
+  gateway: 'openai-chat',
+  ollama: 'openai-chat'
 }
 
 /** System provider IDs that should have presetProviderId set */
@@ -165,8 +186,9 @@ export function transformProvider(
     defaultChatEndpoint: endpointType ?? null,
     apiKeys,
     authConfig: buildAuthConfig(legacy, settings),
-    apiCompatibility: buildApiCompatibility(legacy),
-    providerSettings: buildProviderSettings(legacy),
+    apiFeatures: buildApiFeatures(legacy),
+    providerSettings: buildProviderSettings(legacy, settings),
+    reasoningFormatType: REASONING_FORMAT_MAP[legacy.type] ?? null,
     isEnabled: legacy.enabled ?? true,
     sortOrder
   }
@@ -187,7 +209,7 @@ function buildBaseUrls(legacy: LegacyProvider, endpointType: EndpointType | unde
   }
 
   if (legacy.anthropicApiHost) {
-    urls[ENDPOINT_TYPE.MESSAGES] = legacy.anthropicApiHost
+    urls[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] = legacy.anthropicApiHost
   }
 
   return Object.keys(urls).length > 0 ? urls : null
@@ -247,6 +269,19 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
     }
   }
 
+  // CherryIn OAuth tokens
+  if (legacy.id === 'cherryin' && settings.cherryIn) {
+    const ci = settings.cherryIn
+    if (ci.accessToken || ci.refreshToken) {
+      return {
+        type: 'oauth',
+        clientId: '',
+        accessToken: ci.accessToken,
+        refreshToken: ci.refreshToken
+      }
+    }
+  }
+
   // OAuth
   if (legacy.authType === 'oauth') {
     return { type: 'oauth', clientId: '' }
@@ -257,9 +292,9 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
 }
 
 /**
- * Build ApiCompatibility from legacy apiOptions (inverted booleans)
+ * Build ApiFeatures from legacy apiOptions (inverted booleans)
  */
-function buildApiCompatibility(legacy: LegacyProvider): ApiCompatibility | null {
+function buildApiFeatures(legacy: LegacyProvider): ApiFeatures | null {
   const opts = legacy.apiOptions
   // Also check deprecated top-level fields
   const notArrayContent = opts?.isNotSupportArrayContent ?? legacy.isNotSupportArrayContent
@@ -270,7 +305,7 @@ function buildApiCompatibility(legacy: LegacyProvider): ApiCompatibility | null 
   const supportServiceTier =
     opts?.isSupportServiceTier ?? (legacy.isNotSupportServiceTier != null ? !legacy.isNotSupportServiceTier : undefined)
 
-  const features: ApiCompatibility = {}
+  const features: ApiFeatures = {}
   let hasValue = false
 
   if (notArrayContent != null) {
@@ -290,15 +325,44 @@ function buildApiCompatibility(legacy: LegacyProvider): ApiCompatibility | null 
     hasValue = true
   }
 
+  // enableThinking: inverted from isNotSupportEnableThinking
+  const notEnableThinking = opts?.isNotSupportEnableThinking
+  if (notEnableThinking != null) {
+    features.enableThinking = !notEnableThinking
+    hasValue = true
+  }
+
+  // verbosity: inverted from isNotSupportVerbosity
+  const notVerbosity = opts?.isNotSupportVerbosity
+  if (notVerbosity != null) {
+    features.verbosity = !notVerbosity
+    hasValue = true
+  }
+
   return hasValue ? features : null
 }
 
 /**
  * Build ProviderSettings from legacy provider fields
  */
-function buildProviderSettings(legacy: LegacyProvider): ProviderSettings | null {
+function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettings): ProviderSettings | null {
   const settings: ProviderSettings = {}
   let hasValue = false
+
+  // Migrate keepAliveTime from llm.settings for local providers
+  const keepAliveMap: Record<string, keyof OldLlmSettings> = {
+    ollama: 'ollama',
+    lmstudio: 'lmstudio',
+    gpustack: 'gpustack'
+  }
+  const settingsKey = keepAliveMap[legacy.id]
+  if (settingsKey) {
+    const provSettings = llmSettings[settingsKey] as { keepAliveTime?: number } | undefined
+    if (provSettings?.keepAliveTime != null) {
+      settings.keepAliveTime = provSettings.keepAliveTime
+      hasValue = true
+    }
+  }
 
   if (legacy.serviceTier) {
     settings.serviceTier = legacy.serviceTier as ProviderSettings['serviceTier']
@@ -314,6 +378,10 @@ function buildProviderSettings(legacy: LegacyProvider): ProviderSettings | null 
   }
   if (legacy.extra_headers && Object.keys(legacy.extra_headers).length > 0) {
     settings.extraHeaders = legacy.extra_headers
+    hasValue = true
+  }
+  if (legacy.notes) {
+    settings.notes = legacy.notes
     hasValue = true
   }
   if (legacy.anthropicCacheControl) {
@@ -333,11 +401,14 @@ function buildProviderSettings(legacy: LegacyProvider): ProviderSettings | null 
  * Transform a legacy Model to NewUserModel format
  */
 export function transformModel(legacy: LegacyModel, providerId: string, sortOrder: number): NewUserModel {
+  // Detect if user explicitly customized capabilities via isUserSelected
+  const hasUserSelectedCapabilities = legacy.capabilities?.some((cap) => cap.isUserSelected !== undefined) ?? false
+
   return {
     providerId,
     modelId: legacy.id,
     modelApiId: legacy.id,
-    presetModelId: null,
+    presetModelId: normalizeModelId(legacy.id),
     name: legacy.name || null,
     description: legacy.description || null,
     group: legacy.group || null,
@@ -350,9 +421,11 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
     supportsStreaming: legacy.supported_text_delta ?? null,
     reasoning: null,
     parameters: null,
+    pricing: mapPricing(legacy.pricing),
     isEnabled: true,
     isHidden: false,
-    sortOrder
+    sortOrder,
+    userOverrides: hasUserSelectedCapabilities ? ['capabilities'] : null
   }
 }
 
@@ -389,4 +462,15 @@ function mapEndpointTypes(endpointType?: string, supportedTypes?: string[]): End
   }
 
   return mapped.length > 0 ? mapped : null
+}
+
+/**
+ * Map legacy ModelPricing to RuntimeModelPricing
+ */
+function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
+  if (!pricing) return null
+  return {
+    input: { perMillionTokens: pricing.input_per_million_tokens },
+    output: { perMillionTokens: pricing.output_per_million_tokens }
+  }
 }
