@@ -1,3 +1,4 @@
+import { Navbar } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -44,7 +45,8 @@ const AgentPage = () => {
 
   if (!apiServerConfig.enabled) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar />
         <AgentServerDisabled />
       </Container>
     )
@@ -52,7 +54,8 @@ const AgentPage = () => {
 
   if (!apiServerLoading && !apiServerRunning) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar />
         <AgentServerStopped />
       </Container>
     )
@@ -60,7 +63,8 @@ const AgentPage = () => {
 
   if (agents && agents.length === 0) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar />
         <AgentEmpty />
       </Container>
     )
@@ -68,7 +72,7 @@ const AgentPage = () => {
 
   return (
     <Container>
-      {isLeftNavbar && <AgentNavbar />}
+      <AgentNavbar />
       <div
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
