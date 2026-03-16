@@ -8,7 +8,7 @@ import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readTextFileWithAutoEncoding } from '../file'
+import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../file'
 import {
   getAllFiles,
   getAppConfigDir,
@@ -478,6 +478,52 @@ describe('file', () => {
           }
         }
       )
+    })
+  })
+
+  describe('resolveAndValidatePath', () => {
+    beforeEach(() => {
+      vi.mocked(path.resolve).mockImplementation((...args) => {
+        const joined = args.filter(Boolean).join('/')
+        const parts = joined.split('/').filter(Boolean)
+        const resolved: string[] = []
+        for (const part of parts) {
+          if (part === '..') {
+            resolved.pop()
+          } else if (part !== '.') {
+            resolved.push(part)
+          }
+        }
+        return '/' + resolved.join('/')
+      })
+      Object.defineProperty(path, 'sep', { value: '/', configurable: true })
+    })
+
+    it('should resolve valid relative paths', () => {
+      expect(resolveAndValidatePath('/base', 'file.txt')).toBe('/base/file.txt')
+      expect(resolveAndValidatePath('/base', 'subdir/file.txt')).toBe('/base/subdir/file.txt')
+      expect(resolveAndValidatePath('/base', './file.txt')).toBe('/base/file.txt')
+    })
+
+    it('should throw error for path traversal attacks', () => {
+      vi.mocked(path.resolve).mockImplementation((...args) => {
+        const [, relativePath] = args
+        if (relativePath === '../etc/passwd') return '/etc/passwd'
+        if (relativePath === '../sibling') return '/base/sibling'
+        return args.filter(Boolean).join('/')
+      })
+
+      expect(() => resolveAndValidatePath('/base/dir', '../etc/passwd')).toThrow(
+        'Invalid file path: path traversal detected'
+      )
+      expect(() => resolveAndValidatePath('/base/dir', '../sibling')).toThrow(
+        'Invalid file path: path traversal detected'
+      )
+    })
+
+    it('should reject empty path or dot (base directory itself)', () => {
+      expect(() => resolveAndValidatePath('/base/dir', '')).toThrow('Invalid file path: path traversal detected')
+      expect(() => resolveAndValidatePath('/base/dir', '.')).toThrow('Invalid file path: path traversal detected')
     })
   })
 })
