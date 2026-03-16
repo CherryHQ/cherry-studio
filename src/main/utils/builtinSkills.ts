@@ -6,14 +6,22 @@ import { app } from 'electron'
 
 const logger = loggerService.withContext('builtinSkills')
 
+const VERSION_FILE = '.version'
+
 /**
  * Copy built-in skills from app resources to the user-level .claude/skills
  * directory so they are available to all Claude Code agent sessions via
- * CLAUDE_CONFIG_DIR. Skips skills that already exist to preserve user modifications.
+ * CLAUDE_CONFIG_DIR.
+ *
+ * Each installed skill gets a `.version` file recording the app version that
+ * installed it. On subsequent launches the bundled version is compared with
+ * the installed version — the skill is overwritten only when the app ships a
+ * newer version.
  */
 export async function installBuiltinSkills(): Promise<void> {
   const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
   const destSkillsPath = path.join(app.getPath('userData'), '.claude', 'skills')
+  const appVersion = app.getVersion()
 
   try {
     await fs.access(resourceSkillsPath)
@@ -30,19 +38,25 @@ export async function installBuiltinSkills(): Promise<void> {
     // Guard against path traversal (e.g. entry.name containing "..")
     const destPath = path.join(destSkillsPath, entry.name)
     if (!destPath.startsWith(destSkillsPath + path.sep)) continue
-    try {
-      await fs.access(destPath)
-      continue
-    } catch {
-      // Destination doesn't exist, proceed with copy
-    }
+
+    if (await isUpToDate(destPath, appVersion)) continue
 
     await fs.mkdir(destPath, { recursive: true })
     await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
+    await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
     installed++
   }
 
   if (installed > 0) {
-    logger.info('Built-in skills installed', { installed, destSkillsPath })
+    logger.info('Built-in skills installed', { installed, version: appVersion })
+  }
+}
+
+async function isUpToDate(destPath: string, appVersion: string): Promise<boolean> {
+  try {
+    const installedVersion = (await fs.readFile(path.join(destPath, VERSION_FILE), 'utf-8')).trim()
+    return installedVersion === appVersion
+  } catch {
+    return false
   }
 }

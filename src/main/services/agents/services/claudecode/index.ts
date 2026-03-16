@@ -19,7 +19,7 @@ import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { configManager } from '@main/services/ConfigManager'
-import { autoDiscoverGitBash } from '@main/utils/process'
+import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
@@ -131,6 +131,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Auto-discover Git Bash path on Windows (already logs internally)
     const customGitBashPath = isWin ? autoDiscoverGitBash() : null
+    const bunPath = await getBinaryPath('bun')
 
     // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
     // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
@@ -161,6 +162,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
       CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
     }
 

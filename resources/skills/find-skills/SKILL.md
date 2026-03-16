@@ -40,19 +40,18 @@ which npx
 ```
 
 If `npx` is **not found**, fall back to the bundled bun shipped with Cherry Studio.
-The bun binary is installed by Cherry Studio at `$HOME/.cherrystudio/bin/bun`.
-Verify it exists before using it:
+Cherry Studio sets the `CHERRY_STUDIO_BUN_PATH` environment variable pointing to its
+bundled bun binary. Use it as follows:
 
 ```bash
-CHERRY_BUN="$HOME/.cherrystudio/bin/bun"
-if [ -x "$CHERRY_BUN" ]; then
-  "$CHERRY_BUN" x skills <subcommand> [args]
+if [ -n "$CHERRY_STUDIO_BUN_PATH" ] && [ -x "$CHERRY_STUDIO_BUN_PATH" ]; then
+  "$CHERRY_STUDIO_BUN_PATH" x skills <subcommand> [args]
 else
   echo "Error: Neither npx nor bundled bun found. Install Node.js or run Cherry Studio's bun installer."
 fi
 ```
 
-For example, `npx skills find react` becomes `"$CHERRY_BUN" x skills find react`.
+For example, `npx skills find react` becomes `"$CHERRY_STUDIO_BUN_PATH" x skills find react`.
 
 Always try `npx` first. Only use the bun fallback when npx is unavailable.
 
