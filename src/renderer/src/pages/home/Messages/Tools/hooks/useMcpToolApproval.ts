@@ -148,7 +148,8 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
 
     updateMCPServer({ ...server, disabledAutoApproveTools })
 
-    // Also confirm the current tool
+    // Confirm the current tool. The execution layer will auto-confirm other
+    // pending tools with the same name via confirmSameNameTools.
     setIsConfirmed(true)
     confirmToolAction(id)
 
