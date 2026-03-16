@@ -1382,7 +1382,7 @@
     "off": "關閉",
     "on": "開啟",
     "open": "開啟",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "在 {{name}} 中開啟",
     "paste": "貼上",
     "placeholders": {
       "select": {
