@@ -13,6 +13,7 @@ import {
   isOpenAIModel,
   isOpenAIOpenWeightModel,
   isQwenMTModel,
+  isReasoningModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
@@ -40,6 +41,7 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
+import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
@@ -381,7 +383,12 @@ function buildOpenAIProviderOptions(
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
-      ...reasoningParams
+      ...reasoningParams,
+      // TODO: Remove this workaround after migrating to @ai-sdk/open-responses (#13462)
+      // Bypass @ai-sdk/openai's model ID allowlist for reasoning detection.
+      // Third-party providers often use non-canonical model IDs (e.g., "openai/gpt-5.2")
+      // that fail the SDK's startsWith() checks, causing reasoning params to be silently dropped.
+      ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
   const provider = getProviderById(model.provider)
@@ -634,10 +641,7 @@ function buildGenericProviderOptions(
 
   if (enableWebSearch) {
     const webSearchParams = getWebSearchParams(model)
-    providerOptions = {
-      ...providerOptions,
-      ...webSearchParams
-    }
+    providerOptions = merge({}, providerOptions, webSearchParams)
   }
 
   // 特殊处理 Qwen MT

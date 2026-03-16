@@ -10,7 +10,7 @@ const { downloadWithRedirects } = require('./download')
 const GITCODE_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/openclaw-releases/releases/download'
 const GITHUB_RELEASE_BASE_URL = 'https://github.com/CherryHQ/openclaw/releases/download'
 const GITHUB_API_LATEST_RELEASE = 'https://api.github.com/repos/CherryHQ/openclaw/releases/latest'
-const DEFAULT_VERSION = 'v2026.3.11'
+const DEFAULT_VERSION = 'v2026.3.13'
 const API_TIMEOUT_MS = 5000
 
 /**
@@ -82,11 +82,49 @@ const OPENCLAW_PACKAGES = {
 }
 
 /**
+ * Attempts to download a file, trying GitHub first and falling back to mirror if needed
+ * @param {string} version Version to download
+ * @param {string} packageName Package filename
+ * @param {string} tempFilename Destination path
+ * @param {boolean} preferMirror Whether to prefer mirror source
+ * @returns {Promise<void>}
+ */
+async function downloadWithFallback(version, packageName, tempFilename, preferMirror = false) {
+  const sources = preferMirror
+    ? [
+        { name: 'GitCode mirror', baseUrl: GITCODE_RELEASE_BASE_URL },
+        { name: 'GitHub', baseUrl: GITHUB_RELEASE_BASE_URL }
+      ]
+    : [
+        { name: 'GitHub', baseUrl: GITHUB_RELEASE_BASE_URL },
+        { name: 'GitCode mirror', baseUrl: GITCODE_RELEASE_BASE_URL }
+      ]
+
+  let lastError = null
+
+  for (const source of sources) {
+    const downloadUrl = `${source.baseUrl}/${version}/${packageName}`
+    console.log(`Trying ${source.name}: ${downloadUrl}`)
+
+    try {
+      await downloadWithRedirects(downloadUrl, tempFilename)
+      console.log(`Downloaded successfully from ${source.name}`)
+      return
+    } catch (error) {
+      console.warn(`Failed to download from ${source.name}: ${error.message}`)
+      lastError = error
+    }
+  }
+
+  throw lastError || new Error('All download sources failed')
+}
+
+/**
  * Downloads and extracts the openclaw binary for the specified platform and architecture
  * @param {string} platform Platform to download for
  * @param {string} arch Architecture to download for
  * @param {string} version Version to download
- * @param {boolean} useMirror Whether to use gitcode mirror (for China users)
+ * @param {boolean} useMirror Whether to prefer gitcode mirror (for China users)
  */
 async function downloadOpenClawBinary(platform, arch, version = DEFAULT_VERSION, useMirror = false) {
   const platformKey = `${platform}-${arch}`
@@ -100,17 +138,14 @@ async function downloadOpenClawBinary(platform, arch, version = DEFAULT_VERSION,
   const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
   fs.mkdirSync(binDir, { recursive: true })
 
-  const baseUrl = useMirror ? GITCODE_RELEASE_BASE_URL : GITHUB_RELEASE_BASE_URL
-  const downloadUrl = `${baseUrl}/${version}/${packageName}`
   const tempdir = os.tmpdir()
   const tempFilename = path.join(tempdir, packageName)
   const isTarGz = packageName.endsWith('.tar.gz')
 
   try {
     console.log(`Downloading openclaw ${version} for ${platformKey}...`)
-    console.log(`URL: ${downloadUrl}`)
 
-    await downloadWithRedirects(downloadUrl, tempFilename)
+    await downloadWithFallback(version, packageName, tempFilename, useMirror)
 
     console.log(`Extracting ${packageName} to ${binDir}...`)
 

@@ -38,6 +38,10 @@
     "edit": {
       "title": "編集エージェント"
     },
+    "empty": {
+      "description": "AI搭載ツールで複雑なタスクを処理するエージェントを作成する",
+      "title": "エージェントがまだありません"
+    },
     "get": {
       "error": {
         "failed": "エージェントの取得に失敗しました。",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "エージェントの並び替えに失敗しました"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "セッション",
       "label_other": "セッション",
+      "reorder": {
+        "error": {
+          "failed": "セッションの並び替えに失敗しました"
+        }
+      },
       "update": {
         "error": {
           "failed": "セッションの更新に失敗しました"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "エージェント",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} タスク完了"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "APIサーバーがエージェントを使用できるようにする。"
+      "enable_and_start": "有効化 & 開始",
+      "enable_server": "APIサーバーがエージェントを使用できるようにする。",
+      "enable_server_description": "エージェントを動作させるには、API サーバーを有効にする必要があります。直接有効にするか、設定から構成することができます。",
+      "server_not_running": "APIサーバーは有効になっていますが、実行されていません。サーバー設定を確認してください。",
+      "server_not_running_description": "エージェントを動作させるには、APIサーバーが稼働している必要があります。直接起動するか、設定を確認してください。"
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します"
         }
       },
+      "max_tool_calls": {
+        "label": "最大ツール呼び出し数",
+        "tip": "1回の会話で許可される最大のツール呼び出し回数。高い値に設定すると、より複雑な多段階操作が可能になりますが、トークン使用量と応答時間が増加する可能性があります。"
+      },
       "mcp": {
         "description": "デフォルトで有効な MCP サーバー",
         "enableFirst": "まず MCP 設定でこのサーバーを有効にしてください",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "開始するにはエージェントを作成してください",
       "create_session": "セッションを作成",
       "select_agent": "エージェントを選択してください"
     },
@@ -1358,6 +1382,7 @@
     "off": "オフ",
     "on": "オン",
     "open": "開く",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -1385,6 +1410,7 @@
     "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
+    "sessions": "セッション",
     "settings": "設定",
     "sort": {
       "pinyin": {

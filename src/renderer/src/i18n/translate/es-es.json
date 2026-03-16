@@ -38,6 +38,10 @@
     "edit": {
       "title": "Agent de edición"
     },
+    "empty": {
+      "description": "Crea un agente para gestionar tareas complejas con herramientas impulsadas por IA.",
+      "title": "Aún no hay agentes"
+    },
     "get": {
       "error": {
         "failed": "No se pudo obtener el agente.",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Error al listar agentes."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Error al reordenar los agentes"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "Sesión",
       "label_other": "Sesiones",
+      "reorder": {
+        "error": {
+          "failed": "Error al reordenar las sesiones"
+        }
+      },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tareas completadas"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Habilitar el servidor API para usar agentes."
+      "enable_and_start": "Habilitar e iniciar",
+      "enable_server": "Habilitar el servidor API para usar agentes.",
+      "enable_server_description": "El servidor de la API debe estar habilitado para que los agentes funcionen. Puede habilitarlo directamente o configurarlo en los ajustes.",
+      "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor.",
+      "server_not_running_description": "El servidor de la API debe estar en ejecución para que los agentes funcionen. Puede iniciarlo directamente o comprobar los ajustes."
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo"
         }
       },
+      "max_tool_calls": {
+        "label": "Llamadas Máximas de Herramientas",
+        "tip": "Número máximo de llamadas a herramientas permitidas en una sola conversación. Valores más altos permiten operaciones de múltiples pasos más complejas, pero pueden incrementar el uso de tokens y el tiempo de respuesta."
+      },
       "mcp": {
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Crea un agente para empezar",
       "create_session": "Crear una sesión",
       "select_agent": "Selecciona un agente"
     },
@@ -1358,6 +1382,7 @@
     "off": "Apagado",
     "on": "En",
     "open": "Abrir",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -1385,6 +1410,7 @@
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
+    "sessions": "Sesiones",
     "settings": "Configuración",
     "sort": {
       "pinyin": {

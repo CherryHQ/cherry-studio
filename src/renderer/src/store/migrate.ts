@@ -3318,12 +3318,45 @@ const migrateConfig = {
   },
   '203': (state: RootState) => {
     try {
-      addProvider(state, 'volcano-coding')
-      addProvider(state, 'byteplus-coding')
-      logger.info('migrate 201 success')
+      if (state.settings && state.settings.sidebarIcons) {
+        // Add 'agents' to visible icons if not already present
+        if (!state.settings.sidebarIcons.visible.includes('agents')) {
+          // Insert after 'assistants' if present, otherwise append
+          const assistantsIndex = state.settings.sidebarIcons.visible.indexOf('assistants')
+          if (assistantsIndex !== -1) {
+            state.settings.sidebarIcons.visible = [
+              ...state.settings.sidebarIcons.visible.slice(0, assistantsIndex + 1),
+              'agents',
+              ...state.settings.sidebarIcons.visible.slice(assistantsIndex + 1)
+            ]
+          } else {
+            state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'agents']
+          }
+        }
+      }
+
+      // Add 'agents' tab if not already present
+      if (state.tabs && !state.tabs.tabs.some((tab: { id: string }) => tab.id === 'agents')) {
+        const homeIndex = state.tabs.tabs.findIndex((tab: { id: string }) => tab.id === 'home')
+        const insertIndex = homeIndex !== -1 ? homeIndex + 1 : state.tabs.tabs.length
+        state.tabs.tabs.splice(insertIndex, 0, { id: 'agents', path: '/agents' })
+      }
+
+      logger.info('migrate 203 success')
       return state
     } catch (error) {
-      logger.error('migrate 201 error', error as Error)
+      logger.error('migrate 203 error', error as Error)
+      return state
+    }
+  },
+  '204': (state: RootState) => {
+    try {
+      addProvider(state, 'volcano-coding')
+      addProvider(state, 'byteplus-coding')
+      logger.info('migrate 204 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 204 error', error as Error)
       return state
     }
   }

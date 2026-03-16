@@ -38,6 +38,10 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "empty": {
+      "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
+      "title": "尚無 Agent"
+    },
     "get": {
       "error": {
         "failed": "無法取得 Agent。",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "無法列出 Agent。"
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Agent 排序失敗"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "工作階段",
       "label_other": "工作階段",
+      "reorder": {
+        "error": {
+          "failed": "無法重新排序工作階段"
+        }
+      },
       "update": {
         "error": {
           "failed": "無法更新工作階段"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "啟用 API 伺服器以使用 Agent。"
+      "enable_and_start": "啟用並啟動",
+      "enable_server": "啟用 API 伺服器以使用 Agent。",
+      "enable_server_description": "智能體功能需要啟用 API 伺服器。你可以直接啟用，或前往設定頁面進行配置。",
+      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
+      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "助手會使用大型語言模型的意圖識別能力，判斷是否需要查詢知識庫；此功能仰賴模型能力"
         }
       },
+      "max_tool_calls": {
+        "label": "最大工具呼叫次數",
+        "tip": "單次對話中允許的最大工具呼叫次數。較高的值支援更複雜的多步操作，但可能增加 Token 消耗和回應時間。"
+      },
       "mcp": {
         "description": "預設啟用的 MCP 伺服器",
         "enableFirst": "請先在 MCP 設定中啟用此伺服器",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "建立 Agent 以開始",
       "create_session": "建立工作階段",
       "select_agent": "選擇一個智能體"
     },
@@ -1358,6 +1382,7 @@
     "off": "關閉",
     "on": "開啟",
     "open": "開啟",
+    "open_in": "在 {{name}} 中開啟",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -1385,6 +1410,7 @@
     "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "已選取 {{count}} 則訊息",
+    "sessions": "會話",
     "settings": "設定",
     "sort": {
       "pinyin": {
