@@ -145,6 +145,7 @@ releaseInfo:
     ✨ New Features
     - [Agents] Added drag-and-drop manual sorting for agent and session lists
     - [Models] Added MiniMax M2.5 highspeed model support
+    - [OpenClaw] Switch to binary installation to optimize the installation experience
 
     🐛 Bug Fixes
     - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
