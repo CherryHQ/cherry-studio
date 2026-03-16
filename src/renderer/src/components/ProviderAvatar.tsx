@@ -1,14 +1,16 @@
-import { Avatar } from '@cherrystudio/ui'
-import { PoeLogo } from '@renderer/components/Icons'
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { getProviderLogo } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
-import { cn } from '@renderer/utils'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
   providerId: string
   providerName: string
+  /** CompoundIcon from registry, or custom logo URL string */
+  logo?: CompoundIcon | string
+  /** @deprecated Use logo instead */
   logoSrc?: string
   size?: number
   className?: string
@@ -24,38 +26,29 @@ interface ProviderAvatarProps {
 }
 
 export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = ({
-  providerId,
   providerName,
+  logo,
   logoSrc,
   size,
   className,
   style
 }) => {
-  // Special handling for Poe provider
-  if (providerId === 'poe') {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-full',
-          'border-[0.5px] border-[var(--color-border)]',
-          className
-        )}
-        style={{ width: size, height: size, ...style }}>
-        <PoeLogo fontSize={size ? size * 0.8 : undefined} />
-      </div>
-    )
+  // Resolve the icon: prefer `logo` prop, fall back to `logoSrc` for backwards compat
+  const resolvedLogo = logo ?? logoSrc
+
+  // If logo is a CompoundIcon, render its Avatar sub-component
+  if (resolvedLogo && typeof resolvedLogo !== 'string') {
+    const Icon = resolvedLogo as CompoundIcon
+    const resolvedSize = size ?? (style?.width as number | undefined)
+    return <Icon.Avatar size={resolvedSize} className={className} />
   }
 
-  // If logo source is provided, render image avatar
-  if (logoSrc) {
+  // If logo source is a string URL, render image avatar
+  if (typeof resolvedLogo === 'string') {
     return (
-      <Avatar
-        src={logoSrc}
-        radius="full"
-        className={cn('border-[0.5px] border-[var(--color-border)]', className)}
-        style={{ width: size, height: size, ...style }}
-        imgProps={{ draggable: false }}
-      />
+      <Avatar className={className} style={{ width: size, height: size, ...style }}>
+        <AvatarImage src={resolvedLogo} draggable={false} />
+      </Avatar>
     )
   }
 
@@ -65,18 +58,14 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
 
   return (
     <Avatar
-      radius="full"
-      className={cn('border-[0.5px] border-[var(--color-border)]', className)}
+      className={className}
       style={{
         width: size,
         height: size,
-        backgroundColor,
-        color,
         ...style
-      }}
-      getInitials={getFirstCharacter}
-      name={providerName}
-    />
+      }}>
+      <AvatarFallback style={{ backgroundColor, color }}>{getFirstCharacter(providerName)}</AvatarFallback>
+    </Avatar>
   )
 }
 
@@ -87,14 +76,14 @@ export const ProviderAvatar: React.FC<ProviderAvatarProps> = ({
   style,
   size
 }) => {
-  const systemLogoSrc = getProviderLogo(provider.id)
-  if (systemLogoSrc) {
+  const systemIcon = getProviderLogo(provider.id)
+  if (systemIcon) {
     return (
       <ProviderAvatarPrimitive
         size={size}
         providerId={provider.id}
         providerName={provider.name}
-        logoSrc={systemLogoSrc}
+        logo={systemIcon}
         className={className}
         style={style}
       />
@@ -103,23 +92,11 @@ export const ProviderAvatar: React.FC<ProviderAvatarProps> = ({
 
   const customLogo = customLogos[provider.id]
   if (customLogo) {
-    if (customLogo === 'poe') {
-      return (
-        <ProviderAvatarPrimitive
-          size={size}
-          providerId="poe"
-          providerName={provider.name}
-          className={className}
-          style={style}
-        />
-      )
-    }
-
     return (
       <ProviderAvatarPrimitive
         providerId={provider.id}
         providerName={provider.name}
-        logoSrc={customLogo}
+        logo={customLogo}
         size={size}
         className={className}
         style={style}

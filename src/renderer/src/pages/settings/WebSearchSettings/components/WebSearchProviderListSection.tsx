@@ -1,4 +1,4 @@
-import { getWebSearchProviderLogo } from '@renderer/config/webSearch/logo'
+import { WebSearchProviderIcon } from '@renderer/pages/home/Inputbar/tools/components/WebSearchQuickPanelManager'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import type { FC } from 'react'
 
@@ -20,15 +20,13 @@ const WebSearchProviderListSection: FC<Props> = ({ activeView, onSelect, provide
   return (
     <WebSearchSettingsSidebarSection title={title}>
       {providers.map((provider) => {
-        const logo = getWebSearchProviderLogo(provider.id)
-
         return (
           <WebSearchSettingsSidebarItem
             key={provider.id}
             title={provider.name}
             active={activeView === provider.id}
             onClick={() => onSelect(provider.id)}
-            icon={<img src={logo} alt={provider.name} className="size-5 rounded object-contain" />}
+            icon={<WebSearchProviderIcon pid={provider.id} />}
           />
         )
       })}

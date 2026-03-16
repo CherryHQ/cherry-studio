@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { getWebSearchProviderLogo } from '@renderer/config/webSearch/logo'
 import {
   isLocalWebSearchProvider,
   WEB_SEARCH_PROVIDER_CONFIG,
@@ -36,7 +35,6 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
   const providerConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const officialWebsite = providerConfig?.websites?.official
-  const providerLogo = getWebSearchProviderLogo(provider.id)
   const isLocalProvider = isLocalWebSearchProvider(provider)
   const needsApiKey = webSearchProviderRequiresApiKey(provider)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider)
@@ -145,7 +143,6 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       onUpdateBasicAuthUsername,
       openLocalProviderSettings,
       provider,
-      providerLogo,
       setApiHost,
       setApiKey,
       setBasicAuthPassword,
@@ -169,7 +166,6 @@ export const useWebSearchProviderSetting = (providerId: WebSearchProviderId) => 
       onUpdateBasicAuthUsername,
       openLocalProviderSettings,
       provider,
-      providerLogo,
       supportsBasicAuth
     ]
   )

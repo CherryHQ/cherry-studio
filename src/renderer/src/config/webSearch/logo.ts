@@ -1,25 +1,31 @@
-import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
-import BingLogo from '@renderer/assets/images/search/bing.svg'
-import BochaLogo from '@renderer/assets/images/search/bocha.webp'
-import ExaLogo from '@renderer/assets/images/search/exa.png'
-import GoogleLogo from '@renderer/assets/images/search/google.svg'
-import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
-import TavilyLogo from '@renderer/assets/images/search/tavily.png'
-import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Baidu, Bing, Bocha, Exa, Google, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchProviderId } from '@renderer/types'
 
-export const WEB_SEARCH_PROVIDER_LOGOS: Record<WebSearchProviderId, string> = {
-  zhipu: ZhipuLogo,
-  tavily: TavilyLogo,
-  searxng: SearxngLogo,
-  exa: ExaLogo,
-  'exa-mcp': ExaLogo,
-  bocha: BochaLogo,
-  'local-google': GoogleLogo,
-  'local-bing': BingLogo,
-  'local-baidu': BaiduLogo
-}
-
-export const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
-  return WEB_SEARCH_PROVIDER_LOGOS[providerId]
+/**
+ * Resolve the CompoundIcon for a given web search provider ID.
+ * Centralised here so every UI surface uses the same mapping.
+ */
+export function getWebSearchProviderLogo(providerId: WebSearchProviderId): CompoundIcon | undefined {
+  switch (providerId) {
+    case 'zhipu':
+      return Zhipu
+    case 'tavily':
+      return Tavily
+    case 'searxng':
+      return Searxng
+    case 'exa':
+    case 'exa-mcp':
+      return Exa
+    case 'bocha':
+      return Bocha
+    case 'local-google':
+      return Google
+    case 'local-bing':
+      return Bing
+    case 'local-baidu':
+      return Baidu
+    default:
+      return undefined
+  }
 }

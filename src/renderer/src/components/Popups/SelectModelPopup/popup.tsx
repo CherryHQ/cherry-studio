@@ -1,7 +1,7 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
@@ -125,11 +125,16 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
             <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
-        icon: (
-          <Avatar src={getModelLogo(model)} size="xs">
-            {first(model.name) || 'M'}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogo(model)
+          return Icon ? (
+            <Icon.Avatar size={20} />
+          ) : (
+            <Avatar size="sm">
+              <AvatarFallback>{first(model.name) || 'M'}</AvatarFallback>
+            </Avatar>
+          )
+        })(),
         model,
         isPinned,
         isSelected: modelId === currentModelId

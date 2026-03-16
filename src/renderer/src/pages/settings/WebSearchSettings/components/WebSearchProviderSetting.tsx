@@ -1,3 +1,4 @@
+import { WebSearchProviderIcon } from '@renderer/pages/home/Inputbar/tools/components/WebSearchQuickPanelManager'
 import type { WebSearchProviderId } from '@renderer/types'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +36,6 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     onUpdateBasicAuthUsername,
     openLocalProviderSettings,
     provider,
-    providerLogo,
     setApiHost,
     setApiKey,
     setBasicAuthPassword,
@@ -46,7 +46,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <>
       <WebSearchSettingsPanelHeader
-        icon={<WebSearchProviderHeader logo={providerLogo} name={provider.name} compact />}
+        icon={
+          <WebSearchProviderHeader
+            logo={<WebSearchProviderIcon pid={provider.id} size={24} />}
+            name={provider.name}
+            compact
+          />
+        }
         title={provider.name}
         subtitle={
           isLocalProvider ? t('settings.tool.websearch.local_providers') : t('settings.tool.websearch.api_providers')

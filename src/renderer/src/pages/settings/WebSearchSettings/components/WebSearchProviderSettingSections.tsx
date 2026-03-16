@@ -10,14 +10,14 @@ import {
 import { cn } from '@renderer/utils'
 import { formatApiKeys } from '@renderer/utils'
 import { Check, ExternalLink, Eye, EyeOff } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { WebSearchSettingsField, WebSearchSettingsHint, WebSearchSettingsSection } from './WebSearchSettingsLayout'
 
 interface HeaderProps {
-  logo?: string
+  logo?: ReactNode
   name?: string
   className?: string
   compact?: boolean
@@ -27,7 +27,7 @@ export const WebSearchProviderHeader: FC<HeaderProps> = ({ className, compact, l
   return (
     <div
       className={cn('flex items-center justify-center text-foreground', compact ? 'gap-0' : 'gap-3 px-0', className)}>
-      <img src={logo} alt={name} className={compact ? 'size-6 object-contain' : 'size-9 rounded-lg object-contain'} />
+      {logo}
       {!compact && <span className="truncate font-semibold text-base text-foreground">{name}</span>}
     </div>
   )

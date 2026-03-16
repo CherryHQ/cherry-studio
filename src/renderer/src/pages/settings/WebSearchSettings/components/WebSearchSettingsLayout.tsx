@@ -149,7 +149,7 @@ export const WebSearchSettingsPanelHeader = ({ actions, icon, subtitle, title }:
     <div className="mb-5 flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2.5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xs bg-foreground/4 text-foreground">
-          {icon}
+          {icon && <span className="flex shrink-0 items-center justify-center text-foreground">{icon}</span>}
         </div>
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-[13px] text-foreground">{title}</h3>
