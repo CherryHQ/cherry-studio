@@ -399,14 +399,18 @@ class OpenClawService {
     const proc = spawn(openclawPath, args, {
       env: shellEnv,
       detached: !isWin, // Only detach on non-Windows to avoid console flash
-      stdio: ['ignore', 'ignore', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
+    let stdoutOutput = ''
     let stderrOutput = ''
+    proc.stdout?.on('data', (data) => {
+      stdoutOutput += data.toString()
+    })
     proc.stderr?.on('data', (data) => {
       stderrOutput += data.toString()
     })
@@ -414,10 +418,16 @@ class OpenClawService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
+      // Capture output from both streams for diagnostics
+      const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
+      const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
       if (code !== 0) {
-        // Extract the most useful line from stderr for the error message
-        const detail = stderrOutput.trim().split('\n').filter(Boolean).slice(0, 3).join('\n')
         earlyExitError = detail || `gateway exited with code ${code}`
+      } else {
+        // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
+        earlyExitError = detail
+          ? `gateway exited with code 0 but output: ${detail}`
+          : 'gateway process exited with code 0 before becoming healthy'
       }
     })
 
@@ -446,7 +456,15 @@ class OpenClawService {
       if (healthError) lastError = healthError
     }
 
-    const detail = lastError ? `\n${lastError}` : ''
+    // Combine all available diagnostics: health check errors, stderr, and stdout
+    const diagnostics = [
+      lastError ? `health: ${lastError}` : '',
+      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
+      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const detail = diagnostics ? `\n${diagnostics}` : ''
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
@@ -904,10 +922,9 @@ class OpenClawService {
    */
   public async getChannelStatus(): Promise<ChannelInfo[]> {
     try {
-      const response = await fetch(`http://localhost:${this.gatewayPort}/api/channels`, {
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/api/channels`, {
         signal: AbortSignal.timeout(5000)
       })
-
       if (response.ok) {
         const data = await response.json()
         return data.channels || []
