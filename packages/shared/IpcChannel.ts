@@ -93,6 +93,7 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
@@ -411,21 +412,18 @@ export enum IpcChannel {
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',
-  OpenClaw_CheckNodeVersion = 'openclaw:check-node-version',
-  OpenClaw_CheckGitAvailable = 'openclaw:check-git-available',
-  OpenClaw_GetNodeDownloadUrl = 'openclaw:get-node-download-url',
-  OpenClaw_GetGitDownloadUrl = 'openclaw:get-git-download-url',
   OpenClaw_Install = 'openclaw:install',
   OpenClaw_Uninstall = 'openclaw:uninstall',
   OpenClaw_InstallProgress = 'openclaw:install-progress',
   OpenClaw_StartGateway = 'openclaw:start-gateway',
   OpenClaw_StopGateway = 'openclaw:stop-gateway',
-  OpenClaw_RestartGateway = 'openclaw:restart-gateway',
   OpenClaw_GetStatus = 'openclaw:get-status',
   OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
   OpenClaw_GetChannels = 'openclaw:get-channels',
+  OpenClaw_CheckUpdate = 'openclaw:check-update',
+  OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage'

@@ -16,6 +16,7 @@ import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway } from 'ai'
 
@@ -39,6 +40,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
   // topicId for tracing
   topicId?: string
   callType: string
+  idleTimeout?: IdleTimeoutHandle
 }
 
 export default class ModernAiProvider {
@@ -136,6 +138,10 @@ export default class ModernAiProvider {
     }
   }
 
+  /**
+   * Note: This method routes text completions through `modernCompletions`,
+   * which only calls `streamText` (no `generateText` path).
+   */
   public async completions(modelId: string, params: StreamTextParams, middlewareConfig: ModernAiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
@@ -298,6 +304,10 @@ export default class ModernAiProvider {
   /**
    * 使用现代化AI SDK的completions实现
    */
+  /**
+   * Note: This implementation always uses `executor.streamText` and never
+   * calls `generateText`, even when `onChunk` is not provided.
+   */
   private async modernCompletions(
     modelId: string,
     params: StreamTextParams,
@@ -324,7 +334,11 @@ export default class ModernAiProvider {
         middlewareConfig.onChunk,
         middlewareConfig.mcpTools,
         accumulate,
-        middlewareConfig.enableWebSearch
+        middlewareConfig.enableWebSearch,
+        undefined,
+        undefined,
+        providerConfig.providerId,
+        middlewareConfig.idleTimeout
       )
 
       const streamResult = await executor.streamText({

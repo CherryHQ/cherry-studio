@@ -140,33 +140,44 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.22 - Bug Fixes & Improvements
+    Cherry Studio 1.8.0 - Agents & Performance
+
+    ✨ New Features
+    - [Agents] Added drag-and-drop manual sorting for agent and session lists
+    - [Models] Added MiniMax M2.5 highspeed model support
+    - [OpenClaw] Switch to binary installation to optimize the installation experience
 
     🐛 Bug Fixes
-    - [Models] Fix qwen3.5-flash thinking budget configuration by correcting regex typo
-    - [Ollama] Fix reasoning order in stream responses
-    - [Notes] Fix export failure when restoring from cloud backup without opening Notes page first
-    - [Chat] Abort translation API call when closing message translation
-    - [Chat] Disable translate button when message sending is disabled
-    - [Agent] Clear attached files after sending message in agent session input bar
-    - [Export] Filter hidden elements when exporting messages as images
-    - [Settings] Remove extra divider in settings page
+    - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
+    - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
+    - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
+    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
+    - [Gateway] Improved gateway startup error messages with detailed diagnostics
+    - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
 
-    🔒 Security
-    - [MCP] Upgrade @modelcontextprotocol/sdk to 1.27.1 to fix security vulnerability (GHSA-8r9q-7v3j-jr4g)
+    💄 Improvements
+    - [Agents] Added configurable maximum tool calls setting (1-100) in assistant settings
+    - [UI] Added Windows Mica effect for better visual integration
+    - [Performance] Increased default request timeout from 10 to 30 minutes for slow local models
+
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.22 - 问题修复与改进
+    Cherry Studio 1.8.0 - 智能体与性能
+
+    ✨ 新功能
+    - [智能体] 新增智能体和会话列表的拖拽排序功能
+    - [模型] 新增 MiniMax M2.5 高速模型支持
+    - [OpenClaw] 改为二进制安装优化安装体验
 
     🐛 问题修复
-    - [模型] 修复 qwen3.5-flash thinking budget 配置，更正正则表达式拼写错误
-    - [Ollama] 修复流式响应中推理内容的排序问题
-    - [笔记] 修复从云端恢复备份后，未打开笔记页面时导出笔记失败的问题
-    - [聊天] 关闭消息翻译时中止 API 调用
-    - [聊天] 消息发送禁用时禁用翻译按钮
-    - [Agent] 修复 Agent 会话发送消息后附件未清除的问题
-    - [导出] 导出消息为图片时过滤隐藏元素
-    - [设置] 移除设置页面多余的分隔线
+    - [智能体] 修复删除最后一个可访问目录的漏洞 - 只剩一个目录时禁用删除按钮
+    - [UI] 修复本地模型（如 Ollama）聊天工具栏中不显示网络搜索选项的问题
+    - [模型] 修复部分 OpenAI 兼容服务商的推理努力和摘要模式设置不生效的问题
+    - [OpenClaw] 修复OpenClaw网关状态检测无法识别崩溃/外部停止的OpenClaw网关的问题
+    - [网关] 改进网关启动错误消息，提供详细诊断信息
+    - [Poe] 修复启用内置搜索时 web_search 参数未正确传递的问题
 
-    🔒 安全更新
-    - [MCP] 升级 @modelcontextprotocol/sdk 至 1.27.1 修复安全漏洞 (GHSA-8r9q-7v3j-jr4g)
+    💄 改进
+    - [智能体] 新增助手设置中的最大工具调用次数配置（1-100）
+    - [UI] 新增 Windows Mica 效果以提升视觉体验
+    - [性能] 将默认请求超时从 10 分钟增加到 30 分钟，优化慢速本地模型体验
     <!--LANG:END-->

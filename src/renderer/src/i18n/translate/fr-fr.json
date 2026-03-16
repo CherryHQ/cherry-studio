@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalide"
       },
       "model": {
-        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent."
+        "supported_providers": "Fournisseurs pris en charge",
+        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent.",
+        "view_providers": "Afficher les fournisseurs pris en charge"
       },
       "title": "Ajouter un agent",
       "type": {
@@ -35,6 +37,10 @@
     },
     "edit": {
       "title": "Éditer Agent"
+    },
+    "empty": {
+      "description": "Créez un agent pour gérer des tâches complexes avec des outils alimentés par l'IA",
+      "title": "Pas encore d'agents"
     },
     "get": {
       "error": {
@@ -77,6 +83,11 @@
         "failed": "Échec de la liste des agents."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Échec du réordonnancement des agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "Le serveur API est activé mais ne fonctionne pas correctement."
@@ -85,6 +96,7 @@
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
+        "default_hint": "Défaut : {{path}}",
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
         "error": {
@@ -126,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Séances",
+      "reorder": {
+        "error": {
+          "failed": "Échec du réordonnancement des sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"
@@ -134,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Définir des variables d’environnement personnalisées pour l’exécution de l’agent.",
+          "helper": "Entrez des variables d'environnement personnalisées (une par ligne, format : CLÉ=valeur)",
+          "label": "Variables d'environnement"
+        },
         "maxTurns": {
           "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
           "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
@@ -283,10 +305,11 @@
         },
         "tab": "Outils",
         "tools": {
-          "title": "Outils"
+          "title": "Outils pré-approuvés"
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tâches terminées"
@@ -387,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Permettre au serveur API d'utiliser des agents."
+      "enable_and_start": "Activer & Démarrer",
+      "enable_server": "Permettre au serveur API d'utiliser des agents.",
+      "enable_server_description": "Le serveur API doit être activé pour que les agents fonctionnent. Vous pouvez l'activer directement ou le configurer dans les paramètres.",
+      "server_not_running": "Le serveur API est activé mais ne fonctionne pas. Veuillez vérifier la configuration du serveur.",
+      "server_not_running_description": "Le serveur API doit être en cours d'exécution pour que les agents fonctionnent. Vous pouvez le démarrer directement ou vérifier les paramètres."
     }
   },
   "apiServer": {
@@ -613,6 +640,10 @@
           "tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle"
         }
       },
+      "max_tool_calls": {
+        "label": "Maximiser les appels d'outils",
+        "tip": "Nombre maximum d'appels d'outils autorisés dans une seule conversation. Des valeurs plus élevées permettent des opérations multi-étapes plus complexes, mais peuvent augmenter l'utilisation de tokens et le temps de réponse."
+      },
       "mcp": {
         "description": "Serveur MCP activé par défaut",
         "enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
@@ -741,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Créer un agent pour commencer",
       "create_session": "Créer une session",
       "select_agent": "Sélectionnez un agent"
     },
@@ -1350,6 +1382,7 @@
     "off": "Désactivé",
     "on": "Marche",
     "open": "Ouvrir",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -1377,6 +1410,7 @@
     "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
+    "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
       "pinyin": {
@@ -1486,7 +1520,6 @@
     "originalError": "Erreur d'origine",
     "originalMessage": "message original",
     "parameter": "paramètre",
-    "pause_placeholder": "Прервано",
     "prompt": "mot-clé",
     "provider": "fournisseur",
     "providerId": "ID du fournisseur",
@@ -1500,6 +1533,7 @@
     "requestBody": "Contenu de la demande",
     "requestBodyValues": "Corps de la requête",
     "requestUrl": "Chemin de la requête",
+    "request_timeout": "Délai d'attente de la requête dépassé",
     "response": "réponse",
     "responseBody": "Contenu de la réponse",
     "responseHeaders": "En-têtes de réponse",
@@ -1509,6 +1543,7 @@
     "status": "Code d'état",
     "statusCode": "Code d'état",
     "statusText": "Texte d'état",
+    "stream_paused": "Interrompu",
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
@@ -2146,6 +2181,7 @@
     "tools": {
       "abort_failed": "Échec de l'interruption de l'appel de l'outil",
       "aborted": "Appel de l'outil interrompu",
+      "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",
       "completed": "Terminé",
@@ -2281,8 +2317,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2520,6 +2559,9 @@
   "notification": {
     "assistant": "Réponse de l'assistant",
     "knowledge": {
+      "batch_error": "{{failed}} éléments n'ont pas pu être traités",
+      "batch_mixed": "{{succeeded}} éléments ont réussi, {{failed}} éléments ont échoué",
+      "batch_success": "{{succeeded}} éléments traités avec succès",
       "error": "{{error}}",
       "success": "{{type}} ajouté avec succès à la base de connaissances"
     },
@@ -2579,6 +2621,11 @@
     },
     "install_progress": "Progression de l'installation",
     "installed_at": "OpenClaw installé à",
+    "migration": {
+      "description": "Une version obsolète d’OpenClaw installée via npm a été détectée. Veuillez réinstaller pour obtenir la dernière version officielle.",
+      "install_button": "Réinstaller OpenClaw",
+      "title": "OpenClaw nécessite une mise à jour"
+    },
     "model_config": {
       "auth_token": "Jeton d'authentification",
       "auth_token_hint": "Jeton d'authentification de la passerelle. Laissez vide pour désactiver l'authentification.",
@@ -2614,6 +2661,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Vérifier les mises à jour",
       "open_dashboard": "Ouvrir le tableau de bord",
       "title": "Actions rapides",
       "uninstall": "Désinstaller",
@@ -2640,6 +2688,16 @@
     "uninstalling": {
       "description": "Veuillez patienter pendant la désinstallation d'OpenClaw...",
       "title": "Désinstallation d'OpenClaw"
+    },
+    "update": {
+      "available": "Nouvelle version disponible : v{{latest}} (actuelle : v{{current}})",
+      "checking": "Vérification des mises à jour...",
+      "confirm_button": "Mettre à jour maintenant",
+      "failed": "Échec de la vérification des mises à jour",
+      "modal_title": "Mise à jour d'OpenClaw",
+      "success": "Mise à jour terminée avec succès !",
+      "up_to_date": "Déjà à jour (v{{current}})",
+      "updating": "Mise à jour..."
     }
   },
   "ovms": {
@@ -2957,7 +3015,9 @@
     "no_description": "Sans description",
     "no_installed_plugins": "Aucun plugin n’est encore installé",
     "no_results": "Aucun plugin trouvé",
+    "no_results_skills": "Aucune compétence trouvée",
     "search_placeholder": "Rechercher des modules d'extension...",
+    "search_placeholder_skills": "Compétences de recherche...",
     "showing_results": "Afficher {{count}} extensions",
     "showing_results_one": "Afficher {{count}} modules d’extension",
     "showing_results_other": "Afficher {{count}} modules d'extension",
@@ -3038,7 +3098,8 @@
     "lmstudio": "Studio LM",
     "longcat": "Mon voisin Totoro",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
     "moonshot": "Face Sombre de la Lune",
@@ -3066,6 +3127,7 @@
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
+    "zai": "Z.ai",
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
   },
@@ -4850,6 +4912,7 @@
         "logout_failed": "Échec de la déconnexion, veuillez réessayer",
         "logout_success": "Déconnexion réussie d'Anthropic",
         "oauth": "Authentification OAuth web",
+        "oauth_disabled_warning": "Anthropic a temporairement suspendu l'utilisation de Claude via OAuth. Cette méthode d'authentification est actuellement indisponible. Veuillez utiliser une clé API pour le moment.",
         "start_auth": "Commencer l'autorisation",
         "submit_code": "Terminer la connexion"
       },
@@ -5010,6 +5073,11 @@
       },
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
+      "filter": {
+        "agent": "Prise en charge par un agent",
+        "all": "Tous les fournisseurs"
+      },
+      "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
       "misc": "autre",
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",

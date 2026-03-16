@@ -2,13 +2,7 @@
   "name": "@cherrystudio/ai-sdk-provider",
   "version": "0.1.5",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
-  "keywords": [
-    "ai-sdk",
-    "provider",
-    "cherryin",
-    "vercel-ai-sdk",
-    "cherry-studio"
-  ],
+  "keywords": ["ai-sdk", "provider", "cherryin", "vercel-ai-sdk", "cherry-studio"],
   "author": "Cherry Studio",
   "license": "MIT",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
@@ -24,9 +18,7 @@
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.mts",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsdown",
     "dev": "tsc -w",

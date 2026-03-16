@@ -9,7 +9,7 @@ import {
   type ListOptions,
   type UpdateSessionRequest
 } from '@types'
-import { and, count, desc, eq, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
@@ -126,12 +126,20 @@ export class SessionService extends BaseService {
       mcps: serializedData.mcps || null,
       allowed_tools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
+      sort_order: 0,
       created_at: now,
       updated_at: now
     }
 
     const db = await this.getDatabase()
-    await db.insert(sessionsTable).values(insertData)
+    // Shift all existing sessions' sort_order up by 1 and insert new session at position 0 atomically
+    await db.transaction(async (tx) => {
+      await tx
+        .update(sessionsTable)
+        .set({ sort_order: sql`${sessionsTable.sort_order} + 1` })
+        .where(eq(sessionsTable.agent_id, agentId))
+      await tx.insert(sessionsTable).values(insertData)
+    })
 
     const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
@@ -192,8 +200,12 @@ export class SessionService extends BaseService {
 
     const total = totalResult[0].count
 
-    // Build list query with pagination - sort by updated_at descending (latest first)
-    const baseQuery = database.select().from(sessionsTable).where(whereClause).orderBy(desc(sessionsTable.updated_at))
+    // Build list query with pagination - sort by sort_order ASC, created_at DESC for tie-breaking
+    const baseQuery = database
+      .select()
+      .from(sessionsTable)
+      .where(whereClause)
+      .orderBy(asc(sessionsTable.sort_order), desc(sessionsTable.created_at))
 
     const result =
       options.limit !== undefined
@@ -230,7 +242,10 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
-      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
+      if (updates.accessible_paths.length === 0) {
+        throw new Error('accessible_paths must not be empty')
+      }
+      updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, existing.agent_id)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
@@ -271,6 +286,19 @@ export class SessionService extends BaseService {
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
     return result.rowsAffected > 0
+  }
+
+  async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const database = await this.getDatabase()
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx
+          .update(sessionsTable)
+          .set({ sort_order: i })
+          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agent_id, agentId)))
+      }
+    })
+    logger.info('Sessions reordered', { agentId, count: orderedIds.length })
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {
