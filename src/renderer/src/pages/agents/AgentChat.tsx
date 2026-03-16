@@ -93,7 +93,7 @@ const AgentChat = () => {
           </div>
 
           {/* Messages */}
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto">
+          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
             <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
