@@ -26,6 +26,23 @@ describe('FileProcessorTemplatesSchema', () => {
     expect(() => FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)).not.toThrow()
   })
 
+  it('rejects processor-level metadata', () => {
+    const result = FileProcessorTemplateSchema.safeParse({
+      id: 'paddleocr',
+      type: 'api',
+      metadata: {},
+      capabilities: [
+        {
+          feature: 'text_extraction',
+          inputs: [FILE_TYPE.IMAGE],
+          output: FILE_TYPE.TEXT
+        }
+      ]
+    })
+
+    expect(result.success).toBe(false)
+  })
+
   it('rejects duplicate features in a single processor template', () => {
     const result = FileProcessorTemplateSchema.safeParse({
       id: 'paddleocr',

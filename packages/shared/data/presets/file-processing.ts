@@ -48,12 +48,6 @@ const FileProcessorTextOutputSchema = FileTypeSchema.extract([FILE_TYPE.TEXT])
 export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema, z.literal('markdown')])
 
 /**
- * Processor metadata (reserved for future use)
- */
-export const FileProcessorMetadataSchema = z.record(z.string(), z.never())
-export type FileProcessorMetadata = z.infer<typeof FileProcessorMetadataSchema>
-
-/**
  * Feature capability definition
  *
  * Each capability binds a feature with its supported inputs, output, and optional API settings.
@@ -116,7 +110,6 @@ export const FileProcessorTemplateSchema = z
   .object({
     id: FileProcessorIdSchema,
     type: FileProcessorTypeSchema,
-    metadata: FileProcessorMetadataSchema.optional(),
     capabilities: z.array(FeatureCapabilitySchema).min(1)
   })
   .strict()
