@@ -298,7 +298,7 @@ export async function buildStreamTextParams(
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
     webSearchPluginConfig,
-    idleTimeout: { reset: idleTimeout.reset, cleanup: idleTimeout.cleanup }
+    idleTimeout
   }
 }
 
