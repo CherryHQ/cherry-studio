@@ -3,6 +3,7 @@
  * 处理温度、TopP、超时等基础参数的获取逻辑
  */
 
+import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
@@ -17,10 +18,12 @@ import {
   getAssistantSettings,
   getProviderByModel
 } from '@renderer/services/AssistantService'
-import type { Assistant, Model } from '@renderer/types'
+import { type Assistant, type Model } from '@renderer/types'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import { getThinkingBudget } from '../utils/reasoning'
+
+const logger = loggerService.withContext('modelParameters')
 
 /**
  * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
@@ -28,10 +31,20 @@ import { getThinkingBudget } from '../utils/reasoning'
  * - Disabled for models that do not support temperature.
  * - Disabled for Claude 4.5 reasoning models when TopP is enabled and temperature is disabled.
  * Otherwise, returns the temperature value if the assistant has temperature enabled.
-
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
-  if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
+  const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
+  if (!enableTemperature) {
+    return undefined
+  }
+
+  // Thinking isn't compatible with temperature or top_k modifications as well as forced tool use.
+  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+  if (
+    assistant.settings?.reasoning_effort &&
+    assistant.settings.reasoning_effort !== 'default' &&
+    isClaudeReasoningModel(model)
+  ) {
     return undefined
   }
 
@@ -39,27 +52,18 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
 
-  if (
-    isTemperatureTopPMutuallyExclusiveModel(model) &&
-    assistant.settings?.enableTopP &&
-    !assistant.settings?.enableTemperature
-  ) {
-    return undefined
-  }
+  let temperature = assistant.settings?.temperature ?? DEFAULT_ASSISTANT_SETTINGS.temperature
 
-  return getTemperatureValue(assistant, model)
-}
-
-function getTemperatureValue(assistant: Assistant, model: Model): number | undefined {
-  const assistantSettings = getAssistantSettings(assistant)
-  let temperature = assistantSettings?.temperature
-  if (temperature && isMaxTemperatureOneModel(model)) {
+  if (isMaxTemperatureOneModel(model)) {
     temperature = Math.min(1, temperature)
   }
 
-  // FIXME: assistant.settings.enableTemperature should be always a boolean value.
-  const enableTemperature = assistantSettings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
-  return enableTemperature ? temperature : undefined
+  // Use temperature if topP is enabled and model only accepts one of the two
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTopP) {
+    logger.warn(`Model ${model.id} only accepts one of temperature and topP, using temperature instead`)
+  }
+
+  return temperature
 }
 
 /**
@@ -70,24 +74,29 @@ function getTemperatureValue(assistant: Assistant, model: Model): number | undef
  * Otherwise, returns the TopP value if the assistant has TopP enabled.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
-  if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
+  const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
+  if (!enableTopP) {
+    return undefined
+  }
+
+  // Thinking isn't compatible with temperature or top_k modifications as well as forced tool use.
+  // See: https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility
+  if (
+    assistant.settings?.reasoning_effort &&
+    assistant.settings.reasoning_effort !== 'default' &&
+    isClaudeReasoningModel(model)
+  ) {
     return undefined
   }
   if (!isSupportTopPModel(model, assistant)) {
     return undefined
   }
   if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
+    logger.warn(`Model ${model.id} only accepts one of temperature and topP. Drop topP and use temperature instead`)
     return undefined
   }
 
-  return getTopPValue(assistant)
-}
-
-function getTopPValue(assistant: Assistant): number | undefined {
-  const assistantSettings = getAssistantSettings(assistant)
-  // FIXME: assistant.settings.enableTopP should be always a boolean value.
-  const enableTopP = assistantSettings.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
-  return enableTopP ? assistantSettings?.topP : undefined
+  return assistant.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP
 }
 
 /**
