@@ -137,7 +137,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
           return result
         } catch (error) {
           clearTimeout(timeoutId)
-          logger.warn(`Failed to fetch ${item.url} after ${timeoutMs}ms`, error)
+          logger.warn(`Failed to fetch ${item.url} after ${timeoutMs}ms`, error as Error)
           return {
             title: item.title || 'Error',
             content: noContent,
