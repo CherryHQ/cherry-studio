@@ -27,7 +27,9 @@ export async function installBuiltinSkills(): Promise<void> {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
 
+    // Guard against path traversal (e.g. entry.name containing "..")
     const destPath = path.join(destSkillsPath, entry.name)
+    if (!destPath.startsWith(destSkillsPath + path.sep)) continue
     try {
       await fs.access(destPath)
       continue
