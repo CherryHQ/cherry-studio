@@ -1,8 +1,7 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { Center, ColFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useNavigate } from '@tanstack/react-router'
 import { Alert } from 'antd'
 import type { FC } from 'react'
@@ -17,9 +16,8 @@ interface Props {
 }
 
 const InstallNpxUv: FC<Props> = ({ mini = false }) => {
-  const dispatch = useAppDispatch()
-  const isUvInstalled = useAppSelector((state) => state.mcp.isUvInstalled)
-  const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
+  const [isUvInstalled, setIsUvInstalled] = usePersistCache('mcp.is_uv_installed')
+  const [isBunInstalled, setIsBunInstalled] = usePersistCache('mcp.is_bun_installed')
 
   const [isInstallingUv, setIsInstallingUv] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -42,19 +40,19 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     const bunExists = await window.api.isBinaryExist('bun')
     const { uvPath, bunPath, dir } = await window.api.mcp.getInstallInfo()
 
-    dispatch(setIsUvInstalled(uvExists))
-    dispatch(setIsBunInstalled(bunExists))
+    setIsUvInstalled(uvExists)
+    setIsBunInstalled(bunExists)
     setUvPath(uvPath)
     setBunPath(bunPath)
     setBinariesDir(dir)
-  }, [dispatch])
+  }, [setIsUvInstalled, setIsBunInstalled])
 
   const installUV = async () => {
     try {
       setIsInstallingUv(true)
       await window.api.installUVBinary()
       setIsInstallingUv(false)
-      dispatch(setIsUvInstalled(true))
+      setIsUvInstalled(true)
     } catch (error: any) {
       window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingUv(false)
@@ -68,7 +66,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
       setIsInstallingBun(false)
-      dispatch(setIsBunInstalled(true))
+      setIsBunInstalled(true)
     } catch (error: any) {
       window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingBun(false)
