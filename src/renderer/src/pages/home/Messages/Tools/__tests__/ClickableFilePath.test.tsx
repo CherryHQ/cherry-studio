@@ -73,7 +73,7 @@ describe('ClickableFilePath', () => {
 
   it('should render ellipsis dropdown trigger', () => {
     render(<ClickableFilePath path="/tmp/test.ts" />)
-    expect(document.querySelector('.anticon-ellipsis')).toBeInTheDocument()
+    expect(document.querySelector('.anticon-more')).toBeInTheDocument()
   })
 
   it('should have role="link" and tabIndex for keyboard accessibility', () => {

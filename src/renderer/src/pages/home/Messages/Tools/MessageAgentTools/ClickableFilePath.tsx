@@ -1,8 +1,8 @@
-import { EllipsisOutlined } from '@ant-design/icons'
+import { MoreOutlined } from '@ant-design/icons'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import { Dropdown, type MenuProps } from 'antd'
+import { Dropdown, type MenuProps, Tooltip } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,21 +83,25 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   return (
     <span className="inline-flex items-center gap-0.5">
-      <span
-        role="link"
-        tabIndex={0}
-        onClick={handleOpen}
-        onKeyDown={handleKeyDown}
-        className="cursor-pointer hover:underline"
-        style={{ color: 'var(--color-link)', wordBreak: 'break-all' }}>
-        {displayName ?? path}
-      </span>
+      <Tooltip title={path} mouseEnterDelay={0.5}>
+        <span
+          role="link"
+          tabIndex={0}
+          onClick={handleOpen}
+          onKeyDown={handleKeyDown}
+          className="cursor-pointer hover:underline"
+          style={{ color: 'var(--color-link)', wordBreak: 'break-all' }}>
+          {displayName ?? path}
+        </span>
+      </Tooltip>
       <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-        <EllipsisOutlined
-          onClick={(e) => e.stopPropagation()}
-          className="cursor-pointer rounded px-0.5 opacity-60 hover:bg-black/10 hover:opacity-100"
-          style={{ color: 'var(--color-link)', fontSize: '14px' }}
-        />
+        <Tooltip title={t('common.more')} mouseEnterDelay={0.5}>
+          <MoreOutlined
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-pointer rounded px-0.5 opacity-60 hover:bg-black/10 hover:opacity-100"
+            style={{ color: 'var(--color-link)', fontSize: '14px' }}
+          />
+        </Tooltip>
       </Dropdown>
     </span>
   )
