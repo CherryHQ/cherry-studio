@@ -113,5 +113,28 @@ describe('FileProcessingService', () => {
         }
       })
     })
+
+    it('should not persist overrides when processor does not exist', async () => {
+      const existingOverrides = {
+        paddleocr: {
+          apiKeys: ['existing-key'],
+          capabilities: {
+            markdown_conversion: {
+              modelId: 'existing-model'
+            }
+          }
+        }
+      }
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', existingOverrides)
+
+      await expect(
+        fileProcessingService.updateProcessor('missing-processor' as never, {
+          apiKeys: ['invalid-key']
+        })
+      ).rejects.toThrow("File processor with id 'missing-processor' not found")
+
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')).toEqual(existingOverrides)
+    })
   })
 })

@@ -71,13 +71,13 @@ export class FileProcessingService {
   }
 
   public async updateProcessor(id: FileProcessorId, updates: FileProcessorOverride): Promise<FileProcessorMerged> {
+    this.getPresetById(id)
+
     const overrides = this.getOverrides()
     const nextOverrides: FileProcessorOverrides = {
       ...overrides,
       [id]: mergeProcessorOverrides(overrides[id], updates)
     }
-
-    this.getPresetById(id)
 
     await preferenceService.set('file_processing.overrides', nextOverrides)
 
