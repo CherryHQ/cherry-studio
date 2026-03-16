@@ -4,7 +4,7 @@ import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGI
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Button, Dropdown, type MenuProps, Space } from 'antd'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OpenExternalAppButton')
@@ -37,17 +37,24 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
+      const encodedPath = workdir.split(/[/\\]/).map(encodeURIComponent).join('/')
       switch (app.id) {
         case 'vscode':
-        case 'cursor':
-        case 'zed':
+        case 'cursor': {
           // https://code.visualstudio.com/docs/configure/command-line#_opening-vs-code-with-urls
-          // cursor and zed are just same with vscode
-          const encodedPath = workdir.split(/[/\\]/).map(encodeURIComponent).join('/')
           // https://github.com/microsoft/vscode/issues/141548#issuecomment-1102200617
           const appUrl = `${app.protocol}file/${encodedPath}?windowId=_blank`
           window.open(appUrl)
           break
+        }
+        case 'zed': {
+          // https://github.com/zed-industries/zed/issues/8482
+          // Zed parses URLs by stripping "zed://file" prefix, so the format is
+          // zed://file/absolute/path (no extra "/" between "file" and path, no query params)
+          const appUrl = `${app.protocol}file${encodedPath}`
+          window.open(appUrl)
+          break
+        }
         default:
           logger.error(`Unexpected Error: External app not found: ${app.id}`)
           window.toast.error(`Unexpected Error: External app not found: ${app.id}`)
@@ -56,6 +63,12 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     [workdir]
   )
 
+  const [selectedEditorId, setSelectedEditorId] = useState<string | null>(null)
+
+  const selectedEditor = useMemo(() => {
+    return availableEditors.find((app) => app.id === selectedEditorId) ?? availableEditors[0]
+  }, [availableEditors, selectedEditorId])
+
   const handleMenuClick: MenuProps['onClick'] = (e) => {
     const config = availableEditors.find((app) => app.id === e.key)
     if (!config) {
@@ -63,6 +76,7 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
       window.toast.error(`Unexpected Error: External app not found: ${e.key}`)
       return
     }
+    setSelectedEditorId(config.id)
     openInEditor(config)
   }
 
@@ -75,13 +89,13 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     onClick: handleMenuClick
   }
 
-  if (availableEditors.length === 0) {
+  if (availableEditors.length === 0 || !selectedEditor) {
     return null
   }
 
   return (
     <Space.Compact className={className}>
-      <Button onClick={() => openInEditor(availableEditors[0])} icon={getEditorIcon(availableEditors[0])}>
+      <Button onClick={() => openInEditor(selectedEditor)} icon={getEditorIcon(selectedEditor)}>
         {t('common.open')}
       </Button>
       <Dropdown menu={menuProps} placement="bottomRight">
