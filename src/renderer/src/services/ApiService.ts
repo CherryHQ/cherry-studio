@@ -244,8 +244,7 @@ export async function fetchChatCompletion({
     modelId,
     capabilities,
     webSearchPluginConfig,
-    resetIdleTimeout,
-    cleanupIdleTimeout
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -272,9 +271,7 @@ export async function fetchChatCompletion({
     mcpMode,
     mcpTools,
     uiMessages,
-    knowledgeRecognition: assistant.knowledgeRecognition,
-    resetIdleTimeout,
-    cleanupIdleTimeout
+    knowledgeRecognition: assistant.knowledgeRecognition
   }
 
   // --- Call AI Completions ---
@@ -283,7 +280,8 @@ export async function fetchChatCompletion({
     assistant,
     topicId,
     callType: 'chat',
-    uiMessages
+    uiMessages,
+    idleTimeout
   })
 }
 

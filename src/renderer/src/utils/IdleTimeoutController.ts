@@ -1,3 +1,9 @@
+/** Lightweight handle exposing only the reset/cleanup callbacks. */
+export interface IdleTimeoutHandle {
+  reset: () => void
+  cleanup: () => void
+}
+
 /**
  * A resettable idle timeout that aborts via an AbortController.
  * Each call to `reset()` restarts the countdown.

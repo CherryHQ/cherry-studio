@@ -35,7 +35,7 @@ import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
-import { IdleTimeoutController } from '@renderer/utils/IdleTimeoutController'
+import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { isAIGatewayProvider, isAwsBedrockProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
@@ -112,8 +112,7 @@ export async function buildStreamTextParams(
     enableUrlContext: boolean
   }
   webSearchPluginConfig?: WebSearchPluginConfig
-  resetIdleTimeout?: () => void
-  cleanupIdleTimeout?: () => void
+  idleTimeout: IdleTimeoutHandle
 }> {
   const { mcpTools, requestOptions = {} } = options
   // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
@@ -299,8 +298,7 @@ export async function buildStreamTextParams(
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
     webSearchPluginConfig,
-    resetIdleTimeout: idleTimeout.reset,
-    cleanupIdleTimeout: idleTimeout.cleanup
+    idleTimeout: { reset: idleTimeout.reset, cleanup: idleTimeout.cleanup }
   }
 }
 

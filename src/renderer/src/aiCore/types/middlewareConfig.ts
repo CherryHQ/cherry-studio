@@ -26,6 +26,4 @@ export interface AiSdkMiddlewareConfig {
   webSearchPluginConfig?: WebSearchPluginConfig
   knowledgeRecognition?: 'off' | 'on'
   mcpMode?: string
-  resetIdleTimeout?: () => void
-  cleanupIdleTimeout?: () => void
 }
