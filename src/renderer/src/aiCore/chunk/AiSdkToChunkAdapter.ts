@@ -33,6 +33,8 @@ export class AiSdkToChunkAdapter {
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
   private providerId?: string
+  private resetIdleTimeout?: () => void
+  private cleanupIdleTimeout?: () => void
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -41,7 +43,9 @@ export class AiSdkToChunkAdapter {
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
     getSessionWasCleared?: () => boolean,
-    providerId?: string
+    providerId?: string,
+    resetIdleTimeout?: () => void,
+    cleanupIdleTimeout?: () => void
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
@@ -49,6 +53,8 @@ export class AiSdkToChunkAdapter {
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
     this.providerId = providerId
+    this.resetIdleTimeout = resetIdleTimeout
+    this.cleanupIdleTimeout = cleanupIdleTimeout
   }
 
   private markFirstTokenIfNeeded() {
@@ -110,6 +116,9 @@ export class AiSdkToChunkAdapter {
       while (true) {
         const { done, value } = await reader.read()
 
+        // Reset idle timeout on every chunk received from the stream
+        this.resetIdleTimeout?.()
+
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
           if (this.enableWebSearch) {
@@ -131,6 +140,8 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      // Clean up the idle timeout timer when the stream ends
+      this.cleanupIdleTimeout?.()
     }
   }
 

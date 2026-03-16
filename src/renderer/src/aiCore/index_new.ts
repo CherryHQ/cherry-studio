@@ -335,7 +335,9 @@ export default class ModernAiProvider {
         config.enableWebSearch,
         undefined,
         undefined,
-        this.config!.providerId
+        this.config!.providerId,
+        config.resetIdleTimeout,
+        config.cleanupIdleTimeout
       )
 
       const streamResult = await executor.streamText({
