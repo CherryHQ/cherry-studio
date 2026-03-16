@@ -332,5 +332,3 @@ export const PRESETS_FILE_PROCESSORS = [
     ]
   }
 ] as const satisfies readonly FileProcessorTemplate[]
-
-void FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)
