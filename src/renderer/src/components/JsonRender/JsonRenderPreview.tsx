@@ -1,8 +1,7 @@
 import { type Spec } from '@json-render/core'
 import { ActionProvider, Renderer, StateProvider, ValidationProvider, VisibilityProvider } from '@json-render/react'
 import { loggerService } from '@logger'
-import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 
 import { registry } from './registry'
 
@@ -13,7 +12,7 @@ interface Props {
   loading?: boolean
 }
 
-const JsonRenderPreview: FC<Props> = ({ spec, loading }) => {
+const JsonRenderPreview = memo(function JsonRenderPreview({ spec, loading }: Props) {
   const handleNavigate = useCallback((path: string) => {
     // Only allow opening external URLs
     if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -49,6 +48,6 @@ const JsonRenderPreview: FC<Props> = ({ spec, loading }) => {
       </ActionProvider>
     </StateProvider>
   )
-}
+})
 
 export default JsonRenderPreview

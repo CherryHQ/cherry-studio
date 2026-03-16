@@ -1,18 +1,21 @@
 import { compileSpecStream, createSpecStreamCompiler, type Spec } from '@json-render/core'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+const STREAM_THROTTLE_MS = 80
 
 /**
  * Hook that compiles raw json-render content (JSONL SpecStream or direct JSON spec)
  * into a renderable Spec object. Handles both streaming and complete states.
  *
- * @param content - Raw string content from the code block
- * @param isStreaming - Whether content is still being streamed
+ * During streaming, spec updates are throttled to avoid excessive re-renders.
  */
 export function useJsonRenderSpec(content: string, isStreaming: boolean) {
   const [spec, setSpec] = useState<Spec | null>(null)
   const [error, setError] = useState<string | null>(null)
   const compilerRef = useRef<ReturnType<typeof createSpecStreamCompiler> | null>(null)
   const lastLengthRef = useRef(0)
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSpecRef = useRef<Spec | null>(null)
 
   const safeContent = content ?? ''
 
@@ -20,6 +23,14 @@ export function useJsonRenderSpec(content: string, isStreaming: boolean) {
     const trimmed = safeContent.trimStart()
     return trimmed.startsWith('{"op":') || trimmed.startsWith('{"op" :')
   }, [safeContent])
+
+  const flushPendingSpec = useCallback(() => {
+    if (pendingSpecRef.current) {
+      setSpec(pendingSpecRef.current)
+      pendingSpecRef.current = null
+    }
+    throttleTimerRef.current = null
+  }, [])
 
   useEffect(() => {
     if (!safeContent.trim()) {
@@ -41,7 +52,13 @@ export function useJsonRenderSpec(content: string, isStreaming: boolean) {
           const newContent = safeContent.substring(lastLengthRef.current)
           if (newContent.trim()) {
             const { result } = compilerRef.current.push(newContent)
-            setSpec(result as Spec)
+            pendingSpecRef.current = result as Spec
+
+            // Throttle: batch rapid updates into one render per interval
+            if (!throttleTimerRef.current) {
+              flushPendingSpec()
+              throttleTimerRef.current = setTimeout(flushPendingSpec, STREAM_THROTTLE_MS)
+            }
           }
           lastLengthRef.current = safeContent.length
         } else {
@@ -69,17 +86,30 @@ export function useJsonRenderSpec(content: string, isStreaming: boolean) {
       if (!isStreaming) {
         setError(e instanceof Error ? e.message : 'Failed to parse spec')
       }
-      // During streaming, partial parse errors are expected — don't overwrite spec
     }
-  }, [safeContent, isStreaming, isJsonl])
+  }, [safeContent, isStreaming, isJsonl, flushPendingSpec])
 
-  // Reset compiler when streaming restarts
+  // Flush pending spec and reset compiler when streaming ends
   useEffect(() => {
     if (!isStreaming) {
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current)
+        throttleTimerRef.current = null
+      }
+      flushPendingSpec()
       compilerRef.current = null
       lastLengthRef.current = 0
     }
-  }, [isStreaming])
+  }, [isStreaming, flushPendingSpec])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current)
+      }
+    }
+  }, [])
 
   return { spec, error }
 }
