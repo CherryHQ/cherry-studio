@@ -60,6 +60,18 @@ function mergeProcessorOverrides(
   }
 }
 
+function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string; metadata?: Record<string, unknown> }>(
+  capability: T,
+  override?: CapabilityOverride
+): T {
+  return {
+    ...capability,
+    ...(override?.apiHost !== undefined ? { apiHost: override.apiHost } : {}),
+    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {}),
+    ...(override?.metadata !== undefined ? { metadata: override.metadata } : {})
+  }
+}
+
 export class FileProcessingService {
   private static instance: FileProcessingService
 
@@ -124,10 +136,9 @@ export class FileProcessingService {
     return {
       id: preset.id,
       type: preset.type,
-      capabilities: preset.capabilities.map((capability) => ({
-        ...capability,
-        ...override?.capabilities?.[capability.feature]
-      })),
+      capabilities: preset.capabilities.map((capability) =>
+        mergeCapabilityConfig(capability, override?.capabilities?.[capability.feature])
+      ),
       apiKeys: override?.apiKeys,
       options: override?.options
     }

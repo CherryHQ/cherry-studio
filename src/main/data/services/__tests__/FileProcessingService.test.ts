@@ -5,7 +5,7 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { FileProcessorMergedSchema, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { fileProcessingService } from '../FileProcessingService'
@@ -148,6 +148,29 @@ describe('FileProcessingService', () => {
         apiKeys: ['new-key']
       })
       expect(storedOverrides.paddleocr).not.toHaveProperty('options')
+    })
+
+    it('should ignore unknown capability override fields in merged configs', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', {
+        paddleocr: {
+          capabilities: {
+            text_extraction: {
+              apiHost: 'https://override.example.com',
+              futureField: true
+            }
+          }
+        }
+      } as never)
+
+      const processor = await fileProcessingService.getProcessorById('paddleocr')
+      const textExtraction = processor.capabilities.find((capability) => capability.feature === 'text_extraction')
+
+      expect(textExtraction).toMatchObject({
+        feature: 'text_extraction',
+        apiHost: 'https://override.example.com'
+      })
+      expect(textExtraction).not.toHaveProperty('futureField')
+      expect(FileProcessorMergedSchema.safeParse(processor).success).toBe(true)
     })
   })
 })
