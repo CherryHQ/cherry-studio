@@ -1,7 +1,6 @@
 import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import http from 'node:http'
 import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -633,9 +632,11 @@ class OpenClawService {
    */
   private async checkGatewayHealth(): Promise<HealthInfo> {
     try {
-      const res = await this.localHttpGet('/health')
-      if (res.ok) {
-        const data = JSON.parse(res.body) as { ok?: boolean; status?: string }
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+        signal: AbortSignal.timeout(3000)
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { ok?: boolean; status?: string }
         if (data.ok && data.status === 'live') {
           return { status: 'healthy', gatewayPort: this.gatewayPort }
         }
@@ -644,41 +645,6 @@ class OpenClawService {
       logger.debug('Health probe failed:', error as Error)
     }
     return { status: 'unhealthy', gatewayPort: this.gatewayPort }
-  }
-
-  /**
-   * Perform a local HTTP GET using Node.js http module to bypass system proxy.
-   * Electron's global fetch uses Chromium's network stack which respects system
-   * proxy (e.g. Surge, Clash), causing local health checks to be intercepted,
-   * delayed, or blocked entirely — leading to false timeout errors.
-   */
-  private localHttpGet(urlPath: string, timeoutMs = 3000): Promise<{ ok: boolean; status: number; body: string }> {
-    return new Promise((resolve) => {
-      const req = http.get(
-        {
-          hostname: '127.0.0.1',
-          port: this.gatewayPort,
-          path: urlPath,
-          timeout: timeoutMs
-        },
-        (res) => {
-          let body = ''
-          res.on('data', (chunk) => {
-            body += chunk
-          })
-          res.on('end', () => {
-            resolve({ ok: res.statusCode! >= 200 && res.statusCode! < 300, status: res.statusCode!, body })
-          })
-        }
-      )
-      req.on('timeout', () => {
-        req.destroy()
-        resolve({ ok: false, status: 0, body: 'request timeout' })
-      })
-      req.on('error', (err) => {
-        resolve({ ok: false, status: 0, body: err.message })
-      })
-    })
   }
 
   /**
@@ -956,9 +922,11 @@ class OpenClawService {
    */
   public async getChannelStatus(): Promise<ChannelInfo[]> {
     try {
-      const res = await this.localHttpGet('/api/channels', 5000)
-      if (res.ok) {
-        const data = JSON.parse(res.body)
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/api/channels`, {
+        signal: AbortSignal.timeout(5000)
+      })
+      if (response.ok) {
+        const data = await response.json()
         return data.channels || []
       }
     } catch (error) {
@@ -975,15 +943,17 @@ class OpenClawService {
    */
   private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
     try {
-      const res = await this.localHttpGet('/health')
-      if (res.ok) {
-        const data = JSON.parse(res.body) as { ok?: boolean; status?: string }
+      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
+        signal: AbortSignal.timeout(3000)
+      })
+      if (response.ok) {
+        const data = (await response.json()) as { ok?: boolean; status?: string }
         if (data.ok && data.status === 'live') {
           return { status: 'healthy' }
         }
         return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
       }
-      return { status: 'unhealthy', error: res.status ? `HTTP ${res.status}: ${res.body}` : res.body }
+      return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
     }
