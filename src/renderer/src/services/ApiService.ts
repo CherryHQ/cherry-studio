@@ -243,7 +243,8 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
+    idleTimeout
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -279,7 +280,8 @@ export async function fetchChatCompletion({
     assistant,
     topicId,
     callType: 'chat',
-    uiMessages
+    uiMessages,
+    idleTimeout
   })
 }
 
