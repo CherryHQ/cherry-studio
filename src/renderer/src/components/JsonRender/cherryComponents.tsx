@@ -53,6 +53,19 @@ import { useState } from 'react'
 // ── Simple display components (no Cherry UI equivalent, just HTML) ──
 
 export const cherryComponents: Record<string, any> = {
+  // ── Card (borderless, inline in message flow) ──
+  Card: ({ props, children }: any) => (
+    <div className="space-y-2">
+      {(props.title || props.description) && (
+        <div className="space-y-1">
+          {props.title && <h3 className="font-semibold leading-tight tracking-tight">{props.title}</h3>}
+          {props.description && <p className="text-muted-foreground text-sm">{props.description}</p>}
+        </div>
+      )}
+      {children}
+    </div>
+  ),
+
   // ── Button ──
   Button: ({ props, emit }: any) => {
     const variant = props.variant === 'danger' ? 'destructive' : props.variant === 'secondary' ? 'secondary' : 'default'
