@@ -83,6 +83,7 @@ import { isAzureOpenAIProvider, isCherryAIProvider, isPerplexityProvider } from 
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
+import { resolveAiSdkTransport } from '../transport'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as any
 
@@ -142,6 +143,83 @@ const createAzureProvider = (apiVersion: string): Provider => ({
   apiVersion,
   models: [],
   isSystem: true
+})
+
+const createPoeProvider = (): Provider => ({
+  id: 'poe',
+  type: 'openai',
+  name: 'Poe',
+  apiKey: 'test-key',
+  apiHost: 'https://api.poe.com/v1/',
+  models: [],
+  isSystem: true
+})
+
+describe('AI SDK transport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(isAzureOpenAIProvider).mockImplementation((provider) => provider.type === 'azure-openai')
+  })
+
+  it('resolves Azure v1 endpoints to responses mode', () => {
+    const transport = resolveAiSdkTransport(createAzureProvider('v1'), createModel('gpt-4o', 'GPT-4o', 'azure-openai'))
+
+    expect(transport).toEqual({
+      providerId: 'azure-responses',
+      mode: 'responses'
+    })
+  })
+
+  it('keeps chat mode for legacy Azure API versions', () => {
+    const transport = resolveAiSdkTransport(
+      createAzureProvider('2024-02-15-preview'),
+      createModel('gpt-4o', 'GPT-4o', 'azure-openai')
+    )
+
+    expect(transport).toEqual({
+      providerId: 'azure',
+      mode: 'chat'
+    })
+  })
+
+  it('routes non chat-only Poe models to the openai responses transport', () => {
+    const transport = resolveAiSdkTransport(createPoeProvider(), createModel('gpt-5', 'GPT-5', 'poe'))
+
+    expect(transport).toEqual({
+      providerId: 'openai',
+      mode: 'responses'
+    })
+  })
+
+  it('routes chat-only Poe models to the openai responses transport', () => {
+    const transport = resolveAiSdkTransport(createPoeProvider(), createModel('o1-preview', 'o1-preview', 'poe'))
+
+    expect(transport).toEqual({
+      providerId: 'openai',
+      mode: 'responses'
+    })
+  })
+
+  it('routes non-OpenAI Poe models to the openai responses transport', () => {
+    const transport = resolveAiSdkTransport(
+      createPoeProvider(),
+      createModel('claude-sonnet-4', 'Claude Sonnet 4', 'poe')
+    )
+
+    expect(transport).toEqual({
+      providerId: 'openai',
+      mode: 'responses'
+    })
+  })
+
+  it('routes other Poe models to the openai responses transport', () => {
+    const transport = resolveAiSdkTransport(createPoeProvider(), createModel('deepseek-r1', 'DeepSeek R1', 'poe'))
+
+    expect(transport).toEqual({
+      providerId: 'openai',
+      mode: 'responses'
+    })
+  })
 })
 
 describe('Copilot responses routing', () => {
@@ -559,5 +637,55 @@ describe('Azure OpenAI traditional API routing', () => {
     expect(previewConfig.options.mode).toBe('responses')
     expect(previewConfig.options.apiVersion).toBe('preview')
     expect(previewConfig.options.useDeploymentBasedUrls).toBeUndefined()
+  })
+})
+
+describe('Poe transport routing', () => {
+  beforeEach(() => {
+    ;(globalThis as any).window = {
+      ...(globalThis as any).window,
+      keyv: createWindowKeyv()
+    }
+    mockGetState.mockReturnValue({
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: undefined
+          }
+        }
+      }
+    })
+  })
+
+  it('uses openai responses transport for non chat-only Poe models', () => {
+    const provider = createPoeProvider()
+    const config = providerToAiSdkConfig(provider, createModel('gpt-5', 'GPT-5', provider.id))
+
+    expect(config.providerId).toBe('openai')
+    expect(config.options.mode).toBe('responses')
+  })
+
+  it('uses openai responses transport for chat-only Poe models', () => {
+    const provider = createPoeProvider()
+    const config = providerToAiSdkConfig(provider, createModel('o1-preview', 'o1-preview', provider.id))
+
+    expect(config.providerId).toBe('openai')
+    expect(config.options.mode).toBe('responses')
+  })
+
+  it('uses openai responses transport for non OpenAI Poe models', () => {
+    const provider = createPoeProvider()
+    const config = providerToAiSdkConfig(provider, createModel('claude-sonnet-4', 'Claude Sonnet 4', provider.id))
+
+    expect(config.providerId).toBe('openai')
+    expect(config.options.mode).toBe('responses')
+  })
+
+  it('uses openai responses transport for other Poe models', () => {
+    const provider = createPoeProvider()
+    const config = providerToAiSdkConfig(provider, createModel('deepseek-r1', 'DeepSeek R1', provider.id))
+
+    expect(config.providerId).toBe('openai')
+    expect(config.options.mode).toBe('responses')
   })
 })

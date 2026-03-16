@@ -532,6 +532,59 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should include reasoning summary for non OpenAI Poe reasoning models', async () => {
+      const { isReasoningModel, isOpenAIModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIModel).mockReturnValue(false)
+
+      const model: Model = {
+        id: 'claude-sonnet-4.6',
+        name: 'Claude Sonnet 4.6',
+        provider: SystemProviderIds.poe
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getOpenAIReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningEffort: 'high',
+        reasoningSummary: 'auto'
+      })
+    })
+
+    it('should omit reasoning summary for non OpenAI non-Poe reasoning models', async () => {
+      const { isReasoningModel, isOpenAIModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIModel).mockReturnValue(false)
+
+      const model: Model = {
+        id: 'claude-sonnet-4.6',
+        name: 'Claude Sonnet 4.6',
+        provider: 'azure-openai'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getOpenAIReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningEffort: 'high'
+      })
+    })
+
     it('should include reasoning summary when not o1-pro', async () => {
       const { isReasoningModel, isOpenAIModel, isSupportedReasoningEffortOpenAIModel } = await import(
         '@renderer/config/models'

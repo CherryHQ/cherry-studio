@@ -42,7 +42,8 @@ import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
-import { getAiSdkProviderId } from '../provider/factory'
+import { resolveAiSdkRuntimeProviderIdByMode } from '../provider/factory'
+import { resolveAiSdkTransport } from '../provider/transport'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
@@ -128,7 +129,8 @@ export async function buildStreamTextParams(
   const finalSignal = AbortSignal.any(signals)
 
   const model = assistant.model || getDefaultModel()
-  const aiSdkProviderId = getAiSdkProviderId(provider)
+  const { providerId, mode } = resolveAiSdkTransport(provider, model)
+  const aiSdkProviderId = resolveAiSdkRuntimeProviderIdByMode(providerId, mode)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams

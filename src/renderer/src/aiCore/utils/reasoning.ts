@@ -18,7 +18,6 @@ import {
   isGrok4FastReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
-  isOpenAIReasoningModel,
   isQwen35Model,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
@@ -49,7 +48,8 @@ import { toInteger } from 'lodash'
 
 const logger = loggerService.withContext('reasoning')
 
-// The function is only for generic provider. May extract some logics to independent provider
+// The function is only for generic providers.
+// Transport-specific OpenAI Responses providers, including Poe, should use getOpenAIReasoningParams instead.
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
   const provider = getProviderByModel(model)
   if (provider.id === 'groq') {
@@ -156,70 +156,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     logger.warn(`Model ${model.id} doesn't match any disable reasoning behavior. Fallback to empty reasoning param.`)
-    return {}
-  }
-
-  // reasoningEffort有效的情况
-  // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
-  // Poe provider - supports custom bot parameters via extra_body
-  if (provider.id === SystemProviderIds.poe) {
-    if (isOpenAIReasoningModel(model)) {
-      return {
-        extra_body: {
-          reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
-        }
-      }
-    }
-
-    // Claude models use thinking_budget parameter in extra_body
-    if (isSupportedThinkingTokenClaudeModel(model)) {
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
-      const maxTokens = assistant.settings?.maxTokens
-
-      if (!tokenLimit) {
-        logger.warn(
-          `No token limit configuration found for Claude model "${model.id}" on Poe provider. ` +
-            `Reasoning effort setting "${reasoningEffort}" will not be applied.`
-        )
-        return {}
-      }
-
-      let budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-      budgetTokens = Math.floor(Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio)))
-
-      return {
-        extra_body: {
-          thinking_budget: budgetTokens
-        }
-      }
-    }
-
-    // Gemini models use thinking_budget parameter in extra_body
-    if (isSupportedThinkingTokenGeminiModel(model)) {
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const tokenLimit = findTokenLimit(model.id)
-      let budgetTokens: number | undefined
-      if (tokenLimit && reasoningEffort !== 'auto') {
-        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-      } else if (!tokenLimit && reasoningEffort !== 'auto') {
-        logger.warn(
-          `No token limit configuration found for Gemini model "${model.id}" on Poe provider. ` +
-            `Using auto (-1) instead of requested effort "${reasoningEffort}".`
-        )
-      }
-      return {
-        extra_body: {
-          thinking_budget: budgetTokens ?? -1
-        }
-      }
-    }
-
-    // Poe reasoning model not in known categories (GPT-5, Claude, Gemini)
-    logger.warn(
-      `Poe provider reasoning model "${model.id}" does not match known categories ` +
-        `(GPT-5, Claude, Gemini). Reasoning effort setting "${reasoningEffort}" will not be applied.`
-    )
     return {}
   }
 
@@ -523,7 +459,11 @@ export function getOpenAIReasoningParams(
   }
 
   // 非OpenAI模型，但是Provider类型是responses/azure openai的情况
-  if (!isOpenAIModel(model)) {
+  const isNotOpenAIModel = !isOpenAIModel(model)
+  // poe 的非 OpenAI 模型支持 summary 参数
+  // https://creator.poe.com/docs/external-applications/responses-api#reasoning
+  const isPoeProvider = model.provider === SystemProviderIds.poe
+  if (isNotOpenAIModel && !isPoeProvider) {
     return {
       reasoningEffort
     }
@@ -540,8 +480,11 @@ export function getOpenAIReasoningParams(
     reasoningSummary = summaryText
   }
 
-  // OpenAI 推理参数
-  if (isSupportedReasoningEffortOpenAIModel(model)) {
+  if (
+    // OpenAI 推理参数
+    isSupportedReasoningEffortOpenAIModel(model) ||
+    (isNotOpenAIModel && isPoeProvider)
+  ) {
     return {
       reasoningEffort,
       reasoningSummary

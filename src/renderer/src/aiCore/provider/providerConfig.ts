@@ -1,5 +1,5 @@
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
-import { isOpenAIChatCompletionOnlyModel, isOpenAIReasoningModel } from '@renderer/config/models'
+import { isOpenAIReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -42,6 +42,7 @@ import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProvider
 import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
+import { resolveAiSdkTransport } from './transport'
 
 /**
  * 处理特殊provider的转换逻辑
@@ -188,7 +189,7 @@ type ExtraOptions = BedrockExtraOptions | AzureOpenAIExtraOptions | VertexExtraO
  * 简化版：利用新的别名映射系统
  */
 export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
-  const aiSdkProviderId = getAiSdkProviderId(actualProvider)
+  const { mode, providerId: aiSdkProviderId } = resolveAiSdkTransport(actualProvider, model)
 
   // 构建基础配置
   const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
@@ -238,24 +239,6 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
 
   // Generally, construct extraOptions according to provider & model
   // Consider as OpenAI like provider
-
-  // Construct baseExtraOptions first
-  // About mode of azure:
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  let mode: BaseExtraOptions['mode']
-  if (
-    (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) ||
-    aiSdkProviderId === 'azure-responses'
-  ) {
-    mode = 'responses'
-  } else if (
-    aiSdkProviderId === 'openai' ||
-    (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai') ||
-    aiSdkProviderId === 'azure'
-  ) {
-    mode = 'chat'
-  }
 
   const headers: BaseExtraOptions['headers'] = {
     ...defaultAppHeaders(),
