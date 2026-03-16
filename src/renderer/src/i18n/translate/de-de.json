@@ -1382,6 +1382,7 @@
     "off": "Aus",
     "on": "An",
     "open": "Öffnen",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Einfügen",
     "placeholders": {
       "select": {

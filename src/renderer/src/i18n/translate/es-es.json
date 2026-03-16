@@ -1382,6 +1382,7 @@
     "off": "Apagado",
     "on": "En",
     "open": "Abrir",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Pegar",
     "placeholders": {
       "select": {

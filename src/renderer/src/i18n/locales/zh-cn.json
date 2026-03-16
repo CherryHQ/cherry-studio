@@ -1382,6 +1382,7 @@
     "off": "关闭",
     "on": "启用",
     "open": "打开",
+    "open_in": "在 {{name}} 中打开",
     "paste": "粘贴",
     "placeholders": {
       "select": {

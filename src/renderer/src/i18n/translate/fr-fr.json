@@ -1382,6 +1382,7 @@
     "off": "Désactivé",
     "on": "Marche",
     "open": "Ouvrir",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Coller",
     "placeholders": {
       "select": {

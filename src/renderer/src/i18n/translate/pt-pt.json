@@ -1382,6 +1382,7 @@
     "off": "Desligado",
     "on": "Ligado",
     "open": "Abrir",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Colar",
     "placeholders": {
       "select": {

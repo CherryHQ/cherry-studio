@@ -1382,6 +1382,7 @@
     "off": "Off",
     "on": "On",
     "open": "Open",
+    "open_in": "Open in {{name}}",
     "paste": "Paste",
     "placeholders": {
       "select": {

@@ -1382,6 +1382,7 @@
     "off": "Выкл",
     "on": "Вкл",
     "open": "Открыть",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Вставить",
     "placeholders": {
       "select": {
