@@ -1,4 +1,4 @@
-import { WebSearchProviderIcon } from '@renderer/pages/home/Inputbar/tools/components/WebSearchQuickPanelManager'
+import { WebSearchProviderIcon } from '@renderer/components/Icons'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import type { FC } from 'react'
 
