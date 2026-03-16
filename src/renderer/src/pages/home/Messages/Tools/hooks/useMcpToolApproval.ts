@@ -74,8 +74,38 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
       return
     }
 
-    const server = mcpServers.find((s) => s.id === tool.serverId)
+    let server = mcpServers.find((s) => s.id === tool.serverId)
+
+    // For hub tools (invoke/exec), resolve to the underlying server
+    if (!server && tool.serverId === 'hub' && (tool.name === 'invoke' || tool.name === 'exec')) {
+      const toolArgs = toolResponse?.arguments as Record<string, unknown> | undefined
+      const underlyingToolName = toolArgs?.name as string | undefined
+      if (underlyingToolName) {
+        try {
+          const resolved = await window.api.mcp.resolveHubTool(underlyingToolName)
+          if (resolved) {
+            server = mcpServers.find((s) => s.id === resolved.serverId)
+            // Use the resolved tool name for the disabledAutoApproveTools update
+            if (server) {
+              let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
+              disabledAutoApproveTools = disabledAutoApproveTools.filter((name) => name !== resolved.toolName)
+              updateMCPServer({ ...server, disabledAutoApproveTools })
+              setIsConfirmed(true)
+              confirmToolAction(id)
+              window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
+              return
+            }
+          }
+        } catch {
+          // Fall through to confirm the current tool at least
+        }
+      }
+    }
+
     if (!server) {
+      // Even if we can't persist auto-approve, confirm the current tool
+      setIsConfirmed(true)
+      confirmToolAction(id)
       return
     }
 
@@ -96,7 +126,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     confirmToolAction(id)
 
     window.toast.success(t('message.tools.autoApproveEnabled', 'Auto-approve enabled for this tool'))
-  }, [tool, mcpServers, updateMCPServer, id, t])
+  }, [tool, toolResponse, mcpServers, updateMCPServer, id, t])
 
   return {
     // State
