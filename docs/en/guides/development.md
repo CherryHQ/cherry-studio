@@ -16,6 +16,17 @@
    ```
 3. Customize `.zed/settings.json` as needed (it is git-ignored).
 
+## Windows: Enable Symlinks
+
+This project uses symlinks to synchronize files such as AGENTS.md and skills. Windows developers must enable symlink support before cloning:
+
+1. **Enable Developer Mode** (Settings → Update & Security → For developers), or grant `SeCreateSymbolicLinkPrivilege` via `secpol.msc`.
+2. **Configure Git**:
+   ```bash
+   git config --global core.symlinks true
+   ```
+3. Clone (or re-clone) the repository after enabling symlink support.
+
 ## Project Setup
 
 ### Install
