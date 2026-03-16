@@ -6,6 +6,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { getTemperature, getTimeout, getTopP } from '../modelParameters'
 
 vi.mock('@renderer/services/AssistantService', () => ({
+  DEFAULT_ASSISTANT_SETTINGS: {
+    maxTokens: 4096,
+    enableMaxTokens: false,
+    temperature: 0.7,
+    enableTemperature: false,
+    topP: 1,
+    enableTopP: false,
+    contextCount: 4096,
+    streamOutput: true,
+    defaultModel: undefined,
+    customParameters: [],
+    reasoning_effort: 'default',
+    reasoning_effort_cache: undefined,
+    qwenThinkMode: undefined,
+    toolUseMode: 'function',
+    maxToolCalls: 20,
+    enableMaxToolCalls: true
+  },
   getAssistantSettings: (assistant: Assistant): AssistantSettings => ({
     contextCount: assistant.settings?.contextCount ?? 4096,
     temperature: assistant.settings?.temperature ?? 0.7,
@@ -75,10 +93,24 @@ const createModel = (overrides: Partial<Model> = {}): Model => ({
 describe('modelParameters', () => {
   describe('getTemperature', () => {
     it('returns undefined when reasoning effort is enabled for Claude models', () => {
-      const assistant = createAssistant({ reasoning_effort: 'medium' })
+      const assistant = createAssistant({ reasoning_effort: 'medium', enableTemperature: true })
       const model = createModel({ id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'anthropic', group: 'claude' })
 
       expect(getTemperature(assistant, model)).toBeUndefined()
+    })
+
+    it('returns temperature when reasoning effort is default for Claude models', () => {
+      const assistant = createAssistant({ reasoning_effort: 'default', enableTemperature: true, temperature: 0.7 })
+      const model = createModel({ id: 'claude-sonnet-4.5', provider: 'anthropic', group: 'claude' })
+
+      expect(getTemperature(assistant, model)).toBe(0.7)
+    })
+
+    it('returns temperature when reasoning effort is none for Claude models', () => {
+      const assistant = createAssistant({ reasoning_effort: 'none', enableTemperature: true, temperature: 0.5 })
+      const model = createModel({ id: 'claude-opus-4', provider: 'anthropic', group: 'claude' })
+
+      expect(getTemperature(assistant, model)).toBe(0.5)
     })
 
     it('returns undefined for models without temperature/topP support', () => {
@@ -199,6 +231,34 @@ describe('modelParameters', () => {
       const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
 
       expect(getTopP(assistant, model)).toBeUndefined()
+    })
+
+    it('clamps topP to [0.95, 1] for Claude reasoning models with reasoning effort', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
+      const model = createModel({ id: 'claude-sonnet-4.5', provider: 'anthropic', group: 'claude' })
+
+      expect(getTopP(assistant, model)).toBe(0.95)
+    })
+
+    it('does not clamp topP when reasoning effort is default for Claude models', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.5, reasoning_effort: 'default' })
+      const model = createModel({ id: 'claude-opus-4', provider: 'anthropic', group: 'claude' })
+
+      expect(getTopP(assistant, model)).toBe(0.5)
+    })
+
+    it('does not clamp topP when reasoning effort is none for Claude models', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.5, reasoning_effort: 'none' })
+      const model = createModel({ id: 'claude-opus-4', provider: 'anthropic', group: 'claude' })
+
+      expect(getTopP(assistant, model)).toBe(0.5)
+    })
+
+    it('keeps topP unchanged when already in [0.95, 1] range for Claude reasoning models', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.97, reasoning_effort: 'medium' })
+      const model = createModel({ id: 'claude-sonnet-4', provider: 'anthropic', group: 'claude' })
+
+      expect(getTopP(assistant, model)).toBe(0.97)
     })
   })
 

@@ -80,6 +80,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
+  // Claude 3.7, 4.0, 4.5 reasoning models
+  claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
   claude46: ['low', 'medium', 'high', 'xhigh'] as const
 } as const satisfies ReasoningEffortConfig
@@ -117,6 +119,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
+  claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
 } as const
 
@@ -124,7 +127,12 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
-  if (isOpenAIDeepResearchModel(model)) {
+  if (isClaudeReasoningModel(model)) {
+    thinkingModelType = 'claude'
+    if (isClaude46SeriesModel(model)) {
+      thinkingModelType = 'claude46'
+    }
+  } else if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
   } else if (isGPT5FamilyModel(model)) {
     if (isGPT51SeriesModel(model)) {
@@ -200,8 +208,6 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
-  } else if (isClaude46SeriesModel(model)) {
-    thinkingModelType = 'claude46'
   }
   return thinkingModelType
 }
