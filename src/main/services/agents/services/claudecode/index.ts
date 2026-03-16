@@ -108,9 +108,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
     if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
+      modelInfo.provider?.type !== 'anthropic' &&
+      (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')
     ) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
@@ -121,6 +120,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
       })
       return aiStream
+    }
+
+    // Providers like Ollama and LM Studio don't require real API keys,
+    // but the Claude Agent SDK needs a non-empty placeholder value
+    if (!modelInfo.provider.apiKey) {
+      modelInfo.provider.apiKey = modelInfo.provider.id
     }
 
     const apiConfig = await apiConfigService.get()
