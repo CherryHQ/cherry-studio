@@ -94,8 +94,8 @@ vercel-labs/agent-skills@vercel-react-best-practices
 When you find relevant skills, present them to the user with:
 
 1. The skill name and what it does
-2. The install command they can run
-3. A link to learn more at skills.sh
+2. The source repository link so the user can review the code
+3. The install command they can run
 
 Example response:
 
@@ -103,21 +103,37 @@ Example response:
 I found a skill that might help! The "vercel-react-best-practices" skill provides
 React and Next.js performance optimization guidelines from Vercel Engineering.
 
-To install it:
-npx skills add vercel-labs/agent-skills@vercel-react-best-practices
+Source: https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices
 
-Learn more: https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices
+To install it (after you've reviewed the source):
+npx skills add vercel-labs/agent-skills@vercel-react-best-practices
 ```
 
-### Step 4: Offer to Install
+### Step 4: Install (Requires User Confirmation)
 
-If the user wants to proceed, you can install the skill for them:
+**⚠️ Security:** Skills are third-party code that runs with full agent
+permissions. A malicious skill could read, modify, or delete files in your
+project.
+
+Before installing any skill you **MUST**:
+
+1. **Show a security warning** — tell the user that the skill is third-party
+   code and will have access to their project files.
+2. **Provide the source link** so the user can review the skill's SKILL.md and
+   any scripts it contains.
+3. **Ask the user for explicit confirmation** — do NOT run `npx skills add`
+   until the user says "yes" or equivalent. Never install silently.
+
+Only after the user confirms, run:
 
 ```bash
 npx skills add <owner/repo@skill> -y
 ```
 
-The `-y` flag skips confirmation prompts. Skills are installed to the current project's `.claude/skills/` directory.
+The `-y` flag is required for non-interactive execution, but the user
+confirmation step above ensures the user has reviewed and approved the install.
+
+Skills are installed to the current project's `.claude/skills/` directory.
 
 ## Common Skill Categories
 
