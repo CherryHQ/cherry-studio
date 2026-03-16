@@ -54,11 +54,9 @@ export interface OpenClawConfig {
     defaults?: {
       model?: {
         primary?: string
-        input?: string[]
       }
       imageModel?: {
         primary?: string
-        input?: string[]
       }
     }
   }
@@ -76,6 +74,7 @@ export interface OpenClawProviderConfig {
     id: string
     name: string
     contextWindow?: number
+    input?: string[]
   }>
 }
 
@@ -796,7 +795,8 @@ class OpenClawService {
           id: m.id,
           name: m.name,
           // FIXME: in v2
-          contextWindow: 128000
+          contextWindow: 128000,
+          input: ['text', 'image']
         }))
       }
 
@@ -818,11 +818,10 @@ class OpenClawService {
       config.agents = config.agents || { defaults: {} }
       config.agents.defaults = config.agents.defaults || {}
       config.agents.defaults.model = {
-        primary: `${providerKey}/${primaryModel.id}`,
-        input: ['text', 'image']
+        primary: `${providerKey}/${primaryModel.id}`
       }
       if (visionModel) {
-        config.agents.defaults.imageModel = { primary: `${providerKey}/${visionModel.id}`, input: ['text', 'image'] }
+        config.agents.defaults.imageModel = { primary: `${providerKey}/${visionModel.id}` }
       } else {
         delete config.agents.defaults.imageModel
       }

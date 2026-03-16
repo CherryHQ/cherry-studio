@@ -114,8 +114,7 @@ describe('OpenClawService.syncProviderConfig', () => {
 
     const config = getWrittenConfig()
     expect(config.agents.defaults.model).toEqual({
-      primary: 'cherry-test-provider/gpt-4o',
-      input: ['text', 'image']
+      primary: 'cherry-test-provider/gpt-4o'
     })
     expect(config.agents.defaults.imageModel).toBeUndefined()
   })
@@ -127,12 +126,10 @@ describe('OpenClawService.syncProviderConfig', () => {
 
     const config = getWrittenConfig()
     expect(config.agents.defaults.model).toEqual({
-      primary: 'cherry-test-provider/gpt-4o',
-      input: ['text', 'image']
+      primary: 'cherry-test-provider/gpt-4o'
     })
     expect(config.agents.defaults.imageModel).toEqual({
-      primary: 'cherry-test-provider/gpt-4o-mini',
-      input: ['text', 'image']
+      primary: 'cherry-test-provider/gpt-4o-mini'
     })
   })
 
@@ -178,9 +175,18 @@ describe('OpenClawService.syncProviderConfig', () => {
 
     const config = getWrittenConfig()
     expect(config.agents.defaults.imageModel).toEqual({
-      primary: 'cherry-test-provider/gpt-4o-mini',
-      input: ['text', 'image']
+      primary: 'cherry-test-provider/gpt-4o-mini'
     })
+  })
+
+  it('adds input field to each model in provider models array', async () => {
+    await service.syncProviderConfig(mockEvent, mockProvider, mockPrimaryModel)
+
+    const config = getWrittenConfig()
+    const providerConfig = config.models.providers['cherry-test-provider']
+    for (const model of providerConfig.models) {
+      expect(model.input).toEqual(['text', 'image'])
+    }
   })
 
   it('writes provider config with correct structure', async () => {
