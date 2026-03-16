@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { AgentType, Tool } from '@types'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +9,10 @@ vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
     getServerInfo: vi.fn()
   }
+}))
+
+vi.mock('@main/utils', () => ({
+  getDataPath: () => '/mock/data'
 }))
 
 const mockValidateModelId = vi.fn()
@@ -31,6 +37,10 @@ class TestBaseService extends BaseService {
     models: Partial<Record<AgentModelField, string | undefined>>
   ): Promise<void> {
     return this.validateAgentModels(agentType, models)
+  }
+
+  public resolve(paths: string[] | undefined, id: string): string[] {
+    return this.resolveAccessiblePaths(paths, id)
   }
 }
 
@@ -146,5 +156,23 @@ describe('BaseService.validateAgentModels', () => {
 
     await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).resolves.not.toThrow()
     expect(provider.apiKey).toBe('sk-existing-key')
+  })
+})
+
+describe('BaseService.resolveAccessiblePaths', () => {
+  const service = new TestBaseService()
+  const testId = 'agent_1234567890_abcdefghi'
+  const defaultPath = path.join('/mock/data', 'Agents', 'abcdefghi')
+
+  it('assigns a default path when paths is undefined', () => {
+    expect(service.resolve(undefined, testId)).toEqual([defaultPath])
+  })
+
+  it('assigns a default path when paths is empty array', () => {
+    expect(service.resolve([], testId)).toEqual([defaultPath])
+  })
+
+  it('passes through provided paths unchanged', () => {
+    expect(service.resolve(['/some/path'], testId)).toEqual(['/some/path'])
   })
 })

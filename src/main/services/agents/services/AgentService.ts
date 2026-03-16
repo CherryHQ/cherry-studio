@@ -157,6 +157,9 @@ export class AgentService extends BaseService {
     const now = new Date().toISOString()
 
     if (updates.accessible_paths !== undefined) {
+      if (updates.accessible_paths.length === 0) {
+        throw new Error('accessible_paths must not be empty')
+      }
       updates.accessible_paths = this.resolveAccessiblePaths(updates.accessible_paths, id)
     }
 
