@@ -140,64 +140,44 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.25 - Security & Stability
+    Cherry Studio 1.8.0 - Agents & Performance
 
     ✨ New Features
-    - [Web Search] Add Querit search provider (1,000 free requests for new users)
-    - [Provider] Add MiniMax Global and Z.ai providers
-    - [Mini Apps] Add MiniMax Agent and IMA mini apps
-    - [Provider] Add agent support filter in provider settings
-    - [Agent] Add custom environment variables support
-    - [Models] Add GPT-5.4 support
+    - [Agents] Added drag-and-drop manual sorting for agent and session lists
+    - [Models] Added MiniMax M2.5 highspeed model support
+    - [OpenClaw] Switch to binary installation to optimize the installation experience
 
     🐛 Bug Fixes
-    - [Security] Built-in filesystem MCP now requires manual approval for write/edit/delete operations
-    - [Security] Fix MCP hub mode bypassing tool permission checks
-    - [Security] Remove auto-execution countdown - tools now wait for user confirmation
-    - [Agent] Fix tool status not stopping when aborting on Windows
-    - [Chat] Fix auto backup interrupting streaming responses
-    - [Chat] Fix topic renaming errors with image-capable models
-    - [UI] Fix "Move To" submenu overflow with long assistant lists
-    - [Editor] Render SVG code blocks as previews
-    - [Models] Fix Gemini 3 and Qwen 3.5 reasoning parameter issues
-    - [xAI] Upgrade to new Responses API with X/Twitter search support
-    - [API Server] Fix tool calling message validation
-    - [Plugins] Fix install/uninstall button state issues
-    - [Update] Fix update dialog not showing on manual check
-    - [Update] Prevent unexpected auto-updates on app quit
+    - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
+    - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
+    - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
+    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
+    - [Gateway] Improved gateway startup error messages with detailed diagnostics
+    - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
 
     💄 Improvements
-    - [Provider] Improve agent model selector ordering and highlighting
-    - [MCP] Add system notifications when tool approval is required
+    - [Agents] Added configurable maximum tool calls setting (1-100) in assistant settings
+    - [UI] Added Windows Mica effect for better visual integration
+    - [Performance] Increased default request timeout from 10 to 30 minutes for slow local models
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.25 - 安全与稳定性
+    Cherry Studio 1.8.0 - 智能体与性能
 
     ✨ 新功能
-    - [网络搜索] 新增 Querit 搜索引擎（新用户 1,000 次免费请求）
-    - [服务商] 新增 MiniMax Global 和 Z.ai 服务商
-    - [小程序] 新增 MiniMax Agent 和 IMA 小程序
-    - [服务商] 添加智能体支持筛选器
-    - [智能体] 支持自定义环境变量配置
-    - [模型] 新增 GPT-5.4 支持
+    - [智能体] 新增智能体和会话列表的拖拽排序功能
+    - [模型] 新增 MiniMax M2.5 高速模型支持
+    - [OpenClaw] 改为二进制安装优化安装体验
 
     🐛 问题修复
-    - [安全] 内置文件系统 MCP 的写入/编辑/删除操作现需手动批准
-    - [安全] 修复 MCP Hub 模式绕过工具权限检查的问题
-    - [安全] 移除自动执行倒计时 - 工具现在等待用户确认
-    - [智能体] 修复 Windows 上中止时工具状态未停止的问题
-    - [对话] 修复自动备份中断流式响应的问题
-    - [对话] 修复使用图像模型时话题重命名出错的问题
-    - [UI] 修复助手列表过长时"移动到"子菜单溢出
-    - [编辑器] SVG 代码块现在显示为预览图
-    - [模型] 修复 Gemini 3 和 Qwen 3.5 推理参数问题
-    - [xAI] 升级到新版 Responses API，支持 X/Twitter 搜索
-    - [API 服务] 修复工具调用消息验证问题
-    - [插件] 修复安装/卸载按钮状态问题
-    - [更新] 修复手动检查更新时对话框不显示的问题
-    - [更新] 防止退出应用时意外自动更新
+    - [智能体] 修复删除最后一个可访问目录的漏洞 - 只剩一个目录时禁用删除按钮
+    - [UI] 修复本地模型（如 Ollama）聊天工具栏中不显示网络搜索选项的问题
+    - [模型] 修复部分 OpenAI 兼容服务商的推理努力和摘要模式设置不生效的问题
+    - [OpenClaw] 修复OpenClaw网关状态检测无法识别崩溃/外部停止的OpenClaw网关的问题
+    - [网关] 改进网关启动错误消息，提供详细诊断信息
+    - [Poe] 修复启用内置搜索时 web_search 参数未正确传递的问题
 
     💄 改进
-    - [服务商] 优化智能体模型选择器排序和高亮
-    - [MCP] 工具需要批准时发送系统通知
+    - [智能体] 新增助手设置中的最大工具调用次数配置（1-100）
+    - [UI] 新增 Windows Mica 效果以提升视觉体验
+    - [性能] 将默认请求超时从 10 分钟增加到 30 分钟，优化慢速本地模型体验
     <!--LANG:END-->
