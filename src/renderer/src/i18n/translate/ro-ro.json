@@ -1382,6 +1382,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {

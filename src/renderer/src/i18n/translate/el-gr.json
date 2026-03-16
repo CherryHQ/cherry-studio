@@ -1382,6 +1382,7 @@
     "off": "Κλειστό",
     "on": "Ενεργό",
     "open": "Άνοιγμα",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {

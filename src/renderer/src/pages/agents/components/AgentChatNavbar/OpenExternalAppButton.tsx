@@ -1,9 +1,9 @@
-import { EllipsisOutlined } from '@ant-design/icons'
+import { DownOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import { Button, Dropdown, type MenuProps, Space } from 'antd'
+import { Button, Dropdown, type MenuProps, Space, Tooltip } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -95,11 +95,11 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
 
   return (
     <Space.Compact className={className}>
-      <Button onClick={() => openInEditor(selectedEditor)} icon={getEditorIcon(selectedEditor)}>
-        {t('common.open')}
-      </Button>
+      <Tooltip title={t('common.open_in', { name: selectedEditor.name })} mouseEnterDelay={0.5}>
+        <Button onClick={() => openInEditor(selectedEditor)} icon={getEditorIcon(selectedEditor)} />
+      </Tooltip>
       <Dropdown menu={menuProps} placement="bottomRight">
-        <Button icon={<EllipsisOutlined />} />
+        <Button icon={<DownOutlined />} />
       </Dropdown>
     </Space.Compact>
   )
