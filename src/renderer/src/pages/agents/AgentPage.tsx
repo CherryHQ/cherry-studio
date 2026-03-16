@@ -1,3 +1,4 @@
+import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -10,6 +11,7 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@s
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentNavbar from './AgentNavbar'
@@ -26,6 +28,7 @@ const AgentPage = () => {
   const { agents } = useAgents()
   const { setActiveAgentId } = useActiveAgent()
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { t } = useTranslation()
 
   // Auto-select first agent when none is active
   useEffect(() => {
@@ -44,7 +47,10 @@ const AgentPage = () => {
 
   if (!apiServerConfig.enabled) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentServerDisabled />
       </Container>
     )
@@ -52,7 +58,10 @@ const AgentPage = () => {
 
   if (!apiServerLoading && !apiServerRunning) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentServerStopped />
       </Container>
     )
@@ -60,7 +69,10 @@ const AgentPage = () => {
 
   if (agents && agents.length === 0) {
     return (
-      <Container className="bg-background">
+      <Container>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
+        </Navbar>
         <AgentEmpty />
       </Container>
     )
@@ -68,7 +80,7 @@ const AgentPage = () => {
 
   return (
     <Container>
-      {isLeftNavbar && <AgentNavbar />}
+      <AgentNavbar />
       <div
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">

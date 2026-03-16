@@ -83,6 +83,11 @@
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Fehler beim Neuanordnen der Agenten"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API server is enabled but not running properly."
@@ -133,6 +138,11 @@
       },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
+      "reorder": {
+        "error": {
+          "failed": "Fehler beim Neuordnen der Sitzungen"
+        }
+      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
@@ -1376,6 +1386,7 @@
     "off": "Aus",
     "on": "An",
     "open": "Öffnen",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Einfügen",
     "placeholders": {
       "select": {

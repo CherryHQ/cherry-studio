@@ -83,6 +83,11 @@
         "failed": "無法列出 Agent。"
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Agent 排序失敗"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 伺服器已啟用，但運作不正常。"
@@ -133,6 +138,11 @@
       },
       "label_one": "工作階段",
       "label_other": "工作階段",
+      "reorder": {
+        "error": {
+          "failed": "無法重新排序工作階段"
+        }
+      },
       "update": {
         "error": {
           "failed": "無法更新工作階段"
@@ -1376,6 +1386,7 @@
     "off": "關閉",
     "on": "開啟",
     "open": "開啟",
+    "open_in": "在 {{name}} 中開啟",
     "paste": "貼上",
     "placeholders": {
       "select": {

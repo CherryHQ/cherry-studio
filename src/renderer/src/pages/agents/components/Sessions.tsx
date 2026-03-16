@@ -1,5 +1,5 @@
 import AddButton from '@renderer/components/AddButton'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -13,7 +13,6 @@ import { motion } from 'framer-motion'
 import { throttle } from 'lodash'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SessionItem from './SessionItem'
 
@@ -27,13 +26,23 @@ const SCROLL_THROTTLE_DELAY = 150
 
 const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, error, deleteSession, hasMore, loadMore, isLoadingMore, isValidating, reload } =
-    useSessions(agentId)
+  const {
+    sessions,
+    isLoading,
+    error,
+    deleteSession,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+    isValidating,
+    reload,
+    reorderSessions
+  } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
   // Use refs to always read the latest values inside the throttled handler,
   // avoiding stale closures caused by recreating the throttle on each render.
@@ -151,17 +160,18 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
 
   return (
     <div className="flex h-full flex-col">
-      <StyledVirtualList
+      <DraggableVirtualList
         ref={listRef}
-        className="sessions-tab"
+        className="sessions-tab flex min-h-0 flex-1 flex-col"
+        itemStyle={{ marginBottom: 8 }}
         list={sessions}
         estimateSize={() => 9 * 4}
-        // FIXME: This component only supports CSSProperties
-        scrollerStyle={{ overflowX: 'hidden' }}
-        autoHideScrollbar
+        scrollerStyle={{ overflowX: 'hidden', padding: '12px 10px' }}
+        onUpdate={reorderSessions}
+        itemKey={(index) => sessions[index]?.id ?? index}
         header={
-          <div className="mt-0.5">
-            <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-1 mb-1.5">
+          <div className="-mt-0.5 mb-1.5">
+            <AddButton onClick={createDefaultSession} disabled={creatingSession}>
               {t('agent.session.add.title')}
             </AddButton>
           </div>
@@ -178,7 +188,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
             }}
           />
         )}
-      </StyledVirtualList>
+      </DraggableVirtualList>
       {isLoadingMore && (
         <div className="flex justify-center py-2">
           <Spin size="small" />
@@ -187,13 +197,5 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     </div>
   )
 }
-
-const StyledVirtualList = styled(DynamicVirtualList)`
-  display: flex;
-  flex-direction: column;
-  padding: 12px 10px;
-  flex: 1;
-  min-height: 0;
-` as typeof DynamicVirtualList
 
 export default memo(Sessions)

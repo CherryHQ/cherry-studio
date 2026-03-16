@@ -83,6 +83,11 @@
         "failed": "Не удалось получить список агентов."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Не удалось изменить порядок агентов"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API-сервер включен, но работает неправильно."
@@ -133,6 +138,11 @@
       },
       "label_one": "Сессия",
       "label_other": "Сессии",
+      "reorder": {
+        "error": {
+          "failed": "Не удалось изменить порядок сеансов"
+        }
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
@@ -1376,6 +1386,7 @@
     "off": "Выкл",
     "on": "Вкл",
     "open": "Открыть",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Вставить",
     "placeholders": {
       "select": {
