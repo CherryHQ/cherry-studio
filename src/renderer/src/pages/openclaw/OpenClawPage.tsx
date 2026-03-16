@@ -19,6 +19,7 @@ import { Download, ExternalLink, Play, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import UpdateButton from './components/UpdateButton'
 
@@ -188,23 +189,30 @@ const OpenClawPage: FC = () => {
     }
   }, [uninstallSuccess])
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const status = await window.api.openclaw.getStatus()
-      dispatch(setGatewayStatus(status.status as GatewayStatus))
-    } catch (err) {
-      logger.debug('Failed to fetch status', err as Error)
-    }
-  }, [dispatch])
+  // Poll gateway status every 5s (only when installed).
+  // useSWR handles deduplication and stable polling without the infinite-loop
+  // pitfall of setInterval + dispatch in useEffect deps.
+  const isInstallPage = pageState === 'installed'
 
-  const fetchHealth = useCallback(async () => {
-    try {
+  useSWR(
+    isInstallPage ? 'openclaw/status' : null,
+    async () => {
+      const [status] = await Promise.all([window.api.openclaw.getStatus(), checkInstallation()])
+      dispatch(setGatewayStatus(status.status as GatewayStatus))
+      return status
+    },
+    { refreshInterval: 5000, revalidateOnFocus: false }
+  )
+
+  useSWR(
+    isInstallPage && gatewayStatus === 'running' ? 'openclaw/health' : null,
+    async () => {
       const health = await window.api.openclaw.checkHealth()
       dispatch(setLastHealthCheck(health as HealthInfo))
-    } catch (err) {
-      logger.debug('Failed to check health', err as Error)
-    }
-  }, [dispatch])
+      return health
+    },
+    { refreshInterval: 5000, revalidateOnFocus: false }
+  )
 
   useEffect(() => {
     checkInstallation()
@@ -220,23 +228,6 @@ const OpenClawPage: FC = () => {
     )
     return cleanup
   }, [])
-
-  useEffect(() => {
-    if (pageState !== 'installed') return
-
-    fetchStatus()
-    if (gatewayStatus === 'running') {
-      fetchHealth()
-    }
-    const interval = setInterval(() => {
-      checkInstallation()
-      fetchStatus()
-      if (gatewayStatus === 'running') {
-        fetchHealth()
-      }
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [fetchStatus, fetchHealth, checkInstallation, gatewayStatus, pageState])
 
   const handleModelSelect = (modelUniqId: string) => {
     dispatch(setSelectedModelUniqId(modelUniqId))

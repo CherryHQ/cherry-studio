@@ -1,6 +1,7 @@
 import { execSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import http from 'node:http'
 import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -399,14 +400,18 @@ class OpenClawService {
     const proc = spawn(openclawPath, args, {
       env: shellEnv,
       detached: !isWin, // Only detach on non-Windows to avoid console flash
-      stdio: ['ignore', 'ignore', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
     proc.unref()
 
     // Collect early exit errors (e.g. binary crash on startup)
     let earlyExitError = ''
+    let stdoutOutput = ''
     let stderrOutput = ''
+    proc.stdout?.on('data', (data) => {
+      stdoutOutput += data.toString()
+    })
     proc.stderr?.on('data', (data) => {
       stderrOutput += data.toString()
     })
@@ -414,10 +419,16 @@ class OpenClawService {
       earlyExitError = err.message
     })
     proc.on('exit', (code) => {
+      // Capture output from both streams for diagnostics
+      const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
+      const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
       if (code !== 0) {
-        // Extract the most useful line from stderr for the error message
-        const detail = stderrOutput.trim().split('\n').filter(Boolean).slice(0, 3).join('\n')
         earlyExitError = detail || `gateway exited with code ${code}`
+      } else {
+        // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
+        earlyExitError = detail
+          ? `gateway exited with code 0 but output: ${detail}`
+          : 'gateway process exited with code 0 before becoming healthy'
       }
     })
 
@@ -446,7 +457,15 @@ class OpenClawService {
       if (healthError) lastError = healthError
     }
 
-    const detail = lastError ? `\n${lastError}` : ''
+    // Combine all available diagnostics: health check errors, stderr, and stdout
+    const diagnostics = [
+      lastError ? `health: ${lastError}` : '',
+      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
+      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const detail = diagnostics ? `\n${diagnostics}` : ''
     throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
   }
 
@@ -614,11 +633,9 @@ class OpenClawService {
    */
   private async checkGatewayHealth(): Promise<HealthInfo> {
     try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
-        signal: AbortSignal.timeout(3000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
+      const res = await this.localHttpGet('/health')
+      if (res.ok) {
+        const data = JSON.parse(res.body) as { ok?: boolean; status?: string }
         if (data.ok && data.status === 'live') {
           return { status: 'healthy', gatewayPort: this.gatewayPort }
         }
@@ -627,6 +644,41 @@ class OpenClawService {
       logger.debug('Health probe failed:', error as Error)
     }
     return { status: 'unhealthy', gatewayPort: this.gatewayPort }
+  }
+
+  /**
+   * Perform a local HTTP GET using Node.js http module to bypass system proxy.
+   * Electron's global fetch uses Chromium's network stack which respects system
+   * proxy (e.g. Surge, Clash), causing local health checks to be intercepted,
+   * delayed, or blocked entirely — leading to false timeout errors.
+   */
+  private localHttpGet(urlPath: string, timeoutMs = 3000): Promise<{ ok: boolean; status: number; body: string }> {
+    return new Promise((resolve) => {
+      const req = http.get(
+        {
+          hostname: '127.0.0.1',
+          port: this.gatewayPort,
+          path: urlPath,
+          timeout: timeoutMs
+        },
+        (res) => {
+          let body = ''
+          res.on('data', (chunk) => {
+            body += chunk
+          })
+          res.on('end', () => {
+            resolve({ ok: res.statusCode! >= 200 && res.statusCode! < 300, status: res.statusCode!, body })
+          })
+        }
+      )
+      req.on('timeout', () => {
+        req.destroy()
+        resolve({ ok: false, status: 0, body: 'request timeout' })
+      })
+      req.on('error', (err) => {
+        resolve({ ok: false, status: 0, body: err.message })
+      })
+    })
   }
 
   /**
@@ -904,12 +956,9 @@ class OpenClawService {
    */
   public async getChannelStatus(): Promise<ChannelInfo[]> {
     try {
-      const response = await fetch(`http://localhost:${this.gatewayPort}/api/channels`, {
-        signal: AbortSignal.timeout(5000)
-      })
-
-      if (response.ok) {
-        const data = await response.json()
+      const res = await this.localHttpGet('/api/channels', 5000)
+      if (res.ok) {
+        const data = JSON.parse(res.body)
         return data.channels || []
       }
     } catch (error) {
@@ -926,17 +975,15 @@ class OpenClawService {
    */
   private async checkGatewayHealthWithError(): Promise<{ status: 'healthy' | 'unhealthy'; error?: string }> {
     try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/health`, {
-        signal: AbortSignal.timeout(3000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { ok?: boolean; status?: string }
+      const res = await this.localHttpGet('/health')
+      if (res.ok) {
+        const data = JSON.parse(res.body) as { ok?: boolean; status?: string }
         if (data.ok && data.status === 'live') {
           return { status: 'healthy' }
         }
         return { status: 'unhealthy', error: `Gateway not live: ${JSON.stringify(data)}` }
       }
-      return { status: 'unhealthy', error: `HTTP ${response.status}: ${response.statusText}` }
+      return { status: 'unhealthy', error: res.status ? `HTTP ${res.status}: ${res.body}` : res.body }
     } catch (error) {
       return { status: 'unhealthy', error: error instanceof Error ? error.message : String(error) }
     }
