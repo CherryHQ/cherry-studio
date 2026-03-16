@@ -1,4 +1,5 @@
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { JsonRenderCard } from '@renderer/components/JsonRender'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -48,6 +49,10 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
       if (language === 'html') {
         const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
         return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
+      }
+      if (language === 'json-render') {
+        const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
+        return <JsonRenderCard spec={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
       }
     }
 

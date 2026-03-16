@@ -1649,6 +1649,21 @@
     "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
     "title": "匯入外部對話"
   },
+  "json_render": {
+    "download": "[to be translated]:Download Spec",
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "expand": "[to be translated]:Expand",
+    "generating": "[to be translated]:Generating interactive UI...",
+    "popup": {
+      "title": "[to be translated]:Interactive UI Preview"
+    },
+    "preview": "[to be translated]:Preview",
+    "type_badge": "[to be translated]:Interactive UI",
+    "view_source": "[to be translated]:View Source"
+  },
   "knowledge": {
     "add": {
       "title": "新增知識庫"

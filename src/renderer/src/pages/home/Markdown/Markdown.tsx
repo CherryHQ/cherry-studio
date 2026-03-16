@@ -14,6 +14,7 @@ import type {
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { preprocessJsonRender } from '@renderer/utils/jsonRender'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -112,7 +113,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
-    return removeSvgEmptyLines(processLatexBrackets(displayedContent))
+    return preprocessJsonRender(removeSvgEmptyLines(processLatexBrackets(displayedContent)))
   }, [block, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {

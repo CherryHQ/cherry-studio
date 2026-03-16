@@ -13,6 +13,7 @@ import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { getJsonRenderPrompt } from '@renderer/components/JsonRender/prompt'
 import {
   isAnthropicModel,
   isFixedReasoningModel,
@@ -246,6 +247,10 @@ export async function buildStreamTextParams(
       systemPrompt = systemPrompt ? `${systemPrompt}\n\n${autoModePrompt}` : autoModePrompt
     }
   }
+
+  // Append json-render catalog prompt so the model can generate interactive UI
+  const jsonRenderPrompt = getJsonRenderPrompt()
+  systemPrompt = systemPrompt ? `${systemPrompt}\n\n${jsonRenderPrompt}` : jsonRenderPrompt
 
   if (systemPrompt) {
     params.system = systemPrompt
