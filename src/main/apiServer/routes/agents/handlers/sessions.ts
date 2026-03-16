@@ -331,6 +331,42 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
   }
 }
 
+export const reorderSessions = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
+  try {
+    const { ordered_ids } = req.body
+
+    if (
+      !Array.isArray(ordered_ids) ||
+      ordered_ids.length === 0 ||
+      !ordered_ids.every((id: unknown) => typeof id === 'string' && id.length > 0)
+    ) {
+      return res.status(400).json({
+        error: {
+          message: 'ordered_ids must be a non-empty array of session IDs',
+          type: 'invalid_request_error',
+          code: 'invalid_ordered_ids'
+        }
+      })
+    }
+
+    logger.debug('Reordering sessions', { agentId, count: ordered_ids.length })
+    await sessionService.reorderSessions(agentId, ordered_ids)
+
+    logger.info('Sessions reordered', { agentId, count: ordered_ids.length })
+    return res.json({ success: true })
+  } catch (error: any) {
+    logger.error('Error reordering sessions', { error, agentId })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to reorder sessions',
+        type: 'internal_error',
+        code: 'session_reorder_failed'
+      }
+    })
+  }
+}
+
 // Convenience endpoints for sessions without agent context
 export const listAllSessions = async (req: Request, res: Response): Promise<Response> => {
   try {

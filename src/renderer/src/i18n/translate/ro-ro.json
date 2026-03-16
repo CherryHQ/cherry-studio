@@ -7,9 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "supported_providers": "[to be translated]:Supported Providers",
+        "supported_providers": "Furnizori Acceptați",
         "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
-        "view_providers": "[to be translated]:View supported providers"
+        "view_providers": "Vezi furnizorii acceptați"
       },
       "title": "Adaugă agent",
       "type": {
@@ -37,6 +37,10 @@
     },
     "edit": {
       "title": "Editează agentul"
+    },
+    "empty": {
+      "description": "Creează un agent pentru a gestiona sarcini complexe cu instrumente bazate pe IA",
+      "title": "Niciun agent încă"
     },
     "get": {
       "error": {
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Nu s-a putut afișa lista de agenți."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Nu s-a reușit reordonarea agenților"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
+      "reorder": {
+        "error": {
+          "failed": "Nu s-au putut reordona sesiunile"
+        }
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agenți",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} sarcini finalizate"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Activează serverul API pentru a folosi agenți."
+      "enable_and_start": "Activează și pornește",
+      "enable_server": "Activează serverul API pentru a folosi agenți.",
+      "enable_server_description": "Serverul API trebuie să fie activat pentru ca agenții să funcționeze. Îl puteți activa direct sau îl puteți configura în setări.",
+      "server_not_running": "Serverul API este activat, dar nu rulează. Vă rugăm să verificați configurația serverului.",
+      "server_not_running_description": "Serverul API trebuie să ruleze pentru ca agenții să funcționeze. Îl puteți porni direct sau puteți verifica setările."
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "Asistentul va folosi capacitatea de recunoaștere a intenției modelului mare pentru a determina dacă să folosească baza de cunoștințe pentru a răspunde. Această funcție depinde de capacitățile modelului"
         }
       },
+      "max_tool_calls": {
+        "label": "Apeluri Maxime de Instrumente",
+        "tip": "Numărul maxim de apeluri de instrumente permise într-o singură conversație. Valori mai mari permit operații mai complexe, în mai multe etape, dar pot crește consumul de tokeni și timpul de răspuns."
+      },
       "mcp": {
         "description": "Servere MCP activate implicit",
         "enableFirst": "Activează mai întâi acest server în setările MCP",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Creează un agent pentru a începe",
       "create_session": "Creează o sesiune",
       "select_agent": "Selectați un agent"
     },
@@ -1358,6 +1382,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
+    "open_in": "[to be translated]:Open in {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -1385,6 +1410,7 @@
     "selected": "Selectat",
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
+    "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
       "pinyin": {
@@ -1494,7 +1520,6 @@
     "originalError": "Eroare originală",
     "originalMessage": "Mesaj original",
     "parameter": "Parametru",
-    "pause_placeholder": "În pauză",
     "prompt": "Prompt",
     "provider": "Furnizor",
     "providerId": "ID furnizor",
@@ -1508,6 +1533,7 @@
     "requestBody": "Corp cerere",
     "requestBodyValues": "Valori corp cerere",
     "requestUrl": "URL cerere",
+    "request_timeout": "Cerere expirată",
     "response": "Răspuns",
     "responseBody": "Corp răspuns",
     "responseHeaders": "Header răspuns",
@@ -1517,6 +1543,7 @@
     "status": "Cod stare",
     "statusCode": "Cod stare",
     "statusText": "Text stare",
+    "stream_paused": "În pauză",
     "text": "Text",
     "toolInput": "Intrare instrument",
     "toolName": "Nume instrument",
@@ -2594,6 +2621,11 @@
     },
     "install_progress": "Progresul instalării",
     "installed_at": "OpenClaw instalat la",
+    "migration": {
+      "description": "A fost detectată o versiune învechită a OpenClaw instalată prin npm. Te rugăm să reinstalezi pentru a obține cea mai recentă versiune oficială.",
+      "install_button": "Reinstalați OpenClaw",
+      "title": "OpenClaw Necesită Actualizare"
+    },
     "model_config": {
       "auth_token": "Token de autentificare",
       "auth_token_hint": "Token pentru autentificarea gateway-ului. Lăsați gol pentru a dezactiva autentificarea.",
@@ -2632,6 +2664,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Verifică actualizările",
       "open_dashboard": "Deschide Tabloul de Bord",
       "title": "Acțiuni rapide",
       "uninstall": "Dezinstalare",
@@ -2658,6 +2691,16 @@
     "uninstalling": {
       "description": "Vă rugăm să așteptați în timp ce OpenClaw este dezinstalat...",
       "title": "Dezinstalarea OpenClaw"
+    },
+    "update": {
+      "available": "Versiune nouă disponibilă: v{{latest}} (versiunea curentă: v{{current}})",
+      "checking": "Se verifică actualizările...",
+      "confirm_button": "Actualizează acum",
+      "failed": "Nu s-a reușit verificarea actualizărilor",
+      "modal_title": "Actualizare OpenClaw",
+      "success": "Actualizare finalizată cu succes!",
+      "up_to_date": "Deja actualizat (v{{current}})",
+      "updating": "Se actualizează..."
     }
   },
   "ovms": {
@@ -5034,10 +5077,10 @@
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
       "filter": {
-        "agent": "[to be translated]:Agent Supported",
-        "all": "[to be translated]:All Providers"
+        "agent": "Asistat de agent",
+        "all": "Toți furnizorii"
       },
-      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
+      "filter_agent": "Furnizori acceptați de Agentul de filtrare",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",

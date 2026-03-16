@@ -416,7 +416,15 @@ const updateExistingMessageAndBlocksInDB = async (
 const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (throttler, id) => {
+    throttler.cancel()
+    const rafId = blockUpdateRafs.get(id)
+    if (rafId) {
+      cancelAnimationFrame(rafId)
+      blockUpdateRafs.delete(id)
+    }
+  }
 })
 
 /**
@@ -426,7 +434,10 @@ const blockUpdateThrottlers = new LRUCache<string, ReturnType<typeof throttle>>(
 const blockUpdateRafs = new LRUCache<string, number>({
   max: 100,
   ttl: 1000 * 60 * 5,
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
+  dispose: (rafId) => {
+    cancelAnimationFrame(rafId)
+  }
 })
 
 /**
@@ -873,7 +884,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         callbacks,
         options: {
           signal: abortController.signal,
-          timeout: 30000,
           headers: defaultAppHeaders()
         }
       },

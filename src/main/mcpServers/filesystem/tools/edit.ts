@@ -18,7 +18,7 @@ export const editToolDefinition = {
   description: `Performs exact string replacements in files.
 
 - You must use the 'read' tool at least once before editing
-- The file_path must be an absolute path, not a relative path
+- The file_path must resolve within the configured workspace root
 - Preserve exact indentation from read output (after the line number prefix)
 - Never include line number prefixes in old_string or new_string
 - ALWAYS prefer editing existing files over creating new ones
