@@ -435,6 +435,88 @@ describe('useMcpToolApproval', () => {
     })
   })
 
+  describe('isAutoApproved hub resolution', () => {
+    it('resolves hub invoke tool to underlying server for auto-approve UI state', async () => {
+      const underlyingServer = makeServer({
+        id: 'actual-server',
+        disabledAutoApproveTools: [] // tool is NOT disabled, so auto-approve should be true
+      })
+      mockMcpServers.push(underlyingServer)
+
+      mockResolveHubTool.mockResolvedValue({
+        serverId: 'actual-server',
+        toolName: 'real_tool'
+      })
+
+      const block = makeBlock({
+        status: 'pending',
+        id: 'tool-hub-auto-1',
+        tool: makeTool({ serverId: 'hub', name: 'invoke' }),
+        arguments: { name: 'real_tool' }
+      })
+
+      const { result } = renderHook(() => useMcpToolApproval(block))
+
+      // Wait for the async resolution effect to complete
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0))
+      })
+
+      // After resolution, the tool should be auto-approved and show as executing
+      expect(result.current.isExecuting).toBe(true)
+      expect(result.current.isWaiting).toBe(false)
+    })
+
+    it('shows waiting when hub tool underlying server has tool disabled', async () => {
+      const underlyingServer = makeServer({
+        id: 'actual-server',
+        disabledAutoApproveTools: ['real_tool'] // tool IS disabled
+      })
+      mockMcpServers.push(underlyingServer)
+
+      mockResolveHubTool.mockResolvedValue({
+        serverId: 'actual-server',
+        toolName: 'real_tool'
+      })
+
+      const block = makeBlock({
+        status: 'pending',
+        id: 'tool-hub-auto-2',
+        tool: makeTool({ serverId: 'hub', name: 'invoke' }),
+        arguments: { name: 'real_tool' }
+      })
+
+      const { result } = renderHook(() => useMcpToolApproval(block))
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0))
+      })
+
+      expect(result.current.isWaiting).toBe(true)
+      expect(result.current.isExecuting).toBe(false)
+    })
+
+    it('falls back to waiting when hub resolution fails', async () => {
+      mockResolveHubTool.mockRejectedValue(new Error('IPC error'))
+
+      const block = makeBlock({
+        status: 'pending',
+        id: 'tool-hub-auto-3',
+        tool: makeTool({ serverId: 'hub', name: 'invoke' }),
+        arguments: { name: 'failing_tool' }
+      })
+
+      const { result } = renderHook(() => useMcpToolApproval(block))
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0))
+      })
+
+      expect(result.current.isWaiting).toBe(true)
+      expect(result.current.isExecuting).toBe(false)
+    })
+  })
+
   describe('autoApprove availability', () => {
     it('provides autoApprove when isWaiting is true', () => {
       const block = makeBlock({ status: 'pending' })
