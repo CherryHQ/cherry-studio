@@ -43,10 +43,20 @@ export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'che
 
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
+// Local services that support Anthropic API endpoints (LMStudio, Ollama)
+// These providers share the same host for both OpenAI and Anthropic APIs
+export const LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS = ['lmstudio', 'ollama'] as const
+
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeTools.claudeCode]: (providers) =>
-    providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter(
+      (p) =>
+        p.type === 'anthropic' ||
+        CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) ||
+        LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS.includes(p.id as any) ||
+        p.type === 'ollama'
+    ),
   [codeTools.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
@@ -151,7 +161,7 @@ export const generateToolEnvironment = ({
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
-    case codeTools.claudeCode:
+    case codeTools.claudeCode: {
       env.ANTHROPIC_BASE_URL =
         getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
@@ -161,6 +171,7 @@ export const generateToolEnvironment = ({
         env.ANTHROPIC_AUTH_TOKEN = apiKey
       }
       break
+    }
 
     case codeTools.geminiCli: {
       const apiBaseUrl = getCodeToolsApiBaseUrl(model, 'gemini') || modelProvider.apiHost
