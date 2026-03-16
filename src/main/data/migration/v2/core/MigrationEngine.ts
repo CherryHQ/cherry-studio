@@ -20,6 +20,7 @@ import type {
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
 import fs from 'fs/promises'
+import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -167,7 +168,6 @@ export class MigrationEngine {
       await this.cleanupTempFiles(dexieExportPath)
 
       if (localStorageExportPath) {
-        const path = await import('path')
         await this.cleanupTempFiles(path.dirname(localStorageExportPath))
       }
 

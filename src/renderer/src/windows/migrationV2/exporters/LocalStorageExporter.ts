@@ -2,6 +2,7 @@ import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 
 export class LocalStorageExporter {
   private exportPath: string
+  private exportedCount = 0
 
   constructor(exportPath: string) {
     this.exportPath = exportPath
@@ -29,6 +30,8 @@ export class LocalStorageExporter {
       records.push({ key, value })
     }
 
+    this.exportedCount = records.length
+
     // Write via IPC (reuse existing WriteExportFile channel)
     await window.electron.ipcRenderer.invoke(
       'migration:write-export-file',
@@ -45,6 +48,6 @@ export class LocalStorageExporter {
   }
 
   getEntryCount(): number {
-    return localStorage.length
+    return this.exportedCount
   }
 }
