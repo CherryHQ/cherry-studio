@@ -26,6 +26,12 @@ Here are several ways you can participate:
 
 Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the [LICENSE](LICENSE).
 
+## Setting Up Your Development Environment
+
+Please refer to the [Developer Guide](docs/en/guides/development.md) for instructions on setting up your local development environment, including prerequisites, installation steps, and available commands.
+
+For a comprehensive overview of the project architecture, tech stack, conventions, and available commands, see [`CLAUDE.md`](CLAUDE.md).
+
 ## Getting Started
 
 To help you get familiar with the codebase, we recommend tackling issues tagged with one or more of the following labels: [good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue), [help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted), or [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug). Any help is welcome.

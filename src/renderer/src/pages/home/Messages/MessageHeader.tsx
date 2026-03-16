@@ -21,6 +21,7 @@ import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MessageTokens from './MessageTokens'
@@ -43,9 +44,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
   const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
+  const { activeAgentId } = chat
   const { agent } = useAgent(activeAgentId)
-  const isAgentView = activeTopicOrSession === 'session'
+  const { pathname } = useLocation()
+  const isAgentView = pathname.startsWith('/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()

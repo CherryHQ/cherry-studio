@@ -50,7 +50,7 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isSupportServiceTierProvider } from '@renderer/utils/provider'
-import { defaultTimeout } from '@shared/config/constant'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
@@ -267,7 +267,7 @@ export abstract class BaseApiClient<
     if (isSupportFlexServiceTierModel(model)) {
       return 15 * 1000 * 60
     }
-    return defaultTimeout
+    return DEFAULT_TIMEOUT
   }
 
   public async getMessageContent(
