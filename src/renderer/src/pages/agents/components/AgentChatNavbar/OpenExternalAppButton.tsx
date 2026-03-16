@@ -63,6 +63,7 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     [workdir]
   )
 
+  // TODO: migrate it to preferences in v2
   const [selectedEditorId, setSelectedEditorId] = useState<string | null>(null)
 
   const selectedEditor = useMemo(() => {
