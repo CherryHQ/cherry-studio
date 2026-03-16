@@ -75,7 +75,11 @@ export async function createMigrationContext(
       localStorageRecords = JSON.parse(raw) as LocalStorageRecord[]
       logger.info(`Loaded ${localStorageRecords.length} localStorage records`)
     } catch (error) {
-      logger.warn('Failed to load localStorage export, skipping', { error })
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.warn('localStorage export file not found, skipping')
+      } else {
+        logger.error('Failed to load localStorage export', error as Error)
+      }
     }
   } else {
     logger.warn('No localStorage export path provided, skipping')
