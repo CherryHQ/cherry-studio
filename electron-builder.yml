@@ -150,7 +150,7 @@ releaseInfo:
     - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
     - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
     - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
-    - [Gateway] Fixed gateway status detection for crashed/externally-stopped gateways
+    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
     - [Gateway] Improved gateway startup error messages with detailed diagnostics
     - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
 
