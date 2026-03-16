@@ -12,7 +12,6 @@ Replace Redux `useAppSelector` / `dispatch` in React components with v2 hooks (`
 **Related skills:**
 - `v2-migrator` - Phase 1: Migrating legacy data into SQLite
 - `v2-data-api` - Phase 2: Main-process services that expose data
-- `vercel-composition-patterns` - Phase 3: Renderer ui/components pattern
 
 ## Multi-Window Architecture
 
