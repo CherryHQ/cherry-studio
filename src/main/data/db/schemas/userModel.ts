@@ -126,6 +126,9 @@ export const userModelTable = sqliteTable(
     /** Whether this model is hidden from lists */
     isHidden: integer({ mode: 'boolean' }).default(false),
 
+    /** Whether this model has been deprecated by the provider (no longer in API model list) */
+    isDeprecated: integer({ mode: 'boolean' }).default(false),
+
     /** Sort order in UI */
     sortOrder: integer().default(0),
 

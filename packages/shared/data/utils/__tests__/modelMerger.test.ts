@@ -2,12 +2,7 @@ import type { ProtoModelConfig, ProtoProviderConfig, ProtoProviderModelOverride 
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@cherrystudio/provider-catalog'
 import { describe, expect, it } from 'vitest'
 
-import {
-  applyCapabilityOverride,
-  DEFAULT_API_FEATURES,
-  mergeModelConfig,
-  mergeProviderConfig
-} from '../modelMerger'
+import { applyCapabilityOverride, DEFAULT_API_FEATURES, mergeModelConfig, mergeProviderConfig } from '../modelMerger'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Test Fixtures
@@ -40,9 +35,7 @@ function makeCatalogOverride(
   } as unknown as ProtoProviderModelOverride
 }
 
-function makePresetProvider(
-  overrides: Record<string, unknown> & { id: string; name: string }
-): ProtoProviderConfig {
+function makePresetProvider(overrides: Record<string, unknown> & { id: string; name: string }): ProtoProviderConfig {
   return {
     baseUrls: {},
     ...overrides

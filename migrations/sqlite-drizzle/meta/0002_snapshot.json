@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9a239d80-6938-4520-a871-9a47de35099e",
+  "id": "aae215b3-af53-4cdb-9f42-0d717fb58d47",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -953,6 +953,14 @@
         },
         "is_hidden": {
           "name": "is_hidden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
+        },
+        "is_deprecated": {
+          "name": "is_deprecated",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
