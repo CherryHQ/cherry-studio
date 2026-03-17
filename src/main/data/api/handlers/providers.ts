@@ -12,7 +12,7 @@
 import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { ListProvidersQuery } from '@shared/data/api/schemas/providers'
+import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
 
 /**
@@ -39,7 +39,7 @@ export const providerHandlers: {
       if (!parsed.success) {
         throw new Error(`Invalid provider data: ${parsed.error.message}`)
       }
-      return await providerService.create(parsed.data)
+      return await providerService.create(parsed.data as CreateProviderDto)
     }
   },
 
@@ -53,7 +53,7 @@ export const providerHandlers: {
       if (!parsed.success) {
         throw new Error(`Invalid provider update data: ${parsed.error.message}`)
       }
-      return await providerService.update(params.providerId, parsed.data)
+      return await providerService.update(params.providerId, parsed.data as UpdateProviderDto)
     },
 
     DELETE: async ({ params }) => {
