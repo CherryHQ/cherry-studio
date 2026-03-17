@@ -326,7 +326,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
           return
         }
 
-        if (event.shiftKey) {
+        // Any Enter combination that is not the send shortcut should insert a newline
+        if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
           return
         }
       }
