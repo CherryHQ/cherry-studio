@@ -1,4 +1,3 @@
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,8 +9,7 @@ const mocks = vi.hoisted(() => ({
     emit: vi.fn()
   },
   getCodeBlockId: vi.fn(),
-  isOpenFenceBlock: vi.fn(),
-  selectById: vi.fn(),
+  useIsCodeFenceIncomplete: vi.fn().mockReturnValue(false),
   useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
@@ -38,20 +36,11 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
-  getCodeBlockId: mocks.getCodeBlockId,
-  isOpenFenceBlock: mocks.isOpenFenceBlock
+  getCodeBlockId: mocks.getCodeBlockId
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: vi.fn(() => ({})) // Mock store, state doesn't matter here
-  }
-}))
-
-vi.mock('@renderer/store/messageBlock', () => ({
-  messageBlocksSelectors: {
-    selectById: mocks.selectById
-  }
+vi.mock('streamdown', () => ({
+  useIsCodeFenceIncomplete: mocks.useIsCodeFenceIncomplete
 }))
 
 vi.mock('@renderer/hooks/useSettings', () => ({
@@ -81,11 +70,7 @@ describe('CodeBlock', () => {
     vi.clearAllMocks()
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
-    mocks.isOpenFenceBlock.mockReturnValue(false)
-    mocks.selectById.mockReturnValue({
-      id: 'test-msg-block-id',
-      status: MessageBlockStatus.SUCCESS
-    })
+    mocks.useIsCodeFenceIncomplete.mockReturnValue(false)
   })
 
   describe('rendering', () => {

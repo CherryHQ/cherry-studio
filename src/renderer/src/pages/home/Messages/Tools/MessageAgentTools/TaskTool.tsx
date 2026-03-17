@@ -1,7 +1,7 @@
 import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -46,7 +46,7 @@ export function TaskTool({
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.prompt')}</div>
             <div className="max-h-40 overflow-y-auto rounded-md bg-muted/50 p-2 text-sm">
-              <Markdown>{input.prompt}</Markdown>
+              <Streamdown mode="static">{input.prompt}</Streamdown>
             </div>
           </div>
         )}
@@ -56,7 +56,7 @@ export function TaskTool({
           <div>
             <div className="mb-1 font-medium text-muted-foreground text-xs">{t('message.tools.sections.output')}</div>
             <div className="rounded-md bg-muted/30 p-2">
-              <Markdown>{truncatedText}</Markdown>
+              <Streamdown mode="static">{truncatedText}</Streamdown>
               {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
             </div>
           </div>

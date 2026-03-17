@@ -21,7 +21,7 @@ import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Markdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
@@ -265,11 +265,11 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <UpdateNotesWrapper className="markdown">
-            <Markdown>
+            <Streamdown mode="static">
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Markdown>
+            </Streamdown>
           </UpdateNotesWrapper>
         </SettingGroup>
       )}

@@ -35,10 +35,11 @@ const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
 /**
  * 转换 LaTeX 公式括号 `\[\]` 和 `\(\)` 为 Markdown 格式 `$$...$$` 和 `$...$`
  *
- * remark-math 本身不支持 LaTeX 原生语法，作为替代的一些插件效果也不理想。
+ * @streamdown/math 内部使用 remark-math，不支持 LaTeX 原生 `\[\]` 和 `\(\)` 语法，
+ * 需要预处理转换为 `$$` 和 `$` 格式。
  *
  * 目前的实现：
- * - 保护代码块和链接，避免被 remark-math 处理
+ * - 保护代码块和链接，避免被数学公式处理影响
  * - 支持嵌套括号的平衡匹配
  * - 转义括号 `\\(\\)` 或 `\\[\\]` 不会被处理
  *
@@ -222,7 +223,7 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
 /**
  * 检查代码块是否包含 open fence。
  * 限制：
- * - 语言名不能包含空格，因为 remark-math 无法处理，会导致 end.offset 过长。
+ * - 语言名不能包含空格，可能导致 end.offset 过长。
  *
  * 这个算法基于 remark/micromark 解析代码块的原理，所有参数实际上都可以从 node 中获取。
  * 一个代码块的 node.position 包含 fences，而 children 不包含 fences，通过它们之间的

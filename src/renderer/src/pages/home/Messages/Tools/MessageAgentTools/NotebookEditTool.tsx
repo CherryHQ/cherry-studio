@@ -1,6 +1,6 @@
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
@@ -26,7 +26,7 @@ export function NotebookEditTool({
     ),
     children: (
       <div>
-        <ReactMarkdown>{truncatedOutput}</ReactMarkdown>
+        <Streamdown mode="static">{truncatedOutput}</Streamdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )
