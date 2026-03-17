@@ -80,7 +80,7 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
+  if (error instanceof Error && error.message) {
     return error.message
   } else {
     return t('error.unknown')

@@ -397,7 +397,7 @@ export async function fetchMessagesSummary({
     const text = getText()
     const result = removeSpecialCharactersForTopicName(text)
     return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return { text: null, error: getErrorMessage(error) }
   }
 }
