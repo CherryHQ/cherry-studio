@@ -75,9 +75,6 @@ export const userModelTable = sqliteTable(
     /** Model ID (composite key part) */
     modelId: text().notNull(),
 
-    /** Actual model ID used in API calls (may differ from modelId for aliased models) */
-    modelApiId: text(),
-
     /** Associated preset model ID (for traceability) */
     presetModelId: text(),
 

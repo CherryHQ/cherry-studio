@@ -34,7 +34,6 @@ CREATE INDEX `user_assistant_sort_idx` ON `user_assistant` (`sort_order`);--> st
 CREATE TABLE `user_model` (
 	`provider_id` text NOT NULL,
 	`model_id` text NOT NULL,
-	`model_api_id` text,
 	`preset_model_id` text,
 	`name` text,
 	`description` text,

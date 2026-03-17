@@ -33,7 +33,7 @@ function rowToRuntimeModel(row: UserModel): Model {
   return {
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
-    apiModelId: row.modelApiId ?? row.modelId,
+    apiModelId: row.modelId,
     name: row.name ?? row.modelId,
     description: row.description ?? undefined,
     group: row.group ?? undefined,
@@ -157,7 +157,6 @@ export class ModelService {
       values = {
         providerId: dto.providerId,
         modelId: dto.modelId,
-        modelApiId: catalogOverride?.apiModelId ?? null,
         presetModelId: presetModel.id,
         name: merged.name,
         description: merged.description ?? null,

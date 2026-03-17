@@ -496,7 +496,6 @@ describe('transformModel', () => {
 
     expect(result.providerId).toBe('openai')
     expect(result.modelId).toBe('gpt-4o')
-    expect(result.modelApiId).toBe('gpt-4o')
     expect(result.name).toBe('GPT-4o')
     expect(result.group).toBe('openai')
     expect(result.description).toBe('A great model')
@@ -667,16 +666,15 @@ describe('transformModel', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Column consistency: modelId / modelApiId / presetModelId
+// Column consistency: modelId / presetModelId
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('transformModel column consistency', () => {
-  it('should use legacy.id as both modelId (PK) and modelApiId', () => {
+  it('should use legacy.id as modelId (PK)', () => {
     const legacy = makeLegacyModel({ id: 'agent/deepseek-v3.1-terminus' })
     const result = transformModel(legacy, 'silicon', 0)
 
     expect(result.modelId).toBe('agent/deepseek-v3.1-terminus')
-    expect(result.modelApiId).toBe('agent/deepseek-v3.1-terminus')
   })
 
   it('should set presetModelId via normalizeModelId for catalog matching', () => {
@@ -928,9 +926,8 @@ describe('user data and catalog preset merge scenarios', () => {
       0
     )
 
-    // modelId (PK) and modelApiId both preserve the original ID for API calls
+    // modelId (PK) preserves the original ID for API calls
     expect(userModel.modelId).toBe('Qwen/Qwen3-Coder-30B-A3B-Instruct')
-    expect(userModel.modelApiId).toBe('Qwen/Qwen3-Coder-30B-A3B-Instruct')
 
     // presetModelId is normalized for catalog lookup
     expect(userModel.presetModelId).toBe(normalizeModelId('Qwen/Qwen3-Coder-30B-A3B-Instruct'))

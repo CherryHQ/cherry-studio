@@ -51,7 +51,6 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
     id: 'row-uuid-1',
     providerId: 'openai',
     modelId: 'gpt-4o',
-    modelApiId: null,
     presetModelId: null,
     name: 'GPT-4o',
     description: null,
@@ -438,61 +437,6 @@ describe('ModelService', () => {
       expect(mockDb.insertChain.values).toHaveBeenCalledTimes(1)
       const [insertValues] = vi.mocked(mockDb.insertChain.values).mock.calls[0]
       expect((insertValues as { presetModelId: string }).presetModelId).toBe('gpt-4o')
-    })
-
-    it('uses catalogOverride.apiModelId for modelApiId when available', async () => {
-      const presetModel = makePresetModel()
-      const catalogOverride = {
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        apiModelId: 'gpt-4o-2024',
-        priority: 0
-      } as unknown as ProviderModelOverride
-      const mergedModel = makeMergedModel()
-      const insertedRow = makeDbRow({ modelApiId: 'gpt-4o-2024' })
-
-      vi.mocked(catalogService.lookupModel).mockReturnValue({
-        presetModel: presetModel as any,
-        catalogOverride,
-        reasoningFormatType: undefined
-      })
-      vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
-
-      const mockDb = buildMockDb({ insertRows: [insertedRow] })
-      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
-
-      const svc = ModelService.getInstance()
-      await svc.create({ providerId: 'openai', modelId: 'gpt-4o' })
-
-      const [insertValues] = vi.mocked(mockDb.insertChain.values).mock.calls[0]
-      expect((insertValues as { modelApiId: string }).modelApiId).toBe('gpt-4o-2024')
-    })
-
-    it('sets modelApiId to null when catalogOverride has no apiModelId', async () => {
-      const presetModel = makePresetModel()
-      const catalogOverride = {
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        priority: 0
-      } as unknown as ProviderModelOverride
-      const mergedModel = makeMergedModel()
-      const insertedRow = makeDbRow({ modelApiId: null })
-
-      vi.mocked(catalogService.lookupModel).mockReturnValue({
-        presetModel: presetModel as any,
-        catalogOverride,
-        reasoningFormatType: undefined
-      })
-      vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
-
-      const mockDb = buildMockDb({ insertRows: [insertedRow] })
-      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
-
-      const svc = ModelService.getInstance()
-      await svc.create({ providerId: 'openai', modelId: 'gpt-4o' })
-
-      const [insertValues] = vi.mocked(mockDb.insertChain.values).mock.calls[0]
-      expect((insertValues as { modelApiId: null }).modelApiId).toBeNull()
     })
 
     it('saves a custom model (no catalog match) without calling mergeModelConfig', async () => {
@@ -1112,7 +1056,7 @@ describe('ModelService', () => {
       expect(set).not.toHaveProperty('isHidden')
     })
 
-    it('onConflictDoUpdate set excludes sortOrder, notes, modelApiId, and id', async () => {
+    it('onConflictDoUpdate set excludes sortOrder, notes, and id', async () => {
       const mockDb = buildMockDb()
       vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
 
@@ -1124,7 +1068,6 @@ describe('ModelService', () => {
       const { set } = conflictArg as { set: Record<string, unknown> }
       expect(set).not.toHaveProperty('sortOrder')
       expect(set).not.toHaveProperty('notes')
-      expect(set).not.toHaveProperty('modelApiId')
       expect(set).not.toHaveProperty('id')
       expect(set).not.toHaveProperty('customEndpointUrl')
     })
@@ -1192,13 +1135,8 @@ describe('ModelService', () => {
       expect(model.id).toBe('mistral::mistral-large')
     })
 
-    it('uses modelApiId from row when present', async () => {
-      const model = await getModelFromRow({ modelApiId: 'gpt-4o-2024-11-20' })
-      expect(model.apiModelId).toBe('gpt-4o-2024-11-20')
-    })
-
-    it('falls back apiModelId to modelId when modelApiId is null', async () => {
-      const model = await getModelFromRow({ modelId: 'gpt-4o', modelApiId: null })
+    it('sets apiModelId to modelId', async () => {
+      const model = await getModelFromRow({ modelId: 'gpt-4o' })
       expect(model.apiModelId).toBe('gpt-4o')
     })
 

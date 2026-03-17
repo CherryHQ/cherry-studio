@@ -407,7 +407,6 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
   return {
     providerId,
     modelId: legacy.id,
-    modelApiId: legacy.id,
     presetModelId: normalizeModelId(legacy.id),
     name: legacy.name || null,
     description: legacy.description || null,

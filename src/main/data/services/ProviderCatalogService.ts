@@ -415,7 +415,6 @@ export class CatalogService {
       updateRows.push({
         providerId: row.providerId,
         modelId: row.modelId,
-        modelApiId: row.modelApiId,
         presetModelId,
         name: merged.name,
         description: merged.description ?? null,
