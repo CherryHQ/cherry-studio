@@ -6,6 +6,7 @@
 import { dbService } from '@data/db/DbService'
 import { appStateTable } from '@data/db/schemas/appState'
 import { messageTable } from '@data/db/schemas/message'
+import { noteTable } from '@data/db/schemas/note'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
@@ -210,7 +211,8 @@ export class MigrationEngine {
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
-      { table: preferenceTable, name: 'preference' }
+      { table: preferenceTable, name: 'preference' },
+      { table: noteTable, name: 'note' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
       // { table: fileTable, name: 'file' },
@@ -231,6 +233,7 @@ export class MigrationEngine {
     await db.delete(messageTable)
     await db.delete(topicTable)
     await db.delete(preferenceTable)
+    await db.delete(noteTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
     // await db.delete(knowledgeBaseTable)
