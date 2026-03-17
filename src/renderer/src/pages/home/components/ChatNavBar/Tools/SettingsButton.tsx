@@ -1,4 +1,3 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { Assistant } from '@renderer/types'
 import { Drawer, Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -7,7 +6,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 
 import NavbarIcon from '../../../../../components/NavbarIcon'
-import { AgentSettingsTab, AssistantSettingsTab } from './SettingsTab'
+import { AssistantSettingsTab } from './SettingsTab'
 
 interface Props {
   assistant?: Assistant
@@ -15,10 +14,6 @@ interface Props {
 
 const SettingsButton: FC<Props> = ({ assistant }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { chat } = useRuntime()
-
-  const isTopicSettings = chat.activeTopicOrSession === 'topic'
-  const isAgentSettings = chat.activeTopicOrSession === 'session'
 
   return (
     <>
@@ -34,8 +29,7 @@ const SettingsButton: FC<Props> = ({ assistant }) => {
         width="var(--assistants-width)"
         closable={false}
         styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        {isTopicSettings && assistant && <AssistantSettingsTab assistant={assistant} />}
-        {isAgentSettings && <AgentSettingsTab />}
+        {assistant && <AssistantSettingsTab assistant={assistant} />}
       </Drawer>
     </>
   )

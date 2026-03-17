@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -9,7 +8,6 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
@@ -62,14 +60,11 @@ import styled from 'styled-components'
 import GroqSettingsGroup from './GroqSettingsGroup'
 import OpenAISettingsGroup from './OpenAISettingsGroup'
 
-const logger = loggerService.withContext('AssistantSettingsTab')
-
 interface Props {
   assistant: Assistant
 }
 
 const AssistantSettingsTab = (props: Props) => {
-  const { chat } = useRuntime()
   const { assistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
@@ -149,13 +144,6 @@ const AssistantSettingsTab = (props: Props) => {
     isOpenAIModel(model) ||
     isSupportServiceTierProvider(provider) ||
     (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
-
-  const isTopicSettings = chat.activeTopicOrSession === 'topic'
-
-  if (!isTopicSettings) {
-    logger.warn('AssistantSettingsTab is rendered when not topic activated.')
-    return null
-  }
 
   return (
     <Container className="settings-tab">

@@ -218,7 +218,7 @@ export enum UpdateMirror {
   GITCODE = 'gitcode'
 }
 
-export const defaultTimeout = 10 * 1000 * 60
+export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
@@ -351,7 +351,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', `"${fullCommand}"`]
+      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', fullCommand]
     })
   },
   {

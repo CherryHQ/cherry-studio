@@ -38,6 +38,10 @@
     "edit": {
       "title": "Edit Agent"
     },
+    "empty": {
+      "description": "Create an agent to handle complex tasks with AI-powered tools",
+      "title": "No agents yet"
+    },
     "get": {
       "error": {
         "failed": "Failed to get the agent.",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Failed to list agents."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Failed to reorder agents"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Sessions",
+      "reorder": {
+        "error": {
+          "failed": "Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tasks completed"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Enable API Server to use agents."
+      "enable_and_start": "Enable & Start",
+      "enable_server": "Enable API Server to use agents.",
+      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
+      "max_tool_calls": {
+        "label": "Max Tool Calls",
+        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
+      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Create an agent to get started",
       "create_session": "Create a session",
       "select_agent": "Select an agent"
     },
@@ -864,7 +888,11 @@
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
-        "expand": "Expand"
+        "expand": "Expand",
+        "file_not_found": "File not found: {{path}}",
+        "open_file": "Open File",
+        "open_file_error": "Failed to open file: {{path}}",
+        "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Topics ",
       "translate": "Translate to {{target_language}}",
@@ -1358,6 +1386,7 @@
     "off": "Off",
     "on": "On",
     "open": "Open",
+    "open_in": "Open in {{name}}",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -1385,6 +1414,7 @@
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
+    "sessions": "Sessions",
     "settings": "Settings",
     "sort": {
       "pinyin": {
@@ -1494,7 +1524,6 @@
     "originalError": "Original Error",
     "originalMessage": "Original Message",
     "parameter": "Parameter",
-    "pause_placeholder": "Paused",
     "prompt": "Prompt",
     "provider": "Provider",
     "providerId": "Provider ID",
@@ -1508,6 +1537,7 @@
     "requestBody": "Request Body",
     "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "request_timeout": "Request timed out",
     "response": "Response",
     "responseBody": "Response Body",
     "responseHeaders": "Response Header",
@@ -1517,6 +1547,7 @@
     "status": "Status Code",
     "statusCode": "Status Code",
     "statusText": "Status Text",
+    "stream_paused": "Paused",
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
@@ -2594,6 +2625,11 @@
     },
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
+    "migration": {
+      "description": "An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "Reinstall OpenClaw",
+      "title": "OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Auth Token",
       "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
@@ -2629,6 +2665,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Check for Updates",
       "open_dashboard": "Open Dashboard",
       "title": "Quick Actions",
       "uninstall": "Uninstall",
@@ -2655,6 +2692,16 @@
     "uninstalling": {
       "description": "Please wait while OpenClaw is being uninstalled...",
       "title": "Uninstalling OpenClaw"
+    },
+    "update": {
+      "available": "New version available: v{{latest}} (current: v{{current}})",
+      "checking": "Checking for updates...",
+      "confirm_button": "Update Now",
+      "failed": "Failed to check for updates",
+      "modal_title": "OpenClaw Update",
+      "success": "Update completed successfully!",
+      "up_to_date": "Already up to date (v{{current}})",
+      "updating": "Updating..."
     }
   },
   "ovms": {
