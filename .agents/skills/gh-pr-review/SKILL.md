@@ -1,6 +1,6 @@
 ---
 name: gh-pr-review
-description: Review GitHub pull requests using the gh-pr-review extension. Use when asked to review a PR, add inline review comments, request changes, approve, or comment on a pull request. Manages the full review lifecycle — start, add inline comments, preview, and submit.
+description: Automated code review for local branches, PRs, commits, and files. Supports single-agent review with interactive fix selection, or multi-agent deep review with reviewer-verifier adversarial mechanism and risk-based auto-fix.
 ---
 
 <!-- Based on https://github.com/Tencent/tgfx/tree/main/.codebuddy/skills/cr -->
