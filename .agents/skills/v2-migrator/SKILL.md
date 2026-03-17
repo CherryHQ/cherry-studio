@@ -444,7 +444,6 @@ const SLICES_TO_EXPORT = [
 
 1. Add to `src/main/data/migration/v2/migrators/index.ts` with correct `order`
 2. Add target table to `MigrationEngine.verifyAndClearNewTables` (child tables before parents)
-3. **If migrating a Redux slice**: Add the slice name to `SLICES_TO_EXPORT` in `src/renderer/src/windows/migrationV2/exporters/ReduxExporter.ts`. Without this, the Renderer will not export the slice data to Main process, and `ctx.sources.reduxState.get()` will return `undefined`.
 
 ### 10. Document
 
@@ -721,7 +720,6 @@ try {
 - [ ] Layered Preset pattern identified and applied (if source has predefined list + per-item overrides)
 - [ ] Registered in `migrators/index.ts` with correct `order`
 - [ ] Target table added to `MigrationEngine.verifyAndClearNewTables`
-- [ ] Redux slice added to `SLICES_TO_EXPORT` in `ReduxExporter.ts` (if migrating Redux data)
 - [ ] Cross-migrator data via `ctx.sharedData` (if applicable)
 - [ ] `README-<MigratorName>.md` created
 - [ ] All logging via `loggerService` (no `console.log`)
