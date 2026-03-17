@@ -2,6 +2,35 @@ import { describe, expect, it } from 'vitest'
 
 import { transformMcpServer } from '../McpServerMappings'
 
+const NULL_FIELDS = {
+  type: null,
+  description: null,
+  baseUrl: null,
+  command: null,
+  registryUrl: null,
+  args: null,
+  env: null,
+  headers: null,
+  provider: null,
+  providerUrl: null,
+  logoUrl: null,
+  tags: null,
+  longRunning: null,
+  timeout: null,
+  dxtVersion: null,
+  dxtPath: null,
+  reference: null,
+  searchKey: null,
+  configSample: null,
+  disabledTools: null,
+  disabledAutoApproveTools: null,
+  shouldConfig: null,
+  installSource: null,
+  isTrusted: null,
+  trustedAt: null,
+  installedAt: null
+}
+
 describe('McpServerMappings', () => {
   describe('transformMcpServer', () => {
     it('should transform a full MCPServer record', () => {
@@ -37,58 +66,16 @@ describe('McpServerMappings', () => {
         installedAt: 1699000000000
       }
 
-      const result = transformMcpServer(source)
-
-      expect(result.id).toBe('srv-1')
-      expect(result.name).toBe('@cherry/fetch')
-      expect(result.type).toBe('inMemory')
-      expect(result.description).toBe('Fetch tool')
-      expect(result.baseUrl).toBe('http://localhost:3000')
-      expect(result.command).toBe('npx')
-      expect(result.registryUrl).toBe('https://registry.example.com')
-      expect(result.args).toEqual(['-y', 'some-package'])
-      expect(result.env).toEqual({ API_KEY: 'key123' })
-      expect(result.headers).toEqual({ Authorization: 'Bearer token' })
-      expect(result.provider).toBe('CherryAI')
-      expect(result.providerUrl).toBe('https://cherry.ai')
-      expect(result.logoUrl).toBe('https://cherry.ai/logo.png')
-      expect(result.tags).toEqual(['search', 'web'])
-      expect(result.longRunning).toBe(true)
-      expect(result.timeout).toBe(120)
-      expect(result.dxtVersion).toBe('1.0.0')
-      expect(result.dxtPath).toBe('/path/to/dxt')
-      expect(result.reference).toBe('https://docs.example.com')
-      expect(result.searchKey).toBe('fetch-tool')
-      expect(result.configSample).toEqual({ title: 'Sample', properties: { key: { type: 'string' } } })
-      expect(result.disabledTools).toEqual(['tool1'])
-      expect(result.disabledAutoApproveTools).toEqual(['tool2'])
-      expect(result.shouldConfig).toBe(true)
-      expect(result.isActive).toBe(true)
-      expect(result.installSource).toBe('builtin')
-      expect(result.isTrusted).toBe(true)
-      expect(result.trustedAt).toBe(1700000000000)
-      expect(result.installedAt).toBe(1699000000000)
+      expect(transformMcpServer(source)).toStrictEqual(source)
     })
 
     it('should handle minimal MCPServer (only required fields)', () => {
-      const source = {
+      expect(transformMcpServer({ id: 'srv-2', name: 'my-server', isActive: false })).toStrictEqual({
+        ...NULL_FIELDS,
         id: 'srv-2',
         name: 'my-server',
         isActive: false
-      }
-
-      const result = transformMcpServer(source)
-
-      expect(result.id).toBe('srv-2')
-      expect(result.name).toBe('my-server')
-      expect(result.isActive).toBe(false)
-      expect(result.type).toBeNull()
-      expect(result.description).toBeNull()
-      expect(result.args).toBeNull()
-      expect(result.env).toBeNull()
-      expect(result.tags).toBeNull()
-      expect(result.provider).toBeNull()
-      expect(result.installSource).toBeNull()
+      })
     })
 
     it('should handle null and undefined optional fields', () => {
@@ -101,58 +88,55 @@ describe('McpServerMappings', () => {
         args: undefined,
         env: null
       }
-
-      const result = transformMcpServer(source as any)
-
-      expect(result.id).toBe('srv-3')
-      expect(result.name).toBe('test')
-      expect(result.isActive).toBe(true)
-      expect(result.type).toBeNull()
-      expect(result.description).toBeNull()
-      expect(result.args).toBeNull()
-      expect(result.env).toBeNull()
+      expect(transformMcpServer(source as any)).toStrictEqual({
+        ...NULL_FIELDS,
+        id: 'srv-3',
+        name: 'test',
+        isActive: true
+      })
     })
 
     it('should default isActive to false when missing', () => {
-      const source = {
+      expect(transformMcpServer({ id: 'srv-4', name: 'no-active-field' } as any)).toStrictEqual({
+        ...NULL_FIELDS,
         id: 'srv-4',
-        name: 'no-active-field'
-      }
-
-      const result = transformMcpServer(source as any)
-      expect(result.isActive).toBe(false)
+        name: 'no-active-field',
+        isActive: false
+      })
     })
 
     it('should preserve empty arrays', () => {
-      const source = {
+      expect(
+        transformMcpServer({
+          id: 'srv-5',
+          name: 'empty-arrays',
+          isActive: false,
+          args: [],
+          tags: [],
+          disabledTools: []
+        })
+      ).toStrictEqual({
+        ...NULL_FIELDS,
         id: 'srv-5',
         name: 'empty-arrays',
         isActive: false,
         args: [],
         tags: [],
         disabledTools: []
-      }
-
-      const result = transformMcpServer(source)
-
-      expect(result.args).toEqual([])
-      expect(result.tags).toEqual([])
-      expect(result.disabledTools).toEqual([])
+      })
     })
 
     it('should preserve empty objects', () => {
-      const source = {
+      expect(
+        transformMcpServer({ id: 'srv-6', name: 'empty-objects', isActive: false, env: {}, headers: {} })
+      ).toStrictEqual({
+        ...NULL_FIELDS,
         id: 'srv-6',
         name: 'empty-objects',
         isActive: false,
         env: {},
         headers: {}
-      }
-
-      const result = transformMcpServer(source)
-
-      expect(result.env).toEqual({})
-      expect(result.headers).toEqual({})
+      })
     })
   })
 })

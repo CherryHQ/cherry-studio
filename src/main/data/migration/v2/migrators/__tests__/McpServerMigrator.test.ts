@@ -87,33 +87,25 @@ describe('McpServerMigrator', () => {
     it('should count source servers', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(3)
+      expect(result).toStrictEqual({ success: true, itemCount: 3, warnings: undefined })
     })
 
     it('should handle empty servers array', async () => {
       const ctx = createMockContext({ mcp: { servers: [] } })
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(0)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
     it('should handle missing mcp category', async () => {
       const ctx = createMockContext({})
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(0)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
     it('should handle missing servers key', async () => {
       const ctx = createMockContext({ mcp: {} })
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(0)
+      expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
     it('should filter out servers without id', async () => {
@@ -124,9 +116,11 @@ describe('McpServerMigrator', () => {
       ]
       const ctx = createMockContext({ mcp: { servers } })
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(1)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 1,
+        warnings: ['Skipped server without valid id: no-id', 'Skipped server without valid id: empty-id']
+      })
     })
 
     it('should deduplicate servers by id', async () => {
@@ -137,9 +131,11 @@ describe('McpServerMigrator', () => {
       ]
       const ctx = createMockContext({ mcp: { servers } })
       const result = await migrator.prepare(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(2)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 2,
+        warnings: ['Skipped duplicate server id: dup-1']
+      })
     })
   })
 
@@ -148,9 +144,7 @@ describe('McpServerMigrator', () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.processedCount).toBe(3)
+      expect(result).toStrictEqual({ success: true, processedCount: 3 })
       expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
@@ -158,16 +152,13 @@ describe('McpServerMigrator', () => {
       const ctx = createMockContext({ mcp: { servers: [] } })
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.processedCount).toBe(0)
+      expect(result).toStrictEqual({ success: true, processedCount: 0 })
     })
   })
 
   describe('validate', () => {
     it('should pass when counts match', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
-
       ctx.db.select = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           get: vi.fn().mockResolvedValue({ count: 3 })
@@ -176,16 +167,15 @@ describe('McpServerMigrator', () => {
 
       await migrator.prepare(ctx as any)
       const result = await migrator.validate(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.stats.sourceCount).toBe(3)
-      expect(result.stats.targetCount).toBe(3)
-      expect(result.stats.skippedCount).toBe(0)
+      expect(result).toStrictEqual({
+        success: true,
+        errors: [],
+        stats: { sourceCount: 3, targetCount: 3, skippedCount: 0 }
+      })
     })
 
     it('should pass with zero items', async () => {
       const ctx = createMockContext({})
-
       ctx.db.select = vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           get: vi.fn().mockResolvedValue({ count: 0 })
@@ -194,10 +184,11 @@ describe('McpServerMigrator', () => {
 
       await migrator.prepare(ctx as any)
       const result = await migrator.validate(ctx as any)
-
-      expect(result.success).toBe(true)
-      expect(result.stats.sourceCount).toBe(0)
-      expect(result.stats.targetCount).toBe(0)
+      expect(result).toStrictEqual({
+        success: true,
+        errors: [],
+        stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
+      })
     })
   })
 })
