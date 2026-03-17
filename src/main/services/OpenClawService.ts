@@ -157,6 +157,7 @@ class OpenClawService {
     this.install = this.install.bind(this)
     this.uninstall = this.uninstall.bind(this)
     this.startGateway = this.startGateway.bind(this)
+    this.restartGateway = this.restartGateway.bind(this)
     this.stopGateway = this.stopGateway.bind(this)
     this.getStatus = this.getStatus.bind(this)
     this.checkHealth = this.checkHealth.bind(this)
@@ -737,7 +738,15 @@ class OpenClawService {
   }
 
   /**
-   * Get Gateway status. Probes the port when idle to detect externally-started gateways.
+   * Restart the OpenClaw Gateway.
+   */
+  public async restartGateway(event: Electron.IpcMainInvokeEvent): Promise<{ success: boolean; message?: string }> {
+    await this.stopGateway()
+    return this.startGateway(event, this.gatewayPort)
+  }
+
+  /**
+   * Get Gateway status. 探测外部启动的网关，并在状态变化时同步内部状态。
    */
   public async getStatus(): Promise<{ status: GatewayStatus; port: number }> {
     if (this.gatewayStatus === 'starting') {
