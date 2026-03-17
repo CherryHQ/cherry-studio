@@ -548,6 +548,7 @@ export class CatalogService {
   clearCache(): void {
     this.catalogModels = null
     this.catalogProviderModels = null
+    this.catalogProviders = null
   }
 }
 
