@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 type Props = {
   size?: TagProps['size']
-} & Omit<TagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
+} & Omit<TagProps, 'size' | 'icon' | 'color' | 'children'>
 
 export const RerankerTag = ({ size, ...restProps }: Props) => {
   const { t } = useTranslation()

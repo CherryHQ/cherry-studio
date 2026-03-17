@@ -103,9 +103,7 @@ export const States: Story = {
         <Tag color="#1890ff" onClick={action('clicked')}>
           Clickable
         </Tag>
-        <Tag color="#fa541c" tooltip="This is a tooltip">
-          With Tooltip
-        </Tag>
+        <Tag color="#fa541c">No Tooltip (use Tooltip wrapper)</Tag>
       </div>
     </div>
   )

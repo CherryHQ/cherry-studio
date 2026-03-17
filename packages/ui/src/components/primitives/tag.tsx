@@ -2,9 +2,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { X } from 'lucide-react'
 import type { CSSProperties, FC, MouseEventHandler } from 'react'
-import { memo, useMemo } from 'react'
-
-import { Tooltip } from './tooltip'
+import { memo } from 'react'
 
 const tagVariants = cva('inline-flex items-center justify-center whitespace-nowrap transition-opacity duration-200', {
   variants: {
@@ -43,7 +41,6 @@ export interface TagProps extends VariantProps<typeof tagVariants> {
   children?: React.ReactNode
   color: string
   style?: CSSProperties
-  tooltip?: string
   closable?: boolean
   onClose?: () => void
   onClick?: MouseEventHandler<HTMLDivElement>
@@ -59,7 +56,6 @@ const Tag: FC<TagProps> = ({
   color,
   size = 'sm',
   style,
-  tooltip,
   closable = false,
   onClose,
   onClick,
@@ -72,63 +68,38 @@ const Tag: FC<TagProps> = ({
   const bgOpacity = closable ? '1a' : '33'
   const iconSize = closeIconSizeMap[size ?? 'sm']
 
-  const tagContent = useMemo(
-    () => (
-      <div
-        className={cn(
-          tagVariants({ size, closable }),
-          !disabled && onClick ? 'cursor-pointer hover:opacity-80' : disabled ? 'cursor-not-allowed' : '',
-          className
-        )}
-        style={{
-          color: actualColor,
-          backgroundColor: actualColor + bgOpacity,
-          ...style
-        }}
-        onClick={disabled ? undefined : onClick}
-        onContextMenu={disabled ? undefined : onContextMenu}>
-        {icon && (
-          <span className="shrink-0" style={{ color: actualColor }}>
-            {icon}
-          </span>
-        )}
-        <span className="px-[3.5px]">{children}</span>
-        {closable && (
-          <span
-            className="flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
-            style={{ color: actualColor }}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose?.()
-            }}>
-            <X size={iconSize} />
-          </span>
-        )}
-      </div>
-    ),
-    [
-      actualColor,
-      bgOpacity,
-      children,
-      closable,
-      className,
-      disabled,
-      icon,
-      iconSize,
-      onClick,
-      onClose,
-      onContextMenu,
-      size,
-      style
-    ]
-  )
-
-  return tooltip ? (
-    <Tooltip content={tooltip} delay={300}>
-      {tagContent}
-    </Tooltip>
-  ) : (
-    tagContent
+  return (
+    <div
+      className={cn(
+        tagVariants({ size, closable }),
+        !disabled && onClick ? 'cursor-pointer hover:opacity-80' : disabled ? 'cursor-not-allowed' : '',
+        className
+      )}
+      style={{
+        color: actualColor,
+        backgroundColor: actualColor + bgOpacity,
+        ...style
+      }}
+      onClick={disabled ? undefined : onClick}
+      onContextMenu={disabled ? undefined : onContextMenu}>
+      {icon && (
+        <span className="shrink-0" style={{ color: actualColor }}>
+          {icon}
+        </span>
+      )}
+      <span className="px-[3.5px]">{children}</span>
+      {closable && (
+        <span
+          className="flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
+          style={{ color: actualColor }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose?.()
+          }}>
+          <X size={iconSize} />
+        </span>
+      )}
+    </div>
   )
 }
 
