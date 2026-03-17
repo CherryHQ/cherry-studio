@@ -57,8 +57,8 @@ export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema,
  *
  * Each capability binds a feature with its supported inputs, output, and optional API settings.
  */
-export const CapabilityMetadataSchema = z.record(z.string(), z.unknown())
-export type CapabilityMetadata = z.infer<typeof CapabilityMetadataSchema>
+export const FileProcessorCapabilityMetadataSchema = z.record(z.string(), z.unknown())
+export type FileProcessorCapabilityMetadata = z.infer<typeof FileProcessorCapabilityMetadataSchema>
 
 export const TextExtractionCapabilitySchema = z
   .object({
@@ -67,7 +67,7 @@ export const TextExtractionCapabilitySchema = z
     output: z.literal('text'),
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional(),
-    metadata: CapabilityMetadataSchema.optional()
+    metadata: FileProcessorCapabilityMetadataSchema.optional()
     // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
@@ -81,30 +81,30 @@ export const MarkdownConversionCapabilitySchema = z
     output: z.literal('markdown'),
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional(),
-    metadata: CapabilityMetadataSchema.optional()
+    metadata: FileProcessorCapabilityMetadataSchema.optional()
     // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
 export type MarkdownConversionCapability = z.infer<typeof MarkdownConversionCapabilitySchema>
 
-export const FeatureCapabilitySchema = z.discriminatedUnion('feature', [
+export const FileProcessorFeatureCapabilitySchema = z.discriminatedUnion('feature', [
   TextExtractionCapabilitySchema,
   MarkdownConversionCapabilitySchema
 ])
-export type FeatureCapability = z.infer<typeof FeatureCapabilitySchema>
+export type FileProcessorFeatureCapability = z.infer<typeof FileProcessorFeatureCapabilitySchema>
 
 /**
  * Input type (category)
  * Derived from FeatureCapability to keep definitions in sync.
  */
-export type FileProcessorInput = FeatureCapability['inputs'][number]
+export type FileProcessorInput = FileProcessorFeatureCapability['inputs'][number]
 
 /**
  * Output type
  * Derived from FeatureCapability to keep definitions in sync.
  */
-export type FileProcessorOutput = FeatureCapability['output']
+export type FileProcessorOutput = FileProcessorFeatureCapability['output']
 
 /**
  * Processor template (read-only metadata)
@@ -115,7 +115,7 @@ export const FileProcessorTemplateSchema = z
   .object({
     id: FileProcessorIdSchema,
     type: FileProcessorTypeSchema,
-    capabilities: z.array(FeatureCapabilitySchema).min(1)
+    capabilities: z.array(FileProcessorFeatureCapabilitySchema).min(1)
   })
   .strict()
   .superRefine((template, ctx) => {
@@ -161,18 +161,18 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.rec
  *
  * Stored as Record<feature, CapabilityOverride> in FileProcessorOverride.
  */
-export const CapabilityOverrideSchema: z.ZodType<CapabilityOverride> = z
+export const FileProcessorCapabilityOverrideSchema: z.ZodType<CapabilityOverride> = z
   .object({
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional(),
-    metadata: CapabilityMetadataSchema.optional()
+    metadata: FileProcessorCapabilityMetadataSchema.optional()
   })
   .strict()
 
 export const FileProcessorCapabilityOverridesSchema: z.ZodType<FileProcessorCapabilityOverrides> = z
   .object({
-    markdown_conversion: CapabilityOverrideSchema.optional(),
-    text_extraction: CapabilityOverrideSchema.optional()
+    markdown_conversion: FileProcessorCapabilityOverrideSchema.optional(),
+    text_extraction: FileProcessorCapabilityOverrideSchema.optional()
   })
   .strict()
 

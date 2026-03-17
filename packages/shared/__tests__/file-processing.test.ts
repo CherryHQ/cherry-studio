@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  FeatureCapabilitySchema,
+  FileProcessorFeatureCapabilitySchema,
   FileProcessorOverrideSchema,
   FileProcessorTemplateSchema,
   FileProcessorTemplatesSchema,
@@ -9,9 +9,9 @@ import {
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
 
-describe('FeatureCapabilitySchema', () => {
+describe('FileProcessorFeatureCapabilitySchema', () => {
   it('supports multiple input types for a single capability', () => {
-    const result = FeatureCapabilitySchema.safeParse({
+    const result = FileProcessorFeatureCapabilitySchema.safeParse({
       feature: 'text_extraction',
       inputs: [FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT],
       output: FILE_TYPE.TEXT
