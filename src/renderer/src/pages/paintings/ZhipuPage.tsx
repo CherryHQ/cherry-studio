@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -348,12 +347,10 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
               </SettingHelpLink>
-              <ProviderLogo
-                radius="md"
-                src={getProviderLogo(zhipuProvider.id)}
-                className="h-4 w-4"
-                style={{ marginLeft: 5 }}
-              />
+              {(() => {
+                const Icon = getProviderLogo(zhipuProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </div>
           </ProviderTitleContainer>
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
@@ -538,10 +535,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default ZhipuPage
