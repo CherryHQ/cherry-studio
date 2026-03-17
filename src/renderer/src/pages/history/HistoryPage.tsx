@@ -64,8 +64,8 @@ const HistoryPage: FC = () => {
     setTopic(topic)
   }
 
-  const onMessageClick = (message: Message) => {
-    dispatch(loadTopicMessagesThunk(message.topicId))
+  const onMessageClick = async (message: Message) => {
+    await dispatch(loadTopicMessagesThunk(message.topicId))
     setStack(['topics', 'search', 'message'])
     setMessage(message)
   }
