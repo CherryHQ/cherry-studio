@@ -349,8 +349,7 @@ export function mergeProviderConfig(
     userProvider?.apiKeys?.map((k) => ({
       id: k.id,
       label: k.label,
-      isEnabled: k.isEnabled,
-      createdAt: Date.now()
+      isEnabled: k.isEnabled
     })) ?? []
 
   // Determine auth type
