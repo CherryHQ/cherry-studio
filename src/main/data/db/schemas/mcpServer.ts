@@ -46,3 +46,6 @@ export const mcpServerTable = sqliteTable(
   },
   (t) => [index('mcp_server_name_idx').on(t.name), index('mcp_server_is_active_idx').on(t.isActive)]
 )
+
+export type McpServerInsert = typeof mcpServerTable.$inferInsert
+export type McpServerSelect = typeof mcpServerTable.$inferSelect

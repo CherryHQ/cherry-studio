@@ -4,37 +4,9 @@
  * Transforms legacy Redux MCPServer objects to SQLite mcp_server table rows.
  */
 
-export interface McpServerRow {
-  id: string
-  name: string
-  type: string | null
-  description: string | null
-  baseUrl: string | null
-  command: string | null
-  registryUrl: string | null
-  args: string[] | null
-  env: Record<string, string> | null
-  headers: Record<string, string> | null
-  provider: string | null
-  providerUrl: string | null
-  logoUrl: string | null
-  tags: string[] | null
-  longRunning: boolean | null
-  timeout: number | null
-  dxtVersion: string | null
-  dxtPath: string | null
-  reference: string | null
-  searchKey: string | null
-  configSample: unknown | null
-  disabledTools: string[] | null
-  disabledAutoApproveTools: string[] | null
-  shouldConfig: boolean | null
-  isActive: boolean
-  installSource: string | null
-  isTrusted: boolean | null
-  trustedAt: number | null
-  installedAt: number | null
-}
+import type { McpServerInsert } from '@data/db/schemas/mcpServer'
+
+export type McpServerRow = McpServerInsert
 
 function toNullable<T>(value: T | undefined | null): T | null {
   return value ?? null
