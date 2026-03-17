@@ -69,8 +69,7 @@ export class CatalogService {
     if (isDev) {
       return join(__dirname, '..', '..', 'packages', 'provider-catalog', 'data')
     }
-    // TODO
-    return ''
+    return join(process.resourcesPath, 'packages', 'provider-catalog', 'data')
   }
 
   /**
