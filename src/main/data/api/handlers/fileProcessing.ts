@@ -1,6 +1,7 @@
 import { fileProcessingService } from '@data/services/FileProcessingService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { FileProcessingSchemas } from '@shared/data/api/schemas/fileProcessing'
+import { FileProcessorOverrideSchema } from '@shared/data/presets/file-processing'
 
 type FileProcessingHandler<Path extends keyof FileProcessingSchemas, Method extends ApiMethods<Path>> = ApiHandler<
   Path,
@@ -24,7 +25,8 @@ export const fileProcessingHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      return await fileProcessingService.updateProcessor(params.id, body)
+      const validated = FileProcessorOverrideSchema.parse(body)
+      return await fileProcessingService.updateProcessor(params.id, validated)
     }
   }
 }
