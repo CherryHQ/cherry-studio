@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
-import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
+import { getProviderLogo } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
@@ -73,14 +73,17 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
     try {
-      const logoUrl = PROVIDER_LOGO_MAP[providerId]
+      const icon = getProviderLogo(providerId)
+      if (!icon) return
+
+      // Store the provider icon ID as a reference (prefixed with 'icon:')
+      const iconRef = `icon:${providerId}`
 
       if (provider?.id) {
-        await ImageStorage.set(`provider-${provider.id}`, logoUrl)
-        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-        setLogo(savedLogo)
+        await ImageStorage.set(`provider-${provider.id}`, iconRef)
+        setLogo(iconRef)
       } else {
-        setLogo(logoUrl)
+        setLogo(iconRef)
       }
 
       setLogoPickerOpen(false)

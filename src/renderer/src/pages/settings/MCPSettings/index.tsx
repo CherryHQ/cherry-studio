@@ -1,10 +1,4 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
-import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
-import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
-import MCPRouterProviderLogo from '@renderer/assets/images/providers/mcprouter.webp'
-import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
-import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { McpLogo } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
@@ -16,7 +10,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { getProviderDisplayName, providers } from './providers/config'
+import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
   const { t } = useTranslation()
@@ -55,16 +49,6 @@ const MCPSettings: FC = () => {
     return providers.some((p) => path === `/settings/mcp/${p.key}`)
   }
 
-  // Provider icons map
-  const providerIcons: Record<string, React.ReactNode> = {
-    modelscope: <ProviderIcon src={ModelScopeProviderLogo} alt="ModelScope" />,
-    tokenflux: <ProviderIcon src={TokenFluxProviderLogo} alt="TokenFlux" />,
-    lanyun: <ProviderIcon src={LanyunProviderLogo} alt="Lanyun" />,
-    '302ai': <ProviderIcon src={Ai302ProviderLogo} alt="302AI" />,
-    bailian: <ProviderIcon src={BailianProviderLogo} alt="Bailian" />,
-    mcprouter: <ProviderIcon src={MCPRouterProviderLogo} alt="MCPRouter" />
-  }
-
   return (
     <Container>
       <MainContainer>
@@ -98,7 +82,10 @@ const MCPSettings: FC = () => {
               title={getProviderDisplayName(provider, t)}
               active={activeView === provider.key}
               onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
-              icon={providerIcons[provider.key] || <FolderCog size={16} />}
+              icon={(() => {
+                const logo = getMCPProviderLogo(provider.key)
+                return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
+              })()}
               titleStyle={{ fontWeight: 500 }}
             />
           ))}
@@ -147,14 +134,6 @@ const MenuList = styled(Scrollbar)`
 const RightContainer = styled.div`
   flex: 1;
   position: relative;
-`
-
-const ProviderIcon = styled.img`
-  width: 24px;
-  height: 24px;
-  object-fit: cover;
-  border-radius: 50%;
-  background-color: var(--color-background-soft);
 `
 
 const BackButtonContainer = styled.div`
