@@ -1,3 +1,4 @@
+import type { MCPConfigSample } from '@types'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -33,7 +34,7 @@ export const mcpServerTable = sqliteTable(
     dxtPath: text(),
     reference: text(),
     searchKey: text(),
-    configSample: text({ mode: 'json' }).$type<{ command: string; args: string[]; env?: Record<string, string> }>(),
+    configSample: text({ mode: 'json' }).$type<MCPConfigSample>(),
     disabledTools: text({ mode: 'json' }).$type<string[]>(),
     disabledAutoApproveTools: text({ mode: 'json' }).$type<string[]>(),
     shouldConfig: integer({ mode: 'boolean' }),
