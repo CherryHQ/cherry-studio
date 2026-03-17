@@ -3,8 +3,12 @@
 *
 !.gitignore
 !README*.md
+!agent-browser/
+!agent-browser/**
 !create-skill/
 !create-skill/**
+!electron/
+!electron/**
 !gh-create-issue/
 !gh-create-issue/**
 !gh-create-pr/
