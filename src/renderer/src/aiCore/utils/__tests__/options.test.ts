@@ -485,7 +485,6 @@ describe('options utils', () => {
         expect(result.providerOptions.openai).toMatchObject({
           reasoningEffort: 'medium',
           forceReasoning: true,
-          systemMessageMode: 'system',
           store: false
         })
       })
