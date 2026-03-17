@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -7,7 +8,7 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
  *
  * Migrated from Redux state.mcp.servers.
  * Runtime flags (isUvInstalled, isBunInstalled) are NOT migrated - they are
- * re-detected at startup and belong in CacheService.
+ * re-detected at runtime and stored via usePersistCache.
  */
 export const mcpServerTable = sqliteTable(
   'mcp_server',
@@ -44,7 +45,18 @@ export const mcpServerTable = sqliteTable(
 
     ...createUpdateTimestamps
   },
-  (t) => [index('mcp_server_name_idx').on(t.name), index('mcp_server_is_active_idx').on(t.isActive)]
+  (t) => [
+    index('mcp_server_name_idx').on(t.name),
+    index('mcp_server_is_active_idx').on(t.isActive),
+    check(
+      'mcp_server_type_check',
+      sql`${t.type} IS NULL OR ${t.type} IN ('stdio', 'sse', 'streamableHttp', 'inMemory')`
+    ),
+    check(
+      'mcp_server_install_source_check',
+      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'protocol', 'unknown')`
+    )
+  ]
 )
 
 export type McpServerInsert = typeof mcpServerTable.$inferInsert

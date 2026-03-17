@@ -16,8 +16,8 @@ Migrates MCP server configurations from Redux to SQLite.
 
 | Field | Reason | V2 Target |
 |-------|--------|-----------|
-| `isUvInstalled` | Re-detected at startup | `usePersistCache('feature.mcp.is_uv_installed')` |
-| `isBunInstalled` | Re-detected at startup | `usePersistCache('feature.mcp.is_bun_installed')` |
+| `isUvInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_uv_installed')` |
+| `isBunInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_bun_installed')` |
 
 ## Not Migrated (Regenerable Cache)
 
@@ -27,7 +27,7 @@ Migrates MCP server configurations from Redux to SQLite.
 
 ## Field Mappings
 
-All MCPServer fields are mapped 1:1 (no renames needed since the schema uses the same camelCase names as the source):
+All MCPServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property names). The underlying SQLite columns use snake_case (e.g., `baseUrl` → `base_url`), handled automatically by Drizzle:
 
 | Source Field | Target Column | Transform |
 |---|---|---|
@@ -35,7 +35,7 @@ All MCPServer fields are mapped 1:1 (no renames needed since the schema uses the
 | `name` | `name` | Direct (NOT NULL) |
 | `type` | `type` | Nullable passthrough |
 | `description` | `description` | Nullable passthrough |
-| `baseUrl` | `baseUrl` | Nullable passthrough |
+| `baseUrl` / `url` | `baseUrl` | Falls back from `url` if `baseUrl` is absent (legacy SSE servers) |
 | `command` | `command` | Nullable passthrough |
 | `registryUrl` | `registryUrl` | Nullable passthrough |
 | `args` | `args` | JSON array |

@@ -4,21 +4,21 @@
  * Data sources:
  * - Redux mcp slice (state.mcp.servers) -> mcp_server table
  *
- * Skipped fields (runtime/cache, re-detected at startup):
+ * Skipped fields (runtime/cache, re-detected when MCP settings are accessed):
  * - isUvInstalled, isBunInstalled -> usePersistCache
  *
  * Not migrated (regenerable cache, re-fetched from provider API):
  * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
-import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { type McpServerInsert, mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type McpServerRow, transformMcpServer } from './mappings/McpServerMappings'
+import { transformMcpServer } from './mappings/McpServerMappings'
 
 const logger = loggerService.withContext('McpServerMigrator')
 
@@ -28,57 +28,74 @@ export class McpServerMigrator extends BaseMigrator {
   readonly description = 'Migrate MCP server configurations from Redux to SQLite'
   readonly order = 1.5
 
-  private preparedRows: McpServerRow[] = []
+  private preparedRows: McpServerInsert[] = []
   private skippedCount = 0
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedRows = []
     this.skippedCount = 0
-    const warnings: string[] = []
 
-    const servers = ctx.sources.reduxState.get<unknown[]>('mcp', 'servers') ?? []
+    try {
+      const warnings: string[] = []
+      const servers = ctx.sources.reduxState.get<unknown[]>('mcp', 'servers') ?? []
 
-    if (!Array.isArray(servers)) {
-      logger.warn('mcp.servers is not an array, skipping')
-      warnings.push('mcp.servers is not an array')
-    } else {
-      const seenIds = new Set<string>()
+      if (!Array.isArray(servers)) {
+        logger.warn('mcp.servers is not an array, skipping')
+        warnings.push('mcp.servers is not an array')
+      } else {
+        const seenIds = new Set<string>()
 
-      for (const server of servers) {
-        const s = server as Record<string, unknown>
+        for (const server of servers) {
+          const s = server as Record<string, unknown>
 
-        if (!s.id || typeof s.id !== 'string') {
-          this.skippedCount++
-          warnings.push(`Skipped server without valid id: ${s.name ?? 'unknown'}`)
-          continue
+          if (!s.id || typeof s.id !== 'string') {
+            this.skippedCount++
+            warnings.push(`Skipped server without valid id: ${s.name ?? 'unknown'}`)
+            continue
+          }
+
+          if (seenIds.has(s.id)) {
+            this.skippedCount++
+            warnings.push(`Skipped duplicate server id: ${s.id}`)
+            continue
+          }
+          seenIds.add(s.id)
+
+          try {
+            this.preparedRows.push(transformMcpServer(s))
+          } catch (err) {
+            this.skippedCount++
+            warnings.push(`Failed to transform server ${s.id}: ${(err as Error).message}`)
+            logger.warn(`Skipping server ${s.id}`, err as Error)
+          }
         }
 
-        if (seenIds.has(s.id)) {
-          this.skippedCount++
-          warnings.push(`Skipped duplicate server id: ${s.id}`)
-          continue
-        }
-        seenIds.add(s.id)
-
-        try {
-          this.preparedRows.push(transformMcpServer(s))
-        } catch (err) {
-          this.skippedCount++
-          warnings.push(`Failed to transform server ${s.id}: ${(err as Error).message}`)
-          logger.warn(`Skipping server ${s.id}`, err as Error)
+        if (this.skippedCount > 0 && this.preparedRows.length === 0 && servers.length > 0) {
+          return {
+            success: false,
+            itemCount: 0,
+            warnings
+          }
         }
       }
-    }
 
-    logger.info('Preparation completed', {
-      serverCount: this.preparedRows.length,
-      skipped: this.skippedCount
-    })
+      logger.info('Preparation completed', {
+        serverCount: this.preparedRows.length,
+        skipped: this.skippedCount
+      })
 
-    return {
-      success: true,
-      itemCount: this.preparedRows.length,
-      warnings: warnings.length > 0 ? warnings : undefined
+      return {
+        success: true,
+        itemCount: this.preparedRows.length,
+        warnings: warnings.length > 0 ? warnings : undefined
+      }
+    } catch (error) {
+      logger.error('Preparation failed', error as Error)
+      return {
+        success: false,
+        itemCount: 0,
+        warnings: [error instanceof Error ? error.message : String(error)]
+      }
     }
   }
 
@@ -122,6 +139,13 @@ export class McpServerMigrator extends BaseMigrator {
       const serverResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
+
+      if (serverCount !== this.preparedRows.length) {
+        errors.push({
+          key: 'count_mismatch',
+          message: `Expected ${this.preparedRows.length} servers but found ${serverCount}`
+        })
+      }
 
       const sample = await ctx.db.select().from(mcpServerTable).limit(3).all()
       for (const server of sample) {

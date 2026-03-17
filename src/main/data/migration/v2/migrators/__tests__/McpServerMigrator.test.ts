@@ -108,6 +108,27 @@ describe('McpServerMigrator', () => {
       expect(result).toStrictEqual({ success: true, itemCount: 0, warnings: undefined })
     })
 
+    it('should handle non-array servers value', async () => {
+      const ctx = createMockContext({ mcp: { servers: 'not-an-array' } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 0,
+        warnings: ['mcp.servers is not an array']
+      })
+    })
+
+    it('should fail when all servers are skipped', async () => {
+      const servers = [
+        { name: 'no-id-1', isActive: true },
+        { name: 'no-id-2', isActive: false }
+      ]
+      const ctx = createMockContext({ mcp: { servers } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.itemCount).toBe(0)
+    })
+
     it('should filter out servers without id', async () => {
       const servers = [
         { id: 'srv-1', name: 'valid', isActive: true },
@@ -153,6 +174,16 @@ describe('McpServerMigrator', () => {
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 0 })
+    })
+
+    it('should return failure when transaction throws', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_CONSTRAINT'))
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('SQLITE_CONSTRAINT')
+      expect(result.processedCount).toBe(0)
     })
   })
 
@@ -216,6 +247,31 @@ describe('McpServerMigrator', () => {
         errors: [],
         stats: { sourceCount: 0, targetCount: 0, skippedCount: 0 }
       })
+    })
+
+    it('should fail on count mismatch', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      mockValidateDb(ctx, 2, [
+        { id: 'srv-1', name: 'test1' },
+        { id: 'srv-2', name: 'test2' }
+      ])
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors).toContainEqual(expect.objectContaining({ key: 'count_mismatch' }))
+    })
+
+    it('should return failure when db throws', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      ctx.db.select = vi.fn().mockImplementation(() => {
+        throw new Error('DB_CORRUPT')
+      })
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors[0].message).toContain('DB_CORRUPT')
     })
   })
 })

@@ -6,8 +6,6 @@
 
 import type { McpServerInsert } from '@data/db/schemas/mcpServer'
 
-export type McpServerRow = McpServerInsert
-
 function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
 }
@@ -16,13 +14,13 @@ function toRequired<T>(value: unknown, fallback: T): T {
   return (value ?? fallback) as T
 }
 
-export function transformMcpServer(source: Record<string, unknown>): McpServerRow {
+export function transformMcpServer(source: Record<string, unknown>): McpServerInsert {
   return {
     id: toRequired<string>(source.id, ''),
     name: toRequired<string>(source.name, ''),
     type: toNullable(source.type),
     description: toNullable(source.description),
-    baseUrl: toNullable(source.baseUrl),
+    baseUrl: toNullable(source.baseUrl ?? source.url),
     command: toNullable(source.command),
     registryUrl: toNullable(source.registryUrl),
     args: toNullable(source.args),

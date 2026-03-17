@@ -36,15 +36,19 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   }, [])
 
   const checkBinaries = useCallback(async () => {
-    const uvExists = await window.api.isBinaryExist('uv')
-    const bunExists = await window.api.isBinaryExist('bun')
-    const { uvPath, bunPath, dir } = await window.api.mcp.getInstallInfo()
+    try {
+      const uvExists = await window.api.isBinaryExist('uv')
+      const bunExists = await window.api.isBinaryExist('bun')
+      const { uvPath, bunPath, dir } = await window.api.mcp.getInstallInfo()
 
-    setIsUvInstalled(uvExists)
-    setIsBunInstalled(bunExists)
-    setUvPath(uvPath)
-    setBunPath(bunPath)
-    setBinariesDir(dir)
+      setIsUvInstalled(uvExists)
+      setIsBunInstalled(bunExists)
+      setUvPath(uvPath)
+      setBunPath(bunPath)
+      setBinariesDir(dir)
+    } catch {
+      // IPC failure — leave previous values unchanged
+    }
   }, [setIsUvInstalled, setIsBunInstalled])
 
   const installUV = async () => {

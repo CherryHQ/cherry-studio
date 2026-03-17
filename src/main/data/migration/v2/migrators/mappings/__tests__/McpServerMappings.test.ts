@@ -55,7 +55,7 @@ describe('McpServerMappings', () => {
         dxtPath: '/path/to/dxt',
         reference: 'https://docs.example.com',
         searchKey: 'fetch-tool',
-        configSample: { title: 'Sample', properties: { key: { type: 'string' } } },
+        configSample: { command: 'npx', args: ['-y', 'some-package'], env: { API_KEY: 'key123' } },
         disabledTools: ['tool1'],
         disabledAutoApproveTools: ['tool2'],
         shouldConfig: true,
@@ -124,6 +124,27 @@ describe('McpServerMappings', () => {
         tags: [],
         disabledTools: []
       })
+    })
+
+    it('should fall back from url to baseUrl for SSE servers', () => {
+      const result = transformMcpServer({
+        id: 'sse-1',
+        name: 'sse-server',
+        isActive: true,
+        url: 'http://localhost:8080/sse'
+      })
+      expect(result.baseUrl).toBe('http://localhost:8080/sse')
+    })
+
+    it('should prefer baseUrl over url when both present', () => {
+      const result = transformMcpServer({
+        id: 'sse-2',
+        name: 'sse-server',
+        isActive: true,
+        baseUrl: 'http://primary:8080',
+        url: 'http://fallback:8080'
+      })
+      expect(result.baseUrl).toBe('http://primary:8080')
     })
 
     it('should preserve empty objects', () => {

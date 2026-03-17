@@ -183,7 +183,7 @@ const CodeToolsPage: FC = () => {
       setIsBunInstalled(bunExists)
     } catch (error) {
       logger.error('Failed to check bun installation status:', error as Error)
-      setIsBunInstalled(false)
+      // IPC failure — leave previous value unchanged
     }
   }, [setIsBunInstalled])
 
