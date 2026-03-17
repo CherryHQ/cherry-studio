@@ -6,11 +6,11 @@
   },
   "dialect": "sqlite",
   "enums": {},
-  "id": "2ee6f7b2-99da-4de1-b895-48866855b7c6",
+  "id": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "internal": {
     "indexes": {}
   },
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "prevId": "2ee6f7b2-99da-4de1-b895-48866855b7c6",
   "tables": {
     "app_state": {
       "checkConstraints": {},
@@ -190,7 +190,7 @@
         },
         "message_status_check": {
           "name": "message_status_check",
-          "value": "\"message\".\"status\" IN ('success', 'error', 'paused')"
+          "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
         }
       },
       "columns": {

@@ -1,13 +1,27 @@
 {
-  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
+      "breakpoints": true,
       "idx": 0,
+      "tag": "0000_init",
       "version": "6",
-      "when": 1773692900455,
-      "tag": "0000_classy_war_machine",
+      "when": 1767272575118
+    },
+    {
+      "breakpoints": true,
+      "idx": 1,
+      "tag": "0001_futuristic_human_fly",
+      "version": "6",
+      "when": 1767455592181
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773719847622,
+      "tag": "0002_equal_lilith",
       "breakpoints": true
     }
-  ]
+  ],
+  "version": "7"
 }
