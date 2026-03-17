@@ -925,7 +925,8 @@ class CodeToolsService {
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
     if (cliTool === codeTools.qwenCode) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
-      const needsAuthType = installedVersion && semver.gte(semver.coerce(installedVersion) || '0.0.0', '0.12.3')
+      const coerced = semver.coerce(installedVersion)
+      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
       if (needsAuthType) {
         baseCommand = `${baseCommand} --auth-type openai`
         logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
