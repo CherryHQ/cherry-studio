@@ -226,14 +226,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
-  'mcp.is_uv_installed': boolean
-  'mcp.is_bun_installed': boolean
+  'feature.mcp.is_uv_installed': boolean
+  'feature.mcp.is_bun_installed': boolean
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.state': { tabs: [], activeTabId: '' },
-  'mcp.is_uv_installed': false,
-  'mcp.is_bun_installed': false
+  'feature.mcp.is_uv_installed': false,
+  'feature.mcp.is_bun_installed': false
 }
 
 // ============================================================================

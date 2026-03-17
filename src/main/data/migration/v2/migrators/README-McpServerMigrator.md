@@ -16,14 +16,14 @@ Migrates MCP server configurations from Redux to SQLite.
 
 | Field | Reason | V2 Target |
 |-------|--------|-----------|
-| `isUvInstalled` | Re-detected at startup | `usePersistCache('mcp.is_uv_installed')` |
-| `isBunInstalled` | Re-detected at startup | `usePersistCache('mcp.is_bun_installed')` |
+| `isUvInstalled` | Re-detected at startup | `usePersistCache('feature.mcp.is_uv_installed')` |
+| `isBunInstalled` | Re-detected at startup | `usePersistCache('feature.mcp.is_bun_installed')` |
 
 ## Not Migrated (Regenerable Cache)
 
 | Source | Reason | V2 Target |
 |--------|--------|-----------|
-| Dexie `mcp:provider:*:servers` | Re-fetched from provider API | `usePersistCache('mcp.provider_catalogs')` |
+| Dexie `mcp:provider:*:servers` | Re-fetched from provider API | Handled in separate PR |
 
 ## Field Mappings
 
@@ -71,4 +71,4 @@ All MCPServer fields are mapped 1:1 (no renames needed since the schema uses the
 
 ## Execution Order
 
-`order = 2` (after PreferencesMigrator=1, before AssistantMigrator which may reference MCP servers)
+`order = 1.5` (after PreferencesMigrator=1, before AssistantMigrator=2)

@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-03-14T12:03:25.619Z",
-    "totalItems": 405,
+    "lastUpdated": "2026-03-13T06:11:13.067Z",
+    "totalItems": 406,
     "classified": 265,
-    "pending": 134,
+    "pending": 135,
     "deleted": 0
   },
   "classifications": {
@@ -386,16 +386,16 @@
           "originalKey": "servers",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
-          "targetTable": "mcp_server"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "isUvInstalled",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "runtime",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         }
       ],
@@ -3433,21 +3433,21 @@
       ]
     },
     "localStorage": {
-      "persist:cherry-studio": [
-        {
-          "originalKey": "persist:cherry-studio",
-          "type": "string",
-          "defaultValue": "data.localStorage['persist:cherry-studio']",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        }
-      ],
       "memory_currentUserId": [
         {
           "originalKey": "memory_currentUserId",
           "type": "string",
           "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "persist:cherry-studio": [
+        {
+          "originalKey": "persist:cherry-studio",
+          "type": "string",
+          "defaultValue": "data.localStorage['persist:cherry-studio']",
           "status": "pending",
           "category": null,
           "targetKey": null

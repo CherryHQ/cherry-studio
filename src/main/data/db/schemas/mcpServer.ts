@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * MCP Server table - stores user-configured MCP server definitions
@@ -12,7 +12,7 @@ import { createUpdateTimestamps } from './_columnHelpers'
 export const mcpServerTable = sqliteTable(
   'mcp_server',
   {
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     name: text().notNull(),
     type: text(),
     description: text(),
@@ -32,7 +32,7 @@ export const mcpServerTable = sqliteTable(
     dxtPath: text(),
     reference: text(),
     searchKey: text(),
-    configSample: text({ mode: 'json' }),
+    configSample: text({ mode: 'json' }).$type<{ command: string; args: string[]; env?: Record<string, string> }>(),
     disabledTools: text({ mode: 'json' }).$type<string[]>(),
     disabledAutoApproveTools: text({ mode: 'json' }).$type<string[]>(),
     shouldConfig: integer({ mode: 'boolean' }),

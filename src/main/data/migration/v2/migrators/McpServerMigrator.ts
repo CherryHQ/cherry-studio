@@ -8,7 +8,7 @@
  * - isUvInstalled, isBunInstalled -> usePersistCache
  *
  * Not migrated (regenerable cache, re-fetched from provider API):
- * - Dexie mcp:provider:*:servers -> usePersistCache('mcp.provider_catalogs')
+ * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -26,7 +26,7 @@ export class McpServerMigrator extends BaseMigrator {
   readonly id = 'mcp_server'
   readonly name = 'MCP Server'
   readonly description = 'Migrate MCP server configurations from Redux to SQLite'
-  readonly order = 2
+  readonly order = 1.5
 
   private preparedRows: McpServerRow[] = []
   private skippedCount = 0
@@ -121,10 +121,18 @@ export class McpServerMigrator extends BaseMigrator {
     try {
       const serverResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
       const serverCount = serverResult?.count ?? 0
+      const errors: { key: string; message: string }[] = []
+
+      const sample = await ctx.db.select().from(mcpServerTable).limit(3).all()
+      for (const server of sample) {
+        if (!server.id || !server.name) {
+          errors.push({ key: server.id ?? 'unknown', message: 'Missing required field (id or name)' })
+        }
+      }
 
       return {
-        success: true,
-        errors: [],
+        success: errors.length === 0,
+        errors,
         stats: {
           sourceCount: this.preparedRows.length,
           targetCount: serverCount,

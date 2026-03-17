@@ -16,8 +16,8 @@ interface Props {
 }
 
 const InstallNpxUv: FC<Props> = ({ mini = false }) => {
-  const [isUvInstalled, setIsUvInstalled] = usePersistCache('mcp.is_uv_installed')
-  const [isBunInstalled, setIsBunInstalled] = usePersistCache('mcp.is_bun_installed')
+  const [isUvInstalled, setIsUvInstalled] = usePersistCache('feature.mcp.is_uv_installed')
+  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
 
   const [isInstallingUv, setIsInstallingUv] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)

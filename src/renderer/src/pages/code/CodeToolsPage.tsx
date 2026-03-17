@@ -38,7 +38,7 @@ const logger = loggerService.withContext('CodeToolsPage')
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const [isBunInstalled, setIsBunInstalled] = usePersistCache('mcp.is_bun_installed')
+  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
     selectedModel,

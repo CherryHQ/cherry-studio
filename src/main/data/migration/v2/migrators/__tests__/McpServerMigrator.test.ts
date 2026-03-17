@@ -80,7 +80,7 @@ describe('McpServerMigrator', () => {
   it('should have correct metadata', () => {
     expect(migrator.id).toBe('mcp_server')
     expect(migrator.name).toBe('MCP Server')
-    expect(migrator.order).toBeGreaterThanOrEqual(2)
+    expect(migrator.order).toBe(1.5)
   })
 
   describe('prepare', () => {
@@ -157,13 +157,31 @@ describe('McpServerMigrator', () => {
   })
 
   describe('validate', () => {
-    it('should pass when counts match', async () => {
-      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
-      ctx.db.select = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 3 })
-        })
+    function mockValidateDb(ctx: ReturnType<typeof createMockContext>, count: number, sample: any[] = []) {
+      ctx.db.select = vi.fn().mockImplementation((arg) => {
+        if (arg) {
+          // count query: select({ count: ... }).from().get()
+          return {
+            from: vi.fn().mockReturnValue({
+              get: vi.fn().mockResolvedValue({ count })
+            })
+          }
+        }
+        // sample query: select().from().limit().all()
+        return {
+          from: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue({
+              all: vi.fn().mockResolvedValue(sample)
+            })
+          })
+        }
       })
+    }
+
+    it('should pass when counts match and sample is valid', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      const sampleRows = SAMPLE_SERVERS.map((s) => ({ id: s.id, name: s.name }))
+      mockValidateDb(ctx, 3, sampleRows)
 
       await migrator.prepare(ctx as any)
       const result = await migrator.validate(ctx as any)
@@ -174,13 +192,22 @@ describe('McpServerMigrator', () => {
       })
     })
 
+    it('should fail when sample has missing required fields', async () => {
+      const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
+      mockValidateDb(ctx, 3, [
+        { id: '', name: 'test' },
+        { id: 'srv-2', name: '' }
+      ])
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.errors).toHaveLength(2)
+    })
+
     it('should pass with zero items', async () => {
       const ctx = createMockContext({})
-      ctx.db.select = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 0 })
-        })
-      })
+      mockValidateDb(ctx, 0, [])
 
       await migrator.prepare(ctx as any)
       const result = await migrator.validate(ctx as any)
