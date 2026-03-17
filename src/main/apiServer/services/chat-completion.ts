@@ -6,6 +6,30 @@ import { loggerService } from '../../services/LoggerService'
 import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
 
+function ensureApiHostHasVersion(apiHost: string): string {
+  if (!apiHost || typeof apiHost !== 'string') {
+    return apiHost
+  }
+
+  const normalized = apiHost.trim().replace(/\/+$/, '')
+  const target = normalized.endsWith('#') ? normalized.slice(0, -1) : normalized
+
+  const pattern = /\/v\d+(?:alpha|beta)?(?:\/|$)/i
+
+  try {
+    const parsed = new URL(target)
+    if (pattern.test(parsed.pathname)) {
+      return target
+    }
+    return `${target}/v1`
+  } catch {
+    if (pattern.test(target)) {
+      return target
+    }
+    return `${target}/v1`
+  }
+}
+
 const logger = loggerService.withContext('ChatCompletionService')
 
 export interface ValidationResult {
@@ -67,9 +91,17 @@ export class ChatCompletionService {
 
     const modelId = modelValidation.modelId!
 
+    const baseURL = ensureApiHostHasVersion(provider.apiHost)
+
     const client = new OpenAI({
-      baseURL: provider.apiHost,
+      baseURL,
       apiKey: provider.apiKey
+    })
+
+    logger.debug('Resolved provider context', {
+      provider: provider.id,
+      oldApiHost: provider.apiHost,
+      baseURL
     })
 
     return {
