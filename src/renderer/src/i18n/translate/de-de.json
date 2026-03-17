@@ -1649,6 +1649,13 @@
     "content": "Wählen Sie die zu importierende Gesprächsdatei einer externen Anwendung aus; derzeit werden nur ChatGPT-JSON-Formatdateien unterstützt.",
     "title": "Externe Gespräche importieren"
   },
+  "json_render": {
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "generating": "[to be translated]:Generating interactive UI..."
+  },
   "knowledge": {
     "add": {
       "title": "Wissensdatenbank hinzufügen"

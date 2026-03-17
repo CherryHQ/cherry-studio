@@ -1649,6 +1649,13 @@
     "content": "Επιλέξτε εξωτερικό αρχείο συνομιλίας εφαρμογής για εισαγωγή, προς το παρόν υποστηρίζονται μόνο αρχεία μορφής JSON του ChatGPT",
     "title": "Εισαγωγή Εξωτερικών Συνομιλιών"
   },
+  "json_render": {
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "generating": "[to be translated]:Generating interactive UI..."
+  },
   "knowledge": {
     "add": {
       "title": "Προσθήκη βιβλιοθήκης γνώσεων"

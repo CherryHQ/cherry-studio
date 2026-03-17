@@ -1649,6 +1649,13 @@
     "content": "Sélectionnez le fichier de conversation de l'application externe à importer, actuellement uniquement les fichiers au format JSON de ChatGPT sont pris en charge",
     "title": "Importer des conversations externes"
   },
+  "json_render": {
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "generating": "[to be translated]:Generating interactive UI..."
+  },
   "knowledge": {
     "add": {
       "title": "Ajouter une base de connaissances"

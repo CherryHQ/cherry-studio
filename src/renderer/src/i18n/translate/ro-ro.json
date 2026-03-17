@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent."
+        "supported_providers": "[to be translated]:Supported Providers",
+        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
+        "view_providers": "[to be translated]:View supported providers"
       },
       "title": "Adaugă agent",
       "type": {
@@ -1646,6 +1648,13 @@
     },
     "content": "Selectează fișierul de conversație din aplicația externă pentru import; momentan acceptă doar fișiere în format JSON ChatGPT",
     "title": "Importă conversații externe"
+  },
+  "json_render": {
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "generating": "[to be translated]:Generating interactive UI..."
   },
   "knowledge": {
     "add": {
@@ -5023,6 +5032,11 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "filter": {
+        "agent": "[to be translated]:Agent Supported",
+        "all": "[to be translated]:All Providers"
+      },
+      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
@@ -5390,6 +5404,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicații",

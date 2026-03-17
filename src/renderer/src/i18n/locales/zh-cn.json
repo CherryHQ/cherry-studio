@@ -1649,6 +1649,13 @@
     "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
     "title": "导入外部对话"
   },
+  "json_render": {
+    "error": {
+      "parse": "解析 UI 规格失败",
+      "render": "渲染组件失败"
+    },
+    "generating": "正在生成交互式 UI..."
+  },
   "knowledge": {
     "add": {
       "title": "添加知识库"

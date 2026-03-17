@@ -1649,6 +1649,13 @@
     "content": "外部アプリケーションの会話ファイルを選択してインポートします。現在、ChatGPT JSON形式ファイルのみサポートしています。",
     "title": "外部会話をインポート"
   },
+  "json_render": {
+    "error": {
+      "parse": "[to be translated]:Failed to parse UI specification",
+      "render": "[to be translated]:Failed to render component"
+    },
+    "generating": "[to be translated]:Generating interactive UI..."
+  },
   "knowledge": {
     "add": {
       "title": "ナレッジベースを追加"
