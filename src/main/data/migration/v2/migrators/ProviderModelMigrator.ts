@@ -107,14 +107,20 @@ export class ProviderModelMigrator extends BaseMigrator {
           // Transform and insert models for this provider
           const models = legacy.models ?? []
           if (models.length > 0) {
-            const newModels = models.map((m, idx) => transformModel(m, legacy.id, idx))
+            const seen = new Set<string>()
+            const uniqueModels = models.filter((m) => {
+              if (seen.has(m.id)) return false
+              seen.add(m.id)
+              return true
+            })
+            const newModels = uniqueModels.map((m, idx) => transformModel(m, legacy.id, idx))
 
             // Batch insert models
             for (let j = 0; j < newModels.length; j += BATCH_SIZE) {
               const batch = newModels.slice(j, j + BATCH_SIZE)
               await tx.insert(userModelTable).values(batch)
             }
-            processedModels += models.length
+            processedModels += uniqueModels.length
           }
 
           // Report progress
