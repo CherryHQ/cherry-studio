@@ -289,7 +289,7 @@ export class WindowService {
         'https://account.siliconflow.cn/oauth',
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
-        'https://console.aihubmix.com/token',
+        'https://console.aihubmix.com/sign-in',
         'https://console.aihubmix.com/topup',
         'https://console.aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',

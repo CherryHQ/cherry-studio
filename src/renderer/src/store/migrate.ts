@@ -3348,6 +3348,15 @@ const migrateConfig = {
       logger.error('migrate 203 error', error as Error)
       return state
     }
+  },
+  '204': (state: RootState) => {
+    try {
+      updateProvider(state, 'aihubmix', { geminiApiHost: 'https://aihubmix.com/gemini/v1beta' })
+      return state
+    } catch (error) {
+      logger.error('migrate 204 error', error as Error)
+      return state
+    }
   }
 }
 

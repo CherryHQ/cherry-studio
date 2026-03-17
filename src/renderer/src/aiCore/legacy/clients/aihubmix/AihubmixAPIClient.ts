@@ -32,7 +32,10 @@ export class AihubmixAPIClient extends MixedBaseAPIClient {
 
     // 初始化各个client - 现在有类型安全
     const claudeClient = new AnthropicAPIClient(providerExtraHeaders)
-    const geminiClient = new GeminiAPIClient({ ...providerExtraHeaders, apiHost: 'https://aihubmix.com/gemini' })
+    const geminiClient = new GeminiAPIClient({
+      ...providerExtraHeaders,
+      apiHost: 'https://aihubmix.com/gemini'
+    })
     const openaiClient = new OpenAIResponseAPIClient(providerExtraHeaders)
     const defaultClient = new OpenAIAPIClient(providerExtraHeaders)
 
