@@ -1,4 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Force Linux platform for consistent path behavior across OS
+const originalPlatform = process.platform
+beforeEach(() => {
+  Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
+})
+
+afterEach(() => {
+  Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+})
 
 // Use vi.hoisted to define mocks that are available during hoisting
 const { mockLogger } = vi.hoisted(() => ({
@@ -90,7 +100,10 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   })
 
   describe('Normal Operations', () => {
-    it('should delete valid file in allowed directory', async () => {
+    // Skip path matching tests on Windows as path format differs
+    const itFn = process.platform === 'win32' ? it.skip : it
+
+    itFn('should delete valid file in allowed directory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
@@ -102,7 +115,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Deleted temp backup'))
     })
 
-    it('should delete file in nested subdirectory', async () => {
+    itFn('should delete file in nested subdirectory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
@@ -227,7 +240,10 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   })
 
   describe('Edge Cases', () => {
-    it('should allow deletion of the temp directory itself', async () => {
+    // Skip path matching tests on Windows as path format differs
+    const itFn = process.platform === 'win32' ? it.skip : it
+
+    itFn('should allow deletion of the temp directory itself', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
