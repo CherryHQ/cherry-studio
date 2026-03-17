@@ -5,30 +5,43 @@
  */
 
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
+import * as z from 'zod'
 
 // ============================================================================
-// DTOs
+// Zod Schemas for DTOs
 // ============================================================================
 
-export interface CreatePromptDto {
-  title: string
-  content: string
-}
+export const CreatePromptDtoSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1)
+})
 
-export interface UpdatePromptDto {
-  title?: string
-  content?: string
-}
+export const UpdatePromptDtoSchema = z.object({
+  title: z.string().min(1).optional(),
+  content: z.string().min(1).optional()
+})
 
-export interface ReorderPromptsDto {
-  /** Array of { id, sortOrder } pairs */
-  items: Array<{ id: string; sortOrder: number }>
-}
+export const ReorderPromptsDtoSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      sortOrder: z.number().int().min(0)
+    })
+  )
+})
 
-export interface RollbackPromptDto {
-  /** Target version number to rollback to */
-  version: number
-}
+export const RollbackPromptDtoSchema = z.object({
+  version: z.number().int().min(1)
+})
+
+// ============================================================================
+// DTO Types (inferred from Zod schemas)
+// ============================================================================
+
+export type CreatePromptDto = z.infer<typeof CreatePromptDtoSchema>
+export type UpdatePromptDto = z.infer<typeof UpdatePromptDtoSchema>
+export type ReorderPromptsDto = z.infer<typeof ReorderPromptsDtoSchema>
+export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
 
 // ============================================================================
 // API Schema Definitions

@@ -2,8 +2,8 @@ CREATE TABLE `prompt` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
 	`content` text NOT NULL,
-	`current_version` integer DEFAULT 1,
-	`sort_order` integer DEFAULT 0,
+	`current_version` integer DEFAULT 1 NOT NULL,
+	`sort_order` integer DEFAULT 0 NOT NULL,
 	`created_at` integer,
 	`updated_at` integer
 );
@@ -19,4 +19,4 @@ CREATE TABLE `prompt_version` (
 	FOREIGN KEY (`prompt_id`) REFERENCES `prompt`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `prompt_version_prompt_id_idx` ON `prompt_version` (`prompt_id`,`version`);
+CREATE UNIQUE INDEX `prompt_version_prompt_id_version_idx` ON `prompt_version` (`prompt_id`,`version`);

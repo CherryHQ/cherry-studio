@@ -6,26 +6,33 @@
  * Template variables use ${var} syntax in content and are filled inline by the user.
  */
 
-/**
- * Prompt entity as returned by the API
- */
-export interface Prompt {
-  id: string
-  title: string
-  content: string
-  currentVersion: number
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-}
+import * as z from 'zod'
 
-/**
- * Prompt version snapshot
- */
-export interface PromptVersion {
-  id: string
-  promptId: string
-  version: number
-  content: string
-  createdAt: string
-}
+// ============================================================================
+// Zod Schemas
+// ============================================================================
+
+export const PromptSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string(),
+  currentVersion: z.number().int().min(1),
+  sortOrder: z.number().int().min(0),
+  createdAt: z.string(),
+  updatedAt: z.string()
+})
+
+export const PromptVersionSchema = z.object({
+  id: z.string(),
+  promptId: z.string(),
+  version: z.number().int().min(1),
+  content: z.string(),
+  createdAt: z.string()
+})
+
+// ============================================================================
+// Types (inferred from Zod schemas)
+// ============================================================================
+
+export type Prompt = z.infer<typeof PromptSchema>
+export type PromptVersion = z.infer<typeof PromptVersionSchema>
