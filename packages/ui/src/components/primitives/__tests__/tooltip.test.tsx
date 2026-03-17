@@ -58,7 +58,7 @@ describe('Tooltip', () => {
     it('wraps children with Radix trigger when content is provided', () => {
       const { container } = render(
         <Tooltip content="tip">
-          <button>Trigger</button>
+          <button type="button">Trigger</button>
         </Tooltip>
       )
       const trigger = container.querySelector('[data-state]')
@@ -69,7 +69,7 @@ describe('Tooltip', () => {
     it('uses title as fallback when content is not provided', () => {
       const { container } = render(
         <Tooltip title="title-tip">
-          <button>Trigger</button>
+          <button type="button">Trigger</button>
         </Tooltip>
       )
       const trigger = container.querySelector('[data-state]')
@@ -90,7 +90,7 @@ describe('Tooltip', () => {
     it('applies classNames.placeholder to the trigger wrapper', () => {
       const { container } = render(
         <Tooltip content="tip" classNames={{ placeholder: 'custom-trigger' }}>
-          <button>Trigger</button>
+          <button type="button">Trigger</button>
         </Tooltip>
       )
       expect(container.querySelector('.custom-trigger')).toBeInTheDocument()
@@ -120,7 +120,7 @@ describe('Tooltip', () => {
       const handleClick = vi.fn()
       render(
         <Tooltip content="tip" onClick={handleClick}>
-          <button>Click me</button>
+          <button type="button">Click me</button>
         </Tooltip>
       )
       fireEvent.click(screen.getByText('Click me'))
@@ -131,7 +131,7 @@ describe('Tooltip', () => {
       const handleClick = vi.fn()
       render(
         <Tooltip content="tip" isDisabled onClick={handleClick}>
-          <button>Click me</button>
+          <button type="button">Click me</button>
         </Tooltip>
       )
       fireEvent.click(screen.getByText('Click me'))
@@ -142,7 +142,7 @@ describe('Tooltip', () => {
       const handleClick = vi.fn()
       render(
         <Tooltip onClick={handleClick}>
-          <button>Click me</button>
+          <button type="button">Click me</button>
         </Tooltip>
       )
       fireEvent.click(screen.getByText('Click me'))
@@ -154,7 +154,7 @@ describe('Tooltip', () => {
     it('renders tooltip content in DOM when isOpen is true', () => {
       render(
         <Tooltip content="forced open" isOpen={true}>
-          <button>Trigger</button>
+          <button type="button">Trigger</button>
         </Tooltip>
       )
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('Tooltip', () => {
     it('does not render tooltip content when isOpen is false', () => {
       render(
         <Tooltip content="forced closed" isOpen={false}>
-          <button>Trigger</button>
+          <button type="button">Trigger</button>
         </Tooltip>
       )
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
