@@ -253,6 +253,14 @@ const createSSEReadableStream = (
 
       const abortHandler = () => {
         cancelReader(signal.reason ?? 'aborted')
+        // Enqueue an 'abort' stream part before erroring, matching AI SDK stream behavior.
+        // Without this, AiSdkToChunkAdapter never emits the ERROR chunk, so callbacks.onError
+        // is never called and block statuses (e.g., thinking timer) are not updated on abort.
+        try {
+          controller.enqueue({ type: 'abort' } as TextStreamPart<Record<string, any>>)
+        } catch {
+          // Controller may already be closed
+        }
         controller.error(new DOMException('Aborted', 'AbortError'))
       }
 
