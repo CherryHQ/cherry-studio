@@ -279,26 +279,6 @@ export function buildProviderOptions(
   }
   logger.debug('Built providerSpecificOptions', { providerSpecificOptions })
 
-  // Poe 的 Claude / Gemini 等非 OpenAI 推理模型通过 OpenAI Responses transport 访问时，
-  // 不会被 AI SDK 的 OpenAI reasoning allowlist 自动识别，需要显式开启 forceReasoning
-  // 同时固定 systemMessageMode 为 system，避免 forceReasoning 默认把 system message 转成 developer
-  // https://ai-sdk.dev/providers/ai-sdk-providers/openai#chat-models
-  if (
-    actualProviderId === SystemProviderIds.poe &&
-    !isOpenAIModel(model) &&
-    capabilities.enableReasoning &&
-    'openai' in providerSpecificOptions
-  ) {
-    providerSpecificOptions = {
-      ...providerSpecificOptions,
-      openai: {
-        ...providerSpecificOptions.openai,
-        forceReasoning: true,
-        systemMessageMode: 'system'
-      }
-    }
-  }
-
   /**
    * Retrieve custom parameters and separate standard parameters from provider-specific parameters.
    */
