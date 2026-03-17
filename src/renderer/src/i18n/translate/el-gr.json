@@ -889,10 +889,10 @@
         "collapse_in": "Εισαγωγή σε σύμπτυξη",
         "collapse_out": "Αφαίρεση από σύμπτυξη",
         "expand": "Επέκταση",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Δεν βρέθηκε το αρχείο: {{path}}",
+        "open_file": "Άνοιγμα Αρχείου",
+        "open_file_error": "Αποτυχία ανοίγματος αρχείου: {{path}}",
+        "reveal_in_finder": "Εμφάνιση στον Finder"
       },
       "topics": "Θέματα",
       "translate": "Μετάφραση στο {{target_language}}",
@@ -1386,7 +1386,7 @@
     "off": "Κλειστό",
     "on": "Ενεργό",
     "open": "Άνοιγμα",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Άνοιγμα στο {{name}}",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {

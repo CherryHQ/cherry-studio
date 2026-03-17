@@ -889,10 +889,10 @@
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
         "expand": "Développer",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Fichier introuvable : {{path}}",
+        "open_file": "Ouvrir le fichier",
+        "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
+        "reveal_in_finder": "Afficher dans le Finder"
       },
       "topics": "Sujets",
       "translate": "Traduire en {{target_language}}",
@@ -1386,7 +1386,7 @@
     "off": "Désactivé",
     "on": "Marche",
     "open": "Ouvrir",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Ouvrir dans {{name}}",
     "paste": "Coller",
     "placeholders": {
       "select": {

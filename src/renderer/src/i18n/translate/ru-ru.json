@@ -889,10 +889,10 @@
         "collapse_in": "Свернуть",
         "collapse_out": "Развернуть",
         "expand": "Развернуть",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Файл не найден: {{path}}",
+        "open_file": "Открыть файл",
+        "open_file_error": "Не удалось открыть файл: {{path}}",
+        "reveal_in_finder": "Показать в Finder"
       },
       "topics": " Топики ",
       "translate": "Перевести на {{target_language}}",
@@ -1386,7 +1386,7 @@
     "off": "Выкл",
     "on": "Вкл",
     "open": "Открыть",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Открыть в {{name}}",
     "paste": "Вставить",
     "placeholders": {
       "select": {

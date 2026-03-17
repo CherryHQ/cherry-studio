@@ -889,10 +889,10 @@
         "collapse_in": "Agregar a la contracción",
         "collapse_out": "Eliminar de la contracción",
         "expand": "Expandir",
-        "file_not_found": "[to be translated]:File not found: {{path}}",
-        "open_file": "[to be translated]:Open File",
-        "open_file_error": "[to be translated]:Failed to open file: {{path}}",
-        "reveal_in_finder": "[to be translated]:Reveal in Finder"
+        "file_not_found": "Archivo no encontrado: {{path}}",
+        "open_file": "Abrir archivo",
+        "open_file_error": "Error al abrir el archivo: {{path}}",
+        "reveal_in_finder": "Mostrar en el Finder"
       },
       "topics": "Temas",
       "translate": "Traducir a {{target_language}}",
@@ -1386,7 +1386,7 @@
     "off": "Apagado",
     "on": "En",
     "open": "Abrir",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Abrir en {{name}}",
     "paste": "Pegar",
     "placeholders": {
       "select": {
