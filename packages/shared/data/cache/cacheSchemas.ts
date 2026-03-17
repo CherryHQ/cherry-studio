@@ -232,8 +232,8 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.state': { tabs: [], activeTabId: '' },
-  'mcp.is_uv_installed': true,
-  'mcp.is_bun_installed': true
+  'mcp.is_uv_installed': false,
+  'mcp.is_bun_installed': false
 }
 
 // ============================================================================
