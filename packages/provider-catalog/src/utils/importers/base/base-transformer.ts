@@ -708,7 +708,7 @@ export class OpenAICompatibleTransformer implements ITransformer {
       const inputCost = parseFloat(pricing.prompt)
       const outputCost = parseFloat(pricing.completion)
 
-      if (inputCost <= 0 || outputCost <= 0) return undefined
+      if (inputCost < 0 || outputCost < 0) return undefined
 
       return {
         input: { perMillionTokens: inputCost * 1_000_000 },
