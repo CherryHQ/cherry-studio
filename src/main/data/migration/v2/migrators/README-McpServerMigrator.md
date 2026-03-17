@@ -14,10 +14,16 @@ Migrates MCP server configurations from Redux to SQLite.
 
 ## Skipped Fields (Runtime/Cache)
 
-| Field | Reason |
-|-------|--------|
-| `isUvInstalled` | Re-detected at startup, belongs in CacheService |
-| `isBunInstalled` | Re-detected at startup, belongs in CacheService |
+| Field | Reason | V2 Target |
+|-------|--------|-----------|
+| `isUvInstalled` | Re-detected at startup | `usePersistCache('mcp.is_uv_installed')` |
+| `isBunInstalled` | Re-detected at startup | `usePersistCache('mcp.is_bun_installed')` |
+
+## Not Migrated (Regenerable Cache)
+
+| Source | Reason | V2 Target |
+|--------|--------|-----------|
+| Dexie `mcp:provider:*:servers` | Re-fetched from provider API | `usePersistCache('mcp.provider_catalogs')` |
 
 ## Field Mappings
 

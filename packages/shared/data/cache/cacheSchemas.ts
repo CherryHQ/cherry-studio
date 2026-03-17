@@ -228,12 +228,14 @@ export type RendererPersistCacheSchema = {
   'ui.tab.state': CacheValueTypes.TabsState
   'mcp.is_uv_installed': boolean
   'mcp.is_bun_installed': boolean
+  'mcp.provider_catalogs': Record<string, any[]>
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.state': { tabs: [], activeTabId: '' },
   'mcp.is_uv_installed': true,
-  'mcp.is_bun_installed': true
+  'mcp.is_bun_installed': true,
+  'mcp.provider_catalogs': {}
 }
 
 // ============================================================================
