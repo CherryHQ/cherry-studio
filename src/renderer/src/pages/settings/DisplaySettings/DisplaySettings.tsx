@@ -451,24 +451,22 @@ const DisplaySettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-      {navbarPosition === 'left' && (
-        <SettingGroup theme={theme}>
-          <SettingTitle
-            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{t('settings.display.sidebar.title')}</span>
-            <ResetButtonWrapper>
-              <Button onClick={handleReset}>{t('common.reset')}</Button>
-            </ResetButtonWrapper>
-          </SettingTitle>
-          <SettingDivider />
-          <SidebarIconsManager
-            visibleIcons={visibleIcons}
-            disabledIcons={disabledIcons}
-            setVisibleIcons={setVisibleIcons}
-            setDisabledIcons={setDisabledIcons}
-          />
-        </SettingGroup>
-      )}
+      <SettingGroup theme={theme}>
+        <SettingTitle
+          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{t('settings.display.sidebar.title')}</span>
+          <ResetButtonWrapper>
+            <Button onClick={handleReset}>{t('common.reset')}</Button>
+          </ResetButtonWrapper>
+        </SettingTitle>
+        <SettingDivider />
+        <SidebarIconsManager
+          visibleIcons={visibleIcons}
+          disabledIcons={disabledIcons}
+          setVisibleIcons={setVisibleIcons}
+          setDisabledIcons={setDisabledIcons}
+        />
+      </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css.label')}

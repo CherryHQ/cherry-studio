@@ -46,6 +46,7 @@ import MinAppIcon from '../Icons/MinAppIcon'
 import { OpenClawIcon } from '../Icons/SVGIcon'
 import MinAppTabsPool from '../MinApp/MinAppTabsPool'
 import WindowControls from '../WindowControls'
+import { isNavbarTabVisible } from './navigationVisibility'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -131,7 +132,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
-  const { useSystemTitleBar } = useSettings()
+  const { useSystemTitleBar, sidebarIcons } = useSettings()
   const { t } = useTranslation()
 
   const getTabId = (path: string): string => {
@@ -172,7 +173,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const shouldCreateTab = (path: string) => {
     if (path === '/') return false
     if (path === '/settings') return false
-    return !tabs.some((tab) => tab.id === getTabId(path))
+    const tabId = getTabId(path)
+    if (!isNavbarTabVisible(tabId, sidebarIcons.visible)) {
+      return false
+    }
+    return !tabs.some((tab) => tab.id === tabId)
   }
 
   const removeSpecialTabs = useCallback(() => {
@@ -223,7 +228,10 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
+  const visibleTabs = useMemo(
+    () => tabs.filter((tab) => !specialTabs.includes(tab.id) && isNavbarTabVisible(tab.id, sidebarIcons.visible)),
+    [sidebarIcons.visible, tabs]
+  )
 
   const { onSortEnd } = useDndReorder<Tab>({
     originalList: tabs,
