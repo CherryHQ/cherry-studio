@@ -1,11 +1,12 @@
+import { Tag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import type { ImageOcrProvider, OcrProvider } from '@renderer/types'
 import { BuiltinOcrProviderIds, isImageOcrProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
 import { Alert, Select, Skeleton } from 'antd'
+import { CircleXIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -68,7 +69,11 @@ const OcrImageSettings = ({ setProvider }: Props) => {
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!platformSupport && isSystem && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
+          {!platformSupport && isSystem && (
+            <Tag icon={<CircleXIcon size={14} color="var(--color-status-error)" />} color="var(--color-status-error)">
+              {t('settings.tool.ocr.error.not_system')}
+            </Tag>
+          )}
           <OcrProviderSelector
             isLoading={isLoading}
             error={error}
