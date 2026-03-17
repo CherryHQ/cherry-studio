@@ -13,7 +13,7 @@ import {
   ModelCapabilityTypeSchema,
   ModelPricingSchema,
   ParameterSupportSchema,
-  ReasoningSchema
+  ReasoningSupportSchema
 } from './model'
 import { EndpointTypeSchema } from './provider'
 
@@ -57,7 +57,7 @@ export const ProviderModelOverrideSchema = z.object({
     })
     .optional(),
   pricing: ModelPricingSchema.partial().optional(),
-  reasoning: ReasoningSchema.optional(),
+  reasoning: ReasoningSupportSchema.optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)

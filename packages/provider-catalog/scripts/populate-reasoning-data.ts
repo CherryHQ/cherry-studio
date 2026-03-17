@@ -66,11 +66,17 @@ const THINKING_TOKEN_LIMITS: Array<{ pattern: RegExp; limits: { min: number; max
   { pattern: /^qwen3-(?!max)/i, limits: { min: 1024, max: 38912 } },
 
   // Claude models (AWS Bedrock prefix, GCP @ separator, -v1:0 suffix)
+  { pattern: /(?:anthropic\.)?claude-opus-4[.-]6/i, limits: { min: 1024, max: 128000 } },
+  { pattern: /(?:anthropic\.)?claude-(?:sonnet|haiku)-4[.-]6/i, limits: { min: 1024, max: 64000 } },
   { pattern: /(?:anthropic\.)?claude-3-7.*sonnet/i, limits: { min: 1024, max: 64000 } },
   { pattern: /(?:anthropic\.)?claude-(?:haiku|sonnet|opus)-4-5/i, limits: { min: 1024, max: 64000 } },
   { pattern: /(?:anthropic\.)?claude-opus-4-1/i, limits: { min: 1024, max: 32000 } },
   { pattern: /(?:anthropic\.)?claude-sonnet-4(?:-0)?(?:[@-]|$)/i, limits: { min: 1024, max: 64000 } },
   { pattern: /(?:anthropic\.)?claude-opus-4(?:-0)?(?:[@-]|$)/i, limits: { min: 1024, max: 32000 } },
+
+  // Qwen3-max and Qwen3.5 series
+  { pattern: /^qwen3-max/i, limits: { min: 0, max: 81920 } },
+  { pattern: /^qwen3\.5/i, limits: { min: 0, max: 81920 } },
 
   // Baichuan models
   { pattern: /^baichuan-m[23]$/i, limits: { min: 0, max: 30000 } }
@@ -101,15 +107,15 @@ const REASONING_RULES: Array<{
   { pattern: /^o4-mini-deep-research/i, type: 'openai-chat', supportedEfforts: ['medium'] },
 
   // GPT-5.2 Pro
-  { pattern: /^gpt-5-2-pro/i, type: 'openai-chat', supportedEfforts: ['medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5-2-pro/i, type: 'openai-chat', supportedEfforts: ['medium', 'high', 'max'] },
   // GPT-5.2
   {
     pattern: /^gpt-5-2(?:-codex)?/i,
     type: 'openai-chat',
-    supportedEfforts: ['none', 'low', 'medium', 'high', 'xhigh']
+    supportedEfforts: ['none', 'low', 'medium', 'high', 'max']
   },
   // GPT-5.1 Codex Max
-  { pattern: /^gpt-5-1-codex-max/i, type: 'openai-chat', supportedEfforts: ['none', 'medium', 'high', 'xhigh'] },
+  { pattern: /^gpt-5-1-codex-max/i, type: 'openai-chat', supportedEfforts: ['none', 'medium', 'high', 'max'] },
   // GPT-5.1 Codex
   { pattern: /^gpt-5-1-codex/i, type: 'openai-chat', supportedEfforts: ['none', 'medium', 'high'] },
   // GPT-5.1
@@ -134,6 +140,12 @@ const REASONING_RULES: Array<{
   { pattern: /^o1-mini/i, type: '', supportedEfforts: [], fixedReasoning: true },
 
   // ── Claude models ──────────────────────────────────────────────────────────
+  // Claude 4.6 series supports low, medium, high, max (xhigh in renderer maps to max)
+  {
+    pattern: /(?:anthropic\.)?claude-(?:opus|sonnet|haiku)-4[.-]6/i,
+    type: 'anthropic',
+    supportedEfforts: ['low', 'medium', 'high', 'max']
+  },
   {
     pattern: /(?:anthropic\.)?claude-3-7.*sonnet/i,
     type: 'anthropic',
@@ -157,6 +169,9 @@ const REASONING_RULES: Array<{
 
   // ── Gemini models ──────────────────────────────────────────────────────────
   { pattern: /^gemini-3-flash/i, type: 'gemini', supportedEfforts: ['minimal', 'low', 'medium', 'high'] },
+  { pattern: /^gemini-3-1-pro(?!-image)/i, type: 'gemini', supportedEfforts: ['low', 'medium', 'high'] },
+  { pattern: /^gemini-3\.1-pro(?!-image)/i, type: 'gemini', supportedEfforts: ['low', 'medium', 'high'] },
+  { pattern: /^gemini-pro-latest$/i, type: 'gemini', supportedEfforts: ['low', 'medium', 'high'] },
   { pattern: /^gemini-3-pro(?!-image)/i, type: 'gemini', supportedEfforts: ['low', 'high'] },
   { pattern: /^gemini-2-5-flash-lite/i, type: 'gemini', supportedEfforts: ['none', 'low', 'medium', 'high', 'auto'] },
   { pattern: /^gemini-2-5-flash/i, type: 'gemini', supportedEfforts: ['none', 'low', 'medium', 'high', 'auto'] },
@@ -171,41 +186,46 @@ const REASONING_RULES: Array<{
 
   // ── Qwen models (controllable) ─────────────────────────────────────────────
   // Qwen3 thinking variants are always-think (not controllable but still have token limits)
-  { pattern: /^qwen3.*thinking/i, type: 'qwen', supportedEfforts: ['low', 'medium', 'high'] },
-  // Qwen3 controllable (excluding instruct, max, coder)
+  { pattern: /^qwen3.*thinking/i, type: 'enable-thinking', supportedEfforts: ['low', 'medium', 'high'] },
+  // Qwen3 controllable (excluding instruct, coder, thinking)
   {
-    pattern: /^qwen3-(?!max|.*instruct|.*coder|.*thinking)/i,
-    type: 'qwen',
+    pattern: /^qwen3-(?!.*instruct|.*coder|.*thinking)/i,
+    type: 'enable-thinking',
     supportedEfforts: ['none', 'low', 'medium', 'high']
   },
-  { pattern: /^qwen-plus/i, type: 'qwen', supportedEfforts: ['none', 'low', 'medium', 'high'] },
-  { pattern: /^qwen-turbo/i, type: 'qwen', supportedEfforts: ['none', 'low', 'medium', 'high'] },
-  { pattern: /^qwen-flash/i, type: 'qwen', supportedEfforts: ['none', 'low', 'medium', 'high'] },
+  // Qwen3.5 series
+  { pattern: /^qwen3\.5/i, type: 'enable-thinking', supportedEfforts: ['none', 'low', 'medium', 'high'] },
+  { pattern: /^qwen-plus/i, type: 'enable-thinking', supportedEfforts: ['none', 'low', 'medium', 'high'] },
+  { pattern: /^qwen-turbo/i, type: 'enable-thinking', supportedEfforts: ['none', 'low', 'medium', 'high'] },
+  { pattern: /^qwen-flash/i, type: 'enable-thinking', supportedEfforts: ['none', 'low', 'medium', 'high'] },
 
   // ── Doubao models ──────────────────────────────────────────────────────────
-  { pattern: /^doubao-seed-1-8/i, type: 'doubao', supportedEfforts: ['minimal', 'low', 'medium', 'high'] },
+  { pattern: /^doubao-seed-1-8/i, type: 'thinking-type', supportedEfforts: ['minimal', 'low', 'medium', 'high'] },
   {
     pattern: /^doubao-seed-1-6-(?:lite-)?251015/i,
-    type: 'doubao',
+    type: 'thinking-type',
     supportedEfforts: ['minimal', 'low', 'medium', 'high']
   },
-  { pattern: /^doubao-1-5-thinking-pro-m/i, type: 'doubao', supportedEfforts: ['none', 'auto', 'high'] },
+  { pattern: /^doubao-1-5-thinking-pro-m/i, type: 'thinking-type', supportedEfforts: ['none', 'auto', 'high'] },
   {
     pattern: /^doubao-seed-1-6(?!-thinking|-flash|-lite|-vision|-25)/i,
-    type: 'doubao',
+    type: 'thinking-type',
     supportedEfforts: ['none', 'auto', 'high']
   },
-  { pattern: /^doubao-1-5-thinking/i, type: 'doubao', supportedEfforts: ['none', 'high'] },
-  { pattern: /^doubao-seed-code/i, type: 'doubao', supportedEfforts: ['none', 'high'] },
+  { pattern: /^doubao-1-5-thinking/i, type: 'thinking-type', supportedEfforts: ['none', 'high'] },
+  { pattern: /^doubao-seed-code/i, type: 'thinking-type', supportedEfforts: ['none', 'high'] },
+  { pattern: /^doubao-seed-2/i, type: 'thinking-type', supportedEfforts: ['minimal', 'low', 'medium', 'high'] },
 
   // ── Hunyuan models ─────────────────────────────────────────────────────────
-  { pattern: /^hunyuan-a13b/i, type: 'qwen', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^hunyuan-a13b/i, type: 'enable-thinking', supportedEfforts: ['none', 'auto'] },
 
   // ── ZhiPu models ──────────────────────────────────────────────────────────
-  { pattern: /^glm-4-[567]/i, type: 'doubao', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^glm-[4-9]-[567]/i, type: 'thinking-type', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^glm-5/i, type: 'thinking-type', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^glm-4\.[5-7]/i, type: 'thinking-type', supportedEfforts: ['none', 'auto'] },
 
   // ── MiMo models ────────────────────────────────────────────────────────────
-  { pattern: /^mimo-v2-flash/i, type: 'doubao', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^mimo-v2-flash/i, type: 'thinking-type', supportedEfforts: ['none', 'auto'] },
 
   // ── Perplexity models ──────────────────────────────────────────────────────
   { pattern: /^sonar-deep-research/i, type: 'openai-chat', supportedEfforts: ['low', 'medium', 'high'] },
@@ -217,8 +237,12 @@ const REASONING_RULES: Array<{
   // ── MiniMax models ───────────────────────────────────────────────────────
   { pattern: /^minimax-m2/i, type: 'openai-chat', supportedEfforts: [] },
 
+  // ── OpenAI open weight models ────────────────────────────────────────────
+  { pattern: /^gpt-oss/i, type: 'openai-chat', supportedEfforts: ['low', 'medium', 'high'] },
+
   // ── Kimi models ─────────────────────────────────────────────────────────
-  { pattern: /^kimi-k2-thinking$/i, type: 'openai-chat', supportedEfforts: [] },
+  { pattern: /^(?:.*\.)?kimi-k2[.-]5/i, type: 'openai-chat', supportedEfforts: ['none', 'auto'] },
+  { pattern: /^kimi-k2-thinking/i, type: 'openai-chat', supportedEfforts: [] },
 
   // ── Fixed reasoning models (no reasoning field, only REASONING capability) ──
   { pattern: /^deepseek-r1/i, type: '', supportedEfforts: [], fixedReasoning: true },

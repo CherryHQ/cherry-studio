@@ -9,6 +9,8 @@
  */
 
 import {
+  AnthropicReasoningEffort,
+  AnthropicReasoningEffortSchema,
   Currency,
   CurrencySchema,
   EndpointType,
@@ -17,6 +19,8 @@ import {
   ModalitySchema,
   ModelCapability,
   ModelCapabilitySchema,
+  OpenAIReasoningEffort,
+  OpenAIReasoningEffortSchema,
   ReasoningEffort,
   ReasoningEffortSchema
 } from '../gen/v1/common_pb'
@@ -25,21 +29,31 @@ import {
 // Re-export proto enums as canonical source of truth
 // ─────────────────────────────────────────────────────────────────────────────
 
-export { Currency, EndpointType, Modality, ModelCapability, ReasoningEffort }
+export {
+  AnthropicReasoningEffort,
+  Currency,
+  EndpointType,
+  Modality,
+  ModelCapability,
+  OpenAIReasoningEffort,
+  ReasoningEffort
+}
 
 // Schema descriptors for enum-to-string conversion if needed
 export {
+  AnthropicReasoningEffortSchema as AnthropicReasoningEffortEnumSchema,
   CurrencySchema as CurrencyEnumSchema,
   EndpointTypeSchema as EndpointTypeEnumSchema,
   ModalitySchema as ModalityEnumSchema,
   ModelCapabilitySchema as ModelCapabilityEnumSchema,
+  OpenAIReasoningEffortSchema as OpenAIReasoningEffortEnumSchema,
   ReasoningEffortSchema as ReasoningEffortEnumSchema
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Backward-compatible aliases
 // ─────────────────────────────────────────────────────────────────────────────
-// These allow existing `ENDPOINT_TYPE.CHAT_COMPLETIONS` syntax to keep working.
+// These allow existing `ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS` syntax to keep working.
 // Values change from strings to numbers — consumers must be updated.
 
 export const ENDPOINT_TYPE = EndpointType

@@ -67,7 +67,7 @@ export class CatalogService {
    */
   private getCatalogDataPath(): string {
     if (isDev) {
-      return join(__dirname, '..', '..', '..', 'packages', 'provider-catalog', 'data')
+      return join(__dirname, '..', '..', 'packages', 'provider-catalog', 'data')
     }
     // TODO
     return ''
@@ -268,21 +268,20 @@ export class CatalogService {
           }
         : null
 
-      const apiCompatibility = p.apiCompatibility
+      const apiFeatures = p.apiFeatures
         ? {
-            arrayContent: p.apiCompatibility.arrayContent,
-            streamOptions: p.apiCompatibility.streamOptions,
-            developerRole: p.apiCompatibility.developerRole,
-            serviceTier: p.apiCompatibility.serviceTier,
-            verbosity: p.apiCompatibility.verbosity,
-            enableThinking: p.apiCompatibility.enableThinking,
-            requiresApiKey: p.apiCompatibility.requiresApiKey
+            arrayContent: p.apiFeatures.arrayContent,
+            streamOptions: p.apiFeatures.streamOptions,
+            developerRole: p.apiFeatures.developerRole,
+            serviceTier: p.apiFeatures.serviceTier,
+            verbosity: p.apiFeatures.verbosity,
+            enableThinking: p.apiFeatures.enableThinking
           }
         : null
 
       // Extract reasoning format type from proto oneof
       const formatCase = p.reasoningFormat?.format.case
-      const reasoningFormatType = formatCase ? CASE_TO_TYPE[formatCase] ?? null : null
+      const reasoningFormatType = formatCase ? (CASE_TO_TYPE[formatCase] ?? null) : null
 
       return {
         providerId: p.id,
@@ -291,7 +290,7 @@ export class CatalogService {
         baseUrls: Object.keys(baseUrls).length > 0 ? baseUrls : null,
         modelsApiUrls: Object.keys(modelsApiUrls ?? {}).length > 0 ? modelsApiUrls : null,
         defaultChatEndpoint: p.defaultChatEndpoint ?? null,
-        apiCompatibility,
+        apiFeatures,
         reasoningFormatType,
         websites
       }
@@ -364,10 +363,7 @@ export class CatalogService {
 
     // Query all user models that have a presetModelId
     const db = dbService.getDb()
-    const userModels = await db
-      .select()
-      .from(userModelTable)
-      .where(isNotNull(userModelTable.presetModelId))
+    const userModels = await db.select().from(userModelTable).where(isNotNull(userModelTable.presetModelId))
 
     if (userModels.length === 0) {
       logger.info('No user models with presetModelId found, skipping enrichment')
@@ -375,12 +371,16 @@ export class CatalogService {
     }
 
     const updateRows: NewUserModel[] = []
+    let skippedCount = 0
 
     for (const row of userModels) {
       const presetModelId = row.presetModelId!
       const presetModel = modelMap.get(presetModelId)
 
-      if (!presetModel) continue
+      if (!presetModel) {
+        skippedCount++
+        continue
+      }
 
       const providerOverrides = overridesByProvider.get(row.providerId)
       const catalogOverride = providerOverrides?.get(presetModelId) ?? null
@@ -436,11 +436,14 @@ export class CatalogService {
 
     if (updateRows.length > 0) {
       await modelService.batchUpsert(updateRows)
-      logger.info('Enriched existing user models with catalog data', {
-        total: userModels.length,
-        enriched: updateRows.length
-      })
     }
+
+    logger.info('Model enrichment completed', {
+      total: userModels.length,
+      enriched: updateRows.length,
+      skipped: skippedCount,
+      catalogSize: catalogModels.length
+    })
   }
 
   /**

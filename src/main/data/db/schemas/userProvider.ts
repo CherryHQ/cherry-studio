@@ -11,8 +11,8 @@
  */
 
 import {
-  type ApiCompatibility,
-  ApiCompatibilitySchema,
+  type ApiFeatures,
+  ApiFeaturesSchema,
   type ApiKeyEntry,
   ApiKeyEntrySchema,
   type AuthConfig,
@@ -61,10 +61,13 @@ export const userProviderTable = sqliteTable(
     authConfig: text({ mode: 'json' }).$type<AuthConfig>(),
 
     /** API feature support (null = use preset default) */
-    apiCompatibility: text({ mode: 'json' }).$type<ApiCompatibility>(),
+    apiFeatures: text('api_features', { mode: 'json' }).$type<ApiFeatures>(),
 
     /** Provider-specific settings as JSON */
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
+
+    /** How this provider's API expects reasoning parameters (e.g. 'openai-chat', 'anthropic', 'enable-thinking') */
+    reasoningFormatType: text(),
 
     /** Website links (official, apiKey, docs, models) */
     websites: text({ mode: 'json' }).$type<ProviderWebsites>(),
@@ -92,7 +95,7 @@ const jsonColumnOverrides = {
   modelsApiUrls: () => z.record(z.string(), z.string()).nullable(),
   apiKeys: () => z.array(ApiKeyEntrySchema).nullable(),
   authConfig: () => AuthConfigSchema.nullable(),
-  apiCompatibility: () => ApiCompatibilitySchema.nullable(),
+  apiFeatures: () => ApiFeaturesSchema.nullable(),
   providerSettings: () => ProviderSettingsSchema.nullable(),
   websites: () => ProviderWebsitesSchema.nullable()
 }

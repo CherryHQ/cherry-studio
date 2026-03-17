@@ -27,8 +27,8 @@ vi.mock('../ProviderService', () => ({
 vi.mock('@main/constant', () => ({ isDev: true }))
 
 // Import after mocks are set up
-import { CatalogService } from '../CatalogService'
 import { modelService } from '../ModelService'
+import { CatalogService } from '../ProviderCatalogService'
 import { providerService } from '../ProviderService'
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
@@ -250,8 +250,8 @@ describe('CatalogService', () => {
           {
             id: 'openai',
             name: 'OpenAI',
-            baseUrls: { [EndpointType.CHAT_COMPLETIONS]: 'https://api.openai.com/v1' },
-            defaultChatEndpoint: EndpointType.CHAT_COMPLETIONS
+            baseUrls: { [EndpointType.OPENAI_CHAT_COMPLETIONS]: 'https://api.openai.com/v1' },
+            defaultChatEndpoint: EndpointType.OPENAI_CHAT_COMPLETIONS
           }
         ]
       })
@@ -270,7 +270,7 @@ describe('CatalogService', () => {
       const cherryai = rows.find((r) => r.providerId === 'cherryai')!
       expect(cherryai.name).toBe('CherryAI')
       expect(cherryai.baseUrls).toEqual({
-        [EndpointType.CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
+        [EndpointType.OPENAI_CHAT_COMPLETIONS]: 'https://api.cherry-ai.com'
       })
     })
 
@@ -420,11 +420,11 @@ describe('CatalogService', () => {
       mockCatalogData({ models: [], overrides: [] })
 
       const result = CatalogService.getInstance().resolveModels('p1', [
-        { modelId: 'my-model', endpointTypes: [EndpointType.MESSAGES] }
+        { modelId: 'my-model', endpointTypes: [EndpointType.ANTHROPIC_MESSAGES] }
       ])
 
       expect(result).toHaveLength(1)
-      expect(result[0].endpointTypes).toEqual([EndpointType.MESSAGES])
+      expect(result[0].endpointTypes).toEqual([EndpointType.ANTHROPIC_MESSAGES])
     })
   })
 

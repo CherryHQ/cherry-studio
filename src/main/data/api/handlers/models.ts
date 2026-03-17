@@ -6,8 +6,8 @@
  * - Listing with filters
  */
 
-import { catalogService } from '@data/services/CatalogService'
 import { modelService } from '@data/services/ModelService'
+import { catalogService } from '@data/services/ProviderCatalogService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { ListModelsQuery } from '@shared/data/api/schemas/models'
 import type { ModelSchemas } from '@shared/data/api/schemas/models'

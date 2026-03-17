@@ -22,7 +22,7 @@ import type { Message } from '@bufbuild/protobuf'
 export const file_v1_model: GenFile =
   /*@__PURE__*/
   fileDesc(
-    'Cg52MS9tb2RlbC5wcm90bxIKY2F0YWxvZy52MSJrChNUaGlua2luZ1Rva2VuTGltaXRzEhAKA21pbhgBIAEoDUgAiAEBEhAKA21heBgCIAEoDUgBiAEBEhQKB2RlZmF1bHQYAyABKA1IAogBAUIGCgRfbWluQgYKBF9tYXhCCgoIX2RlZmF1bHQiswEKD1JlYXNvbmluZ0NvbW1vbhI+ChV0aGlua2luZ190b2tlbl9saW1pdHMYASABKAsyHy5jYXRhbG9nLnYxLlRoaW5raW5nVG9rZW5MaW1pdHMSNgoRc3VwcG9ydGVkX2VmZm9ydHMYAiADKA4yGy5jYXRhbG9nLnYxLlJlYXNvbmluZ0VmZm9ydBIYCgtpbnRlcmxlYXZlZBgDIAEoCEgAiAEBQg4KDF9pbnRlcmxlYXZlZCJsChlPcGVuQUlDaGF0UmVhc29uaW5nUGFyYW1zEjoKEHJlYXNvbmluZ19lZmZvcnQYASABKA4yGy5jYXRhbG9nLnYxLlJlYXNvbmluZ0VmZm9ydEgAiAEBQhMKEV9yZWFzb25pbmdfZWZmb3J0IqEBCh5PcGVuQUlSZXNwb25zZXNSZWFzb25pbmdQYXJhbXMSMAoGZWZmb3J0GAEgASgOMhsuY2F0YWxvZy52MS5SZWFzb25pbmdFZmZvcnRIAIgBARI2CgdzdW1tYXJ5GAIgASgOMiAuY2F0YWxvZy52MS5SZXNwb25zZXNTdW1tYXJ5TW9kZUgBiAEBQgkKB19lZmZvcnRCCgoIX3N1bW1hcnkixAEKGEFudGhyb3BpY1JlYXNvbmluZ1BhcmFtcxI0CgR0eXBlGAEgASgOMiEuY2F0YWxvZy52MS5BbnRocm9waWNUaGlua2luZ1R5cGVIAIgBARIaCg1idWRnZXRfdG9rZW5zGAIgASgNSAGIAQESMAoGZWZmb3J0GAMgASgOMhsuY2F0YWxvZy52MS5SZWFzb25pbmdFZmZvcnRIAogBAUIHCgVfdHlwZUIQCg5fYnVkZ2V0X3Rva2Vuc0IJCgdfZWZmb3J0InwKFEdlbWluaVRoaW5raW5nQ29uZmlnEh0KEGluY2x1ZGVfdGhvdWdodHMYASABKAhIAIgBARIcCg90aGlua2luZ19idWRnZXQYAiABKA1IAYgBAUITChFfaW5jbHVkZV90aG91Z2h0c0ISChBfdGhpbmtpbmdfYnVkZ2V0IpkBChVHZW1pbmlSZWFzb25pbmdQYXJhbXMSOwoPdGhpbmtpbmdfY29uZmlnGAEgASgLMiAuY2F0YWxvZy52MS5HZW1pbmlUaGlua2luZ0NvbmZpZ0gAEjkKDnRoaW5raW5nX2xldmVsGAIgASgOMh8uY2F0YWxvZy52MS5HZW1pbmlUaGlua2luZ0xldmVsSABCCAoGY29uZmlnIqIBChlPcGVuUm91dGVyUmVhc29uaW5nUGFyYW1zEjAKBmVmZm9ydBgBIAEoDjIbLmNhdGFsb2cudjEuUmVhc29uaW5nRWZmb3J0SACIAQESFwoKbWF4X3Rva2VucxgCIAEoDUgBiAEBEhQKB2V4Y2x1ZGUYAyABKAhIAogBAUIJCgdfZWZmb3J0Qg0KC19tYXhfdG9rZW5zQgoKCF9leGNsdWRlInkKE1F3ZW5SZWFzb25pbmdQYXJhbXMSHAoPZW5hYmxlX3RoaW5raW5nGAEgASgISACIAQESHAoPdGhpbmtpbmdfYnVkZ2V0GAIgASgNSAGIAQFCEgoQX2VuYWJsZV90aGlua2luZ0ISChBfdGhpbmtpbmdfYnVkZ2V0ImUKFURvdWJhb1JlYXNvbmluZ1BhcmFtcxI6Cg10aGlua2luZ190eXBlGAEgASgOMh4uY2F0YWxvZy52MS5Eb3ViYW9UaGlua2luZ1R5cGVIAIgBAUIQCg5fdGhpbmtpbmdfdHlwZSKEAQoYRGFzaHNjb3BlUmVhc29uaW5nUGFyYW1zEhwKD2VuYWJsZV90aGlua2luZxgBIAEoCEgAiAEBEh8KEmluY3JlbWVudGFsX291dHB1dBgCIAEoCEgBiAEBQhIKEF9lbmFibGVfdGhpbmtpbmdCFQoTX2luY3JlbWVudGFsX291dHB1dCJxChlTZWxmSG9zdGVkUmVhc29uaW5nUGFyYW1zEhwKD2VuYWJsZV90aGlua2luZxgBIAEoCEgAiAEBEhUKCHRoaW5raW5nGAIgASgISAGIAQFCEgoQX2VuYWJsZV90aGlua2luZ0ILCglfdGhpbmtpbmci1AQKCVJlYXNvbmluZxIrCgZjb21tb24YASABKAsyGy5jYXRhbG9nLnYxLlJlYXNvbmluZ0NvbW1vbhI8CgtvcGVuYWlfY2hhdBgKIAEoCzIlLmNhdGFsb2cudjEuT3BlbkFJQ2hhdFJlYXNvbmluZ1BhcmFtc0gAEkYKEG9wZW5haV9yZXNwb25zZXMYCyABKAsyKi5jYXRhbG9nLnYxLk9wZW5BSVJlc3BvbnNlc1JlYXNvbmluZ1BhcmFtc0gAEjkKCWFudGhyb3BpYxgMIAEoCzIkLmNhdGFsb2cudjEuQW50aHJvcGljUmVhc29uaW5nUGFyYW1zSAASMwoGZ2VtaW5pGA0gASgLMiEuY2F0YWxvZy52MS5HZW1pbmlSZWFzb25pbmdQYXJhbXNIABI7CgpvcGVucm91dGVyGA4gASgLMiUuY2F0YWxvZy52MS5PcGVuUm91dGVyUmVhc29uaW5nUGFyYW1zSAASLwoEcXdlbhgPIAEoCzIfLmNhdGFsb2cudjEuUXdlblJlYXNvbmluZ1BhcmFtc0gAEjMKBmRvdWJhbxgQIAEoCzIhLmNhdGFsb2cudjEuRG91YmFvUmVhc29uaW5nUGFyYW1zSAASOQoJZGFzaHNjb3BlGBEgASgLMiQuY2F0YWxvZy52MS5EYXNoc2NvcGVSZWFzb25pbmdQYXJhbXNIABI8CgtzZWxmX2hvc3RlZBgSIAEoCzIlLmNhdGFsb2cudjEuU2VsZkhvc3RlZFJlYXNvbmluZ1BhcmFtc0gAQggKBnBhcmFtcyJjChZSYW5nZWRQYXJhbWV0ZXJTdXBwb3J0EhEKCXN1cHBvcnRlZBgBIAEoCBIsCgVyYW5nZRgCIAEoCzIYLmNhdGFsb2cudjEuTnVtZXJpY1JhbmdlSACIAQFCCAoGX3JhbmdlItYDChBQYXJhbWV0ZXJTdXBwb3J0EjwKC3RlbXBlcmF0dXJlGAEgASgLMiIuY2F0YWxvZy52MS5SYW5nZWRQYXJhbWV0ZXJTdXBwb3J0SACIAQESNgoFdG9wX3AYAiABKAsyIi5jYXRhbG9nLnYxLlJhbmdlZFBhcmFtZXRlclN1cHBvcnRIAYgBARI2CgV0b3BfaxgDIAEoCzIiLmNhdGFsb2cudjEuUmFuZ2VkUGFyYW1ldGVyU3VwcG9ydEgCiAEBEh4KEWZyZXF1ZW5jeV9wZW5hbHR5GAQgASgISAOIAQESHQoQcHJlc2VuY2VfcGVuYWx0eRgFIAEoCEgEiAEBEhcKCm1heF90b2tlbnMYBiABKAhIBYgBARIbCg5zdG9wX3NlcXVlbmNlcxgHIAEoCEgGiAEBEhsKDnN5c3RlbV9tZXNzYWdlGAggASgISAeIAQFCDgoMX3RlbXBlcmF0dXJlQggKBl90b3BfcEIICgZfdG9wX2tCFAoSX2ZyZXF1ZW5jeV9wZW5hbHR5QhMKEV9wcmVzZW5jZV9wZW5hbHR5Qg0KC19tYXhfdG9rZW5zQhEKD19zdG9wX3NlcXVlbmNlc0IRCg9fc3lzdGVtX21lc3NhZ2UibQoKSW1hZ2VQcmljZRINCgVwcmljZRgBIAEoARImCghjdXJyZW5jeRgCIAEoDjIULmNhdGFsb2cudjEuQ3VycmVuY3kSKAoEdW5pdBgDIAEoDjIaLmNhdGFsb2cudjEuSW1hZ2VQcmljZVVuaXQiRAoLTWludXRlUHJpY2USDQoFcHJpY2UYASABKAESJgoIY3VycmVuY3kYAiABKA4yFC5jYXRhbG9nLnYxLkN1cnJlbmN5IuoCCgxNb2RlbFByaWNpbmcSKAoFaW5wdXQYASABKAsyGS5jYXRhbG9nLnYxLlByaWNlUGVyVG9rZW4SKQoGb3V0cHV0GAIgASgLMhkuY2F0YWxvZy52MS5QcmljZVBlclRva2VuEjIKCmNhY2hlX3JlYWQYAyABKAsyGS5jYXRhbG9nLnYxLlByaWNlUGVyVG9rZW5IAIgBARIzCgtjYWNoZV93cml0ZRgEIAEoCzIZLmNhdGFsb2cudjEuUHJpY2VQZXJUb2tlbkgBiAEBEi4KCXBlcl9pbWFnZRgFIAEoCzIWLmNhdGFsb2cudjEuSW1hZ2VQcmljZUgCiAEBEjAKCnBlcl9taW51dGUYBiABKAsyFy5jYXRhbG9nLnYxLk1pbnV0ZVByaWNlSAOIAQFCDQoLX2NhY2hlX3JlYWRCDgoMX2NhY2hlX3dyaXRlQgwKCl9wZXJfaW1hZ2VCDQoLX3Blcl9taW51dGUikwYKC01vZGVsQ29uZmlnEgoKAmlkGAEgASgJEhEKBG5hbWUYAiABKAlIAIgBARIYCgtkZXNjcmlwdGlvbhgDIAEoCUgBiAEBEjEKDGNhcGFiaWxpdGllcxgEIAMoDjIbLmNhdGFsb2cudjEuTW9kZWxDYXBhYmlsaXR5Ei4KEGlucHV0X21vZGFsaXRpZXMYBSADKA4yFC5jYXRhbG9nLnYxLk1vZGFsaXR5Ei8KEW91dHB1dF9tb2RhbGl0aWVzGAYgAygOMhQuY2F0YWxvZy52MS5Nb2RhbGl0eRIbCg5jb250ZXh0X3dpbmRvdxgHIAEoDUgCiAEBEh4KEW1heF9vdXRwdXRfdG9rZW5zGAggASgNSAOIAQESHQoQbWF4X2lucHV0X3Rva2VucxgJIAEoDUgEiAEBEi4KB3ByaWNpbmcYCiABKAsyGC5jYXRhbG9nLnYxLk1vZGVsUHJpY2luZ0gFiAEBEi0KCXJlYXNvbmluZxgLIAEoCzIVLmNhdGFsb2cudjEuUmVhc29uaW5nSAaIAQESPAoRcGFyYW1ldGVyX3N1cHBvcnQYDCABKAsyHC5jYXRhbG9nLnYxLlBhcmFtZXRlclN1cHBvcnRIB4gBARITCgZmYW1pbHkYDSABKAlICIgBARIVCghvd25lZF9ieRgOIAEoCUgJiAEBEhkKDG9wZW5fd2VpZ2h0cxgPIAEoCEgKiAEBEg0KBWFsaWFzGBAgAygJEisKCG1ldGFkYXRhGBEgASgLMhQuY2F0YWxvZy52MS5NZXRhZGF0YUgLiAEBQgcKBV9uYW1lQg4KDF9kZXNjcmlwdGlvbkIRCg9fY29udGV4dF93aW5kb3dCFAoSX21heF9vdXRwdXRfdG9rZW5zQhMKEV9tYXhfaW5wdXRfdG9rZW5zQgoKCF9wcmljaW5nQgwKCl9yZWFzb25pbmdCFAoSX3BhcmFtZXRlcl9zdXBwb3J0QgkKB19mYW1pbHlCCwoJX293bmVkX2J5Qg8KDV9vcGVuX3dlaWdodHNCCwoJX21ldGFkYXRhIkgKDE1vZGVsQ2F0YWxvZxIPCgd2ZXJzaW9uGAEgASgJEicKBm1vZGVscxgCIAMoCzIXLmNhdGFsb2cudjEuTW9kZWxDb25maWcqqAEKFFJlc3BvbnNlc1N1bW1hcnlNb2RlEiYKIlJFU1BPTlNFU19TVU1NQVJZX01PREVfVU5TUEVDSUZJRUQQABIfChtSRVNQT05TRVNfU1VNTUFSWV9NT0RFX0FVVE8QARIiCh5SRVNQT05TRVNfU1VNTUFSWV9NT0RFX0NPTkNJU0UQAhIjCh9SRVNQT05TRVNfU1VNTUFSWV9NT0RFX0RFVEFJTEVEEAMqsQEKFUFudGhyb3BpY1RoaW5raW5nVHlwZRInCiNBTlRIUk9QSUNfVEhJTktJTkdfVFlQRV9VTlNQRUNJRklFRBAAEiMKH0FOVEhST1BJQ19USElOS0lOR19UWVBFX0VOQUJMRUQQARIkCiBBTlRIUk9QSUNfVEhJTktJTkdfVFlQRV9ESVNBQkxFRBACEiQKIEFOVEhST1BJQ19USElOS0lOR19UWVBFX0FEQVBUSVZFEAMqwAEKE0dlbWluaVRoaW5raW5nTGV2ZWwSJQohR0VNSU5JX1RISU5LSU5HX0xFVkVMX1VOU1BFQ0lGSUVEEAASIQodR0VNSU5JX1RISU5LSU5HX0xFVkVMX01JTklNQUwQARIdChlHRU1JTklfVEhJTktJTkdfTEVWRUxfTE9XEAISIAocR0VNSU5JX1RISU5LSU5HX0xFVkVMX01FRElVTRADEh4KGkdFTUlOSV9USElOS0lOR19MRVZFTF9ISUdIEAQqngEKEkRvdWJhb1RoaW5raW5nVHlwZRIkCiBET1VCQU9fVEhJTktJTkdfVFlQRV9VTlNQRUNJRklFRBAAEiAKHERPVUJBT19USElOS0lOR19UWVBFX0VOQUJMRUQQARIhCh1ET1VCQU9fVEhJTktJTkdfVFlQRV9ESVNBQkxFRBACEh0KGURPVUJBT19USElOS0lOR19UWVBFX0FVVE8QAypqCg5JbWFnZVByaWNlVW5pdBIgChxJTUFHRV9QUklDRV9VTklUX1VOU1BFQ0lGSUVEEAASGgoWSU1BR0VfUFJJQ0VfVU5JVF9JTUFHRRABEhoKFklNQUdFX1BSSUNFX1VOSVRfUElYRUwQAmIGcHJvdG8z',
+    'Cg52MS9tb2RlbC5wcm90bxIKY2F0YWxvZy52MSJrChNUaGlua2luZ1Rva2VuTGltaXRzEhAKA21pbhgBIAEoDUgAiAEBEhAKA21heBgCIAEoDUgBiAEBEhQKB2RlZmF1bHQYAyABKA1IAogBAUIGCgRfbWluQgYKBF9tYXhCCgoIX2RlZmF1bHQi0wEKEFJlYXNvbmluZ1N1cHBvcnQSQwoVdGhpbmtpbmdfdG9rZW5fbGltaXRzGAEgASgLMh8uY2F0YWxvZy52MS5UaGlua2luZ1Rva2VuTGltaXRzSACIAQESNgoRc3VwcG9ydGVkX2VmZm9ydHMYAiADKA4yGy5jYXRhbG9nLnYxLlJlYXNvbmluZ0VmZm9ydBIYCgtpbnRlcmxlYXZlZBgDIAEoCEgBiAEBQhgKFl90aGlua2luZ190b2tlbl9saW1pdHNCDgoMX2ludGVybGVhdmVkImMKFlJhbmdlZFBhcmFtZXRlclN1cHBvcnQSEQoJc3VwcG9ydGVkGAEgASgIEiwKBXJhbmdlGAIgASgLMhguY2F0YWxvZy52MS5OdW1lcmljUmFuZ2VIAIgBAUIICgZfcmFuZ2Ui1gMKEFBhcmFtZXRlclN1cHBvcnQSPAoLdGVtcGVyYXR1cmUYASABKAsyIi5jYXRhbG9nLnYxLlJhbmdlZFBhcmFtZXRlclN1cHBvcnRIAIgBARI2CgV0b3BfcBgCIAEoCzIiLmNhdGFsb2cudjEuUmFuZ2VkUGFyYW1ldGVyU3VwcG9ydEgBiAEBEjYKBXRvcF9rGAMgASgLMiIuY2F0YWxvZy52MS5SYW5nZWRQYXJhbWV0ZXJTdXBwb3J0SAKIAQESHgoRZnJlcXVlbmN5X3BlbmFsdHkYBCABKAhIA4gBARIdChBwcmVzZW5jZV9wZW5hbHR5GAUgASgISASIAQESFwoKbWF4X3Rva2VucxgGIAEoCEgFiAEBEhsKDnN0b3Bfc2VxdWVuY2VzGAcgASgISAaIAQESGwoOc3lzdGVtX21lc3NhZ2UYCCABKAhIB4gBAUIOCgxfdGVtcGVyYXR1cmVCCAoGX3RvcF9wQggKBl90b3Bfa0IUChJfZnJlcXVlbmN5X3BlbmFsdHlCEwoRX3ByZXNlbmNlX3BlbmFsdHlCDQoLX21heF90b2tlbnNCEQoPX3N0b3Bfc2VxdWVuY2VzQhEKD19zeXN0ZW1fbWVzc2FnZSJtCgpJbWFnZVByaWNlEg0KBXByaWNlGAEgASgBEiYKCGN1cnJlbmN5GAIgASgOMhQuY2F0YWxvZy52MS5DdXJyZW5jeRIoCgR1bml0GAMgASgOMhouY2F0YWxvZy52MS5JbWFnZVByaWNlVW5pdCJECgtNaW51dGVQcmljZRINCgVwcmljZRgBIAEoARImCghjdXJyZW5jeRgCIAEoDjIULmNhdGFsb2cudjEuQ3VycmVuY3ki6gIKDE1vZGVsUHJpY2luZxIoCgVpbnB1dBgBIAEoCzIZLmNhdGFsb2cudjEuUHJpY2VQZXJUb2tlbhIpCgZvdXRwdXQYAiABKAsyGS5jYXRhbG9nLnYxLlByaWNlUGVyVG9rZW4SMgoKY2FjaGVfcmVhZBgDIAEoCzIZLmNhdGFsb2cudjEuUHJpY2VQZXJUb2tlbkgAiAEBEjMKC2NhY2hlX3dyaXRlGAQgASgLMhkuY2F0YWxvZy52MS5QcmljZVBlclRva2VuSAGIAQESLgoJcGVyX2ltYWdlGAUgASgLMhYuY2F0YWxvZy52MS5JbWFnZVByaWNlSAKIAQESMAoKcGVyX21pbnV0ZRgGIAEoCzIXLmNhdGFsb2cudjEuTWludXRlUHJpY2VIA4gBAUINCgtfY2FjaGVfcmVhZEIOCgxfY2FjaGVfd3JpdGVCDAoKX3Blcl9pbWFnZUINCgtfcGVyX21pbnV0ZSKaBgoLTW9kZWxDb25maWcSCgoCaWQYASABKAkSEQoEbmFtZRgCIAEoCUgAiAEBEhgKC2Rlc2NyaXB0aW9uGAMgASgJSAGIAQESMQoMY2FwYWJpbGl0aWVzGAQgAygOMhsuY2F0YWxvZy52MS5Nb2RlbENhcGFiaWxpdHkSLgoQaW5wdXRfbW9kYWxpdGllcxgFIAMoDjIULmNhdGFsb2cudjEuTW9kYWxpdHkSLwoRb3V0cHV0X21vZGFsaXRpZXMYBiADKA4yFC5jYXRhbG9nLnYxLk1vZGFsaXR5EhsKDmNvbnRleHRfd2luZG93GAcgASgNSAKIAQESHgoRbWF4X291dHB1dF90b2tlbnMYCCABKA1IA4gBARIdChBtYXhfaW5wdXRfdG9rZW5zGAkgASgNSASIAQESLgoHcHJpY2luZxgKIAEoCzIYLmNhdGFsb2cudjEuTW9kZWxQcmljaW5nSAWIAQESNAoJcmVhc29uaW5nGAsgASgLMhwuY2F0YWxvZy52MS5SZWFzb25pbmdTdXBwb3J0SAaIAQESPAoRcGFyYW1ldGVyX3N1cHBvcnQYDCABKAsyHC5jYXRhbG9nLnYxLlBhcmFtZXRlclN1cHBvcnRIB4gBARITCgZmYW1pbHkYDSABKAlICIgBARIVCghvd25lZF9ieRgOIAEoCUgJiAEBEhkKDG9wZW5fd2VpZ2h0cxgPIAEoCEgKiAEBEg0KBWFsaWFzGBAgAygJEisKCG1ldGFkYXRhGBEgASgLMhQuY2F0YWxvZy52MS5NZXRhZGF0YUgLiAEBQgcKBV9uYW1lQg4KDF9kZXNjcmlwdGlvbkIRCg9fY29udGV4dF93aW5kb3dCFAoSX21heF9vdXRwdXRfdG9rZW5zQhMKEV9tYXhfaW5wdXRfdG9rZW5zQgoKCF9wcmljaW5nQgwKCl9yZWFzb25pbmdCFAoSX3BhcmFtZXRlcl9zdXBwb3J0QgkKB19mYW1pbHlCCwoJX293bmVkX2J5Qg8KDV9vcGVuX3dlaWdodHNCCwoJX21ldGFkYXRhIkgKDE1vZGVsQ2F0YWxvZxIPCgd2ZXJzaW9uGAEgASgJEicKBm1vZGVscxgCIAMoCzIXLmNhdGFsb2cudjEuTW9kZWxDb25maWcqagoOSW1hZ2VQcmljZVVuaXQSIAocSU1BR0VfUFJJQ0VfVU5JVF9VTlNQRUNJRklFRBAAEhoKFklNQUdFX1BSSUNFX1VOSVRfSU1BR0UQARIaChZJTUFHRV9QUklDRV9VTklUX1BJWEVMEAJiBnByb3RvMw',
     [file_v1_common]
   )
 
@@ -53,13 +53,13 @@ export type ThinkingTokenLimits = Message<'catalog.v1.ThinkingTokenLimits'> & {
 export const ThinkingTokenLimitsSchema: GenMessage<ThinkingTokenLimits> = /*@__PURE__*/ messageDesc(file_v1_model, 0)
 
 /**
- * Common fields shared across all reasoning variants
+ * Model-level reasoning capabilities
  *
- * @generated from message catalog.v1.ReasoningCommon
+ * @generated from message catalog.v1.ReasoningSupport
  */
-export type ReasoningCommon = Message<'catalog.v1.ReasoningCommon'> & {
+export type ReasoningSupport = Message<'catalog.v1.ReasoningSupport'> & {
   /**
-   * @generated from field: catalog.v1.ThinkingTokenLimits thinking_token_limits = 1;
+   * @generated from field: optional catalog.v1.ThinkingTokenLimits thinking_token_limits = 1;
    */
   thinkingTokenLimits?: ThinkingTokenLimits
 
@@ -75,333 +75,10 @@ export type ReasoningCommon = Message<'catalog.v1.ReasoningCommon'> & {
 }
 
 /**
- * Describes the message catalog.v1.ReasoningCommon.
- * Use `create(ReasoningCommonSchema)` to create a new message.
+ * Describes the message catalog.v1.ReasoningSupport.
+ * Use `create(ReasoningSupportSchema)` to create a new message.
  */
-export const ReasoningCommonSchema: GenMessage<ReasoningCommon> = /*@__PURE__*/ messageDesc(file_v1_model, 1)
-
-/**
- * @generated from message catalog.v1.OpenAIChatReasoningParams
- */
-export type OpenAIChatReasoningParams = Message<'catalog.v1.OpenAIChatReasoningParams'> & {
-  /**
-   * @generated from field: optional catalog.v1.ReasoningEffort reasoning_effort = 1;
-   */
-  reasoningEffort?: ReasoningEffort
-}
-
-/**
- * Describes the message catalog.v1.OpenAIChatReasoningParams.
- * Use `create(OpenAIChatReasoningParamsSchema)` to create a new message.
- */
-export const OpenAIChatReasoningParamsSchema: GenMessage<OpenAIChatReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 2)
-
-/**
- * @generated from message catalog.v1.OpenAIResponsesReasoningParams
- */
-export type OpenAIResponsesReasoningParams = Message<'catalog.v1.OpenAIResponsesReasoningParams'> & {
-  /**
-   * @generated from field: optional catalog.v1.ReasoningEffort effort = 1;
-   */
-  effort?: ReasoningEffort
-
-  /**
-   * @generated from field: optional catalog.v1.ResponsesSummaryMode summary = 2;
-   */
-  summary?: ResponsesSummaryMode
-}
-
-/**
- * Describes the message catalog.v1.OpenAIResponsesReasoningParams.
- * Use `create(OpenAIResponsesReasoningParamsSchema)` to create a new message.
- */
-export const OpenAIResponsesReasoningParamsSchema: GenMessage<OpenAIResponsesReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 3)
-
-/**
- * @generated from message catalog.v1.AnthropicReasoningParams
- */
-export type AnthropicReasoningParams = Message<'catalog.v1.AnthropicReasoningParams'> & {
-  /**
-   * @generated from field: optional catalog.v1.AnthropicThinkingType type = 1;
-   */
-  type?: AnthropicThinkingType
-
-  /**
-   * @generated from field: optional uint32 budget_tokens = 2;
-   */
-  budgetTokens?: number
-
-  /**
-   * @generated from field: optional catalog.v1.ReasoningEffort effort = 3;
-   */
-  effort?: ReasoningEffort
-}
-
-/**
- * Describes the message catalog.v1.AnthropicReasoningParams.
- * Use `create(AnthropicReasoningParamsSchema)` to create a new message.
- */
-export const AnthropicReasoningParamsSchema: GenMessage<AnthropicReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 4)
-
-/**
- * @generated from message catalog.v1.GeminiThinkingConfig
- */
-export type GeminiThinkingConfig = Message<'catalog.v1.GeminiThinkingConfig'> & {
-  /**
-   * @generated from field: optional bool include_thoughts = 1;
-   */
-  includeThoughts?: boolean
-
-  /**
-   * @generated from field: optional uint32 thinking_budget = 2;
-   */
-  thinkingBudget?: number
-}
-
-/**
- * Describes the message catalog.v1.GeminiThinkingConfig.
- * Use `create(GeminiThinkingConfigSchema)` to create a new message.
- */
-export const GeminiThinkingConfigSchema: GenMessage<GeminiThinkingConfig> = /*@__PURE__*/ messageDesc(file_v1_model, 5)
-
-/**
- * @generated from message catalog.v1.GeminiReasoningParams
- */
-export type GeminiReasoningParams = Message<'catalog.v1.GeminiReasoningParams'> & {
-  /**
-   * @generated from oneof catalog.v1.GeminiReasoningParams.config
-   */
-  config:
-    | {
-        /**
-         * @generated from field: catalog.v1.GeminiThinkingConfig thinking_config = 1;
-         */
-        value: GeminiThinkingConfig
-        case: 'thinkingConfig'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.GeminiThinkingLevel thinking_level = 2;
-         */
-        value: GeminiThinkingLevel
-        case: 'thinkingLevel'
-      }
-    | { case: undefined; value?: undefined }
-}
-
-/**
- * Describes the message catalog.v1.GeminiReasoningParams.
- * Use `create(GeminiReasoningParamsSchema)` to create a new message.
- */
-export const GeminiReasoningParamsSchema: GenMessage<GeminiReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 6)
-
-/**
- * @generated from message catalog.v1.OpenRouterReasoningParams
- */
-export type OpenRouterReasoningParams = Message<'catalog.v1.OpenRouterReasoningParams'> & {
-  /**
-   * @generated from field: optional catalog.v1.ReasoningEffort effort = 1;
-   */
-  effort?: ReasoningEffort
-
-  /**
-   * @generated from field: optional uint32 max_tokens = 2;
-   */
-  maxTokens?: number
-
-  /**
-   * @generated from field: optional bool exclude = 3;
-   */
-  exclude?: boolean
-}
-
-/**
- * Describes the message catalog.v1.OpenRouterReasoningParams.
- * Use `create(OpenRouterReasoningParamsSchema)` to create a new message.
- */
-export const OpenRouterReasoningParamsSchema: GenMessage<OpenRouterReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 7)
-
-/**
- * @generated from message catalog.v1.QwenReasoningParams
- */
-export type QwenReasoningParams = Message<'catalog.v1.QwenReasoningParams'> & {
-  /**
-   * @generated from field: optional bool enable_thinking = 1;
-   */
-  enableThinking?: boolean
-
-  /**
-   * @generated from field: optional uint32 thinking_budget = 2;
-   */
-  thinkingBudget?: number
-}
-
-/**
- * Describes the message catalog.v1.QwenReasoningParams.
- * Use `create(QwenReasoningParamsSchema)` to create a new message.
- */
-export const QwenReasoningParamsSchema: GenMessage<QwenReasoningParams> = /*@__PURE__*/ messageDesc(file_v1_model, 8)
-
-/**
- * @generated from message catalog.v1.DoubaoReasoningParams
- */
-export type DoubaoReasoningParams = Message<'catalog.v1.DoubaoReasoningParams'> & {
-  /**
-   * @generated from field: optional catalog.v1.DoubaoThinkingType thinking_type = 1;
-   */
-  thinkingType?: DoubaoThinkingType
-}
-
-/**
- * Describes the message catalog.v1.DoubaoReasoningParams.
- * Use `create(DoubaoReasoningParamsSchema)` to create a new message.
- */
-export const DoubaoReasoningParamsSchema: GenMessage<DoubaoReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 9)
-
-/**
- * @generated from message catalog.v1.DashscopeReasoningParams
- */
-export type DashscopeReasoningParams = Message<'catalog.v1.DashscopeReasoningParams'> & {
-  /**
-   * @generated from field: optional bool enable_thinking = 1;
-   */
-  enableThinking?: boolean
-
-  /**
-   * @generated from field: optional bool incremental_output = 2;
-   */
-  incrementalOutput?: boolean
-}
-
-/**
- * Describes the message catalog.v1.DashscopeReasoningParams.
- * Use `create(DashscopeReasoningParamsSchema)` to create a new message.
- */
-export const DashscopeReasoningParamsSchema: GenMessage<DashscopeReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 10)
-
-/**
- * @generated from message catalog.v1.SelfHostedReasoningParams
- */
-export type SelfHostedReasoningParams = Message<'catalog.v1.SelfHostedReasoningParams'> & {
-  /**
-   * @generated from field: optional bool enable_thinking = 1;
-   */
-  enableThinking?: boolean
-
-  /**
-   * @generated from field: optional bool thinking = 2;
-   */
-  thinking?: boolean
-}
-
-/**
- * Describes the message catalog.v1.SelfHostedReasoningParams.
- * Use `create(SelfHostedReasoningParamsSchema)` to create a new message.
- */
-export const SelfHostedReasoningParamsSchema: GenMessage<SelfHostedReasoningParams> =
-  /*@__PURE__*/
-  messageDesc(file_v1_model, 11)
-
-/**
- * Discriminated union for reasoning configuration
- *
- * @generated from message catalog.v1.Reasoning
- */
-export type Reasoning = Message<'catalog.v1.Reasoning'> & {
-  /**
-   * @generated from field: catalog.v1.ReasoningCommon common = 1;
-   */
-  common?: ReasoningCommon
-
-  /**
-   * @generated from oneof catalog.v1.Reasoning.params
-   */
-  params:
-    | {
-        /**
-         * @generated from field: catalog.v1.OpenAIChatReasoningParams openai_chat = 10;
-         */
-        value: OpenAIChatReasoningParams
-        case: 'openaiChat'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.OpenAIResponsesReasoningParams openai_responses = 11;
-         */
-        value: OpenAIResponsesReasoningParams
-        case: 'openaiResponses'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.AnthropicReasoningParams anthropic = 12;
-         */
-        value: AnthropicReasoningParams
-        case: 'anthropic'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.GeminiReasoningParams gemini = 13;
-         */
-        value: GeminiReasoningParams
-        case: 'gemini'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.OpenRouterReasoningParams openrouter = 14;
-         */
-        value: OpenRouterReasoningParams
-        case: 'openrouter'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.QwenReasoningParams qwen = 15;
-         */
-        value: QwenReasoningParams
-        case: 'qwen'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.DoubaoReasoningParams doubao = 16;
-         */
-        value: DoubaoReasoningParams
-        case: 'doubao'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.DashscopeReasoningParams dashscope = 17;
-         */
-        value: DashscopeReasoningParams
-        case: 'dashscope'
-      }
-    | {
-        /**
-         * @generated from field: catalog.v1.SelfHostedReasoningParams self_hosted = 18;
-         */
-        value: SelfHostedReasoningParams
-        case: 'selfHosted'
-      }
-    | { case: undefined; value?: undefined }
-}
-
-/**
- * Describes the message catalog.v1.Reasoning.
- * Use `create(ReasoningSchema)` to create a new message.
- */
-export const ReasoningSchema: GenMessage<Reasoning> = /*@__PURE__*/ messageDesc(file_v1_model, 12)
+export const ReasoningSupportSchema: GenMessage<ReasoningSupport> = /*@__PURE__*/ messageDesc(file_v1_model, 1)
 
 /**
  * @generated from message catalog.v1.RangedParameterSupport
@@ -424,7 +101,7 @@ export type RangedParameterSupport = Message<'catalog.v1.RangedParameterSupport'
  */
 export const RangedParameterSupportSchema: GenMessage<RangedParameterSupport> =
   /*@__PURE__*/
-  messageDesc(file_v1_model, 13)
+  messageDesc(file_v1_model, 2)
 
 /**
  * @generated from message catalog.v1.ParameterSupport
@@ -475,7 +152,7 @@ export type ParameterSupport = Message<'catalog.v1.ParameterSupport'> & {
  * Describes the message catalog.v1.ParameterSupport.
  * Use `create(ParameterSupportSchema)` to create a new message.
  */
-export const ParameterSupportSchema: GenMessage<ParameterSupport> = /*@__PURE__*/ messageDesc(file_v1_model, 14)
+export const ParameterSupportSchema: GenMessage<ParameterSupport> = /*@__PURE__*/ messageDesc(file_v1_model, 3)
 
 /**
  * @generated from message catalog.v1.ImagePrice
@@ -501,7 +178,7 @@ export type ImagePrice = Message<'catalog.v1.ImagePrice'> & {
  * Describes the message catalog.v1.ImagePrice.
  * Use `create(ImagePriceSchema)` to create a new message.
  */
-export const ImagePriceSchema: GenMessage<ImagePrice> = /*@__PURE__*/ messageDesc(file_v1_model, 15)
+export const ImagePriceSchema: GenMessage<ImagePrice> = /*@__PURE__*/ messageDesc(file_v1_model, 4)
 
 /**
  * @generated from message catalog.v1.MinutePrice
@@ -522,7 +199,7 @@ export type MinutePrice = Message<'catalog.v1.MinutePrice'> & {
  * Describes the message catalog.v1.MinutePrice.
  * Use `create(MinutePriceSchema)` to create a new message.
  */
-export const MinutePriceSchema: GenMessage<MinutePrice> = /*@__PURE__*/ messageDesc(file_v1_model, 16)
+export const MinutePriceSchema: GenMessage<MinutePrice> = /*@__PURE__*/ messageDesc(file_v1_model, 5)
 
 /**
  * @generated from message catalog.v1.ModelPricing
@@ -563,7 +240,7 @@ export type ModelPricing = Message<'catalog.v1.ModelPricing'> & {
  * Describes the message catalog.v1.ModelPricing.
  * Use `create(ModelPricingSchema)` to create a new message.
  */
-export const ModelPricingSchema: GenMessage<ModelPricing> = /*@__PURE__*/ messageDesc(file_v1_model, 17)
+export const ModelPricingSchema: GenMessage<ModelPricing> = /*@__PURE__*/ messageDesc(file_v1_model, 6)
 
 /**
  * @generated from message catalog.v1.ModelConfig
@@ -620,9 +297,9 @@ export type ModelConfig = Message<'catalog.v1.ModelConfig'> & {
   pricing?: ModelPricing
 
   /**
-   * @generated from field: optional catalog.v1.Reasoning reasoning = 11;
+   * @generated from field: optional catalog.v1.ReasoningSupport reasoning = 11;
    */
-  reasoning?: Reasoning
+  reasoning?: ReasoningSupport
 
   /**
    * @generated from field: optional catalog.v1.ParameterSupport parameter_support = 12;
@@ -659,7 +336,7 @@ export type ModelConfig = Message<'catalog.v1.ModelConfig'> & {
  * Describes the message catalog.v1.ModelConfig.
  * Use `create(ModelConfigSchema)` to create a new message.
  */
-export const ModelConfigSchema: GenMessage<ModelConfig> = /*@__PURE__*/ messageDesc(file_v1_model, 18)
+export const ModelConfigSchema: GenMessage<ModelConfig> = /*@__PURE__*/ messageDesc(file_v1_model, 7)
 
 /**
  * Top-level container
@@ -682,132 +359,7 @@ export type ModelCatalog = Message<'catalog.v1.ModelCatalog'> & {
  * Describes the message catalog.v1.ModelCatalog.
  * Use `create(ModelCatalogSchema)` to create a new message.
  */
-export const ModelCatalogSchema: GenMessage<ModelCatalog> = /*@__PURE__*/ messageDesc(file_v1_model, 19)
-
-/**
- * @generated from enum catalog.v1.ResponsesSummaryMode
- */
-export enum ResponsesSummaryMode {
-  /**
-   * @generated from enum value: RESPONSES_SUMMARY_MODE_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: RESPONSES_SUMMARY_MODE_AUTO = 1;
-   */
-  AUTO = 1,
-
-  /**
-   * @generated from enum value: RESPONSES_SUMMARY_MODE_CONCISE = 2;
-   */
-  CONCISE = 2,
-
-  /**
-   * @generated from enum value: RESPONSES_SUMMARY_MODE_DETAILED = 3;
-   */
-  DETAILED = 3
-}
-
-/**
- * Describes the enum catalog.v1.ResponsesSummaryMode.
- */
-export const ResponsesSummaryModeSchema: GenEnum<ResponsesSummaryMode> = /*@__PURE__*/ enumDesc(file_v1_model, 0)
-
-/**
- * @generated from enum catalog.v1.AnthropicThinkingType
- */
-export enum AnthropicThinkingType {
-  /**
-   * @generated from enum value: ANTHROPIC_THINKING_TYPE_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: ANTHROPIC_THINKING_TYPE_ENABLED = 1;
-   */
-  ENABLED = 1,
-
-  /**
-   * @generated from enum value: ANTHROPIC_THINKING_TYPE_DISABLED = 2;
-   */
-  DISABLED = 2,
-
-  /**
-   * @generated from enum value: ANTHROPIC_THINKING_TYPE_ADAPTIVE = 3;
-   */
-  ADAPTIVE = 3
-}
-
-/**
- * Describes the enum catalog.v1.AnthropicThinkingType.
- */
-export const AnthropicThinkingTypeSchema: GenEnum<AnthropicThinkingType> = /*@__PURE__*/ enumDesc(file_v1_model, 1)
-
-/**
- * @generated from enum catalog.v1.GeminiThinkingLevel
- */
-export enum GeminiThinkingLevel {
-  /**
-   * @generated from enum value: GEMINI_THINKING_LEVEL_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: GEMINI_THINKING_LEVEL_MINIMAL = 1;
-   */
-  MINIMAL = 1,
-
-  /**
-   * @generated from enum value: GEMINI_THINKING_LEVEL_LOW = 2;
-   */
-  LOW = 2,
-
-  /**
-   * @generated from enum value: GEMINI_THINKING_LEVEL_MEDIUM = 3;
-   */
-  MEDIUM = 3,
-
-  /**
-   * @generated from enum value: GEMINI_THINKING_LEVEL_HIGH = 4;
-   */
-  HIGH = 4
-}
-
-/**
- * Describes the enum catalog.v1.GeminiThinkingLevel.
- */
-export const GeminiThinkingLevelSchema: GenEnum<GeminiThinkingLevel> = /*@__PURE__*/ enumDesc(file_v1_model, 2)
-
-/**
- * @generated from enum catalog.v1.DoubaoThinkingType
- */
-export enum DoubaoThinkingType {
-  /**
-   * @generated from enum value: DOUBAO_THINKING_TYPE_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: DOUBAO_THINKING_TYPE_ENABLED = 1;
-   */
-  ENABLED = 1,
-
-  /**
-   * @generated from enum value: DOUBAO_THINKING_TYPE_DISABLED = 2;
-   */
-  DISABLED = 2,
-
-  /**
-   * @generated from enum value: DOUBAO_THINKING_TYPE_AUTO = 3;
-   */
-  AUTO = 3
-}
-
-/**
- * Describes the enum catalog.v1.DoubaoThinkingType.
- */
-export const DoubaoThinkingTypeSchema: GenEnum<DoubaoThinkingType> = /*@__PURE__*/ enumDesc(file_v1_model, 3)
+export const ModelCatalogSchema: GenMessage<ModelCatalog> = /*@__PURE__*/ messageDesc(file_v1_model, 8)
 
 /**
  * @generated from enum catalog.v1.ImagePriceUnit
@@ -832,4 +384,4 @@ export enum ImagePriceUnit {
 /**
  * Describes the enum catalog.v1.ImagePriceUnit.
  */
-export const ImagePriceUnitSchema: GenEnum<ImagePriceUnit> = /*@__PURE__*/ enumDesc(file_v1_model, 4)
+export const ImagePriceUnitSchema: GenEnum<ImagePriceUnit> = /*@__PURE__*/ enumDesc(file_v1_model, 0)

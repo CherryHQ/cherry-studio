@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ─── Module mocks (hoisted by Vitest) ────────────────────────────────────────
 
-vi.mock('../CatalogService', () => ({
+vi.mock('../ProviderCatalogService', () => ({
   catalogService: {
     lookupModel: vi.fn()
   }
@@ -38,8 +38,8 @@ import { dbService } from '@main/data/db/DbService'
 import { ErrorCode } from '@shared/data/api'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 
-import { catalogService } from '../CatalogService'
 import { ModelService } from '../ModelService'
+import { catalogService } from '../ProviderCatalogService'
 
 // ─── Helpers / Fixtures ───────────────────────────────────────────────────────
 
@@ -71,6 +71,7 @@ function makeDbRow(overrides: Record<string, unknown> = {}) {
     isHidden: false,
     sortOrder: 0,
     notes: null,
+    userOverrides: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides
@@ -132,11 +133,14 @@ function buildMockDb({
   deleteResult = undefined as unknown
 } = {}) {
   // ── select chain ────────────────────────────────────────────────────────────
+  // Support both chaining (select().from().where().limit()) and direct await (select().from())
   const selectChain = {
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockResolvedValue(selectRows),
-    limit: vi.fn().mockResolvedValue(selectRows)
+    limit: vi.fn().mockResolvedValue(selectRows),
+    then: (resolve: (v: unknown[]) => void, reject?: (e: unknown) => void) =>
+      Promise.resolve(selectRows).then(resolve, reject)
   }
   const select = vi.fn(() => selectChain)
 
@@ -389,7 +393,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride
+        catalogOverride,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
 
@@ -418,7 +423,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
 
@@ -447,7 +453,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride
+        catalogOverride,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
 
@@ -473,7 +480,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride
+        catalogOverride,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
 
@@ -490,7 +498,8 @@ describe('ModelService', () => {
     it('saves a custom model (no catalog match) without calling mergeModelConfig', async () => {
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: null,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
 
       const insertedRow = makeDbRow({
@@ -517,7 +526,8 @@ describe('ModelService', () => {
     it('carries DTO fields through to the insert values for custom models', async () => {
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: null,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
 
       const insertedRow = makeDbRow({
@@ -549,7 +559,8 @@ describe('ModelService', () => {
     it('uses dto.presetModelId for presetModelId when no catalog match exists', async () => {
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: null,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
 
       const insertedRow = makeDbRow({ presetModelId: 'some-preset' })
@@ -570,7 +581,8 @@ describe('ModelService', () => {
     it('returns the mapped model from the inserted row', async () => {
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: null,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
 
       const insertedRow = makeDbRow({
@@ -598,7 +610,8 @@ describe('ModelService', () => {
     it('carries all optional DTO fields through for custom models', async () => {
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: null,
-        catalogOverride: null
+        catalogOverride: null,
+        reasoningFormatType: undefined
       })
 
       const insertedRow = makeDbRow({
@@ -609,7 +622,7 @@ describe('ModelService', () => {
         capabilities: [ModelCapability.FUNCTION_CALL],
         inputModalities: ['TEXT', 'IMAGE'],
         outputModalities: ['TEXT'],
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS],
         contextWindow: 32768,
         maxOutputTokens: 4096,
         supportsStreaming: true,
@@ -629,7 +642,7 @@ describe('ModelService', () => {
         capabilities: [ModelCapability.FUNCTION_CALL],
         inputModalities: [Modality.TEXT, Modality.IMAGE],
         outputModalities: [Modality.TEXT],
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS],
         contextWindow: 32768,
         maxOutputTokens: 4096,
         supportsStreaming: true,
@@ -644,7 +657,7 @@ describe('ModelService', () => {
       expect(v.group).toBe('Custom Group')
       expect(v.inputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
       expect(v.outputModalities).toEqual([Modality.TEXT])
-      expect(v.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS])
+      expect(v.endpointTypes).toEqual([EndpointType.OPENAI_CHAT_COMPLETIONS])
       expect(v.maxOutputTokens).toBe(4096)
       expect(v.reasoning).toEqual({ type: 'enabled', budgetToken: 1024 })
       expect(v.parameters).toEqual({ temperature: { min: 0, max: 2, default: 1 } })
@@ -662,7 +675,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride
+        catalogOverride,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as ReturnType<typeof mergeModelConfig>)
 
@@ -706,7 +720,7 @@ describe('ModelService', () => {
         group: 'Merged Group',
         inputModalities: [Modality.TEXT, Modality.IMAGE],
         outputModalities: [Modality.TEXT],
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS],
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS],
         contextWindow: 200000,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 2048 },
@@ -716,7 +730,8 @@ describe('ModelService', () => {
 
       vi.mocked(catalogService.lookupModel).mockReturnValue({
         presetModel: presetModel as any,
-        catalogOverride
+        catalogOverride,
+        reasoningFormatType: undefined
       })
       vi.mocked(mergeModelConfig).mockReturnValue(mergedModel as unknown as ReturnType<typeof mergeModelConfig>)
 
@@ -733,7 +748,7 @@ describe('ModelService', () => {
       expect(v.group).toBe('Merged Group')
       expect(v.inputModalities).toEqual([Modality.TEXT, Modality.IMAGE])
       expect(v.outputModalities).toEqual([Modality.TEXT])
-      expect(v.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS])
+      expect(v.endpointTypes).toEqual([EndpointType.OPENAI_CHAT_COMPLETIONS])
       expect(v.contextWindow).toBe(200000)
       expect(v.maxOutputTokens).toBe(8192)
       expect(v.reasoning).toEqual({ type: 'enabled', budgetToken: 2048 })
@@ -849,7 +864,7 @@ describe('ModelService', () => {
         description: 'Updated desc',
         group: 'New Group',
         capabilities: [ModelCapability.REASONING, ModelCapability.FUNCTION_CALL],
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS],
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS, EndpointType.OPENAI_TEXT_COMPLETIONS],
         supportsStreaming: false,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 4096 },
@@ -864,7 +879,7 @@ describe('ModelService', () => {
         description: 'Updated desc',
         group: 'New Group',
         capabilities: [ModelCapability.REASONING, ModelCapability.FUNCTION_CALL],
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS],
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS, EndpointType.OPENAI_TEXT_COMPLETIONS],
         supportsStreaming: false,
         maxOutputTokens: 8192,
         reasoning: { type: 'enabled', budgetToken: 4096 } as any,
@@ -876,7 +891,10 @@ describe('ModelService', () => {
       expect(updates.description).toBe('Updated desc')
       expect(updates.group).toBe('New Group')
       expect(updates.capabilities).toEqual([ModelCapability.REASONING, ModelCapability.FUNCTION_CALL])
-      expect(updates.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS])
+      expect(updates.endpointTypes).toEqual([
+        EndpointType.OPENAI_CHAT_COMPLETIONS,
+        EndpointType.OPENAI_TEXT_COMPLETIONS
+      ])
       expect(updates.supportsStreaming).toBe(false)
       expect(updates.maxOutputTokens).toBe(8192)
       expect(updates.reasoning).toEqual({ type: 'enabled', budgetToken: 4096 })
@@ -896,6 +914,55 @@ describe('ModelService', () => {
       expect(result).toBeDefined()
       const [setArg] = vi.mocked(mockDb.updateChain.set).mock.calls[0]
       expect(Object.keys(setArg as object)).toHaveLength(0)
+    })
+
+    it('tracks catalog-enrichable fields in userOverrides when updated', async () => {
+      const existingRow = makeDbRow({ userOverrides: null })
+      const updatedRow = makeDbRow({ contextWindow: 64_000 })
+
+      const mockDb = buildMockDb({ selectRows: [existingRow], updateRows: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
+
+      const svc = ModelService.getInstance()
+      await svc.update('openai', 'gpt-4o', { contextWindow: 64_000, name: 'Custom Name' })
+
+      const [setArg] = vi.mocked(mockDb.updateChain.set).mock.calls[0]
+      const updates = setArg as Record<string, unknown>
+      expect(updates.userOverrides).toEqual(expect.arrayContaining(['contextWindow', 'name']))
+      expect(updates.userOverrides).toHaveLength(2)
+    })
+
+    it('merges with existing userOverrides without duplicates', async () => {
+      const existingRow = makeDbRow({ userOverrides: ['capabilities'] })
+      const updatedRow = makeDbRow({ pricing: { input: 1 } })
+
+      const mockDb = buildMockDb({ selectRows: [existingRow], updateRows: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
+
+      const svc = ModelService.getInstance()
+      await svc.update('openai', 'gpt-4o', { pricing: { input: 1 } as any, capabilities: [1, 2] })
+
+      const [setArg] = vi.mocked(mockDb.updateChain.set).mock.calls[0]
+      const updates = setArg as Record<string, unknown>
+      // 'capabilities' should not be duplicated
+      expect(updates.userOverrides).toEqual(expect.arrayContaining(['capabilities', 'pricing']))
+      expect((updates.userOverrides as string[]).filter((f) => f === 'capabilities')).toHaveLength(1)
+    })
+
+    it('does not add non-enrichable fields (isEnabled, sortOrder) to userOverrides', async () => {
+      const existingRow = makeDbRow({ userOverrides: null })
+      const updatedRow = makeDbRow({ isEnabled: false })
+
+      const mockDb = buildMockDb({ selectRows: [existingRow], updateRows: [updatedRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
+
+      const svc = ModelService.getInstance()
+      await svc.update('openai', 'gpt-4o', { isEnabled: false, sortOrder: 5, notes: 'test' })
+
+      const [setArg] = vi.mocked(mockDb.updateChain.set).mock.calls[0]
+      const updates = setArg as Record<string, unknown>
+      // No enrichable fields were changed, so userOverrides should not be set
+      expect(updates).not.toHaveProperty('userOverrides')
     })
   })
 
@@ -1061,6 +1128,51 @@ describe('ModelService', () => {
       expect(set).not.toHaveProperty('id')
       expect(set).not.toHaveProperty('customEndpointUrl')
     })
+
+    it('skips user-overridden fields in the conflict update set', async () => {
+      // Simulate existing row with userOverrides for contextWindow and pricing
+      const existingRow = makeDbRow({
+        modelId: 'gpt-4o',
+        userOverrides: ['contextWindow', 'pricing']
+      })
+      const mockDb = buildMockDb({ selectRows: [existingRow] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
+
+      const model = makeDbRow({
+        modelId: 'gpt-4o',
+        contextWindow: 200_000,
+        pricing: { input: 2.5 }
+      })
+
+      const svc = ModelService.getInstance()
+      await svc.batchUpsert([model])
+
+      const [[conflictArg]] = vi.mocked(mockDb.insertChain.onConflictDoUpdate).mock.calls
+      const { set } = conflictArg as { set: Record<string, unknown> }
+      // User-overridden fields should be excluded from the update
+      expect(set).not.toHaveProperty('contextWindow')
+      expect(set).not.toHaveProperty('pricing')
+      // Non-overridden enrichable fields should still be present
+      expect(set).toHaveProperty('name')
+      expect(set).toHaveProperty('capabilities')
+    })
+
+    it('updates all enrichable fields when no userOverrides exist', async () => {
+      // No existing rows with overrides
+      const mockDb = buildMockDb({ selectRows: [] })
+      vi.mocked(dbService.getDb).mockReturnValue(mockDb as unknown as ReturnType<typeof dbService.getDb>)
+
+      const model = makeDbRow({ modelId: 'gpt-4o', contextWindow: 200_000 })
+
+      const svc = ModelService.getInstance()
+      await svc.batchUpsert([model])
+
+      const [[conflictArg]] = vi.mocked(mockDb.insertChain.onConflictDoUpdate).mock.calls
+      const { set } = conflictArg as { set: Record<string, unknown> }
+      expect(set).toHaveProperty('contextWindow')
+      expect(set).toHaveProperty('capabilities')
+      expect(set).toHaveProperty('pricing')
+    })
   })
 
   // ─── rowToRuntimeModel (via list / getByKey) ───────────────────────────────
@@ -1219,9 +1331,9 @@ describe('ModelService', () => {
 
     it('maps endpointTypes when set', async () => {
       const model = await getModelFromRow({
-        endpointTypes: [EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS]
+        endpointTypes: [EndpointType.OPENAI_CHAT_COMPLETIONS, EndpointType.OPENAI_TEXT_COMPLETIONS]
       })
-      expect(model.endpointTypes).toEqual([EndpointType.CHAT_COMPLETIONS, EndpointType.TEXT_COMPLETIONS])
+      expect(model.endpointTypes).toEqual([EndpointType.OPENAI_CHAT_COMPLETIONS, EndpointType.OPENAI_TEXT_COMPLETIONS])
     })
 
     it('maps reasoning when set', async () => {

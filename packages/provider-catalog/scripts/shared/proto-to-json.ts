@@ -4,9 +4,9 @@
  * need to work with plain objects internally but read/write .pb files.
  */
 
-import type { ModelConfig, ModelPricing, Reasoning } from '../../src/gen/v1/model_pb'
+import type { ModelConfig, ModelPricing, ReasoningSupport } from '../../src/gen/v1/model_pb'
 import type { ProviderModelOverride } from '../../src/gen/v1/provider_models_pb'
-import type { ProviderConfig } from '../../src/gen/v1/provider_pb'
+import type { ProviderConfig, ProviderReasoningFormat } from '../../src/gen/v1/provider_pb'
 import {
   fromCapability,
   fromCurrency,
@@ -15,15 +15,15 @@ import {
   fromReasoningEffort
 } from '../../src/proto-utils'
 
-// Reasoning oneof case → type string (matches the JSON format)
-const REASONING_CASE_TO_TYPE: Record<string, string> = {
+// Reasoning format oneof case → type string (matches the JSON format)
+const REASONING_FORMAT_CASE_TO_TYPE: Record<string, string> = {
   openaiChat: 'openai-chat',
   openaiResponses: 'openai-responses',
   anthropic: 'anthropic',
   gemini: 'gemini',
   openrouter: 'openrouter',
-  qwen: 'qwen',
-  doubao: 'doubao',
+  enableThinking: 'enable-thinking',
+  thinkingType: 'thinking-type',
   dashscope: 'dashscope',
   selfHosted: 'self-hosted'
 }
@@ -74,32 +74,34 @@ function pricingToJson(pricing: ModelPricing | undefined): any {
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
-function reasoningToJson(reasoning: Reasoning | undefined): any {
+function reasoningSupportToJson(reasoning: ReasoningSupport | undefined): any {
   if (!reasoning) return undefined
   // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
   const result: any = {}
 
-  if (reasoning.params?.case) {
-    result.type = REASONING_CASE_TO_TYPE[reasoning.params.case] ?? reasoning.params.case
-  }
-
-  if (reasoning.common) {
-    if (reasoning.common.thinkingTokenLimits) {
-      result.thinkingTokenLimits = {
-        min: reasoning.common.thinkingTokenLimits.min ?? undefined,
-        max: reasoning.common.thinkingTokenLimits.max ?? undefined,
-        default: reasoning.common.thinkingTokenLimits.default ?? undefined
-      }
-    }
-    if (reasoning.common.supportedEfforts?.length) {
-      result.supportedEfforts = reasoning.common.supportedEfforts.map(fromReasoningEffort).filter(Boolean)
-    }
-    if (reasoning.common.interleaved !== undefined) {
-      result.interleaved = reasoning.common.interleaved
+  if (reasoning.thinkingTokenLimits) {
+    result.thinkingTokenLimits = {
+      min: reasoning.thinkingTokenLimits.min ?? undefined,
+      max: reasoning.thinkingTokenLimits.max ?? undefined,
+      default: reasoning.thinkingTokenLimits.default ?? undefined
     }
   }
+  if (reasoning.supportedEfforts?.length) {
+    result.supportedEfforts = reasoning.supportedEfforts.map(fromReasoningEffort).filter(Boolean)
+  }
+  if (reasoning.interleaved !== undefined) {
+    result.interleaved = reasoning.interleaved
+  }
 
-  return result
+  return Object.keys(result).length ? result : undefined
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
+function reasoningFormatToJson(format: ProviderReasoningFormat | undefined): any {
+  if (!format?.format?.case) return undefined
+  return {
+    type: REASONING_FORMAT_CASE_TO_TYPE[format.format.case] ?? format.format.case
+  }
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
@@ -163,7 +165,7 @@ export function protoModelToJson(model: ModelConfig): any {
   if (model.maxInputTokens) result.maxInputTokens = model.maxInputTokens
   const pricing = pricingToJson(model.pricing)
   if (pricing) result.pricing = pricing
-  const reasoning = reasoningToJson(model.reasoning)
+  const reasoning = reasoningSupportToJson(model.reasoning)
   if (reasoning) result.reasoning = reasoning
   const ps = parameterSupportToJson(model.parameterSupport)
   if (ps) result.parameterSupport = ps
@@ -186,14 +188,16 @@ export function protoProviderToJson(provider: ProviderConfig): any {
   }
 
   // Merge website back into metadata
-  const metadata = metadataToJson(provider.metadata) ?? {}
-  if (provider.website) {
+  // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
+  const metadata: any = {}
+  const providerWebsite = provider.metadata?.website
+  if (providerWebsite) {
     // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
     const website: any = {}
-    if (provider.website.official) website.official = provider.website.official
-    if (provider.website.docs) website.docs = provider.website.docs
-    if (provider.website.apiKey) website.apiKey = provider.website.apiKey
-    if (provider.website.models) website.models = provider.website.models
+    if (providerWebsite.official) website.official = providerWebsite.official
+    if (providerWebsite.docs) website.docs = providerWebsite.docs
+    if (providerWebsite.apiKey) website.apiKey = providerWebsite.apiKey
+    if (providerWebsite.models) website.models = providerWebsite.models
     if (Object.keys(website).length) metadata.website = website
   }
 
@@ -205,22 +209,16 @@ export function protoProviderToJson(provider: ProviderConfig): any {
   if (provider.description) result.description = provider.description
   if (Object.keys(baseUrls).length) result.baseUrls = baseUrls
   if (provider.defaultChatEndpoint) result.defaultChatEndpoint = fromEndpointType(provider.defaultChatEndpoint)
-  if (provider.apiCompatibility) {
+  if (provider.apiFeatures) {
     // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
-    const compat: any = {}
-    if (provider.apiCompatibility.arrayContent !== undefined)
-      compat.arrayContent = provider.apiCompatibility.arrayContent
-    if (provider.apiCompatibility.streamOptions !== undefined)
-      compat.streamOptions = provider.apiCompatibility.streamOptions
-    if (provider.apiCompatibility.developerRole !== undefined)
-      compat.developerRole = provider.apiCompatibility.developerRole
-    if (provider.apiCompatibility.serviceTier !== undefined) compat.serviceTier = provider.apiCompatibility.serviceTier
-    if (provider.apiCompatibility.verbosity !== undefined) compat.verbosity = provider.apiCompatibility.verbosity
-    if (provider.apiCompatibility.enableThinking !== undefined)
-      compat.enableThinking = provider.apiCompatibility.enableThinking
-    if (provider.apiCompatibility.requiresApiKey !== undefined)
-      compat.requiresApiKey = provider.apiCompatibility.requiresApiKey
-    if (Object.keys(compat).length) result.apiCompatibility = compat
+    const features: any = {}
+    if (provider.apiFeatures.arrayContent !== undefined) features.arrayContent = provider.apiFeatures.arrayContent
+    if (provider.apiFeatures.streamOptions !== undefined) features.streamOptions = provider.apiFeatures.streamOptions
+    if (provider.apiFeatures.developerRole !== undefined) features.developerRole = provider.apiFeatures.developerRole
+    if (provider.apiFeatures.serviceTier !== undefined) features.serviceTier = provider.apiFeatures.serviceTier
+    if (provider.apiFeatures.verbosity !== undefined) features.verbosity = provider.apiFeatures.verbosity
+    if (provider.apiFeatures.enableThinking !== undefined) features.enableThinking = provider.apiFeatures.enableThinking
+    if (Object.keys(features).length) result.apiFeatures = features
   }
   if (provider.modelsApiUrls) {
     // biome-ignore lint/suspicious/noExplicitAny: converting to untyped JSON
@@ -230,6 +228,8 @@ export function protoProviderToJson(provider: ProviderConfig): any {
     if (provider.modelsApiUrls.reranker) urls.reranker = provider.modelsApiUrls.reranker
     if (Object.keys(urls).length) result.modelsApiUrls = urls
   }
+  const reasoningFormat = reasoningFormatToJson(provider.reasoningFormat)
+  if (reasoningFormat) result.reasoningFormat = reasoningFormat
   if (Object.keys(metadata).length) result.metadata = metadata
   return result
 }
@@ -264,7 +264,7 @@ export function protoOverrideToJson(override: ProviderModelOverride): any {
   }
   const pricing = pricingToJson(override.pricing)
   if (pricing) result.pricing = pricing
-  const reasoning = reasoningToJson(override.reasoning)
+  const reasoning = reasoningSupportToJson(override.reasoning)
   if (reasoning) result.reasoning = reasoning
   const ps = parameterSupportToJson(override.parameterSupport)
   if (ps) result.parameterSupport = ps

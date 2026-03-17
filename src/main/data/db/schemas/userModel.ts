@@ -25,7 +25,42 @@ import * as z from 'zod'
 
 const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps } from './_columnHelpers'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Catalog Enrichable Fields
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fields that can be auto-populated by catalog enrichment.
+ * Used by `userOverrides` to track which fields the user has explicitly modified,
+ * so that catalog updates don't overwrite user customizations.
+ *
+ * The `isCatalogEnrichableField` guard ensures runtime safety.
+ */
+export const CATALOG_ENRICHABLE_FIELDS = [
+  'name',
+  'description',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'contextWindow',
+  'maxOutputTokens',
+  'supportsStreaming',
+  'reasoning',
+  'parameters',
+  'pricing'
+] as const
+
+export type CatalogEnrichableField = (typeof CATALOG_ENRICHABLE_FIELDS)[number]
+
+const CATALOG_ENRICHABLE_SET: ReadonlySet<string> = new Set(CATALOG_ENRICHABLE_FIELDS)
+
+/** Check if a field name is a catalog-enrichable field */
+export function isCatalogEnrichableField(field: string): field is CatalogEnrichableField {
+  return CATALOG_ENRICHABLE_SET.has(field)
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Table Definition
@@ -34,8 +69,6 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 export const userModelTable = sqliteTable(
   'user_model',
   {
-    id: uuidPrimaryKey(),
-
     /** User Provider ID */
     providerId: text().notNull(),
 
@@ -102,6 +135,12 @@ export const userModelTable = sqliteTable(
     /** User notes */
     notes: text(),
 
+    /**
+     * List of field names the user has explicitly modified.
+     * Catalog enrichment skips these fields to preserve user customizations.
+     */
+    userOverrides: text({ mode: 'json' }).$type<CatalogEnrichableField[]>(),
+
     ...createUpdateTimestamps
   },
   (t) => [
@@ -123,7 +162,8 @@ const jsonColumnOverrides = {
   endpointTypes: () => z.array(z.number()).nullable(),
   reasoning: () => ReasoningConfigSchema.nullable(),
   parameters: () => ParameterSupportDbSchema.nullable(),
-  pricing: () => RuntimeModelPricingSchema.nullable()
+  pricing: () => RuntimeModelPricingSchema.nullable(),
+  userOverrides: () => z.array(z.string()).nullable()
 }
 
 export const userModelInsertSchema = createInsertSchema(userModelTable, jsonColumnOverrides)

@@ -50,21 +50,21 @@ const MODALITY_MAP: Record<string, number> = {
 }
 
 const ENDPOINT_TYPE_MAP: Record<string, number> = {
-  chat_completions: EndpointType.CHAT_COMPLETIONS,
-  text_completions: EndpointType.TEXT_COMPLETIONS,
-  messages: EndpointType.MESSAGES,
-  responses: EndpointType.RESPONSES,
-  generate_content: EndpointType.GENERATE_CONTENT,
+  chat_completions: EndpointType.OPENAI_CHAT_COMPLETIONS,
+  text_completions: EndpointType.OPENAI_TEXT_COMPLETIONS,
+  messages: EndpointType.ANTHROPIC_MESSAGES,
+  responses: EndpointType.OPENAI_RESPONSES,
+  generate_content: EndpointType.GOOGLE_GENERATE_CONTENT,
   ollama_chat: EndpointType.OLLAMA_CHAT,
   ollama_generate: EndpointType.OLLAMA_GENERATE,
-  embeddings: EndpointType.EMBEDDINGS,
-  rerank: EndpointType.RERANK,
-  image_generation: EndpointType.IMAGE_GENERATION,
-  image_edit: EndpointType.IMAGE_EDIT,
-  audio_transcription: EndpointType.AUDIO_TRANSCRIPTION,
-  audio_translation: EndpointType.AUDIO_TRANSLATION,
-  text_to_speech: EndpointType.TEXT_TO_SPEECH,
-  video_generation: EndpointType.VIDEO_GENERATION
+  embeddings: EndpointType.OPENAI_EMBEDDINGS,
+  rerank: EndpointType.JINA_RERANK,
+  image_generation: EndpointType.OPENAI_IMAGE_GENERATION,
+  image_edit: EndpointType.OPENAI_IMAGE_EDIT,
+  audio_transcription: EndpointType.OPENAI_AUDIO_TRANSCRIPTION,
+  audio_translation: EndpointType.OPENAI_AUDIO_TRANSLATION,
+  text_to_speech: EndpointType.OPENAI_TEXT_TO_SPEECH,
+  video_generation: EndpointType.OPENAI_VIDEO_GENERATION
 }
 
 // ─── Migration logic ────────────────────────────────────────────────────────

@@ -350,118 +350,9 @@ function compareLimits(base: ModelConfig, provider: ProviderModelEntry): Provide
   return hasDiff ? diff : null
 }
 
-// Reasoning type mapping based on provider
-// Maps provider IDs to their reasoning control format
-// Based on renderer aiCore/utils/reasoning.ts getReasoningEffort() branch logic
-const PROVIDER_REASONING_TYPE: Record<string, string> = {
-  // Official SDKs
-  openai: 'openai-chat',
-  anthropic: 'anthropic',
-  gemini: 'gemini',
-  google: 'gemini',
-
-  // OpenRouter — reasoning: { effort } format
-  openrouter: 'openrouter',
-
-  // DashScope — enableThinking + incrementalOutput
-  dashscope: 'dashscope',
-  modelscope: 'dashscope',
-
-  // Qwen-compatible — enableThinking + thinkingBudget
-  silicon: 'qwen',
-  qiniu: 'qwen',
-
-  // Doubao/Thinking — thinking: { type: 'enabled' }
-  doubao: 'doubao',
-  zhipu: 'doubao',
-  deepseek: 'doubao',
-  hunyuan: 'doubao',
-  'tencent-cloud-ti': 'doubao',
-  aihubmix: 'doubao',
-  sophnet: 'doubao',
-  ppio: 'doubao',
-  dmxapi: 'doubao',
-  stepfun: 'doubao',
-  infini: 'doubao',
-  baichuan: 'doubao',
-  minimax: 'doubao',
-  cerebras: 'doubao',
-  mimo: 'doubao',
-
-  // Self-hosted/Nvidia — chatTemplateKwargs
-  nvidia: 'self-hosted',
-
-  // Poe — extra_body wrapper (handled internally)
-  poe: 'openai-chat',
-
-  // Grok — reasoning_effort
-  grok: 'openai-chat',
-
-  // Aggregators/proxies — doubao format (thinking: { type })
-  cherryin: 'doubao',
-  ocoolai: 'doubao',
-  aionly: 'doubao',
-  burncloud: 'doubao',
-  tokenflux: 'doubao',
-  '302ai': 'doubao',
-  lanyun: 'doubao',
-  ph8: 'doubao',
-  'new-api': 'doubao',
-
-  // GitHub/Copilot — reasoning_effort
-  github: 'openai-chat',
-  copilot: 'openai-chat',
-
-  // Other providers with reasoning_effort
-  groq: 'openai-chat',
-  together: 'openai-chat',
-  fireworks: 'openai-chat',
-  hyperbolic: 'openai-chat',
-  mistral: 'openai-chat',
-  perplexity: 'openai-chat',
-  huggingface: 'openai-chat',
-  'gitee-ai': 'openai-chat'
-}
-
-function generateReasoningConfig(
-  baseModel: ModelConfig,
-  hasReasoning: boolean,
-  providerId: string
-): ProviderModelOverride['reasoning'] | null {
-  // Check if model has REASONING capability (from import-stage inference or provider API)
-  const isReasoning = hasReasoning || baseModel.capabilities?.includes(MODEL_CAPABILITY.REASONING)
-  if (!isReasoning) return null
-
-  // Look up provider's reasoning type
-  const reasoningType = PROVIDER_REASONING_TYPE[providerId]
-  if (!reasoningType) return null
-
-  // If base model already has reasoning config with the same type, no override needed
-  if (baseModel.reasoning?.type === reasoningType) return null
-
-  // Generate provider-specific reasoning config (type only, no params)
-  // supportedEfforts and thinkingTokenLimits are inherited from base model
-  switch (reasoningType) {
-    case 'openai-chat':
-      return { type: 'openai-chat' }
-    case 'openrouter':
-      return { type: 'openrouter' }
-    case 'anthropic':
-      return { type: 'anthropic' }
-    case 'gemini':
-      return { type: 'gemini' }
-    case 'qwen':
-      return { type: 'qwen' }
-    case 'doubao':
-      return { type: 'doubao' }
-    case 'dashscope':
-      return { type: 'dashscope' }
-    case 'self-hosted':
-      return { type: 'self-hosted' }
-    default:
-      return null
-  }
-}
+// Reasoning format is now a provider-level concern, set in generate-providers.ts.
+// Provider-model overrides only contain model-level reasoning capabilities
+// (token limits, supported efforts) — see ReasoningSupport in model.proto.
 
 // Non-language-model capabilities — models with these are NOT language models
 const NON_LANGUAGE_CAPABILITIES = new Set([
@@ -781,12 +672,6 @@ async function generateProviderModels() {
           entry.modelVariant = modelVariant
         }
 
-        // Generate reasoning override for new models too
-        const reasoningConfig = generateReasoningConfig(newModel, providerModel.hasReasoning ?? false, provider.id)
-        if (reasoningConfig) {
-          entry.reasoning = reasoningConfig
-        }
-
         // Generate capability overrides (e.g., OpenRouter adds WEB_SEARCH to all language models)
         const capOverrides = generateCapabilityOverrides(newModel, provider.id)
         if (capOverrides) {
@@ -816,7 +701,6 @@ async function generateProviderModels() {
         // Compare and build override entry
         const pricingDiff = comparePricing(existingModel.pricing, providerModel.pricing)
         const limitsDiff = compareLimits(existingModel, providerModel)
-        const reasoningConfig = generateReasoningConfig(existingModel, providerModel.hasReasoning ?? false, provider.id)
 
         // Check if apiModelId differs from canonical modelId
         const needsApiModelId = providerModel.originalId !== existingModel.id
@@ -844,10 +728,6 @@ async function generateProviderModels() {
         if (limitsDiff) {
           entry.limits = limitsDiff
         }
-        if (reasoningConfig) {
-          entry.reasoning = reasoningConfig
-        }
-
         // Generate capability overrides (e.g., OpenRouter adds WEB_SEARCH to all language models)
         const capOverrides = generateCapabilityOverrides(existingModel, provider.id)
         if (capOverrides) {

@@ -13,8 +13,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
-import type { AuthType, Provider, ProviderSettings, RuntimeApiCompatibility } from '@shared/data/types/provider'
-import { DEFAULT_API_COMPATIBILITY, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import type { AuthType, Provider, ProviderSettings, RuntimeApiFeatures } from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -34,9 +34,9 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
   }
 
   // Merge API features
-  const apiCompatibility: RuntimeApiCompatibility = {
-    ...DEFAULT_API_COMPATIBILITY,
-    ...row.apiCompatibility
+  const apiFeatures: RuntimeApiFeatures = {
+    ...DEFAULT_API_FEATURES,
+    ...row.apiFeatures
   }
 
   // Merge settings
@@ -54,9 +54,10 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     apiKeys,
     authType,
-    apiCompatibility,
+    apiFeatures,
     settings,
     websites: row.websites ?? undefined,
+    reasoningFormatType: row.reasoningFormatType ?? undefined,
     isEnabled: row.isEnabled ?? true
   }
 }
@@ -124,7 +125,7 @@ export class ProviderService {
       defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
-      apiCompatibility: dto.apiCompatibility ?? null,
+      apiFeatures: dto.apiFeatures ?? null,
       providerSettings: dto.providerSettings ?? null
     }
 
@@ -153,7 +154,7 @@ export class ProviderService {
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-    if (dto.apiCompatibility !== undefined) updates.apiCompatibility = dto.apiCompatibility
+    if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
     if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
@@ -191,8 +192,9 @@ export class ProviderService {
             baseUrls: provider.baseUrls,
             modelsApiUrls: provider.modelsApiUrls,
             defaultChatEndpoint: provider.defaultChatEndpoint,
-            apiCompatibility: provider.apiCompatibility,
+            apiFeatures: provider.apiFeatures,
             providerSettings: provider.providerSettings,
+            reasoningFormatType: provider.reasoningFormatType,
             websites: provider.websites
           }
         })

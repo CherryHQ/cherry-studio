@@ -10,7 +10,7 @@
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-catalog'
 import { dbService } from '@data/db/DbService'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
-import { userModelTable } from '@data/db/schemas/userModel'
+import { isCatalogEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -19,7 +19,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
 import { and, eq, type SQL } from 'drizzle-orm'
 
-import { catalogService } from './CatalogService'
+import { catalogService } from './ProviderCatalogService'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -126,7 +126,10 @@ export class ModelService {
     const db = dbService.getDb()
 
     // Look up catalog data for auto-enrichment
-    const { presetModel, catalogOverride } = catalogService.lookupModel(dto.providerId, dto.modelId)
+    const { presetModel, catalogOverride, reasoningFormatType } = catalogService.lookupModel(
+      dto.providerId,
+      dto.modelId
+    )
 
     let values: NewUserModel
 
@@ -149,7 +152,7 @@ export class ModelService {
         reasoning: dto.reasoning ?? null
       }
 
-      const merged = mergeModelConfig(userRow, catalogOverride, presetModel, dto.providerId)
+      const merged = mergeModelConfig(userRow, catalogOverride, presetModel, dto.providerId, reasoningFormatType)
 
       values = {
         providerId: dto.providerId,
@@ -214,8 +217,16 @@ export class ModelService {
   async update(providerId: string, modelId: string, dto: UpdateModelDto): Promise<Model> {
     const db = dbService.getDb()
 
-    // Verify model exists
-    await this.getByKey(providerId, modelId)
+    // Fetch existing row (also verifies existence)
+    const [existing] = await db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+      .limit(1)
+
+    if (!existing) {
+      throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+    }
 
     // Build update object
     const updates: Partial<NewUserModel> = {}
@@ -234,6 +245,13 @@ export class ModelService {
     if (dto.isHidden !== undefined) updates.isHidden = dto.isHidden
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.notes !== undefined) updates.notes = dto.notes
+
+    // Track which catalog-enrichable fields the user explicitly changed
+    const changedEnrichableFields = Object.keys(dto).filter(isCatalogEnrichableField)
+    if (changedEnrichableFields.length > 0) {
+      const existingOverrides = existing.userOverrides ?? []
+      updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
+    }
 
     const [row] = await db
       .update(userModelTable)
@@ -263,36 +281,66 @@ export class ModelService {
   }
 
   /**
-   * Batch upsert models for a provider (used by CatalogService)
+   * Batch upsert models for a provider (used by CatalogService).
    * Inserts new models, updates existing ones.
+   * Respects `userOverrides`: fields the user has explicitly modified are not overwritten.
    */
   async batchUpsert(models: NewUserModel[]): Promise<void> {
     if (models.length === 0) return
 
     const db = dbService.getDb()
 
+    // Pre-fetch existing userOverrides for all affected models
+    const existingRows = await db
+      .select({
+        providerId: userModelTable.providerId,
+        modelId: userModelTable.modelId,
+        userOverrides: userModelTable.userOverrides
+      })
+      .from(userModelTable)
+
+    const overridesMap = new Map<string, Set<string>>()
+    for (const row of existingRows) {
+      if (row.userOverrides && row.userOverrides.length > 0) {
+        overridesMap.set(`${row.providerId}:${row.modelId}`, new Set(row.userOverrides))
+      }
+    }
+
     for (const model of models) {
+      const userOverrides = overridesMap.get(`${model.providerId}:${model.modelId}`)
+
+      // Build the update set, skipping user-overridden fields
+      const set: Partial<NewUserModel> = {
+        presetModelId: model.presetModelId
+      }
+      const enrichableFields = {
+        name: model.name,
+        description: model.description,
+        group: model.group,
+        capabilities: model.capabilities,
+        inputModalities: model.inputModalities,
+        outputModalities: model.outputModalities,
+        endpointTypes: model.endpointTypes,
+        contextWindow: model.contextWindow,
+        maxOutputTokens: model.maxOutputTokens,
+        supportsStreaming: model.supportsStreaming,
+        reasoning: model.reasoning,
+        parameters: model.parameters,
+        pricing: model.pricing
+      }
+
+      for (const [field, value] of Object.entries(enrichableFields)) {
+        if (!userOverrides?.has(field)) {
+          ;(set as Record<string, unknown>)[field] = value
+        }
+      }
+
       await db
         .insert(userModelTable)
         .values(model)
         .onConflictDoUpdate({
           target: [userModelTable.providerId, userModelTable.modelId],
-          set: {
-            presetModelId: model.presetModelId,
-            name: model.name,
-            description: model.description,
-            group: model.group,
-            capabilities: model.capabilities,
-            inputModalities: model.inputModalities,
-            outputModalities: model.outputModalities,
-            endpointTypes: model.endpointTypes,
-            contextWindow: model.contextWindow,
-            maxOutputTokens: model.maxOutputTokens,
-            supportsStreaming: model.supportsStreaming,
-            reasoning: model.reasoning,
-            parameters: model.parameters,
-            pricing: model.pricing
-          }
+          set
         })
     }
 

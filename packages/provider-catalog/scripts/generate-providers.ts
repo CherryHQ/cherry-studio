@@ -7,14 +7,14 @@
  * Output format matches ProviderConfigSchema:
  * - baseUrls: Record<EndpointType, URL>
  * - modelsApiUrls: { default?, embedding?, reranker? }
- * - apiCompatibility: object with feature flags
+ * - apiFeatures: object with feature flags
  * - metadata: includes website { official, docs, apiKey }
  */
 
 import fs from 'fs'
 import path from 'path'
 
-import { ENDPOINT_TYPE, type EndpointType, type ProviderConfig } from '../src/schemas'
+import { ENDPOINT_TYPE, type EndpointType, type ProviderConfig, type ProviderReasoningFormat } from '../src/schemas'
 import { writeProviders } from './shared/catalog-io'
 
 type CherryStudioProviderType =
@@ -87,6 +87,41 @@ const NOT_SUPPORT_ARRAY_CONTENT = ['deepseek', 'baichuan', 'minimax', 'xirang', 
 const NOT_SUPPORT_STREAM_OPTIONS = ['mistral']
 
 const NOT_SUPPORT_DEVELOPER_ROLE = ['poe', 'qiniu']
+
+// Provider reasoning format — describes HOW the provider's API expects reasoning parameters.
+// Type values match ProviderReasoningFormatSchema discriminated union.
+const PROVIDER_REASONING_FORMAT: Record<string, ProviderReasoningFormat['type']> = {
+  // Official SDKs
+  openai: 'openai-chat',
+  anthropic: 'anthropic',
+  gemini: 'gemini',
+  google: 'gemini',
+
+  // OpenRouter — reasoning: { effort } format
+  openrouter: 'openrouter',
+
+  // DashScope — enableThinking + incrementalOutput
+  dashscope: 'dashscope',
+  modelscope: 'dashscope',
+
+  // enable_thinking + thinkingBudget (Qwen-compatible providers)
+  silicon: 'enable-thinking',
+  qiniu: 'enable-thinking',
+
+  // thinking: { type: 'enabled' } (Doubao/generic thinking-type providers)
+  doubao: 'thinking-type',
+  zhipu: 'thinking-type',
+  deepseek: 'thinking-type',
+  hunyuan: 'thinking-type',
+  'tencent-cloud-ti': 'thinking-type',
+  aihubmix: 'thinking-type',
+  sophnet: 'thinking-type',
+  ppio: 'thinking-type',
+  dmxapi: 'thinking-type',
+  stepfun: 'thinking-type',
+  infini: 'thinking-type',
+  baichuan: 'thinking-type'
+}
 
 /**
  * Parse Cherry Studio providers.ts file to extract provider configurations
@@ -191,12 +226,12 @@ function buildBaseUrls(cherryProvider: CherryStudioProvider): Record<string, str
   const apiHost = cherryProvider.apiHost.replace(/\/$/, '')
 
   // Map the default endpoint type based on provider type
-  const defaultEndpoint = getDefaultChatEndpoint(cherryProvider) ?? ENDPOINT_TYPE.CHAT_COMPLETIONS
+  const defaultEndpoint = getDefaultChatEndpoint(cherryProvider) ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   baseUrls[defaultEndpoint] = apiHost
 
   // If provider has anthropicApiHost, MESSAGES endpoint uses different host
   if (cherryProvider.anthropicApiHost) {
-    baseUrls[ENDPOINT_TYPE.MESSAGES] = cherryProvider.anthropicApiHost.replace(/\/$/, '')
+    baseUrls[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] = cherryProvider.anthropicApiHost.replace(/\/$/, '')
   }
 
   return baseUrls
@@ -208,17 +243,17 @@ function buildBaseUrls(cherryProvider: CherryStudioProvider): Record<string, str
 function getDefaultChatEndpoint(cherryProvider: CherryStudioProvider): EndpointType | undefined {
   switch (cherryProvider.type) {
     case 'openai':
-      return ENDPOINT_TYPE.CHAT_COMPLETIONS
+      return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     case 'openai-response':
-      return ENDPOINT_TYPE.RESPONSES
+      return ENDPOINT_TYPE.OPENAI_RESPONSES
     case 'anthropic':
-      return ENDPOINT_TYPE.MESSAGES
+      return ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     case 'gemini':
-      return ENDPOINT_TYPE.GENERATE_CONTENT
+      return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
     case 'ollama':
       return ENDPOINT_TYPE.OLLAMA_CHAT
     default:
-      return ENDPOINT_TYPE.CHAT_COMPLETIONS
+      return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   }
 }
 
@@ -272,10 +307,10 @@ function generateModelsApiUrls(
 }
 
 /**
- * Build apiCompatibility object (only include non-default values)
+ * Build apiFeatures object (only include non-default values)
  */
-function buildApiCompatibility(cherryProvider: CherryStudioProvider): ProviderConfig['apiCompatibility'] | undefined {
-  const compat: ProviderConfig['apiCompatibility'] = {}
+function buildApiFeatures(cherryProvider: CherryStudioProvider): ProviderConfig['apiFeatures'] | undefined {
+  const compat: ProviderConfig['apiFeatures'] = {}
   let hasNonDefault = false
 
   // Default is true, so only set if false
@@ -327,8 +362,12 @@ function createProviderConfig(cherryProvider: CherryStudioProvider): ProviderCon
 
   const baseUrls = buildBaseUrls(cherryProvider)
   const defaultChatEndpoint = getDefaultChatEndpoint(cherryProvider)
-  const apiCompatibility = buildApiCompatibility(cherryProvider)
+  const apiFeatures = buildApiFeatures(cherryProvider)
   const modelsApiUrls = generateModelsApiUrls(cherryProvider)
+  const reasoningFormatType = PROVIDER_REASONING_FORMAT[cherryProvider.id]
+  const reasoningFormat: ProviderReasoningFormat | undefined = reasoningFormatType
+    ? { type: reasoningFormatType }
+    : undefined
 
   // Determine tags based on provider type
   const isAggregator = ['openrouter', 'aihubmix', 'together', 'newapi'].includes(cherryProvider.id)
@@ -339,8 +378,9 @@ function createProviderConfig(cherryProvider: CherryStudioProvider): ProviderCon
     description: `${cherryProvider.name} - AI model provider`,
     baseUrls: baseUrls,
     defaultChatEndpoint: defaultChatEndpoint,
-    apiCompatibility: apiCompatibility,
+    apiFeatures: apiFeatures,
     modelsApiUrls: modelsApiUrls,
+    reasoningFormat: reasoningFormat,
     metadata: {
       source: 'cherry-studio',
       tags: isAggregator ? ['aggregator'] : ['official'],

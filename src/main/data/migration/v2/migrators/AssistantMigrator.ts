@@ -227,8 +227,9 @@ export class AssistantMigrator extends BaseMigrator {
       const sampleRows = await db.select().from(userAssistantTable).limit(5).all()
 
       for (const row of sampleRows) {
+        // Search order must match insertion order: defaultAssistant first, then assistants
         const source =
-          [...this.assistants, ...(this.defaultAssistant ? [this.defaultAssistant] : [])].find(
+          [...(this.defaultAssistant ? [this.defaultAssistant] : []), ...this.assistants].find(
             (a) => a.id === row.assistantId
           ) ?? this.presets.find((p) => p.id === row.assistantId)
 

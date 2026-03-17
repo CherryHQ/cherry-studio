@@ -7,7 +7,7 @@
  */
 
 import type { EndpointType } from '../../types/model'
-import type { ApiCompatibility, ApiKeyEntry, AuthConfig, Provider, ProviderSettings } from '../../types/provider'
+import type { ApiFeatures, ApiKeyEntry, AuthConfig, Provider, ProviderSettings } from '../../types/provider'
 
 export interface ListProvidersQuery {
   /** Filter by enabled status */
@@ -29,7 +29,7 @@ interface ProviderMutableFields {
   /** Authentication configuration */
   authConfig?: AuthConfig
   /** API feature support */
-  apiCompatibility?: ApiCompatibility
+  apiFeatures?: ApiFeatures
   /** Provider-specific settings */
   providerSettings?: Partial<ProviderSettings>
 }

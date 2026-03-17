@@ -811,6 +811,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'shortcut.app.exit_fullscreen'
     }
   ],
+  llm: [
+    {
+      originalKey: 'quickAssistantId',
+      targetKey: 'feature.quick_assistant.assistant_id'
+    }
+  ],
   assistants: [
     {
       originalKey: 'tagsOrder',

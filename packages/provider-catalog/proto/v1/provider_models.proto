@@ -40,7 +40,7 @@ message ProviderModelOverride {
   optional CapabilityOverride capabilities = 5;
   optional ModelLimits limits = 6;
   optional ModelPricing pricing = 7;
-  optional Reasoning reasoning = 8;
+  optional ReasoningSupport reasoning = 8;
   optional ParameterSupport parameter_support = 9;
 
   repeated EndpointType endpoint_types = 10;

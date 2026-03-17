@@ -18,15 +18,14 @@ import * as z from 'zod'
 
 const EndpointTypeSchema = z.enum(EndpointType)
 
-/** API compatibility flags for provider-specific behaviors */
-const CatalogApiCompatibilitySchema = z.object({
+/** API feature flags controlling request construction at the SDK level */
+const CatalogApiFeaturesSchema = z.object({
   arrayContent: z.boolean().optional(),
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
   verbosity: z.boolean().optional(),
-  enableThinking: z.boolean().optional(),
-  requiresApiKey: z.boolean().optional()
+  enableThinking: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
@@ -91,7 +90,9 @@ export type AuthType = z.infer<typeof AuthTypeSchema>
 const AuthConfigApiKey = z.object({
   type: z.literal('api-key'),
   headerName: z.string().optional(),
-  prefix: z.string().optional()
+  prefix: z.string().optional(),
+  /** Whether the provider requires an API key (false for local providers like Ollama) */
+  required: z.boolean().optional()
 })
 
 const AuthConfigOAuth = z.object({
@@ -131,11 +132,11 @@ export const AuthConfigSchema = z.discriminatedUnion('type', [
 ])
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
 
-export const ApiCompatibilitySchema = CatalogApiCompatibilitySchema
-export type ApiCompatibility = z.infer<typeof ApiCompatibilitySchema>
+export const ApiFeaturesSchema = CatalogApiFeaturesSchema
+export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 
-export const RuntimeApiCompatibilitySchema = ApiCompatibilitySchema.required()
-export type RuntimeApiCompatibility = z.infer<typeof RuntimeApiCompatibilitySchema>
+export const RuntimeApiFeaturesSchema = ApiFeaturesSchema.required()
+export type RuntimeApiFeatures = z.infer<typeof RuntimeApiFeaturesSchema>
 
 export type ProviderWebsite = z.infer<typeof ProviderWebsiteSchema>
 
@@ -166,6 +167,9 @@ export const ProviderSettingsSchema = z.object({
       cacheLastNMessages: z.number().optional()
     })
     .optional(),
+
+  // Ollama / LMStudio / GPUStack
+  keepAliveTime: z.number().optional(),
 
   // Common
   rateLimit: z.number().optional(),
@@ -204,26 +208,27 @@ export const ProviderSchema = z.object({
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */
   authType: AuthTypeSchema,
-  /** Merged feature support */
-  apiCompatibility: RuntimeApiCompatibilitySchema,
+  /** Merged API feature support */
+  apiFeatures: RuntimeApiFeaturesSchema,
   /** Provider settings */
   settings: ProviderSettingsSchema,
   /** Website links (official, apiKey, docs, models) */
   websites: ProviderWebsitesSchema.optional(),
+  /** How this provider's API expects reasoning parameters (e.g. 'openai-chat', 'anthropic', 'enable-thinking') */
+  reasoningFormatType: z.string().optional(),
   /** Whether this provider is enabled */
   isEnabled: z.boolean()
 })
 
 export type Provider = z.infer<typeof ProviderSchema>
 
-export const DEFAULT_API_COMPATIBILITY: RuntimeApiCompatibility = {
+export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   arrayContent: true,
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
   verbosity: false,
-  enableThinking: true,
-  requiresApiKey: true
+  enableThinking: true
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

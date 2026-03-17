@@ -5,6 +5,7 @@
 
 // Proto enums (re-exported from schemas/enums.ts which re-exports from gen/)
 export {
+  AnthropicReasoningEffort,
   Currency,
   ENDPOINT_TYPE,
   EndpointType,
@@ -12,6 +13,7 @@ export {
   Modality,
   MODEL_CAPABILITY,
   ModelCapability,
+  OpenAIReasoningEffort,
   ReasoningEffort
 } from './schemas/enums'
 
@@ -20,15 +22,24 @@ export type { ModelCatalog, ModelConfig, ModelConfig as ProtoModelConfig } from 
 export type {
   ModelPricing,
   ModelPricing as ProtoModelPricing,
-  Reasoning as ProtoReasoning,
-  Reasoning
+  ReasoningSupport as ProtoReasoningSupport,
+  ReasoningSupport
 } from './gen/v1/model_pb'
 export type {
   ProviderModelOverride as ProtoProviderModelOverride,
   ProviderModelCatalog,
   ProviderModelOverride
 } from './gen/v1/provider_models_pb'
-export type { ProviderConfig as ProtoProviderConfig, ProviderCatalog, ProviderConfig } from './gen/v1/provider_pb'
+export type {
+  ProviderConfig as ProtoProviderConfig,
+  ProviderReasoningFormat as ProtoProviderReasoningFormat,
+  ProviderCatalog,
+  ProviderConfig,
+  ProviderReasoningFormat
+} from './gen/v1/provider_pb'
 
 // Catalog reader (read .pb files and return proto Message types)
 export { readModelCatalog, readProviderCatalog, readProviderModelCatalog } from './catalog-reader'
+
+// Model ID normalization utilities
+export { normalizeModelId } from './utils/importers/base/base-transformer'

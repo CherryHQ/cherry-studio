@@ -64,16 +64,18 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
-    it('should initially be empty (no mappings configured yet)', () => {
-      // This test documents the current state - update when mappings are added
-      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBe(0)
+    it('should contain the llm_model_references mapping', () => {
+      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBeGreaterThanOrEqual(1)
+      expect(COMPLEX_PREFERENCE_MAPPINGS.some((m) => m.id === 'llm_model_references')).toBe(true)
     })
   })
 
   describe('getComplexMappingTargetKeys', () => {
-    it('should return empty array when no mappings exist', () => {
+    it('should include model reference target keys', () => {
       const keys = getComplexMappingTargetKeys()
-      expect(keys).toEqual([])
+      expect(keys).toContain('model.default_id')
+      expect(keys).toContain('model.quick_id')
+      expect(keys).toContain('model.translate_id')
     })
 
     it('should flatten target keys from all mappings', () => {

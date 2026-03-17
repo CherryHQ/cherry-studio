@@ -7,25 +7,15 @@ import { create } from '@bufbuild/protobuf'
 
 import type { Metadata, PricePerToken } from '../../src/gen/v1/common_pb'
 import { MetadataSchema, NumericRangeSchema, PricePerTokenSchema } from '../../src/gen/v1/common_pb'
-import type { ModelConfig, ModelPricing, Reasoning } from '../../src/gen/v1/model_pb'
+import type { ModelConfig, ModelPricing, ReasoningSupport } from '../../src/gen/v1/model_pb'
 import {
-  AnthropicReasoningParamsSchema,
-  DashscopeReasoningParamsSchema,
-  DoubaoReasoningParamsSchema,
-  GeminiReasoningParamsSchema,
   ImagePriceSchema,
   MinutePriceSchema,
   ModelConfigSchema,
   ModelPricingSchema,
-  OpenAIChatReasoningParamsSchema,
-  OpenAIResponsesReasoningParamsSchema,
-  OpenRouterReasoningParamsSchema,
   ParameterSupportSchema,
-  QwenReasoningParamsSchema,
   RangedParameterSupportSchema,
-  ReasoningCommonSchema,
-  ReasoningSchema,
-  SelfHostedReasoningParamsSchema,
+  ReasoningSupportSchema,
   ThinkingTokenLimitsSchema
 } from '../../src/gen/v1/model_pb'
 import type { ProviderModelOverride } from '../../src/gen/v1/provider_models_pb'
@@ -34,12 +24,23 @@ import {
   ModelLimitsSchema,
   ProviderModelOverrideSchema
 } from '../../src/gen/v1/provider_models_pb'
-import type { ProviderConfig } from '../../src/gen/v1/provider_pb'
+import type { ProviderConfig, ProviderReasoningFormat } from '../../src/gen/v1/provider_pb'
 import {
-  ApiCompatibilitySchema,
+  AnthropicReasoningFormatSchema,
+  ApiFeaturesSchema,
+  DashscopeReasoningFormatSchema,
+  EnableThinkingReasoningFormatSchema,
+  GeminiReasoningFormatSchema,
   ModelsApiUrlsSchema,
+  OpenAIChatReasoningFormatSchema,
+  OpenAIResponsesReasoningFormatSchema,
+  OpenRouterReasoningFormatSchema,
   ProviderConfigSchema,
-  ProviderWebsiteSchema
+  ProviderMetadataSchema,
+  ProviderReasoningFormatSchema,
+  ProviderWebsiteSchema,
+  SelfHostedReasoningFormatSchema,
+  ThinkingTypeReasoningFormatSchema
 } from '../../src/gen/v1/provider_pb'
 import { toCapability, toCurrency, toEndpointType, toModality, toReasoningEffort } from '../../src/proto-utils'
 
@@ -92,11 +93,15 @@ export function convertPricing(json: any): ModelPricing | undefined {
   })
 }
 
+/**
+ * Convert reasoning JSON to ReasoningSupport proto (model-level capabilities only).
+ * The provider-specific type/params are now on the provider, not the model.
+ */
 // biome-ignore lint/suspicious/noExplicitAny: JSON data is untyped
-export function convertReasoning(json: any): Reasoning | undefined {
+export function convertReasoningSupport(json: any): ReasoningSupport | undefined {
   if (!json) return undefined
 
-  const common = create(ReasoningCommonSchema, {
+  return create(ReasoningSupportSchema, {
     thinkingTokenLimits: json.thinkingTokenLimits
       ? create(ThinkingTokenLimitsSchema, {
           min: json.thinkingTokenLimits.min ?? undefined,
@@ -107,40 +112,48 @@ export function convertReasoning(json: any): Reasoning | undefined {
     supportedEfforts: (json.supportedEfforts ?? []).map(toReasoningEffort),
     interleaved: json.interleaved ?? undefined
   })
+}
 
-  const reasoning = create(ReasoningSchema, { common })
+/**
+ * Convert reasoning format JSON to ProviderReasoningFormat proto (provider-level).
+ */
+// biome-ignore lint/suspicious/noExplicitAny: JSON data is untyped
+export function convertProviderReasoningFormat(json: any): ProviderReasoningFormat | undefined {
+  if (!json?.type) return undefined
+
+  const format = create(ProviderReasoningFormatSchema)
 
   switch (json.type) {
     case 'openai-chat':
-      reasoning.params = { case: 'openaiChat', value: create(OpenAIChatReasoningParamsSchema) }
+      format.format = { case: 'openaiChat', value: create(OpenAIChatReasoningFormatSchema) }
       break
     case 'openai-responses':
-      reasoning.params = { case: 'openaiResponses', value: create(OpenAIResponsesReasoningParamsSchema) }
+      format.format = { case: 'openaiResponses', value: create(OpenAIResponsesReasoningFormatSchema) }
       break
     case 'anthropic':
-      reasoning.params = { case: 'anthropic', value: create(AnthropicReasoningParamsSchema) }
+      format.format = { case: 'anthropic', value: create(AnthropicReasoningFormatSchema) }
       break
     case 'gemini':
-      reasoning.params = { case: 'gemini', value: create(GeminiReasoningParamsSchema) }
+      format.format = { case: 'gemini', value: create(GeminiReasoningFormatSchema) }
       break
     case 'openrouter':
-      reasoning.params = { case: 'openrouter', value: create(OpenRouterReasoningParamsSchema) }
+      format.format = { case: 'openrouter', value: create(OpenRouterReasoningFormatSchema) }
       break
-    case 'qwen':
-      reasoning.params = { case: 'qwen', value: create(QwenReasoningParamsSchema) }
+    case 'enable-thinking':
+      format.format = { case: 'enableThinking', value: create(EnableThinkingReasoningFormatSchema) }
       break
-    case 'doubao':
-      reasoning.params = { case: 'doubao', value: create(DoubaoReasoningParamsSchema) }
+    case 'thinking-type':
+      format.format = { case: 'thinkingType', value: create(ThinkingTypeReasoningFormatSchema) }
       break
     case 'dashscope':
-      reasoning.params = { case: 'dashscope', value: create(DashscopeReasoningParamsSchema) }
+      format.format = { case: 'dashscope', value: create(DashscopeReasoningFormatSchema) }
       break
     case 'self-hosted':
-      reasoning.params = { case: 'selfHosted', value: create(SelfHostedReasoningParamsSchema) }
+      format.format = { case: 'selfHosted', value: create(SelfHostedReasoningFormatSchema) }
       break
   }
 
-  return reasoning
+  return format
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: JSON data is untyped
@@ -196,7 +209,7 @@ export function convertModelConfig(json: any): ModelConfig {
     maxOutputTokens: json.maxOutputTokens ?? undefined,
     maxInputTokens: json.maxInputTokens ?? undefined,
     pricing: convertPricing(json.pricing),
-    reasoning: convertReasoning(json.reasoning),
+    reasoning: convertReasoningSupport(json.reasoning),
     parameterSupport: convertParameterSupport(json.parameterSupport),
     family: json.family ?? undefined,
     ownedBy: json.ownedBy ?? undefined,
@@ -211,7 +224,7 @@ export function convertProviderConfig(json: any): ProviderConfig {
   const baseUrls: Record<number, string> = {}
   if (json.baseUrls) {
     for (const [key, value] of Object.entries(json.baseUrls)) {
-      const enumVal = toEndpointType(key)
+      const enumVal = /^\d+$/.test(key) ? Number(key) : toEndpointType(key)
       if (enumVal !== 0) {
         baseUrls[enumVal] = value as string
       }
@@ -228,28 +241,27 @@ export function convertProviderConfig(json: any): ProviderConfig {
       })
     : undefined
 
-  let metadata: Metadata | undefined
-  if (json.metadata) {
-    const metaCopy = { ...json.metadata }
-    delete metaCopy.website
-    metadata = convertMetadata(metaCopy)
-  }
+  // ProviderConfig.metadata is ProviderMetadata (wraps website)
+  const providerMetadata = website ? create(ProviderMetadataSchema, { website }) : undefined
 
   return create(ProviderConfigSchema, {
     id: json.id,
     name: json.name,
     description: json.description ?? undefined,
     baseUrls,
-    defaultChatEndpoint: json.defaultChatEndpoint ? toEndpointType(json.defaultChatEndpoint) : undefined,
-    apiCompatibility: json.apiCompatibility
-      ? create(ApiCompatibilitySchema, {
-          arrayContent: json.apiCompatibility.arrayContent ?? undefined,
-          streamOptions: json.apiCompatibility.streamOptions ?? undefined,
-          developerRole: json.apiCompatibility.developerRole ?? undefined,
-          serviceTier: json.apiCompatibility.serviceTier ?? undefined,
-          verbosity: json.apiCompatibility.verbosity ?? undefined,
-          enableThinking: json.apiCompatibility.enableThinking ?? undefined,
-          requiresApiKey: json.apiCompatibility.requiresApiKey ?? undefined
+    defaultChatEndpoint: json.defaultChatEndpoint
+      ? typeof json.defaultChatEndpoint === 'number'
+        ? json.defaultChatEndpoint
+        : toEndpointType(json.defaultChatEndpoint)
+      : undefined,
+    apiFeatures: json.apiFeatures
+      ? create(ApiFeaturesSchema, {
+          arrayContent: json.apiFeatures.arrayContent ?? undefined,
+          streamOptions: json.apiFeatures.streamOptions ?? undefined,
+          developerRole: json.apiFeatures.developerRole ?? undefined,
+          serviceTier: json.apiFeatures.serviceTier ?? undefined,
+          verbosity: json.apiFeatures.verbosity ?? undefined,
+          enableThinking: json.apiFeatures.enableThinking ?? undefined
         })
       : undefined,
     modelsApiUrls: json.modelsApiUrls
@@ -259,8 +271,8 @@ export function convertProviderConfig(json: any): ProviderConfig {
           reranker: json.modelsApiUrls.reranker ?? undefined
         })
       : undefined,
-    metadata,
-    website
+    metadata: providerMetadata,
+    reasoningFormat: convertProviderReasoningFormat(json.reasoningFormat)
   })
 }
 
@@ -287,7 +299,7 @@ export function convertProviderModelOverride(json: any): ProviderModelOverride {
         })
       : undefined,
     pricing: convertPricing(json.pricing),
-    reasoning: convertReasoning(json.reasoning),
+    reasoning: convertReasoningSupport(json.reasoning),
     parameterSupport: convertParameterSupport(json.parameterSupport),
     endpointTypes: (json.endpointTypes ?? []).map(toEndpointType),
     inputModalities: (json.inputModalities ?? []).map(toModality),

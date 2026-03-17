@@ -9,7 +9,8 @@ import type {
   ProtoModelConfig,
   ProtoProviderConfig,
   ProtoProviderModelOverride,
-  ProtoReasoning
+  ProtoProviderReasoningFormat,
+  ProtoReasoningSupport
 } from '@cherrystudio/provider-catalog'
 import type { Modality, ModelCapability, ReasoningEffort as ReasoningEffortType } from '@cherrystudio/provider-catalog'
 import { EndpointType, ReasoningEffort } from '@cherrystudio/provider-catalog'
@@ -17,18 +18,18 @@ import * as z from 'zod'
 
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '../types/model'
 import { createUniqueModelId } from '../types/model'
-import type { Provider, ProviderSettings, RuntimeApiCompatibility } from '../types/provider'
+import type { Provider, ProviderSettings, RuntimeApiFeatures } from '../types/provider'
 import {
-  ApiCompatibilitySchema,
+  ApiFeaturesSchema,
   ApiKeyEntrySchema,
-  DEFAULT_API_COMPATIBILITY,
+  DEFAULT_API_FEATURES,
   DEFAULT_PROVIDER_SETTINGS,
   ProviderSettingsSchema
 } from '../types/provider'
 
 export type { ProtoModelConfig as CatalogModel, ProtoProviderModelOverride as CatalogProviderModelOverride }
 
-export { DEFAULT_API_COMPATIBILITY, DEFAULT_PROVIDER_SETTINGS }
+export { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS }
 
 /**
  * Apply capability override to a base capability list
@@ -74,7 +75,7 @@ const UserProviderRowSchema = z.object({
   defaultChatEndpoint: z.nativeEnum(EndpointType).nullish(),
   apiKeys: z.array(ApiKeyEntrySchema.pick({ id: true, key: true, label: true, isEnabled: true })).nullish(),
   authConfig: z.object({ type: z.string() }).catchall(z.unknown()).nullish(),
-  apiCompatibility: ApiCompatibilitySchema.nullish(),
+  apiFeatures: ApiFeaturesSchema.nullish(),
   providerSettings: ProviderSettingsSchema.partial().nullish(),
   isEnabled: z.boolean().nullish(),
   sortOrder: z.number().nullish()
@@ -122,7 +123,8 @@ export function mergeModelConfig(
   userModel: UserModelRow | null,
   catalogOverride: ProtoProviderModelOverride | null,
   presetModel: ProtoModelConfig | null,
-  providerId: string
+  providerId: string,
+  reasoningFormatType?: string
 ): Model {
   // Case 1: Fully custom user model (no preset association)
   if (userModel && !userModel.presetModelId) {
@@ -170,9 +172,9 @@ export function mergeModelConfig(
   let pricing: RuntimeModelPricing | undefined
   let replaceWith: string | undefined
 
-  // Extract reasoning config from proto Reasoning type
+  // Extract reasoning config from proto ReasoningSupport + provider's reasoning format type
   if (presetModel.reasoning) {
-    reasoning = extractRuntimeReasoning(presetModel.reasoning)
+    reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
   }
 
   // Extract pricing
@@ -216,7 +218,7 @@ export function mergeModelConfig(
       maxInputTokens = catalogOverride.limits.maxInputTokens
     }
     if (catalogOverride.reasoning) {
-      const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning)
+      const overrideReasoning = extractRuntimeReasoning(catalogOverride.reasoning, reasoningFormatType)
       reasoning = {
         ...overrideReasoning,
         thinkingTokenLimits: overrideReasoning.thinkingTokenLimits ?? reasoning?.thinkingTokenLimits,
@@ -330,10 +332,10 @@ export function mergeProviderConfig(
   }
 
   // Merge API features (catalog now uses the same field names)
-  const apiCompatibility: RuntimeApiCompatibility = {
-    ...DEFAULT_API_COMPATIBILITY,
-    ...presetProvider?.apiCompatibility,
-    ...userProvider?.apiCompatibility
+  const apiFeatures: RuntimeApiFeatures = {
+    ...DEFAULT_API_FEATURES,
+    ...presetProvider?.apiFeatures,
+    ...userProvider?.apiFeatures
   }
 
   // Merge settings
@@ -366,8 +368,9 @@ export function mergeProviderConfig(
     defaultChatEndpoint: userProvider?.defaultChatEndpoint ?? presetProvider?.defaultChatEndpoint,
     apiKeys,
     authType,
-    apiCompatibility,
+    apiFeatures,
     settings,
+    reasoningFormatType: extractReasoningFormatType(presetProvider?.reasoningFormat),
     isEnabled: userProvider?.isEnabled ?? true
   }
 }
@@ -376,20 +379,20 @@ export function mergeProviderConfig(
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Map proto Reasoning.params.case to runtime reasoning type string */
-const CASE_TO_TYPE: Record<string, string> = {
+/** Map proto ProviderReasoningFormat.format.case to runtime reasoning type string */
+const REASONING_FORMAT_CASE_TO_TYPE: Record<string, string> = {
   openaiChat: 'openai-chat',
   openaiResponses: 'openai-responses',
   anthropic: 'anthropic',
   gemini: 'gemini',
   openrouter: 'openrouter',
-  qwen: 'qwen',
-  doubao: 'doubao',
+  enableThinking: 'enable-thinking',
+  thinkingType: 'thinking-type',
   dashscope: 'dashscope',
   selfHosted: 'self-hosted'
 }
 
-/** Default effort levels per reasoning type (when not specified in catalog) */
+/** Default effort levels per reasoning format type (when not specified in catalog) */
 const DEFAULT_EFFORTS: Record<string, ReasoningEffortType[]> = {
   'openai-chat': [
     ReasoningEffort.NONE,
@@ -407,19 +410,30 @@ const DEFAULT_EFFORTS: Record<string, ReasoningEffortType[]> = {
   ],
   anthropic: [],
   gemini: [ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
-  qwen: [],
-  doubao: []
+  'enable-thinking': [ReasoningEffort.NONE, ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
+  'thinking-type': [ReasoningEffort.NONE, ReasoningEffort.AUTO]
 }
 
 /**
- * Convert proto Reasoning message to runtime RuntimeReasoning
+ * Extract runtime reasoning type string from proto ProviderReasoningFormat
  */
-function extractRuntimeReasoning(reasoning: ProtoReasoning): RuntimeReasoning {
-  const type = CASE_TO_TYPE[reasoning.params.case ?? ''] ?? ''
-  const common = reasoning.common
+function extractReasoningFormatType(format: ProtoProviderReasoningFormat | undefined): string | undefined {
+  if (!format?.format.case) return undefined
+  return REASONING_FORMAT_CASE_TO_TYPE[format.format.case]
+}
 
-  // Get supported efforts from common, with fallback
-  let supportedEfforts: ReasoningEffortType[] = common?.supportedEfforts ?? []
+/**
+ * Convert proto ReasoningSupport to runtime RuntimeReasoning
+ * The `type` comes from the provider's reasoningFormat, not from the model.
+ */
+function extractRuntimeReasoning(
+  reasoning: ProtoReasoningSupport,
+  reasoningFormatType: string | undefined
+): RuntimeReasoning {
+  const type = reasoningFormatType ?? ''
+
+  // Get supported efforts, with fallback based on provider format type
+  let supportedEfforts: ReasoningEffortType[] = [...(reasoning.supportedEfforts ?? [])]
   if (supportedEfforts.length === 0) {
     supportedEfforts = DEFAULT_EFFORTS[type] ?? []
   }
@@ -427,7 +441,7 @@ function extractRuntimeReasoning(reasoning: ProtoReasoning): RuntimeReasoning {
   return {
     type,
     supportedEfforts,
-    thinkingTokenLimits: common?.thinkingTokenLimits,
-    interleaved: common?.interleaved
+    thinkingTokenLimits: reasoning.thinkingTokenLimits,
+    interleaved: reasoning.interleaved
   }
 }

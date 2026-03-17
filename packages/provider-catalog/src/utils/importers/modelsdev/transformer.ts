@@ -66,7 +66,7 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
       name: apiProvider.name,
       description: `Provider from models.dev catalog`,
       baseUrls: baseUrls,
-      defaultChatEndpoint: ENDPOINT_TYPE.CHAT_COMPLETIONS,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       metadata: {
         source: 'modelsdev',
         envVars: apiProvider.env,
@@ -175,7 +175,7 @@ export class ModelsDevTransformer extends BaseCatalogTransformer<ModelsDevModel>
 
     // Map to chat_completions endpoint type (most common for models.dev providers)
     return {
-      [ENDPOINT_TYPE.CHAT_COMPLETIONS]: baseUrl
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: baseUrl
     }
   }
 

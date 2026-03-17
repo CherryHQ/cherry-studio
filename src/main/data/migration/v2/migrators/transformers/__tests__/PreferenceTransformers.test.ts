@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getNestedValue, isNonEmptyString, isValidNumber } from '../PreferenceTransformers'
+import { extractModelReferences, getNestedValue, isNonEmptyString, isValidNumber } from '../PreferenceTransformers'
 
 describe('PreferenceTransformers', () => {
   describe('utility functions', () => {
@@ -125,6 +125,61 @@ describe('PreferenceTransformers', () => {
       it('should return false for arrays', () => {
         expect(isNonEmptyString(['a'])).toBe(false)
       })
+    })
+  })
+
+  describe('extractModelReferences', () => {
+    it('should extract UniqueModelId from full Model objects', () => {
+      const result = extractModelReferences({
+        defaultModel: { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o', group: 'openai' },
+        quickModel: { id: 'claude-3-haiku', provider: 'anthropic', name: 'Claude 3 Haiku', group: 'anthropic' },
+        translateModel: { id: 'gpt-3.5-turbo', provider: 'openai', name: 'GPT-3.5', group: 'openai' }
+      })
+
+      expect(result['model.default_id']).toBe('openai::gpt-4o')
+      expect(result['model.quick_id']).toBe('anthropic::claude-3-haiku')
+      expect(result['model.translate_id']).toBe('openai::gpt-3.5-turbo')
+    })
+
+    it('should skip models with missing id', () => {
+      const result = extractModelReferences({
+        defaultModel: { provider: 'openai', name: 'no-id' }
+      })
+
+      expect(result['model.default_id']).toBeUndefined()
+    })
+
+    it('should skip models with missing provider', () => {
+      const result = extractModelReferences({
+        defaultModel: { id: 'gpt-4o', name: 'no-provider' }
+      })
+
+      expect(result['model.default_id']).toBeUndefined()
+    })
+
+    it('should return empty result when no models present', () => {
+      const result = extractModelReferences({})
+      expect(Object.keys(result)).toHaveLength(0)
+    })
+
+    it('should handle null/undefined model values', () => {
+      const result = extractModelReferences({
+        defaultModel: null,
+        quickModel: undefined
+      })
+
+      expect(result['model.default_id']).toBeUndefined()
+      expect(result['model.quick_id']).toBeUndefined()
+    })
+
+    it('should handle partial models (only some present)', () => {
+      const result = extractModelReferences({
+        defaultModel: { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o', group: 'openai' }
+      })
+
+      expect(result['model.default_id']).toBe('openai::gpt-4o')
+      expect(result['model.quick_id']).toBeUndefined()
+      expect(result['model.translate_id']).toBeUndefined()
     })
   })
 })

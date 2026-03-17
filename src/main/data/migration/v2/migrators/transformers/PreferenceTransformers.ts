@@ -159,6 +159,39 @@ import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 export type { TransformResult }
 
 // ============================================================================
+// Transformer Functions
+// ============================================================================
+
+/**
+ * Extract model ID references from legacy full Model objects.
+ *
+ * Legacy Redux stores full Model objects (with id, name, provider, etc.)
+ * for defaultModel, quickModel, translateModel. v2 stores only a
+ * UniqueModelId reference ("providerId::modelId").
+ */
+export function extractModelReferences(sources: Record<string, unknown>): TransformResult {
+  const result: TransformResult = {}
+
+  const mappings: Array<{ sourceKey: string; targetKey: string }> = [
+    { sourceKey: 'defaultModel', targetKey: 'model.default_id' },
+    { sourceKey: 'quickModel', targetKey: 'model.quick_id' },
+    { sourceKey: 'translateModel', targetKey: 'model.translate_id' }
+  ]
+
+  for (const { sourceKey, targetKey } of mappings) {
+    const model = sources[sourceKey]
+    if (model && typeof model === 'object') {
+      const m = model as { id?: string; provider?: string }
+      if (m.id && m.provider) {
+        result[targetKey] = `${m.provider}::${m.id}`
+      }
+    }
+  }
+
+  return result
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
