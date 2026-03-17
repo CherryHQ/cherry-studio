@@ -8,6 +8,7 @@ import {
   encodeHTML,
   escapeDollarNumber,
   extractHtmlTitle,
+  formatQuotedText,
   getFileNameFromHtmlTitle,
   removeSvgEmptyLines,
   withGenerateImage
@@ -213,6 +214,14 @@ describe('formats', () => {
     it('should handle undefined', () => {
       // @ts-ignore for testing
       expect(extractHtmlTitle(undefined)).toBe('')
+    })
+  })
+
+  describe('formatQuotedText', () => {
+    it('should format quoted text as plain-text markdown instead of raw html', () => {
+      expect(formatQuotedText('Quoted line')).toBe('> Quoted line\n-------------')
+      expect(formatQuotedText('First line\nSecond line')).toBe('> First line\n> Second line\n-------------')
+      expect(formatQuotedText('Quoted line')).not.toContain('<blockquote>')
     })
   })
 
