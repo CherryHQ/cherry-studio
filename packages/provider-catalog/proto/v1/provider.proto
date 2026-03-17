@@ -1,0 +1,210 @@
+syntax = "proto3";
+package catalog.v1;
+
+import "v1/common.proto";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// API Features
+//
+// Flags describing which API features a provider supports.
+// These control request construction at the SDK level.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ApiFeatures {
+  // --- Request format flags ---
+
+  // Whether the provider supports array-formatted content in messages
+  optional bool array_content = 1;
+  // Whether the provider supports stream_options for usage data
+  optional bool stream_options = 2;
+
+  // --- Provider-specific parameter flags ---
+
+  // Whether the provider supports the 'developer' role (OpenAI-specific)
+  optional bool developer_role = 3;
+  // Whether the provider supports service tier selection (OpenAI/Groq-specific)
+  optional bool service_tier = 4;
+  // Whether the provider supports verbosity settings (Gemini-specific)
+  optional bool verbosity = 5;
+  // Whether the provider supports enable_thinking parameter format
+  optional bool enable_thinking = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Reasoning Format
+//
+// Describes HOW a provider's API expects reasoning parameters to be formatted.
+// This is a provider-level concern — every model on a given provider uses the
+// same parameter format. Model-level reasoning capabilities (effort levels,
+// token limits) are in model.proto ReasoningSupport.
+//
+// The type names describe API parameter shapes, not providers or model families:
+//   openai_chat     — { reasoningEffort: 'low'|'medium'|'high' }
+//   openai_responses — { reasoningEffort, reasoningSummary }
+//   anthropic       — { thinking: { type, budgetTokens }, effort }
+//   gemini          — { thinkingConfig: { thinkingBudget, thinkingLevel } }
+//   openrouter      — { reasoning: { effort, enabled, exclude } }
+//   enable_thinking — { enable_thinking: bool, thinking_budget?: number }
+//   thinking_type   — { thinking: { type: 'enabled'|'disabled'|'auto' } }
+//   dashscope       — { enable_thinking: bool, incremental_output?: bool }
+//   self_hosted     — { chat_template_kwargs: { thinking, enable_thinking } }
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// --- Per-provider reasoning param definitions ---
+
+message OpenAIChatReasoningFormat {
+  optional OpenAIReasoningEffort reasoning_effort = 1;
+}
+
+enum ResponsesSummaryMode {
+  RESPONSES_SUMMARY_MODE_UNSPECIFIED = 0;
+  RESPONSES_SUMMARY_MODE_AUTO = 1;
+  RESPONSES_SUMMARY_MODE_CONCISE = 2;
+  RESPONSES_SUMMARY_MODE_DETAILED = 3;
+}
+
+message OpenAIResponsesReasoningFormat {
+  optional OpenAIReasoningEffort effort = 1;
+  optional ResponsesSummaryMode summary = 2;
+}
+
+enum AnthropicThinkingType {
+  ANTHROPIC_THINKING_TYPE_UNSPECIFIED = 0;
+  ANTHROPIC_THINKING_TYPE_ENABLED = 1;
+  ANTHROPIC_THINKING_TYPE_DISABLED = 2;
+  ANTHROPIC_THINKING_TYPE_ADAPTIVE = 3;
+}
+
+message AnthropicReasoningFormat {
+  optional AnthropicThinkingType type = 1;
+  optional uint32 budget_tokens = 2;
+  optional AnthropicReasoningEffort effort = 3;
+}
+
+message GeminiThinkingConfig {
+  optional bool include_thoughts = 1;
+  optional uint32 thinking_budget = 2;
+}
+
+enum GeminiThinkingLevel {
+  GEMINI_THINKING_LEVEL_UNSPECIFIED = 0;
+  GEMINI_THINKING_LEVEL_MINIMAL = 1;
+  GEMINI_THINKING_LEVEL_LOW = 2;
+  GEMINI_THINKING_LEVEL_MEDIUM = 3;
+  GEMINI_THINKING_LEVEL_HIGH = 4;
+}
+
+message GeminiReasoningFormat {
+  oneof config {
+    GeminiThinkingConfig thinking_config = 1;
+    GeminiThinkingLevel thinking_level = 2;
+  }
+}
+
+message OpenRouterReasoningFormat {
+  optional OpenAIReasoningEffort effort = 1;
+  optional uint32 max_tokens = 2;
+  optional bool exclude = 3;
+}
+
+// enable_thinking + thinking_budget format (Qwen, Hunyuan, Silicon, etc.)
+message EnableThinkingReasoningFormat {
+  optional bool enable_thinking = 1;
+  optional uint32 thinking_budget = 2;
+}
+
+enum ThinkingType {
+  THINKING_TYPE_UNSPECIFIED = 0;
+  THINKING_TYPE_ENABLED = 1;
+  THINKING_TYPE_DISABLED = 2;
+  THINKING_TYPE_AUTO = 3;
+}
+
+// thinking: { type } format (Doubao, Zhipu, DeepSeek, many aggregators)
+message ThinkingTypeReasoningFormat {
+  optional ThinkingType thinking_type = 1;
+}
+
+// DashScope-specific: enable_thinking + incremental_output
+message DashscopeReasoningFormat {
+  optional bool enable_thinking = 1;
+  optional bool incremental_output = 2;
+}
+
+// Self-hosted/Nvidia: chat_template_kwargs
+message SelfHostedReasoningFormat {
+  optional bool enable_thinking = 1;
+  optional bool thinking = 2;
+}
+
+// Discriminated union: which API parameter shape this provider uses for reasoning
+message ProviderReasoningFormat {
+  oneof format {
+    OpenAIChatReasoningFormat openai_chat = 1;
+    OpenAIResponsesReasoningFormat openai_responses = 2;
+    AnthropicReasoningFormat anthropic = 3;
+    GeminiReasoningFormat gemini = 4;
+    OpenRouterReasoningFormat openrouter = 5;
+    EnableThinkingReasoningFormat enable_thinking = 6;
+    ThinkingTypeReasoningFormat thinking_type = 7;
+    DashscopeReasoningFormat dashscope = 8;
+    SelfHostedReasoningFormat self_hosted = 9;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Website
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderWebsite {
+  optional string official = 1;
+  optional string docs = 2;
+  optional string api_key = 3;
+  optional string models = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Models API URLs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ModelsApiUrls {
+  optional string default = 1;
+  optional string embedding = 2;
+  optional string reranker = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Metadata (wraps generic Metadata + provider-specific fields)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderMetadata {
+  optional ProviderWebsite website = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Provider Config
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message ProviderConfig {
+  string id = 1;
+  string name = 2;
+  optional string description = 3;
+
+  // Base URLs keyed by endpoint type
+  map<int32, string> base_urls = 4; // key = EndpointType enum value
+
+  optional EndpointType default_chat_endpoint = 5;
+  optional ApiFeatures api_features = 6;
+  optional ModelsApiUrls models_api_urls = 7;
+
+  optional ProviderMetadata metadata = 8;
+
+  // How this provider's API expects reasoning parameters to be formatted
+  optional ProviderReasoningFormat reasoning_format = 9;
+}
+
+// Top-level container
+message ProviderCatalog {
+  string version = 1;
+  repeated ProviderConfig providers = 2;
+}

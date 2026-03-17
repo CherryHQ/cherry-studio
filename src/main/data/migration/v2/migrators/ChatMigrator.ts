@@ -108,7 +108,7 @@ export class ChatMigrator extends BaseMigrator {
   readonly id = 'chat'
   readonly name = 'ChatData'
   readonly description = 'Migrate chat topics and messages'
-  readonly order = 4
+  readonly order = 5
 
   // Prepared data for execution
   private topicCount = 0

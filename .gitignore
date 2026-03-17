@@ -1,3 +1,6 @@
+# Temporary plan files
+docs/plans/
+
 # Logs
 logs
 *.log*

@@ -9,6 +9,10 @@
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
+    "packages/provider-catalog/src/index.ts",
+    "packages/provider-catalog/src/gen/**/*",
+    "packages/provider-catalog/src/schemas/**/*",
+    "packages/provider-catalog/src/catalog-reader.ts",
     "packages/shared/**/*",
     "tests/__mocks__/**/*"
   ],
@@ -29,6 +33,7 @@
       "@shared/*": ["./packages/shared/*"],
       "@mcp-trace/*": ["./packages/mcp-trace/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
+      "@cherrystudio/provider-catalog": ["./packages/provider-catalog/src/index.ts"],
       "@test-mocks/*": ["./tests/__mocks__/*"]
     },
     "experimentalDecorators": true,

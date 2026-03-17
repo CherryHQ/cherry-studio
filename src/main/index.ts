@@ -46,6 +46,7 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { dataApiService } from '@data/DataApiService'
+import { catalogService } from '@data/services/ProviderCatalogService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 import { runAsyncFunction } from './utils'
@@ -230,6 +231,12 @@ if (!app.requestSingleInstanceLock()) {
 
     // Initialize DataApiService
     await dataApiService.initialize()
+
+    // Sync preset catalog data on every startup so that provider websites/baseUrls
+    // and model capabilities/modalities/contextWindow/pricing stay up-to-date
+    // when the catalog protobuf files are updated between app versions.
+    // (Migration-time enrichment lives in ProviderModelMigrator.execute())
+    await catalogService.initializeAllPresetProviders()
 
     // Initialize CacheService
     await cacheService.initialize()

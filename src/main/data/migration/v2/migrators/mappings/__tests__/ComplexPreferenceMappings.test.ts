@@ -64,6 +64,11 @@ describe('ComplexPreferenceMappings', () => {
       expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
     })
 
+    it('should contain the llm_model_references mapping', () => {
+      expect(COMPLEX_PREFERENCE_MAPPINGS.length).toBeGreaterThanOrEqual(1)
+      expect(COMPLEX_PREFERENCE_MAPPINGS.some((m) => m.id === 'llm_model_references')).toBe(true)
+    })
+
     it('should contain websearch compression flatten mapping', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
@@ -81,9 +86,12 @@ describe('ComplexPreferenceMappings', () => {
   describe('getComplexMappingTargetKeys', () => {
     it('should return target keys from all mappings', () => {
       const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('model.default_id')
+      expect(keys).toContain('model.quick_id')
+      expect(keys).toContain('model.translate_id')
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys.length).toBe(8) // 7 websearch compression keys + 1 overrides key
+      expect(keys.length).toBe(11) // 3 model ref keys + 7 websearch compression keys + 1 overrides key
     })
 
     it('should flatten target keys from all mappings', () => {

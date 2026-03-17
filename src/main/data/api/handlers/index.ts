@@ -8,11 +8,15 @@
  * - test.ts - Test API handlers
  * - topics.ts - Topic API handlers
  * - messages.ts - Message API handlers
+ * - models.ts - Model API handlers
+ * - providers.ts - Provider API handlers
  */
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
 import { messageHandlers } from './messages'
+import { modelHandlers } from './models'
+import { providerHandlers } from './providers'
 import { testHandlers } from './test'
 import { topicHandlers } from './topics'
 
@@ -26,5 +30,7 @@ import { topicHandlers } from './topics'
 export const apiHandlers: ApiImplementation = {
   ...testHandlers,
   ...topicHandlers,
-  ...messageHandlers
+  ...messageHandlers,
+  ...modelHandlers,
+  ...providerHandlers
 }

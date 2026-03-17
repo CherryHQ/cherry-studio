@@ -15,7 +15,9 @@
     "useDefineForClassFields": true,
     "baseUrl": ".",
     "paths": {
-      "@renderer/*": ["src/renderer/src/*"]
+      "@renderer/*": ["src/renderer/src/*"],
+      "@shared/*": ["packages/shared/*"],
+      "@cherrystudio/provider-catalog": ["packages/provider-catalog/src/index.ts"]
     }
   }
 }

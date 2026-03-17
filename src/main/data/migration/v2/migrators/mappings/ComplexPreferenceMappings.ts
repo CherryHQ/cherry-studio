@@ -18,7 +18,11 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
-import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import {
+  extractModelReferences,
+  flattenCompressionConfig,
+  migrateWebSearchProviders
+} from '../transformers/PreferenceTransformers'
 
 // ============================================================================
 // Type Definitions
@@ -80,6 +84,19 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  {
+    id: 'llm_model_references',
+    description:
+      'Extract model IDs from full Model objects (defaultModel, quickModel, translateModel) into UniqueModelId references',
+    sources: {
+      defaultModel: { source: 'redux', category: 'llm', key: 'defaultModel' },
+      quickModel: { source: 'redux', category: 'llm', key: 'quickModel' },
+      translateModel: { source: 'redux', category: 'llm', key: 'translateModel' }
+    },
+    targetKeys: ['model.default_id', 'model.quick_id', 'model.translate_id'],
+    transform: extractModelReferences
+  },
+
   // WebSearch provider overrides migration
   {
     id: 'websearch_providers_migrate',
@@ -109,35 +126,6 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     ],
     transform: flattenCompressionConfig
   }
-
-  // Example mappings (commented out - uncomment when needed):
-  //
-  // {
-  //   id: 'window_bounds_split',
-  //   description: 'Split windowBounds object into separate position and size keys',
-  //   sources: {
-  //     windowBounds: { source: 'electronStore', key: 'windowBounds' }
-  //   },
-  //   targetKeys: [
-  //     'app.window.position.x',
-  //     'app.window.position.y',
-  //     'app.window.size.width',
-  //     'app.window.size.height'
-  //   ],
-  //   transform: splitWindowBounds
-  // },
-  //
-  // {
-  //   id: 'proxy_config_merge',
-  //   description: 'Merge proxy configuration from multiple sources',
-  //   sources: {
-  //     proxyEnabled: { source: 'redux', category: 'settings', key: 'proxyEnabled' },
-  //     proxyHost: { source: 'redux', category: 'settings', key: 'proxyHost' },
-  //     proxyPort: { source: 'electronStore', key: 'ProxyPort' }
-  //   },
-  //   targetKeys: ['network.proxy.enabled', 'network.proxy.host', 'network.proxy.port'],
-  //   transform: mergeProxyConfig
-  // }
 ]
 
 // ============================================================================
