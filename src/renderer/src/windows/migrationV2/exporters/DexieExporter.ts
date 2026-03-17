@@ -4,6 +4,7 @@
  */
 
 import { db } from '@renderer/databases'
+import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -29,15 +30,9 @@ export class DexieExporter {
     this.exportPath = exportPath
   }
 
-  /**
-   * Export all Dexie tables to JSON files
-   * @param onProgress - Progress callback
-   * @returns Export path
-   */
-  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
-    // Validate required tables exist
-    const existingTables = db.tables.map((t) => t.name)
-    const missingTables = REQUIRED_TABLES.filter((t) => !existingTables.includes(t))
+  getTablesToExport(): string[] {
+    const existingTables = db.tables.map((table) => table.name)
+    const missingTables = REQUIRED_TABLES.filter((table) => !existingTables.includes(table))
 
     if (missingTables.length > 0) {
       throw new Error(
@@ -46,8 +41,16 @@ export class DexieExporter {
       )
     }
 
-    // Determine which tables to export
-    const tablesToExport = [...REQUIRED_TABLES, ...OPTIONAL_TABLES.filter((t) => existingTables.includes(t))]
+    return [...REQUIRED_TABLES, ...OPTIONAL_TABLES.filter((table) => existingTables.includes(table))]
+  }
+
+  /**
+   * Export all Dexie tables to JSON files
+   * @param onProgress - Progress callback
+   * @returns Export path
+   */
+  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
+    const tablesToExport = this.getTablesToExport()
 
     // Export each table
     for (let i = 0; i < tablesToExport.length; i++) {
@@ -64,7 +67,7 @@ export class DexieExporter {
       // Send data to Main process for writing
       // Uses IPC invoke with migration channel
       await window.electron.ipcRenderer.invoke(
-        'migration:write-export-file',
+        MigrationIpcChannels.WriteExportFile,
         this.exportPath,
         tableName,
         JSON.stringify(data)

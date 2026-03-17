@@ -1,10 +1,6 @@
-/**
- * Stage indicator component
- * Shows the current migration stage in a stepper format
- */
-
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
-import { CheckCircle2, Database, FileArchive, Rocket } from 'lucide-react'
+import { Check } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,20 +8,14 @@ interface Props {
   stage: MigrationStage
 }
 
-interface StepInfo {
-  id: string
-  labelKey: string
-  icon: React.ReactNode
-}
+const steps = [
+  { id: 'overview', labelKey: 'migration.flow.overview.label' },
+  { id: 'backup', labelKey: 'migration.flow.backup.label' },
+  { id: 'migrate', labelKey: 'migration.flow.migrate.label' },
+  { id: 'finish', labelKey: 'migration.flow.finish.label' }
+] as const
 
-const steps: StepInfo[] = [
-  { id: 'intro', labelKey: 'migration.steps.start', icon: <Rocket className="h-4 w-4" /> },
-  { id: 'backup', labelKey: 'migration.steps.backup', icon: <FileArchive className="h-4 w-4" /> },
-  { id: 'migrate', labelKey: 'migration.steps.migrate', icon: <Database className="h-4 w-4" /> },
-  { id: 'complete', labelKey: 'migration.steps.complete', icon: <CheckCircle2 className="h-4 w-4" /> }
-]
-
-function getStepIndex(stage: MigrationStage): number {
+function getCurrentStepIndex(stage: MigrationStage): number {
   switch (stage) {
     case 'introduction':
       return 0
@@ -35,10 +25,11 @@ function getStepIndex(stage: MigrationStage): number {
       return 1
     case 'migration':
       return 2
+    case 'migration_completed':
     case 'completed':
       return 3
     case 'error':
-      return -1
+      return 2
     default:
       return 0
   }
@@ -46,48 +37,50 @@ function getStepIndex(stage: MigrationStage): number {
 
 export const StageIndicator: React.FC<Props> = ({ stage }) => {
   const { t } = useTranslation()
-  const currentIndex = getStepIndex(stage)
-  const isError = stage === 'error'
+  const currentIndex = getCurrentStepIndex(stage)
+  const isFinished = stage === 'completed'
 
   return (
-    <div className="mb-8 flex w-full items-center justify-between">
+    <ol className="flex items-center justify-center gap-3">
       {steps.map((step, index) => {
-        const isCompleted = index < currentIndex
-        const isCurrent = index === currentIndex
-        const isPending = index > currentIndex
+        const isCompleted = index < currentIndex || (isFinished && index === currentIndex)
+        const isCurrent = !isFinished && index === currentIndex
+        const isActiveConnector = index < currentIndex
 
         return (
-          <React.Fragment key={step.id}>
-            {/* Step indicator */}
-            <div className="flex flex-col items-center">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${isCompleted ? 'border-green-600 bg-green-600 text-white dark:border-green-400 dark:bg-green-400' : ''}
-                  ${isCurrent && !isError ? 'border-primary bg-primary text-white' : ''}
-                  ${isCurrent && isError ? 'border-red-600 bg-red-600 text-white dark:border-red-400 dark:bg-red-400' : ''}
-                  ${isPending ? 'border-border bg-secondary text-muted-foreground' : ''}
-                `}>
-                {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : step.icon}
-              </div>
+          <li key={step.id} className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span
-                className={`mt-2 font-medium text-sm ${isCompleted ? 'text-green-600 dark:text-green-400' : ''}
-                  ${isCurrent && !isError ? 'text-primary' : ''}
-                  ${isCurrent && isError ? 'text-red-600 dark:text-red-400' : ''}
-                  ${isPending ? 'text-muted-foreground' : ''}
-                `}>
+                className={cn(
+                  'flex size-7 items-center justify-center rounded-full border font-medium text-xs transition-colors duration-300',
+                  isCompleted && 'border-primary bg-primary text-primary-foreground',
+                  isCurrent && 'border-primary bg-primary/8 text-primary',
+                  !isCompleted && !isCurrent && 'border-black/14 text-muted-foreground'
+                )}>
+                {isCompleted ? <Check className="lucide-custom size-3.5" /> : index + 1}
+              </span>
+              <span
+                className={cn(
+                  'hidden font-medium text-sm transition-colors duration-300 sm:block',
+                  isCurrent && 'text-primary',
+                  isCompleted && 'text-foreground/80',
+                  !isCompleted && !isCurrent && 'text-muted-foreground'
+                )}>
                 {t(step.labelKey)}
               </span>
             </div>
-
-            {/* Connector line */}
-            {index < steps.length - 1 && (
-              <div
-                className={`mx-2 h-0.5 flex-1 transition-colors ${index < currentIndex ? 'bg-green-600 dark:bg-green-400' : 'bg-border'}
-                `}
+            {index < steps.length - 1 ? (
+              <span
+                className={cn(
+                  'hidden h-px w-6 transition-colors duration-300 sm:block',
+                  isActiveConnector && 'bg-primary/40',
+                  !isActiveConnector && 'bg-black/10'
+                )}
               />
-            )}
-          </React.Fragment>
+            ) : null}
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }

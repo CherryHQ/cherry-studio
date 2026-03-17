@@ -1,112 +1,75 @@
-/**
- * Migrator progress list component
- * Shows the status of each migrator
- */
-
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { MigratorProgress as MigratorProgressType, MigratorStatus } from '@shared/data/migration/v2/types'
-import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
+import { Check } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { keyframes } from 'styled-components'
 
 interface Props {
   migrators: MigratorProgressType[]
-  overallProgress: number
 }
 
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`
+const statusTextKey = {
+  pending: 'migration.status.pending',
+  running: 'migration.status.running',
+  completed: 'migration.status.completed',
+  failed: 'migration.status.failed'
+} satisfies Record<MigratorStatus, string>
 
-const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
-  switch (status) {
-    case 'completed':
-      return <CheckCircle2 size={20} color="#52c41a" /> // Antd success color
-    case 'running':
-      return (
-        <SpinningIcon>
-          <Loader2 size={20} color="var(--color-primary)" />
-        </SpinningIcon>
-      )
-    case 'failed':
-      return <XCircle size={20} color="#ff4d4f" /> // Antd error color
-    default:
-      return <Circle size={20} color="#d9d9d9" />
+function StatusSummary({ status, text }: { status: MigratorStatus; text: string }) {
+  if (status === 'completed') {
+    return (
+      <span className="inline-flex items-center justify-end text-primary" aria-label={text} title={text}>
+        <Check className="lucide-custom size-4" />
+        <span className="sr-only">{text}</span>
+      </span>
+    )
   }
-}
 
-const SpinningIcon = styled.div`
-  display: flex;
-  animation: ${spin} 1s linear infinite;
-`
+  return <span>{text}</span>
+}
 
 export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
   const { t } = useTranslation()
 
-  const getStatusText = (status: MigratorStatus): string => {
-    return t('migration.status.' + status)
+  if (migrators.length === 0) {
+    return <p className="py-6 text-muted-foreground text-sm">{t('migration.migration_run.empty')}</p>
   }
 
   return (
-    <Container>
-      <List>
-        {migrators.map((migrator) => (
-          <ListItem key={migrator.id}>
-            <ItemLeft>
-              <StatusIcon status={migrator.status} />
-              <ItemName>{migrator.name}</ItemName>
-            </ItemLeft>
-            <ItemStatus status={migrator.status}>{migrator.error || getStatusText(migrator.status)}</ItemStatus>
-          </ListItem>
-        ))}
-      </List>
-    </Container>
+    <div className="space-y-2">
+      {migrators.map((migrator, index) => {
+        const statusText = t(statusTextKey[migrator.status])
+
+        return (
+          <div
+            key={migrator.id}
+            className={cn(
+              'grid gap-3 py-3 transition-all duration-300 md:grid-cols-[minmax(0,1fr)_auto] md:items-center',
+              migrator.status === 'running' && 'translate-x-1',
+              migrator.status === 'pending' && 'opacity-65'
+            )}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs uppercase tracking-[0.16em]">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <p className="truncate font-medium text-foreground text-sm">{migrator.name}</p>
+              </div>
+              {migrator.error ? <p className="mt-1 text-red-700 text-sm leading-6">{migrator.error}</p> : null}
+            </div>
+            <p
+              className={cn(
+                'flex items-center justify-start text-sm transition-colors duration-300 md:justify-end',
+                migrator.status === 'running' && 'text-primary',
+                migrator.status === 'completed' && 'text-primary/80',
+                migrator.status === 'failed' && 'text-red-700',
+                migrator.status === 'pending' && 'text-muted-foreground'
+              )}>
+              <StatusSummary status={migrator.status} text={statusText} />
+            </p>
+          </div>
+        )
+      })}
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-`
-
-const List = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const ListItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background-color: rgba(0, 0, 0, 0.04);
-  border-radius: 8px;
-`
-
-const ItemLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`
-
-const ItemName = styled.span`
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.88);
-`
-
-const ItemStatus = styled.span<{ status: MigratorStatus }>`
-  font-size: 14px;
-  color: ${({ status }) => {
-    switch (status) {
-      case 'failed':
-        return '#ff4d4f'
-      case 'completed':
-        return '#52c41a'
-      case 'running':
-        return 'var(--color-primary)'
-      default:
-        return 'rgba(0, 0, 0, 0.45)'
-    }
-  }};
-`

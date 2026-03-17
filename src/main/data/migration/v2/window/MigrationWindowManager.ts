@@ -38,8 +38,8 @@ export class MigrationWindowManager {
     logger.info('Creating migration window')
 
     this.window = new BrowserWindow({
-      width: 640,
-      height: 480,
+      width: 980,
+      height: 720,
       resizable: false,
       maximizable: false,
       minimizable: false,
