@@ -888,7 +888,11 @@
         "collapse": "Recolher",
         "collapse_in": "Incluir no recolhimento",
         "collapse_out": "Remover do recolhimento",
-        "expand": "Expandir"
+        "expand": "Expandir",
+        "file_not_found": "Arquivo não encontrado: {{path}}",
+        "open_file": "Abrir Arquivo",
+        "open_file_error": "Falha ao abrir o arquivo: {{path}}",
+        "reveal_in_finder": "Revelar no Finder"
       },
       "topics": "Tópicos",
       "translate": "Traduzir para {{target_language}}",
@@ -1382,7 +1386,7 @@
     "off": "Desligado",
     "on": "Ligado",
     "open": "Abrir",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Abrir em {{name}}",
     "paste": "Colar",
     "placeholders": {
       "select": {

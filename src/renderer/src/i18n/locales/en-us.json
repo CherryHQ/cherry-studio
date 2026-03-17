@@ -888,7 +888,11 @@
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
-        "expand": "Expand"
+        "expand": "Expand",
+        "file_not_found": "File not found: {{path}}",
+        "open_file": "Open File",
+        "open_file_error": "Failed to open file: {{path}}",
+        "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Topics ",
       "translate": "Translate to {{target_language}}",

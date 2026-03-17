@@ -888,7 +888,11 @@
         "collapse": "Falten",
         "collapse_in": "Zum Falten hinzufügen",
         "collapse_out": "Aus Falten entfernen",
-        "expand": "Ausklappen"
+        "expand": "Ausklappen",
+        "file_not_found": "Datei nicht gefunden: {{path}}",
+        "open_file": "Datei öffnen",
+        "open_file_error": "Fehler beim Öffnen der Datei: {{path}}",
+        "reveal_in_finder": "Im Finder anzeigen"
       },
       "topics": "Themen",
       "translate": "Übersetzen nach {{target_language}}",
@@ -1382,7 +1386,7 @@
     "off": "Aus",
     "on": "An",
     "open": "Öffnen",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "In {{name}} öffnen",
     "paste": "Einfügen",
     "placeholders": {
       "select": {

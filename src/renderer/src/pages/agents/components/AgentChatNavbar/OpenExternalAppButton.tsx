@@ -1,24 +1,13 @@
 import { DownOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SVGIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Button, Dropdown, type MenuProps, Space, Tooltip } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OpenExternalAppButton')
-
-const getEditorIcon = (app: ExternalAppInfo) => {
-  switch (app.id) {
-    case 'vscode':
-      return <VSCodeIcon className={'size-4'} />
-    case 'cursor':
-      return <CursorIcon className={'size-4'} />
-    case 'zed':
-      return <ZedIcon className={'size-4'} />
-  }
-}
 
 type OpenExternalAppButtonProps = {
   workdir: string
@@ -37,24 +26,12 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      const encodedPath = workdir.split(/[/\\]/).map(encodeURIComponent).join('/')
       switch (app.id) {
         case 'vscode':
-        case 'cursor': {
-          // https://code.visualstudio.com/docs/configure/command-line#_opening-vs-code-with-urls
-          // https://github.com/microsoft/vscode/issues/141548#issuecomment-1102200617
-          const appUrl = `${app.protocol}file/${encodedPath}?windowId=_blank`
-          window.open(appUrl)
+        case 'cursor':
+        case 'zed':
+          window.open(buildEditorUrl(app, workdir))
           break
-        }
-        case 'zed': {
-          // https://github.com/zed-industries/zed/issues/8482
-          // Zed parses URLs by stripping "zed://file" prefix, so the format is
-          // zed://file/absolute/path (no extra "/" between "file" and path, no query params)
-          const appUrl = `${app.protocol}file${encodedPath}`
-          window.open(appUrl)
-          break
-        }
         default:
           logger.error(`Unexpected Error: External app not found: ${app.id}`)
           window.toast.error(`Unexpected Error: External app not found: ${app.id}`)

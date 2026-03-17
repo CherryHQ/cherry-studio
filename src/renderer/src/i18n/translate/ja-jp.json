@@ -888,7 +888,11 @@
         "collapse": "折りたたむ",
         "collapse_in": "折りたたむ",
         "collapse_out": "展開",
-        "expand": "展開"
+        "expand": "展開",
+        "file_not_found": "ファイルが見つかりません: {{path}}",
+        "open_file": "ファイルを開く",
+        "open_file_error": "ファイルを開けませんでした: {{path}}",
+        "reveal_in_finder": "Finderで表示"
       },
       "topics": " トピック ",
       "translate": "{{target_language}}に翻訳",
@@ -1382,7 +1386,7 @@
     "off": "オフ",
     "on": "オン",
     "open": "開く",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "{{name}}で開く",
     "paste": "貼り付け",
     "placeholders": {
       "select": {

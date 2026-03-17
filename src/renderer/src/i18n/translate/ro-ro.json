@@ -888,7 +888,11 @@
         "collapse": "Restrânge",
         "collapse_in": "Restrânge",
         "collapse_out": "Elimină din restrângere",
-        "expand": "Extinde"
+        "expand": "Extinde",
+        "file_not_found": "Fișier negăsit: {{path}}",
+        "open_file": "Deschide fișier",
+        "open_file_error": "Nu s-a putut deschide fișierul: {{path}}",
+        "reveal_in_finder": "Afișează în Finder"
       },
       "topics": " Subiecte ",
       "translate": "Tradu în {{target_language}}",
@@ -1382,7 +1386,7 @@
     "off": "Oprit",
     "on": "Pornit",
     "open": "Deschide",
-    "open_in": "[to be translated]:Open in {{name}}",
+    "open_in": "Deschide în {{name}}",
     "paste": "Lipește",
     "placeholders": {
       "select": {
