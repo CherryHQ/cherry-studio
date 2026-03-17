@@ -329,13 +329,17 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
   }
 ]
 
+const quoteWindowsCommand = (command: string): string => {
+  return `"${command.replace(/"/g, '""')}"`
+}
+
 export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.cmd,
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', fullCommand]
+      args: ['/c', quoteWindowsCommand(fullCommand)]
     })
   },
   {
@@ -351,7 +355,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', `"${fullCommand}"`]
+      args: ['-p', 'Command Prompt', '--', 'cmd', '/c', quoteWindowsCommand(fullCommand)]
     })
   },
   {
@@ -359,7 +363,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
-      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+      args: ['bash', '-c', `cmd.exe /c ${quoteWindowsCommand(fullCommand)} ; read -p 'Press Enter to exit'`]
     })
   },
   {
@@ -368,7 +372,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     customPath: '',
     command: (_: string, fullCommand: string) => ({
       command: 'alacritty',
-      args: ['-e', 'cmd', '/c', fullCommand]
+      args: ['-e', 'cmd', '/c', quoteWindowsCommand(fullCommand)]
     })
   },
   {
@@ -377,7 +381,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     customPath: '',
     command: (_: string, fullCommand: string) => ({
       command: 'wezterm',
-      args: ['start', '--', 'cmd', '/c', fullCommand]
+      args: ['start', '--', 'cmd', '/c', quoteWindowsCommand(fullCommand)]
     })
   }
 ]
