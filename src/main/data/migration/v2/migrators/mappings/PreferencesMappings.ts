@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-01-23T10:31:39.499Z
+ * Generated at: 2026-03-13T06:52:25.030Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -831,6 +831,20 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'assistant.unified_list_order'
     }
   ],
+  websearch: [
+    {
+      originalKey: 'searchWithTime',
+      targetKey: 'chat.web_search.search_with_time'
+    },
+    {
+      originalKey: 'maxResults',
+      targetKey: 'chat.web_search.max_results'
+    },
+    {
+      originalKey: 'excludeDomains',
+      targetKey: 'chat.web_search.exclude_domains'
+    }
+  ],
   note: [
     {
       originalKey: 'settings.isFullWidth',
@@ -875,17 +889,31 @@ export const REDUX_STORE_MAPPINGS = {
   ]
 } as const
 
+/**
+ * Dexie Settings映射关系 - 简单KV结构
+ *
+ * Maps Dexie IndexedDB `settings` table keys (id field) to new preference target keys.
+ * The settings table uses a simple KV structure: { id: string, value: any }.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (value conversion, multi-key merging, etc.),
+ * use ComplexPreferenceMappings with source: 'dexie-settings' instead.
+ */
+export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const
+
 // === AUTO-GENERATED CONTENT END ===
 
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 203
- * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
- * - 总配置项: 204
+ * - Redux Store项: 206
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, websearch, note
+ * - DexieSettings项: 0
+ * - 总配置项: 207
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
  * 2. Redux读取: 需要解析嵌套路径 reduxData[category][originalKey路径]
- * 3. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
+ * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
+ * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
  */

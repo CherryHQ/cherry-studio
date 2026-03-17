@@ -78,7 +78,10 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            window.toast.success(t('knowledge.url_added'))
+            window.toast.warning({
+              title: t('knowledge.url_added'),
+              key: `url-added`
+            })
           }
         } catch (e) {
           // Skip invalid URLs silently

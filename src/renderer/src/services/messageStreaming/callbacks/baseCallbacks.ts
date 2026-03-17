@@ -22,7 +22,12 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import type { Assistant } from '@renderer/types'
-import type { PlaceholderMessageBlock, Response, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type {
+  PlaceholderMessageBlock,
+  Response,
+  ThinkingMessageBlock,
+  ToolMessageBlock
+} from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { trackTokenUsage } from '@renderer/utils/analytics'
@@ -153,12 +158,18 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         const thinkingInfo = getCurrentThinkingInfo?.()
         for (const blockRef of allBlockRefs) {
           const block = streamingService.getBlock(blockRef.id)
-          if (block && block.status === MessageBlockStatus.STREAMING && block.id !== possibleBlockId) {
-            // 构建更新对象
+          if (!block) continue
+
+          // 更新非 possibleBlockId 的 STREAMING blocks（possibleBlockId 已在上面处理）
+          // 跳过 TOOL 类型 blocks，它们在下面的 tool block 分支中统一处理
+          if (
+            block.id !== possibleBlockId &&
+            block.status === MessageBlockStatus.STREAMING &&
+            block.type !== MessageBlockType.TOOL
+          ) {
             const changes: Partial<ThinkingMessageBlock> = {
               status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
             }
-            // 如果是 thinking block 且有思考时间信息，保留实际思考时间
             if (
               block.type === MessageBlockType.THINKING &&
               thinkingInfo?.blockId === block.id &&
@@ -169,16 +180,50 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             }
             streamingService.updateBlock(block.id, changes)
           }
+
+          // Fix: 更新所有仍处于非完成状态的 tool blocks 的 rawMcpToolResponse.status
+          // 当用户点击停止时，tool blocks 的 UI 状态依赖 rawMcpToolResponse.status，
+          // 而不是 MessageBlockStatus，所以需要单独更新
+          if (block.type === MessageBlockType.TOOL) {
+            const toolBlock = block as ToolMessageBlock
+            const toolResponse = toolBlock.metadata?.rawMcpToolResponse
+            const toolStatus = toolResponse?.status
+            if (
+              toolResponse &&
+              toolStatus &&
+              toolStatus !== 'done' &&
+              toolStatus !== 'error' &&
+              toolStatus !== 'cancelled'
+            ) {
+              streamingService.updateBlock(block.id, {
+                status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR,
+                metadata: {
+                  ...toolBlock.metadata,
+                  rawMcpToolResponse: {
+                    ...toolResponse,
+                    status: isErrorTypeAbort ? 'cancelled' : 'error'
+                  }
+                }
+              })
+            }
+          }
         }
       }
 
       // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
       await blockManager.handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+      const messageErrorUpdate = {
+        status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+      }
+      streamingService.updateMessage(assistantMsgId, messageErrorUpdate)
 
-      // Finalize session with error/success status
-      const finalStatus = isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
-      await streamingService.finalize(assistantMsgId, finalStatus)
+      // 从更新后的 state 中获取需要持久化的 blocks
+      // const blocksToSave = updatedBlockIds.map((id) => streamingService.getBlock(id)).filter(Boolean) as MessageBlock[]
+      await streamingService.finalize(
+        assistantMsgId,
+        isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+      )
 
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
         id: assistantMsgId,

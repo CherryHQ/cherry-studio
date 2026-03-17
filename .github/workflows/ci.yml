@@ -13,7 +13,7 @@ on:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened, edited]
+    types: [ready_for_review, synchronize, opened]
 
 jobs:
   changes:
@@ -97,6 +97,9 @@ jobs:
 
       - name: Hardcoded Strings Check
         run: pnpm i18n:hardcoded:strict
+
+      - name: OpenAPI Spec Check
+        run: pnpm openapi:check
 
       - name: Skills Check
         run: pnpm skills:check

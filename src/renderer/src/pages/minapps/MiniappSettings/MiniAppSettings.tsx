@@ -54,12 +54,19 @@ const MiniAppSettings: FC = () => {
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // 当 store 数据变化时（例如切换地区）同步本地状态
+  useEffect(() => {
+    setVisibleMiniApps(minapps)
+    setDisabledMiniApps(disabled || [])
+  }, [minapps, disabled])
+
   const handleResetMinApps = useCallback(() => {
-    setVisibleMiniApps(allMinApps)
+    // 仅重置为当前地区可见的应用，以避免混淆
+    setVisibleMiniApps(minapps)
     setDisabledMiniApps([])
     updateMinapps(allMinApps)
     updateDisabledMinapps([])
-  }, [updateDisabledMinapps, updateMinapps])
+  }, [minapps, updateDisabledMinapps, updateMinapps])
 
   const handleSwapMinApps = useCallback(() => {
     const temp = visibleMiniApps

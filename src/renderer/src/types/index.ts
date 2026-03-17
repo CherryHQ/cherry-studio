@@ -114,6 +114,7 @@ const ThinkModelTypes = [
   'gpt5_codex',
   'gpt5_1_codex',
   'gpt5_1_codex_max',
+  'gpt5_2_codex',
   'gpt5_2',
   'gpt5pro',
   'gpt52pro',
@@ -522,7 +523,7 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
-  logo?: string
+  logo?: string | object
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean
@@ -713,6 +714,7 @@ export type WebSearchProvider = {
   basicAuthPassword?: string
   usingBrowser?: boolean
   topicId?: string
+  allowedTools?: string[]
   parentSpanId?: string
   modelName?: string
 }
@@ -1211,6 +1213,7 @@ type BaseParams = {
   requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
+  allowedTools?: string[]
   uiMessages?: Message[]
 }
 

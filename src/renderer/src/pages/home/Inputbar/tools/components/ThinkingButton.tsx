@@ -30,16 +30,27 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   model: Model
   assistantId: string
+  // Controlled mode: external state management (for agent sessions)
+  reasoningEffort?: ThinkingOption
+  onReasoningEffortChange?: (option: ThinkingOption) => void
 }
 
-const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactElement => {
+const ThinkingButton: FC<Props> = ({
+  quickPanel,
+  model,
+  assistantId,
+  reasoningEffort: controlledEffort,
+  onReasoningEffortChange
+}): ReactElement => {
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
+  const isControlled = controlledEffort !== undefined
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
   const currentReasoningEffort = useMemo(() => {
+    if (isControlled) return controlledEffort
     return assistant.settings?.reasoning_effort || 'none'
-  }, [assistant.settings?.reasoning_effort])
+  }, [isControlled, controlledEffort, assistant.settings?.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
@@ -58,9 +69,14 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   }, [model, modelType])
 
   const onThinkingChange = useCallback(
-    (option?: ThinkingOption) => {
-      const isEnabled = option !== undefined && option !== 'none'
-      // 然后更新设置
+    (option: ThinkingOption) => {
+      const isEnabled = option !== 'none'
+
+      if (isControlled) {
+        onReasoningEffortChange?.(option)
+        return
+      }
+
       if (!isEnabled) {
         updateAssistantSettings({
           reasoning_effort: option,
@@ -83,9 +99,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
         reasoning_effort_cache: option,
         qwenThinkMode: true
       })
-      return
     },
-    [updateAssistantSettings, assistant.enableWebSearch, model, t]
+    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistant.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = {

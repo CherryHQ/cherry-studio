@@ -1,6 +1,4 @@
-import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -10,6 +8,7 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
@@ -36,26 +35,11 @@ export const WebSearchProviderIcon = ({
   size?: number
   color?: string
 }) => {
-  switch (pid) {
-    case 'bocha':
-      return <BochaLogo className="icon" width={size} height={size} color={color} />
-    case 'exa':
-      return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
-    case 'tavily':
-      return <TavilyLogo className="icon" width={size} height={size} color={color} />
-    case 'zhipu':
-      return <ZhipuLogo className="icon" width={size} height={size} color={color} />
-    case 'searxng':
-      return <SearXNGLogo className="icon" width={size} height={size} color={color} />
-    case 'local-baidu':
-      return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
-    case 'local-bing':
-      return <BingLogo className="icon" width={size} height={size} color={color} />
-    case 'local-google':
-      return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
-    default:
-      return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
+  const Icon = pid ? getWebSearchProviderLogo(pid) : undefined
+  if (Icon) {
+    return <Icon.Mono className="icon" width={size} height={size} color={color} />
   }
+  return <Globe className="icon" size={size} style={{ color }} />
 }
 
 export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
