@@ -12,14 +12,14 @@ interface UseUnifiedGroupingOptions {
   unifiedItems: UnifiedItem[]
   assistants: Assistant[]
   agents: AgentEntity[]
-  apiServerEnabled: boolean
+  apiGatewayEnabled: boolean
   agentsLoading: boolean
   agentsError: Error | null
   updateAssistants: (assistants: Assistant[]) => void
 }
 
 export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
-  const { unifiedItems, assistants, agents, apiServerEnabled, agentsLoading, agentsError, updateAssistants } = options
+  const { unifiedItems, assistants, agents, apiGatewayEnabled, agentsLoading, agentsError, updateAssistants } = options
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
 
@@ -102,7 +102,7 @@ export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
       const availableAgents = new Map<string, AgentEntity>()
       const availableAssistants = new Map<string, Assistant>()
 
-      if (apiServerEnabled && !agentsLoading && !agentsError) {
+      if (apiGatewayEnabled && !agentsLoading && !agentsError) {
         agents.forEach((agent) => availableAgents.set(agent.id, agent))
       }
       updatedAssistants.forEach((assistant) => availableAssistants.set(assistant.id, assistant))
@@ -147,7 +147,7 @@ export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
       assistants,
       t,
       updateAssistants,
-      apiServerEnabled,
+      apiGatewayEnabled,
       agentsLoading,
       agentsError,
       agents,

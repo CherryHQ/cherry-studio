@@ -13,9 +13,9 @@ interface SessionsTabProps {}
 const SessionsTab: FC<SessionsTabProps> = () => {
   const [activeAgentId] = useCache('agent.active_id')
   const { t } = useTranslation()
-  const { apiServer } = useSettings()
+  const { apiGateway } = useSettings()
 
-  if (!apiServer.enabled) {
+  if (!apiGateway.enabled) {
     return <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: 10 }} />
   }
 

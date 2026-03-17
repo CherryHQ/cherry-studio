@@ -16,7 +16,7 @@ import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { Alert, Checkbox, Input, Select, Space } from 'antd'
 import { Download, FolderOpen, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -88,9 +88,11 @@ const CodeToolsPage: FC = () => {
         if (m.supported_endpoint_types) {
           return m.supported_endpoint_types.includes('anthropic')
         }
-        // Special handling for silicon provider: only specific models support Anthropic API
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
+        }
+        if (m.provider === 'ppio') {
+          return isPpioAnthropicCompatibleModel(m.id)
         }
         // Check if model belongs to an anthropic type provider (including custom providers)
         const anthropicProvider = providers.find((p) => p.id === m.provider)

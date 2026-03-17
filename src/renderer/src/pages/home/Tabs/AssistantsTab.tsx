@@ -1,7 +1,7 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
@@ -31,8 +31,8 @@ interface AssistantsTabProps {
 const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
-  const { apiServerConfig } = useApiServer()
-  const apiServerEnabled = apiServerConfig.enabled
+  const { apiGatewayConfig } = useApiGateway()
+  const apiGatewayEnabled = apiGatewayConfig.enabled
   const { t } = useTranslation()
 
   // Agent related hooks
@@ -51,7 +51,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
     agents,
     assistants,
-    apiServerEnabled,
+    apiGatewayEnabled,
     agentsLoading,
     agentsError,
     updateAssistants
@@ -68,7 +68,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     unifiedItems,
     assistants,
     agents,
-    apiServerEnabled,
+    apiGatewayEnabled,
     agentsLoading,
     agentsError,
     updateAssistants

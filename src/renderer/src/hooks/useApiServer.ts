@@ -12,7 +12,7 @@ let removeIpcListener: (() => void) | null = null
 
 const ensureIpcSubscribed = () => {
   if (!removeIpcListener) {
-    removeIpcListener = window.api.apiServer.onReady(() => {
+    removeIpcListener = window.api.apiGateway.onReady(() => {
       onReadyCallbacks.forEach((cb) => cb())
     })
   }
@@ -51,7 +51,7 @@ export const useApiServer = () => {
   const checkApiServerStatus = useCallback(async () => {
     setApiServerLoading(true)
     try {
-      const status = await window.api.apiServer.getStatus()
+      const status = await window.api.apiGateway.getStatus()
       setApiServerRunning(status.running)
       // if (status.running && !apiServerConfig.enabled) {
       //   setApiServerEnabled(true)
@@ -67,7 +67,7 @@ export const useApiServer = () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
-      const result = await window.api.apiServer.start()
+      const result = await window.api.apiGateway.start()
       if (result.success) {
         setApiServerRunning(true)
         setApiServerEnabled(true)
@@ -86,7 +86,7 @@ export const useApiServer = () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
-      const result = await window.api.apiServer.stop()
+      const result = await window.api.apiGateway.stop()
       if (result.success) {
         setApiServerRunning(false)
         setApiServerEnabled(false)
@@ -105,7 +105,7 @@ export const useApiServer = () => {
     if (apiServerLoading) return
     setApiServerLoading(true)
     try {
-      const result = await window.api.apiServer.restart()
+      const result = await window.api.apiGateway.restart()
       setApiServerEnabled(result.success)
       if (result.success) {
         await checkApiServerStatus()

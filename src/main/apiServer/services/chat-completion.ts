@@ -3,7 +3,7 @@ import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } 
 import { loggerService } from '@logger'
 import type { Provider } from '@types'
 
-import { type ModelValidationError, validateModelId } from '../utils'
+import { type ModelValidationError, validateModelId } from '../../apiGateway/utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
 

@@ -28,7 +28,10 @@ export default defineConfig({
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
-        '@test-mocks': resolve('tests/__mocks__')
+        '@test-mocks': resolve('tests/__mocks__'),
+        '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+        '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src')
       }
     },
     build: {

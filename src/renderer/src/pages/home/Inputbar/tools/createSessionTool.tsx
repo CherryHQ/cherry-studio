@@ -18,13 +18,13 @@ const createSessionTool = defineTool({
   render: function CreateSessionRender(context) {
     const { t, assistant, session } = context
     const newTopicShortcut = useShortcutDisplay('new_topic')
-    const { apiServer } = useSettings()
+    const { apiGateway } = useSettings()
     const sessionAgentId = session?.agentId
 
     const agentId = sessionAgentId || assistant.id
     const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
 
-    const createSessionDisabled = creatingSession || !apiServer.enabled
+    const createSessionDisabled = creatingSession || !apiGateway.enabled
 
     const handleCreateSession = useCallback(async () => {
       if (createSessionDisabled) {

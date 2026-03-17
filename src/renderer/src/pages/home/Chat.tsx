@@ -12,6 +12,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -53,7 +54,7 @@ const Chat: FC<Props> = (props) => {
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const [apiServerEnabled] = usePreference('feature.csaas.enabled')
+  const { apiGateway } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
@@ -245,7 +246,7 @@ const Chat: FC<Props> = (props) => {
                 {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
                 {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
                   <>
-                    {!apiServerEnabled ? (
+                    {!apiGateway.enabled ? (
                       <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
                     ) : (
                       <>
