@@ -165,6 +165,21 @@ vi.mock('@cherrystudio/ui', () => {
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
     },
+    Tag: ({ children, icon, color, className, disabled, closable, onClose, onClick, onContextMenu, ...props }) =>
+      React.createElement(
+        'div',
+        {
+          ...props,
+          className,
+          style: { color, ...(disabled && { cursor: 'not-allowed' }) },
+          onClick: disabled ? undefined : onClick,
+          onContextMenu: disabled ? undefined : onContextMenu,
+          'data-testid': 'tag'
+        },
+        icon,
+        children,
+        closable ? React.createElement('span', { 'data-testid': 'tag-close', onClick: onClose }, '×') : null
+      ),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),

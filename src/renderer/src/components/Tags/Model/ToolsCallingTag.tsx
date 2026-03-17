@@ -1,25 +1,23 @@
 import { ToolOutlined } from '@ant-design/icons'
+import { Tag, type TagProps } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { CustomTagProps } from '../CustomTag'
-import CustomTag from '../CustomTag'
-
 type Props = {
-  size?: number
+  size?: TagProps['size']
   showTooltip?: boolean
   showLabel?: boolean
-} & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
+} & Omit<TagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
 export const ToolsCallingTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
   return (
-    <CustomTag
+    <Tag
       size={size}
       color="#f18737"
-      icon={<ToolOutlined style={{ fontSize: size }} />}
+      icon={<ToolOutlined />}
       tooltip={showTooltip ? t('models.type.function_calling') : undefined}
       {...restProps}>
       {showLabel ? t('models.type.function_calling') : ''}
-    </CustomTag>
+    </Tag>
   )
 }

@@ -1,17 +1,15 @@
+import { Tag, type TagProps } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { CustomTagProps } from '../CustomTag'
-import CustomTag from '../CustomTag'
-
 type Props = {
-  size?: number
+  size?: TagProps['size']
   showTooltip?: boolean
-} & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
+} & Omit<TagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
 export const FreeTag = ({ size, showTooltip, ...restProps }: Props) => {
   const { t } = useTranslation()
   return (
-    <CustomTag
+    <Tag
       size={size}
       color="#7cb305"
       icon={t('models.type.free')}

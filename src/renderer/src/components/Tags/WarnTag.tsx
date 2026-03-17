@@ -1,6 +1,5 @@
+import { Tag } from '@cherrystudio/ui'
 import { AlertTriangleIcon } from 'lucide-react'
-
-import CustomTag from './CustomTag'
 
 type Props = {
   iconSize?: number
@@ -9,10 +8,10 @@ type Props = {
 
 export const WarnTag = ({ iconSize: size = 14, message }: Props) => {
   return (
-    <CustomTag
+    <Tag
       icon={<AlertTriangleIcon size={size} color="var(--color-status-warning)" />}
       color="var(--color-status-warning)">
       {message}
-    </CustomTag>
+    </Tag>
   )
 }

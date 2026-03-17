@@ -1,6 +1,6 @@
 import { ColFlex, Flex, HelpTooltip } from '@cherrystudio/ui'
+import { Tag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { Topic } from '@renderer/types'
@@ -369,11 +369,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                   className="items-center justify-between"
                   onClick={() => handleContentTypeToggle(option.type)}>
                   <Flex className="items-center gap-2">
-                    <CustomTag
-                      color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
-                      size={12}>
+                    <Tag color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}>
                       {option.count}
-                    </CustomTag>
+                    </Tag>
                     <span>{option.label}</span>
                     <HelpTooltip content={option.description} closeDelay={0} />
                   </Flex>
