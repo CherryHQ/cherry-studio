@@ -264,10 +264,11 @@ export abstract class BaseService {
 
   /**
    * Resolve accessible paths, assigning a default workspace under `{dataPath}/Agents/{id}`
-   * when the provided paths are empty or undefined, then ensure all directories exist.
+   * only when the field is omitted. An explicit empty array means the caller intentionally
+   * cleared all accessible paths and should be preserved.
    */
   protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
-    if (!paths || paths.length === 0) {
+    if (paths === undefined) {
       const shortId = id.substring(id.length - 9)
       paths = [path.join(getDataPath(), 'Agents', shortId)]
     }
