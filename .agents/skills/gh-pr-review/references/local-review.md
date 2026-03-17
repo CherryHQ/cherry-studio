@@ -51,7 +51,8 @@ If diff is empty → show usage examples and exit:
 ## Step 2: Review
 
 Review the diff. Apply `code-checklist.md` to code files,
-`doc-checklist.md` to documentation files. When changed lines depend on
+`doc-checklist.md` to documentation files. For React component changes, also
+consult `vercel-react-best-practices` skill for detailed performance patterns. When changed lines depend on
 surrounding context, read the relevant sections or related definitions as
 needed. Untracked files have no diff — review their full contents as new code.
 

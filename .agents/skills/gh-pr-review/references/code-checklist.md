@@ -5,6 +5,15 @@ which levels to check. Test code: only check for obvious implementation errors.
 
 Project rules loaded in context override this checklist.
 
+## React & Performance Deep Reference
+
+For React component and performance reviews, also consult
+`vercel-react-best-practices` skill (`../../vercel-react-best-practices/SKILL.md`).
+It provides 62 detailed rules covering re-render optimization, bundle size,
+async patterns, rendering performance, and advanced React patterns. The checklist
+items below (B1, B8, A5, A6) are high-level checks — the Vercel rules provide
+specific patterns and code examples for deeper analysis.
+
 ---
 
 ## A. Correctness & Safety

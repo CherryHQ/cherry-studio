@@ -138,6 +138,8 @@ Each reviewer receives:
   pass raw diff or file contents.
 - **Checklist**: `code-checklist.md` for code, `doc-checklist.md` for doc, both
   for mixed. Include the checklist content verbatim in the reviewer prompt.
+  For React/performance-heavy modules, also include relevant rules from
+  `vercel-react-best-practices` skill as supplementary checks.
 - **Evidence requirement**: every issue must have a code citation (file:line +
   snippet) from the current tree.
 - **Checklist exclusion**: see the exclusion section in the corresponding

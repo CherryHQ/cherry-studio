@@ -84,7 +84,8 @@ gh api repos/{OWNER_REPO}/pulls/{number}/comments
 2. Read `PR_BODY` to understand the stated motivation. Verify the
    implementation actually achieves what the author describes.
 3. Apply `code-checklist.md` to code files, `doc-checklist.md` to
-   documentation files. Use `judgment-matrix.md` to decide whether each issue
+   documentation files. For React component changes, also consult
+   `vercel-react-best-practices` skill for detailed performance patterns. Use `judgment-matrix.md` to decide whether each issue
    is worth reporting.
 4. Check whether issues raised in previous PR comments have been fixed.
 5. For each potential issue, perform a second-pass verification: re-read the
