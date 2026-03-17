@@ -114,7 +114,6 @@ export const MODEL_TO_PUBLISHER: [RegExp, string][] = [
   [/^kling/, 'kling'],
   [/^vidu/, 'vidu'],
   [/^suno/, 'suno'],
-  [/^sonar/, 'perplexity'],
   [/^kolors/, 'kolors'],
   [/^megrez/, 'infini'],
   [/^aion/, 'aion']
