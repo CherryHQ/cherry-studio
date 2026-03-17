@@ -7,7 +7,9 @@
         "invalid_agent": "Agent invalid"
       },
       "model": {
-        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent."
+        "supported_providers": "[to be translated]:Supported Providers",
+        "tooltip": "Momentan, doar modelele care acceptă endpoint-uri Anthropic sunt disponibile pentru funcția Agent.",
+        "view_providers": "[to be translated]:View supported providers"
       },
       "title": "Adaugă agent",
       "type": {
@@ -396,62 +398,112 @@
       "enable_server": "Activează serverul API pentru a folosi agenți."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
-      "copy": "Copiază",
-      "regenerate": "Regenerează",
+      "addGroup": "[to be translated]:Add Group",
+      "copy": "[to be translated]:Copy",
+      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
+      "regenerate": "[to be translated]:Regenerate",
       "restart": {
-        "button": "Repornește",
-        "tooltip": "Repornește serverul"
+        "button": "[to be translated]:Restart",
+        "tooltip": "[to be translated]:Restart Server"
       },
-      "start": "Pornește",
-      "stop": "Oprește"
+      "start": "[to be translated]:Start",
+      "stop": "[to be translated]:Stop"
     },
     "authHeader": {
-      "title": "Header de autorizare"
+      "title": "[to be translated]:Authorization Header"
     },
-    "authHeaderText": "Utilizează în header-ul Authorization:",
-    "configuration": "Configurare",
-    "description": "Expune capacitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
+    "authHeaderText": "[to be translated]:Use in Authorization header:",
+    "configuration": "[to be translated]:Configuration",
+    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
     "documentation": {
-      "title": "Documentație API"
+      "title": "[to be translated]:API Documentation"
+    },
+    "endpoints": {
+      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
+      "messages": "[to be translated]:Anthropic-compatible messages API",
+      "responses": "[to be translated]:OpenAI Responses API (new format)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "Copiază cheia API",
-        "description": "Token de autentificare securizat pentru acces API",
-        "label": "Cheie API",
-        "placeholder": "Cheia API va fi generată automat"
+        "copyTooltip": "[to be translated]:Copy API Key",
+        "description": "[to be translated]:Secure authentication token for API access",
+        "label": "[to be translated]:API Key",
+        "placeholder": "[to be translated]:API key will be auto-generated"
+      },
+      "baseUrl": {
+        "copyTooltip": "[to be translated]:Copy Base URL",
+        "description": "[to be translated]:Use this URL as your API base URL in external applications",
+        "label": "[to be translated]:Base URL"
+      },
+      "copyAsEnv": {
+        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
+        "format": "[to be translated]:Format",
+        "label": "[to be translated]:Environment Variables"
+      },
+      "defaultModel": {
+        "description": "[to be translated]:Select the default provider and model for external applications",
+        "label": "[to be translated]:Default Model",
+        "modelPlaceholder": "[to be translated]:Select model",
+        "providerPlaceholder": "[to be translated]:Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
+        "label": "[to be translated]:Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
+        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
+        "label": "[to be translated]:Model Groups",
+        "mode": {
+          "assistant": "[to be translated]:Assistant Preset",
+          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "[to be translated]:Select assistant",
+          "label": "[to be translated]:Mode",
+          "model": "[to be translated]:Direct Model"
+        },
+        "namePlaceholder": "[to be translated]:Group name"
+      },
+      "networkAccess": {
+        "description": "[to be translated]:Allow connections from other devices on your network",
+        "label": "[to be translated]:Expose to Network",
+        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
       },
       "port": {
-        "description": "Numărul portului TCP pentru serverul HTTP (1000-65535)",
-        "helpText": "Oprește serverul pentru a schimba portul",
-        "label": "Port"
+        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
+        "helpText": "[to be translated]:Stop server to change port",
+        "label": "[to be translated]:Port"
       },
       "url": {
-        "copyTooltip": "Copiază URL-ul",
-        "label": "URL"
+        "copyTooltip": "[to be translated]:Copy URL",
+        "label": "[to be translated]:URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "Cheia API a fost copiată în clipboard",
-      "apiKeyRegenerated": "Cheia API a fost regenerată",
-      "notEnabled": "Serverul API nu este activat.",
-      "operationFailed": "Operațiunea serverului API a eșuat: ",
-      "restartError": "Nu s-a putut reporni serverul API: ",
-      "restartFailed": "Repornirea serverului API a eșuat: ",
-      "restartSuccess": "Serverul API a repornit cu succes",
-      "startError": "Nu s-a putut porni serverul API: ",
-      "startSuccess": "Serverul API a pornit cu succes",
-      "stopError": "Nu s-a putut opri serverul API: ",
-      "stopSuccess": "Serverul API s-a oprit cu succes",
-      "urlCopied": "URL-ul serverului a fost copiat în clipboard"
+      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
+      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
+      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
+      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
+      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
+      "nameRequired": "[to be translated]:Group name cannot be empty",
+      "nameUpdated": "[to be translated]:Group name updated",
+      "notEnabled": "[to be translated]:The API Server is not enabled.",
+      "operationFailed": "[to be translated]:API Server operation failed: ",
+      "restartError": "[to be translated]:Failed to restart API Server: ",
+      "restartFailed": "[to be translated]:API Server restart failed: ",
+      "restartSuccess": "[to be translated]:API Server restarted successfully",
+      "startError": "[to be translated]:Failed to start API Server: ",
+      "startSuccess": "[to be translated]:API Server started successfully",
+      "stopError": "[to be translated]:Failed to stop API Server: ",
+      "stopSuccess": "[to be translated]:API Server stopped successfully",
+      "urlCopied": "[to be translated]:Server URL copied to clipboard"
     },
     "status": {
-      "running": "Rulează",
-      "stopped": "Oprit"
+      "running": "[to be translated]:Running",
+      "stopped": "[to be translated]:Stopped"
     },
-    "title": "Server API"
+    "title": "[to be translated]:API Server"
   },
   "appMenu": {
     "about": "Despre",
@@ -5023,6 +5075,11 @@
       },
       "docs_check": "Verifică",
       "docs_more_details": "pentru mai multe detalii",
+      "filter": {
+        "agent": "[to be translated]:Agent Supported",
+        "all": "[to be translated]:All Providers"
+      },
+      "filter_agent": "[to be translated]:Filter Agent Supported Providers",
       "get_api_key": "Obține cheie API",
       "misc": "Altele",
       "no_models_for_check": "Nu există modele disponibile pentru verificare (de ex. modele chat)",
@@ -5390,6 +5447,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicații",

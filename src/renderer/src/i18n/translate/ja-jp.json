@@ -398,62 +398,112 @@
       "enable_server": "APIサーバーがエージェントを使用できるようにする。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
-      "copy": "コピー",
-      "regenerate": "再生成",
+      "addGroup": "[to be translated]:Add Group",
+      "copy": "[to be translated]:Copy",
+      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
+      "regenerate": "[to be translated]:Regenerate",
       "restart": {
-        "button": "再起動",
-        "tooltip": "サーバーを再起動"
+        "button": "[to be translated]:Restart",
+        "tooltip": "[to be translated]:Restart Server"
       },
-      "start": "開始",
-      "stop": "停止"
+      "start": "[to be translated]:Start",
+      "stop": "[to be translated]:Stop"
     },
     "authHeader": {
-      "title": "認証ヘッダー"
+      "title": "[to be translated]:Authorization Header"
     },
-    "authHeaderText": "認証ヘッダーで使用：",
-    "configuration": "設定",
-    "description": "OpenAI 互換の HTTP API を通じて Cherry Studio の AI 機能を公開します",
+    "authHeaderText": "[to be translated]:Use in Authorization header:",
+    "configuration": "[to be translated]:Configuration",
+    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
     "documentation": {
-      "title": "API ドキュメント"
+      "title": "[to be translated]:API Documentation"
+    },
+    "endpoints": {
+      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
+      "messages": "[to be translated]:Anthropic-compatible messages API",
+      "responses": "[to be translated]:OpenAI Responses API (new format)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "API キーをコピー",
-        "description": "API アクセスのための安全な認証トークン",
-        "label": "API キー",
-        "placeholder": "API キーは自動生成されます"
+        "copyTooltip": "[to be translated]:Copy API Key",
+        "description": "[to be translated]:Secure authentication token for API access",
+        "label": "[to be translated]:API Key",
+        "placeholder": "[to be translated]:API key will be auto-generated"
+      },
+      "baseUrl": {
+        "copyTooltip": "[to be translated]:Copy Base URL",
+        "description": "[to be translated]:Use this URL as your API base URL in external applications",
+        "label": "[to be translated]:Base URL"
+      },
+      "copyAsEnv": {
+        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
+        "format": "[to be translated]:Format",
+        "label": "[to be translated]:Environment Variables"
+      },
+      "defaultModel": {
+        "description": "[to be translated]:Select the default provider and model for external applications",
+        "label": "[to be translated]:Default Model",
+        "modelPlaceholder": "[to be translated]:Select model",
+        "providerPlaceholder": "[to be translated]:Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
+        "label": "[to be translated]:Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
+        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
+        "label": "[to be translated]:Model Groups",
+        "mode": {
+          "assistant": "[to be translated]:Assistant Preset",
+          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "[to be translated]:Select assistant",
+          "label": "[to be translated]:Mode",
+          "model": "[to be translated]:Direct Model"
+        },
+        "namePlaceholder": "[to be translated]:Group name"
+      },
+      "networkAccess": {
+        "description": "[to be translated]:Allow connections from other devices on your network",
+        "label": "[to be translated]:Expose to Network",
+        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
       },
       "port": {
-        "description": "HTTP サーバーの TCP ポート番号 (1000-65535)",
-        "helpText": "ポートを変更するにはサーバーを停止してください",
-        "label": "ポート"
+        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
+        "helpText": "[to be translated]:Stop server to change port",
+        "label": "[to be translated]:Port"
       },
       "url": {
-        "copyTooltip": "URL をコピー",
-        "label": "URL"
+        "copyTooltip": "[to be translated]:Copy URL",
+        "label": "[to be translated]:URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "API キーがクリップボードにコピーされました",
-      "apiKeyRegenerated": "API キーが再生成されました",
-      "notEnabled": "APIサーバーが有効になっていません。",
-      "operationFailed": "API サーバーの操作に失敗しました：",
-      "restartError": "API サーバーの再起動に失敗しました：",
-      "restartFailed": "API サーバーの再起動に失敗しました：",
-      "restartSuccess": "API サーバーが正常に再起動されました",
-      "startError": "API サーバーの開始に失敗しました：",
-      "startSuccess": "API サーバーが正常に開始されました",
-      "stopError": "API サーバーの停止に失敗しました：",
-      "stopSuccess": "API サーバーが正常に停止されました",
-      "urlCopied": "サーバー URL がクリップボードにコピーされました"
+      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
+      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
+      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
+      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
+      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
+      "nameRequired": "[to be translated]:Group name cannot be empty",
+      "nameUpdated": "[to be translated]:Group name updated",
+      "notEnabled": "[to be translated]:The API Server is not enabled.",
+      "operationFailed": "[to be translated]:API Server operation failed: ",
+      "restartError": "[to be translated]:Failed to restart API Server: ",
+      "restartFailed": "[to be translated]:API Server restart failed: ",
+      "restartSuccess": "[to be translated]:API Server restarted successfully",
+      "startError": "[to be translated]:Failed to start API Server: ",
+      "startSuccess": "[to be translated]:API Server started successfully",
+      "stopError": "[to be translated]:Failed to stop API Server: ",
+      "stopSuccess": "[to be translated]:API Server stopped successfully",
+      "urlCopied": "[to be translated]:Server URL copied to clipboard"
     },
     "status": {
-      "running": "実行中",
-      "stopped": "停止中"
+      "running": "[to be translated]:Running",
+      "stopped": "[to be translated]:Stopped"
     },
-    "title": "API サーバー"
+    "title": "[to be translated]:API Server"
   },
   "appMenu": {
     "about": "について",

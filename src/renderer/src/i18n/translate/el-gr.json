@@ -398,62 +398,112 @@
       "enable_server": "Ενεργοποίηση του διακομιστή API για χρήση πρακτόρων."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
-      "copy": "Αντιγραφή",
-      "regenerate": "Αναδημιουργία",
+      "addGroup": "[to be translated]:Add Group",
+      "copy": "[to be translated]:Copy",
+      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
+      "regenerate": "[to be translated]:Regenerate",
       "restart": {
-        "button": "Επανεκκίνηση",
-        "tooltip": "Επανεκκίνηση Διακομιστή"
+        "button": "[to be translated]:Restart",
+        "tooltip": "[to be translated]:Restart Server"
       },
-      "start": "Εκκίνηση",
-      "stop": "σταματήστε"
+      "start": "[to be translated]:Start",
+      "stop": "[to be translated]:Stop"
     },
     "authHeader": {
-      "title": "Επικεφαλίδα εξουσιοδότησης"
+      "title": "[to be translated]:Authorization Header"
     },
-    "authHeaderText": "Χρήση στην κεφαλίδα εξουσιοδότησης:",
-    "configuration": "Διαμόρφωση",
-    "description": "Εκθέτει τις δυνατότητες AI του Cherry Studio μέσω API HTTP συμβατών με OpenAI",
+    "authHeaderText": "[to be translated]:Use in Authorization header:",
+    "configuration": "[to be translated]:Configuration",
+    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
     "documentation": {
-      "title": "Τεκμηρίωση API"
+      "title": "[to be translated]:API Documentation"
+    },
+    "endpoints": {
+      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
+      "messages": "[to be translated]:Anthropic-compatible messages API",
+      "responses": "[to be translated]:OpenAI Responses API (new format)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "Αντιγραφή Κλειδιού API",
-        "description": "Διακριτικό ασφαλούς πιστοποίησης για πρόσβαση στο API",
-        "label": "Κλειδί API",
-        "placeholder": "Το κλειδί API θα δημιουργηθεί αυτόματα"
+        "copyTooltip": "[to be translated]:Copy API Key",
+        "description": "[to be translated]:Secure authentication token for API access",
+        "label": "[to be translated]:API Key",
+        "placeholder": "[to be translated]:API key will be auto-generated"
+      },
+      "baseUrl": {
+        "copyTooltip": "[to be translated]:Copy Base URL",
+        "description": "[to be translated]:Use this URL as your API base URL in external applications",
+        "label": "[to be translated]:Base URL"
+      },
+      "copyAsEnv": {
+        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
+        "format": "[to be translated]:Format",
+        "label": "[to be translated]:Environment Variables"
+      },
+      "defaultModel": {
+        "description": "[to be translated]:Select the default provider and model for external applications",
+        "label": "[to be translated]:Default Model",
+        "modelPlaceholder": "[to be translated]:Select model",
+        "providerPlaceholder": "[to be translated]:Select provider"
+      },
+      "enabledEndpoints": {
+        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
+        "label": "[to be translated]:Enabled Endpoints"
+      },
+      "modelGroups": {
+        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
+        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
+        "label": "[to be translated]:Model Groups",
+        "mode": {
+          "assistant": "[to be translated]:Assistant Preset",
+          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
+          "assistantPlaceholder": "[to be translated]:Select assistant",
+          "label": "[to be translated]:Mode",
+          "model": "[to be translated]:Direct Model"
+        },
+        "namePlaceholder": "[to be translated]:Group name"
+      },
+      "networkAccess": {
+        "description": "[to be translated]:Allow connections from other devices on your network",
+        "label": "[to be translated]:Expose to Network",
+        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
       },
       "port": {
-        "description": "Ο αριθμός θύρας TCP για τον εξυπηρετητή HTTP (1000-65535)",
-        "helpText": "Σταματήστε τον διακομιστή για να αλλάξετε τη θύρα",
-        "label": "Θύρα"
+        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
+        "helpText": "[to be translated]:Stop server to change port",
+        "label": "[to be translated]:Port"
       },
       "url": {
-        "copyTooltip": "Αντιγραφή URL",
-        "label": "URL"
+        "copyTooltip": "[to be translated]:Copy URL",
+        "label": "[to be translated]:URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "Το κλειδί API αντιγράφηκε στο πρόχειρο",
-      "apiKeyRegenerated": "Το κλειδί API αναδημιουργήθηκε",
-      "notEnabled": "Ο διακομιστής API δεν είναι ενεργοποιημένος.",
-      "operationFailed": "Η λειτουργία του Διακομιστή API απέτυχε: ",
-      "restartError": "Αποτυχία επανεκκίνησης του Διακομιστή API: ",
-      "restartFailed": "Η επανεκκίνηση του Διακομιστή API απέτυχε: ",
-      "restartSuccess": "Ο διακομιστής API επανεκκινήθηκε επιτυχώς",
-      "startError": "Αποτυχία εκκίνησης του Διακομιστή API: ",
-      "startSuccess": "Ο διακομιστής API ξεκίνησε επιτυχώς",
-      "stopError": "Αποτυχία διακοπής του Διακομιστή API: ",
-      "stopSuccess": "Ο διακομιστής API σταμάτησε επιτυχώς",
-      "urlCopied": "Το URL του διακομιστή αντιγράφηκε στο πρόχειρο"
+      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
+      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
+      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
+      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
+      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
+      "nameRequired": "[to be translated]:Group name cannot be empty",
+      "nameUpdated": "[to be translated]:Group name updated",
+      "notEnabled": "[to be translated]:The API Server is not enabled.",
+      "operationFailed": "[to be translated]:API Server operation failed: ",
+      "restartError": "[to be translated]:Failed to restart API Server: ",
+      "restartFailed": "[to be translated]:API Server restart failed: ",
+      "restartSuccess": "[to be translated]:API Server restarted successfully",
+      "startError": "[to be translated]:Failed to start API Server: ",
+      "startSuccess": "[to be translated]:API Server started successfully",
+      "stopError": "[to be translated]:Failed to stop API Server: ",
+      "stopSuccess": "[to be translated]:API Server stopped successfully",
+      "urlCopied": "[to be translated]:Server URL copied to clipboard"
     },
     "status": {
-      "running": "Εκτελείται",
-      "stopped": "Σταματημένος"
+      "running": "[to be translated]:Running",
+      "stopped": "[to be translated]:Stopped"
     },
-    "title": "Διακομιστής API"
+    "title": "[to be translated]:API Server"
   },
   "appMenu": {
     "about": "Σχετικά",
