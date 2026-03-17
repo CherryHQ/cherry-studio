@@ -1,58 +1,50 @@
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  addSubscribeSource as _addSubscribeSource,
-  type CompressionConfig,
-  removeSubscribeSource as _removeSubscribeSource,
-  setCompressionConfig,
-  setDefaultProvider as _setDefaultProvider,
-  setSubscribeSources as _setSubscribeSources,
-  updateCompressionConfig,
-  updateSubscribeBlacklist as _updateSubscribeBlacklist,
-  updateWebSearchProvider,
-  updateWebSearchProviders
-} from '@renderer/store/websearch'
+import { usePreference } from '@data/hooks/usePreference'
+import { buildWebSearchProviderOverrides, resolveWebSearchProviders } from '@renderer/config/webSearch/provider'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
-
-export const useDefaultWebSearchProvider = () => {
-  const defaultProvider = useAppSelector((state) => state.websearch.defaultProvider)
-  const { providers } = useWebSearchProviders()
-  const provider = defaultProvider ? providers.find((provider) => provider.id === defaultProvider) : undefined
-  const dispatch = useAppDispatch()
-
-  const setDefaultProvider = (provider: WebSearchProvider) => {
-    dispatch(_setDefaultProvider(provider.id))
-  }
-
-  const updateDefaultProvider = (provider: WebSearchProvider) => {
-    dispatch(updateWebSearchProvider(provider))
-  }
-
-  return { provider, setDefaultProvider, updateDefaultProvider }
-}
+import { useCallback, useMemo } from 'react'
 
 export const useWebSearchProviders = () => {
-  const providers = useAppSelector((state) => state.websearch.providers)
+  const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides')
 
-  const dispatch = useAppDispatch()
+  const providers = useMemo(() => resolveWebSearchProviders(providerOverrides), [providerOverrides])
+
+  const persistProviders = useCallback(
+    (nextProviders: Partial<WebSearchProvider>[]) => {
+      void setProviderOverrides(buildWebSearchProviderOverrides(nextProviders))
+    },
+    [setProviderOverrides]
+  )
+
+  const updateProvider = useCallback(
+    (id: WebSearchProviderId, updates: Partial<WebSearchProvider>) => {
+      const nextProviders = providers.map((provider) => (provider.id === id ? { ...provider, ...updates } : provider))
+      persistProviders(nextProviders)
+    },
+    [persistProviders, providers]
+  )
+
+  const resetProvider = useCallback(
+    (id: WebSearchProviderId) => {
+      const rest = Object.fromEntries(Object.entries(providerOverrides).filter(([key]) => key !== id))
+      void setProviderOverrides(rest)
+    },
+    [providerOverrides, setProviderOverrides]
+  )
+
+  const isCustomized = useCallback((id: WebSearchProviderId) => Boolean(providerOverrides[id]), [providerOverrides])
 
   return {
     providers,
-    updateWebSearchProviders: (providers: WebSearchProvider[]) => dispatch(updateWebSearchProviders(providers)),
-    addWebSearchProvider: (provider: WebSearchProvider) => {
-      // Check if provider exists
-      const exists = providers.some((p) => p.id === provider.id)
-      if (!exists) {
-        // Use the existing update action to add the new provider
-        dispatch(updateWebSearchProviders([...providers, provider]))
-      }
-    }
+    updateProvider,
+    resetProvider,
+    isCustomized,
+    updateWebSearchProviders: persistProviders
   }
 }
 
 export const useWebSearchProvider = (id: WebSearchProviderId) => {
-  const providers = useAppSelector((state) => state.websearch.providers)
-  const provider = providers.find((provider) => provider.id === id)
-  const dispatch = useAppDispatch()
+  const { isCustomized, providers, resetProvider, updateProvider } = useWebSearchProviders()
+  const provider = providers.find((item) => item.id === id)
 
   if (!provider) {
     throw new Error(`Web search provider with id ${id} not found`)
@@ -60,48 +52,10 @@ export const useWebSearchProvider = (id: WebSearchProviderId) => {
 
   return {
     provider,
+    isCustomized: isCustomized(id),
+    resetProvider: () => resetProvider(id),
     updateProvider: (updates: Partial<WebSearchProvider>) => {
-      dispatch(updateWebSearchProvider({ id, ...updates }))
+      updateProvider(id, updates)
     }
-  }
-}
-
-export const useBlacklist = () => {
-  const dispatch = useAppDispatch()
-  const websearch = useAppSelector((state) => state.websearch)
-
-  const addSubscribeSource = ({ url, name, blacklist }) => {
-    dispatch(_addSubscribeSource({ url, name, blacklist }))
-  }
-
-  const removeSubscribeSource = (key: number) => {
-    dispatch(_removeSubscribeSource(key))
-  }
-
-  const updateSubscribeBlacklist = (key: number, blacklist: string[]) => {
-    dispatch(_updateSubscribeBlacklist({ key, blacklist }))
-  }
-
-  const setSubscribeSources = (sources: { key: number; url: string; name: string; blacklist?: string[] }[]) => {
-    dispatch(_setSubscribeSources(sources))
-  }
-
-  return {
-    websearch,
-    addSubscribeSource,
-    removeSubscribeSource,
-    updateSubscribeBlacklist,
-    setSubscribeSources
-  }
-}
-
-export const useWebSearchSettings = () => {
-  const state = useAppSelector((state) => state.websearch)
-  const dispatch = useAppDispatch()
-
-  return {
-    ...state,
-    setCompressionConfig: (config: CompressionConfig) => dispatch(setCompressionConfig(config)),
-    updateCompressionConfig: (config: Partial<CompressionConfig>) => dispatch(updateCompressionConfig(config))
   }
 }

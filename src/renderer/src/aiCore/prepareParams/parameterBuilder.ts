@@ -12,6 +12,7 @@ import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   isAnthropicModel,
@@ -27,8 +28,8 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
+import { readWebSearchSettings, resolveWebSearchConfig } from '@renderer/config/webSearch/setting'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
@@ -132,11 +133,9 @@ export async function buildStreamTextParams(
   let tools = setupToolsConfig(mcpTools, options.allowedTools)
 
   // 构建真正的 providerOptions
-  const webSearchConfig: CherryWebSearchConfig = {
-    maxResults: store.getState().websearch.maxResults,
-    excludeDomains: store.getState().websearch.excludeDomains,
-    searchWithTime: store.getState().websearch.searchWithTime
-  }
+  const webSearchConfig: CherryWebSearchConfig = resolveWebSearchConfig(
+    readWebSearchSettings((key) => preferenceService.getCachedValue(key))
+  )
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
     enableReasoning,

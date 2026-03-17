@@ -1,20 +1,32 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { SettingContainer } from '..'
-import BasicSettings from './BasicSettings'
-import BlacklistSettings from './BlacklistSettings'
-import CompressionSettings from './CompressionSettings'
+import BasicSettings from './components/BasicSettings'
+import BlacklistSettings from './components/BlacklistSettings'
+import CompressionSettings from './components/CompressionSettings'
+import {
+  WebSearchSettingsContent,
+  WebSearchSettingsPanel,
+  WebSearchSettingsPanelHeader
+} from './components/WebSearchSettingsLayout'
 
 const WebSearchGeneralSettings: FC = () => {
-  const { theme } = useTheme()
+  const { t } = useTranslation()
 
   return (
-    <SettingContainer theme={theme}>
-      <BasicSettings />
-      <CompressionSettings />
-      <BlacklistSettings />
-    </SettingContainer>
+    <WebSearchSettingsContent>
+      <WebSearchSettingsPanel>
+        <WebSearchSettingsPanelHeader
+          icon={<Settings2 size={24} />}
+          title={t('settings.tool.websearch.title')}
+          subtitle={t('settings.general.title')}
+        />
+        <BasicSettings />
+        <CompressionSettings />
+        <BlacklistSettings />
+      </WebSearchSettingsPanel>
+    </WebSearchSettingsContent>
   )
 }
 

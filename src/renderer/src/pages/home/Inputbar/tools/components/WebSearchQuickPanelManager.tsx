@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { WebSearchProviderIcon } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -8,15 +9,14 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
+import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearch/provider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
+import { getEffectiveMcpMode, type WebSearchProvider } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isPromptToolUse } from '@renderer/utils/mcp-tools'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
@@ -25,22 +25,6 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebSearchQuickPanel')
-
-export const WebSearchProviderIcon = ({
-  pid,
-  size = 18,
-  color
-}: {
-  pid?: WebSearchProviderId
-  size?: number
-  color?: string
-}) => {
-  const Icon = pid ? getWebSearchProviderLogo(pid) : undefined
-  if (Icon) {
-    return <Icon.Mono className="icon" width={size} height={size} color={color} />
-  }
-  return <Globe className="icon" size={size} style={{ color }} />
-}
 
 export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
@@ -118,7 +102,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
           .map((p) => ({
             label: p.name,
             description: WebSearchService.isWebSearchEnabled(p.id)
-              ? hasObjectKey(p, 'apiKey')
+              ? webSearchProviderRequiresApiKey(p)
                 ? t('settings.tool.websearch.apikey')
                 : t('settings.tool.websearch.free')
               : t('chat.input.web_search.enable_content'),

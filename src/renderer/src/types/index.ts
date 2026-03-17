@@ -13,6 +13,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderType } from '@shared/data/preference/preferenceTypes'
 import type { CSSProperties } from 'react'
 
 export * from './file'
@@ -706,6 +707,7 @@ export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => 
 export type WebSearchProvider = {
   id: WebSearchProviderId
   name: string
+  type?: WebSearchProviderType
   apiKey?: string
   apiHost?: string
   engines?: string[]

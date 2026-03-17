@@ -5241,6 +5241,8 @@
         "apikey": "API ключ",
         "blacklist": "Черный список",
         "blacklist_description": "Результаты из следующих веб-сайтов не будут отображаться в результатах поиска",
+        "blacklist_rules_one": "{{count}} Правило",
+        "blacklist_rules_other": "{{count}} Правила",
         "blacklist_tooltip": "Пожалуйста, используйте следующий формат (разделенный переносами строк)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "проверка",
         "check_failed": "Проверка не прошла",
@@ -5281,6 +5283,7 @@
         "content_limit_tooltip": "Ограничить длину контента в результатах поиска; контент, превышающий лимит, будет усечен.",
         "default_provider": "Поставщик по умолчанию",
         "free": "Бесплатно",
+        "get_api_key": "[to be translated]:Get your API key from <provider>{{providerId}}</provider>",
         "is_default": "По умолчанию",
         "local_provider": {
           "hint": "Войдите на сайт, чтобы получать более точные результаты поиска и настроить параметры поиска под себя.",
