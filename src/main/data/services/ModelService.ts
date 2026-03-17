@@ -17,7 +17,7 @@ import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/da
 import type { Model, RuntimeModelPricing, RuntimeParameterSupport, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { mergeModelConfig } from '@shared/data/utils/modelMerger'
-import { and, eq, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
 import { catalogService } from './ProviderCatalogService'
 
@@ -290,6 +290,7 @@ export class ModelService {
     const db = dbService.getDb()
 
     // Pre-fetch existing userOverrides for all affected models
+    const providerIds = [...new Set(models.map((m) => m.providerId))]
     const existingRows = await db
       .select({
         providerId: userModelTable.providerId,
@@ -297,6 +298,7 @@ export class ModelService {
         userOverrides: userModelTable.userOverrides
       })
       .from(userModelTable)
+      .where(inArray(userModelTable.providerId, providerIds))
 
     const overridesMap = new Map<string, Set<string>>()
     for (const row of existingRows) {
