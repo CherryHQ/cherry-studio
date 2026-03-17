@@ -9,7 +9,13 @@
 
 import { promptService } from '@data/services/PromptService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { PromptSchemas } from '@shared/data/api/schemas/prompts'
+import {
+  CreatePromptDtoSchema,
+  type PromptSchemas,
+  ReorderPromptsDtoSchema,
+  RollbackPromptDtoSchema,
+  UpdatePromptDtoSchema
+} from '@shared/data/api/schemas/prompts'
 
 type PromptHandler<Path extends keyof PromptSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
@@ -19,46 +25,44 @@ export const promptHandlers: {
   }
 } = {
   '/prompts': {
-    GET: async () => {
-      return await promptService.getAll()
+    GET: () => {
+      return promptService.getAll()
     },
 
-    POST: async ({ body }) => {
-      return await promptService.create(body)
+    POST: ({ body }) => {
+      return promptService.create(CreatePromptDtoSchema.parse(body))
     }
   },
 
   '/prompts/reorder': {
-    PATCH: async ({ body }) => {
-      await promptService.reorder(body)
-      return undefined
+    PATCH: ({ body }) => {
+      return promptService.reorder(ReorderPromptsDtoSchema.parse(body))
     }
   },
 
   '/prompts/:id': {
-    GET: async ({ params }) => {
-      return await promptService.getById(params.id)
+    GET: ({ params }) => {
+      return promptService.getById(params.id)
     },
 
-    PATCH: async ({ params, body }) => {
-      return await promptService.update(params.id, body)
+    PATCH: ({ params, body }) => {
+      return promptService.update(params.id, UpdatePromptDtoSchema.parse(body))
     },
 
-    DELETE: async ({ params }) => {
-      await promptService.delete(params.id)
-      return undefined
+    DELETE: ({ params }) => {
+      return promptService.delete(params.id)
     }
   },
 
   '/prompts/:id/versions': {
-    GET: async ({ params }) => {
-      return await promptService.getVersions(params.id)
+    GET: ({ params }) => {
+      return promptService.getVersions(params.id)
     }
   },
 
   '/prompts/:id/rollback': {
-    POST: async ({ params, body }) => {
-      return await promptService.rollback(params.id, body)
+    POST: ({ params, body }) => {
+      return promptService.rollback(params.id, RollbackPromptDtoSchema.parse(body))
     }
   }
 }

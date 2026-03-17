@@ -91,7 +91,7 @@ export class PromptService {
   async create(dto: CreatePromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    return await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const [row] = await tx
         .insert(promptTable)
         .values({
@@ -120,7 +120,7 @@ export class PromptService {
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    return await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       // Read inside transaction to prevent race conditions on currentVersion
       const [existing] = await tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
       if (!existing) {
@@ -207,7 +207,7 @@ export class PromptService {
   async rollback(promptId: string, dto: RollbackPromptDto): Promise<Prompt> {
     const db = dbService.getDb()
 
-    return await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       // Read inside transaction to prevent race conditions on currentVersion
       const [existing] = await tx.select().from(promptTable).where(eq(promptTable.id, promptId)).limit(1)
       if (!existing) {

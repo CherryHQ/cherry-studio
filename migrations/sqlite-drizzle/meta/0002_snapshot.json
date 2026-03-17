@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e5f596f2-91fa-46e4-b870-909b883bd960",
+  "id": "0d5d8cbb-9933-44ea-b4db-c0806b66bf4f",
   "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
   "tables": {
     "app_state": {
@@ -361,7 +361,7 @@
           "name": "current_version",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 1
         },
@@ -369,7 +369,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -445,10 +445,10 @@
         }
       },
       "indexes": {
-        "prompt_version_prompt_id_idx": {
-          "name": "prompt_version_prompt_id_idx",
+        "prompt_version_prompt_id_version_idx": {
+          "name": "prompt_version_prompt_id_version_idx",
           "columns": ["prompt_id", "version"],
-          "isUnique": false
+          "isUnique": true
         }
       },
       "foreignKeys": {
