@@ -401,15 +401,37 @@
   "apiGateway": {
     "actions": {
       "addGroup": "Add Group",
-      "copyEnvVars": "Copy as Environment Variables"
+      "copy": "Copy",
+      "copyEnvVars": "Copy as Environment Variables",
+      "regenerate": "Regenerate",
+      "restart": {
+        "button": "Restart",
+        "tooltip": "Restart Server"
+      },
+      "start": "Start",
+      "stop": "Stop"
     },
-    "description": "Expose Cherry Studio's AI capabilities through a unified API Gateway",
+    "authHeader": {
+      "title": "Authorization Header"
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "configuration": "Configuration",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "documentation": {
+      "title": "API Documentation"
+    },
     "endpoints": {
       "chatCompletions": "OpenAI-compatible chat completions",
       "messages": "Anthropic-compatible messages API",
       "responses": "OpenAI Responses API (new format)"
     },
     "fields": {
+      "apiKey": {
+        "copyTooltip": "Copy API Key",
+        "description": "Secure authentication token for API access",
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated"
+      },
       "baseUrl": {
         "copyTooltip": "Copy Base URL",
         "description": "Use this URL as your API base URL in external applications",
@@ -447,43 +469,6 @@
         "description": "Allow connections from other devices on your network",
         "label": "Expose to Network",
         "warning": "Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
-      }
-    },
-    "messages": {
-      "baseUrlCopied": "Base URL copied to clipboard",
-      "envVarsCopied": "Environment variables copied to clipboard",
-      "nameDuplicate": "A group with the same URL path already exists",
-      "nameRequired": "Group name cannot be empty",
-      "nameUpdated": "Group name updated"
-    },
-    "title": "API Gateway"
-  },
-  "apiGateway": {
-    "actions": {
-      "copy": "Copy",
-      "regenerate": "Regenerate",
-      "restart": {
-        "button": "Restart",
-        "tooltip": "Restart Server"
-      },
-      "start": "Start",
-      "stop": "Stop"
-    },
-    "authHeader": {
-      "title": "Authorization Header"
-    },
-    "authHeaderText": "Use in Authorization header:",
-    "configuration": "Configuration",
-    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
-    "documentation": {
-      "title": "API Documentation"
-    },
-    "fields": {
-      "apiKey": {
-        "copyTooltip": "Copy API Key",
-        "description": "Secure authentication token for API access",
-        "label": "API Key",
-        "placeholder": "API key will be auto-generated"
       },
       "port": {
         "description": "TCP port number for the HTTP server (1000-65535)",
@@ -498,6 +483,11 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
+      "baseUrlCopied": "Base URL copied to clipboard",
+      "envVarsCopied": "Environment variables copied to clipboard",
+      "nameDuplicate": "A group with the same URL path already exists",
+      "nameRequired": "Group name cannot be empty",
+      "nameUpdated": "Group name updated",
       "notEnabled": "The API Server is not enabled.",
       "operationFailed": "API Server operation failed: ",
       "restartError": "Failed to restart API Server: ",
