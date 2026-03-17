@@ -37,7 +37,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
     loadLogos()
   }, [options])
 
-  const getProviderLogoSrc = (providerId: string) => {
+  const getProviderLogoOrSrc = (providerId: string) => {
     const systemLogo = getProviderLogo(providerId)
     if (systemLogo) {
       return systemLogo
@@ -68,7 +68,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
               <ProviderAvatarPrimitive
                 providerId={providerId}
                 providerName={providerName}
-                logoSrc={getProviderLogoSrc(providerId)}
+                logo={getProviderLogoOrSrc(providerId)}
                 size={16}
               />
             </div>
@@ -85,7 +85,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
               <ProviderAvatarPrimitive
                 providerId={providerId}
                 providerName={providerName}
-                logoSrc={getProviderLogoSrc(providerId)}
+                logo={getProviderLogoOrSrc(providerId)}
                 size={16}
               />
             </div>

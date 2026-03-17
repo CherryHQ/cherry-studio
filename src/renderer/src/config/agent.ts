@@ -1,4 +1,4 @@
-import ClaudeAvatar from '@renderer/assets/images/models/claude.png'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import type { AgentBase, AgentType } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
@@ -12,12 +12,12 @@ export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const getAgentTypeAvatar = (type: AgentType): string => {
+export const getAgentTypeAvatar = (type: AgentType) => {
   switch (type) {
     case 'claude-code':
-      return ClaudeAvatar
+      return resolveProviderIcon('anthropic')
     default:
-      return ''
+      return undefined
   }
 }
 

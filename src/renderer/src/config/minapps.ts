@@ -1,61 +1,6 @@
+import { MODEL_ICON_CATALOG, PROVIDER_ICON_CATALOG, resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
-import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
-import AIStudioLogo from '@renderer/assets/images/apps/aistudio.png?url'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
-import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
-import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
-import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
-import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
-import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
-import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
-import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
-import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
-import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
-import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
-import DuckDuckGoAppLogo from '@renderer/assets/images/apps/duckduckgo.webp?url'
-import FeloAppLogo from '@renderer/assets/images/apps/felo.png?url'
-import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
-import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
-import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
-import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
-import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
-import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
-import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
-import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
-import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
-import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
-import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
-import LingAppLogo from '@renderer/assets/images/apps/ling.png?url'
-import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
-import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
-import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
-import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
-import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
-import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
-import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
-import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
-import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
-import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
-import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
-import StepfunAppLogo from '@renderer/assets/images/apps/stepfun.png?url'
-import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
-import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
-import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
-import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
-import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
-import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
-import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
-import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
-import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
-import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
-import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
-import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
-import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png?url'
-import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
-import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
-import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
 import type { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
@@ -94,7 +39,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'openai',
     name: 'ChatGPT',
     url: 'https://chatgpt.com/',
-    logo: OpenAiProviderLogo,
+    logo: resolveProviderIcon('openai'),
     bodered: true,
     supportedRegions: ['CN', 'Global']
   },
@@ -102,7 +47,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
-    logo: GeminiAppLogo,
+    logo: MODEL_ICON_CATALOG.gemini,
     bodered: true,
     supportedRegions: ['CN', 'Global']
   },
@@ -110,14 +55,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'silicon',
     name: 'SiliconFlow',
     url: 'https://cloud.siliconflow.cn/playground/chat',
-    logo: SiliconFlowProviderLogo,
+    logo: resolveProviderIcon('silicon'),
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'deepseek',
     name: 'DeepSeek',
     url: 'https://chat.deepseek.com/',
-    logo: DeepSeekProviderLogo,
+    logo: resolveProviderIcon('deepseek'),
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -125,7 +70,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Wanzhi',
     nameKey: 'minapps.wanzhi',
     url: 'https://www.wanzhi.com/',
-    logo: WanZhiAppLogo,
+    logo: resolveProviderIcon('yi'),
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -134,7 +79,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ChatGLM',
     nameKey: 'minapps.chatglm',
     url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: ZhipuProviderLogo,
+    logo: resolveProviderIcon('zhipu'),
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -142,7 +87,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'moonshot',
     name: 'Kimi',
     url: 'https://kimi.moonshot.cn/',
-    logo: KimiAppLogo,
+    logo: resolveProviderIcon('moonshot'),
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -150,7 +95,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Baichuan',
     nameKey: 'minapps.baichuan',
     url: 'https://ying.baichuan-ai.com/chat',
-    logo: BaicuanAppLogo,
+    logo: resolveProviderIcon('baichuan'),
     supportedRegions: ['CN']
   },
   {
@@ -158,7 +103,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Qwen',
     nameKey: 'minapps.qwen',
     url: 'https://www.qianwen.com',
-    logo: QwenModelLogo,
+    logo: PROVIDER_ICON_CATALOG.qwen,
     supportedRegions: ['CN']
   },
   {
@@ -166,7 +111,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Stepfun',
     nameKey: 'minapps.stepfun',
     url: 'https://stepfun.com',
-    logo: StepfunAppLogo,
+    logo: resolveProviderIcon('stepfun'),
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -175,14 +120,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Doubao',
     nameKey: 'minapps.doubao',
     url: 'https://www.doubao.com/chat/',
-    logo: DoubaoAppLogo,
+    logo: PROVIDER_ICON_CATALOG.doubao,
     supportedRegions: ['CN']
   },
   {
     id: 'cici',
     name: 'Cici',
     url: 'https://www.cici.com/chat/',
-    logo: CiciAppLogo,
+    logo: PROVIDER_ICON_CATALOG.dola,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -190,7 +135,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Hailuo',
     nameKey: 'minapps.hailuo',
     url: 'https://chat.minimaxi.com/',
-    logo: HailuoModelLogo,
+    logo: resolveProviderIcon('minimax'),
     bodered: true,
     supportedRegions: ['CN']
   },
@@ -198,21 +143,21 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'groq',
     name: 'Groq',
     url: 'https://chat.groq.com/',
-    logo: GroqProviderLogo,
+    logo: resolveProviderIcon('groq'),
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'anthropic',
     name: 'Claude',
     url: 'https://claude.ai/',
-    logo: ClaudeAppLogo,
+    logo: resolveProviderIcon('anthropic'),
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'google',
     name: 'Google',
     url: 'https://google.com/',
-    logo: GoogleAppLogo,
+    logo: PROVIDER_ICON_CATALOG.google,
     bodered: true,
     style: {
       padding: 5
@@ -223,7 +168,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'baidu-ai-chat',
     name: 'Wenxin',
     nameKey: 'minapps.wenxin',
-    logo: BaiduAiAppLogo,
+    logo: PROVIDER_ICON_CATALOG.wenxin,
     url: 'https://yiyan.baidu.com/',
     supportedRegions: ['CN', 'Global']
   },
@@ -231,7 +176,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'baidu-ai-search',
     name: 'Baidu AI Search',
     nameKey: 'minapps.baidu-ai-search',
-    logo: BaiduAiSearchLogo,
+    logo: PROVIDER_ICON_CATALOG.baidu,
     url: 'https://chat.baidu.com/',
     bodered: true,
     style: {
@@ -243,7 +188,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'tencent-yuanbao',
     name: 'Tencent Yuanbao',
     nameKey: 'minapps.tencent-yuanbao',
-    logo: TencentYuanbaoAppLogo,
+    logo: PROVIDER_ICON_CATALOG.yuanbao,
     url: 'https://yuanbao.tencent.com/chat',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -252,7 +197,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'sensetime-chat',
     name: 'Sensechat',
     nameKey: 'minapps.sensechat',
-    logo: SensetimeAppLogo,
+    logo: PROVIDER_ICON_CATALOG.sensetime,
     url: 'https://chat.sensetime.com/wb/chat',
     bodered: true,
     supportedRegions: ['CN']
@@ -260,7 +205,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'spark-desk',
     name: 'SparkDesk',
-    logo: SparkDeskAppLogo,
+    logo: PROVIDER_ICON_CATALOG.xinghuo,
     url: 'https://xinghuo.xfyun.cn/desk',
     supportedRegions: ['CN']
   },
@@ -268,28 +213,28 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'metaso',
     name: 'Metaso',
     nameKey: 'minapps.metaso',
-    logo: MetasoAppLogo,
+    logo: PROVIDER_ICON_CATALOG.metaso,
     url: 'https://metaso.cn/',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'poe',
     name: 'Poe',
-    logo: PoeAppLogo,
+    logo: resolveProviderIcon('poe'),
     url: 'https://poe.com',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'perplexity',
     name: 'Perplexity',
-    logo: PerplexityAppLogo,
+    logo: resolveProviderIcon('perplexity'),
     url: 'https://www.perplexity.ai/',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'devv',
     name: 'DEVV_',
-    logo: DevvAppLogo,
+    logo: PROVIDER_ICON_CATALOG.devv,
     url: 'https://devv.ai/',
     supportedRegions: ['CN', 'Global']
   },
@@ -297,7 +242,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'tiangong-ai',
     name: 'Tiangong AI',
     nameKey: 'minapps.tiangong-ai',
-    logo: TiangongAiLogo,
+    logo: PROVIDER_ICON_CATALOG.skywork,
     url: 'https://www.tiangong.cn/',
     bodered: true,
     supportedRegions: ['CN']
@@ -305,7 +250,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'Felo',
     name: 'Felo',
-    logo: FeloAppLogo,
+    logo: PROVIDER_ICON_CATALOG.felo,
     url: 'https://felo.ai/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -313,14 +258,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'duckduckgo',
     name: 'DuckDuckGo',
-    logo: DuckDuckGoAppLogo,
+    logo: PROVIDER_ICON_CATALOG.duck,
     url: 'https://duck.ai',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'bolt',
     name: 'bolt',
-    logo: BoltAppLogo,
+    logo: PROVIDER_ICON_CATALOG.boltNew,
     url: 'https://bolt.new/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -329,7 +274,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'nm',
     name: 'Nami AI',
     nameKey: 'minapps.nami-ai',
-    logo: NamiAiLogo,
+    logo: PROVIDER_ICON_CATALOG.namiAi,
     url: 'https://bot.n.cn/',
     bodered: true,
     supportedRegions: ['CN']
@@ -337,7 +282,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'thinkany',
     name: 'ThinkAny',
-    logo: ThinkAnyLogo,
+    logo: PROVIDER_ICON_CATALOG.thinkAny,
     url: 'https://thinkany.ai/',
     bodered: true,
     style: {
@@ -348,21 +293,21 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'github-copilot',
     name: 'GitHub Copilot',
-    logo: GithubCopilotLogo,
+    logo: PROVIDER_ICON_CATALOG.github,
     url: 'https://github.com/copilot',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'genspark',
     name: 'Genspark',
-    logo: GensparkLogo,
+    logo: PROVIDER_ICON_CATALOG.genspark,
     url: 'https://www.genspark.ai/',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'grok',
     name: 'Grok',
-    logo: GrokAppLogo,
+    logo: resolveProviderIcon('grok'),
     url: 'https://grok.com',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -370,7 +315,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'grok-x',
     name: 'Grok / X',
-    logo: GrokXAppLogo,
+    logo: PROVIDER_ICON_CATALOG.twitter,
     url: 'https://x.com/i/grok',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -378,14 +323,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'qwenlm',
     name: 'QwenChat',
-    logo: QwenlmAppLogo,
+    logo: PROVIDER_ICON_CATALOG.qwen,
     url: 'https://chat.qwen.ai',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'flowith',
     name: 'Flowith',
-    logo: FlowithAppLogo,
+    logo: PROVIDER_ICON_CATALOG.flowith,
     url: 'https://www.flowith.io/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -393,7 +338,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: '3mintop',
     name: '3MinTop',
-    logo: ThreeMinTopAppLogo,
+    logo: PROVIDER_ICON_CATALOG['3minTop'],
     url: 'https://3min.top',
     bodered: false,
     supportedRegions: ['CN', 'Global']
@@ -401,7 +346,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'aistudio',
     name: 'AI Studio',
-    logo: AIStudioLogo,
+    logo: PROVIDER_ICON_CATALOG.aiStudio,
     url: 'https://aistudio.google.com/',
     supportedRegions: ['CN', 'Global']
   },
@@ -409,7 +354,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'xiaoyi',
     name: 'Xiaoyi',
     nameKey: 'minapps.xiaoyi',
-    logo: XiaoYiAppLogo,
+    logo: PROVIDER_ICON_CATALOG.xiaoyi,
     url: 'https://xiaoyi.huawei.com/chat/',
     bodered: true,
     supportedRegions: ['CN']
@@ -417,14 +362,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'notebooklm',
     name: 'NotebookLM',
-    logo: NotebookLMAppLogo,
+    logo: PROVIDER_ICON_CATALOG.notebooklm,
     url: 'https://notebooklm.google.com/',
     supportedRegions: ['CN', 'Global']
   },
   {
     id: 'coze',
     name: 'Coze',
-    logo: CozeAppLogo,
+    logo: PROVIDER_ICON_CATALOG.coze,
     url: 'https://www.coze.com/space',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -432,7 +377,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'dify',
     name: 'Dify',
-    logo: DifyAppLogo,
+    logo: PROVIDER_ICON_CATALOG.dify,
     url: 'https://cloud.dify.ai/apps',
     bodered: true,
     style: {
@@ -444,7 +389,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'wpslingxi',
     name: 'WPS AI',
     nameKey: 'minapps.wps-copilot',
-    logo: WPSLingXiLogo,
+    logo: PROVIDER_ICON_CATALOG.lingxi,
     url: 'https://copilot.wps.cn/',
     bodered: true,
     supportedRegions: ['CN']
@@ -452,7 +397,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'lechat',
     name: 'LeChat',
-    logo: LeChatLogo,
+    logo: resolveProviderIcon('mistral'),
     url: 'https://chat.mistral.ai/chat',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -460,7 +405,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'abacus',
     name: 'Abacus',
-    logo: AbacusLogo,
+    logo: PROVIDER_ICON_CATALOG.abacus,
     url: 'https://apps.abacus.ai/chatllm',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -468,7 +413,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'lambdachat',
     name: 'Lambda Chat',
-    logo: LambdaChatLogo,
+    logo: PROVIDER_ICON_CATALOG.lambda,
     url: 'https://lambda.chat/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -476,7 +421,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'monica',
     name: 'Monica',
-    logo: MonicaLogo,
+    logo: PROVIDER_ICON_CATALOG.monica,
     url: 'https://monica.im/home/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -484,7 +429,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'you',
     name: 'You',
-    logo: YouLogo,
+    logo: PROVIDER_ICON_CATALOG.you,
     url: 'https://you.com/',
     supportedRegions: ['CN', 'Global']
   },
@@ -492,7 +437,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'zhihu',
     name: 'Zhihu Zhida',
     nameKey: 'minapps.zhihu',
-    logo: ZhihuAppLogo,
+    logo: PROVIDER_ICON_CATALOG.zhida,
     url: 'https://zhida.zhihu.com/',
     bodered: true,
     supportedRegions: ['CN']
@@ -501,7 +446,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'dangbei',
     name: 'Dangbei AI',
     nameKey: 'minapps.dangbei',
-    logo: DangbeiLogo,
+    logo: PROVIDER_ICON_CATALOG.dangbei,
     url: 'https://ai.dangbei.com/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -509,7 +454,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: `zai`,
     name: `Z.ai`,
-    logo: ZaiAppLogo,
+    logo: PROVIDER_ICON_CATALOG.zAi,
     url: `https://chat.z.ai/`,
     bodered: true,
     style: {
@@ -520,7 +465,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'n8n',
     name: 'n8n',
-    logo: n8nLogo,
+    logo: PROVIDER_ICON_CATALOG.n8n,
     url: 'https://app.n8n.cloud/',
     bodered: true,
     style: {
@@ -531,7 +476,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'longcat',
     name: 'LongCat',
-    logo: LongCatAppLogo,
+    logo: resolveProviderIcon('longcat'),
     url: 'https://longcat.chat/',
     bodered: true,
     supportedRegions: ['CN', 'Global']
@@ -541,7 +486,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Ant Ling',
     nameKey: 'minapps.ant-ling',
     url: 'https://ling.tbox.cn/chat',
-    logo: LingAppLogo,
+    logo: resolveProviderIcon('ling'),
     bodered: true,
     style: {
       padding: 6
@@ -552,7 +497,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'huggingchat',
     name: 'HuggingChat',
     url: 'https://huggingface.co/chat/',
-    logo: HuggingChatLogo,
+    logo: PROVIDER_ICON_CATALOG.huggingface,
     bodered: true,
     style: {
       padding: 6
