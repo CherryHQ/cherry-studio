@@ -39,7 +39,7 @@ export const providerHandlers: {
       if (!parsed.success) {
         throw new Error(`Invalid provider data: ${parsed.error.message}`)
       }
-      return await providerService.create(body)
+      return await providerService.create(parsed.data)
     }
   },
 
@@ -53,7 +53,7 @@ export const providerHandlers: {
       if (!parsed.success) {
         throw new Error(`Invalid provider update data: ${parsed.error.message}`)
       }
-      return await providerService.update(params.providerId, body)
+      return await providerService.update(params.providerId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
