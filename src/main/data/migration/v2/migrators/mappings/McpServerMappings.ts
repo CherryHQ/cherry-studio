@@ -8,40 +8,44 @@ import type { McpServerInsert } from '@data/db/schemas/mcpServer'
 
 export type McpServerRow = McpServerInsert
 
-function toNullable<T>(value: T | undefined | null): T | null {
-  return value ?? null
+function toNullable<T>(value: unknown): T | null {
+  return (value ?? null) as T | null
+}
+
+function toRequired<T>(value: unknown, fallback: T): T {
+  return (value ?? fallback) as T
 }
 
 export function transformMcpServer(source: Record<string, unknown>): McpServerRow {
   return {
-    id: source.id as string,
-    name: source.name as string,
-    type: toNullable(source.type as string | undefined),
-    description: toNullable(source.description as string | undefined),
-    baseUrl: toNullable(source.baseUrl as string | undefined),
-    command: toNullable(source.command as string | undefined),
-    registryUrl: toNullable(source.registryUrl as string | undefined),
-    args: toNullable(source.args as string[] | undefined),
-    env: toNullable(source.env as Record<string, string> | undefined),
-    headers: toNullable(source.headers as Record<string, string> | undefined),
-    provider: toNullable(source.provider as string | undefined),
-    providerUrl: toNullable(source.providerUrl as string | undefined),
-    logoUrl: toNullable(source.logoUrl as string | undefined),
-    tags: toNullable(source.tags as string[] | undefined),
-    longRunning: toNullable(source.longRunning as boolean | undefined),
-    timeout: toNullable(source.timeout as number | undefined),
-    dxtVersion: toNullable(source.dxtVersion as string | undefined),
-    dxtPath: toNullable(source.dxtPath as string | undefined),
-    reference: toNullable(source.reference as string | undefined),
-    searchKey: toNullable(source.searchKey as string | undefined),
+    id: toRequired<string>(source.id, ''),
+    name: toRequired<string>(source.name, ''),
+    type: toNullable(source.type),
+    description: toNullable(source.description),
+    baseUrl: toNullable(source.baseUrl),
+    command: toNullable(source.command),
+    registryUrl: toNullable(source.registryUrl),
+    args: toNullable(source.args),
+    env: toNullable(source.env),
+    headers: toNullable(source.headers),
+    provider: toNullable(source.provider),
+    providerUrl: toNullable(source.providerUrl),
+    logoUrl: toNullable(source.logoUrl),
+    tags: toNullable(source.tags),
+    longRunning: toNullable(source.longRunning),
+    timeout: toNullable(source.timeout),
+    dxtVersion: toNullable(source.dxtVersion),
+    dxtPath: toNullable(source.dxtPath),
+    reference: toNullable(source.reference),
+    searchKey: toNullable(source.searchKey),
     configSample: toNullable(source.configSample),
-    disabledTools: toNullable(source.disabledTools as string[] | undefined),
-    disabledAutoApproveTools: toNullable(source.disabledAutoApproveTools as string[] | undefined),
-    shouldConfig: toNullable(source.shouldConfig as boolean | undefined),
-    isActive: (source.isActive as boolean) ?? false,
-    installSource: toNullable(source.installSource as string | undefined),
-    isTrusted: toNullable(source.isTrusted as boolean | undefined),
-    trustedAt: toNullable(source.trustedAt as number | undefined),
-    installedAt: toNullable(source.installedAt as number | undefined)
+    disabledTools: toNullable(source.disabledTools),
+    disabledAutoApproveTools: toNullable(source.disabledAutoApproveTools),
+    shouldConfig: toNullable(source.shouldConfig),
+    isActive: toRequired(source.isActive, false),
+    installSource: toNullable(source.installSource),
+    isTrusted: toNullable(source.isTrusted),
+    trustedAt: toNullable(source.trustedAt),
+    installedAt: toNullable(source.installedAt)
   }
 }
