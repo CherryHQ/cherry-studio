@@ -119,12 +119,10 @@ If no issues → ask whether to submit an approval review AND merge the PR:
 
 1. Submit Approval:
    ```bash
-   gh api repos/{OWNER_REPO}/pulls/{number}/reviews --input - <<'EOF'
-   {
-     "commit_id": "{HEAD_SHA}",
-     "event": "APPROVE"
-   }
-   EOF
+   gh pr-review review start --repo {OWNER_REPO} --pr {number}
+   # Save the returned review-id
+   gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
+     --review-id "<review-id>" --event "APPROVE" --body "LGTM"
    ```
 
 2. Merge (squash):
@@ -146,34 +144,75 @@ where each option's label is the issue summary (e.g.,
 `[A2] file:line — description`). User checks multiple options in one prompt.
 Unchecked issues are skipped.
 
-**Must** use `gh api` + heredoc. Do not use `gh pr comment`, `gh pr review`,
-or any command that creates non-line-level comments:
+### Prerequisites
 
+The `gh-pr-review` extension must be installed. If not present, install it:
 ```bash
-gh api repos/{OWNER_REPO}/pulls/{number}/reviews --input - <<'EOF'
-{
-  "commit_id": "{HEAD_SHA}",
-  "event": "COMMENT",
-  "comments": [
-    {
-      "path": "relative/file/path",
-      "line": 42,
-      "side": "RIGHT",
-      "body": "Description of the issue and suggested fix"
-    }
-  ]
-}
-EOF
+gh extension install EurFelux/gh-pr-review
 ```
 
-- `commit_id`: HEAD SHA of the PR branch
-- `path`: relative to repository root
-- `line`: line number in the **new** file (right side of diff). Must be
-  determined during Step 3 by reading the actual file in the worktree — do
+### Submit review via gh-pr-review
+
+Use the `gh-pr-review` extension for structured pending reviews with inline
+comments. Do not use `gh pr comment` or raw `gh api` for review submission.
+
+1. Start a pending review:
+   ```bash
+   gh pr-review review start --repo {OWNER_REPO} --pr {number}
+   ```
+   Save the returned `id` as `REVIEW_ID`.
+
+2. Add inline comments for each selected issue:
+   ```bash
+   gh pr-review review add-comment --repo {OWNER_REPO} --pr {number} \
+     --review-id "{REVIEW_ID}" \
+     --path "{file_path}" \
+     --line {line_number} \
+     --body "**[{priority}]** {description and suggested fix}"
+   ```
+   For multi-line ranges:
+   ```bash
+   gh pr-review review add-comment --repo {OWNER_REPO} --pr {number} \
+     --review-id "{REVIEW_ID}" \
+     --path "{file_path}" \
+     --line {end_line} --start-line {start_line} \
+     --body "**[{priority}]** {description and suggested fix}"
+   ```
+
+3. Preview before submitting:
+   ```bash
+   gh pr-review review preview --repo {OWNER_REPO} --pr {number} \
+     --review-id "{REVIEW_ID}"
+   ```
+   Show preview to user and ask for confirmation. Skip if user explicitly
+   waives preview.
+
+4. Submit the review:
+   ```bash
+   gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
+     --review-id "{REVIEW_ID}" \
+     --event "<COMMENT|REQUEST_CHANGES>" \
+     --body "{review summary}"
+   ```
+   Choose event based on severity:
+   - `COMMENT` — observations and suggestions, nothing blocking
+   - `REQUEST_CHANGES` — critical or significant issues that must be addressed
+
+**Line number rules:**
+- `--line` is the absolute line number in the **new** file (RIGHT side). Must
+  be determined during Step 3 by reading the actual file in the worktree — do
   not derive from diff hunk offsets.
-- `side`: always `"RIGHT"`
-- `body`: concise, in the user's conversation language, with a specific fix
-  suggestion when possible
+- The line must fall within a diff hunk range. Check hunk headers:
+  `@@ -oldStart,oldCount +newStart,newCount @@` — valid range for RIGHT side
+  is `newStart` to `newStart + newCount - 1`.
+- For comments on deleted lines, use `--side LEFT` and line numbers from the
+  old file.
+
+**Comment body guidelines:**
+- Lead with a bold severity/priority label (e.g., `**[A2]**`, `**[B1]**`).
+- Explain the problem clearly.
+- Provide a concrete suggestion with code snippet when applicable.
+- Write in the user's conversation language.
 
 Summary of issues found / submitted / skipped.
 
