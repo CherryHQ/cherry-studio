@@ -8,8 +8,6 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -18,24 +16,19 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert, Flex } from 'antd'
+import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './components/ChatNavBar'
-import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
-import { PinnedTodoPanel } from './Inputbar/components/PinnedTodoPanel'
 import Inputbar from './Inputbar/Inputbar'
-import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
-import NarrowLayout from './Messages/NarrowLayout'
 import Tabs from './Tabs'
 
 const logger = loggerService.withContext('Chat')
@@ -53,16 +46,9 @@ const Chat: FC<Props> = (props) => {
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const [apiServerEnabled] = usePreference('feature.csaas.enabled')
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const [isTopNavbar] = usePreference('ui.navbar.position')
-  const [activeAgentId] = useCache('agent.active_id')
-  const [activeTopicOrSession] = useCache('chat.active_view')
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
-  const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  const sessionAgentId = activeTopicOrSession === 'session' ? activeAgentId : null
-  const { createDefaultSession } = useCreateDefaultSession(sessionAgentId)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -100,21 +86,6 @@ const Chat: FC<Props> = (props) => {
       updateTopic(updatedTopic as Topic)
     }
   })
-
-  useShortcut(
-    'new_topic',
-    () => {
-      if (activeTopicOrSession !== 'session' || !activeAgentId) {
-        return
-      }
-      void createDefaultSession()
-    },
-    {
-      enabled: activeTopicOrSession === 'session',
-      preventDefault: true,
-      enableOnFormTags: true
-    }
-  )
 
   useShortcut('select_model', async () => {
     const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
@@ -181,20 +152,6 @@ const Chat: FC<Props> = (props) => {
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
-  // TODO: more info
-  const AgentInvalid = useCallback(() => {
-    return <Alert type="warning" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
-  }, [t])
-
-  // TODO: more info
-  const SessionInvalid = useCallback(() => {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
-      </div>
-    )
-  }, [t])
-
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <RowFlex>
@@ -220,47 +177,23 @@ const Chat: FC<Props> = (props) => {
               <div
                 className="flex flex-1 flex-col justify-between"
                 style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                {activeTopicOrSession === 'topic' && (
-                  <>
-                    <Messages
-                      key={props.activeTopic.id}
-                      assistant={assistant}
-                      topic={props.activeTopic}
-                      setActiveTopic={props.setActiveTopic}
-                      onComponentUpdate={messagesComponentUpdateHandler}
-                      onFirstUpdate={messagesComponentFirstUpdateHandler}
-                    />
-                    <ContentSearch
-                      ref={contentSearchRef}
-                      searchTarget={mainRef as React.RefObject<HTMLElement>}
-                      filter={contentSearchFilter}
-                      includeUser={filterIncludeUser}
-                      onIncludeUserChange={userOutlinedItemClickHandler}
-                    />
-                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                    <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                  </>
-                )}
-                {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
-                {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
-                {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
-                  <>
-                    {!apiServerEnabled ? (
-                      <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
-                    ) : (
-                      <>
-                        <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-                        <PinnedTodoPanelWrapper>
-                          <NarrowLayout>
-                            <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-                          </NarrowLayout>
-                        </PinnedTodoPanelWrapper>
-                      </>
-                    )}
-                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                    <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-                  </>
-                )}
+                <Messages
+                  key={props.activeTopic.id}
+                  assistant={assistant}
+                  topic={props.activeTopic}
+                  setActiveTopic={props.setActiveTopic}
+                  onComponentUpdate={messagesComponentUpdateHandler}
+                  onFirstUpdate={messagesComponentFirstUpdateHandler}
+                />
+                <ContentSearch
+                  ref={contentSearchRef}
+                  searchTarget={mainRef as React.RefObject<HTMLElement>}
+                  filter={contentSearchFilter}
+                  includeUser={filterIncludeUser}
+                  onIncludeUserChange={userOutlinedItemClickHandler}
+                />
+                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
                 {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
               </div>
             </QuickPanelProvider>
@@ -312,11 +245,6 @@ const Main = styled(Flex)`
   }
   transform: translateZ(0);
   position: relative;
-`
-
-const PinnedTodoPanelWrapper = styled.div`
-  margin-top: auto;
-  padding: 0 18px 8px 18px;
 `
 
 export default Chat

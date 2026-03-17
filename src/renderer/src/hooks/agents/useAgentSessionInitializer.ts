@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useAgentClient } from './useAgentClient'
 
@@ -17,6 +17,10 @@ export const useAgentSessionInitializer = () => {
   const [activeAgentId] = useCache('agent.active_id')
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
 
+  // Use a ref to keep the callback stable across activeSessionIdMap changes
+  const activeSessionIdMapRef = useRef(activeSessionIdMap)
+  activeSessionIdMapRef.current = activeSessionIdMap
+
   /**
    * Initialize session for the given agent by loading its sessions
    * and setting the latest one as active
@@ -26,11 +30,9 @@ export const useAgentSessionInitializer = () => {
       if (!agentId) return
 
       try {
-        // Check if this agent already has an active session
-        const currentSessionId = activeSessionIdMap[agentId]
-        if (currentSessionId) {
-          // Session already exists, just switch to session view
-          cacheService.set('chat.active_view', 'session')
+        // Check if this agent has already been initialized (key exists in map)
+        if (agentId in activeSessionIdMapRef.current) {
+          // Already initialized, nothing to do
           return
         }
 
@@ -45,19 +47,16 @@ export const useAgentSessionInitializer = () => {
           // Set the latest session as active
           const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
           cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: latestSession.id })
-          cacheService.set('chat.active_view', 'session')
         } else {
-          // No sessions exist, we might want to create one
-          // But for now, just switch to session view and let the Sessions component handle it
-          cacheService.set('chat.active_view', 'session')
+          // Mark as initialized with no session (null vs undefined distinction)
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
         }
       } catch (error) {
         logger.error('Failed to initialize agent session:', error as Error)
-        // Even if loading fails, switch to session view
-        cacheService.set('chat.active_view', 'session')
       }
     },
-    [client, activeSessionIdMap]
+    [client]
   )
 
   /**
@@ -65,13 +64,12 @@ export const useAgentSessionInitializer = () => {
    */
   useEffect(() => {
     if (activeAgentId) {
-      // Check if we need to initialize this agent's session
-      const hasActiveSession = activeSessionIdMap[activeAgentId]
-      if (!hasActiveSession) {
+      // Check if we need to initialize this agent's session (key not yet in map)
+      if (!(activeAgentId in activeSessionIdMapRef.current)) {
         initializeAgentSession(activeAgentId)
       }
     }
-  }, [activeAgentId, activeSessionIdMap, initializeAgentSession])
+  }, [activeAgentId, initializeAgentSession])
 
   return {
     initializeAgentSession

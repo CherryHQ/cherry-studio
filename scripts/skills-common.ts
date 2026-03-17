@@ -78,8 +78,7 @@ export function buildClaudeSkillsGitignore(skillNames: string[]): string {
   ]
 
   for (const skillName of skillNames) {
-    lines.push(`!${skillName}/`)
-    lines.push(`!${skillName}/**`)
+    lines.push(`!${skillName}`)
   }
 
   return `${lines.join('\n')}\n`

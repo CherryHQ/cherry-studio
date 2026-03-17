@@ -200,6 +200,8 @@ export type AssistantSettings = {
   reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
+  maxToolCalls?: number
+  enableMaxToolCalls?: boolean
 }
 
 export type AssistantPreset = Omit<Assistant, 'model'> & {
@@ -524,7 +526,7 @@ export type MinAppType = {
   nameKey?: string
   /** Regions where this app is available. If includes 'Global', shown to international users. */
   supportedRegions?: MinAppRegion[]
-  logo?: string
+  logo?: string | object
   url: string
   // FIXME: It should be `bordered`
   bodered?: boolean
@@ -666,6 +668,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 // by fullex @ data refactor
 // export type SidebarIcon =
 //   | 'assistants'
+//   | 'agents'
 //   | 'store'
 //   | 'paintings'
 //   | 'translate'
@@ -691,6 +694,7 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
+  querit: 'querit',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
   'local-baidu': 'local-baidu'

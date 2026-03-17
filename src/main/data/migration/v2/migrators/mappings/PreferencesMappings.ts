@@ -932,3 +932,15 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
  * 3. DexieSettings读取: ctx.sources.dexieSettings.get(mapping.originalKey)
  * 4. 默认值: 从defaultPreferences.default[mapping.targetKey]获取
  */
+
+/**
+ * localStorage映射关系 - 简单KV结构
+ *
+ * Maps browser localStorage keys to new preference target keys.
+ * localStorage stores various UI state and provider tokens.
+ *
+ * These are simple 1:1 mappings where the value can be used as-is.
+ * For complex transformations (pattern-based keys, value conversion),
+ * use ComplexPreferenceMappings with source: 'localStorage' instead.
+ */
+export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetKey: string }> = [] as const

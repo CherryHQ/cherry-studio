@@ -3218,6 +3218,7 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.ppio_edit) {
         state.paintings.ppio_edit = []
       }
+      logger.info('migrate 196 success')
       return state
     } catch (error) {
       logger.error('migrate 196 error', error as Error)
@@ -3229,6 +3230,7 @@ const migrateConfig = {
       if (state.openclaw.gatewayPort === 18789) {
         state.openclaw.gatewayPort = 18790
       }
+      logger.info('migrate 197 success')
       return state
     } catch (error) {
       logger.error('migrate 197 error', error as Error)
@@ -3261,13 +3263,91 @@ const migrateConfig = {
   '200': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
+        if (provider.type === 'ollama') {
+          provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        }
+      })
+
+      // Migrate minimax app id to hailuo
+      if (state.minapps) {
+        const lists: Array<'enabled' | 'disabled' | 'pinned'> = ['enabled', 'disabled', 'pinned']
+        lists.forEach((list) => {
+          state.minapps[list] = state.minapps[list].map((app) =>
+            app.id === 'minimax' ? { ...app, id: 'hailuo' } : app
+          )
+        })
+      }
+      // Add new MiniMax Agent apps
+      addMiniApp(state, 'minimax-agent')
+      addMiniApp(state, 'minimax-agent-global')
+      addMiniApp(state, 'ima')
+      // Add new providers: minimax-global and zai
+      addProvider(state, 'minimax-global')
+      addProvider(state, 'zai')
+      // Update grok provider type to openai-response
+      state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.grok) {
           provider.type = 'openai-response'
         }
       })
+
       return state
     } catch (error) {
       logger.error('migrate 200 error', error as Error)
+      return state
+    }
+  },
+  '201': (state: RootState) => {
+    try {
+      addWebSearchProvider(state, 'querit')
+      return state
+    } catch (error) {
+      logger.error('migrate 201 error', error as Error)
+      return state
+    }
+  },
+  '202': (state: RootState) => {
+    try {
+      const filesystemServer = state.mcp?.servers?.find((s: any) => s.name === '@cherry/filesystem')
+      if (filesystemServer && filesystemServer.disabledAutoApproveTools === undefined) {
+        filesystemServer.disabledAutoApproveTools = ['write', 'edit', 'delete']
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 202 error', error as Error)
+      return state
+    }
+  },
+  '203': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        // Add 'agents' to visible icons if not already present
+        if (!state.settings.sidebarIcons.visible.includes('agents')) {
+          // Insert after 'assistants' if present, otherwise append
+          const assistantsIndex = state.settings.sidebarIcons.visible.indexOf('assistants')
+          if (assistantsIndex !== -1) {
+            state.settings.sidebarIcons.visible = [
+              ...state.settings.sidebarIcons.visible.slice(0, assistantsIndex + 1),
+              'agents',
+              ...state.settings.sidebarIcons.visible.slice(assistantsIndex + 1)
+            ]
+          } else {
+            state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'agents']
+          }
+        }
+      }
+
+      // Add 'agents' tab if not already present
+      if (state.tabs && !state.tabs.tabs.some((tab: { id: string }) => tab.id === 'agents')) {
+        const homeIndex = state.tabs.tabs.findIndex((tab: { id: string }) => tab.id === 'home')
+        const insertIndex = homeIndex !== -1 ? homeIndex + 1 : state.tabs.tabs.length
+        state.tabs.tabs.splice(insertIndex, 0, { id: 'agents', path: '/agents' })
+      }
+
+      logger.info('migrate 203 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 203 error', error as Error)
       return state
     }
   }

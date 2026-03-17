@@ -17,6 +17,7 @@ const logger = loggerService.withContext('MigrationIpcHandler')
 // Store for cached data from Renderer
 let cachedReduxData: Record<string, unknown> | null = null
 let cachedDexieExportPath: string | null = null
+let cachedLocalStorageExportPath: string | null = null
 const backupManager = new BackupManager()
 
 // Current migration progress
@@ -204,6 +205,18 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
+  // localStorage export completed
+  ipcMain.handle(MigrationIpcChannels.LocalStorageExportCompleted, async (_event, exportPath: string) => {
+    try {
+      cachedLocalStorageExportPath = exportPath
+      logger.info('localStorage export completed', { exportPath })
+      return true
+    } catch (error) {
+      logger.error('Error receiving localStorage export path', error as Error)
+      throw error
+    }
+  })
+
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
@@ -238,7 +251,11 @@ export function registerMigrationIpcHandlers(): void {
       })
 
       // Run migration
-      const result = await migrationEngine.run(cachedReduxData, cachedDexieExportPath)
+      const result = await migrationEngine.run(
+        cachedReduxData,
+        cachedDexieExportPath,
+        cachedLocalStorageExportPath ?? undefined
+      )
 
       if (result.success) {
         updateProgress({
@@ -345,6 +362,7 @@ function updateProgress(progress: MigrationProgress): void {
 export function resetMigrationData(): void {
   cachedReduxData = null
   cachedDexieExportPath = null
+  cachedLocalStorageExportPath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,

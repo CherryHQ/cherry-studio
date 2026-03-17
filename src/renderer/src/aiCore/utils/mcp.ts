@@ -2,7 +2,12 @@ import { loggerService } from '@logger'
 import store from '@renderer/store'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { requestToolConfirmation, sendToolApprovalNotification } from '@renderer/utils/userConfirmation'
+import {
+  confirmSameNameTools,
+  requestToolConfirmation,
+  sendToolApprovalNotification,
+  setToolIdToNameMapping
+} from '@renderer/utils/userConfirmation'
 import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
@@ -119,12 +124,26 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
         let confirmed = true
 
         if (!isAutoApproveEnabled) {
+          // Register mapping so confirmSameNameTools can batch-confirm pending tools.
+          // For hub invoke/exec, use the underlying tool name so tools targeting the
+          // same underlying server+tool are grouped together.
+          const mappingName =
+            mcpTool.serverId === 'hub' && (mcpTool.name === 'invoke' || mcpTool.name === 'exec')
+              ? ((params as Record<string, unknown>)?.name as string) || mcpTool.name
+              : mcpTool.name
+          setToolIdToNameMapping(toolCallId, mappingName)
+
           // Send system notification for tool approval
           sendToolApprovalNotification(mcpTool.name)
 
           // 请求用户确认
           logger.debug(`Requesting user confirmation for tool: ${mcpTool.name}`)
           confirmed = await requestToolConfirmation(toolCallId)
+
+          if (confirmed) {
+            // Auto-confirm other pending tools with the same name
+            confirmSameNameTools(mappingName)
+          }
         }
 
         if (!confirmed) {

@@ -89,7 +89,9 @@ const providerKeyMap = {
   sophnet: 'provider.sophnet',
   gateway: 'provider.ai-gateway',
   cerebras: 'provider.cerebras',
-  mimo: 'provider.mimo'
+  mimo: 'provider.mimo',
+  'minimax-global': 'provider.minimax-global',
+  zai: 'provider.zai'
 } as const
 
 /**
@@ -148,7 +150,8 @@ const titleKeyMap = {
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate',
-  openclaw: 'openclaw.title'
+  openclaw: 'openclaw.title',
+  agents: 'agent.sidebar_title'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -179,6 +182,7 @@ export const getThemeModeLabel = (key: string): string => {
 
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
+  agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',

@@ -1,4 +1,6 @@
+import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
 import type {
+  AgentSessionEntity,
   CreateAgentSessionResponse,
   CreateSessionForm,
   GetAgentSessionResponse,
@@ -11,9 +13,7 @@ import useSWRInfinite from 'swr/infinite'
 
 import { useAgentClient } from './useAgentClient'
 
-const DEFAULT_PAGE_SIZE = 20
-
-export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE) => {
+export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
   const client = useAgentClient()
 
@@ -131,6 +131,28 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
     [agentId, client, mutate, t]
   )
 
+  const reorderSessions = useCallback(
+    async (reorderedList: AgentSessionEntity[]) => {
+      if (!agentId) return
+      const orderedIds = reorderedList.map((s) => s.id)
+      // Optimistic update: replace all pages with single page containing reordered list
+      mutate(
+        (prev) => {
+          const realTotal = prev && prev.length > 0 ? prev[prev.length - 1].total : reorderedList.length
+          return [{ data: reorderedList, total: realTotal, limit: pageSize, offset: 0 }]
+        },
+        { revalidate: false }
+      )
+      try {
+        await client.reorderSessions(agentId, orderedIds)
+      } catch (error) {
+        mutate()
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+      }
+    },
+    [agentId, client, mutate, pageSize, t]
+  )
+
   return {
     sessions,
     total,
@@ -143,6 +165,7 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_PAGE_SIZE
     loadMore,
     createSession,
     getSession,
-    deleteSession
+    deleteSession,
+    reorderSessions
   }
 }

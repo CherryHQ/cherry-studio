@@ -2,7 +2,6 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { app } from 'electron'
 
 import { configManager } from './ConfigManager'
 
@@ -20,17 +19,16 @@ class AnalyticsService {
   }
 
   public init(): void {
+    if (!preferenceService.get('app.privacy.data_collection.enabled')) {
+      logger.info('Data collection is disabled, skipping analytics initialization')
+      return
+    }
+
     this.client = new AnalyticsClient({
       clientId: configManager.getClientId(),
       channel: 'cherry-studio',
       onError: (error) => logger.error('Analytics error:', error)
     })
-
-    this.client.track('app_launch', {
-      version: app.getVersion(),
-      os: process.platform
-    })
-
     logger.info('Analytics service initialized')
   }
 

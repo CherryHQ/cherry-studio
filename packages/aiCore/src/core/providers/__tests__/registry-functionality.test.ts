@@ -14,7 +14,16 @@ vi.mock('@ai-sdk/anthropic', () => ({
 }))
 
 vi.mock('@ai-sdk/azure', () => ({
-  createAzure: vi.fn(() => ({ name: 'azure-mock' }))
+  createAzure: vi.fn(() => ({
+    name: 'azure-mock',
+    languageModel: vi.fn((modelId: string) => ({ mode: 'default', modelId })),
+    chat: vi.fn((modelId: string) => ({ mode: 'chat', modelId })),
+    responses: vi.fn((modelId: string) => ({ mode: 'responses', modelId })),
+    embeddingModel: vi.fn(),
+    imageModel: vi.fn(),
+    transcriptionModel: vi.fn(),
+    speechModel: vi.fn()
+  }))
 }))
 
 vi.mock('@ai-sdk/deepseek', () => ({
@@ -217,6 +226,18 @@ describe('Provider Registry 功能测试', () => {
       expect(config.creator).toHaveBeenCalledWith({ apiKey: 'test' })
     })
 
+    it('creates the Azure provider with chat as the default language model', async () => {
+      const provider = await createProvider('azure', { apiKey: 'test' })
+
+      expect(provider.languageModel('gpt-5.4')).toEqual({ mode: 'chat', modelId: 'gpt-5.4' })
+    })
+
+    it('creates the Azure responses provider with responses as the default language model', async () => {
+      const provider = await createProvider('azure-responses', { apiKey: 'test' })
+
+      expect(provider.languageModel('gpt-5.4')).toEqual({ mode: 'responses', modelId: 'gpt-5.4' })
+    })
+
     it('能够注册 provider 到全局管理器', () => {
       const mockProvider = { name: 'mock-provider' }
       const config: ProviderConfig = {
@@ -237,6 +258,15 @@ describe('Provider Registry 功能测试', () => {
       const registeredProviders = getInitializedProviders()
       expect(registeredProviders).toContain('test-register-provider')
       expect(hasInitializedProviders()).toBe(true)
+    })
+
+    it('registers Azure chat lookups to the chat language model', async () => {
+      const success = await createAndRegisterProvider('azure', { apiKey: 'test' })
+
+      expect(success).toBe(true)
+      expect(getInitializedProviders()).toEqual(expect.arrayContaining(['azure', 'azure-chat']))
+      expect(getLanguageModel('azure|gpt-5.4')).toEqual({ mode: 'chat', modelId: 'gpt-5.4' })
+      expect(getLanguageModel('azure-chat|gpt-5.4')).toEqual({ mode: 'chat', modelId: 'gpt-5.4' })
     })
 
     it('能够一步完成创建和注册', async () => {

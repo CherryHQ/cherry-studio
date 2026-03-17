@@ -35,15 +35,7 @@ export const WebSearchProviderOverrideSchema = z.object({
   basicAuthPassword: z.string().optional()
 })
 
-const WebSearchProviderPresetListSchema = z.array(WebSearchProviderPresetDefinitionSchema)
-
-const validateWebSearchProviderPresets = <const T extends readonly WebSearchProviderPresetDefinition[]>(
-  presets: T
-): T => {
-  return WebSearchProviderPresetListSchema.parse(presets) as unknown as T
-}
-
-export const PRESETS_WEB_SEARCH_PROVIDERS = validateWebSearchProviderPresets([
+export const PRESETS_WEB_SEARCH_PROVIDERS = [
   {
     id: 'zhipu',
     name: 'Zhipu',
@@ -107,7 +99,7 @@ export const PRESETS_WEB_SEARCH_PROVIDERS = validateWebSearchProviderPresets([
     usingBrowser: true,
     defaultApiHost: 'https://www.baidu.com/s?wd=%s'
   }
-] satisfies readonly WebSearchProviderPresetDefinition[])
+] as const satisfies readonly WebSearchProviderPresetDefinition[]
 
 export const WebSearchProviderOverridesSchema = z.partialRecord(
   WebSearchProviderIdSchema,
