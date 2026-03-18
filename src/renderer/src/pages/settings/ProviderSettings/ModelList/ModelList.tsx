@@ -47,7 +47,7 @@ const calculateModelGroups = (models: Model[], searchText: string): ModelGroups 
  */
 const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
-  const { provider, models, removeModel } = useProvider(providerId)
+  const { provider, models, removeModel, updateProvider } = useProvider(providerId)
 
   // 稳定的编辑模型回调，避免内联函数导致子组件 memo 失效
   const handleEditModel = useCallback((model: Model) => EditModelPopup.show({ provider, model }), [provider])
@@ -78,13 +78,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [])
 
   useEffect(() => {
-    if (models.length > MODEL_COUNT_THRESHOLD) {
-      startTransition(() => {
-        setDisplayedModelGroups(calculateModelGroups(models, searchText))
-      })
-    } else {
-      setDisplayedModelGroups(calculateModelGroups(models, searchText))
-    }
+    setDisplayedModelGroups(calculateModelGroups(models, searchText))
   }, [models, searchText])
 
   const modelCount = useMemo(() => {
@@ -141,16 +135,20 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <Flex gap={12} vertical>
-            {Object.keys(displayedModelGroups).map((group, i) => (
+            {Object.entries(displayedModelGroups).map(([group, groupModels], i) => (
               <ModelListGroup
                 key={group}
+                onModelsUpdate={(newModels) => {
+                  updateProvider({ id: providerId, models: newModels })
+                }}
                 groupName={group}
-                models={displayedModelGroups[group]}
+                models={groupModels}
+                allModels={models}
                 modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel}
                 onRemoveModel={removeModel}
-                onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+                onRemoveGroup={() => groupModels.forEach((model) => removeModel(model))}
               />
             ))}
           </Flex>
