@@ -1,7 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
-import type { Provider } from '@renderer/types'
-import type { GenerateImageParams } from '@renderer/types'
+import type { GenerateImageParams, Provider } from '@renderer/types'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 

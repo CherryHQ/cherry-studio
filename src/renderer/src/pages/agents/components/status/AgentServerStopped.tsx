@@ -1,9 +1,9 @@
 import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useNavigate } from '@tanstack/react-router'
 import { Button } from 'antd'
 import { ServerCrash, Settings } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 import AgentStatusScreen from './AgentStatusScreen'
 
@@ -13,7 +13,7 @@ const AgentServerStopped = () => {
   const navigate = useNavigate()
 
   const handleGoToSettings = useCallback(() => {
-    navigate('/settings/api-server')
+    navigate({ to: '/settings/api-server' })
   }, [navigate])
 
   return (

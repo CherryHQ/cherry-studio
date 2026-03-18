@@ -47,7 +47,7 @@ export const translateText = async (
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
+  const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
   const signal = abortKey ? readyToAbort(abortKey) : undefined
 

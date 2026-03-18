@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction } from '@renderer/store/runtime'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useAgentClient } from './useAgentClient'
@@ -14,10 +13,9 @@ const logger = loggerService.withContext('useAgentSessionInitializer')
  * its most recent session is automatically selected.
  */
 export const useAgentSessionInitializer = () => {
-  const dispatch = useAppDispatch()
   const client = useAgentClient()
-  const { chat } = useRuntime()
-  const { activeAgentId, activeSessionIdMap } = chat
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
 
   // Use a ref to keep the callback stable across activeSessionIdMap changes
   const activeSessionIdMapRef = useRef(activeSessionIdMap)
@@ -47,16 +45,18 @@ export const useAgentSessionInitializer = () => {
           const latestSession = sessions[0]
 
           // Set the latest session as active
-          dispatch(setActiveSessionIdAction({ agentId, sessionId: latestSession.id }))
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: latestSession.id })
         } else {
           // Mark as initialized with no session (null vs undefined distinction)
-          dispatch(setActiveSessionIdAction({ agentId, sessionId: null }))
+          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
+          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
         }
       } catch (error) {
         logger.error('Failed to initialize agent session:', error as Error)
       }
     },
-    [client, dispatch]
+    [client]
   )
 
   /**

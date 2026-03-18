@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
@@ -113,7 +113,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       width="min(900px, 70vw)"
       height="80vh"
       centered>
-      <HStack>
+      <RowFlex>
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[tab || 'model']}
@@ -163,7 +163,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
         </Settings>
-      </HStack>
+      </RowFlex>
     </StyledModal>
   )
 }

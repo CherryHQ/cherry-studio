@@ -1,5 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -108,7 +108,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">{model.name}</HStack>
+            <RowFlex className="items-center">{model.name}</RowFlex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -117,11 +117,10 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
             <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
-        icon: (
-          <Avatar src={getModelLogoById(model.id || '')} size={24}>
-            {first(model.name) || 'M'}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogoById(model.id || '')
+          return Icon ? <Icon.Avatar size={24} /> : <Avatar size={24}>{first(model.name) || 'M'}</Avatar>
+        })(),
         model,
         isSelected: modelId === currentModelId
       }

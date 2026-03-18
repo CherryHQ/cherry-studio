@@ -1,9 +1,9 @@
+import { Center, ColFlex } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { Center, VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
-import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
@@ -73,14 +73,17 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   // 处理内置头像的点击事件
   const handleProviderLogoClick = async (providerId: string) => {
     try {
-      const logoUrl = PROVIDER_LOGO_MAP[providerId]
+      const icon = resolveProviderIcon(providerId)
+      if (!icon) return
+
+      // Store the provider icon ID as a reference (prefixed with 'icon:')
+      const iconRef = `icon:${providerId}`
 
       if (provider?.id) {
-        await ImageStorage.set(`provider-${provider.id}`, logoUrl)
-        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-        setLogo(savedLogo)
+        await ImageStorage.set(`provider-${provider.id}`, iconRef)
+        setLogo(iconRef)
       } else {
-        setLogo(logoUrl)
+        setLogo(iconRef)
       }
 
       setLogoPickerOpen(false)
@@ -191,8 +194,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       okButtonProps={{ disabled: buttonDisabled }}>
       <Divider style={{ margin: '8px 0' }} />
 
-      <Center mt="10px" mb="20px">
-        <VStack alignItems="center" gap="10px">
+      <Center className="mt-2.5">
+        <ColFlex className="items-center gap-2.5">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -227,7 +230,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               )}
             </Popover>
           </Dropdown>
-        </VStack>
+        </ColFlex>
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>

@@ -1,3 +1,4 @@
+import { useCache } from '@data/hooks/useCache'
 import { allMinApps } from '@renderer/config/minapps'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -75,6 +76,11 @@ export const useMinapps = () => {
   const minAppRegionSetting = useAppSelector((state: RootState) => state.settings.minAppRegion)
   const detectedRegion = useAppSelector((state: RootState) => state.runtime.detectedRegion)
   const dispatch = useAppDispatch()
+
+  const [openedKeepAliveMinapps, setOpenedKeepAliveMinapps] = useCache('minapp.opened_keep_alive')
+  const [currentMinappId, setCurrentMinappId] = useCache('minapp.current_id')
+  const [minappShow, setMinappShow] = useCache('minapp.show')
+  const [openedOneOffMinapp, setOpenedOneOffMinapp] = useCache('minapp.opened_oneoff')
 
   // Track if this hook instance has initiated detection to avoid duplicate requests
   const hasInitiatedDetection = useRef(false)
@@ -188,6 +194,14 @@ export const useMinapps = () => {
     minapps,
     disabled: disabledApps,
     pinned: pinnedApps,
+    openedKeepAliveMinapps,
+    currentMinappId,
+    minappShow,
+    openedOneOffMinapp,
+    setOpenedKeepAliveMinapps,
+    setCurrentMinappId,
+    setMinappShow,
+    setOpenedOneOffMinapp,
     updateMinapps,
     updateDisabledMinapps,
     updatePinnedMinapps

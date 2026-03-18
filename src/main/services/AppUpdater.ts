@@ -1,8 +1,10 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
-import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
+import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import { FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
@@ -12,7 +14,6 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
@@ -54,7 +55,7 @@ export default class AppUpdater {
   constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = configManager.getAutoUpdate()
+    autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
     // Never auto-install on quit - user must explicitly click "Install Now"
     // Auto-install on quit can cause issues: unexpected updates on restart,
     // corruption if system shuts down during install, or app uninstall on force shutdown
@@ -62,7 +63,7 @@ export default class AppUpdater {
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent(),
-      'X-Client-Id': configManager.getClientId(),
+      'X-Client-Id': getClientId(),
       // no-cache
       'Cache-Control': 'no-cache'
     }
@@ -119,7 +120,7 @@ export default class AppUpdater {
 
   private _getTestChannel() {
     const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = configManager.getTestChannel()
+    const savedChannel = preferenceService.get('app.dist.test_plan.channel')
 
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
@@ -147,7 +148,7 @@ export default class AppUpdater {
         headers: {
           'User-Agent': generateUserAgent(),
           Accept: 'application/json',
-          'X-Client-Id': configManager.getClientId(),
+          'X-Client-Id': getClientId(),
           // no-cache
           'Cache-Control': 'no-cache'
         }
@@ -227,7 +228,7 @@ export default class AppUpdater {
 
   private async _setFeedUrl() {
     const currentVersion = app.getVersion()
-    const testPlan = configManager.getTestPlan()
+    const testPlan = preferenceService.get('app.dist.test_plan.enabled')
     const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
     // Determine mirror based on IP country
@@ -330,7 +331,7 @@ export default class AppUpdater {
    */
   private parseMultiLangReleaseNotes(releaseNotes: string): string {
     try {
-      const language = configManager.getLanguage()
+      const language = preferenceService.get('app.language')
       const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
 
       // Create regex patterns using constants

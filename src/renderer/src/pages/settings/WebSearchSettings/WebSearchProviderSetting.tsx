@@ -1,4 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
 import BingLogo from '@renderer/assets/images/search/bing.svg'
@@ -9,7 +10,6 @@ import QueritLogo from '@renderer/assets/images/search/querit.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
-import { HStack } from '@renderer/components/Layout'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -17,9 +17,9 @@ import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hoo
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
+import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { Info, List } from 'lucide-react'
+import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -97,8 +97,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     if (!provider) {
       window.toast.error({
         title: t('settings.no_provider_selected'),
-        timeout: 3000,
-        icon: <Info size={18} />
+        timeout: 3000
       })
       return
     }
@@ -176,7 +175,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const providerLogo = getWebSearchProviderLogo(provider.id)
+  const providerLogo = getWebSearchProviderLogo(providerId)
 
   // Check if this provider is already the default
   const isDefault = defaultProvider?.id === provider.id
@@ -195,8 +194,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-          <Flex align="center" gap={8}>
+        <Flex className="items-center justify-between" style={{ width: '100%' }}>
+          <Flex className="items-center gap-2">
             {providerLogo ? (
               <img src={providerLogo} alt={provider.name} className="h-5 w-5 object-contain" />
             ) : (
@@ -209,7 +208,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               </Link>
             )}
           </Flex>
-          <Button type="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
+          <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
             {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
           </Button>
         </Flex>
@@ -220,7 +219,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.tool.websearch.local_provider.settings')}
           </SettingSubtitle>
-          <Button type="primary" onClick={openLocalProviderSettings} icon={<ExportOutlined />}>
+          <Button variant="default" onClick={openLocalProviderSettings}>
+            <ExportOutlined />
             {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
           </Button>
           <SettingHelpTextRow style={{ marginTop: 10 }}>
@@ -239,11 +239,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+                <List size={14} />
+              </Button>
             </Tooltip>
           </SettingSubtitle>
-          <Space.Compact style={{ width: '100%' }}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
@@ -253,11 +255,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               type="password"
               autoFocus={apiKey === ''}
             />
-            <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
+            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -266,15 +264,15 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Space.Compact>
+          </Flex>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <HStack>
+            <RowFlex>
               {apiKeyWebsite && (
                 <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
                 </SettingHelpLink>
               )}
-            </HStack>
+            </RowFlex>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
         </>
@@ -284,7 +282,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}
@@ -300,9 +298,15 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle
             style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
             {t('settings.provider.basic_auth.label')}
-            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
-              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              placement="right"
+              content={t('settings.provider.basic_auth.tip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'ml-1 cursor-pointer'
+              }}
+            />
           </SettingSubtitle>
           <Flex>
             <Form

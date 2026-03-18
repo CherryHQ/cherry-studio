@@ -1,11 +1,9 @@
-import { HStack } from '@renderer/components/Layout'
+import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
-import { useAppDispatch } from '@renderer/store'
-import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -17,16 +15,16 @@ const Tools = () => {
   const { t } = useTranslation()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { isTopNavbar } = useNavbarPosition()
-  const { topicPosition, narrowMode } = useSettings()
-  const dispatch = useAppDispatch()
+  const [topicPosition] = usePreference('topic.position')
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    dispatch(setNarrowMode(!narrowMode))
+    setNarrowMode(!narrowMode)
   }
 
   return (
-    <HStack alignItems="center" gap={8}>
+    <div className="flex items-center gap-2">
       <SettingsButton />
       {isTopNavbar && (
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
@@ -56,7 +54,7 @@ const Tools = () => {
           </NavbarIcon>
         </Tooltip>
       )}
-    </HStack>
+    </div>
   )
 }
 

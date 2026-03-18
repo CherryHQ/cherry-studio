@@ -1,8 +1,8 @@
+import { Tooltip } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
 import { useQuery } from '@tanstack/react-query'
-import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
 import * as z from 'zod'
@@ -76,17 +76,9 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
 
   return (
     <Tooltip
-      arrow={false}
-      overlay={tooltipContent}
-      placement="top"
-      color="var(--color-background)"
-      styles={{
-        body: {
-          border: '1px solid var(--color-border)',
-          padding: '12px',
-          borderRadius: '8px'
-        }
-      }}>
+      content={tooltipContent}
+      showArrow={false}
+      className="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3">
       {children}
     </Tooltip>
   )

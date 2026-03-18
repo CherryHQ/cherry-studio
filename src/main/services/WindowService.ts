@@ -1,6 +1,7 @@
 // just import the themeService to ensure the theme is initialized
 import './ThemeService'
 
+import { preferenceService } from '@data/PreferenceService'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
@@ -14,7 +15,6 @@ import { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
@@ -86,7 +86,7 @@ export class WindowService {
           }
         : {
             // On Linux, allow using system title bar if setting is enabled
-            frame: isLinux && configManager.getUseSystemTitleBar() ? true : false
+            frame: isLinux && preferenceService.get('app.use_system_title_bar')
           }),
       ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
       ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -98,7 +98,7 @@ export class WindowService {
         webSecurity: false,
         webviewTag: true,
         allowRunningInsecureContent: true,
-        zoomFactor: configManager.getZoomFactor(),
+        zoomFactor: preferenceService.get('app.zoom_factor'),
         backgroundThrottling: false
       }
     })
@@ -106,7 +106,7 @@ export class WindowService {
     this.setupMainWindow(this.mainWindow, mainWindowState)
 
     //preload miniWindow to resolve series of issues about miniWindow in Mac
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
     if (enableQuickAssistant && !this.miniWindow) {
       this.miniWindow = this.createMiniWindow(true)
     }
@@ -131,10 +131,10 @@ export class WindowService {
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
-    const enableSpellCheck = configManager.get('enableSpellCheck', false)
+    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
     if (enableSpellCheck) {
       try {
-        const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
+        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
         logger.error('Failed to set spell check languages:', error as Error)
@@ -161,7 +161,7 @@ export class WindowService {
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
     if (isMaximized) {
       // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
-      configManager.getLaunchToTray()
+      preferenceService.get('app.tray.on_launch')
         ? mainWindow.once('show', () => {
             mainWindow.maximize()
           })
@@ -186,10 +186,10 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // show window only when laucn to tray not set
-      const isLaunchToTray = configManager.getLaunchToTray()
+      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
         app.dock?.show()
@@ -215,14 +215,14 @@ export class WindowService {
     // and resize ipc
     //
     mainWindow.on('will-resize', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
     // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
     })
 
     // ARCH: as `will-resize` is only for Win & Mac,
@@ -230,7 +230,7 @@ export class WindowService {
     // but `resize` will fliker the ui
     if (isLinux) {
       mainWindow.on('resize', () => {
-        mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+        mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
         mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
@@ -270,7 +270,7 @@ export class WindowService {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
     mainWindow.webContents.on('did-navigate-in-page', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
     })
 
     mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -369,8 +369,8 @@ export class WindowService {
       }
 
       // 托盘及关闭行为设置
-      const isShowTray = configManager.getTray()
-      const isTrayOnClose = configManager.getTrayOnClose()
+      const isShowTray = preferenceService.get('app.tray.enabled')
+      const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {
@@ -491,7 +491,7 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
-        if (configManager.getTray()) {
+        if (preferenceService.get('app.tray.on_close')) {
           this.mainWindow.hide()
           app.dock?.hide()
         }
@@ -596,7 +596,7 @@ export class WindowService {
   }
 
   public showMiniWindow() {
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
 
     if (!enableQuickAssistant) {
       return

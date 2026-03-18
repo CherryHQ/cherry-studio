@@ -1,5 +1,6 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useCache } from '@renderer/data/hooks/useCache'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { cn } from '@renderer/utils'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -14,8 +15,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
   const { t } = useTranslation()
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { topicPosition } = useSettings()
 

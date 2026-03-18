@@ -9,6 +9,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileMetadata, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import { useNavigate } from '@tanstack/react-router'
 import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
@@ -16,7 +17,6 @@ import { AtSign, CircleX, Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
@@ -143,11 +143,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
               </>
             ),
             description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-            icon: (
-              <Avatar src={getModelLogo(model)} size={20}>
-                {first(model.name)}
-              </Avatar>
-            ),
+            icon: (() => {
+              const Icon = getModelLogo(model)
+              return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+            })(),
             filterText: getFancyProviderName(provider) + model.name,
             action: () => onMentionModel(model),
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
@@ -176,11 +175,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
           </>
         ),
         description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-        icon: (
-          <Avatar src={getModelLogo(model)} size={20}>
-            {first(model.name)}
-          </Avatar>
-        ),
+        icon: (() => {
+          const Icon = getModelLogo(model)
+          return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+        })(),
         filterText: getFancyProviderName(provider) + model.name,
         action: () => onMentionModel(model),
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
@@ -194,7 +192,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     items.push({
       label: t('settings.models.add.add_model') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/provider'),
+      action: () => navigate({ to: '/settings/provider' }),
       isSelected: false
     })
 

@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import AiProvider from '@renderer/aiCore'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -16,7 +17,7 @@ import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Button, Checkbox, Input, Select, Space, Tooltip } from 'antd'
+import { Alert, Checkbox, Input, Select, Space } from 'antd'
 import { Download, FolderOpen, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -372,13 +373,8 @@ const CodeToolsPage: FC = () => {
                       alignItems: 'center'
                     }}>
                     <span>{t('code.bun_required_message')}</span>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<Download size={14} />}
-                      onClick={handleInstallBun}
-                      loading={isInstallingBun}
-                      disabled={isInstallingBun}>
+                    <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
+                      <Download size={14} />
                       {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
                     </Button>
                   </div>
@@ -508,8 +504,10 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.cmd &&
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                        <Button icon={<FolderOpen size={16} />} onClick={() => handleSetCustomPath(selectedTerminal)} />
+                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        <Button size="icon" onClick={() => handleSetCustomPath(selectedTerminal)}>
+                          <FolderOpen size={16} />
+                        </Button>
                       </Tooltip>
                     )}
                 </Space.Compact>
@@ -541,13 +539,11 @@ const CodeToolsPage: FC = () => {
           </SettingsPanel>
 
           <Button
-            type="primary"
-            icon={<Terminal size={16} />}
-            size="large"
+            size="lg"
             onClick={handleLaunch}
-            loading={isLaunching}
-            disabled={!canLaunch || !isBunInstalled}
-            block>
+            disabled={!canLaunch || !isBunInstalled || isLaunching}
+            className="w-full">
+            <Terminal size={16} />
             {isLaunching ? t('code.launching') : t('code.launch.label')}
           </Button>
         </MainContent>

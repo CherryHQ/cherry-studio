@@ -1,9 +1,10 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { cn } from '@renderer/utils'
@@ -25,8 +26,8 @@ const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, topicPosition } = useSettings()
   const { showTopics } = useShowTopics()
-  const { chat } = useRuntime()
-  const { activeAgentId, activeSessionIdMap } = chat
+  const [activeAgentId] = useCache('agent.active_id')
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
   // undefined = session not yet initialized, null = initialized but no sessions
   const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap

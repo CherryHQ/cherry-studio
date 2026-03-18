@@ -1,11 +1,11 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
-import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
+import { Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -139,17 +139,14 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <MainContainer>
       <HeaderContainer>
         <ModelInfo>
-          <Button
-            type="text"
-            icon={<Settings size={18} color="var(--color-icon)" />}
-            onClick={() => EditKnowledgeBasePopup.show({ base })}
-            size="small"
-          />
+          <Button variant="ghost" size="icon-sm" onClick={() => EditKnowledgeBasePopup.show({ base })}>
+            <Settings size={18} color="var(--color-icon)" />
+          </Button>
           <div className="model-row">
             <div className="label-column">
               <label>{t('models.embedding_model')}</label>
             </div>
-            <Tooltip title={providerName} placement="bottom">
+            <Tooltip placement="bottom" content={providerName}>
               <div className="tag-column">
                 <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
               </div>
@@ -157,12 +154,12 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
           </div>
         </ModelInfo>
-        <HStack gap={8} alignItems="center">
+        <RowFlex className="items-center gap-2">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
           </NavbarIcon>
-        </HStack>
+        </RowFlex>
       </HeaderContainer>
       <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
     </MainContainer>
@@ -173,9 +170,9 @@ export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ 
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
-    <HStack alignItems="center" gap={10}>
+    <RowFlex className="items-center gap-2.5">
       <label style={{ fontWeight: 600 }}>{label}</label>
-    </HStack>
+    </RowFlex>
   )
 }
 
@@ -331,7 +328,7 @@ export const FlexAlignCenter = styled.div`
 
 export const ResponsiveButton = styled(Button)`
   @media (max-width: 1080px) {
-    .ant-btn-icon + span {
+    [data-slot="icon"] + [data-slot="label"] {
       display: none;
     }
   }

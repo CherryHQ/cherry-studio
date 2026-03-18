@@ -1,16 +1,17 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -25,13 +26,16 @@ const HomePage: FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
-  const state = location.state
+  const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
     state?.assistant || _activeAssistant || assistants[0]
   )
+
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
-  const { showAssistants, showTopics, topicPosition } = useSettings()
+  const [showAssistants] = usePreference('assistant.tab.show')
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
   const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant

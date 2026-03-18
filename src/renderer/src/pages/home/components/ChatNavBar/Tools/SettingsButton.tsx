@@ -1,5 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { Assistant } from '@renderer/types'
-import { Drawer, Tooltip } from 'antd'
+import { Drawer } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -17,7 +18,7 @@ const SettingsButton: FC<Props> = ({ assistant }) => {
 
   return (
     <>
-      <Tooltip title={t('settings.title')} mouseEnterDelay={0.8}>
+      <Tooltip content={t('settings.title')} delay={800}>
         <NavbarIcon onClick={() => setSettingsOpen(true)}>
           <Settings2 size={18} />
         </NavbarIcon>

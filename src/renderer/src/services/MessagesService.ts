@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { getTopicById } from '@renderer/hooks/useTopic'
-import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
@@ -23,9 +23,9 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import type { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
@@ -68,22 +68,14 @@ export function deleteMessageFiles(message: Message) {
   })
 }
 
-export function isGenerating() {
-  return new Promise((resolve, reject) => {
-    const generating = store.getState().runtime.generating
-    generating && window.toast.warning(i18n.t('message.switch.disabled'))
-    generating ? reject(false) : resolve(true)
-  })
-}
-
-export async function locateToMessage(navigate: NavigateFunction, message: Message) {
-  await isGenerating()
+export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
+  await modelGenerating()
 
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)
 
-  navigate('/', { state: { assistant, topic } })
+  navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic?.id } })
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)

@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
@@ -21,7 +22,6 @@ import InputbarTools from '@renderer/pages/home/Inputbar/InputbarTools'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { TopicType } from '@renderer/pages/home/Inputbar/types'
-import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
@@ -157,8 +157,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: CacheService.get<string>(draftCacheKey) ?? '',
-    onChange: (value) => CacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.getCasual<string>(draftCacheKey) ?? '',
+    onChange: (value) => cacheService.setCasual(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,

@@ -1,5 +1,5 @@
 import { GlobalOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,7 +10,7 @@ const WebSearchIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement
 
   return (
     <Container>
-      <Tooltip title={t('models.type.websearch')} placement="top">
+      <Tooltip content={t('models.type.websearch')}>
         <Icon {...(props as any)} />
       </Tooltip>
     </Container>

@@ -1,5 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 
 import { configManager } from './ConfigManager'
@@ -18,7 +19,7 @@ class AnalyticsService {
   }
 
   public init(): void {
-    if (!configManager.getEnableDataCollection()) {
+    if (!preferenceService.get('app.privacy.data_collection.enabled')) {
       logger.info('Data collection is disabled, skipping analytics initialization')
       return
     }
@@ -32,7 +33,12 @@ class AnalyticsService {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.client) return
+    const enableDataCollection = preferenceService.get('app.privacy.data_collection.enabled')
+
+    if (!this.client || !enableDataCollection) {
+      return
+    }
+
     this.client.trackTokenUsage(data)
   }
 

@@ -1,23 +1,19 @@
-import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useCallback } from 'react'
 
-import { useRuntime } from '../useRuntime'
 import { useAgent } from './useAgent'
 import { useAgentSessionInitializer } from './useAgentSessionInitializer'
 
 export const useActiveAgent = () => {
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
-  const dispatch = useAppDispatch()
+  const [activeAgentId, setActiveAgentIdAction] = useCache('agent.active_id')
   const { initializeAgentSession } = useAgentSessionInitializer()
 
   const setActiveAgentId = useCallback(
     async (id: string) => {
-      dispatch(setActiveAgentIdAction(id))
+      setActiveAgentIdAction(id)
       await initializeAgentSession(id)
     },
-    [dispatch, initializeAgentSession]
+    [setActiveAgentIdAction, initializeAgentSession]
   )
 
   return { ...useAgent(activeAgentId), setActiveAgentId }

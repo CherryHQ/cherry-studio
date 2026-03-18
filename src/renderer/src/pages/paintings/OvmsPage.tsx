@@ -1,29 +1,27 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Select, Slider, Switch, Tooltip } from 'antd'
+import { useLocation, useNavigate } from '@tanstack/react-router'
+import { Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -69,8 +67,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
+
   const navigate = useNavigate()
   const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
@@ -179,7 +177,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     try {
       // Prepare request body for OVMS
@@ -238,7 +236,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -332,7 +330,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -425,12 +423,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'switch':
         return (
-          <HStack>
+          <RowFlex>
             <Switch
               checked={(painting[item.key!] || item.initialValue) as boolean}
               onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
-          </HStack>
+          </RowFlex>
         )
       default:
         return null
@@ -483,7 +481,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -499,12 +498,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   target="_blank"
                   href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
                   {t('paintings.learn_more')}
-                  <ProviderLogo
-                    shape="square"
-                    src={getProviderLogo(ovmsProvider.id)}
-                    size={16}
-                    style={{ marginLeft: 5 }}
-                  />
+                  {(() => {
+                    const Icon = resolveProviderIcon(ovmsProvider.id)
+                    return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                  })()}
                 </SettingHelpLink>
               </ProviderTitleContainer>
 
@@ -515,7 +512,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {providerOptions.map((provider) => (
                   <Select.Option value={provider.value} key={provider.value}>
                     <SelectOptionContainer>
-                      <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                      {(() => {
+                        const Icon = resolveProviderIcon(provider.value || '')
+                        return Icon ? <Icon.Avatar size={16} /> : null
+                      })()}
                       {provider.label}
                     </SelectOptionContainer>
                   </Select.Option>
@@ -670,10 +670,6 @@ const SliderContainer = styled.div`
 
 const StyledInputNumber = styled(InputNumber)`
   width: 70px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ProviderTitleContainer = styled.div`

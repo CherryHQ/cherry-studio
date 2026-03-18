@@ -1,8 +1,8 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isGemini3Model, isQwen35Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
@@ -38,10 +38,10 @@ export interface BuildPluginsContext {
 /**
  * 根据条件构建插件数组
  */
-export function buildPlugins({ provider, model, config }: BuildPluginsContext): AiPlugin[] {
+export async function buildPlugins({ provider, model, config }: BuildPluginsContext): Promise<AiPlugin[]> {
   const plugins: AiPlugin<any, any>[] = []
 
-  if (config.topicId && getEnableDeveloperMode()) {
+  if (config.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
     // 0. 添加 telemetry 插件
     plugins.push(
       createTelemetryPlugin({
