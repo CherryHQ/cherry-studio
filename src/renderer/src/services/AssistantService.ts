@@ -23,7 +23,7 @@ import type {
   TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('AssistantService')
 
