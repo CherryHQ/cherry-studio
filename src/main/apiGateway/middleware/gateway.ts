@@ -72,7 +72,14 @@ export const gatewayMiddleware = async (req: Request, res: Response, next: NextF
 
     // Get the endpoint path (for group routes, use the part after groupName)
     const endpoint = groupName ? req.path.replace(`/${groupName}`, '') : req.path
-    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+    let normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+
+    // Non-group routes are mounted under /v1, but req.path here is router-relative
+    // (e.g. /messages instead of /v1/messages). Restore the external path shape
+    // so it can be compared against enabledEndpoints config.
+    if (!groupName && !normalizedEndpoint.startsWith('/v1')) {
+      normalizedEndpoint = `/v1${normalizedEndpoint}`
+    }
 
     // Check if endpoint is enabled (skip for /v1/models which is always enabled)
     if (!normalizedEndpoint.startsWith('/v1/models')) {
