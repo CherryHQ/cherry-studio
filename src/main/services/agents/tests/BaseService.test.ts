@@ -26,6 +26,10 @@ class TestBaseService extends BaseService {
     return this.normalizeAllowedTools(allowedTools, tools, legacyIdMap)
   }
 
+  public resolvePaths(paths: string[] | undefined, id: string): string[] {
+    return this.resolveAccessiblePaths(paths, id)
+  }
+
   public async validateModels(
     agentType: AgentType,
     models: Partial<Record<AgentModelField, string | undefined>>
@@ -98,6 +102,21 @@ describe('BaseService.normalizeAllowedTools', () => {
     const tools: Tool[] = [{ id: 'custom_tool', name: 'custom_tool', type: 'custom' }]
 
     expect(service.normalize(allowedTools, tools)).toEqual(allowedTools)
+  })
+})
+
+describe('BaseService.resolveAccessiblePaths', () => {
+  const service = new TestBaseService()
+
+  it('assigns a default agent directory when paths are omitted', () => {
+    const resolved = service.resolvePaths(undefined, 'agent_123456789')
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0]).toContain('Agents')
+    expect(resolved[0]).toContain('123456789')
+  })
+
+  it('preserves an explicit empty list when clearing accessible directories', () => {
+    expect(service.resolvePaths([], 'agent_123456789')).toEqual([])
   })
 })
 
