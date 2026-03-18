@@ -49,11 +49,13 @@ export const zhCN = {
       backup_required: '迁移前需要一个可恢复的备份。',
       backup_required_create: '推荐先创建一个新的恢复点。',
       backup_required_existing: '确认你现有的备份足够新再继续。',
-      backup_progress: '正在创建备份压缩包，请保持窗口开启。',
-      backup_confirmed: '备份已确认，可以开始正式迁移。',
-      migration_completed: '迁移已完成，确认后进入最后一步。',
-      completed: '所有准备已完成，重启应用即可进入 v2。',
-      error: '迁移已停止，原始数据仍然保留。'
+      backup_in_progress: '正在创建备份压缩包，请保持窗口开启。',
+      backup_ready: '备份已确认，可以开始正式迁移。',
+      preparing_migration: '正在导出旧数据并准备迁移输入，请保持窗口开启。',
+      migration_in_progress: '正在按顺序迁移各个模块。',
+      migration_succeeded: '迁移已完成，确认后进入最后一步。',
+      restart_required: '所有准备已完成，重启应用即可进入 v2。',
+      failed: '迁移已停止，原始数据仍然保留。'
     },
     language: {
       label: '界面语言'
@@ -131,15 +133,6 @@ export const zhCN = {
       progress_title: '正在创建备份压缩包',
       progress_description: '选择 ZIP 保存位置后，等待窗口确认备份完成。',
       progress_hint: 'Cherry Studio 正在写入新的恢复点，请保持窗口开启。',
-      progress_stages: {
-        opening_dialog: '正在打开备份保存位置选择框...',
-        preparing: '正在准备备份数据...',
-        writing_data: '正在写入备份元数据...',
-        copying_files: '正在复制应用数据...',
-        preparing_compression: '正在准备压缩备份文件...',
-        compressing: '正在压缩备份文件...',
-        completed: '备份创建完成。'
-      },
       ready_title: '备份已确认',
       ready_description: '现在已经有恢复点，可以开始迁移。',
       selected: {
@@ -175,11 +168,11 @@ export const zhCN = {
       title: '创建数据备份',
       description: '迁移前必须先创建数据备份，或者确认你已经有一份可恢复的最新备份。'
     },
-    backup_progress: {
+    backup_in_progress: {
       title: '准备数据备份',
       description: '请选择备份位置并等待备份完成。'
     },
-    backup_confirmed: {
+    backup_ready: {
       title: '备份完成',
       description: '备份已经完成，可以继续开始迁移。'
     },
@@ -201,10 +194,14 @@ export const zhCN = {
         modules_hint: '完成所有模块后才能进入最后一步'
       }
     },
-    migration: {
+    preparing_migration: {
+      title: '正在准备迁移数据...'
+    },
+    migration_in_progress: {
       title: '正在迁移数据...'
     },
     progress: {
+      preparing_export: '正在整理旧数据并准备导出...',
       processing: '正在处理 {{name}}...',
       exporting_table: '正在导出 {{table}}（{{current}}/{{total}}）',
       starting_engine: '旧数据导出完成，正在启动迁移...',
@@ -222,12 +219,12 @@ export const zhCN = {
       quick_phrases: '快捷短语',
       translate_languages: '翻译语言'
     },
-    migration_completed: {
+    migration_succeeded: {
       badge: '迁移已完成',
       title: '数据已经迁移完成',
       description: '所有模块都已完成，确认结果后进入重启阶段。'
     },
-    completed: {
+    restart_required: {
       badge: '等待重启',
       title: '迁移已完成，请重启应用',
       description: '数据迁移已经完成。重启 Cherry Studio 后，应用会切换到新的数据架构。',
@@ -248,7 +245,7 @@ export const zhCN = {
         item_2: '如有异常，先保留日志和备份再进一步处理'
       }
     },
-    error: {
+    failed: {
       badge: '迁移中断',
       title: '迁移失败',
       description: '迁移过程中遇到了错误。你可以重试，原始数据和备份仍然保留。',
@@ -311,11 +308,13 @@ export const enUS = {
       backup_required: 'A recoverable backup is required before migration can start.',
       backup_required_create: 'Create a fresh recovery point before the migration begins.',
       backup_required_existing: 'Confirm your existing backup is recent before continuing.',
-      backup_progress: 'Creating the backup archive. Keep this window open.',
-      backup_confirmed: 'Backup confirmed. The migration can start now.',
-      migration_completed: 'Migration is complete. Confirm the result to continue.',
-      completed: 'Everything is ready. Restart the app to enter v2.',
-      error: 'Migration stopped before replacing your original data.'
+      backup_in_progress: 'Creating the backup archive. Keep this window open.',
+      backup_ready: 'Backup confirmed. The migration can start now.',
+      preparing_migration: 'Preparing legacy data exports for the migration. Keep this window open.',
+      migration_in_progress: 'Migrating each module into the new architecture.',
+      migration_succeeded: 'Migration is complete. Confirm the result to continue.',
+      restart_required: 'Everything is ready. Restart the app to enter v2.',
+      failed: 'Migration stopped before replacing your original data.'
     },
     language: {
       label: 'Language'
@@ -394,15 +393,6 @@ export const enUS = {
       progress_title: 'Creating your backup archive',
       progress_description: 'Choose where to save the ZIP file, then wait for Cherry Studio to confirm the backup.',
       progress_hint: 'Cherry Studio is writing a fresh recovery point now. Keep this window open.',
-      progress_stages: {
-        opening_dialog: 'Opening the backup save dialog...',
-        preparing: 'Preparing backup data...',
-        writing_data: 'Writing backup metadata...',
-        copying_files: 'Copying application data...',
-        preparing_compression: 'Preparing backup compression...',
-        compressing: 'Compressing the backup archive...',
-        completed: 'Backup created successfully.'
-      },
       ready_title: 'Backup confirmed',
       ready_description: 'You now have a recovery point, so the migration can start.',
       selected: {
@@ -439,11 +429,11 @@ export const enUS = {
       description:
         'Before migration can continue, create a backup or confirm that you already have a recent recovery point.'
     },
-    backup_progress: {
+    backup_in_progress: {
       title: 'Preparing data backup',
       description: 'Choose a backup destination and wait for the archive to finish.'
     },
-    backup_confirmed: {
+    backup_ready: {
       title: 'Backup completed',
       description: 'The backup is ready. You can now start the migration.'
     },
@@ -466,10 +456,14 @@ export const enUS = {
         modules_hint: 'All modules must finish before the last step unlocks'
       }
     },
-    migration: {
+    preparing_migration: {
+      title: 'Preparing migration data...'
+    },
+    migration_in_progress: {
       title: 'Migrating data...'
     },
     progress: {
+      preparing_export: 'Collecting legacy data and preparing the export...',
       processing: 'Processing {{name}}...',
       exporting_table: 'Exporting {{table}} ({{current}}/{{total}})',
       starting_engine: 'Legacy data export is complete. Starting migration...',
@@ -487,12 +481,12 @@ export const enUS = {
       quick_phrases: 'Quick phrases',
       translate_languages: 'Translation languages'
     },
-    migration_completed: {
+    migration_succeeded: {
       badge: 'Migration finished',
       title: 'Data migration is complete',
       description: 'All modules have finished. Confirm the result to continue.'
     },
-    completed: {
+    restart_required: {
       badge: 'Restart required',
       title: 'Migration is complete. Restart the app',
       description:
@@ -514,7 +508,7 @@ export const enUS = {
         item_2: 'If something looks wrong, keep the logs and backup before taking further action'
       }
     },
-    error: {
+    failed: {
       badge: 'Migration interrupted',
       title: 'Migration failed',
       description: 'Something went wrong during the migration. Your current data and backup are still intact.',

@@ -1,23 +1,16 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import React from 'react'
+import type { ReactNode } from 'react'
 
-interface StepPageProps {
+type StepPageProps = {
   title: string
   description?: string
-  children: React.ReactNode
+  children: ReactNode
   align?: 'start' | 'center'
-  leading?: React.ReactNode
+  leading?: ReactNode
   headerClassName?: string
 }
 
-export const StepPage: React.FC<StepPageProps> = ({
-  title,
-  description,
-  children,
-  align = 'start',
-  leading,
-  headerClassName
-}) => {
+export function StepPage({ title, description, children, align = 'start', leading, headerClassName }: StepPageProps) {
   return (
     <div className={cn('space-y-8', align === 'center' && 'text-center')}>
       <div
@@ -35,6 +28,6 @@ export const StepPage: React.FC<StepPageProps> = ({
   )
 }
 
-export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function SectionLabel({ children }: { children: ReactNode }) {
   return <p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">{children}</p>
 }

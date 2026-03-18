@@ -8,9 +8,10 @@ Standalone renderer window that drives the migration workflow: drafts data expor
 src/renderer/src/windows/migrationV2/
 ├── MigrationApp.tsx        # UI shell and stage logic
 ├── entryPoint.tsx          # Window bootstrap, logger + i18n wiring
-├── components/             # UI widgets (progress list, stage indicator, buttons)
+├── components/             # Shared layout/presentation pieces reused by multiple screens
 ├── hooks/                  # Progress subscription + action helpers
 ├── exporters/              # Data exporters for Redux Persist and Dexie
+├── screens/                # Four main flow screens plus the failed screen
 ├── i18n/                   # Migration-specific translations
 └── migrationV2.html        # Built HTML entry (under dist)
 ```
@@ -18,14 +19,14 @@ src/renderer/src/windows/migrationV2/
 ## Flow Overview
 
 1. `entryPoint.tsx` initializes styles, patches (antd React 19), logger source (`MigrationV2`), and i18n, then mounts `MigrationApp`.
-2. `MigrationApp.tsx` renders the staged wizard: introduction → backup → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
+2. `MigrationApp.tsx` owns the shell and switches between five screen files: `IntroductionScreen`, `BackupScreen`, `MigrationScreen`, `CompletionScreen`, and `FailedScreen`. Main remains the owner of `MigrationStage`; the renderer keeps only local UI state such as selected backup mode and export progress.
 3. Hooks:
-   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides helpers to locally mark completion.
-   - `useMigrationActions` wraps IPC invokes for backup, start, retry, cancel, and restart.
+   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress` and queries the initial progress / last error on load.
+   - `useMigrationActions` wraps IPC invokes for flow transitions such as back, backup confirmation, preparation, retry, cancel, and restart.
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.
    - `DexieExporter` snapshots Dexie tables from IndexedDB to JSON via IPC (`migration:write-export-file`), so main can read from disk without direct browser access.
-5. Components render the per-migrator list (`MigratorProgressList`), stage indicator, and footer action buttons used by the wizard.
+5. `screens/` own each visible page, including its footer actions. `components/` only keep shared pieces such as the header/footer shell, common page layout, state panel, progress list, and stage indicator.
 
 ## Implementation Notes
 

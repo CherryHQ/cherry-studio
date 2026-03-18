@@ -1,10 +1,9 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { MigratorProgress as MigratorProgressType, MigratorStatus } from '@shared/data/migration/v2/types'
 import { Check } from 'lucide-react'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props {
+type Props = {
   migrators: MigratorProgressType[]
 }
 
@@ -28,7 +27,7 @@ function StatusSummary({ status, text }: { status: MigratorStatus; text: string 
   return <span>{text}</span>
 }
 
-export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
+export function MigratorProgressList({ migrators }: Props) {
   const { t } = useTranslation()
 
   if (migrators.length === 0) {

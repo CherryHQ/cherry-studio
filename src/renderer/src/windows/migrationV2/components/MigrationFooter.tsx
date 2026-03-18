@@ -1,21 +1,15 @@
-import React from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props {
+type Props = {
   currentStep: number
   totalSteps: number
   message: string
-  secondaryAction?: React.ReactNode
-  primaryAction?: React.ReactNode
+  secondaryAction?: ReactNode
+  primaryAction?: ReactNode
 }
 
-export const MigrationFooter: React.FC<Props> = ({
-  currentStep,
-  totalSteps,
-  message,
-  secondaryAction,
-  primaryAction
-}) => {
+export function MigrationFooter({ currentStep, totalSteps, message, secondaryAction, primaryAction }: Props) {
   const { t } = useTranslation()
 
   return (

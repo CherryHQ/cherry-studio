@@ -115,11 +115,11 @@ export class MigrationEngine {
         logger.info(`Starting migrator: ${migrator.name}`, { id: migrator.id })
 
         // Update progress: migrator starting
-        this.updateProgress('migration', this.calculateProgress(i, 0), migrator)
+        this.updateProgress('migration_in_progress', this.calculateProgress(i, 0), migrator)
 
         // Set up migrator progress callback
         migrator.setProgressCallback((progress, progressMessage) => {
-          this.updateProgress('migration', this.calculateProgress(i, progress), migrator, progressMessage)
+          this.updateProgress('migration_in_progress', this.calculateProgress(i, progress), migrator, progressMessage)
         })
 
         // Phase 1: Prepare (includes dry-run validation)
@@ -158,7 +158,7 @@ export class MigrationEngine {
         })
 
         // Update progress: migrator completed
-        this.updateProgress('migration', this.calculateProgress(i + 1, 0), migrator)
+        this.updateProgress('migration_in_progress', this.calculateProgress(i + 1, 0), migrator)
       }
 
       // Mark migration completed

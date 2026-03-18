@@ -20,32 +20,8 @@ export const initialExportState: ExportState = {
   activeStep: 0
 }
 
-export function getCurrentStep(stage: MigrationStage): number {
-  switch (stage) {
-    case 'introduction':
-      return 1
-    case 'backup_required':
-    case 'backup_progress':
-    case 'backup_confirmed':
-      return 2
-    case 'migration':
-      return 3
-    case 'migration_completed':
-    case 'completed':
-      return 4
-    case 'error':
-      return 3
-    default:
-      return 1
-  }
-}
-
-export function isMainMigrationStage(stage: MigrationStage): boolean {
-  return stage === 'migration' || stage === 'migration_completed' || stage === 'completed' || stage === 'error'
-}
-
 export function isCloseAllowed(stage: MigrationStage): boolean {
-  return stage !== 'backup_progress' && stage !== 'migration'
+  return stage !== 'backup_in_progress' && stage !== 'preparing_migration' && stage !== 'migration_in_progress'
 }
 
 export function getExportTaskTranslationKey(task?: string): string | null {

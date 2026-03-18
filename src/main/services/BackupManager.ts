@@ -212,14 +212,12 @@ class BackupManager {
     fileName: string,
     data: string,
     destinationPath: string = this.backupDir,
-    skipBackupFile: boolean = false,
-    progressListener?: (processData: { stage: string; progress: number; total: number }) => void
+    skipBackupFile: boolean = false
   ): Promise<string> {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      progressListener?.(processData)
       // 只在关键阶段记录日志：开始、结束和主要阶段转换点
       const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
       if (logStages.includes(processData.stage) || processData.progress === 100) {

@@ -1,88 +1,50 @@
-import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@renderer/services/LoggerService'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
-import { ArrowRight, RefreshCw } from 'lucide-react'
-import React, { useEffect, useMemo, useState } from 'react'
+import { type MigrationBackupMode, MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  type BackupChoice,
-  MigrationBackupStep,
-  MigrationCompletedStep,
-  MigrationErrorStep,
-  MigrationFooter,
-  MigrationHeader,
-  MigrationOverviewStep,
-  MigrationRunStep
-} from './components'
+import { MigrationHeader } from './components'
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
-import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
+import { useMigrationActions, useMigrationProgress, useMigrationViewState } from './hooks'
 import {
   createDexieExportStartState,
   createInitialExportState,
   EXPORT_PROGRESS_WEIGHT,
-  type ExportState,
-  getCurrentStep,
   getExportTaskTranslationKey,
   getNextDexieExportState,
-  initialExportState,
   isCloseAllowed,
-  isMainMigrationStage,
   MIGRATION_PROGRESS_WEIGHT
 } from './progress'
-
+import { BackupScreen, CompletionScreen, FailedScreen, IntroductionScreen, MigrationScreen } from './screens'
 const logger = loggerService.withContext('MigrationApp')
 
-const totalSteps = 4
-const languageOptions = [
+const LANGUAGE_OPTIONS = [
   { value: 'zh-CN', label: '中文' },
   { value: 'en-US', label: 'English' }
-] as const
-const footerPrimaryButtonClassName = 'min-h-10 rounded-md px-4 shadow-none'
-const footerSecondaryButtonClassName =
-  'min-h-10 rounded-md px-3.5 text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground'
+]
 
-const MigrationApp: React.FC = () => {
+export default function MigrationApp() {
   const { t, i18n } = useTranslation()
-  const { progress, lastError, confirmComplete } = useMigrationProgress()
+  const { progress, lastError } = useMigrationProgress()
   const actions = useMigrationActions()
-  const [isLoading, setIsLoading] = useState(false)
-  const [backupChoice, setBackupChoice] = useState<BackupChoice>('create')
-  const [displayStageOverride, setDisplayStageOverride] = useState<MigrationStage | null>(null)
-  const [exportState, setExportState] = useState<ExportState>(initialExportState)
-  const [localError, setLocalError] = useState<string | null>(null)
+  const {
+    state: viewState,
+    selectBackupChoice,
+    resetTransientState,
+    startMigrationRequest,
+    setExportState,
+    failStartMigration,
+    finishStartMigration
+  } = useMigrationViewState(progress.stage, progress.backupInfo?.mode)
+  const { backupChoice, exportState, localError, startMigrationState } = viewState
 
   const currentLanguage = i18n.language.toLowerCase().includes('zh') ? 'zh-CN' : 'en-US'
-  const displayStage = localError ? 'error' : (displayStageOverride ?? progress.stage)
+  const isStartingMigration = startMigrationState === 'pending'
+  const displayStage: MigrationStage = progress.stage === 'failed' || !localError ? progress.stage : 'failed'
   const progressMessage = progress.i18nMessage
     ? t(progress.i18nMessage.key, progress.i18nMessage.params)
     : progress.currentMessage
-  const currentStep = getCurrentStep(displayStage)
-
-  useEffect(() => {
-    if (
-      progress.stage === 'introduction' ||
-      progress.stage === 'backup_progress' ||
-      progress.stage === 'migration' ||
-      progress.stage === 'migration_completed' ||
-      progress.stage === 'completed' ||
-      progress.stage === 'error'
-    ) {
-      setDisplayStageOverride(null)
-    }
-  }, [progress.stage])
-
-  useEffect(() => {
-    if (progress.backupInfo?.mode && (progress.stage === 'backup_progress' || progress.stage === 'backup_confirmed')) {
-      setBackupChoice(progress.backupInfo.mode)
-    }
-  }, [progress.backupInfo, progress.stage])
-
-  const resetLocalMigrationState = () => {
-    setLocalError(null)
-    setExportState(initialExportState)
-  }
 
   const handleLanguageChange = async (lang: string) => {
     if (lang === currentLanguage) {
@@ -93,12 +55,11 @@ const MigrationApp: React.FC = () => {
   }
 
   const handleStartMigration = async () => {
-    setIsLoading(true)
-    setLocalError(null)
-    setDisplayStageOverride('migration')
-    setExportState(createInitialExportState(1))
+    startMigrationRequest()
 
     try {
+      await actions.prepareMigration()
+
       logger.info('Starting migration process...')
 
       const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
@@ -126,7 +87,6 @@ const MigrationApp: React.FC = () => {
 
       logger.info('Dexie data exported', { exportPath })
 
-      // Export localStorage data
       const localStorageExportPath = `${userDataPath}/migration_temp/localstorage_export`
       const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
       const localStorageFilePath = await localStorageExporter.export()
@@ -147,14 +107,15 @@ const MigrationApp: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : String(error)
 
       logger.error('Failed to start migration', error as Error)
-      setLocalError(errorMessage)
-      setExportState((prev) => ({
-        ...prev,
-        status: 'failed'
-      }))
-      setDisplayStageOverride('error')
+      failStartMigration(errorMessage)
+
+      try {
+        await actions.reportFailure(errorMessage)
+      } catch (reportError) {
+        logger.error('Failed to report migration preparation failure', reportError as Error)
+      }
     } finally {
-      setIsLoading(false)
+      finishStartMigration()
     }
   }
 
@@ -168,15 +129,11 @@ const MigrationApp: React.FC = () => {
   }, [exportState.currentTask, t])
 
   const migrationOperationMessage = useMemo(() => {
-    if (displayStage === 'migration_completed') {
+    if (displayStage === 'migration_succeeded') {
       return t('migration.migration_run.summary.done')
     }
 
-    if (displayStage !== 'migration') {
-      return progressMessage
-    }
-
-    if (!isMainMigrationStage(progress.stage) && exportState.status !== 'idle') {
+    if (displayStage === 'preparing_migration') {
       if (exportState.status === 'completed') {
         return t('migration.progress.starting_engine')
       }
@@ -191,7 +148,7 @@ const MigrationApp: React.FC = () => {
     }
 
     return progressMessage
-  }, [displayStage, exportState, exportTaskLabel, progress.stage, progressMessage, t])
+  }, [displayStage, exportState, exportTaskLabel, progressMessage, t])
 
   const checklistItems = progress.migrators
 
@@ -206,296 +163,114 @@ const MigrationApp: React.FC = () => {
   }, [checklistItems])
 
   const displayedProgress = useMemo(() => {
-    if (displayStage === 'migration_completed' || displayStage === 'completed') {
+    if (displayStage === 'migration_succeeded' || displayStage === 'restart_required') {
       return 100
     }
 
-    if (displayStage !== 'migration') {
-      return Math.round(progress.overallProgress)
-    }
-
-    if (isMainMigrationStage(progress.stage)) {
+    if (displayStage === 'migration_in_progress') {
       return EXPORT_PROGRESS_WEIGHT + Math.round((progress.overallProgress / 100) * MIGRATION_PROGRESS_WEIGHT)
     }
 
-    if (exportState.totalSteps === 0) {
-      return 0
+    if (displayStage === 'preparing_migration') {
+      if (exportState.totalSteps === 0) {
+        return 0
+      }
+
+      return Math.round((exportState.completedSteps / exportState.totalSteps) * EXPORT_PROGRESS_WEIGHT)
     }
 
-    return Math.round((exportState.completedSteps / exportState.totalSteps) * EXPORT_PROGRESS_WEIGHT)
-  }, [displayStage, exportState.completedSteps, exportState.totalSteps, progress.overallProgress, progress.stage])
-
-  const footerMessage = useMemo(() => {
-    switch (displayStage) {
-      case 'introduction':
-        return t('migration.footer.introduction')
-      case 'backup_required':
-        return backupChoice === 'create'
-          ? t('migration.footer.backup_required_create')
-          : t('migration.footer.backup_required_existing')
-      case 'backup_progress':
-        return progressMessage || t('migration.footer.backup_progress')
-      case 'backup_confirmed':
-        return t('migration.footer.backup_confirmed')
-      case 'migration':
-        return migrationOperationMessage
-      case 'migration_completed':
-        return t('migration.footer.migration_completed')
-      case 'completed':
-        return t('migration.footer.completed')
-      case 'error':
-        return t('migration.footer.error')
-      default:
-        return progressMessage
-    }
-  }, [backupChoice, displayStage, migrationOperationMessage, progressMessage, t])
+    return Math.round(progress.overallProgress)
+  }, [displayStage, exportState.completedSteps, exportState.totalSteps, progress.overallProgress])
 
   const handleClose = () => actions.cancel()
 
   const handleRetry = async () => {
-    resetLocalMigrationState()
-    setDisplayStageOverride(null)
+    resetTransientState()
     await actions.retry()
   }
 
   const handleGoBack = () => {
-    switch (displayStage) {
-      case 'backup_required':
-        setDisplayStageOverride('introduction')
-        break
-      case 'backup_confirmed':
-        setDisplayStageOverride('backup_required')
-        break
-      default:
-        break
-    }
+    resetTransientState()
+    actions.goBack()
   }
 
   const handleProceedFromOverview = () => {
-    resetLocalMigrationState()
-
-    if (progress.stage === 'introduction') {
-      setDisplayStageOverride(null)
-      void actions.proceedToBackup()
-      return
-    }
-
-    setDisplayStageOverride('backup_required')
+    resetTransientState()
+    actions.proceedToBackup()
   }
 
   const handleProceedFromBackup = () => {
-    resetLocalMigrationState()
-    setDisplayStageOverride(null)
+    resetTransientState()
 
     if (backupChoice === 'create') {
-      void actions.showBackupDialog()
+      actions.showBackupDialog()
       return
     }
 
-    void actions.confirmBackup('existing')
+    actions.confirmBackup('existing')
   }
 
-  const errorMessage = localError || lastError || progress.error || t('migration.error.unknown')
-  const confirmedBackupMode = progress.backupInfo?.mode ?? backupChoice
+  const errorMessage = localError || lastError || progress.error || t('migration.failed.unknown')
+  const confirmedBackupMode: MigrationBackupMode = progress.backupInfo?.mode ?? backupChoice
 
-  const renderContent = () => {
-    switch (displayStage) {
-      case 'introduction':
-        return (
-          <MigrationOverviewStep
-            currentLanguage={currentLanguage}
-            languageOptions={languageOptions}
-            onLanguageChange={handleLanguageChange}
-          />
-        )
-      case 'backup_required':
-      case 'backup_progress':
-      case 'backup_confirmed':
-        return (
-          <MigrationBackupStep
-            stage={displayStage}
-            backupChoice={backupChoice}
-            confirmedBackupMode={confirmedBackupMode}
-            progressMessage={progressMessage}
-            progressValue={progress.overallProgress}
-            onBackupChoiceChange={setBackupChoice}
-          />
-        )
-      case 'migration':
-        return (
-          <MigrationRunStep
-            complete={false}
-            operationMessage={migrationOperationMessage}
-            progressValue={displayedProgress}
-            completedCount={checklistStats.completed}
-            totalCount={checklistStats.total}
-            migrators={checklistItems}
-          />
-        )
-      case 'migration_completed':
-        return (
-          <MigrationRunStep
-            complete
-            operationMessage={migrationOperationMessage}
-            progressValue={100}
-            completedCount={checklistStats.total}
-            totalCount={checklistStats.total}
-            migrators={checklistItems}
-          />
-        )
-      case 'completed':
-        return <MigrationCompletedStep />
-      case 'error':
-        return <MigrationErrorStep errorMessage={errorMessage} />
-      default:
-        return (
-          <MigrationOverviewStep
-            currentLanguage={currentLanguage}
-            languageOptions={languageOptions}
-            onLanguageChange={handleLanguageChange}
-          />
-        )
-    }
-  }
-
-  const renderFooterActions = () => {
-    switch (displayStage) {
-      case 'introduction':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-next" className={footerPrimaryButtonClassName} onClick={handleProceedFromOverview}>
-              {t('migration.buttons.next')}
-              <ArrowRight className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      case 'backup_required':
-        return {
-          secondary: (
-            <Button
-              key="secondary-back"
-              variant="ghost"
-              className={footerSecondaryButtonClassName}
-              onClick={handleGoBack}>
-              {t('migration.buttons.back')}
-            </Button>
-          ),
-          primary: (
-            <Button key="primary-next" className={footerPrimaryButtonClassName} onClick={handleProceedFromBackup}>
-              {t('migration.buttons.next')}
-              <ArrowRight className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      case 'backup_progress':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-backing-up" className={footerPrimaryButtonClassName} disabled loading>
-              {t('migration.buttons.backing_up')}
-            </Button>
-          )
-        }
-      case 'backup_confirmed':
-        return {
-          secondary: (
-            <Button
-              key="secondary-back"
-              variant="ghost"
-              className={footerSecondaryButtonClassName}
-              onClick={handleGoBack}>
-              {t('migration.buttons.back')}
-            </Button>
-          ),
-          primary: (
-            <Button
-              key="primary-next"
-              className={footerPrimaryButtonClassName}
-              onClick={handleStartMigration}
-              loading={isLoading}>
-              {t('migration.buttons.next')}
-              <ArrowRight className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      case 'migration':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-migrating" className={footerPrimaryButtonClassName} disabled loading>
-              {t('migration.buttons.migrating')}
-            </Button>
-          )
-        }
-      case 'migration_completed':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-next" className={footerPrimaryButtonClassName} onClick={confirmComplete}>
-              {t('migration.buttons.next')}
-              <ArrowRight className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      case 'completed':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-restart" className={footerPrimaryButtonClassName} onClick={actions.restart}>
-              {t('migration.buttons.restart')}
-              <RefreshCw className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      case 'error':
-        return {
-          secondary: null,
-          primary: (
-            <Button key="primary-retry" className={footerPrimaryButtonClassName} onClick={handleRetry}>
-              {t('migration.buttons.retry')}
-              <RefreshCw className="lucide-custom size-4" />
-            </Button>
-          )
-        }
-      default:
-        return {
-          secondary: null,
-          primary: null
-        }
-    }
-  }
-
-  const footerActions = renderFooterActions()
   const canClose = isCloseAllowed(displayStage)
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden text-foreground">
       <MigrationHeader stage={displayStage} canClose={canClose} onClose={handleClose} />
 
-      <main className="flex flex-1 overflow-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-190 flex-col justify-center px-6 py-12">
-          <div
-            key={displayStage}
-            className={cn(
-              'fade-in animate-in duration-300',
-              displayStage === 'error' && 'slide-in-from-bottom-3',
-              displayStage !== 'error' && 'slide-in-from-right-4'
-            )}>
-            {renderContent()}
-          </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div
+          key={displayStage}
+          className={cn(
+            'flex flex-1 flex-col overflow-hidden fade-in animate-in duration-300',
+            displayStage === 'failed' && 'slide-in-from-bottom-3',
+            displayStage !== 'failed' && 'slide-in-from-right-4'
+          )}>
+          {displayStage === 'introduction' && (
+            <IntroductionScreen
+              currentLanguage={currentLanguage}
+              languageOptions={LANGUAGE_OPTIONS}
+              onLanguageChange={handleLanguageChange}
+              onNext={handleProceedFromOverview}
+            />
+          )}
+          {(displayStage === 'backup_required' ||
+            displayStage === 'backup_in_progress' ||
+            displayStage === 'backup_ready') && (
+            <BackupScreen
+              stage={displayStage}
+              backupChoice={backupChoice}
+              confirmedBackupMode={confirmedBackupMode}
+              isStartingMigration={isStartingMigration}
+              onBackupChoiceChange={selectBackupChoice}
+              onBack={handleGoBack}
+              onProceed={handleProceedFromBackup}
+              onStartMigration={handleStartMigration}
+            />
+          )}
+          {(displayStage === 'preparing_migration' || displayStage === 'migration_in_progress') && (
+            <MigrationScreen
+              operationMessage={migrationOperationMessage}
+              progressValue={displayedProgress}
+              completedCount={checklistStats.completed}
+              totalCount={checklistStats.total}
+              migrators={checklistItems}
+            />
+          )}
+          {(displayStage === 'migration_succeeded' || displayStage === 'restart_required') && (
+            <CompletionScreen
+              stage={displayStage}
+              operationMessage={migrationOperationMessage}
+              totalCount={checklistStats.total}
+              migrators={checklistItems}
+              onConfirm={actions.confirmMigrationResult}
+              onRestart={actions.restart}
+            />
+          )}
+          {displayStage === 'failed' && <FailedScreen errorMessage={errorMessage} onRetry={() => void handleRetry()} />}
         </div>
-      </main>
-
-      <MigrationFooter
-        currentStep={currentStep}
-        totalSteps={totalSteps}
-        message={footerMessage}
-        secondaryAction={footerActions.secondary}
-        primaryAction={footerActions.primary}
-      />
+      </div>
     </div>
   )
 }
-
-export default MigrationApp

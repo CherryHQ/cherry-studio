@@ -1,8 +1,7 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { LucideIcon } from 'lucide-react'
-import React from 'react'
 
-interface Props {
+type Props = {
   title: string
   description?: string
   icon: LucideIcon
@@ -11,14 +10,7 @@ interface Props {
   mono?: boolean
 }
 
-export const StatePanel: React.FC<Props> = ({
-  title,
-  description,
-  icon: Icon,
-  tone = 'primary',
-  loading = false,
-  mono = false
-}) => {
+export function StatePanel({ title, description, icon: Icon, tone = 'primary', loading = false, mono = false }: Props) {
   return (
     <div className="flex items-start gap-4 py-2 text-left">
       <Icon

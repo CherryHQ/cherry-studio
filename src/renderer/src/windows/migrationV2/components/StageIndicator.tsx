@@ -1,10 +1,9 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { Check } from 'lucide-react'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props {
+type Props = {
   stage: MigrationStage
 }
 
@@ -20,25 +19,25 @@ function getCurrentStepIndex(stage: MigrationStage): number {
     case 'introduction':
       return 0
     case 'backup_required':
-    case 'backup_progress':
-    case 'backup_confirmed':
+    case 'backup_in_progress':
+    case 'backup_ready':
       return 1
-    case 'migration':
+    case 'preparing_migration':
+    case 'migration_in_progress':
+    case 'failed':
       return 2
-    case 'migration_completed':
-    case 'completed':
+    case 'migration_succeeded':
+    case 'restart_required':
       return 3
-    case 'error':
-      return 2
     default:
       return 0
   }
 }
 
-export const StageIndicator: React.FC<Props> = ({ stage }) => {
+export function StageIndicator({ stage }: Props) {
   const { t } = useTranslation()
   const currentIndex = getCurrentStepIndex(stage)
-  const isFinished = stage === 'completed'
+  const isFinished = stage === 'restart_required'
 
   return (
     <ol className="flex items-center justify-center gap-3">

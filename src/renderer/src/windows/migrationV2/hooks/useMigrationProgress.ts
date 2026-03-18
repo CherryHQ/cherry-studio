@@ -34,6 +34,11 @@ export function useMigrationProgress() {
       setProgress(progressData)
       if (progressData.error) {
         setLastError(progressData.error)
+        return
+      }
+
+      if (progressData.stage !== 'failed') {
+        setLastError(null)
       }
     }
 
@@ -68,29 +73,9 @@ export function useMigrationProgress() {
     }
   }, [])
 
-  // Local state transition for confirming migration completion (frontend only)
-  const confirmComplete = useCallback(() => {
-    setProgress((prev) => ({
-      ...prev,
-      stage: 'completed',
-      currentMessage: 'Migration completed successfully! Click restart to continue.'
-    }))
-  }, [])
-
-  // Stage helpers
-  const isInProgress = progress.stage === 'migration'
-  const isCompleted = progress.stage === 'completed'
-  const isError = progress.stage === 'error'
-  const canCancel = progress.stage === 'introduction' || progress.stage === 'backup_required'
-
   return {
     progress,
-    lastError,
-    isInProgress,
-    isCompleted,
-    isError,
-    canCancel,
-    confirmComplete
+    lastError
   }
 }
 
@@ -98,6 +83,10 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
+  const goBack = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.GoBack)
+  }, [])
+
   const proceedToBackup = useCallback(() => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ProceedToBackup)
   }, [])
@@ -108,6 +97,10 @@ export function useMigrationActions() {
 
   const showBackupDialog = useCallback(() => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
+  }, [])
+
+  const prepareMigration = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.PrepareMigration)
   }, [])
 
   const startMigration = useCallback(
@@ -132,6 +125,14 @@ export function useMigrationActions() {
     []
   )
 
+  const confirmMigrationResult = useCallback(() => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmMigrationResult)
+  }, [])
+
+  const reportFailure = useCallback((errorMessage: string) => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportFailure, errorMessage)
+  }, [])
+
   const retry = useCallback(() => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.Retry)
   }, [])
@@ -145,10 +146,14 @@ export function useMigrationActions() {
   }, [])
 
   return {
+    goBack,
     proceedToBackup,
     confirmBackup,
     showBackupDialog,
+    prepareMigration,
     startMigration,
+    confirmMigrationResult,
+    reportFailure,
     retry,
     cancel,
     restart

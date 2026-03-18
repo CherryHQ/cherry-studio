@@ -2,18 +2,17 @@ import { Button } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { X } from 'lucide-react'
-import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StageIndicator } from './StageIndicator'
 
-interface Props {
+type Props = {
   stage: MigrationStage
   canClose: boolean
   onClose: () => void
 }
 
-export const MigrationHeader: React.FC<Props> = ({ stage, canClose, onClose }) => {
+export function MigrationHeader({ stage, canClose, onClose }: Props) {
   const { t } = useTranslation()
 
   return (

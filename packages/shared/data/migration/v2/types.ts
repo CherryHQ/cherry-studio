@@ -6,30 +6,21 @@
 export type MigrationStage =
   | 'introduction'
   | 'backup_required'
-  | 'backup_progress'
-  | 'backup_confirmed'
-  | 'migration'
-  | 'migration_completed'
-  | 'completed'
-  | 'error'
+  | 'backup_in_progress'
+  | 'backup_ready'
+  | 'preparing_migration'
+  | 'migration_in_progress'
+  | 'migration_succeeded'
+  | 'restart_required'
+  | 'failed'
 
 // Individual migrator status
 export type MigratorStatus = 'pending' | 'running' | 'completed' | 'failed'
 
 export type MigrationBackupMode = 'create' | 'existing'
 
-export type MigrationBackupProgressStage =
-  | 'preparing'
-  | 'writing_data'
-  | 'copying_files'
-  | 'preparing_compression'
-  | 'compressing'
-  | 'completed'
-
 export interface MigrationBackupInfo {
   mode: MigrationBackupMode
-  filePath?: string
-  progressStage?: MigrationBackupProgressStage
 }
 
 // Migrator progress info for UI display
@@ -134,11 +125,14 @@ export const MigrationIpcChannels = {
   GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
-  Start: 'migration:start',
+  GoBack: 'migration:go-back',
   ProceedToBackup: 'migration:proceed-to-backup',
   ShowBackupDialog: 'migration:show-backup-dialog',
   BackupCompleted: 'migration:backup-completed',
+  PrepareMigration: 'migration:prepare-migration',
   StartMigration: 'migration:start-migration',
+  ConfirmMigrationResult: 'migration:confirm-result',
+  ReportFailure: 'migration:report-failure',
   Retry: 'migration:retry',
   Cancel: 'migration:cancel',
   Restart: 'migration:restart',
