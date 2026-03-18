@@ -3900,6 +3900,10 @@
           "help": "在匯出 Markdown 時顯示模型供應商，如 OpenAI、Gemini 等",
           "title": "顯示模型供應商"
         },
+        "show_timestamp": {  
+          "title": "匯出時顯示訊息時間戳記",  
+          "help": "開啟後，匯出 Markdown 時每條訊息標題後會附加傳送時間，格式為 YYYY-MM-DD HH:mm"  
+        },
         "standardize_citations": {
           "help": "將引用標記轉換為標準 Markdown 腳註格式 [^1]，並格式化引用列表",
           "title": "標準化引用格式"
