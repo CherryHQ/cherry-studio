@@ -1100,7 +1100,7 @@ class BackupManager {
     const timestamp = new Date()
       .toISOString()
       .replace(/[-:T.Z]/g, '')
-      .slice(0, 12)
+      .slice(0, 14)
 
     const fileName = `cherry-studio.${timestamp}.zip`
     const tempPath = path.join(app.getPath('temp'), 'cherry-studio', 'lan-transfer')
