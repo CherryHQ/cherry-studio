@@ -1,7 +1,7 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
+import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { PROVIDER_ICON_CATALOG } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Input } from 'antd'
 import type { FC } from 'react'

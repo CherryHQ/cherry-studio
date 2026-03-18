@@ -4,12 +4,13 @@
 
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+import { type MigrationBackupMode, MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import { type BackupProcessData, createBackupProgress } from './backupProgress'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
@@ -17,6 +18,7 @@ const logger = loggerService.withContext('MigrationIpcHandler')
 // Store for cached data from Renderer
 let cachedReduxData: Record<string, unknown> | null = null
 let cachedDexieExportPath: string | null = null
+let cachedLocalStorageExportPath: string | null = null
 const backupManager = new BackupManager()
 
 // Current migration progress
@@ -70,7 +72,8 @@ export function registerMigrationIpcHandlers(): void {
         stage: 'backup_required',
         overallProgress: 0,
         currentMessage: 'Data backup is required before migration can proceed',
-        migrators: []
+        migrators: [],
+        backupInfo: undefined
       })
       return true
     } catch (error) {
@@ -87,9 +90,13 @@ export function registerMigrationIpcHandlers(): void {
       // Update progress to indicate backup dialog is opening
       updateProgress({
         stage: 'backup_progress',
-        overallProgress: 10,
+        overallProgress: 0,
         currentMessage: 'Opening backup dialog...',
-        migrators: []
+        i18nMessage: { key: 'migration.backup.progress_stages.opening_dialog' },
+        migrators: [],
+        backupInfo: {
+          mode: 'create'
+        }
       })
 
       const result = await dialog.showSaveDialog({
@@ -105,29 +112,33 @@ export function registerMigrationIpcHandlers(): void {
         logger.info('User selected backup location', { filePath: result.filePath })
         updateProgress({
           stage: 'backup_progress',
-          overallProgress: 10,
-          currentMessage: 'Creating backup file...',
-          migrators: []
+          overallProgress: 0,
+          currentMessage: 'Preparing backup data...',
+          i18nMessage: { key: 'migration.backup.progress_stages.preparing' },
+          migrators: [],
+          backupInfo: {
+            mode: 'create',
+            filePath: result.filePath,
+            progressStage: 'preparing'
+          }
         })
 
         // Perform the actual backup to the selected location
         const backupResult = await performBackupToFile(result.filePath)
 
         if (backupResult.success) {
-          updateProgress({
-            stage: 'backup_progress',
-            overallProgress: 100,
-            currentMessage: 'Backup created successfully!',
-            migrators: []
-          })
-
           // Wait a moment to show the success message, then transition to confirmed state
           setTimeout(() => {
             updateProgress({
               stage: 'backup_confirmed',
               overallProgress: 100,
               currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-              migrators: []
+              i18nMessage: { key: 'migration.backup.ready_description' },
+              migrators: [],
+              backupInfo: {
+                mode: 'create',
+                filePath: result.filePath
+              }
             })
           }, 1000)
         } else {
@@ -135,7 +146,8 @@ export function registerMigrationIpcHandlers(): void {
             stage: 'backup_required',
             overallProgress: 0,
             currentMessage: `Backup failed: ${backupResult.error}`,
-            migrators: []
+            migrators: [],
+            backupInfo: undefined
           })
         }
 
@@ -146,7 +158,8 @@ export function registerMigrationIpcHandlers(): void {
           stage: 'backup_required',
           overallProgress: 0,
           currentMessage: 'Backup cancelled. Please create a backup to continue.',
-          migrators: []
+          migrators: [],
+          backupInfo: undefined
         })
         return { success: false, error: 'Backup cancelled by user' }
       }
@@ -156,20 +169,25 @@ export function registerMigrationIpcHandlers(): void {
         stage: 'backup_required',
         overallProgress: 0,
         currentMessage: 'Backup process failed',
-        migrators: []
+        migrators: [],
+        backupInfo: undefined
       })
       throw error
     }
   })
 
   // Backup completed
-  ipcMain.handle(MigrationIpcChannels.BackupCompleted, async () => {
+  ipcMain.handle(MigrationIpcChannels.BackupCompleted, async (_event, mode: MigrationBackupMode = 'existing') => {
     try {
       updateProgress({
         stage: 'backup_confirmed',
         overallProgress: 100,
         currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-        migrators: []
+        i18nMessage: { key: 'migration.backup.ready_description' },
+        migrators: [],
+        backupInfo: {
+          mode
+        }
       })
       return true
     } catch (error) {
@@ -204,6 +222,18 @@ export function registerMigrationIpcHandlers(): void {
     }
   })
 
+  // localStorage export completed
+  ipcMain.handle(MigrationIpcChannels.LocalStorageExportCompleted, async (_event, exportPath: string) => {
+    try {
+      cachedLocalStorageExportPath = exportPath
+      logger.info('localStorage export completed', { exportPath })
+      return true
+    } catch (error) {
+      logger.error('Error receiving localStorage export path', error as Error)
+      throw error
+    }
+  })
+
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
@@ -232,13 +262,25 @@ export function registerMigrationIpcHandlers(): void {
         throw new Error('Migration data not ready. Redux data or Dexie export path missing.')
       }
 
+      updateProgress({
+        stage: 'migration',
+        overallProgress: 0,
+        currentMessage: 'Starting migration...',
+        i18nMessage: { key: 'migration.progress.starting_engine' },
+        migrators: []
+      })
+
       // Set up progress callback
       migrationEngine.onProgress((progress) => {
         updateProgress(progress)
       })
 
       // Run migration
-      const result = await migrationEngine.run(cachedReduxData, cachedDexieExportPath)
+      const result = await migrationEngine.run(
+        cachedReduxData,
+        cachedDexieExportPath,
+        cachedLocalStorageExportPath ?? undefined
+      )
 
       if (result.success) {
         updateProgress({
@@ -285,7 +327,8 @@ export function registerMigrationIpcHandlers(): void {
         stage: 'backup_confirmed',
         overallProgress: 0,
         currentMessage: 'Ready to retry migration',
-        migrators: []
+        migrators: [],
+        backupInfo: currentProgress.backupInfo
       })
       return true
     } catch (error) {
@@ -345,6 +388,7 @@ function updateProgress(progress: MigrationProgress): void {
 export function resetMigrationData(): void {
   cachedReduxData = null
   cachedDexieExportPath = null
+  cachedLocalStorageExportPath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
@@ -419,7 +463,10 @@ async function performBackupToFile(filePath: string): Promise<{ success: boolean
       fileName,
       backupData,
       destinationDir,
-      false // Don't skip backup files - full backup for migration safety
+      false, // Don't skip backup files - full backup for migration safety
+      (processData) => {
+        updateProgress(createBackupProgress(processData as BackupProcessData, filePath))
+      }
     )
 
     if (backupPath) {

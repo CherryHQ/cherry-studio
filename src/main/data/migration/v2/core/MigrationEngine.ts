@@ -20,6 +20,7 @@ import type {
 } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
 import fs from 'fs/promises'
+import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -92,7 +93,11 @@ export class MigrationEngine {
    * @param reduxData - Parsed Redux state data from Renderer
    * @param dexieExportPath - Path to exported Dexie files
    */
-  async run(reduxData: Record<string, unknown>, dexieExportPath: string): Promise<MigrationResult> {
+  async run(
+    reduxData: Record<string, unknown>,
+    dexieExportPath: string,
+    localStorageExportPath?: string
+  ): Promise<MigrationResult> {
     const startTime = Date.now()
     const results: MigratorResult[] = []
 
@@ -101,7 +106,7 @@ export class MigrationEngine {
       await this.verifyAndClearNewTables()
 
       // Create migration context
-      const context = await createMigrationContext(reduxData, dexieExportPath)
+      const context = await createMigrationContext(reduxData, dexieExportPath, localStorageExportPath)
 
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]
@@ -161,6 +166,10 @@ export class MigrationEngine {
 
       // Cleanup temporary files
       await this.cleanupTempFiles(dexieExportPath)
+
+      if (localStorageExportPath) {
+        await this.cleanupTempFiles(path.dirname(localStorageExportPath))
+      }
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,

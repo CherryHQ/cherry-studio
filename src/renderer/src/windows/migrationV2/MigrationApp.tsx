@@ -16,8 +16,21 @@ import {
   MigrationOverviewStep,
   MigrationRunStep
 } from './components'
-import { DexieExporter, ReduxExporter } from './exporters'
+import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
+import {
+  createDexieExportStartState,
+  createInitialExportState,
+  EXPORT_PROGRESS_WEIGHT,
+  type ExportState,
+  getCurrentStep,
+  getExportTaskTranslationKey,
+  getNextDexieExportState,
+  initialExportState,
+  isCloseAllowed,
+  isMainMigrationStage,
+  MIGRATION_PROGRESS_WEIGHT
+} from './progress'
 
 const logger = loggerService.withContext('MigrationApp')
 
@@ -29,70 +42,6 @@ const languageOptions = [
 const footerPrimaryButtonClassName = 'min-h-10 rounded-md px-4 shadow-none'
 const footerSecondaryButtonClassName =
   'min-h-10 rounded-md px-3.5 text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground'
-const EXPORT_PROGRESS_WEIGHT = 18
-const MIGRATION_PROGRESS_WEIGHT = 82
-
-interface ExportState {
-  status: 'idle' | 'running' | 'completed' | 'failed'
-  currentTask?: string
-  completedSteps: number
-  totalSteps: number
-}
-
-const initialExportState: ExportState = {
-  status: 'idle',
-  completedSteps: 0,
-  totalSteps: 0
-}
-
-function getCurrentStep(stage: MigrationStage): number {
-  switch (stage) {
-    case 'introduction':
-      return 1
-    case 'backup_required':
-    case 'backup_progress':
-    case 'backup_confirmed':
-      return 2
-    case 'migration':
-      return 3
-    case 'migration_completed':
-    case 'completed':
-      return 4
-    case 'error':
-      return 3
-    default:
-      return 1
-  }
-}
-
-function isMainMigrationStage(stage: MigrationStage): boolean {
-  return stage === 'migration' || stage === 'migration_completed' || stage === 'completed' || stage === 'error'
-}
-
-function getExportTaskTranslationKey(task?: string): string | null {
-  switch (task) {
-    case 'redux_state':
-      return 'migration.tables.redux_state'
-    case 'topics':
-      return 'migration.tables.topics'
-    case 'files':
-      return 'migration.tables.files'
-    case 'knowledge_notes':
-      return 'migration.tables.knowledge_notes'
-    case 'message_blocks':
-      return 'migration.tables.message_blocks'
-    case 'settings':
-      return 'migration.tables.settings'
-    case 'translate_history':
-      return 'migration.tables.translate_history'
-    case 'quick_phrases':
-      return 'migration.tables.quick_phrases'
-    case 'translate_languages':
-      return 'migration.tables.translate_languages'
-    default:
-      return null
-  }
-}
 
 const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
@@ -147,12 +96,7 @@ const MigrationApp: React.FC = () => {
     setIsLoading(true)
     setLocalError(null)
     setDisplayStageOverride('migration')
-    setExportState({
-      status: 'running',
-      currentTask: 'redux_state',
-      completedSteps: 0,
-      totalSteps: 1
-    })
+    setExportState(createInitialExportState(1))
 
     try {
       logger.info('Starting migration process...')
@@ -163,12 +107,7 @@ const MigrationApp: React.FC = () => {
       const tablesToExport = dexieExporter.getTablesToExport()
       const totalExportSteps = tablesToExport.length + 1
 
-      setExportState({
-        status: 'running',
-        currentTask: 'redux_state',
-        completedSteps: 0,
-        totalSteps: totalExportSteps
-      })
+      setExportState(createInitialExportState(totalExportSteps))
 
       const reduxExporter = new ReduxExporter()
       const reduxResult = reduxExporter.export()
@@ -177,33 +116,33 @@ const MigrationApp: React.FC = () => {
         slicesMissing: reduxResult.slicesMissing
       })
 
-      setExportState({
-        status: 'running',
-        currentTask: tablesToExport[0],
-        completedSteps: 1,
-        totalSteps: totalExportSteps
-      })
+      setExportState(createDexieExportStartState(tablesToExport[0], totalExportSteps))
 
       await dexieExporter.exportAll((exportProgress) => {
         logger.info('Dexie export progress', exportProgress)
 
-        setExportState({
-          status: 'running',
-          currentTask: exportProgress.table,
-          completedSteps: 1 + exportProgress.progress,
-          totalSteps: totalExportSteps
-        })
+        setExportState(getNextDexieExportState(exportProgress, tablesToExport, totalExportSteps))
       })
 
       logger.info('Dexie data exported', { exportPath })
 
+      // Export localStorage data
+      const localStorageExportPath = `${userDataPath}/migration_temp/localstorage_export`
+      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
+      const localStorageFilePath = await localStorageExporter.export()
+      logger.info('localStorage data exported', {
+        entryCount: localStorageExporter.getEntryCount(),
+        filePath: localStorageFilePath
+      })
+
       setExportState({
         status: 'completed',
         completedSteps: totalExportSteps,
-        totalSteps: totalExportSteps
+        totalSteps: totalExportSteps,
+        activeStep: totalExportSteps
       })
 
-      await actions.startMigration(reduxResult.data, exportPath)
+      await actions.startMigration(reduxResult.data, exportPath, localStorageFilePath)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
 
@@ -245,7 +184,7 @@ const MigrationApp: React.FC = () => {
       if (exportState.status === 'running') {
         return t('migration.progress.exporting_table', {
           table: exportTaskLabel,
-          current: Math.min(exportState.completedSteps + 1, exportState.totalSteps),
+          current: Math.min(exportState.activeStep, exportState.totalSteps),
           total: exportState.totalSteps
         })
       }
@@ -295,7 +234,7 @@ const MigrationApp: React.FC = () => {
           ? t('migration.footer.backup_required_create')
           : t('migration.footer.backup_required_existing')
       case 'backup_progress':
-        return t('migration.footer.backup_progress')
+        return progressMessage || t('migration.footer.backup_progress')
       case 'backup_confirmed':
         return t('migration.footer.backup_confirmed')
       case 'migration':
@@ -337,7 +276,8 @@ const MigrationApp: React.FC = () => {
 
     if (progress.stage === 'introduction') {
       setDisplayStageOverride(null)
-      return actions.proceedToBackup()
+      void actions.proceedToBackup()
+      return
     }
 
     setDisplayStageOverride('backup_required')
@@ -348,10 +288,11 @@ const MigrationApp: React.FC = () => {
     setDisplayStageOverride(null)
 
     if (backupChoice === 'create') {
-      return actions.showBackupDialog()
+      void actions.showBackupDialog()
+      return
     }
 
-    return actions.confirmBackup('existing')
+    void actions.confirmBackup('existing')
   }
 
   const errorMessage = localError || lastError || progress.error || t('migration.error.unknown')
@@ -375,6 +316,8 @@ const MigrationApp: React.FC = () => {
             stage={displayStage}
             backupChoice={backupChoice}
             confirmedBackupMode={confirmedBackupMode}
+            progressMessage={progressMessage}
+            progressValue={progress.overallProgress}
             onBackupChoiceChange={setBackupChoice}
           />
         )
@@ -524,10 +467,11 @@ const MigrationApp: React.FC = () => {
   }
 
   const footerActions = renderFooterActions()
+  const canClose = isCloseAllowed(displayStage)
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden text-foreground">
-      <MigrationHeader stage={displayStage} onClose={handleClose} />
+      <MigrationHeader stage={displayStage} canClose={canClose} onClose={handleClose} />
 
       <main className="flex flex-1 overflow-auto">
         <div className="mx-auto flex min-h-full w-full max-w-190 flex-col justify-center px-6 py-12">

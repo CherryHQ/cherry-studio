@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -142,7 +141,6 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-    cacheService.set('chat.active_view', 'topic')
   }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
@@ -179,7 +177,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
             trigger={['click']}
             popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
             <MenuButton onClick={handleMenuButtonClick}>
-              <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
+              <MoreVertical size={14} className="text-(--color-text-secondary)" />
             </MenuButton>
           </Dropdown>
         )}
@@ -316,7 +314,7 @@ function getMenuItems({
       key: 'save-to-agent',
       icon: <Save size={14} />,
       onClick: async () => {
-        const preset = omit(assistant, ['model', 'emoji'])
+        const preset = omit(assistant, ['model'])
         preset.id = uuid()
         preset.type = 'agent'
         addPreset(preset)
@@ -404,9 +402,9 @@ const Container = ({
   <div
     {...props}
     className={cn(
-      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2',
-      !isActive && 'hover:bg-[var(--color-list-item-hover)]',
-      isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+      'relative flex h-9.25 w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-(--list-item-border-radius) border-[0.5px] border-transparent px-2',
+      !isActive && 'hover:bg-(--color-list-item-hover)',
+      isActive && 'bg-(--color-list-item) shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
       className
     )}>
     {children}
@@ -420,7 +418,7 @@ const AssistantNameRow = ({
 }: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
   <div
     {...props}
-    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-[13px] text-[var(--color-text)]', className)}>
+    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-(--color-text) text-[13px]', className)}>
     {children}
   </div>
 )
@@ -445,7 +443,7 @@ const MenuButton = ({
   <div
     {...props}
     className={cn(
-      'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      'absolute top-1.5 right-2.25 flex h-5.5 min-h-5.5 min-w-5.5 flex-row items-center justify-center rounded-[11px] border-(--color-border) border-[0.5px] bg-(--color-background) px-1.25',
       className
     )}>
     {children}

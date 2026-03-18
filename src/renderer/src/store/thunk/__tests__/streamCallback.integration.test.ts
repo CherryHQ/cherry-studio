@@ -10,6 +10,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import type * as errorUtils from '@renderer/utils/error'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -245,16 +246,21 @@ vi.mock('i18next', () => {
   }
 })
 
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError'),
-  serializeError: vi.fn((error) => ({
-    name: error.name,
-    message: error.message,
-    stack: error.stack,
-    cause: error.cause ? String(error.cause) : undefined
-  }))
-}))
+vi.mock('@renderer/utils/error', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof errorUtils
+  return {
+    ...actual,
+    formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
+    formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${error?.message || 'Unknown error'}`),
+    isAbortError: vi.fn((error) => error.name === 'AbortError'),
+    serializeError: vi.fn((error) => ({
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause ? String(error.cause) : undefined
+    }))
+  }
+})
 
 vi.mock('@renderer/utils', () => ({
   default: {},

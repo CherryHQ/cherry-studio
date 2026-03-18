@@ -1,11 +1,11 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -802,7 +802,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.top_up')}
               </SettingHelpLink>
               {(() => {
-                const Icon = getProviderLogo(dmxapiProvider.id)
+                const Icon = resolveProviderIcon(dmxapiProvider.id)
                 return Icon ? <Icon.Avatar size={16} className="ml-1" /> : null
               })()}
             </div>

@@ -131,6 +131,15 @@ export const zhCN = {
       progress_title: '正在创建备份压缩包',
       progress_description: '选择 ZIP 保存位置后，等待窗口确认备份完成。',
       progress_hint: 'Cherry Studio 正在写入新的恢复点，请保持窗口开启。',
+      progress_stages: {
+        opening_dialog: '正在打开备份保存位置选择框...',
+        preparing: '正在准备备份数据...',
+        writing_data: '正在写入备份元数据...',
+        copying_files: '正在复制应用数据...',
+        preparing_compression: '正在准备压缩备份文件...',
+        compressing: '正在压缩备份文件...',
+        completed: '备份创建完成。'
+      },
       ready_title: '备份已确认',
       ready_description: '现在已经有恢复点，可以开始迁移。',
       selected: {
@@ -385,6 +394,15 @@ export const enUS = {
       progress_title: 'Creating your backup archive',
       progress_description: 'Choose where to save the ZIP file, then wait for Cherry Studio to confirm the backup.',
       progress_hint: 'Cherry Studio is writing a fresh recovery point now. Keep this window open.',
+      progress_stages: {
+        opening_dialog: 'Opening the backup save dialog...',
+        preparing: 'Preparing backup data...',
+        writing_data: 'Writing backup metadata...',
+        copying_files: 'Copying application data...',
+        preparing_compression: 'Preparing backup compression...',
+        compressing: 'Compressing the backup archive...',
+        completed: 'Backup created successfully.'
+      },
       ready_title: 'Backup confirmed',
       ready_description: 'You now have a recovery point, so the migration can start.',
       selected: {

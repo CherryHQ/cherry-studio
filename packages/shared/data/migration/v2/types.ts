@@ -16,6 +16,22 @@ export type MigrationStage =
 // Individual migrator status
 export type MigratorStatus = 'pending' | 'running' | 'completed' | 'failed'
 
+export type MigrationBackupMode = 'create' | 'existing'
+
+export type MigrationBackupProgressStage =
+  | 'preparing'
+  | 'writing_data'
+  | 'copying_files'
+  | 'preparing_compression'
+  | 'compressing'
+  | 'completed'
+
+export interface MigrationBackupInfo {
+  mode: MigrationBackupMode
+  filePath?: string
+  progressStage?: MigrationBackupProgressStage
+}
+
 // Migrator progress info for UI display
 export interface MigratorProgress {
   id: string
@@ -38,6 +54,7 @@ export interface MigrationProgress {
   /** Optional i18n key with params for translation in renderer */
   i18nMessage?: I18nMessage
   migrators: MigratorProgress[]
+  backupInfo?: MigrationBackupInfo
   error?: string
 }
 
@@ -102,6 +119,12 @@ export interface MigrationStatusValue {
   error?: string | null
 }
 
+// localStorage record type (shared between main LocalStorageReader and renderer LocalStorageExporter)
+export interface LocalStorageRecord {
+  key: string
+  value: unknown
+}
+
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
   // Status queries
@@ -123,6 +146,7 @@ export const MigrationIpcChannels = {
   // Data transfer (Renderer -> Main)
   SendReduxData: 'migration:send-redux-data',
   DexieExportCompleted: 'migration:dexie-export-completed',
+  LocalStorageExportCompleted: 'migration:localstorage-export-completed',
   WriteExportFile: 'migration:write-export-file',
 
   // Progress broadcast (Main -> Renderer)

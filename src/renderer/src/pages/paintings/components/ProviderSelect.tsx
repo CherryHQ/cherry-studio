@@ -1,5 +1,5 @@
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { getProviderLogo } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { Provider } from '@types'
@@ -37,8 +37,8 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
     loadLogos()
   }, [options])
 
-  const getProviderLogoOrSrc = (providerId: string) => {
-    const systemLogo = getProviderLogo(providerId)
+  const resolveProviderIconOrSrc = (providerId: string) => {
+    const systemLogo = resolveProviderIcon(providerId)
     if (systemLogo) {
       return systemLogo
     }
@@ -68,7 +68,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
               <ProviderAvatarPrimitive
                 providerId={providerId}
                 providerName={providerName}
-                logo={getProviderLogoOrSrc(providerId)}
+                logo={resolveProviderIconOrSrc(providerId)}
                 size={16}
               />
             </div>
@@ -85,7 +85,7 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
               <ProviderAvatarPrimitive
                 providerId={providerId}
                 providerName={providerName}
-                logo={getProviderLogoOrSrc(providerId)}
+                logo={resolveProviderIconOrSrc(providerId)}
                 size={16}
               />
             </div>

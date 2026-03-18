@@ -1,6 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
-import { getProviderLogo } from '@renderer/config/providers'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
@@ -76,7 +76,7 @@ export const ProviderAvatar: React.FC<ProviderAvatarProps> = ({
   style,
   size
 }) => {
-  const systemIcon = getProviderLogo(provider.id)
+  const systemIcon = resolveProviderIcon(provider.id)
   if (systemIcon) {
     return (
       <ProviderAvatarPrimitive

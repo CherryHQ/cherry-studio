@@ -15,6 +15,8 @@ interface Props {
   stage: MigrationStage
   backupChoice: BackupChoice
   confirmedBackupMode: BackupChoice
+  progressMessage: string
+  progressValue: number
   onBackupChoiceChange: (choice: BackupChoice) => void
 }
 
@@ -67,6 +69,8 @@ export const MigrationBackupStep: React.FC<Props> = ({
   stage,
   backupChoice,
   confirmedBackupMode,
+  progressMessage,
+  progressValue,
   onBackupChoiceChange
 }) => {
   const { t } = useTranslation()
@@ -83,9 +87,24 @@ export const MigrationBackupStep: React.FC<Props> = ({
           <StatePanel
             icon={Loader2}
             title={t('migration.backup.progress_title')}
-            description={t('migration.backup.progress_hint')}
+            description={progressMessage}
             loading
           />
+          <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-5">
+            <div className="flex items-center justify-between gap-4">
+              <p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                {t('migration.migration_run.summary.overall_progress')}
+              </p>
+              <p className="font-semibold text-foreground text-lg tabular-nums">{Math.round(progressValue)}%</p>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-primary/12">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                style={{ width: `${Math.max(0, Math.min(100, progressValue))}%` }}
+              />
+            </div>
+            <p className="text-muted-foreground text-sm leading-6">{t('migration.backup.progress_hint')}</p>
+          </div>
         </div>
       </StepPage>
     )
@@ -141,7 +160,7 @@ export const MigrationBackupStep: React.FC<Props> = ({
       </RadioGroup>
       <div
         key={backupChoice}
-        className="mx-auto w-full max-w-xl fade-in slide-in-from-bottom-2 animate-in duration-200">
+        className="fade-in slide-in-from-bottom-2 mx-auto w-full max-w-xl animate-in duration-200">
         <p className="text-muted-foreground text-sm leading-6">
           {backupChoice === 'create'
             ? t('migration.backup.selection_hint_create')
