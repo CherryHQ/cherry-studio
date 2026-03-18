@@ -107,6 +107,20 @@ vi.mock('winston-daily-rotate-file', () => {
   }))
 })
 
+// Mock electron-store to avoid file system operations
+vi.mock('electron-store', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      has: vi.fn(() => false),
+      store: {}
+    }))
+  }
+})
+
 // Mock Node.js modules
 vi.mock('node:os', () => {
   const mock = {

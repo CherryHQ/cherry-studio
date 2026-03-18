@@ -14,6 +14,9 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import fs from 'node:fs'
+import path from 'node:path'
+
 import type { UpgradeChannel } from '@shared/config/constant'
 import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import type { LanguageVarious, Shortcut } from '@types'
@@ -23,6 +26,28 @@ import Store from 'electron-store'
 import { v4 as uuidv4 } from 'uuid'
 
 import { locales } from '../utils/locales'
+
+/**
+ * Migrate config.json from legacy location (userData/config.json)
+ * to new location (userData/Data/config.json) if needed.
+ * This ensures the config is included in backups.
+ * Note: Data directory must be created before calling this function.
+ */
+function migrateConfigToDataDir(dataDir: string) {
+  const userData = app.getPath('userData')
+  const legacyConfigPath = path.join(userData, 'config.json')
+  const newConfigPath = path.join(dataDir, 'config.json')
+
+  // If legacy config exists and new config doesn't, migrate it
+  if (fs.existsSync(legacyConfigPath) && !fs.existsSync(newConfigPath)) {
+    try {
+      fs.copyFileSync(legacyConfigPath, newConfigPath)
+      fs.unlinkSync(legacyConfigPath)
+    } catch {
+      // Migration failed, will continue using legacy location
+    }
+  }
+}
 
 export enum ConfigKeys {
   Language = 'language',
@@ -58,7 +83,18 @@ export class ConfigManager {
   private subscribers: Map<string, Array<(newValue: any) => void>> = new Map()
 
   constructor() {
-    this.store = new Store()
+    // Store config in Data directory so it's included in backups
+    const dataDir = path.join(app.getPath('userData'), 'Data')
+
+    // Ensure Data directory exists before migration and store creation
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true })
+    }
+
+    // Migrate config from legacy location to Data directory
+    migrateConfigToDataDir(dataDir)
+
+    this.store = new Store({ cwd: dataDir })
   }
 
   getLanguage(): LanguageVarious {
