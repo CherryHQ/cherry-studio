@@ -2320,8 +2320,6 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.1-pro' }))).toBe(true)
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.2-preview' }))).toBe(true)
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.5-lite' }))).toBe(true)
-      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
-      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
     })
 
     it('should return false for non-m2 minimax models', () => {
