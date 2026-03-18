@@ -8,6 +8,8 @@ import {
   validateAgentReplace,
   validateAgentUpdate,
   validatePagination,
+  validateReorderAgents,
+  validateReorderSessions,
   validateSession,
   validateSessionId,
   validateSessionMessage,
@@ -388,7 +390,7 @@ const agentsRouter = express.Router()
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 // Reorder route — must be before /:agentId to avoid treating "reorder" as an agentId
-agentsRouter.put('/reorder', agentHandlers.reorderAgents)
+agentsRouter.put('/reorder', validateReorderAgents, handleValidationErrors, agentHandlers.reorderAgents)
 
 // Agent CRUD routes
 agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.createAgent)
@@ -653,7 +655,7 @@ const createSessionsRouter = (): express.Router => {
    *             schema:
    *               $ref: '#/components/schemas/ErrorResponse'
    */
-  sessionsRouter.put('/reorder', sessionHandlers.reorderSessions)
+  sessionsRouter.put('/reorder', validateReorderSessions, handleValidationErrors, sessionHandlers.reorderSessions)
 
   sessionsRouter.post('/', validateSession, handleValidationErrors, sessionHandlers.createSession)
 
