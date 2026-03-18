@@ -3237,6 +3237,7 @@ const migrateConfig = {
           provider.apiHost = 'https://api.minimaxi.com/v1/'
         }
       })
+      state.settings.logLevel = 'info'
       return state
     } catch (error) {
       logger.error('migrate 198 error', error as Error)

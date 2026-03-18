@@ -3591,6 +3591,9 @@
         "title": "Feedback"
       },
       "label": "About & Feedback",
+      "logLevel": {
+        "title": "Log Level"
+      },
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
