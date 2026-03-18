@@ -704,6 +704,114 @@ describe('reasoning utils', () => {
         }
       })
     })
+
+    it('should use fallback budgetTokens when findTokenLimit returns undefined for Claude model', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
+        '@renderer/config/models'
+      )
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'claude-unknown-model',
+        name: 'Claude Unknown',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high',
+          maxTokens: 8192
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: {
+          type: 'enabled',
+          budgetTokens: expect.any(Number)
+        }
+      })
+      // budgetTokens must be present and >= 1024 (the minimum enforced by computeBudgetTokens)
+      const thinking = result.thinking as { type: 'enabled'; budgetTokens?: number }
+      expect(thinking.budgetTokens).toBeGreaterThanOrEqual(1024)
+    })
+
+    it('should use fallback budgetTokens for non-Claude model on Anthropic endpoint when token limit is unknown', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
+        '@renderer/config/models'
+      )
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'kimi-reasoning-model',
+        name: 'Kimi Reasoning',
+        provider: 'custom-provider'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'medium',
+          maxTokens: 4096
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      // Non-Claude models on Anthropic endpoint should also get fallback budgetTokens
+      expect(result).toEqual({
+        thinking: {
+          type: 'enabled',
+          budgetTokens: expect.any(Number)
+        }
+      })
+      const thinking = result.thinking as { type: 'enabled'; budgetTokens?: number }
+      expect(thinking.budgetTokens).toBeGreaterThanOrEqual(1024)
+    })
+
+    it('should produce different fallback budgetTokens for different effort levels', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
+        '@renderer/config/models'
+      )
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'claude-unknown-model',
+        name: 'Claude Unknown',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const lowAssistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'low', maxTokens: 4096 }
+      } as Assistant
+
+      const highAssistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high', maxTokens: 4096 }
+      } as Assistant
+
+      const lowResult = getAnthropicReasoningParams(lowAssistant, model)
+      const highResult = getAnthropicReasoningParams(highAssistant, model)
+
+      // Higher effort should produce higher or equal budgetTokens
+      const lowThinking = lowResult.thinking as { type: 'enabled'; budgetTokens?: number }
+      const highThinking = highResult.thinking as { type: 'enabled'; budgetTokens?: number }
+      expect(highThinking.budgetTokens).toBeGreaterThanOrEqual(lowThinking.budgetTokens!)
+    })
   })
 
   describe('getGeminiReasoningParams', () => {
