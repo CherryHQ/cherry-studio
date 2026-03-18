@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ensureApiHostHasVersion } from './chat-completion'
+import { ensureApiHostHasVersion } from '../chat-completion'
 
 describe('ensureApiHostHasVersion', () => {
   it('appends /v1 when apiHost has no version segment', () => {
