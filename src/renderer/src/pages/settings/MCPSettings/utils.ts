@@ -14,7 +14,8 @@ const TRUSTED_SERVER_WHITELIST: readonly string[] = [
  * Check if a server URL is in the trusted whitelist
  */
 function isServerInWhitelist(server: MCPServer): boolean {
-  if (server.type !== 'sse' || !server.baseUrl) {
+  const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
+  if (!isUrlBasedServer || !server.baseUrl) {
     return false
   }
   return TRUSTED_SERVER_WHITELIST.includes(server.baseUrl)
