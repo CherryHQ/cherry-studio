@@ -551,6 +551,19 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
+// Conservative fallback token limit for models not in THINKING_TOKEN_MAP.
+const FALLBACK_TOKEN_LIMIT = { min: 1024, max: 16384 }
+
+function computeBudgetTokens(
+  tokenLimit: { min: number; max: number },
+  effortRatio: number,
+  maxTokens?: number
+): number {
+  const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  const capped = maxTokens !== undefined ? Math.min(budget, maxTokens) : budget
+  return Math.max(1024, capped)
+}
+
 export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
@@ -559,21 +572,22 @@ export function getThinkingBudget(
   if (reasoningEffort === undefined || reasoningEffort === 'none') {
     return undefined
   }
-  const effortRatio = EFFORT_RATIO[reasoningEffort]
 
   const tokenLimit = findTokenLimit(modelId)
   if (!tokenLimit) {
     return undefined
   }
 
-  const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  return computeBudgetTokens(tokenLimit, EFFORT_RATIO[reasoningEffort], maxTokens)
+}
 
-  let budgetTokens = budget
-  if (maxTokens !== undefined) {
-    budgetTokens = Math.min(budget, maxTokens)
-  }
-
-  return Math.max(1024, budgetTokens)
+// Compute a fallback budgetTokens using a conservative token limit when
+// findTokenLimit() cannot determine the model's actual limit. This ensures
+// { type: 'enabled' } always carries a valid budget, which is required by
+// the Claude Agent SDK and the Anthropic Messages API.
+function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
+  const effortRatio = EFFORT_RATIO[reasoningEffort ?? 'high'] ?? EFFORT_RATIO.high
+  return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, effortRatio)
 }
 
 /**
@@ -639,7 +653,7 @@ export function getAnthropicReasoningParams(
     return {
       thinking: {
         type: 'enabled',
-        budgetTokens: budgetTokens ?? 8192
+        budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort)
       }
     }
   } else {
@@ -649,7 +663,7 @@ export function getAnthropicReasoningParams(
     // Always include budgetTokens to prevent Claude Agent SDK from converting
     // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
     // upstream providers do not support (they only accept 'enabled'/'disabled').
-    return { thinking: { type: 'enabled', budgetTokens: budgetTokens ?? 8192 } }
+    return { thinking: { type: 'enabled', budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort) } }
   }
 }
 
