@@ -639,14 +639,17 @@ export function getAnthropicReasoningParams(
     return {
       thinking: {
         type: 'enabled',
-        budgetTokens: budgetTokens
+        budgetTokens: budgetTokens ?? 8192
       }
     }
   } else {
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
     const { maxTokens } = getAssistantSettings(assistant)
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
-    return budgetTokens ? { thinking: { type: 'enabled', budgetTokens } } : { thinking: { type: 'enabled' } }
+    // Always include budgetTokens to prevent Claude Agent SDK from converting
+    // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
+    // upstream providers do not support (they only accept 'enabled'/'disabled').
+    return { thinking: { type: 'enabled', budgetTokens: budgetTokens ?? 8192 } }
   }
 }
 
