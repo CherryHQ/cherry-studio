@@ -11,7 +11,6 @@ import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
 
@@ -122,7 +121,7 @@ const PromptSettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <PromptList>
+          <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
             <DraggableList
               list={reversedPrompts}
               onUpdate={(newList) => handleUpdateOrder([...newList].reverse())}
@@ -136,13 +135,15 @@ const PromptSettings: FC = () => {
                     name: prompt.title,
                     ext: '.txt',
                     extra: (
-                      <PromptExtra>
+                      <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
                         <span>
                           {prompt.content.slice(0, 80)}
                           {prompt.content.length > 80 ? '...' : ''}
                         </span>
-                        <VersionBadge>v{prompt.currentVersion}</VersionBadge>
-                      </PromptExtra>
+                        <span className="whitespace-nowrap rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 text-[11px] text-[var(--color-primary)]">
+                          v{prompt.currentVersion}
+                        </span>
+                      </div>
                     ),
                     actions: (
                       <Flex className="gap-1 opacity-60">
@@ -169,7 +170,7 @@ const PromptSettings: FC = () => {
                 />
               )}
             </DraggableList>
-          </PromptList>
+          </div>
         </SettingRow>
       </SettingGroup>
 
@@ -185,7 +186,7 @@ const PromptSettings: FC = () => {
         maskClosable={false}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Label>{t('settings.prompts.titleLabel')}</Label>
+            <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.titleLabel')}</div>
             <Input
               placeholder={t('settings.prompts.titlePlaceholder')}
               value={formData.title}
@@ -193,7 +194,7 @@ const PromptSettings: FC = () => {
             />
           </div>
           <div>
-            <Label>{t('settings.prompts.contentLabel')}</Label>
+            <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.contentLabel')}</div>
             <TextArea
               placeholder={t('settings.prompts.contentPlaceholder')}
               value={formData.content}
@@ -214,22 +215,28 @@ const PromptSettings: FC = () => {
         width={600}
         transitionName="animation-move-down"
         centered>
-        <VersionList>
+        <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
           {versions.map((version) => (
-            <VersionItem key={version.id}>
-              <VersionInfo>
-                <VersionNumber>
+            <div
+              key={version.id}
+              className="flex flex-col gap-1.5 rounded-lg border-[0.5px] border-[var(--color-border)] p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-semibold text-sm">
                   v{version.version}
                   {editingPrompt?.currentVersion === version.version && (
-                    <CurrentBadge>{t('settings.prompts.current')}</CurrentBadge>
+                    <span className="rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 font-normal text-[11px] text-[var(--color-primary)]">
+                      {t('settings.prompts.current')}
+                    </span>
                   )}
-                </VersionNumber>
-                <VersionDate>{new Date(version.createdAt).toLocaleString()}</VersionDate>
-              </VersionInfo>
-              <VersionContent>
+                </div>
+                <span className="text-[var(--color-text-3)] text-xs">
+                  {new Date(version.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <div className="text-[13px] text-[var(--color-text-2)] leading-[1.5]">
                 {version.content.slice(0, 100)}
                 {version.content.length > 100 ? '...' : ''}
-              </VersionContent>
+              </div>
               {editingPrompt?.currentVersion !== version.version && (
                 <Popconfirm
                   title={t('settings.prompts.rollbackConfirm')}
@@ -242,95 +249,12 @@ const PromptSettings: FC = () => {
                   </Button>
                 </Popconfirm>
               )}
-            </VersionItem>
+            </div>
           ))}
-        </VersionList>
+        </div>
       </Modal>
     </SettingContainer>
   )
 }
-
-const Label = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  margin-bottom: 4px;
-`
-
-const PromptList = styled.div`
-  width: 100%;
-  height: calc(100vh - 162px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const PromptExtra = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-const VersionBadge = styled.span`
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
-  white-space: nowrap;
-`
-
-const VersionList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 400px;
-  overflow-y: auto;
-`
-
-const VersionItem = styled.div`
-  border: 0.5px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`
-
-const VersionInfo = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`
-
-const VersionNumber = styled.div`
-  font-weight: 600;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const CurrentBadge = styled.span`
-  font-size: 11px;
-  font-weight: 400;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
-`
-
-const VersionDate = styled.span`
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-const VersionContent = styled.div`
-  font-size: 13px;
-  color: var(--color-text-2);
-  line-height: 1.5;
-`
 
 export default PromptSettings
