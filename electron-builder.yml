@@ -144,7 +144,6 @@ releaseInfo:
 
     🐛 Bug Fixes
     - [Agents] Fix thinking mode 400 error on non-Anthropic providers
-    - [macOS] Add manual download option for users who cannot auto-update due to code signing change
     - [Windows] Fix Windows Terminal launch failing on non-English systems
     - [Windows] Fix CLI tools (qwen-code, Copilot CLI) failing to start on Windows
     - [Azure] Fix dated API versions routing to wrong transport
@@ -161,7 +160,6 @@ releaseInfo:
 
     🐛 问题修复
     - [智能体] 修复非 Anthropic 服务商思考模式 400 错误
-    - [macOS] 为因代码签名变更无法自动更新的用户添加手动下载选项
     - [Windows] 修复 Windows Terminal 在非英语系统上启动失败的问题
     - [Windows] 修复 CLI 工具（qwen-code、Copilot CLI）在 Windows 上启动失败的问题
     - [Azure] 修复特定版本的 API 路由到错误传输方式的问题
