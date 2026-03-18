@@ -1,9 +1,10 @@
+import { DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { isMac } from '@renderer/config/constant'
 import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
-import { Alert, Button, Modal } from 'antd'
+import { Button, Modal } from 'antd'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,6 +46,8 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         }
       })
     }
+
+    setRequiresManualInstall(true)
   }, [releaseInfo])
 
   const handleInstall = async () => {
@@ -134,7 +137,22 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       ]}>
       <ModalBodyWrapper>
         {requiresManualInstall && (
-          <Alert type="info" showIcon message={t('update.manualInstallInfo')} style={{ marginBottom: 16 }} />
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-100 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+            <InfoCircleOutlined className="shrink-0 text-base text-neutral-500 dark:text-neutral-400" />
+            <span className="flex-1 text-neutral-600 text-sm dark:text-neutral-300">
+              {t('update.manualInstallInfo')}
+            </span>
+            <button
+              type="button"
+              onClick={() => window.api.openWebsite(DOWNLOAD_URL)}
+              className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 font-medium text-sm text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}>
+              <DownloadOutlined className="text-xs" />
+              {t('update.manualDownload')}
+            </button>
+          </div>
         )}
         <ReleaseNotesWrapper className="markdown">
           <Markdown>
