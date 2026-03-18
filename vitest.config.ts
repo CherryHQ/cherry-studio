@@ -1,3 +1,4 @@
+import { resolve } from 'path'
 import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
@@ -60,6 +61,11 @@ export default defineConfig({
       // shared 包单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('packages/shared')
+          }
+        },
         test: {
           name: 'shared',
           environment: 'node',
