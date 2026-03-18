@@ -1,6 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import crypto from 'crypto'
 import type { NextFunction, Request, Response } from 'express'
+
+import { config } from '../config'
 
 const isValidToken = (token: string, apiKey: string): boolean => {
   if (token.length !== apiKey.length) {
@@ -11,7 +12,7 @@ const isValidToken = (token: string, apiKey: string): boolean => {
   return crypto.timingSafeEqual(tokenBuf, keyBuf)
 }
 
-export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const auth = req.header('authorization') || ''
   const xApiKey = req.header('x-api-key') || ''
 
@@ -20,7 +21,9 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     return res.status(401).json({ error: 'Unauthorized: missing credentials' })
   }
 
-  const apiKey = preferenceService.get('feature.csaas.api_key')
+  const gatewayConfig = await config.get()
+  const apiKey = gatewayConfig.apiKey
+  const bearerPrefix = /^Bearer\s+/i
 
   if (!apiKey) {
     return res.status(403).json({ error: 'Forbidden' })
@@ -43,7 +46,6 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   // Fallback to Bearer token
   if (auth) {
     const trimmed = auth.trim()
-    const bearerPrefix = /^Bearer\s+/i
 
     if (!bearerPrefix.test(trimmed)) {
       return res.status(401).json({ error: 'Unauthorized: invalid authorization format' })
