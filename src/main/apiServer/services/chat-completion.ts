@@ -6,7 +6,7 @@ import { loggerService } from '../../services/LoggerService'
 import type { ModelValidationError } from '../utils'
 import { validateModelId } from '../utils'
 
-function ensureApiHostHasVersion(apiHost: string): string {
+export function ensureApiHostHasVersion(apiHost: string): string {
   if (!apiHost || typeof apiHost !== 'string') {
     return apiHost
   }
