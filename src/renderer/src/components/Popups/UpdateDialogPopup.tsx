@@ -1,5 +1,7 @@
+import { DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { isMac } from '@renderer/config/constant'
 import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { Button, Modal } from 'antd'
@@ -10,6 +12,10 @@ import Markdown from 'react-markdown'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('UpdateDialog')
+
+// Old Team ID that requires manual install
+const OLD_TEAM_ID = 'Q24M7JR2C4'
+const DOWNLOAD_URL = 'https://www.cherry-ai.com/download'
 
 interface ShowParams {
   releaseInfo: UpdateInfo | null
@@ -23,12 +29,25 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
+  const [requiresManualInstall, setRequiresManualInstall] = useState(false)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
     }
+
+    // Check if macOS user with old Team ID needs manual install
+    if (isMac) {
+      window.api.getSigningInfo().then((signingInfo) => {
+        if (signingInfo.teamId === OLD_TEAM_ID) {
+          setRequiresManualInstall(true)
+          logger.info('Manual install required', { teamId: signingInfo.teamId })
+        }
+      })
+    }
+
+    setRequiresManualInstall(true)
   }, [releaseInfo])
 
   const handleInstall = async () => {
@@ -41,6 +60,32 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       logger.error('Failed to save data before update', error as Error)
       setIsInstalling(false)
       window.toast.error(t('update.saveDataError'))
+    }
+  }
+
+  const handleManualInstall = async () => {
+    setIsInstalling(true)
+    try {
+      await handleSaveData()
+      const result = await window.api.manualInstallUpdate()
+
+      if (!result.success) {
+        setIsInstalling(false)
+        if (result.error === 'User cancelled') {
+          // User cancelled password dialog, do nothing
+          return
+        }
+        logger.error('Manual install failed', { error: result.error })
+        window.toast.error(t('update.manualInstallError'))
+        // Fallback to download page
+        window.api.openWebsite(DOWNLOAD_URL)
+      }
+      // If success, app will relaunch automatically
+    } catch (error) {
+      logger.error('Manual install error', error as Error)
+      setIsInstalling(false)
+      window.toast.error(t('update.manualInstallError'))
+      window.api.openWebsite(DOWNLOAD_URL)
     }
   }
 
@@ -80,11 +125,35 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
         <Button key="later" onClick={onIgnore} disabled={isInstalling}>
           {t('update.later')}
         </Button>,
-        <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
-          {t('update.install')}
-        </Button>
+        requiresManualInstall ? (
+          <Button key="install" type="primary" onClick={handleManualInstall} loading={isInstalling}>
+            {t('update.install')}
+          </Button>
+        ) : (
+          <Button key="install" type="primary" onClick={handleInstall} loading={isInstalling}>
+            {t('update.install')}
+          </Button>
+        )
       ]}>
       <ModalBodyWrapper>
+        {requiresManualInstall && (
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-100 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+            <InfoCircleOutlined className="shrink-0 text-base text-neutral-500 dark:text-neutral-400" />
+            <span className="flex-1 text-neutral-600 text-sm dark:text-neutral-300">
+              {t('update.manualInstallInfo')}
+            </span>
+            <button
+              type="button"
+              onClick={() => window.api.openWebsite(DOWNLOAD_URL)}
+              className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1 font-medium text-sm text-white transition-colors"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}>
+              <DownloadOutlined className="text-xs" />
+              {t('update.manualDownload')}
+            </button>
+          </div>
+        )}
         <ReleaseNotesWrapper className="markdown">
           <Markdown>
             {typeof releaseNotes === 'string'

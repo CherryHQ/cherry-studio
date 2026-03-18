@@ -1,18 +1,36 @@
 {
   "segments": [
     {
-      "id": "legacy-v1",
+      "id": "legacy-v1-locked",
       "type": "legacy",
       "match": {
-        "range": ">=1.0.0 <2.0.0"
+        "range": ">=1.0.0 <1.8.1"
       },
+      "lockedVersion": "1.8.1",
       "minCompatibleVersion": "1.0.0",
-      "description": "Last stable v1.7.x release - required intermediate version for users below v1.7",
+      "description": "Gateway version for users below v1.8.1 - locked to v1.8.1",
       "channelTemplates": {
         "latest": {
           "feedTemplates": {
             "github": "https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}",
-            "gitcode": "https://releases.cherry-ai.com"
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/{{tag}}"
+          }
+        }
+      }
+    },
+    {
+      "id": "current-v1",
+      "type": "latest",
+      "match": {
+        "range": ">=1.8.1 <2.0.0"
+      },
+      "minCompatibleVersion": "1.8.1",
+      "description": "Current latest v1.x release for users on v1.8.1+",
+      "channelTemplates": {
+        "latest": {
+          "feedTemplates": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}",
+            "gitcode": "https://gitcode.com/CherryHQ/cherry-studio/releases/download/{{tag}}"
           }
         },
         "rc": {
@@ -36,7 +54,7 @@
         "exact": ["2.0.0"]
       },
       "lockedVersion": "2.0.0",
-      "minCompatibleVersion": "1.7.0",
+      "minCompatibleVersion": "1.9.0",
       "description": "Major release v2.0 - required intermediate version for v2.x upgrades",
       "channelTemplates": {
         "latest": {

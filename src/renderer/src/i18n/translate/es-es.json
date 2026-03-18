@@ -5632,8 +5632,12 @@
     "show_window": "Mostrar ventana"
   },
   "update": {
+    "download": "Descargar",
     "install": "Instalar",
     "later": "Más tarde",
+    "manualDownload": "Descargar",
+    "manualInstallError": "La instalación falló, por favor descarga manualmente desde el sitio web oficial.",
+    "manualInstallInfo": "Esta versión no admite actualizaciones automáticas. Haz clic en descargar para completar la actualización.",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",

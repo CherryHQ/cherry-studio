@@ -1,14 +1,19 @@
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
+import { APP_NAME, FeedUrl, UpdateConfigUrl, UpdateMirror, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
+import { exec, execSync } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 import { app, net } from 'electron'
 import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
+import fs from 'fs'
 import path from 'path'
 import semver from 'semver'
 
@@ -16,6 +21,17 @@ import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
+
+function getCommonHeaders() {
+  return {
+    'User-Agent': generateUserAgent(),
+    'Cache-Control': 'no-cache',
+    'Client-Id': configManager.getClientId(),
+    'App-Name': APP_NAME,
+    'App-Version': `v${app.getVersion()}`,
+    OS: process.platform
+  }
+}
 
 // Language markers constants for multi-language release notes
 const LANG_MARKERS = {
@@ -61,10 +77,7 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
-      'User-Agent': generateUserAgent(),
-      'X-Client-Id': configManager.getClientId(),
-      // no-cache
-      'Cache-Control': 'no-cache'
+      ...getCommonHeaders()
     }
 
     autoUpdater.on('error', (error) => {
@@ -145,11 +158,8 @@ export default class AppUpdater {
       logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
       const response = await net.fetch(configUrl, {
         headers: {
-          'User-Agent': generateUserAgent(),
-          Accept: 'application/json',
-          'X-Client-Id': configManager.getClientId(),
-          // no-cache
-          'Cache-Control': 'no-cache'
+          ...getCommonHeaders(),
+          Accept: 'application/json'
         }
       })
 
@@ -311,6 +321,118 @@ export default class AppUpdater {
   public quitAndInstall() {
     app.isQuitting = true
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
+  }
+
+  /**
+   * Manual install update for macOS users with old code signing
+   * This bypasses Squirrel.Mac which validates code signing
+   */
+  public async manualInstallUpdate(): Promise<{ success: boolean; error?: string }> {
+    if (!isMac) {
+      return { success: false, error: 'Manual install is only supported on macOS' }
+    }
+
+    // Constants
+    const ZIP_PATTERN = /^Cherry-Studio-\d+\.\d+\.\d+(-arm64)?\.zip$/
+    const APP_NAME = 'Cherry Studio.app'
+    const TARGET_PATH = `/Applications/${APP_NAME}`
+    const cacheDir = path.join(app.getPath('home'), 'Library/Caches', 'cherrystudio-updater', 'pending')
+    const extractDir = path.join(app.getPath('temp'), 'cherry-studio-update')
+    const newAppPath = path.join(extractDir, APP_NAME)
+
+    // Helper functions
+    const findUpdateZip = (): string | null => {
+      if (!fs.existsSync(cacheDir)) return null
+      const zipFile = fs.readdirSync(cacheDir).find((f) => ZIP_PATTERN.test(f))
+      return zipFile ? path.join(cacheDir, zipFile) : null
+    }
+
+    const extractZip = (zipPath: string): void => {
+      fs.rmSync(extractDir, { recursive: true, force: true })
+      fs.mkdirSync(extractDir, { recursive: true })
+      execSync(`unzip -o "${zipPath}" -d "${extractDir}"`)
+    }
+
+    const isValidApp = (): boolean => {
+      return (
+        fs.existsSync(newAppPath) &&
+        fs.existsSync(path.join(newAppPath, 'Contents', 'Info.plist')) &&
+        fs.existsSync(path.join(newAppPath, 'Contents', 'MacOS'))
+      )
+    }
+
+    const replaceAppWithAdminPrivileges = async (): Promise<{ success: boolean; error?: string }> => {
+      const language = configManager.getLanguage()
+      const prompt =
+        language === 'zh-CN' || language === 'zh-TW'
+          ? 'Cherry Studio 需要管理员权限来安装更新'
+          : 'Cherry Studio needs administrator privileges to install the update.'
+
+      const scriptPath = path.join(app.getPath('temp'), `cherry-update-${Date.now()}.scpt`)
+      const scriptContent = `do shell script "rm -rf \\"${TARGET_PATH}\\" && mv \\"${newAppPath}\\" \\"${TARGET_PATH}\\"" with administrator privileges with prompt "${prompt}"`
+
+      try {
+        fs.writeFileSync(scriptPath, scriptContent, { encoding: 'utf-8', mode: 0o600 })
+        await execAsync(`osascript "${scriptPath}"`, { timeout: 60000 })
+        logger.info('Manual install: app replaced successfully')
+        return { success: true }
+      } catch (error) {
+        const msg = (error as Error).message
+        logger.error('Manual install: replace failed', error as Error)
+        if (msg.includes('User canceled') || msg.includes('-128')) {
+          return { success: false, error: 'User cancelled' }
+        }
+        return { success: false, error: msg }
+      } finally {
+        fs.rmSync(scriptPath, { force: true })
+      }
+    }
+
+    const scheduleRelaunch = (): void => {
+      const pid = process.pid
+      const scriptPath = path.join(app.getPath('temp'), `cherry-relaunch-${Date.now()}.sh`)
+      const script = `#!/bin/sh
+sleep 1
+kill -9 ${pid} 2>/dev/null
+# Wait for process exit (max 30s)
+for i in $(seq 1 60); do kill -0 ${pid} 2>/dev/null || break; sleep 0.5; done
+open "${TARGET_PATH}"
+rm -f "${scriptPath}"
+`
+      fs.writeFileSync(scriptPath, script, { mode: 0o755 })
+
+      const { spawn } = require('child_process')
+      spawn('/bin/sh', [scriptPath], { detached: true, stdio: 'ignore' }).unref()
+    }
+
+    // Main logic
+    const updateZip = findUpdateZip()
+    if (!updateZip) {
+      logger.error('Manual install: valid zip file not found', { cacheDir })
+      return { success: false, error: 'Update file not found' }
+    }
+
+    logger.info('Manual install: found update zip', { updateZip })
+
+    try {
+      extractZip(updateZip)
+
+      if (!isValidApp()) {
+        logger.error('Manual install: extracted app invalid', { newAppPath })
+        return { success: false, error: 'Extracted app not found' }
+      }
+
+      const result = await replaceAppWithAdminPrivileges()
+      if (!result.success) {
+        return result
+      }
+
+      scheduleRelaunch()
+      return { success: true }
+    } catch (error) {
+      logger.error('Manual install failed', error as Error)
+      return { success: false, error: (error as Error).message }
+    }
   }
 
   /**

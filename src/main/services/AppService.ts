@@ -1,11 +1,18 @@
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { spawnSync } from 'child_process'
 import { app } from 'electron'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
 const logger = loggerService.withContext('AppService')
+
+export interface SigningInfo {
+  teamId: string | null
+  bundleId: string | null
+  authority: string | null
+}
 
 export class AppService {
   private static instance: AppService
@@ -19,6 +26,44 @@ export class AppService {
       AppService.instance = new AppService()
     }
     return AppService.instance
+  }
+
+  /**
+   * Get macOS app signing information (team ID, bundle ID, authority)
+   * Returns null values for non-macOS platforms or unsigned apps
+   */
+  public getSigningInfo(): SigningInfo {
+    if (!isMac) {
+      return { teamId: null, bundleId: null, authority: null }
+    }
+
+    const exePath = app.getPath('exe')
+    // /path/to/App.app/Contents/MacOS/AppName -> /path/to/App.app
+    const appPath = exePath.replace(/\/Contents\/MacOS\/.*$/, '')
+
+    try {
+      const result = spawnSync('codesign', ['-dv', '--verbose=4', appPath], { encoding: 'utf-8', timeout: 5000 })
+
+      if (result.error || result.status !== 0) {
+        logger.warn('codesign check failed', { error: result.error, status: result.status })
+        return { teamId: null, bundleId: null, authority: null }
+      }
+
+      const output = result.stderr || result.stdout
+
+      const teamIdMatch = output.match(/^TeamIdentifier=(.+)$/m)
+      const identifierMatch = output.match(/^Identifier=(.+)$/m)
+      const authorityMatch = output.match(/^Authority=([^\n]+)$/m)
+
+      return {
+        teamId: teamIdMatch?.[1] || null,
+        bundleId: identifierMatch?.[1] || null,
+        authority: authorityMatch?.[1] || null
+      }
+    } catch (error) {
+      logger.error('Failed to get signing info', error as Error)
+      return { teamId: null, bundleId: null, authority: null }
+    }
   }
 
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
