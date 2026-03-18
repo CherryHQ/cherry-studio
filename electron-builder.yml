@@ -140,44 +140,36 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.0 - Agents & Performance
-
-    ✨ New Features
-    - [Agents] Added drag-and-drop manual sorting for agent and session lists
-    - [Models] Added MiniMax M2.5 highspeed model support
-    - [OpenClaw] Switch to binary installation to optimize the installation experience
+    Cherry Studio 1.8.1 - Quick Fixes
 
     🐛 Bug Fixes
-    - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
-    - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
-    - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
-    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
-    - [Gateway] Improved gateway startup error messages with detailed diagnostics
-    - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
+    - [Agents] Fix thinking mode 400 error on non-Anthropic providers
+    - [macOS] Add manual download option for users who cannot auto-update due to code signing change
+    - [Windows] Fix Windows Terminal launch failing on non-English systems
+    - [Windows] Fix CLI tools (qwen-code, Copilot CLI) failing to start on Windows
+    - [Azure] Fix dated API versions routing to wrong transport
+    - [Editor] Fix Zed editor unable to open directories from agent workspace
+
+    ✨ New Features
+    - [Agents] Clickable file paths in tool outputs — click to open files, with dropdown to reveal in Finder or open in external editors
 
     💄 Improvements
-    - [Agents] Added configurable maximum tool calls setting (1-100) in assistant settings
-    - [UI] Added Windows Mica effect for better visual integration
-    - [Performance] Increased default request timeout from 10 to 30 minutes for slow local models
+    - [Backup] Enhanced backup system with new format (v6), improved security, and config.json now included in backups
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.0 - 智能体与性能
-
-    ✨ 新功能
-    - [智能体] 新增智能体和会话列表的拖拽排序功能
-    - [模型] 新增 MiniMax M2.5 高速模型支持
-    - [OpenClaw] 改为二进制安装优化安装体验
+    Cherry Studio 1.8.1 - 快速修复
 
     🐛 问题修复
-    - [智能体] 修复删除最后一个可访问目录的漏洞 - 只剩一个目录时禁用删除按钮
-    - [UI] 修复本地模型（如 Ollama）聊天工具栏中不显示网络搜索选项的问题
-    - [模型] 修复部分 OpenAI 兼容服务商的推理努力和摘要模式设置不生效的问题
-    - [OpenClaw] 修复OpenClaw网关状态检测无法识别崩溃/外部停止的OpenClaw网关的问题
-    - [网关] 改进网关启动错误消息，提供详细诊断信息
-    - [Poe] 修复启用内置搜索时 web_search 参数未正确传递的问题
+    - [智能体] 修复非 Anthropic 服务商思考模式 400 错误
+    - [macOS] 为因代码签名变更无法自动更新的用户添加手动下载选项
+    - [Windows] 修复 Windows Terminal 在非英语系统上启动失败的问题
+    - [Windows] 修复 CLI 工具（qwen-code、Copilot CLI）在 Windows 上启动失败的问题
+    - [Azure] 修复特定版本的 API 路由到错误传输方式的问题
+    - [编辑器] 修复 Zed 编辑器无法从智能体工作区打开目录的问题
+
+    ✨ 新功能
+    - [智能体] 工具输出中的文件路径可点击 — 点击打开文件，下拉菜单可显示在访达中或在外部编辑器中打开
 
     💄 改进
-    - [智能体] 新增助手设置中的最大工具调用次数配置（1-100）
-    - [UI] 新增 Windows Mica 效果以提升视觉体验
-    - [性能] 将默认请求超时从 10 分钟增加到 30 分钟，优化慢速本地模型体验
+    - [备份] 增强备份系统，新增格式（v6）、改进安全性，config.json 现已包含在备份中
     <!--LANG:END-->
