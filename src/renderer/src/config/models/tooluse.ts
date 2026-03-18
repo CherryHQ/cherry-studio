@@ -34,7 +34,7 @@ export const FUNCTION_CALLING_MODELS = [
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m2(?:.1)?',
+  'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
   'mimo-v2-flash'
 ] as const
 

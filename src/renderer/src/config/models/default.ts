@@ -1030,6 +1030,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   minimax: [
     {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
+    {
       id: 'MiniMax-M2.5',
       provider: 'minimax',
       name: 'MiniMax-M2.5',
@@ -1073,6 +1085,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   'minimax-global': [
+    {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
     {
       id: 'MiniMax-M2.5',
       provider: 'minimax-global',
