@@ -23,13 +23,7 @@ import {
   isMac
 } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
-import {
-  isFunctionCallingModel,
-  isNotSupportTextDeltaModel,
-  qwen3Next80BModel,
-  qwen38bModel,
-  SYSTEM_MODELS
-} from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
@@ -3169,20 +3163,20 @@ const migrateConfig = {
     try {
       const GLM_4_5_FLASH_MODEL = 'glm-4.5-flash'
       if (state.llm.defaultModel?.provider === 'cherryai' && state.llm.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.defaultModel = qwen3Next80BModel
+        state.llm.defaultModel = qwenModel
       }
       if (state.llm.quickModel?.provider === 'cherryai' && state.llm.quickModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.quickModel = qwen38bModel
+        state.llm.quickModel = qwenModel
       }
       if (state.llm.translateModel?.provider === 'cherryai' && state.llm.translateModel?.id === GLM_4_5_FLASH_MODEL) {
-        state.llm.translateModel = qwen3Next80BModel
+        state.llm.translateModel = qwenModel
       }
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.model?.provider === 'cherryai' && assistant.model?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.model = qwen3Next80BModel
+          assistant.model = qwenModel
         }
         if (assistant.defaultModel?.provider === 'cherryai' && assistant.defaultModel?.id === GLM_4_5_FLASH_MODEL) {
-          assistant.defaultModel = qwen3Next80BModel
+          assistant.defaultModel = qwenModel
         }
       })
       // Initialize mini app region filter setting
@@ -3346,6 +3340,32 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 203 error', error as Error)
+      return state
+    }
+  },
+  '204': (state: RootState) => {
+    try {
+      if (state.llm.defaultModel?.provider === 'cherryai') {
+        state.llm.defaultModel = qwenModel
+      }
+      if (state.llm.quickModel?.provider === 'cherryai') {
+        state.llm.quickModel = qwenModel
+      }
+      if (state.llm.translateModel?.provider === 'cherryai') {
+        state.llm.translateModel = qwenModel
+      }
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.model?.provider === 'cherryai') {
+          assistant.model = qwenModel
+        }
+        if (assistant.defaultModel?.provider === 'cherryai') {
+          assistant.defaultModel = qwenModel
+        }
+      })
+      logger.info('migrate 204 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 204 error', error as Error)
       return state
     }
   }

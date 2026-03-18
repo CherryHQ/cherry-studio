@@ -65,7 +65,7 @@ import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { qwen3Next80BModel, qwen38bModel, SYSTEM_MODELS } from './models'
+import { qwenModel, SYSTEM_MODELS } from './models'
 
 export const CHERRYAI_PROVIDER: SystemProvider = {
   id: 'cherryai' as SystemProviderId,
@@ -73,7 +73,7 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
   type: 'openai',
   apiKey: '',
   apiHost: 'https://api.cherry-ai.com',
-  models: [qwen38bModel, qwen3Next80BModel],
+  models: [qwenModel],
   isSystem: true,
   enabled: true
 }

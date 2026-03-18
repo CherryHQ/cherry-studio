@@ -1,15 +1,8 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const qwen38bModel: Model = {
-  id: 'Qwen/Qwen3-8B',
-  name: 'Qwen3-8B',
-  provider: 'cherryai',
-  group: 'Qwen'
-}
-
-export const qwen3Next80BModel: Model = {
-  id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
-  name: 'Qwen3-Next-80B',
+export const qwenModel: Model = {
+  id: 'qwen',
+  name: 'Qwen',
   provider: 'cherryai',
   group: 'Qwen'
 }
@@ -17,13 +10,13 @@ export const qwen3Next80BModel: Model = {
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    qwen3Next80BModel,
+    qwenModel,
     // Default topic naming model
-    qwen38bModel,
+    qwenModel,
     // Default translation model
-    qwen3Next80BModel,
+    qwenModel,
     // Default quick assistant model
-    qwen3Next80BModel
+    qwenModel
   ],
   cherryin: [],
   vertexai: [],
