@@ -855,25 +855,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   dashscope: [
-    { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
-    { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
-    { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3.5-plus', name: 'qwen3.5-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    {
-      id: 'qwen3.5-397b-a17b',
-      name: 'qwen3.5-397b-a17b',
-      provider: 'dashscope',
-      group: 'qwen-plus',
-      owned_by: 'system'
-    },
-    { id: 'text-embedding-v4', name: 'text-embedding-v4', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v3', name: 'text-embedding-v3', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v2', name: 'text-embedding-v2', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'text-embedding-v1', name: 'text-embedding-v1', provider: 'dashscope', group: 'qwen-text-embedding' },
-    { id: 'qwen3-rerank', name: 'qwen3-rerank', provider: 'dashscope', group: 'qwen-rerank' }
+    { id: 'qwen3.5-plus', name: 'Qwen3.5-Plus', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3.5-flash', name: 'Qwen3.5-Flash', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3-max', name: 'Qwen3-Max', provider: 'dashscope', group: 'Qwen' },
+    { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'dashscope', group: 'Kimi' },
+    { id: 'glm-5', name: 'GLM-5', provider: 'dashscope', group: 'GLM' },
+    { id: 'MiniMax/MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'dashscope', group: 'MiniMax' },
+    { id: 'deepseek-v3.2', name: 'DeepSeek V3.2', provider: 'dashscope', group: 'DeepSeek' }
   ],
   stepfun: [
     {
