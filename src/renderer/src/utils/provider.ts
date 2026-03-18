@@ -13,6 +13,14 @@ export const getClaudeSupportedProviders = (providers: Provider[]) => {
   )
 }
 
+export const getAnthropicSupportedProviders = (providers: Provider[]) => {
+  return providers.filter(isAnthropicSupportedProvider)
+}
+
+export const isAnthropicSupportedProvider = (provider: Provider) => {
+  return provider.type === 'anthropic' || !!provider.anthropicApiHost
+}
+
 const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
   'deepseek',
   'baichuan',
@@ -189,6 +197,7 @@ export const isSupportAnthropicPromptCacheProvider = (provider: Provider) => {
     provider.type === 'anthropic' ||
     isNewApiProvider(provider) ||
     provider.id === SystemProviderIds.aihubmix ||
+    provider.id === SystemProviderIds.openrouter ||
     isAzureOpenAIProvider(provider)
   )
 }

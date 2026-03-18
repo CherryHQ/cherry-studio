@@ -68,6 +68,11 @@ export function isWebSearchModel(model: Model): boolean {
       return true
     }
 
+    // v2
+    if (provider.id === SystemProviderIds.grok) {
+      return true
+    }
+
     return false
   }
 
@@ -113,10 +118,6 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'openrouter') {
-    return true
-  }
-
-  if (provider.id === 'grok') {
     return true
   }
 

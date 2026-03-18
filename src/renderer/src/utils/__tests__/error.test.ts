@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatErrorMessage, getErrorDetails, isAbortError } from '../error'
+import { formatErrorMessage, getErrorDetails, isAbortError, isTimeoutError } from '../error'
 
 describe('error', () => {
   describe('getErrorDetails', () => {
@@ -127,6 +127,44 @@ describe('error', () => {
       expect(isAbortError({ message: 'Not an abort error' })).toBe(false)
       expect(isAbortError('String error')).toBe(false)
       expect(isAbortError(null)).toBe(false)
+    })
+
+    it('should return false for timeout errors', () => {
+      const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
+      expect(isAbortError(timeoutError)).toBe(false)
+    })
+  })
+
+  describe('isTimeoutError', () => {
+    it('should identify DOM TimeoutError', () => {
+      const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
+      expect(isTimeoutError(timeoutError)).toBe(true)
+    })
+
+    it('should identify timeout errors wrapped in error.cause', () => {
+      const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
+      const wrappedError = new Error('Wrapped error') as Error & { cause: unknown }
+      wrappedError.cause = timeoutError
+      expect(isTimeoutError(wrappedError)).toBe(true)
+    })
+
+    it('should return false for AbortError', () => {
+      const abortError = new DOMException('The operation was aborted', 'AbortError')
+      expect(isTimeoutError(abortError)).toBe(false)
+    })
+
+    it('should return false for generic errors', () => {
+      expect(isTimeoutError(new Error('Generic error'))).toBe(false)
+      expect(isTimeoutError({ message: 'Not a timeout error' })).toBe(false)
+      expect(isTimeoutError('String error')).toBe(false)
+      expect(isTimeoutError(null)).toBe(false)
+    })
+
+    it('should return false when error.cause is not a TimeoutError', () => {
+      const abortError = new DOMException('The operation was aborted', 'AbortError')
+      const wrappedError = new Error('Wrapped error') as Error & { cause: unknown }
+      wrappedError.cause = abortError
+      expect(isTimeoutError(wrappedError)).toBe(false)
     })
   })
 })

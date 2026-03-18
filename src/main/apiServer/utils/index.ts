@@ -3,7 +3,7 @@ import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import type { ApiModel, Model, Provider } from '@types'
+import type { ApiModel, Model, Provider, ProviderType } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
@@ -29,10 +29,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Support OpenAI and Anthropic type providers for API server
-    const supportedProviders = providers.filter(
-      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
-    )
+    // Support OpenAI-compatible and Anthropic-compatible providers for API server
+    const supportedTypes: ProviderType[] = ['openai', 'anthropic', 'ollama', 'new-api']
+    const supportedProviders = providers.filter((p: Provider) => p.enabled && supportedTypes.includes(p.type))
 
     // Format provider apiHost according to their type
     const results = await Promise.allSettled(supportedProviders.map((p: Provider) => formatProviderApiHost(p)))
@@ -302,12 +301,10 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
     case 'cherryin':
     case 'new-api':
       return (m: Model) => m.endpoint_type === 'anthropic'
-    case 'aihubmix':
-      return (m: Model) => m.id.includes('claude')
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     default:
-      // allow all models when checker not configured
+      // allow all models when checker not configured (aihubmix, ollama, etc.)
       return () => true
   }
 }

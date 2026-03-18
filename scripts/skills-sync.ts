@@ -12,26 +12,21 @@ import {
 } from './skills-common'
 
 /**
- * Ensures `.claude/skills/<skillName>/SKILL.md` is synchronized with
- * `.agents/skills/<skillName>/SKILL.md`.
- * Uses file copy to keep cross-platform compatibility.
+ * Ensures `.claude/skills/<skillName>` is a symlink pointing to
+ * `../../.agents/skills/<skillName>` (relative to `.claude/skills/`).
  */
-function ensureClaudeSkillFile(skillName: string): boolean {
-  const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
+function ensureClaudeSkillSymlink(skillName: string): boolean {
+  const agentsSkillDir = path.join(AGENTS_SKILLS_DIR, skillName)
   const claudeSkillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
-  const claudeSkillFile = path.join(claudeSkillDir, 'SKILL.md')
+  const expectedTarget = path.join('..', '..', '.agents', 'skills', skillName)
 
-  if (!fs.existsSync(agentsSkillFile)) {
-    throw new Error(`.agents/skills/${skillName}/SKILL.md is missing`)
+  if (!fs.existsSync(agentsSkillDir)) {
+    throw new Error(`.agents/skills/${skillName} is missing`)
   }
-
-  fs.mkdirSync(claudeSkillDir, { recursive: true })
-
-  const expectedContent = fs.readFileSync(agentsSkillFile, 'utf-8')
 
   let existing: fs.Stats | null = null
   try {
-    existing = fs.lstatSync(claudeSkillFile)
+    existing = fs.lstatSync(claudeSkillDir)
   } catch (error) {
     const nodeError = error as NodeJS.ErrnoException
     if (nodeError.code !== 'ENOENT') {
@@ -39,17 +34,17 @@ function ensureClaudeSkillFile(skillName: string): boolean {
     }
   }
 
-  if (existing !== null && !existing.isFile()) {
-    fs.rmSync(claudeSkillFile, { force: true, recursive: true })
-    existing = null
-  } else if (existing?.isFile()) {
-    const currentContent = fs.readFileSync(claudeSkillFile, 'utf-8')
-    if (currentContent === expectedContent) {
-      return false
+  if (existing !== null) {
+    if (existing.isSymbolicLink()) {
+      const currentTarget = fs.readlinkSync(claudeSkillDir)
+      if (currentTarget === expectedTarget) {
+        return false
+      }
     }
+    fs.rmSync(claudeSkillDir, { force: true, recursive: true })
   }
 
-  fs.writeFileSync(claudeSkillFile, expectedContent, 'utf-8')
+  fs.symlinkSync(expectedTarget, claudeSkillDir)
   return true
 }
 
@@ -81,8 +76,8 @@ function main() {
     changedFiles.push('.claude/skills/.gitignore')
   }
   for (const skillName of skillNames) {
-    if (ensureClaudeSkillFile(skillName)) {
-      changedSkillFiles.push(`.claude/skills/${skillName}/SKILL.md`)
+    if (ensureClaudeSkillSymlink(skillName)) {
+      changedSkillFiles.push(`.claude/skills/${skillName}`)
     }
   }
 

@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { useCallback, useEffect } from 'react'
+import { setActiveSessionIdAction } from '@renderer/store/runtime'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { useAgentClient } from './useAgentClient'
 
@@ -19,6 +19,10 @@ export const useAgentSessionInitializer = () => {
   const { chat } = useRuntime()
   const { activeAgentId, activeSessionIdMap } = chat
 
+  // Use a ref to keep the callback stable across activeSessionIdMap changes
+  const activeSessionIdMapRef = useRef(activeSessionIdMap)
+  activeSessionIdMapRef.current = activeSessionIdMap
+
   /**
    * Initialize session for the given agent by loading its sessions
    * and setting the latest one as active
@@ -28,11 +32,9 @@ export const useAgentSessionInitializer = () => {
       if (!agentId) return
 
       try {
-        // Check if this agent already has an active session
-        const currentSessionId = activeSessionIdMap[agentId]
-        if (currentSessionId) {
-          // Session already exists, just switch to session view
-          dispatch(setActiveTopicOrSessionAction('session'))
+        // Check if this agent has already been initialized (key exists in map)
+        if (agentId in activeSessionIdMapRef.current) {
+          // Already initialized, nothing to do
           return
         }
 
@@ -46,19 +48,15 @@ export const useAgentSessionInitializer = () => {
 
           // Set the latest session as active
           dispatch(setActiveSessionIdAction({ agentId, sessionId: latestSession.id }))
-          dispatch(setActiveTopicOrSessionAction('session'))
         } else {
-          // No sessions exist, we might want to create one
-          // But for now, just switch to session view and let the Sessions component handle it
-          dispatch(setActiveTopicOrSessionAction('session'))
+          // Mark as initialized with no session (null vs undefined distinction)
+          dispatch(setActiveSessionIdAction({ agentId, sessionId: null }))
         }
       } catch (error) {
         logger.error('Failed to initialize agent session:', error as Error)
-        // Even if loading fails, switch to session view
-        dispatch(setActiveTopicOrSessionAction('session'))
       }
     },
-    [client, dispatch, activeSessionIdMap]
+    [client, dispatch]
   )
 
   /**
@@ -66,13 +64,12 @@ export const useAgentSessionInitializer = () => {
    */
   useEffect(() => {
     if (activeAgentId) {
-      // Check if we need to initialize this agent's session
-      const hasActiveSession = activeSessionIdMap[activeAgentId]
-      if (!hasActiveSession) {
+      // Check if we need to initialize this agent's session (key not yet in map)
+      if (!(activeAgentId in activeSessionIdMapRef.current)) {
         initializeAgentSession(activeAgentId)
       }
     }
-  }, [activeAgentId, activeSessionIdMap, initializeAgentSession])
+  }, [activeAgentId, initializeAgentSession])
 
   return {
     initializeAgentSession

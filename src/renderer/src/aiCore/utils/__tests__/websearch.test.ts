@@ -68,6 +68,22 @@ describe('websearch utils', () => {
       })
     })
 
+    it('should return extra_body with web_search for poe provider', () => {
+      const model: Model = {
+        id: 'Gemini-3-Flash',
+        name: 'Gemini 3 Flash',
+        provider: 'poe'
+      } as Model
+
+      const result = getWebSearchParams(model)
+
+      expect(result).toEqual({
+        extra_body: {
+          web_search: true
+        }
+      })
+    })
+
     it('should return empty object for other providers', () => {
       const model: Model = {
         id: 'gpt-4',
@@ -254,20 +270,34 @@ describe('websearch utils', () => {
     })
 
     describe('xai provider', () => {
-      it('should return xai search options', () => {
+      it('should return xai search options with enableImageUnderstanding when no excludeDomains', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
 
         expect(result).toEqual({
-          xai: {
-            maxSearchResults: 30,
-            returnCitations: true,
-            sources: [{ type: 'web', excludedWebsites: [] }, { type: 'news' }, { type: 'x' }],
-            mode: 'on'
-          }
+          xai: { enableImageUnderstanding: true },
+          'xai-xsearch': { enableImageUnderstanding: true }
         })
       })
 
-      it('should limit excluded websites to 5', () => {
+      it('should include excludedDomains when excludeDomains provided', () => {
+        const config: CherryWebSearchConfig = {
+          searchWithTime: true,
+          maxResults: 40,
+          excludeDomains: ['site1.com', 'site2.com']
+        }
+
+        const result = buildProviderBuiltinWebSearchConfig('xai', config)
+
+        expect(result).toEqual({
+          xai: {
+            enableImageUnderstanding: true,
+            excludedDomains: ['site1.com', 'site2.com']
+          },
+          'xai-xsearch': { enableImageUnderstanding: true }
+        })
+      })
+
+      it('should limit excluded domains to 5', () => {
         const config: CherryWebSearchConfig = {
           searchWithTime: true,
           maxResults: 40,
@@ -276,20 +306,7 @@ describe('websearch utils', () => {
 
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
-        expect(result?.xai?.sources).toBeDefined()
-        const webSource = result?.xai?.sources?.[0]
-        if (webSource && webSource.type === 'web') {
-          expect(webSource.excludedWebsites).toHaveLength(5)
-        }
-      })
-
-      it('should include all sources types', () => {
-        const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
-
-        expect(result?.xai?.sources).toHaveLength(3)
-        expect(result?.xai?.sources?.[0].type).toBe('web')
-        expect(result?.xai?.sources?.[1].type).toBe('news')
-        expect(result?.xai?.sources?.[2].type).toBe('x')
+        expect(result?.xai?.excludedDomains).toHaveLength(5)
       })
     })
 

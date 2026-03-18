@@ -101,13 +101,30 @@ export const baseProviders = [
   {
     id: 'xai',
     name: 'xAI (Grok)',
-    creator: createXai,
+    creator: (options: Parameters<typeof createXai>[0]) => {
+      const provider = createXai(options)
+      return customProvider({
+        fallbackProvider: {
+          ...provider,
+          languageModel: (modelId: string) => provider.responses(modelId)
+        }
+      })
+    },
     supportsImageGeneration: true
   },
   {
     id: 'azure',
     name: 'Azure OpenAI',
-    creator: createAzure,
+    creator: (options: AzureOpenAIProviderSettings) => {
+      const provider = createAzure(options)
+      return customProvider({
+        fallbackProvider: {
+          // Cherry's "azure" path is the chat/deployment-based variant.
+          ...provider,
+          languageModel: (modelId: string) => provider.chat(modelId)
+        }
+      })
+    },
     supportsImageGeneration: true
   },
   {

@@ -7,7 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
-        "tooltip": "Actualmente, solo los modelos que admiten puntos finales de Anthropic están disponibles para la función Agente."
+        "supported_providers": "Proveedores Admitidos",
+        "tooltip": "Actualmente, solo los modelos que admiten puntos finales de Anthropic están disponibles para la función Agente.",
+        "view_providers": "Ver proveedores compatibles"
       },
       "title": "Agregar Agente",
       "type": {
@@ -35,6 +37,10 @@
     },
     "edit": {
       "title": "Agent de edición"
+    },
+    "empty": {
+      "description": "Crea un agente para gestionar tareas complejas con herramientas impulsadas por IA.",
+      "title": "Aún no hay agentes"
     },
     "get": {
       "error": {
@@ -77,6 +83,11 @@
         "failed": "Error al listar agentes."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Error al reordenar los agentes"
+      }
+    },
     "server": {
       "error": {
         "not_running": "El servidor de API está habilitado pero no funciona correctamente."
@@ -85,6 +96,7 @@
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
+        "default_hint": "Predeterminado: {{path}}",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
         "error": {
@@ -126,6 +138,11 @@
       },
       "label_one": "Sesión",
       "label_other": "Sesiones",
+      "reorder": {
+        "error": {
+          "failed": "Error al reordenar las sesiones"
+        }
+      },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
@@ -134,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Establece variables de entorno personalizadas para el tiempo de ejecución del agente.",
+          "helper": "Introduce variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
+          "label": "Variables de entorno"
+        },
         "maxTurns": {
           "description": "Establece el número de rondas de solicitud/respuesta que el agente ejecutará automáticamente.",
           "helper": "Cuanto mayor es el valor, más tiempo puede funcionar de forma autónoma; cuanto menor es el valor, más fácil es de controlar.",
@@ -283,10 +305,11 @@
         },
         "tab": "Herramientas",
         "tools": {
-          "title": "Herramientas"
+          "title": "Herramientas preaprobadas"
         }
       }
     },
+    "sidebar_title": "Agentes",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tareas completadas"
@@ -387,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Habilitar el servidor API para usar agentes."
+      "enable_and_start": "Habilitar e iniciar",
+      "enable_server": "Habilitar el servidor API para usar agentes.",
+      "enable_server_description": "El servidor de la API debe estar habilitado para que los agentes funcionen. Puede habilitarlo directamente o configurarlo en los ajustes.",
+      "server_not_running": "El servidor API está habilitado pero no se está ejecutando. Por favor, compruebe la configuración del servidor.",
+      "server_not_running_description": "El servidor de la API debe estar en ejecución para que los agentes funcionen. Puede iniciarlo directamente o comprobar los ajustes."
     }
   },
   "apiServer": {
@@ -613,6 +640,10 @@
           "tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo"
         }
       },
+      "max_tool_calls": {
+        "label": "Llamadas Máximas de Herramientas",
+        "tip": "Número máximo de llamadas a herramientas permitidas en una sola conversación. Valores más altos permiten operaciones de múltiples pasos más complejas, pero pueden incrementar el uso de tokens y el tiempo de respuesta."
+      },
       "mcp": {
         "description": "Servidor MCP habilitado por defecto",
         "enableFirst": "Habilite este servidor en la configuración de MCP primero",
@@ -741,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Crea un agente para empezar",
       "create_session": "Crear una sesión",
       "select_agent": "Selecciona un agente"
     },
@@ -856,7 +888,11 @@
         "collapse": "Contraer",
         "collapse_in": "Agregar a la contracción",
         "collapse_out": "Eliminar de la contracción",
-        "expand": "Expandir"
+        "expand": "Expandir",
+        "file_not_found": "Archivo no encontrado: {{path}}",
+        "open_file": "Abrir archivo",
+        "open_file_error": "Error al abrir el archivo: {{path}}",
+        "reveal_in_finder": "Mostrar en el Finder"
       },
       "topics": "Temas",
       "translate": "Traducir a {{target_language}}",
@@ -1350,6 +1386,7 @@
     "off": "Apagado",
     "on": "En",
     "open": "Abrir",
+    "open_in": "Abrir en {{name}}",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -1377,6 +1414,7 @@
     "selected": "Seleccionado",
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
+    "sessions": "Sesiones",
     "settings": "Configuración",
     "sort": {
       "pinyin": {
@@ -1486,7 +1524,6 @@
     "originalError": "Error original",
     "originalMessage": "mensaje original",
     "parameter": "parámetro",
-    "pause_placeholder": "Interrumpido",
     "prompt": "prompt",
     "provider": "proveedor",
     "providerId": "ID del proveedor",
@@ -1500,6 +1537,7 @@
     "requestBody": "Contenido de la solicitud",
     "requestBodyValues": "Cuerpo de la solicitud",
     "requestUrl": "Ruta de solicitud",
+    "request_timeout": "Solicitud agotada",
     "response": "respuesta",
     "responseBody": "Contenido de la respuesta",
     "responseHeaders": "Encabezados de respuesta",
@@ -1509,6 +1547,7 @@
     "status": "Estado",
     "statusCode": "Código de estado",
     "statusText": "Texto de estado",
+    "stream_paused": "Interrumpido",
     "text": "Texto",
     "toolInput": "Herramienta de entrada",
     "toolName": "Nombre de la herramienta",
@@ -2146,6 +2185,7 @@
     "tools": {
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
+      "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
       "completed": "Completado",
@@ -2281,8 +2321,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2520,6 +2563,9 @@
   "notification": {
     "assistant": "Respuesta del asistente",
     "knowledge": {
+      "batch_error": "{{failed}} elementos no pudieron procesarse",
+      "batch_mixed": "{{succeeded}} elementos tuvieron éxito, {{failed}} elementos fallaron",
+      "batch_success": "{{succeeded}} elementos procesados correctamente",
       "error": "{{error}}",
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
@@ -2579,6 +2625,11 @@
     },
     "install_progress": "Progreso de instalación",
     "installed_at": "OpenClaw instalado en",
+    "migration": {
+      "description": "Se ha detectado una versión desactualizada de OpenClaw instalada a través de npm. Por favor, reinstala para obtener la última versión oficial.",
+      "install_button": "Reinstalar OpenClaw",
+      "title": "OpenClaw Necesita Actualización"
+    },
     "model_config": {
       "auth_token": "Token de autenticación",
       "auth_token_hint": "Token para autenticación de puerta de enlace. Dejar vacío para desactivar la autenticación.",
@@ -2614,6 +2665,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Buscar actualizaciones",
       "open_dashboard": "Abrir Panel de Control",
       "title": "Acciones Rápidas",
       "uninstall": "Desinstalar",
@@ -2640,6 +2692,16 @@
     "uninstalling": {
       "description": "Por favor espera mientras se desinstala OpenClaw...",
       "title": "Desinstalando OpenClaw"
+    },
+    "update": {
+      "available": "Nueva versión disponible: v{{latest}} (actual: v{{current}})",
+      "checking": "Comprobando actualizaciones...",
+      "confirm_button": "Actualizar ahora",
+      "failed": "Error al verificar actualizaciones",
+      "modal_title": "Actualización de OpenClaw",
+      "success": "¡Actualización completada con éxito!",
+      "up_to_date": "Ya está actualizado (v{{current}})",
+      "updating": "Actualizando..."
     }
   },
   "ovms": {
@@ -2957,7 +3019,9 @@
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
     "no_results": "No se encontró el complemento",
+    "no_results_skills": "No se encontraron habilidades",
     "search_placeholder": "Buscar complemento...",
+    "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
     "showing_results_one": "Mostrar {{count}} complementos",
     "showing_results_other": "Mostrar {{count}} complementos",
@@ -3038,7 +3102,8 @@
     "lmstudio": "Estudio LM",
     "longcat": "Totoro",
     "mimo": "Xiaomi MiMo",
-    "minimax": "Minimax",
+    "minimax": "Minimax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Módulo",
     "moonshot": "Lanzamiento Lunar",
@@ -3066,6 +3131,7 @@
     "voyageai": "Voyage AI",
     "xirang": "Telecom Nube XiRang",
     "yi": "Cero Uno Todo",
+    "zai": "Z.ai",
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
   },
@@ -4850,6 +4916,7 @@
         "logout_failed": "Error al cerrar sesión, inténtalo de nuevo",
         "logout_success": "Cierre de sesión exitoso en Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic ha suspendido temporalmente el uso de Claude a través de OAuth. Este método de autenticación no está disponible actualmente. Por favor, utiliza una clave API por ahora.",
         "start_auth": "Comenzar autorización",
         "submit_code": "Iniciar sesión completado"
       },
@@ -5010,6 +5077,11 @@
       },
       "docs_check": "Ver",
       "docs_more_details": "Obtener más detalles",
+      "filter": {
+        "agent": "Soporte de Agente",
+        "all": "Todos los Proveedores"
+      },
+      "filter_agent": "Proveedores compatibles con el agente de filtrado",
       "get_api_key": "Haga clic aquí para obtener la clave",
       "misc": "otro",
       "no_models_for_check": "No hay modelos disponibles para revisar (por ejemplo, modelos de conversación)",

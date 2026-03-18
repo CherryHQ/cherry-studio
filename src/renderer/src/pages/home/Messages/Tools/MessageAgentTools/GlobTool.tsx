@@ -2,6 +2,7 @@ import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import {
   AgentToolsType,
@@ -34,7 +35,17 @@ export function GlobTool({
     ),
     children: (
       <div>
-        <div>{truncatedOutput}</div>
+        <div>
+          {truncatedOutput?.split('\n').map((line, i) =>
+            line.startsWith('/') ? (
+              <div key={i}>
+                <ClickableFilePath path={line} />
+              </div>
+            ) : (
+              <div key={i}>{line}</div>
+            )
+          )}
+        </div>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

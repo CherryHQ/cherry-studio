@@ -28,7 +28,6 @@ export type ToolPermissionRequestPayload = {
   input: Record<string, unknown>
   inputPreview: string
   createdAt: number
-  expiresAt: number
   suggestions: PermissionUpdate[]
   autoApprove?: boolean
 }
@@ -110,6 +109,13 @@ const toolPermissionsSlice = createSlice({
     clearAll: (state) => {
       state.requests = {}
       state.resolvedInputs = {}
+    },
+    clearPending: (state) => {
+      for (const [key, entry] of Object.entries(state.requests)) {
+        if (entry.status === 'pending' || entry.status === 'submitting-allow' || entry.status === 'submitting-deny') {
+          delete state.requests[key]
+        }
+      }
     }
   }
 })
