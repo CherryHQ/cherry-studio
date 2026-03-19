@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import {
   type QuickPanelListItem,
@@ -8,16 +9,13 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { QuickPhrase } from '@renderer/types'
-import type { PromptVersion } from '@shared/data/types/prompt'
+import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Radio, Space } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -27,58 +25,53 @@ interface Props {
 }
 
 /**
- * Unified prompt item used internally in this component.
- * Merges legacy assistant regularPhrases and new Prompt entities.
+ * Prompt item used internally in this component.
  */
-interface UnifiedPromptItem {
+interface PromptItem {
   id: string
   title: string
   content: string
-  /** Whether this item comes from the assistant's regularPhrases */
-  isAssistantPhrase: boolean
-  /** Current version number. Assistant phrases always have 1. */
   currentVersion: number
+  source: 'global' | 'assistant'
 }
 
 const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
-  const [promptItems, setPromptItems] = useState<UnifiedPromptItem[]>([])
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [addFormData, setAddFormData] = useState({ title: '', content: '', location: 'global' })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
   const triggerInfoRef = useRef<
     (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
   >(undefined)
 
-  const loadPromptItems = useCallback(async () => {
-    // Load global prompts from DataApi
-    const prompts = await dataApiService.get('/prompts')
+  const { data: globalPromptsRaw } = useQuery('/prompts', { query: { scope: 'global' } })
+  const { data: assistantPromptsRaw } = useQuery('/prompts', { query: { assistantId } })
 
-    // Build unified list: assistant phrases first, then global prompts
-    const assistantPhrases: UnifiedPromptItem[] = (assistant.regularPhrases || []).map((p: QuickPhrase) => ({
-      id: p.id,
-      title: p.title,
-      content: p.content,
-      isAssistantPhrase: true,
-      currentVersion: 1
-    }))
+  const { trigger: createPrompt } = useMutation('POST', '/prompts', {
+    refresh: ['/prompts']
+  })
 
-    const globalPrompts: UnifiedPromptItem[] = prompts.map((p) => ({
-      id: p.id,
-      title: p.title,
-      content: p.content,
-      isAssistantPhrase: false,
-      currentVersion: p.currentVersion
-    }))
-
-    setPromptItems([...assistantPhrases, ...globalPrompts])
-  }, [assistant.regularPhrases])
-
-  useEffect(() => {
-    loadPromptItems()
-  }, [loadPromptItems])
+  const promptItems = useMemo<PromptItem[]>(() => {
+    const assistantPrompts = (assistantPromptsRaw || []) as Prompt[]
+    const globalPrompts = (globalPromptsRaw || []) as Prompt[]
+    return [
+      ...assistantPrompts.map((p) => ({
+        id: p.id,
+        title: p.title,
+        content: p.content,
+        currentVersion: p.currentVersion,
+        source: 'assistant' as const
+      })),
+      ...globalPrompts.map((p) => ({
+        id: p.id,
+        title: p.title,
+        content: p.content,
+        currentVersion: p.currentVersion,
+        source: 'global' as const
+      }))
+    ]
+  }, [assistantPromptsRaw, globalPromptsRaw])
 
   const insertText = useCallback(
     (text: string) => {
@@ -150,14 +143,14 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   )
 
   const handleItemSelect = useCallback(
-    (item: UnifiedPromptItem) => {
+    (item: PromptItem) => {
       insertText(item.content)
     },
     [insertText]
   )
 
   const openVersionSubMenu = useCallback(
-    async (item: UnifiedPromptItem) => {
+    async (item: PromptItem) => {
       try {
         const versions: PromptVersion[] = await dataApiService.get(`/prompts/${item.id}/versions`)
 
@@ -187,39 +180,25 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
       return
     }
 
-    if (addFormData.location === 'assistant') {
-      const updatedPhrases = [
-        ...(assistant.regularPhrases || []),
-        {
-          id: crypto.randomUUID(),
-          title: addFormData.title,
-          content: addFormData.content,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-      ]
-      await updateAssistant({ ...assistant, regularPhrases: updatedPhrases })
-    } else {
-      await dataApiService.post('/prompts', {
-        body: {
-          title: addFormData.title,
-          content: addFormData.content
-        }
-      })
-    }
+    await createPrompt({
+      body: {
+        title: addFormData.title,
+        content: addFormData.content,
+        assistantId: addFormData.location === 'assistant' ? assistantId : undefined
+      }
+    })
     setIsAddModalOpen(false)
     setAddFormData({ title: '', content: '', location: 'global' })
-    await loadPromptItems()
-  }, [addFormData, assistant, updateAssistant, loadPromptItems])
+  }, [addFormData, assistantId, createPrompt])
 
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = promptItems.map((item) => {
-      const hasMultipleVersions = !item.isAssistantPhrase && item.currentVersion > 1
+      const hasMultipleVersions = item.currentVersion > 1
 
       return {
         label: item.title,
         description: item.content,
-        icon: item.isAssistantPhrase ? <BotMessageSquare /> : <Zap />,
+        icon: item.source === 'assistant' ? <BotMessageSquare /> : <Zap />,
         isMenu: hasMultipleVersions,
         action: hasMultipleVersions ? () => openVersionSubMenu(item) : () => handleItemSelect(item)
       }
@@ -337,7 +316,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
         centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <VarLabel>{t('settings.prompts.titleLabel')}</VarLabel>
+            <div className="mb-1 text-(--color-text) text-sm">{t('settings.prompts.titleLabel')}</div>
             <Input
               placeholder={t('settings.prompts.titlePlaceholder')}
               value={addFormData.title}
@@ -345,7 +324,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
             />
           </div>
           <div>
-            <VarLabel>{t('settings.prompts.contentLabel')}</VarLabel>
+            <div className="mb-1 text-(--color-text) text-sm">{t('settings.prompts.contentLabel')}</div>
             <Input.TextArea
               placeholder={t('settings.prompts.contentPlaceholder')}
               value={addFormData.content}
@@ -355,7 +334,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
             />
           </div>
           <div>
-            <VarLabel>{t('settings.prompts.locationLabel')}</VarLabel>
+            <div className="mb-1 text-(--color-text) text-sm">{t('settings.prompts.locationLabel')}</div>
             <Radio.Group
               value={addFormData.location}
               onChange={(e) => setAddFormData({ ...addFormData, location: e.target.value })}>
@@ -377,11 +356,5 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     </>
   )
 }
-
-const VarLabel = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  margin-bottom: 4px;
-`
 
 export default memo(QuickPhrasesButton)

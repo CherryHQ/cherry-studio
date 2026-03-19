@@ -13,7 +13,8 @@ import * as z from 'zod'
 
 export const CreatePromptDtoSchema = z.object({
   title: z.string().min(1),
-  content: z.string().min(1)
+  content: z.string().min(1),
+  assistantId: z.string().optional()
 })
 
 export const UpdatePromptDtoSchema = z.object({
@@ -22,6 +23,7 @@ export const UpdatePromptDtoSchema = z.object({
 })
 
 export const ReorderPromptsDtoSchema = z.object({
+  assistantId: z.string().optional(),
   items: z.array(
     z.object({
       id: z.string(),
@@ -47,10 +49,18 @@ export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
 // API Schema Definitions
 // ============================================================================
 
+export interface PromptQueryParams {
+  /** Filter by scope: 'global' returns only prompts not linked to any assistant */
+  scope?: 'global'
+  /** Filter by assistant ID */
+  assistantId?: string
+}
+
 export interface PromptSchemas {
   '/prompts': {
-    /** Get all prompts */
+    /** Get prompts. Use query params to filter by scope or assistantId. */
     GET: {
+      query?: PromptQueryParams
       response: Prompt[]
     }
     /** Create a new prompt */
