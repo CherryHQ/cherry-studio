@@ -1,9 +1,10 @@
+import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
 vi.mock('path', async () => {
-  const actual = await vi.importActual<typeof import('path')>('path')
+  const actual: typeof PathModule = await vi.importActual('path')
   return {
     ...actual,
     sep: '/', // Always use forward slash for consistency
