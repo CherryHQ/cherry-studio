@@ -36,7 +36,6 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
-import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -70,8 +69,7 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
     {
       match: (p) => isSystemProvider(p) && p.id === 'vertexai',
       adapt: (m, p) => vertexAnthropicProviderCreator(m, p)
-    },
-    { match: isAzureOpenAIProvider, adapt: (m, p) => azureAnthropicProviderCreator(m, p) }
+    }
   ]
   const adapter = adapters.find((a) => a.match(provider))
   return adapter ? adapter.adapt(model, provider) : provider
@@ -113,7 +111,7 @@ export function formatProviderApiHost(provider: Provider): Provider {
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
     { match: isAzureOpenAIProvider, format: (p) => formatAzureOpenAIApiHost(p.apiHost) },
-    { match: isVertexProvider, format: (p) => formatVertexApiHost(p as any) }
+    { match: isVertexProvider, format: (p) => formatVertexApiHost(p as Parameters<typeof formatVertexApiHost>[0]) }
   ]
 
   const formatter = formatters.find((f) => f.match(provider))
@@ -311,7 +309,21 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
   }
 }
 
-function buildAzureConfig(ctx: BuilderContext): ProviderConfig<'azure'> | ProviderConfig<'azure-responses'> {
+function buildAzureConfig(
+  ctx: BuilderContext
+): ProviderConfig<'azure'> | ProviderConfig<'azure-responses'> | ProviderConfig<'azure-anthropic'> {
+  // Azure 上的 Claude 模型走 azure-anthropic variant（内部使用 Anthropic SDK）
+  if (ctx.model.id.startsWith('claude')) {
+    return {
+      providerId: 'azure-anthropic',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        ...ctx.baseConfig,
+        headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      }
+    }
+  }
+
   const apiVersion = ctx.actualProvider.apiVersion?.trim()
   const useResponsesMode = apiVersion && ['preview', 'v1'].includes(apiVersion)
 

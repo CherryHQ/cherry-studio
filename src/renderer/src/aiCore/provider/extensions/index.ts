@@ -4,7 +4,6 @@
  */
 
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
-import { type AnthropicProviderSettings, createAnthropic } from '@ai-sdk/anthropic'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
@@ -50,20 +49,6 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   ExtensionStorage,
   ProviderV3,
   'google-vertex-anthropic'
->)
-
-/**
- * Azure AI Anthropic Extension
- */
-export const AzureAnthropicExtension = ProviderExtension.create({
-  name: 'azure-anthropic',
-  supportsImageGeneration: false,
-  create: createAnthropic
-} as const satisfies ProviderExtensionConfig<
-  AnthropicProviderSettings,
-  ExtensionStorage,
-  ProviderV3,
-  'azure-anthropic'
 >)
 
 /**
@@ -154,7 +139,6 @@ export const OllamaExtension = ProviderExtension.create({
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
-  AzureAnthropicExtension,
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,

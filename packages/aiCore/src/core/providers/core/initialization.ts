@@ -55,9 +55,6 @@ const AzureExtension = ProviderExtension.create({
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
   create: createAzure,
-  /**
-   * Azure 变体 - responses 模式
-   */
   variants: [
     {
       suffix: 'responses',
@@ -68,6 +65,18 @@ const AzureExtension = ProviderExtension.create({
             ...provider,
             languageModel: (modelId: string) => provider.responses(modelId)
           }
+        })
+    },
+    // Azure 上的 Claude 模型走 Anthropic SDK
+    // https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry
+    {
+      suffix: 'anthropic',
+      name: 'Azure Anthropic',
+      transform: (_provider, settings) =>
+        createAnthropic({
+          baseURL: (settings?.baseURL ?? '') + '/anthropic/v1',
+          apiKey: settings?.apiKey ?? '',
+          headers: settings?.headers
         })
     }
   ] as const

@@ -20,7 +20,6 @@ describe('Auto-Extracted Type System', () => {
       const expectedMainIds: AppProviderId[] = [
         'google-vertex',
         'google-vertex-anthropic',
-        'azure-anthropic',
         'github-copilot-openai-compatible',
         'bedrock',
         'perplexity',
@@ -88,7 +87,6 @@ describe('Auto-Extracted Type System', () => {
       const projectIds: AppProviderId[] = [
         'google-vertex',
         'google-vertex-anthropic',
-        'azure-anthropic',
         'github-copilot-openai-compatible',
         'bedrock',
         'perplexity',
@@ -100,7 +98,7 @@ describe('Auto-Extracted Type System', () => {
       ]
 
       // 运行时验证
-      expect(projectIds.length).toBe(11)
+      expect(projectIds.length).toBe(10)
     })
 
     it('应该接受项目特定 provider 别名', () => {
