@@ -186,7 +186,7 @@ const githubFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.github,
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: 'https://models.github.ai/catalog/',
+      url: 'https://models.github.ai/catalog/models',
       headers: defaultHeaders(provider),
       responseSchema: GitHubModelsResponseSchema,
       abortSignal: signal
