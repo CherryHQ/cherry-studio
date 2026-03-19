@@ -364,13 +364,19 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
 }
 
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
+  const extraHeaders = { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+
   return {
     providerId: 'aihubmix',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      geminiBaseURL: 'https://aihubmix.com/gemini',
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        return fetch(input, {
+          ...init,
+          headers: { ...init?.headers, ...extraHeaders }
+        })
+      }
     }
   }
 }
