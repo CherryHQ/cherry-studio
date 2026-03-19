@@ -1,5 +1,6 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Flex } from '@cherrystudio/ui'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -9,7 +10,7 @@ import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Popconfirm, Space } from 'antd'
 import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
@@ -19,7 +20,6 @@ const { TextArea } = Input
 const PromptSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [promptsList, setPromptsList] = useState<Prompt[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
@@ -30,14 +30,15 @@ const PromptSettings: FC = () => {
   })
   const [dragging, setDragging] = useState(false)
 
-  const loadPrompts = useCallback(async () => {
-    const data = await dataApiService.get('/prompts')
-    setPromptsList(data)
-  }, [])
+  const { data: promptsList = [], refetch: loadPrompts } = useQuery('/prompts', { query: { scope: 'global' } })
 
-  useEffect(() => {
-    loadPrompts()
-  }, [loadPrompts])
+  const { trigger: createPrompt } = useMutation('POST', '/prompts', {
+    refresh: ['/prompts']
+  })
+
+  const { trigger: reorderPrompts } = useMutation('PATCH', '/prompts/reorder', {
+    refresh: ['/prompts']
+  })
 
   const handleAdd = () => {
     setEditingPrompt(null)
@@ -72,7 +73,7 @@ const PromptSettings: FC = () => {
         }
       })
     } else {
-      await dataApiService.post('/prompts', {
+      await createPrompt({
         body: {
           title: formData.title,
           content: formData.content
@@ -84,8 +85,7 @@ const PromptSettings: FC = () => {
   }
 
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
-    setPromptsList(newPrompts)
-    await dataApiService.patch('/prompts/reorder', {
+    await reorderPrompts({
       body: {
         items: newPrompts.map((p, i) => ({ id: p.id, sortOrder: i }))
       }
@@ -108,7 +108,7 @@ const PromptSettings: FC = () => {
     await loadPrompts()
   }
 
-  const reversedPrompts = [...promptsList].reverse()
+  const reversedPrompts = useMemo(() => [...promptsList].reverse(), [promptsList])
 
   return (
     <SettingContainer theme={theme}>

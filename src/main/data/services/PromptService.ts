@@ -8,6 +8,7 @@
  */
 
 import { dbService } from '@data/db/DbService'
+import { assistantPromptTable } from '@data/db/schemas/assistantPrompt'
 import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -18,7 +19,7 @@ import type {
   UpdatePromptDto
 } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, notExists } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:PromptService')
 
@@ -72,6 +73,42 @@ export class PromptService {
   }
 
   /**
+   * Get all global prompts (not associated with any assistant)
+   */
+  async getGlobal(): Promise<Prompt[]> {
+    const db = dbService.getDb()
+    const rows = await db
+      .select()
+      .from(promptTable)
+      .where(notExists(db.select().from(assistantPromptTable).where(eq(assistantPromptTable.promptId, promptTable.id))))
+      .orderBy(promptTable.sortOrder)
+    return rows.map(rowToPrompt)
+  }
+
+  /**
+   * Get all prompts for a specific assistant
+   */
+  async getForAssistant(assistantId: string): Promise<Prompt[]> {
+    const db = dbService.getDb()
+    const rows = await db
+      .select({
+        id: promptTable.id,
+        title: promptTable.title,
+        content: promptTable.content,
+        currentVersion: promptTable.currentVersion,
+        sortOrder: assistantPromptTable.sortOrder,
+        createdAt: promptTable.createdAt,
+        updatedAt: promptTable.updatedAt
+      })
+      .from(promptTable)
+      .innerJoin(assistantPromptTable, eq(promptTable.id, assistantPromptTable.promptId))
+      .where(eq(assistantPromptTable.assistantId, assistantId))
+      .orderBy(assistantPromptTable.sortOrder)
+
+    return rows.map(rowToPrompt)
+  }
+
+  /**
    * Get a prompt by ID
    */
   async getById(id: string): Promise<Prompt> {
@@ -108,7 +145,15 @@ export class PromptService {
         content: dto.content
       })
 
-      logger.info('Created prompt', { id: row.id, title: dto.title })
+      // If associated with an assistant, create mapping
+      if (dto.assistantId) {
+        await tx.insert(assistantPromptTable).values({
+          assistantId: dto.assistantId,
+          promptId: row.id
+        })
+      }
+
+      logger.info('Created prompt', { id: row.id, title: dto.title, assistantId: dto.assistantId })
 
       return rowToPrompt(row)
     })
@@ -176,11 +221,20 @@ export class PromptService {
 
     await db.transaction(async (tx) => {
       for (const item of dto.items) {
-        await tx.update(promptTable).set({ sortOrder: item.sortOrder }).where(eq(promptTable.id, item.id))
+        if (dto.assistantId) {
+          await tx
+            .update(assistantPromptTable)
+            .set({ sortOrder: item.sortOrder })
+            .where(
+              and(eq(assistantPromptTable.assistantId, dto.assistantId), eq(assistantPromptTable.promptId, item.id))
+            )
+        } else {
+          await tx.update(promptTable).set({ sortOrder: item.sortOrder }).where(eq(promptTable.id, item.id))
+        }
       }
     })
 
-    logger.info('Reordered prompts', { count: dto.items.length })
+    logger.info('Reordered prompts', { count: dto.items.length, assistantId: dto.assistantId })
   }
 
   /**

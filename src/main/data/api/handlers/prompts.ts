@@ -11,6 +11,7 @@ import { promptService } from '@data/services/PromptService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
   CreatePromptDtoSchema,
+  type PromptQueryParams,
   type PromptSchemas,
   ReorderPromptsDtoSchema,
   RollbackPromptDtoSchema,
@@ -25,7 +26,14 @@ export const promptHandlers: {
   }
 } = {
   '/prompts': {
-    GET: () => {
+    GET: ({ query }) => {
+      const q = (query || {}) as PromptQueryParams
+      if (q.assistantId) {
+        return promptService.getForAssistant(q.assistantId)
+      }
+      if (q.scope === 'global') {
+        return promptService.getGlobal()
+      }
       return promptService.getAll()
     },
 
