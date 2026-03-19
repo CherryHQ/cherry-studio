@@ -161,9 +161,6 @@ importers:
       '@ai-sdk/cerebras':
         specifier: ^2.0.34
         version: 2.0.34(zod@4.3.4)
-      '@ai-sdk/cohere':
-        specifier: ^3.0.25
-        version: 3.0.25(zod@4.3.4)
       '@ai-sdk/gateway':
         specifier: ^3.0.57
         version: 3.0.57(zod@4.3.4)
@@ -1386,12 +1383,6 @@ packages:
 
   '@ai-sdk/cerebras@2.0.34':
     resolution: {integrity: sha512-B/so5YrWypY3XXrtKoyfcWRtBX69kLsVDAaM1JGqay98DGGs8Ikh0i2P7UKOv/m0LsfOlff/mlYevPqGhwfuEw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/cohere@3.0.25':
-    resolution: {integrity: sha512-Ox6MeK+AcGWY+WDKA5LMfPsESKym7ohZO9aPWL6JsGkt7/gXC4t+rT4j+5eXtFtFXah8SQqs09gVt4xRgZAvxg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -12349,12 +12340,6 @@ snapshots:
       '@ai-sdk/openai-compatible': 2.0.30(patch_hash=75058a2443f9c0eb3d44e09a419a2c9720e51329bbb174019c772e57521843f1)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.4)
-      zod: 4.3.4
-
-  '@ai-sdk/cohere@3.0.25(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.19(zod@4.3.4)
       zod: 4.3.4
 
   '@ai-sdk/deepseek@2.0.20(zod@4.3.4)':
