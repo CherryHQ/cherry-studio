@@ -21,6 +21,7 @@ import {
 } from '@opeoginni/github-copilot-openai-compatible'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
+import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
@@ -156,6 +157,16 @@ export const NewApiExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ExtensionStorage, ProviderV3, 'newapi'>)
 
 /**
+ * Voyage AI Extension - embeddings and reranking
+ */
+export const VoyageExtension = ProviderExtension.create({
+  name: 'voyage',
+  aliases: ['voyageai'] as const,
+  supportsImageGeneration: false,
+  create: createVoyage
+} as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ExtensionStorage, ProviderV3, 'voyage'>)
+
+/**
  * 所有项目特定的 Extensions
  */
 export const extensions = [
@@ -170,5 +181,6 @@ export const extensions = [
   CerebrasExtension,
   OllamaExtension,
   AiHubMixExtension,
-  NewApiExtension
+  NewApiExtension,
+  VoyageExtension
 ] as const
