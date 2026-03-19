@@ -6,23 +6,26 @@ vi.mock('i18next', () => ({
   default: { t: (key: string, opts?: Record<string, unknown>) => `${key}${opts ? JSON.stringify(opts) : ''}` }
 }))
 
+const mockExtractPdfText = vi.fn()
+
 vi.mock('@shared/utils/pdf', () => ({
-  extractPdfText: vi.fn()
+  extractPdfText: (...args: unknown[]) => mockExtractPdfText(...args)
 }))
-
-import { extractPdfText } from '@shared/utils/pdf'
-
-import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
-
-const mockExtractPdfText = vi.mocked(extractPdfText)
 
 vi.stubGlobal('window', {
   ...globalThis.window,
+  api: {
+    pdf: {
+      extractText: mockExtractPdfText
+    }
+  },
   toast: {
     warning: vi.fn(),
     error: vi.fn()
   }
 })
+
+import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
 
 function makeProvider(id: string, type: ProviderType): Provider {
   return { id, name: id, type, apiKey: 'test', apiHost: 'https://test.com', isSystem: false, models: [] } as Provider

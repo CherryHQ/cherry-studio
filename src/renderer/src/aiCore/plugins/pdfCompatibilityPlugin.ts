@@ -74,7 +74,8 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
           const fileName = part.filename || 'PDF'
 
           try {
-            const textContent = await extractPdfText(part.data)
+            const textContent =
+              part.data instanceof URL ? await extractPdfText(part.data) : await window.api.pdf.extractText(part.data)
             logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
             newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
           } catch (error) {
