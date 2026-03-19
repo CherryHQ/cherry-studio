@@ -56,7 +56,15 @@ function createMockContext(
         getExportPath: vi.fn().mockReturnValue('/tmp/export'),
         createStreamReader: vi.fn(),
         getTableFileSize: vi.fn()
-      } as unknown as MigrationContext['sources']['dexieExport']
+      } as unknown as MigrationContext['sources']['dexieExport'],
+      dexieSettings: {
+        get: vi.fn(),
+        getAll: vi.fn()
+      } as unknown as MigrationContext['sources']['dexieSettings'],
+      localStorage: {
+        get: vi.fn(),
+        getAll: vi.fn()
+      } as unknown as MigrationContext['sources']['localStorage']
     },
     db: db as unknown as MigrationContext['db'],
     sharedData: new Map(),

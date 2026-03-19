@@ -1,16 +1,15 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button, Flex } from '@cherrystudio/ui'
+import { Button, Flex, Spinner } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { dataApiService } from '@renderer/data/DataApiService'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Popconfirm, Space } from 'antd'
 import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
@@ -23,22 +22,97 @@ const PromptSettings: FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
-  const [versions, setVersions] = useState<PromptVersion[]>([])
   const [formData, setFormData] = useState<{ title: string; content: string }>({
     title: '',
     content: ''
   })
   const [dragging, setDragging] = useState(false)
+  const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
+  const [pendingRollbackVersion, setPendingRollbackVersion] = useState<number | null>(null)
 
-  const { data: promptsList = [], refetch: loadPrompts } = useQuery('/prompts', { query: { scope: 'global' } })
+  const {
+    data: promptsList = [],
+    isLoading: isPromptsLoading,
+    error: promptsError
+  } = useQuery('/prompts', {
+    query: { scope: 'global' }
+  })
 
-  const { trigger: createPrompt } = useMutation('POST', '/prompts', {
-    refresh: ['/prompts']
+  const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
+  const deletePromptPath: `/prompts/${string}` = `/prompts/${pendingDeletePromptId ?? '__pending__'}`
+  const versionsPath: `/prompts/${string}/versions` = `/prompts/${editingPrompt?.id ?? '__pending__'}/versions`
+  const rollbackPath: `/prompts/${string}/rollback` = `/prompts/${editingPrompt?.id ?? '__pending__'}/rollback`
+
+  const {
+    data: versionsRaw,
+    isLoading: isVersionsLoading,
+    error: versionsError
+  } = useQuery(versionsPath, {
+    enabled: isVersionModalOpen && !!editingPrompt
+  })
+  const versions = (versionsRaw || []) as PromptVersion[]
+
+  const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
+    refresh: ['/prompts'],
+    onError: () => window.toast.error(t('message.error.unknown'))
+  })
+
+  const { trigger: updatePrompt, isLoading: isUpdatingPrompt } = useMutation('PATCH', promptPath, {
+    refresh: ['/prompts'],
+    onError: () => window.toast.error(t('message.error.unknown'))
+  })
+
+  const { trigger: deletePrompt, isLoading: isDeletingPrompt } = useMutation('DELETE', deletePromptPath, {
+    refresh: ['/prompts'],
+    onError: () => window.toast.error(t('message.delete.failed'))
   })
 
   const { trigger: reorderPrompts } = useMutation('PATCH', '/prompts/reorder', {
-    refresh: ['/prompts']
+    refresh: ['/prompts'],
+    onError: () => window.toast.error(t('message.error.unknown'))
   })
+
+  const { trigger: rollbackPrompt, isLoading: isRollingBack } = useMutation('POST', rollbackPath, {
+    refresh: ['/prompts'],
+    onError: () => window.toast.error(t('message.error.unknown'))
+  })
+
+  const deletePromptRef = useRef(deletePrompt)
+  useEffect(() => {
+    deletePromptRef.current = deletePrompt
+  }, [deletePrompt])
+
+  useEffect(() => {
+    if (!pendingDeletePromptId) {
+      return
+    }
+
+    let cancelled = false
+
+    const runDelete = async () => {
+      try {
+        await deletePromptRef.current()
+      } catch {
+        // handled by useMutation onError
+      } finally {
+        if (!cancelled) {
+          setPendingDeletePromptId(null)
+        }
+      }
+    }
+
+    void runDelete()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pendingDeletePromptId])
+
+  useEffect(() => {
+    if (versionsError && isVersionModalOpen) {
+      window.toast.error(t('message.error.unknown'))
+    }
+  }, [isVersionModalOpen, t, versionsError])
 
   const handleAdd = () => {
     setEditingPrompt(null)
@@ -55,9 +129,8 @@ const PromptSettings: FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    await dataApiService.delete(`/prompts/${id}`)
-    await loadPrompts()
+  const handleDelete = (id: string) => {
+    setPendingDeletePromptId(id)
   }
 
   const handleModalOk = async () => {
@@ -65,50 +138,63 @@ const PromptSettings: FC = () => {
       return
     }
 
-    if (editingPrompt) {
-      await dataApiService.patch(`/prompts/${editingPrompt.id}`, {
-        body: {
-          title: formData.title,
-          content: formData.content
-        }
-      })
-    } else {
-      await createPrompt({
-        body: {
-          title: formData.title,
-          content: formData.content
-        }
-      })
+    try {
+      if (editingPrompt) {
+        await updatePrompt({
+          body: {
+            title: formData.title,
+            content: formData.content
+          }
+        })
+      } else {
+        await createPrompt({
+          body: {
+            title: formData.title,
+            content: formData.content
+          }
+        })
+      }
+      setIsModalOpen(false)
+    } catch {
+      // handled by useMutation onError
     }
-    setIsModalOpen(false)
-    await loadPrompts()
   }
 
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
-    await reorderPrompts({
-      body: {
-        items: newPrompts.map((p, i) => ({ id: p.id, sortOrder: i }))
-      }
-    })
+    try {
+      await reorderPrompts({
+        body: {
+          items: newPrompts.map((p, i) => ({ id: p.id, sortOrder: i }))
+        }
+      })
+    } catch {
+      // handled by useMutation onError
+    }
   }
 
-  const handleShowVersions = async (prompt: Prompt) => {
+  const handleShowVersions = (prompt: Prompt) => {
     setEditingPrompt(prompt)
-    const data = await dataApiService.get(`/prompts/${prompt.id}/versions`)
-    setVersions(data)
     setIsVersionModalOpen(true)
   }
 
   const handleRollback = async (version: number) => {
     if (!editingPrompt) return
-    await dataApiService.post(`/prompts/${editingPrompt.id}/rollback`, {
-      body: { version }
-    })
-    setIsVersionModalOpen(false)
-    await loadPrompts()
+
+    setPendingRollbackVersion(version)
+    try {
+      await rollbackPrompt({
+        body: { version }
+      })
+      setIsVersionModalOpen(false)
+    } catch {
+      // handled by useMutation onError
+    } finally {
+      setPendingRollbackVersion(null)
+    }
   }
 
   const reversedPrompts = useMemo(() => [...promptsList].reverse(), [promptsList])
+  const isSavingPrompt = isCreatingPrompt || isUpdatingPrompt
 
   return (
     <SettingContainer theme={theme}>
@@ -122,54 +208,69 @@ const PromptSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
-            <DraggableList
-              list={reversedPrompts}
-              onUpdate={(newList) => handleUpdateOrder([...newList].reverse())}
-              style={{ paddingBottom: dragging ? '34px' : 0 }}
-              onDragStart={() => setDragging(true)}
-              onDragEnd={() => setDragging(false)}>
-              {(prompt) => (
-                <FileItem
-                  key={prompt.id}
-                  fileInfo={{
-                    name: prompt.title,
-                    ext: '.txt',
-                    extra: (
-                      <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
-                        <span>
-                          {prompt.content.slice(0, 80)}
-                          {prompt.content.length > 80 ? '...' : ''}
-                        </span>
-                        <span className="whitespace-nowrap rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 text-[11px] text-[var(--color-primary)]">
-                          v{prompt.currentVersion}
-                        </span>
-                      </div>
-                    ),
-                    actions: (
-                      <Flex className="gap-1 opacity-60">
-                        <Button key="versions" variant="ghost" onClick={() => handleShowVersions(prompt)} size="icon">
-                          <HistoryIcon size={14} />
-                        </Button>
-                        <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
-                          <EditIcon size={14} />
-                        </Button>
-                        <Popconfirm
-                          title={t('settings.prompts.delete')}
-                          description={t('settings.prompts.deleteConfirm')}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={() => handleDelete(prompt.id)}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button key="delete" variant="ghost" onClick={() => {}} size="icon">
-                            <DeleteIcon size={14} className="lucide-custom" />
+            {isPromptsLoading && reversedPrompts.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Spinner text={t('common.loading')} />
+              </div>
+            ) : promptsError && reversedPrompts.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-[var(--color-text-3)] text-sm">
+                {t('message.error.unknown')}
+              </div>
+            ) : (
+              <DraggableList
+                list={reversedPrompts}
+                onUpdate={(newList) => handleUpdateOrder([...newList].reverse())}
+                style={{ paddingBottom: dragging ? '34px' : 0 }}
+                onDragStart={() => setDragging(true)}
+                onDragEnd={() => setDragging(false)}>
+                {(prompt) => (
+                  <FileItem
+                    key={prompt.id}
+                    fileInfo={{
+                      name: prompt.title,
+                      ext: '.txt',
+                      extra: (
+                        <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
+                          <span>
+                            {prompt.content.slice(0, 80)}
+                            {prompt.content.length > 80 ? '...' : ''}
+                          </span>
+                          <span className="whitespace-nowrap rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 text-[11px] text-[var(--color-primary)]">
+                            v{prompt.currentVersion}
+                          </span>
+                        </div>
+                      ),
+                      actions: (
+                        <Flex className="gap-1 opacity-60">
+                          <Button key="versions" variant="ghost" onClick={() => handleShowVersions(prompt)} size="icon">
+                            <HistoryIcon size={14} />
                           </Button>
-                        </Popconfirm>
-                      </Flex>
-                    )
-                  }}
-                />
-              )}
-            </DraggableList>
+                          <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
+                            <EditIcon size={14} />
+                          </Button>
+                          <Popconfirm
+                            title={t('settings.prompts.delete')}
+                            description={t('settings.prompts.deleteConfirm')}
+                            okText={t('common.confirm')}
+                            cancelText={t('common.cancel')}
+                            onConfirm={() => handleDelete(prompt.id)}
+                            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+                            <Button
+                              key="delete"
+                              variant="ghost"
+                              onClick={() => {}}
+                              size="icon"
+                              loading={isDeletingPrompt && pendingDeletePromptId === prompt.id}>
+                              <DeleteIcon size={14} className="lucide-custom" />
+                            </Button>
+                          </Popconfirm>
+                        </Flex>
+                      )
+                    }}
+                  />
+                )}
+              </DraggableList>
+            )}
           </div>
         </SettingRow>
       </SettingGroup>
@@ -179,6 +280,7 @@ const PromptSettings: FC = () => {
         title={editingPrompt ? t('settings.prompts.edit') : t('settings.prompts.add')}
         open={isModalOpen}
         onOk={handleModalOk}
+        confirmLoading={isSavingPrompt}
         onCancel={() => setIsModalOpen(false)}
         width={600}
         transitionName="animation-move-down"
@@ -216,41 +318,54 @@ const PromptSettings: FC = () => {
         transitionName="animation-move-down"
         centered>
         <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
-          {versions.map((version) => (
-            <div
-              key={version.id}
-              className="flex flex-col gap-1.5 rounded-lg border-[0.5px] border-[var(--color-border)] p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  v{version.version}
-                  {editingPrompt?.currentVersion === version.version && (
-                    <span className="rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 font-normal text-[11px] text-[var(--color-primary)]">
-                      {t('settings.prompts.current')}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[var(--color-text-3)] text-xs">
-                  {new Date(version.createdAt).toLocaleString()}
-                </span>
-              </div>
-              <div className="text-[13px] text-[var(--color-text-2)] leading-[1.5]">
-                {version.content.slice(0, 100)}
-                {version.content.length > 100 ? '...' : ''}
-              </div>
-              {editingPrompt?.currentVersion !== version.version && (
-                <Popconfirm
-                  title={t('settings.prompts.rollbackConfirm')}
-                  okText={t('common.confirm')}
-                  cancelText={t('common.cancel')}
-                  onConfirm={() => handleRollback(version.version)}>
-                  <Button variant="ghost" size="sm">
-                    <RotateCcwIcon size={14} />
-                    {t('settings.prompts.rollback')}
-                  </Button>
-                </Popconfirm>
-              )}
+          {isVersionsLoading ? (
+            <div className="flex min-h-40 items-center justify-center">
+              <Spinner text={t('common.loading')} />
             </div>
-          ))}
+          ) : versionsError ? (
+            <div className="flex min-h-40 items-center justify-center text-[var(--color-text-3)] text-sm">
+              {t('message.error.unknown')}
+            </div>
+          ) : (
+            versions.map((version) => (
+              <div
+                key={version.id}
+                className="flex flex-col gap-1.5 rounded-lg border-[0.5px] border-[var(--color-border)] p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    v{version.version}
+                    {editingPrompt?.currentVersion === version.version && (
+                      <span className="rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 font-normal text-[11px] text-[var(--color-primary)]">
+                        {t('settings.prompts.current')}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[var(--color-text-3)] text-xs">
+                    {new Date(version.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-[13px] text-[var(--color-text-2)] leading-[1.5]">
+                  {version.content.slice(0, 100)}
+                  {version.content.length > 100 ? '...' : ''}
+                </div>
+                {editingPrompt?.currentVersion !== version.version && (
+                  <Popconfirm
+                    title={t('settings.prompts.rollbackConfirm')}
+                    okText={t('common.confirm')}
+                    cancelText={t('common.cancel')}
+                    onConfirm={() => handleRollback(version.version)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={isRollingBack && pendingRollbackVersion === version.version}>
+                      <RotateCcwIcon size={14} />
+                      {t('settings.prompts.rollback')}
+                    </Button>
+                  </Popconfirm>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </Modal>
     </SettingContainer>
