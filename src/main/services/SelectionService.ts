@@ -89,6 +89,8 @@ export class SelectionService {
    */
   private lastCtrlkeyDownTime: number = 0
 
+  private isWaylandDisplay: boolean = false
+
   private zoomFactor: number = 1
 
   private TOOLBAR_WIDTH = 350
@@ -111,6 +113,17 @@ export class SelectionService {
       this.selectionHook = new SelectionHook()
       if (this.selectionHook) {
         this.initZoomFactor()
+
+        // Detect Wayland display protocol for platform-specific behavior.
+        // On Wayland, Electron runs via XWayland, causing coordinate space mismatches
+        // between selection-hook (Wayland compositor coords) and Electron (XWayland coords).
+        // Several workarounds are applied when isWaylandDisplay is true.
+        if (isLinux) {
+          const envInfo = this.selectionHook.linuxGetEnvInfo()
+          if (envInfo && envInfo.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND) {
+            this.isWaylandDisplay = true
+          }
+        }
 
         this.initStatus = true
       }
@@ -408,13 +421,17 @@ export class SelectionService {
       roundedCorners: true,
 
       // Platform specific settings
-      //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
-      //   [macOS] `panel` conflicts with other settings ,
-      //           and log will show `NSWindow does not support nonactivating panel styleMask 0x80`
-      //           but it seems still work on fullscreen apps, so we set this anyway
-      //   [windows/linux] set focusable to false to prevent toolbar blur other windows.
-      //   [linux]         note that focusable: false will cause the toolbar unmovable.
-      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: false }),
+      //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
+      //           type 'panel' conflicts with some settings and triggers the warning
+      //           `NSWindow does not support nonactivating panel styleMask 0x80`,
+      //           but it still works correctly on fullscreen apps, so we keep it.
+      //   [Windows/Linux X11] focusable: false prevents toolbar from stealing focus.
+      //           On Linux X11 this also makes the window stop interacting with WM (stays on top).
+      //   [Linux Wayland] focusable: true enables blur events for outside-click hiding.
+      //           With focusable: false on XWayland, blur never fires and there is no reliable
+      //           way to detect outside clicks (selection-hook coordinates use a different
+      //           coordinate space than Electron's getBounds on Wayland).
+      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: this.isWaylandDisplay }),
       hiddenInMissionControl: true, // [macOS only]
       acceptFirstMouse: true, // [macOS only]
 
@@ -695,21 +712,6 @@ export class SelectionService {
     //use original point to get the display
     const display = screen.getDisplayNearestPoint(refPoint)
 
-    // [DEBUG] Log display info and positioning calculation
-    if (isLinux) {
-      logger.info('[Wayland Debug] calculateToolbarPosition:', {
-        input: { refPoint, orientation },
-        toolbarSize: { toolbarWidth, toolbarHeight },
-        posPointBeforeClamp: { ...posPoint },
-        display: {
-          id: display.id,
-          bounds: display.bounds,
-          workArea: display.workArea,
-          scaleFactor: display.scaleFactor
-        }
-      })
-    }
-
     //check if the toolbar exceeds the top or bottom of the screen
     const exceedsTop = posPoint.y < display.workArea.y
     const exceedsBottom = posPoint.y > display.workArea.y + display.workArea.height - toolbarHeight
@@ -728,15 +730,6 @@ export class SelectionService {
     }
     if (exceedsBottom) {
       posPoint.y = posPoint.y - 32
-    }
-
-    // [DEBUG] Log final toolbar position
-    if (isLinux) {
-      logger.info('[Wayland Debug] Final toolbar position:', {
-        posPoint,
-        exceedsTop,
-        exceedsBottom
-      })
     }
 
     return posPoint
@@ -798,9 +791,20 @@ export class SelectionService {
    * @param selectionData Text selection information and coordinates
    */
   private processTextSelection = (selectionData: TextSelectionData) => {
-    // Skip if no text or toolbar already visible
-    if (!selectionData.text || (this.isToolbarAlive() && this.toolbarWindow!.isVisible())) {
+    if (!selectionData.text) {
       return
+    }
+
+    // Skip if toolbar already visible.
+    // [Wayland] Allow new selections to reposition the toolbar by hiding it first.
+    // This acts as a safety net: if blur fails to hide the toolbar on some compositors,
+    // selecting new text will still dismiss and reposition it instead of getting stuck.
+    if (this.isToolbarAlive() && this.toolbarWindow!.isVisible()) {
+      if (this.isWaylandDisplay) {
+        this.hideToolbar()
+      } else {
+        return
+      }
     }
 
     if (!this.shouldProcessTextSelection(selectionData)) {
@@ -811,20 +815,6 @@ export class SelectionService {
     let refPoint: { x: number; y: number } = { x: 0, y: 0 }
     let isLogical = false
     let refOrientation: RelativeOrientation = 'bottomRight'
-
-    // [DEBUG] Log selection data for Wayland positioning investigation
-    if (isLinux) {
-      const cursorPoint = screen.getCursorScreenPoint()
-      logger.info('[Wayland Debug] Selection data:', {
-        posLevel: selectionData.posLevel,
-        method: selectionData.method,
-        mousePosStart: selectionData.mousePosStart,
-        mousePosEnd: selectionData.mousePosEnd,
-        startTop: selectionData.startTop,
-        endBottom: selectionData.endBottom,
-        cursorScreenPoint: cursorPoint
-      })
-    }
 
     switch (selectionData.posLevel) {
       case SelectionHook?.PositionLevel.NONE:
@@ -941,15 +931,6 @@ export class SelectionService {
         break
     }
 
-    // [DEBUG] Log refPoint before DIP conversion
-    if (isLinux) {
-      logger.info('[Wayland Debug] Before DIP conversion:', {
-        refPoint,
-        refOrientation,
-        isLogical
-      })
-    }
-
     if (!isLogical) {
       // [macOS/Linux] don't need to convert by screenToDipPoint
       if (isWin) {
@@ -957,11 +938,6 @@ export class SelectionService {
       }
       //screenToDipPoint can be float, so we need to round it
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
-    }
-
-    // [DEBUG] Log final refPoint passed to showToolbarAtPosition
-    if (isLinux) {
-      logger.info('[Wayland Debug] Final refPoint:', { refPoint, refOrientation })
     }
 
     // [macOS] isFullscreen is only available on macOS
@@ -976,8 +952,13 @@ export class SelectionService {
   // Start monitoring global mouse clicks
   private startHideByMouseKeyListener(): void {
     try {
-      // Register event handlers
-      this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
+      // [Wayland] Skip mouse-down listener — selection-hook reports Wayland compositor
+      // coordinates while Electron getBounds() uses XWayland coordinates. This mismatch
+      // makes isInsideToolbar hit-testing unreliable, so outside-click hiding on Wayland
+      // is handled by blur (focusable: true) instead.
+      if (!this.isWaylandDisplay) {
+        this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
+      }
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.on('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = true
@@ -991,7 +972,9 @@ export class SelectionService {
     if (!this.isHideByMouseKeyListenerActive) return
 
     try {
-      this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
+      if (!this.isWaylandDisplay) {
+        this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
+      }
       this.selectionHook!.off('mouse-wheel', this.handleMouseWheelHide)
       this.selectionHook!.off('key-down', this.handleKeyDownHide)
       this.isHideByMouseKeyListenerActive = false
