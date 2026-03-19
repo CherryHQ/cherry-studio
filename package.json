@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -72,7 +72,10 @@
     "release:aicore:alpha": "pnpm --filter @cherrystudio/ai-core version prerelease --preid alpha && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag alpha --access public",
     "release:aicore:beta": "pnpm --filter @cherrystudio/ai-core version prerelease --preid beta && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --tag beta --access public",
     "release:aicore": "pnpm --filter @cherrystudio/ai-core version patch && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/ai-core publish --access public",
-    "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public"
+    "release:ai-sdk-provider": "pnpm --filter @cherrystudio/ai-sdk-provider version patch && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-sdk-provider publish --access public",
+    "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm openapi:check && pnpm skills:check",
+    "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:scripts",
+    "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.71",

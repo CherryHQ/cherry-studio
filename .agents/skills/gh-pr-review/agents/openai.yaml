@@ -1,4 +1,4 @@
 interface:
-  display_name: "Review GitHub PR"
-  short_description: "Review PRs with structured inline comments"
-  default_prompt: "Review the pull request and provide inline code review comments with a structured summary."
+  display_name: "Code Review"
+  short_description: "Review local branches, PRs, commits, and files with multi-agent adversarial review and auto-fix"
+  default_prompt: "Review the current branch changes with multi-agent teams review."

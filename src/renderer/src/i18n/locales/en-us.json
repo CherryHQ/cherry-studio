@@ -735,6 +735,7 @@
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
+      "copying_database": "Copying database...",
       "copying_files": "Copying files... {{progress}}%",
       "preparing": "Preparing backup...",
       "preparing_compression": "Preparing compression...",
@@ -888,7 +889,11 @@
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
-        "expand": "Expand"
+        "expand": "Expand",
+        "file_not_found": "File not found: {{path}}",
+        "open_file": "Open File",
+        "open_file_error": "Failed to open file: {{path}}",
+        "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Topics ",
       "translate": "Translate to {{target_language}}",
@@ -3146,7 +3151,10 @@
       "extracting": "Extracting backup...",
       "preparing": "Preparing restore...",
       "reading_data": "Reading data...",
-      "title": "Restore Progress"
+      "restoring_data": "Restoring files...",
+      "restoring_database": "Restoring database...",
+      "title": "Restore Progress",
+      "validating": "Validating backup..."
     },
     "title": "Data Restore"
   },
@@ -3699,7 +3707,15 @@
           "button": "Select backup file"
         },
         "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "file": {
+          "button": "Export to file",
+          "content": "Export data as a backup file that can be imported on mobile via file.",
+          "export_failed": "Export failed",
+          "export_success": "Export successful",
+          "title": "Export as file"
+        },
         "lan": {
+          "button": "Start Transfer",
           "connected": "Connected",
           "connection_failed": "Connection failed",
           "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
@@ -5618,8 +5634,12 @@
     "show_window": "Show Window"
   },
   "update": {
+    "download": "Download",
     "install": "Install",
     "later": "Later",
+    "manualDownload": "Download",
+    "manualInstallError": "Installation failed, please download manually from the official website.",
+    "manualInstallInfo": "This version does not support automatic updates. Click download to complete the update.",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",

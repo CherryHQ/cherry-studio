@@ -15,7 +15,7 @@ import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import { Alert, Button, Checkbox, Input, Select, Space, Tooltip } from 'antd'
 import { Download, FolderOpen, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -24,7 +24,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
