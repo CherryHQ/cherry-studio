@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * Translate history table - stores translation records
@@ -15,7 +15,7 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 export const translateHistoryTable = sqliteTable(
   'translate_history',
   {
-    id: uuidPrimaryKey(),
+    id: uuidPrimaryKeyOrdered(),
     sourceText: text().notNull(),
     targetText: text().notNull(),
     sourceLanguage: text().notNull(),

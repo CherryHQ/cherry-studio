@@ -9,18 +9,10 @@ import { AssistantMigrator } from './AssistantMigrator'
 import { ChatMigrator } from './ChatMigrator'
 import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
-import { TranslateHistoryMigrator } from './TranslateHistoryMigrator'
-import { TranslateLanguageMigrator } from './TranslateLanguageMigrator'
+import { TranslateMigrator } from './TranslateMigrator'
 
 // Export migrator classes
-export {
-  AssistantMigrator,
-  ChatMigrator,
-  KnowledgeMigrator,
-  PreferencesMigrator,
-  TranslateHistoryMigrator,
-  TranslateLanguageMigrator
-}
+export { AssistantMigrator, ChatMigrator, KnowledgeMigrator, PreferencesMigrator, TranslateMigrator }
 
 /**
  * Get all registered migrators in execution order
@@ -31,7 +23,6 @@ export function getAllMigrators() {
     new AssistantMigrator(),
     new KnowledgeMigrator(),
     new ChatMigrator(),
-    new TranslateHistoryMigrator(),
-    new TranslateLanguageMigrator()
+    new TranslateMigrator()
   ]
 }

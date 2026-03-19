@@ -231,8 +231,8 @@
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[2]",
           "status": "pending",
-          "category": "preferences",
-          "targetKey": "feature.translate.model"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "quickAssistantId",
@@ -3521,7 +3521,7 @@
           "category": "user_data",
           "targetTable": "translate_history",
           "targetKey": null,
-          "notes": "Migrated via TranslateHistoryMigrator to SQLite translate_history table"
+          "notes": "Migrated via TranslateMigrator to SQLite translate_history table"
         }
       ],
       "quick_phrases": [
@@ -3553,7 +3553,7 @@
           "category": "user_data",
           "targetTable": "translate_language",
           "targetKey": null,
-          "notes": "Migrated via TranslateLanguageMigrator to SQLite translate_language table"
+          "notes": "Migrated via TranslateMigrator to SQLite translate_language table"
         }
       ]
     }
