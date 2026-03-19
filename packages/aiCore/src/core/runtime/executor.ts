@@ -168,7 +168,9 @@ export class RuntimeExecutor<
 
     // 解析 embedding 模型
     const embeddingModel =
-      typeof modelOrId === 'string' ? await this.modelResolver.resolveEmbeddingModel(modelOrId) : modelOrId
+      typeof modelOrId === 'string'
+        ? this.registry.embeddingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
+        : modelOrId
 
     return _embedMany({
       model: embeddingModel,

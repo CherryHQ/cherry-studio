@@ -8,11 +8,9 @@ import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
-import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
-import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
@@ -96,12 +94,7 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createQwenThinkingPlugin(enableThinking))
   }
 
-  // 0.6 OpenRouter Gemini image generation
-  if (isOpenRouterGeminiGenerateImageModel(model, provider)) {
-    plugins.push(createOpenrouterGenerateImagePlugin())
-  }
-
-  // 0.7 Skip Gemini3 thought signature for OpenAI-compatible API
+  // 0.6 Skip Gemini3 thought signature for OpenAI-compatible API
   if (isGemini3Model(model)) {
     plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }

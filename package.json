@@ -172,7 +172,7 @@
     "@modelcontextprotocol/sdk": "1.27.1",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
-    "@openrouter/ai-sdk-provider": "^2.2.3",
+    "@openrouter/ai-sdk-provider": "^2.3.3",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/context-async-hooks": "2.0.1",
     "@opentelemetry/core": "2.0.0",
@@ -471,8 +471,6 @@
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch",
       "@ai-sdk/google@3.0.33": "patches/@ai-sdk__google@3.0.33.patch",
-      "@anthropic-ai/claude-agent-sdk@0.1.76": "patches/@anthropic-ai__claude-agent-sdk@0.1.76.patch",
-      "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
       "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch"
     },
     "onlyBuiltDependencies": [

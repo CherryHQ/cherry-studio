@@ -165,8 +165,7 @@ const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
   // TODO: 实现注册后修改拓展配置
   aliases: ['tokenflux'] as const,
-  // OpenRouter 没有原生图像生成 API，图像模型通过 chat completions 处理
-  supportsImageGeneration: false,
+  supportsImageGeneration: true,
   create: createOpenRouter
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 

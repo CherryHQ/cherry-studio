@@ -53,9 +53,6 @@ patchedDependencies:
   '@napi-rs/system-ocr@1.0.2':
     hash: aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
     path: patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
-  '@openrouter/ai-sdk-provider':
-    hash: 508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52
-    path: patches/@openrouter__ai-sdk-provider.patch
   '@tiptap/extension-drag-handle@3.2.0':
     hash: 8432665d4553fb9ba8ff2a126a9181c3ccfee06ae57688aa14f65aa560e52fce
     path: patches/@tiptap-extension-drag-handle-npm-3.2.0-5a9ebff7c9.patch
@@ -366,8 +363,8 @@ importers:
         specifier: ^2.2.15
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
-        specifier: ^2.2.3
-        version: 2.2.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
+        specifier: ^2.3.3
+        version: 2.3.3(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1272,7 +1269,7 @@ importers:
         version: link:../ai-sdk-provider
       '@openrouter/ai-sdk-provider':
         specifier: ^2.2.3
-        version: 2.2.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
+        version: 2.2.3(ai@6.0.103(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^6.0.103
         version: 6.0.103(zod@4.3.4)
@@ -3407,6 +3404,13 @@ packages:
 
   '@openrouter/ai-sdk-provider@2.2.3':
     resolution: {integrity: sha512-NovC+BaCfEeJwhToDrs8JeDYXXlJdEyz7lcxkjtyePSE4eoAKik872SyDK0MzXKcz8MRkv7XlNhPI6zz4TQp0g==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      ai: ^6.0.0
+      zod: ^3.25.0 || ^4.0.0
+
+  '@openrouter/ai-sdk-provider@2.3.3':
+    resolution: {integrity: sha512-4fVteGkVedc7fGoA9+qJs4tpYwALezMq14m2Sjub3KmyRlksCbK+WJf67NPdGem8+NZrV2tAN42A1NU3+SiV3w==}
     engines: {node: '>=18'}
     peerDependencies:
       ai: ^6.0.0
@@ -14992,7 +14996,12 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@2.2.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.103(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@2.2.3(ai@6.0.103(zod@4.3.4))(zod@4.3.4)':
+    dependencies:
+      ai: 6.0.103(zod@4.3.4)
+      zod: 4.3.4
+
+  '@openrouter/ai-sdk-provider@2.3.3(ai@6.0.103(zod@4.3.4))(zod@4.3.4)':
     dependencies:
       ai: 6.0.103(zod@4.3.4)
       zod: 4.3.4

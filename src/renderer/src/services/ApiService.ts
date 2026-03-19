@@ -24,11 +24,7 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import {
-  isNativeImageGenerationProvider,
-  NOT_SUPPORT_API_KEY_PROVIDER_TYPES,
-  NOT_SUPPORT_API_KEY_PROVIDERS
-} from '@renderer/utils/provider'
+import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
@@ -168,10 +164,9 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
-    // 专用图像生成模型直接走 fetchImageGeneration (仅限支持原生图像生成 API 的 provider)
+    // 专用图像生成模型直接走 fetchImageGeneration
     const model = assistant.model || getDefaultModel()
-    const provider = getProviderByModel(model)
-    if (isDedicatedImageGenerationModel(model) && isNativeImageGenerationProvider(provider)) {
+    if (isDedicatedImageGenerationModel(model)) {
       await fetchImageGeneration({
         messages: uiMessages,
         assistant,
@@ -260,8 +255,7 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig,
-    idleTimeout
+    webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
@@ -296,8 +290,7 @@ export async function fetchChatCompletion({
     assistant,
     topicId,
     callType: 'chat',
-    uiMessages,
-    idleTimeout
+    uiMessages
   })
 }
 

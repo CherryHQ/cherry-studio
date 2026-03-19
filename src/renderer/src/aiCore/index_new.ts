@@ -8,7 +8,7 @@
  */
 
 import { createExecutor } from '@cherrystudio/ai-core'
-import { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
+import type { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { normalizeGatewayModels } from '@renderer/services/models/ModelAdapter'
