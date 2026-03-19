@@ -95,7 +95,8 @@
     "stream-json": "^1.9.1",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -219,6 +220,7 @@
     "@tiptap/y-tiptap": "^3.0.0",
     "@truto/turndown-plugin-gfm": "^1.0.2",
     "@tryfabric/martian": "^1.2.4",
+    "@types/archiver": "^7.0.0",
     "@types/adm-zip": "^0.5.7",
     "@types/cli-progress": "^3",
     "@types/content-type": "^1.1.9",
@@ -250,6 +252,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
+    "@types/yauzl": "^2.10.3",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
     "@uiw/codemirror-extensions-langs": "4.25.7",
     "@uiw/codemirror-themes-all": "4.25.7",
