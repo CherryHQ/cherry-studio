@@ -11,7 +11,7 @@ const AZURE_ANTHROPIC_RULES: RuleSet = {
       provider: (provider: Provider) => ({
         ...provider,
         type: 'anthropic',
-        apiHost: provider.apiHost + 'anthropic/v1',
+        apiHost: provider.apiHost + '/anthropic/v1',
         id: 'azure-anthropic'
       })
     }
