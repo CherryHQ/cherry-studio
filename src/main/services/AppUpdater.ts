@@ -56,7 +56,10 @@ export default class AppUpdater {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
-    autoUpdater.autoInstallOnAppQuit = preferenceService.get('app.dist.auto_update.enabled')
+    // Never auto-install on quit - user must explicitly click "Install Now"
+    // Auto-install on quit can cause issues: unexpected updates on restart,
+    // corruption if system shuts down during install, or app uninstall on force shutdown
+    autoUpdater.autoInstallOnAppQuit = false
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent(),
@@ -102,7 +105,7 @@ export default class AppUpdater {
 
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
-    autoUpdater.autoInstallOnAppQuit = isActive
+    // autoInstallOnAppQuit is always false - user must explicitly click "Install Now"
   }
 
   private _getChannelByVersion(version: string) {
@@ -308,7 +311,7 @@ export default class AppUpdater {
 
   public quitAndInstall() {
     app.isQuitting = true
-    setImmediate(() => autoUpdater.quitAndInstall())
+    setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }
 
   /**

@@ -1,5 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,7 +10,6 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -888,12 +888,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
-              <Avatar
-                radius="md"
-                src={getProviderLogo(aihubmixProvider.id)}
-                className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                style={{ marginLeft: 5 }}
-              />
+              {(() => {
+                const Icon = resolveProviderIcon(aihubmixProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+              })()}
             </SettingHelpLink>
           </ProviderTitleContainer>
           <ProviderSelect

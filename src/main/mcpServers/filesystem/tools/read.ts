@@ -16,8 +16,8 @@ export const readToolDefinition = {
   name: 'read',
   description: `Reads a file from the local filesystem.
 
-- Assumes this tool can read all files on the machine
-- The file_path parameter must be an absolute path, not a relative path
+- Only files within the configured workspace root can be read
+- The file_path parameter must resolve within the configured workspace root
 - By default, reads up to 2000 lines starting from the beginning
 - You can optionally specify a line offset and limit for long files
 - Any lines longer than 2000 characters will be truncated

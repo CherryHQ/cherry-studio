@@ -38,6 +38,10 @@
     "edit": {
       "title": "Редактировать агент"
     },
+    "empty": {
+      "description": "Создайте агента для решения сложных задач с помощью инструментов на базе ИИ",
+      "title": "Агентов пока нет"
+    },
     "get": {
       "error": {
         "failed": "Не удалось получить агента.",
@@ -77,6 +81,11 @@
     "list": {
       "error": {
         "failed": "Не удалось получить список агентов."
+      }
+    },
+    "reorder": {
+      "error": {
+        "failed": "Не удалось изменить порядок агентов"
       }
     },
     "server": {
@@ -129,6 +138,11 @@
       },
       "label_one": "Сессия",
       "label_other": "Сессии",
+      "reorder": {
+        "error": {
+          "failed": "Не удалось изменить порядок сеансов"
+        }
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
@@ -295,6 +309,7 @@
         }
       }
     },
+    "sidebar_title": "Агенты",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} задач выполнено"
@@ -395,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Разрешить серверу API использовать агентов."
+      "enable_and_start": "Включить и запустить",
+      "enable_server": "Разрешить серверу API использовать агентов.",
+      "enable_server_description": "Для работы агентов необходимо включить API-сервер. Вы можете включить его напрямую или в настройках.",
+      "server_not_running": "Сервер API включен, но не запущен. Пожалуйста, проверьте конфигурацию сервера.",
+      "server_not_running_description": "Для работы агентов необходимо, чтобы API-сервер был запущен. Вы можете запустить его напрямую или проверить настройки."
     }
   },
   "apiServer": {
@@ -621,6 +640,10 @@
           "tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели"
         }
       },
+      "max_tool_calls": {
+        "label": "Максимальное количество вызовов инструментов",
+        "tip": "Максимальное количество вызовов инструментов, разрешённых в одном диалоге. Более высокие значения позволяют выполнять более сложные многошаговые операции, но могут увеличить использование токенов и время ответа."
+      },
       "mcp": {
         "description": "Серверы MCP, включенные по умолчанию",
         "enableFirst": "Сначала включите этот сервер в настройках MCP",
@@ -749,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Создайте агента, чтобы начать работу",
       "create_session": "Создать сессию",
       "select_agent": "Выберите агента"
     },
@@ -864,7 +888,11 @@
         "collapse": "Свернуть",
         "collapse_in": "Свернуть",
         "collapse_out": "Развернуть",
-        "expand": "Развернуть"
+        "expand": "Развернуть",
+        "file_not_found": "Файл не найден: {{path}}",
+        "open_file": "Открыть файл",
+        "open_file_error": "Не удалось открыть файл: {{path}}",
+        "reveal_in_finder": "Показать в Finder"
       },
       "topics": " Топики ",
       "translate": "Перевести на {{target_language}}",
@@ -1358,6 +1386,7 @@
     "off": "Выкл",
     "on": "Вкл",
     "open": "Открыть",
+    "open_in": "Открыть в {{name}}",
     "paste": "Вставить",
     "placeholders": {
       "select": {
@@ -1385,6 +1414,7 @@
     "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
+    "sessions": "Сессии",
     "settings": "Настройки",
     "sort": {
       "pinyin": {
@@ -1494,7 +1524,6 @@
     "originalError": "Исходная ошибка",
     "originalMessage": "исходное сообщение",
     "parameter": "параметр",
-    "pause_placeholder": "Получение ответа приостановлено",
     "prompt": "подсказка",
     "provider": "поставщик",
     "providerId": "ID поставщика",
@@ -1508,6 +1537,7 @@
     "requestBody": "Запрашиваемый контент",
     "requestBodyValues": "Тело запроса",
     "requestUrl": "Путь запроса",
+    "request_timeout": "Время ожидания запроса истекло",
     "response": "ответ",
     "responseBody": "Содержание ответа",
     "responseHeaders": "Заголовки ответа",
@@ -1517,6 +1547,7 @@
     "status": "Код статуса",
     "statusCode": "Код состояния",
     "statusText": "Текст состояния",
+    "stream_paused": "Получение ответа приостановлено",
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
@@ -2290,8 +2321,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2591,6 +2625,11 @@
     },
     "install_progress": "Прогресс установки",
     "installed_at": "OpenClaw установлен в",
+    "migration": {
+      "description": "Обнаружена устаревшая версия OpenClaw, установленная через npm. Пожалуйста, переустановите её, чтобы получить последнюю официальную версию.",
+      "install_button": "Переустановите OpenClaw",
+      "title": "OpenClaw требует обновления"
+    },
     "model_config": {
       "auth_token": "Токен аутентификации",
       "auth_token_hint": "Токен для аутентификации шлюза. Оставьте пустым, чтобы отключить аутентификацию.",
@@ -2626,6 +2665,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Проверить обновления",
       "open_dashboard": "Открыть панель управления",
       "title": "Быстрые действия",
       "uninstall": "Удалить",
@@ -2652,6 +2692,16 @@
     "uninstalling": {
       "description": "Пожалуйста, подождите, пока OpenClaw удаляется...",
       "title": "Удаление OpenClaw"
+    },
+    "update": {
+      "available": "Новая версия доступна: v{{latest}} (текущая: v{{current}})",
+      "checking": "Проверка обновлений...",
+      "confirm_button": "Обновить сейчас",
+      "failed": "Не удалось проверить наличие обновлений",
+      "modal_title": "Обновление OpenClaw",
+      "success": "Обновление завершено успешно!",
+      "up_to_date": "Уже актуально (v{{current}})",
+      "updating": "Обновление..."
     }
   },
   "ovms": {
@@ -3052,7 +3102,8 @@
     "lmstudio": "LM Studio",
     "longcat": "Тоторо",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3080,6 +3131,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
+    "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },

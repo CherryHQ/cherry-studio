@@ -89,13 +89,13 @@ export type AgentLabelProps = {
   hideIcon?: boolean
 }
 
-export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, hideIcon }) => {
+export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
   const emoji = agent?.configuration?.avatar
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
       {!hideIcon && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} size={24} />}
-      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>
+      <span className={cn('truncate', 'text-(--color-text)', classNames?.name)}>
         {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
       </span>
     </div>
@@ -107,11 +107,11 @@ export type SessionLabelProps = {
   className?: string
 }
 
-export const SessionLabel: React.FC<SessionLabelProps> = ({ session, className }) => {
+export const SessionLabel = ({ session, className }: SessionLabelProps) => {
   const displayName = session?.name ?? session?.id
   return (
     <>
-      <span className={cn('truncate text-[var(--color-text)] text-sm', className)}>{displayName}</span>
+      <span className={cn('truncate text-(--color-text) text-sm', className)}>{displayName}</span>
     </>
   )
 }
@@ -148,7 +148,7 @@ export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & Sc
   ...props
 }) => {
   return (
-    <Scrollbar className={cn('p-[16px]', className)} {...props}>
+    <Scrollbar className={cn('p-4', className)} {...props}>
       {children}
     </Scrollbar>
   )

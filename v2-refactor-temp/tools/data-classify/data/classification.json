@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-03-08T07:44:43.216Z",
-    "totalItems": 389,
+    "lastUpdated": "2026-03-13T06:11:13.067Z",
+    "totalItems": 406,
     "classified": 265,
-    "pending": 118,
+    "pending": 135,
     "deleted": 0
   },
   "classifications": {
@@ -618,6 +618,22 @@
           "status": "pending",
           "category": null,
           "targetKey": null
+        },
+        {
+          "originalKey": "ovms_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "ppio_draw",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "preprocess": [
@@ -639,6 +655,22 @@
         }
       ],
       "runtime": [
+        {
+          "originalKey": "detectedRegion",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "loadingMap",
+          "type": "string",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
         {
           "originalKey": "placeHolder",
           "type": "string",
@@ -1863,6 +1895,14 @@
           "targetKey": "feature.minapp.open_link_external"
         },
         {
+          "originalKey": "minAppRegion",
+          "type": "unknown",
+          "defaultValue": "auto",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
           "originalKey": "enableDataCollection",
           "type": "boolean",
           "defaultValue": false,
@@ -2752,6 +2792,14 @@
           "status": "pending",
           "category": null,
           "targetKey": null
+        },
+        {
+          "originalKey": "resolvedInputs",
+          "type": "string",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         }
       ],
       "translate": [
@@ -3385,6 +3433,16 @@
       ]
     },
     "localStorage": {
+      "memory_currentUserId": [
+        {
+          "originalKey": "memory_currentUserId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
       "persist:cherry-studio": [
         {
           "originalKey": "persist:cherry-studio",
@@ -3394,11 +3452,85 @@
           "category": null,
           "targetKey": null
         }
-      ],
-      "memory_currentUserId": [
+      ]
+    },
+    "dexieSettings": {
+      "settings": [
         {
-          "originalKey": "memory_currentUserId",
-          "type": "string",
+          "originalKey": "translate:detect:method",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "pinned:models",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "image://avatar",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:markdown:enabled",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:scroll:sync",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:bidirectional:pair",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:model",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:bidirectional:enabled",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:source:language",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translate:target:language",
+          "type": "unknown",
           "defaultValue": null,
           "status": "pending",
           "category": null,

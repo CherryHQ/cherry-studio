@@ -3,6 +3,7 @@ import { Tag } from 'antd'
 import ReactMarkdown from 'react-markdown'
 
 import { truncateOutput } from '../shared/truncateOutput'
+import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import type { NotebookEditToolInput, NotebookEditToolOutput } from './types'
 import { AgentToolsType } from './types'
@@ -21,7 +22,7 @@ export function NotebookEditTool({
     label: (
       <div className="flex items-center gap-2">
         <ToolHeader toolName={AgentToolsType.NotebookEdit} variant="collapse-label" showStatus={false} />
-        <Tag color="blue">{input?.notebook_path}</Tag>
+        <Tag color="blue">{input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}</Tag>
       </div>
     ),
     children: (

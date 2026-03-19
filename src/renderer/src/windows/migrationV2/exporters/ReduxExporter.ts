@@ -11,6 +11,7 @@ const SLICES_TO_EXPORT = [
   'assistants', // Assistant configurations
   'knowledge', // Knowledge base metadata
   'llm', // LLM provider and model configurations
+  'mcp', // MCP server configurations
   'note', // Note-related settings
   'selectionStore', // Selection assistant settings
   'websearch' // Web search configurations

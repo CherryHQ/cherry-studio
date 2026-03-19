@@ -1,5 +1,5 @@
 import { Center, ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
@@ -158,7 +158,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   {avatar}
                 </EmojiAvatar>
               ) : (
-                <UserAvatar src={avatar} />
+                <UserAvatar>
+                  <AvatarImage src={avatar} />
+                </UserAvatar>
               )}
             </Popover>
           </Dropdown>
