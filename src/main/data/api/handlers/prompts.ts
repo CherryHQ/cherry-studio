@@ -28,12 +28,17 @@ export const promptHandlers: {
   '/prompts': {
     GET: ({ query }) => {
       const q = (query || {}) as PromptQueryParams
+
+      // assistant-specific queries are more specific than scope filters
       if (q.assistantId) {
         return promptService.getForAssistant(q.assistantId)
       }
+
       if (q.scope === 'global') {
         return promptService.getGlobal()
       }
+
+      // 'all' and undefined both return the full prompt list
       return promptService.getAll()
     },
 

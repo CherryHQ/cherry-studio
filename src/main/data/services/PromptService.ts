@@ -206,9 +206,11 @@ export class PromptService {
   async delete(id: string): Promise<void> {
     const db = dbService.getDb()
 
-    await this.getById(id) // verify exists
+    const result = await db.delete(promptTable).where(eq(promptTable.id, id))
 
-    await db.delete(promptTable).where(eq(promptTable.id, id))
+    if (result.rowsAffected === 0) {
+      throw DataApiErrorFactory.notFound('Prompt', id)
+    }
 
     logger.info('Deleted prompt', { id })
   }
@@ -243,15 +245,20 @@ export class PromptService {
   async getVersions(promptId: string): Promise<PromptVersion[]> {
     const db = dbService.getDb()
 
-    await this.getById(promptId) // verify exists
+    return db.transaction(async (tx) => {
+      const [prompt] = await tx.select().from(promptTable).where(eq(promptTable.id, promptId)).limit(1)
+      if (!prompt) {
+        throw DataApiErrorFactory.notFound('Prompt', promptId)
+      }
 
-    const rows = await db
-      .select()
-      .from(promptVersionTable)
-      .where(eq(promptVersionTable.promptId, promptId))
-      .orderBy(desc(promptVersionTable.version))
+      const rows = await tx
+        .select()
+        .from(promptVersionTable)
+        .where(eq(promptVersionTable.promptId, promptId))
+        .orderBy(desc(promptVersionTable.version))
 
-    return rows.map(rowToVersion)
+      return rows.map(rowToVersion)
+    })
   }
 
   /**

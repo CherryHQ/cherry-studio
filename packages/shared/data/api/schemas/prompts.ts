@@ -50,9 +50,16 @@ export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
 // ============================================================================
 
 export interface PromptQueryParams {
-  /** Filter by scope: 'global' returns only prompts not linked to any assistant */
-  scope?: 'global'
-  /** Filter by assistant ID */
+  /**
+   * Filter by prompt scope when assistantId is not provided.
+   * - 'all': returns all prompts regardless of association
+   * - 'global': returns only prompts not linked to any assistant
+   * - undefined (default): behaves the same as 'all'
+   *
+   * When both assistantId and scope are provided, assistantId takes precedence.
+   */
+  scope?: 'all' | 'global'
+  /** Filter by assistant ID: returns only prompts linked to this assistant */
   assistantId?: string
 }
 

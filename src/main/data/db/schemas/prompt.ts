@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * Prompt table - stores user prompt templates (replaces legacy QuickPhrase)
@@ -10,8 +10,10 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 export const promptTable = sqliteTable(
   'prompt',
   {
-    id: uuidPrimaryKey(),
+    id: uuidPrimaryKeyOrdered(),
     title: text().notNull(),
+    // Denormalized cache of the active prompt content for fast current-state reads.
+    // The source of truth for version history remains prompt_version.
     content: text().notNull(),
     // Current active version number
     currentVersion: integer().notNull().default(1),
@@ -32,7 +34,7 @@ export const promptTable = sqliteTable(
 export const promptVersionTable = sqliteTable(
   'prompt_version',
   {
-    id: uuidPrimaryKey(),
+    id: uuidPrimaryKeyOrdered(),
     // FK to prompt - CASCADE: delete versions when prompt is deleted
     promptId: text()
       .notNull()
