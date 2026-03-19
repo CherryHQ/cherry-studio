@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-03-19T10:23:30.641Z",
+  "lastUpdated": "2026-03-19T10:43:57.462Z",
   "versions": {
     "2.0.0": {
       "metadata": {
@@ -15,8 +15,8 @@
       }
     },
     "1.8.1": {
-      "minCompatibleVersion": "1.8.1",
-      "description": "Current latest v1.x release for users on v1.8.1+",
+      "minCompatibleVersion": "1.0.0",
+      "description": "Gateway version - all users below v1.8.1 must upgrade to v1.8.1 first",
       "channels": {
         "latest": {
           "version": "1.8.1",
@@ -29,8 +29,8 @@
         "beta": null
       },
       "metadata": {
-        "segmentId": "current-v1",
-        "segmentType": "latest"
+        "segmentId": "gateway-v1.8.1",
+        "segmentType": "legacy"
       }
     },
     "1.8.0": {
