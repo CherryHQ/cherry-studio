@@ -651,7 +651,7 @@
           "defaultValue": "mineru",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "file_processing.default.markdown_conversion"
+          "targetKey": "feature.file_processing.default.markdown_conversion"
         }
       ],
       "runtime": [
@@ -3042,7 +3042,7 @@
           "defaultValue": "VALUE: null",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "file_processing.default.text_extraction"
+          "targetKey": "feature.file_processing.default.text_extraction"
         }
       ],
       "note": [

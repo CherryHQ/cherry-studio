@@ -748,7 +748,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'file_processing.default.markdown_conversion'
+      targetKey: 'feature.file_processing.default.markdown_conversion'
     }
   ],
   shortcuts: [
@@ -834,7 +834,7 @@ export const REDUX_STORE_MAPPINGS = {
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'file_processing.default.text_extraction'
+      targetKey: 'feature.file_processing.default.text_extraction'
     }
   ],
   note: [

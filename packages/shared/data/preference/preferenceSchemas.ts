@@ -334,6 +334,10 @@ export interface PreferenceSchemas {
     'feature.csaas.host': string
     // redux/settings/apiServer.port
     'feature.csaas.port': number
+    // redux/preprocess/defaultProvider
+    'feature.file_processing.default.markdown_conversion': PreferenceTypes.FileProcessorId
+    // redux/ocr/imageProviderId
+    'feature.file_processing.default.text_extraction': PreferenceTypes.FileProcessorId | null
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
     // redux/memory/currentUserId
@@ -404,10 +408,6 @@ export interface PreferenceSchemas {
     'feature.translate.model_prompt': string
     // redux/settings/targetLanguage
     'feature.translate.target_language': string
-    // redux/preprocess/defaultProvider
-    'file_processing.default.markdown_conversion': PreferenceTypes.FileProcessorId
-    // redux/ocr/imageProviderId
-    'file_processing.default.text_extraction': PreferenceTypes.FileProcessorId | null
     // target-key-definitions/complex/complex
     'file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/shortcuts/shortcuts.exit_fullscreen
@@ -627,6 +627,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
+    'feature.file_processing.default.markdown_conversion': 'mineru',
+    'feature.file_processing.default.text_extraction': null,
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,
@@ -689,8 +691,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.selection.trigger_mode': PreferenceTypes.SelectionTriggerMode.Selected,
     'feature.translate.model_prompt': TRANSLATE_PROMPT,
     'feature.translate.target_language': 'en-us',
-    'file_processing.default.markdown_conversion': 'mineru',
-    'file_processing.default.text_extraction': null,
     'file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'shortcut.app.exit_fullscreen': { editable: false, enabled: true, key: ['Escape'], system: true },
     'shortcut.app.search_message': {
