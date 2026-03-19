@@ -117,6 +117,7 @@
     "@ai-sdk/provider-utils": "^4.0.15",
     "@ai-sdk/test-server": "^1.0.3",
     "@ai-sdk/xai": "^3.0.59",
+    "@aihubmix/ai-sdk-provider": "^2.0.4",
     "@ant-design/cssinjs": "1.23.0",
     "@ant-design/icons": "5.6.1",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",

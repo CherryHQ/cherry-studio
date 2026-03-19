@@ -197,6 +197,9 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.59
         version: 3.0.59(zod@4.3.4)
+      '@aihubmix/ai-sdk-provider':
+        specifier: ^2.0.4
+        version: 2.0.4
       '@ant-design/cssinjs':
         specifier: 1.23.0
         version: 1.23.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1451,6 +1454,10 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
+
+  '@aihubmix/ai-sdk-provider@2.0.4':
+    resolution: {integrity: sha512-b54vl8oYpdMvzZ2NWuo8ck2ljJ6ndSF4Hb0b6g51VBgI9EqqDaR5nqvaEovj6J8N+0Wf761FqJJX9U/j4eSJ/A==}
+    engines: {node: '>=18'}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -12265,6 +12272,12 @@ snapshots:
       aws4fetch: 1.0.20
       zod: 4.3.4
 
+  '@ai-sdk/anthropic@3.0.48(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
+      zod: 3.25.76
+
   '@ai-sdk/anthropic@3.0.48(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -12315,6 +12328,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@ai-sdk/google@3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
+      zod: 3.25.76
+
   '@ai-sdk/google@3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -12352,6 +12371,12 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
       zod: 4.3.6
 
+  '@ai-sdk/openai@3.0.36(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
+      zod: 3.25.76
+
   '@ai-sdk/openai@3.0.36(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -12369,6 +12394,13 @@ snapshots:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.4)
       zod: 4.3.4
+
+  '@ai-sdk/provider-utils@4.0.15(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 3.25.76
 
   '@ai-sdk/provider-utils@4.0.15(zod@4.3.4)':
     dependencies:
@@ -12401,6 +12433,15 @@ snapshots:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.4)
       zod: 4.3.4
+
+  '@aihubmix/ai-sdk-provider@2.0.4':
+    dependencies:
+      '@ai-sdk/anthropic': 3.0.48(zod@3.25.76)
+      '@ai-sdk/google': 3.0.33(patch_hash=5e19ce06720cdbb9dfc24627e8d98fa832f5ef502c82c78efd5b48965e3a3837)(zod@3.25.76)
+      '@ai-sdk/openai': 3.0.36(zod@3.25.76)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.15(zod@3.25.76)
+      zod: 3.25.76
 
   '@ampproject/remapping@2.3.0':
     dependencies:
@@ -13590,6 +13631,11 @@ snapshots:
       ws: 8.19.0
       zod: 4.3.4
 
+  '@cherrystudio/openai@6.15.0(ws@8.19.0)(zod@4.3.6)':
+    optionalDependencies:
+      ws: 8.19.0
+      zod: 4.3.6
+
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
       '@chevrotain/gast': 11.0.3
@@ -14227,7 +14273,7 @@ snapshots:
       '@eslint-react/eff': 1.53.1
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.4
+      zod: 4.3.6
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -14239,7 +14285,7 @@ snapshots:
       '@eslint-react/kit': 1.53.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.4
+      zod: 4.3.6
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -14552,7 +14598,7 @@ snapshots:
       openapi-types: 12.1.3
       uuid: 10.0.0
       yaml: 2.8.2
-      zod: 4.3.4
+      zod: 4.3.6
     optionalDependencies:
       cheerio: 1.1.2
       langsmith: 0.4.4(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4))
@@ -14666,8 +14712,8 @@ snapshots:
     dependencies:
       '@langchain/core': 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.19.0)(zod@4.3.4))
       js-tiktoken: 1.0.21
-      openai: '@cherrystudio/openai@6.15.0(ws@8.19.0)(zod@4.3.4)'
-      zod: 4.3.4
+      openai: '@cherrystudio/openai@6.15.0(ws@8.19.0)(zod@4.3.6)'
+      zod: 4.3.6
     transitivePeerDependencies:
       - ws
 
