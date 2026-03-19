@@ -1,13 +1,39 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Force Linux platform for consistent path behavior across OS
-const originalPlatform = process.platform
-beforeEach(() => {
-  Object.defineProperty(process, 'platform', { value: 'linux', writable: true })
-})
-
-afterEach(() => {
-  Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true })
+// Mock path module to normalize all paths to POSIX format for cross-platform consistency
+// This ensures path operations work the same way regardless of the actual OS
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof import('path')>('path')
+  return {
+    ...actual,
+    sep: '/', // Always use forward slash for consistency
+    delimiter: ':',
+    join: (...args: string[]) => {
+      // Join with forward slashes, normalizing away backslashes
+      return actual.join(...args).replace(/\\/g, '/')
+    },
+    normalize: (p: string) => {
+      // Normalize path separators and remove redundant slashes
+      return actual.normalize(p).replace(/\\/g, '/')
+    },
+    resolve: (...args: string[]) => {
+      // For paths starting with / (Unix-style), use posix.resolve to avoid drive letter prefix
+      if (args.some((arg) => typeof arg === 'string' && arg.startsWith('/'))) {
+        return actual.posix.resolve(...args.map((a) => String(a).replace(/\\/g, '/')))
+      }
+      // For relative or Windows paths, use native resolve
+      return actual.resolve(...args).replace(/\\/g, '/')
+    },
+    isAbsolute: (p: string) => actual.isAbsolute(p) || String(p).startsWith('/'),
+    dirname: (p: string) => actual.dirname(p).replace(/\\/g, '/'),
+    basename: actual.basename,
+    extname: actual.extname,
+    relative: (from: string, to: string) =>
+      actual.relative(from.replace(/\\/g, '/'), to.replace(/\\/g, '/')).replace(/\\/g, '/'),
+    // Keep native POSIX and win32 for direct use if needed
+    posix: actual.posix,
+    win32: actual.win32
+  }
 })
 
 // Use vi.hoisted to define mocks that are available during hoisting
@@ -100,10 +126,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   })
 
   describe('Normal Operations', () => {
-    // Skip path matching tests on Windows as path format differs
-    const itFn = process.platform === 'win32' ? it.skip : it
-
-    itFn('should delete valid file in allowed directory', async () => {
+    it('should delete valid file in allowed directory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
@@ -115,7 +138,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Deleted temp backup'))
     })
 
-    itFn('should delete file in nested subdirectory', async () => {
+    it('should delete file in nested subdirectory', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
@@ -240,10 +263,7 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
   })
 
   describe('Edge Cases', () => {
-    // Skip path matching tests on Windows as path format differs
-    const itFn = process.platform === 'win32' ? it.skip : it
-
-    itFn('should allow deletion of the temp directory itself', async () => {
+    it('should allow deletion of the temp directory itself', async () => {
       vi.mocked(fs.pathExists).mockResolvedValue(true as never)
       vi.mocked(fs.remove).mockResolvedValue(undefined as never)
 
