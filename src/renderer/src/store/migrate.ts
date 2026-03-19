@@ -3368,6 +3368,24 @@ const migrateConfig = {
       logger.error('migrate 204 error', error as Error)
       return state
     }
+  },
+  '205': (state: RootState) => {
+    try {
+      // Add anthropicApiHost to lmstudio and ollama providers for CodeTools compatibility
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'lmstudio' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = 'http://localhost:1234'
+        }
+        if (provider.id === 'ollama' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = provider.apiHost || 'http://localhost:11434'
+        }
+      })
+      logger.info('migrate 205 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 205 error', error as Error)
+      return state
+    }
   }
 }
 
