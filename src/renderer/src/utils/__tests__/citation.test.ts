@@ -10,6 +10,7 @@ import {
   normalizeCitationMarks,
   withCitationTags
 } from '../citation'
+import { buildContent, groundingChunks, groundingSupports } from './fixtures/gemini-citation-8880'
 
 // Mock dependencies
 vi.mock('@renderer/utils/formats', () => ({
@@ -597,6 +598,41 @@ Numbered list:
 
       expect(result).toContain('[<sup data-citation=')
       expect(end - start).toBeLessThan(100) // Should complete within 200ms
+    })
+  })
+
+  describe('Gemini citation snapshot (issue #8880)', () => {
+    const content = buildContent()
+    const citations: Citation[] = groundingChunks.map((chunk, index) => ({
+      number: index + 1,
+      url: chunk.web?.uri || '',
+      title: chunk.web?.title,
+      showFavicon: true,
+      metadata: groundingSupports
+    }))
+    const citationMap = new Map(citations.map((c) => [c.number, c]))
+
+    it('normalizeCitationMarks should insert [cite:N] at correct positions', () => {
+      const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+      // Each segment should get its citation tags exactly once, at the segment end
+      expect(result).toMatchSnapshot()
+
+      // Verify no over-matching: count total [cite:N] occurrences
+      const citeMatches = result.match(/\[cite:\d+\]/g) || []
+      // 6 segments with 3+3+2+2+3+2 = 15 total chunk references
+      expect(citeMatches).toHaveLength(15)
+    })
+
+    it('withCitationTags should produce correct final output', () => {
+      const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.GEMINI)
+
+      expect(result).toMatchSnapshot()
+
+      // Verify each citation tag appears the expected number of times
+      // Chunk 0 (citation 1) is referenced in 5 of 6 segments
+      const sup1Matches = result.match(/data-citation='[^']*'>1<\/sup>/g) || []
+      expect(sup1Matches).toHaveLength(5)
     })
   })
 })
