@@ -48,22 +48,27 @@ function modelSupportValidator(
 }
 
 /**
+ * Provider IDs that natively support PDF file input via AI SDK
+ */
+export const PDF_NATIVE_PROVIDER_IDS = new Set([
+  'openai',
+  'azure-openai',
+  'anthropic',
+  'google',
+  'google-generative-ai',
+  'google-vertex',
+  'bedrock',
+  'amazon-bedrock'
+])
+
+/**
  * 检查模型是否支持原生PDF输入
  */
 export function supportsPdfInput(model: Model): boolean {
   // 基于AI SDK文档，以下模型或提供商支持PDF输入
   return modelSupportValidator(model, {
     supportedModels: ['qwen-long', 'qwen-doc'],
-    supportedProviders: [
-      'openai',
-      'azure-openai',
-      'anthropic',
-      'google',
-      'google-generative-ai',
-      'google-vertex',
-      'bedrock',
-      'amazon-bedrock'
-    ]
+    supportedProviders: [...PDF_NATIVE_PROVIDER_IDS]
   })
 }
 

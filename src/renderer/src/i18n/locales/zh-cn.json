@@ -2026,6 +2026,10 @@
       "excel": {
         "export": "导出 Excel 失败"
       },
+      "file": {
+        "process_failed": "文件 {{name}} 无法处理",
+        "text_extraction_failed": "无法从 {{name}} 中提取文本"
+      },
       "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 文件 {{name}} 超出大小限制 ({{limit}})，将回退为文本提取",
+        "pdf_text_extraction_failed": "无法从 PDF {{name}} 中提取文本",
+        "pdf_upload_failed": "上传 PDF {{name}} 失败，将回退为文本提取"
+      },
       "rate": {
         "limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
       }
