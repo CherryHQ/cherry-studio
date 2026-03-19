@@ -13,7 +13,6 @@ import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
-import { type AihubmixProviderSettings, createAihubmix } from '@aihubmix/ai-sdk-provider'
 import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
@@ -25,6 +24,7 @@ import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
+import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
 /**

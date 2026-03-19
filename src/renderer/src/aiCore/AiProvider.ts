@@ -146,17 +146,6 @@ export default class AiProvider {
     }
   }
 
-  private async _completionsOrImageGeneration(
-    modelId: string,
-    params: StreamTextParams,
-    middlewareConfig: AiProviderConfig,
-    providerConfig: ProviderConfig
-  ): Promise<CompletionsResult> {
-    // 专用图像生成模型已在 ApiService 层分流到 fetchImageGeneration
-    // 这里只处理普通的 completions
-    return await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
-  }
-
   /**
    * 带trace支持的completions方法
    * 类似于legacy的completionsForTrace，确保AI SDK spans在正确的trace上下文中

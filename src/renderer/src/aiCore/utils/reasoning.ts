@@ -3,6 +3,7 @@ import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
+import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
@@ -42,14 +43,45 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
-import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
-import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import type { OpenAIReasoningEffort, OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
+
+type ReasoningEffortOptionalParams = {
+  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
+  reasoningEffort?: OpenAIReasoningEffort
+  // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
+  reasoning_effort?: OpenAIReasoningEffort
+  enable_thinking?: boolean
+  thinking_budget?: number
+  incremental_output?: boolean
+  enable_reasoning?: boolean
+  // nvidia, etc.
+  chat_template_kwargs?: {
+    thinking?: boolean
+    enable_thinking?: boolean
+  }
+  extra_body?: {
+    google?: {
+      thinking_config: {
+        thinking_budget: number
+        include_thoughts?: boolean
+      }
+    }
+    thinking?: {
+      type: 'enabled' | 'disabled'
+    }
+    thinking_budget?: number
+    reasoning_effort?: OpenAIReasoningEffort
+  }
+  disable_reasoning?: boolean
+  // Add any other potential reasoning-related keys here if they exist
+}
 
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {

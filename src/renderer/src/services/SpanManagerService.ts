@@ -8,7 +8,6 @@ import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { db } from '@renderer/databases'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { handleAsyncIterable } from '@renderer/trace/dataHandler/AsyncIterableHandler'
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
@@ -17,14 +16,8 @@ import { ModelSpanEntity } from '@renderer/trace/types/ModelSpanEntity'
 import type { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
-import type { SdkRawChunk } from '@renderer/types/sdk'
 
 const logger = loggerService.withContext('SpanManagerService')
-
-// Type guard for AsyncIterable
-function isAsyncIterable<T>(obj: any): obj is AsyncIterable<T> {
-  return obj != null && typeof obj === 'object' && typeof obj[Symbol.asyncIterator] === 'function'
-}
 
 class SpanManagerService {
   private spanMap: Map<string, ModelSpanEntity[]> = new Map()
@@ -348,8 +341,6 @@ export function withSpanResult<F extends (...args: any) => any>(
             return handleStream(data, span, params.topicId, params.modelName)
           } else if (data instanceof MessageStream) {
             return handleMessageStream(data, span, params.topicId, params.modelName)
-          } else if (isAsyncIterable<SdkRawChunk>(data)) {
-            return handleAsyncIterable(data, span, params.topicId, params.modelName)
           } else {
             return handleResult(data, span, params.topicId, params.modelName)
           }
