@@ -56,6 +56,9 @@ patchedDependencies:
   '@openrouter/ai-sdk-provider':
     hash: 508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52
     path: patches/@openrouter__ai-sdk-provider.patch
+  '@opeoginni/github-copilot-openai-compatible@1.0.0':
+    hash: 2fe495b845074d310044bd4739733e315e4fba17386a92ef2f89e828a7b3b2a6
+    path: patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch
   '@tiptap/extension-drag-handle@3.2.0':
     hash: 8432665d4553fb9ba8ff2a126a9181c3ccfee06ae57688aa14f65aa560e52fce
     path: patches/@tiptap-extension-drag-handle-npm-3.2.0-5a9ebff7c9.patch
@@ -391,7 +394,7 @@ importers:
         version: 2.2.0(@opentelemetry/api@1.9.0)
       '@opeoginni/github-copilot-openai-compatible':
         specifier: ^1.0.0
-        version: 1.0.0(zod@4.3.4)
+        version: 1.0.0(patch_hash=2fe495b845074d310044bd4739733e315e4fba17386a92ef2f89e828a7b3b2a6)(zod@4.3.4)
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.57.0
@@ -14863,7 +14866,7 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.38.0': {}
 
-  '@opeoginni/github-copilot-openai-compatible@1.0.0(zod@4.3.4)':
+  '@opeoginni/github-copilot-openai-compatible@1.0.0(patch_hash=2fe495b845074d310044bd4739733e315e4fba17386a92ef2f89e828a7b3b2a6)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/openai-compatible': 2.0.30(patch_hash=75058a2443f9c0eb3d44e09a419a2c9720e51329bbb174019c772e57521843f1)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
