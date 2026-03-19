@@ -54,7 +54,16 @@ const AzureExtension = ProviderExtension.create({
   name: 'azure',
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
-  create: createAzure,
+  create: (settings) => {
+    const provider = createAzure(settings)
+    // Default to chat mode (AI SDK defaults to responses API)
+    return customProvider({
+      fallbackProvider: {
+        ...provider,
+        languageModel: (modelId: string) => provider.chat(modelId)
+      }
+    })
+  },
   variants: [
     {
       suffix: 'responses',
@@ -182,7 +191,15 @@ const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,
   supportsImageGeneration: true,
-  create: createXai
+  create: (settings) => {
+    const provider = createXai(settings)
+    return customProvider({
+      fallbackProvider: {
+        ...provider,
+        languageModel: (modelId: string) => provider.responses(modelId)
+      }
+    })
+  }
 } as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, ProviderV3, 'xai'>)
 
 /**
