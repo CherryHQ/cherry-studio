@@ -358,7 +358,7 @@ const withAbortStreamPart = (
           return
         }
         controller.enqueue(value)
-      } catch {
+      } catch (error) {
         // When the source errors due to abort, emit the abort stream part
         // so downstream consumers (AiSdkToChunkAdapter) can fire onError.
         if (signal.aborted) {
@@ -367,8 +367,10 @@ const withAbortStreamPart = (
           } catch {
             // Controller may already be closed
           }
+          controller.close()
+        } else {
+          controller.error(error)
         }
-        controller.close()
       }
     },
     cancel(reason) {
