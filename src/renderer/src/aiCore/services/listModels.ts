@@ -168,9 +168,8 @@ const geminiFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     let baseUrl = withoutTrailingSlash(provider.apiHost)
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
-    const apiVersion = provider.apiVersion || 'v1beta'
     const response = await getFromApi({
-      url: `${baseUrl}/${apiVersion}/models?key=${getApiKey(provider)}`,
+      url: `${baseUrl}/v1beta/models?key=${getApiKey(provider)}`,
       headers: { ...defaultAppHeaders(), ...provider.extra_headers },
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
@@ -185,19 +184,29 @@ const geminiFetcher: ModelFetcher = {
 const githubFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.github,
   fetch: async (provider, signal) => {
-    const response = await getFromApi({
-      url: 'https://models.github.ai/catalog/models',
-      headers: defaultHeaders(provider),
-      responseSchema: GitHubModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response, (m) => m.id).map((m) =>
+    const [catalogResponse, v1Response] = await Promise.all([
+      getFromApi({
+        url: 'https://models.github.ai/catalog/models',
+        headers: defaultHeaders(provider),
+        responseSchema: GitHubModelsResponseSchema,
+        abortSignal: signal
+      }),
+      getFromApi({
+        url: 'https://models.github.ai/v1/models',
+        headers: defaultHeaders(provider),
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
+    ])
+    const catalogModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
         owned_by: m.publisher
       })
     )
+    const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
+    return dedup([...catalogModels, ...v1Models], (m) => m.id)
   }
 }
 
