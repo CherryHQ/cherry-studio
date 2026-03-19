@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore/AiProvider'
+import { AiProvider } from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'

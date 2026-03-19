@@ -25,22 +25,22 @@ import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
-const logger = loggerService.withContext('ModernAiProvider')
+const logger = loggerService.withContext('AiProvider')
 
-export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
+export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
   // topicId for tracing
   topicId?: string
   callType: string
 }
 
-export default class ModernAiProvider {
+export default class AiProvider {
   private config?: ProviderConfig
   private actualProvider: Provider
   private model?: Model
 
   /**
-   * Constructor for ModernAiProvider
+   * Constructor for AiProvider
    *
    * @param modelOrProvider - Model or Provider object
    * @param provider - Optional Provider object (only used when first param is Model)
@@ -63,13 +63,13 @@ export default class ModernAiProvider {
    * @example
    * ```typescript
    * // Recommended: Auto-format URL
-   * const ai = new ModernAiProvider(model)
+   * const ai = new AiProvider(model)
    *
    * // Provider will be adapted
-   * const ai = new ModernAiProvider(model, customProvider)
+   * const ai = new AiProvider(model, customProvider)
    *
    * // For operations that don't need a model
-   * const ai = new ModernAiProvider(provider)
+   * const ai = new AiProvider(provider)
    * ```
    */
   constructor(model: Model, provider?: Provider)
@@ -103,7 +103,7 @@ export default class ModernAiProvider {
     return this.actualProvider
   }
 
-  public async completions(modelId: string, params: StreamTextParams, middlewareConfig: ModernAiProviderConfig) {
+  public async completions(modelId: string, params: StreamTextParams, middlewareConfig: AiProviderConfig) {
     // 检查model是否存在
     if (!this.model) {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
@@ -146,6 +146,17 @@ export default class ModernAiProvider {
     }
   }
 
+  private async _completionsOrImageGeneration(
+    modelId: string,
+    params: StreamTextParams,
+    middlewareConfig: AiProviderConfig,
+    providerConfig: ProviderConfig
+  ): Promise<CompletionsResult> {
+    // 专用图像生成模型已在 ApiService 层分流到 fetchImageGeneration
+    // 这里只处理普通的 completions
+    return await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
+  }
+
   /**
    * 带trace支持的completions方法
    * 类似于legacy的completionsForTrace，确保AI SDK spans在正确的trace上下文中
@@ -153,7 +164,7 @@ export default class ModernAiProvider {
   private async _completionsForTrace(
     modelId: string,
     params: StreamTextParams,
-    middlewareConfig: ModernAiProviderConfig & { topicId: string },
+    middlewareConfig: AiProviderConfig & { topicId: string },
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
     const traceName = `${this.actualProvider.name}.${modelId}.${middlewareConfig.callType}`
@@ -240,7 +251,7 @@ export default class ModernAiProvider {
   private async modernCompletions(
     modelId: string,
     params: StreamTextParams,
-    middlewareConfig: ModernAiProviderConfig,
+    middlewareConfig: AiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
     const plugins = buildPlugins({

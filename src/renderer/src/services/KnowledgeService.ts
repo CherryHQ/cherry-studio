@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
-import ModernAiProvider from '@renderer/aiCore/AiProvider'
+import { AiProvider } from '@renderer/aiCore'
 import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
@@ -35,8 +35,8 @@ const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = new ModernAiProvider(base.model)
-  const rerankAiProvider = new ModernAiProvider(rerankProvider)
+  const aiProvider = new AiProvider(base.model)
+  const rerankAiProvider = new AiProvider(rerankProvider)
 
   // get preprocess provider from store instead of base.preprocessProvider
   const preprocessProvider = store

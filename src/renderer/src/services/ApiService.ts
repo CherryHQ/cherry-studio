@@ -27,8 +27,8 @@ import { containsSupportedVariables, replacePromptVariables } from '@renderer/ut
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
-import type { ModernAiProviderConfig } from '../aiCore/AiProvider'
-import AiProviderNew from '../aiCore/AiProvider'
+import type { AiProviderConfig } from '../aiCore'
+import { AiProvider } from '../aiCore'
 import {
   // getAssistantProvider,
   // getAssistantSettings,
@@ -232,7 +232,7 @@ export async function fetchChatCompletion({
     apiKey: getRotatedApiKey(baseProvider)
   }
 
-  const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
+  const AI = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
@@ -343,7 +343,7 @@ export async function fetchImageGeneration({
     ...baseProvider,
     apiKey: getRotatedApiKey(baseProvider)
   }
-  const aiProvider = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
+  const aiProvider = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
 
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   onChunkReceived({ type: ChunkType.IMAGE_CREATED })
@@ -436,7 +436,7 @@ export async function fetchMessagesSummary({
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
   const actualProvider = AI.getActualProvider()
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
@@ -547,7 +547,7 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
 
   // only 2000 char and no images
   const truncatedContent = content.substring(0, 2000)
@@ -645,7 +645,7 @@ export async function fetchGenerate({
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(model, providerWithRotatedKey)
+  const AI = new AiProvider(model, providerWithRotatedKey)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
@@ -759,7 +759,7 @@ export async function fetchModels(provider: Provider): Promise<Model[]> {
     apiKey: getRotatedApiKey(provider)
   }
 
-  const AI = new AiProviderNew(providerWithRotatedKey)
+  const AI = new AiProvider(providerWithRotatedKey)
 
   try {
     return await AI.models()
@@ -806,7 +806,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const ai = new AiProviderNew(model, provider)
+  const ai = new AiProvider(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
@@ -825,7 +825,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       prompt: 'hi',
       abortSignal: signal
     }
-    const config: ModernAiProviderConfig = {
+    const config: AiProviderConfig = {
       streamOutput: true,
       enableReasoning: false,
       isSupportedToolUse: false,

@@ -24,7 +24,7 @@ const logger = loggerService.withContext('PluginBuilder')
 /**
  * 构建插件的上下文参数
  *
- * provider 和 model 是必选的 — 由 ModernAiProvider 内部注入，
+ * provider 和 model 是必选的 — 由 AiProvider 内部注入，
  * 不再依赖调用方手动传入，从根本上避免遗漏。
  */
 export interface BuildPluginsContext {
