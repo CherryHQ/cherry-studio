@@ -7,23 +7,38 @@
 import type { LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
 import { loggerService } from '@logger'
-import type { Provider } from '@renderer/types'
+import type { Provider, ProviderType } from '@renderer/types'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
 
-import { PDF_NATIVE_PROVIDER_IDS } from '../prepareParams/modelCapabilities'
-import { getAiSdkProviderId } from '../provider/factory'
-
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
+
+/**
+ * Provider types whose API protocol supports native PDF file input.
+ * Uses provider.type (API protocol) instead of AI SDK provider ID,
+ * because aggregator providers (cherryin, new-api, gateway) resolve to
+ * non-standard AI SDK IDs but still speak a protocol that supports PDF.
+ */
+const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
+  'openai', // OpenAI-compatible API (includes aggregators like cherryin)
+  'openai-response', // OpenAI Responses API
+  'anthropic', // Anthropic API
+  'gemini', // Google Gemini API
+  'azure-openai', // Azure OpenAI
+  'vertexai', // Google Vertex AI
+  'aws-bedrock', // AWS Bedrock
+  'vertex-anthropic', // Vertex AI with Anthropic models
+  'new-api', // new-api aggregator (OpenAI-compatible)
+  'gateway' // Gateway aggregator (OpenAI-compatible)
+])
 
 function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      const aiSdkId = getAiSdkProviderId(provider)
-
-      // If provider supports native PDF, pass through unchanged
-      if (PDF_NATIVE_PROVIDER_IDS.has(aiSdkId)) {
+      // Check provider.type (API protocol), not AI SDK provider ID,
+      // because aggregator providers speak standard protocols that support PDF.
+      if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
         return params
       }
 
@@ -47,12 +62,14 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
           const pdfTextContent = part.providerOptions?.cherryStudio?.pdfTextContent as string | undefined
 
           if (pdfTextContent) {
-            logger.debug(`Converting PDF FilePart to TextPart for provider ${aiSdkId}`)
+            logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
             return [{ type: 'text' as const, text: pdfTextContent }]
           }
 
           // No pre-extracted text available — drop the part and warn user
-          logger.warn(`PDF file dropped for provider ${aiSdkId}: no pre-extracted text available`)
+          logger.warn(
+            `PDF file dropped for provider ${provider.id} (type: ${provider.type}): no pre-extracted text available`
+          )
           window.toast.warning(
             i18n.t('message.warning.file.pdf_text_extraction_failed', { name: part.filename || 'PDF' })
           )
