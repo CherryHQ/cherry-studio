@@ -5,7 +5,6 @@
 
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
-import { type CohereProviderSettings, createCohere } from '@ai-sdk/cohere'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
@@ -160,15 +159,6 @@ export const NewApiExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ExtensionStorage, ProviderV3, 'newapi'>)
 
 /**
- * Cohere Extension - chat, embeddings, and reranking
- */
-export const CohereExtension = ProviderExtension.create({
-  name: 'cohere',
-  supportsImageGeneration: false,
-  create: createCohere
-} as const satisfies ProviderExtensionConfig<CohereProviderSettings, ExtensionStorage, ProviderV3, 'cohere'>)
-
-/**
  * Together AI Extension - chat and image generation
  */
 export const TogetherAIExtension = ProviderExtension.create({
@@ -183,7 +173,7 @@ export const TogetherAIExtension = ProviderExtension.create({
  */
 export const VoyageExtension = ProviderExtension.create({
   name: 'voyage',
-  aliases: ['voyageai'] as const,
+  aliases: [SystemProviderIds.voyageai] as const,
   supportsImageGeneration: false,
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ExtensionStorage, ProviderV3, 'voyage'>)
