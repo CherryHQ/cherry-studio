@@ -7,7 +7,7 @@ import { Button, InputNumber, Space, Tooltip } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AiProviderNew from '../aiCore/index_new'
+import AiProviderNew from '../aiCore/AiProvider'
 
 const logger = loggerService.withContext('DimensionsInput')
 

@@ -3,5 +3,5 @@
  * Unified services for AI operations
  */
 
-export * from './ModelListService'
+export * from './listModels'
 export * from './schemas'

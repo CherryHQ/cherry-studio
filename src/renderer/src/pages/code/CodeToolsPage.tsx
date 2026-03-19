@@ -1,4 +1,4 @@
-import AiProvider from '@renderer/aiCore'
+import AiProvider from '@renderer/aiCore/AiProvider'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'

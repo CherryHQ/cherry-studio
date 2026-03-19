@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
-import ModernAiProvider from '@renderer/aiCore'
+import ModernAiProvider from '@renderer/aiCore/AiProvider'
 import { getMessageContent } from '@renderer/aiCore/plugins/searchOrchestrationPlugin'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'

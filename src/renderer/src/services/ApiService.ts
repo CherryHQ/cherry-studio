@@ -27,8 +27,8 @@ import { containsSupportedVariables, replacePromptVariables } from '@renderer/ut
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { isEmpty, takeRight } from 'lodash'
 
-import type { ModernAiProviderConfig } from '../aiCore/index_new'
-import AiProviderNew from '../aiCore/index_new'
+import type { ModernAiProviderConfig } from '../aiCore/AiProvider'
+import AiProviderNew from '../aiCore/AiProvider'
 import {
   // getAssistantProvider,
   // getAssistantSettings,

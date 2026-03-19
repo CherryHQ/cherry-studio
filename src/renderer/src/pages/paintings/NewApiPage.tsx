@@ -1,6 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
+import AiProvider from '@renderer/aiCore/AiProvider'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'

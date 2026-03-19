@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import AiProvider from '@renderer/aiCore'
+import AiProvider from '@renderer/aiCore/AiProvider'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'

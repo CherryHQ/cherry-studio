@@ -30,7 +30,7 @@ import { gateway } from 'ai'
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provider/providerConfig'
-import { ModelListService } from './services/ModelListService'
+import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
@@ -356,7 +356,7 @@ export default class ModernAiProvider {
     }
 
     // 使用新的 ModelListService
-    return await ModelListService.listModels(this.actualProvider)
+    return await listModels(this.actualProvider)
   }
 
   /**
