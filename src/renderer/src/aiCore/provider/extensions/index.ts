@@ -5,6 +5,7 @@
 
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
+import { type CohereProviderSettings, createCohere } from '@ai-sdk/cohere'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
@@ -12,6 +13,7 @@ import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/hug
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { type AihubmixProviderSettings, createAihubmix } from '@aihubmix/ai-sdk-provider'
 import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
@@ -19,6 +21,7 @@ import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
+import { SystemProviderIds } from '@types'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
@@ -157,6 +160,25 @@ export const NewApiExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ExtensionStorage, ProviderV3, 'newapi'>)
 
 /**
+ * Cohere Extension - chat, embeddings, and reranking
+ */
+export const CohereExtension = ProviderExtension.create({
+  name: 'cohere',
+  supportsImageGeneration: false,
+  create: createCohere
+} as const satisfies ProviderExtensionConfig<CohereProviderSettings, ExtensionStorage, ProviderV3, 'cohere'>)
+
+/**
+ * Together AI Extension - chat and image generation
+ */
+export const TogetherAIExtension = ProviderExtension.create({
+  name: 'togetherai',
+  aliases: [SystemProviderIds.together] as const,
+  supportsImageGeneration: true,
+  create: createTogetherAI
+} as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ExtensionStorage, ProviderV3, 'togetherai'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -182,5 +204,7 @@ export const extensions = [
   OllamaExtension,
   AiHubMixExtension,
   NewApiExtension,
-  VoyageExtension
+  VoyageExtension,
+  CohereExtension,
+  TogetherAIExtension
 ] as const
