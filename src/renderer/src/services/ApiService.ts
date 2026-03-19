@@ -813,8 +813,8 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
 
   if (isEmbeddingModel(model)) {
-    logger.silly("it's a embedding model")
-    const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+    logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
+    const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
   } else {
     const abortId = uuid()
