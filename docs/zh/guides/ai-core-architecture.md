@@ -53,7 +53,7 @@ Cherry Studio 的 AI 调用采用清晰的分层架构：
 │                 AI Provider Layer                            │
 │  src/renderer/src/aiCore/                                    │
 │  ┌────────────────────────────────────────────────────┐    │
-│  │ ModernAiProvider (index_new.ts)                     │    │
+│  │ AiProvider (AiProvider.ts)                     │    │
 │  │  - completions()                                    │    │
 │  │  - modernCompletions()                              │    │
 │  │  - _completionsForTrace()                           │    │
@@ -181,7 +181,7 @@ User Input (UI)
 │    ├─ 应用 API Key 轮换（多 key 负载均衡）                   │
 │    └─ 创建 providerWithRotatedKey                            │
 │                                                               │
-│    Step 3.2: new ModernAiProvider(model, provider)           │
+│    Step 3.2: new AiProvider(model, provider)           │
 │    └─ 初始化 AI Provider 实例                                │
 │                                                               │
 │    Step 3.3: buildStreamTextParams()                         │
@@ -198,7 +198,7 @@ User Input (UI)
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. ModernAiProvider.completions()                            │
+│ 4. AiProvider.completions()                            │
 │    Location: src/renderer/src/aiCore/index_new.ts:116        │
 │                                                               │
 │    Step 4.1: providerToAiSdkConfig()                         │
@@ -216,7 +216,7 @@ User Input (UI)
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. ModernAiProvider._completionsOrImageGeneration()          │
+│ 5. AiProvider._completionsOrImageGeneration()          │
 │    Location: src/renderer/src/aiCore/index_new.ts:167        │
 │                                                               │
 │    判断：                                                     │
@@ -226,7 +226,7 @@ User Input (UI)
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. ModernAiProvider.modernCompletions()                      │
+│ 6. AiProvider.modernCompletions()                      │
 │    Location: src/renderer/src/aiCore/index_new.ts:284        │
 │                                                               │
 │    Step 6.1: buildPlugins(config)                            │
@@ -333,7 +333,7 @@ User Input (UI)
 
 ```typescript
 // 场景 1: 首次请求 OpenAI (Cache Miss)
-const executor1 = await createExecutor('openai', { apiKey: 'sk-xxx' })
+const executor1 = await createExecutor("openai", { apiKey: "sk-xxx" });
 // → extensionRegistry.createProvider('openai', { apiKey: 'sk-xxx' })
 // → 计算 hash: "abc123"
 // → LRU cache miss
@@ -341,17 +341,17 @@ const executor1 = await createExecutor('openai', { apiKey: 'sk-xxx' })
 // → 存入 LRU: cache.set("abc123", provider)
 
 // 场景 2: 相同配置的第二次请求 (Cache Hit)
-const executor2 = await createExecutor('openai', { apiKey: 'sk-xxx' })
+const executor2 = await createExecutor("openai", { apiKey: "sk-xxx" });
 // → 计算 hash: "abc123" (相同)
 // → LRU cache hit!
 // → 直接返回缓存的 provider
 // → executor1 和 executor2 共享同一个 provider 实例
 
 // 场景 3: 不同配置 (Cache Miss + 新实例)
-const executor3 = await createExecutor('openai', {
-  apiKey: 'sk-yyy',  // 不同的 key
-  baseURL: 'https://custom.com/v1'
-})
+const executor3 = await createExecutor("openai", {
+  apiKey: "sk-yyy", // 不同的 key
+  baseURL: "https://custom.com/v1",
+});
 // → 计算 hash: "def456" (不同)
 // → LRU cache miss
 // → 创建新的独立 provider 实例
@@ -379,6 +379,7 @@ plugins = [ReasoningPlugin, ToolUsePlugin, WebSearchPlugin]
 ### 3.1 ApiService Layer
 
 #### 文件位置
+
 `src/renderer/src/services/ApiService.ts`
 
 #### 核心职责
@@ -387,30 +388,31 @@ plugins = [ReasoningPlugin, ToolUsePlugin, WebSearchPlugin]
 2. **MCP 工具集成**
 3. **知识库搜索注入**
 4. **API Key 轮换**
-5. **调用 ModernAiProvider**
+5. **调用 AiProvider**
 
 #### 关键函数详解
 
 ##### 3.1.1 `transformMessagesAndFetch()`
 
 **签名**:
+
 ```typescript
 async function transformMessagesAndFetch(
   request: {
-    messages: Message[]
-    assistant: Assistant
-    blockManager: BlockManager
-    assistantMsgId: string
-    callbacks: StreamProcessorCallbacks
-    topicId?: string
+    messages: Message[];
+    assistant: Assistant;
+    blockManager: BlockManager;
+    assistantMsgId: string;
+    callbacks: StreamProcessorCallbacks;
+    topicId?: string;
     options: {
-      signal?: AbortSignal
-      timeout?: number
-      headers?: Record<string, string>
-    }
+      signal?: AbortSignal;
+      timeout?: number;
+      headers?: Record<string, string>;
+    };
   },
-  onChunkReceived: (chunk: Chunk) => void
-): Promise<void>
+  onChunkReceived: (chunk: Chunk) => void,
+): Promise<void>;
 ```
 
 **执行流程**:
@@ -418,7 +420,7 @@ async function transformMessagesAndFetch(
 ```typescript
 // Step 1: 消息准备
 const { modelMessages, uiMessages } =
-  await ConversationService.prepareMessagesForModel(messages, assistant)
+  await ConversationService.prepareMessagesForModel(messages, assistant);
 
 // modelMessages: 转换为 LLM 理解的格式
 // uiMessages: 保留原始 UI 消息（用于某些特殊场景）
@@ -426,8 +428,8 @@ const { modelMessages, uiMessages } =
 // Step 2: 替换 prompt 变量
 assistant.prompt = await replacePromptVariables(
   assistant.prompt,
-  assistant.model?.name
-)
+  assistant.model?.name,
+);
 // 例如: "{model_name}" → "GPT-4"
 
 // Step 3: 注入知识库搜索
@@ -437,8 +439,8 @@ await injectUserMessageWithKnowledgeSearchPrompt({
   assistantMsgId,
   topicId,
   blockManager,
-  setCitationBlockId
-})
+  setCitationBlockId,
+});
 
 // Step 4: 发起实际请求
 await fetchChatCompletion({
@@ -447,8 +449,8 @@ await fetchChatCompletion({
   topicId,
   requestOptions,
   uiMessages,
-  onChunkReceived
-})
+  onChunkReceived,
+});
 ```
 
 ##### 3.1.2 `fetchChatCompletion()`
@@ -462,26 +464,25 @@ export async function fetchChatCompletion({
   requestOptions,
   onChunkReceived,
   topicId,
-  uiMessages
+  uiMessages,
 }: FetchChatCompletionParams) {
-
   // 1. Provider 准备 + API Key 轮换
-  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel());
   const providerWithRotatedKey = {
     ...baseProvider,
-    apiKey: getRotatedApiKey(baseProvider)  // ✅ 多 key 负载均衡
-  }
+    apiKey: getRotatedApiKey(baseProvider), // ✅ 多 key 负载均衡
+  };
 
   // 2. 创建 AI Provider 实例
-  const AI = new ModernAiProvider(
+  const AI = new AiProvider(
     assistant.model || getDefaultModel(),
-    providerWithRotatedKey
-  )
+    providerWithRotatedKey,
+  );
 
   // 3. 获取 MCP 工具
-  const mcpTools: MCPTool[] = []
+  const mcpTools: MCPTool[] = [];
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
-    mcpTools.push(...(await fetchMcpTools(assistant)))
+    mcpTools.push(...(await fetchMcpTools(assistant)));
   }
 
   // 4. 构建 AI SDK 参数
@@ -489,12 +490,12 @@ export async function fetchChatCompletion({
     params: aiSdkParams,
     modelId,
     capabilities,
-    webSearchPluginConfig
+    webSearchPluginConfig,
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
-    requestOptions
-  })
+    requestOptions,
+  });
 
   // 5. 构建中间件配置
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -510,17 +511,17 @@ export async function fetchChatCompletion({
     enableUrlContext: capabilities.enableUrlContext,
     mcpTools,
     uiMessages,
-    knowledgeRecognition: assistant.knowledgeRecognition
-  }
+    knowledgeRecognition: assistant.knowledgeRecognition,
+  };
 
   // 6. 调用 AI.completions()
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,
     topicId,
-    callType: 'chat',
-    uiMessages
-  })
+    callType: "chat",
+    uiMessages,
+  });
 }
 ```
 
@@ -528,19 +529,22 @@ export async function fetchChatCompletion({
 
 ```typescript
 function getRotatedApiKey(provider: Provider): string {
-  const keys = provider.apiKey.split(',').map(k => k.trim()).filter(Boolean)
+  const keys = provider.apiKey
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
 
-  if (keys.length === 1) return keys[0]
+  if (keys.length === 1) return keys[0];
 
-  const keyName = `provider:${provider.id}:last_used_key`
-  const lastUsedKey = window.keyv.get(keyName)
+  const keyName = `provider:${provider.id}:last_used_key`;
+  const lastUsedKey = window.keyv.get(keyName);
 
-  const currentIndex = keys.indexOf(lastUsedKey)
-  const nextIndex = (currentIndex + 1) % keys.length
-  const nextKey = keys[nextIndex]
+  const currentIndex = keys.indexOf(lastUsedKey);
+  const nextIndex = (currentIndex + 1) % keys.length;
+  const nextKey = keys[nextIndex];
 
-  window.keyv.set(keyName, nextKey)
-  return nextKey
+  window.keyv.set(keyName, nextKey);
+  return nextKey;
 }
 
 // 使用场景：
@@ -551,9 +555,10 @@ function getRotatedApiKey(provider: Provider): string {
 // 请求 4 → 使用 sk-key1 (轮回)
 ```
 
-### 3.2 ModernAiProvider Layer
+### 3.2 AiProvider Layer
 
 #### 文件位置
+
 `src/renderer/src/aiCore/index_new.ts`
 
 #### 核心职责
@@ -569,7 +574,7 @@ function getRotatedApiKey(provider: Provider): string {
 ```typescript
 constructor(modelOrProvider: Model | Provider, provider?: Provider) {
   if (this.isModel(modelOrProvider)) {
-    // 情况 1: new ModernAiProvider(model, provider)
+    // 情况 1: new AiProvider(model, provider)
     this.model = modelOrProvider
     this.actualProvider = provider
       ? adaptProvider({ provider, model: modelOrProvider })
@@ -584,7 +589,7 @@ constructor(modelOrProvider: Model | Provider, provider?: Provider) {
       ? undefined
       : configOrPromise
   } else {
-    // 情况 2: new ModernAiProvider(provider)
+    // 情况 2: new AiProvider(provider)
     this.actualProvider = adaptProvider({ provider: modelOrProvider })
   }
 
@@ -598,7 +603,7 @@ constructor(modelOrProvider: Model | Provider, provider?: Provider) {
 public async completions(
   modelId: string,
   params: StreamTextParams,
-  providerConfig: ModernAiProviderConfig
+  providerConfig: AiProviderConfig
 ) {
   // 1. 确保 config 已准备
   if (!this.config) {
@@ -635,7 +640,7 @@ public async completions(
 private async modernCompletions(
   modelId: string,
   params: StreamTextParams,
-  config: ModernAiProviderConfig
+  config: AiProviderConfig
 ): Promise<CompletionsResult> {
 
   // 1. 构建插件
@@ -688,7 +693,7 @@ private async modernCompletions(
 private async _completionsForTrace(
   modelId: string,
   params: StreamTextParams,
-  config: ModernAiProviderConfig & { topicId: string }
+  config: AiProviderConfig & { topicId: string }
 ): Promise<CompletionsResult> {
 
   const traceName = `${this.actualProvider.name}.${modelId}.${config.callType}`
@@ -745,44 +750,43 @@ private async _completionsForTrace(
 ```typescript
 export function providerToAiSdkConfig(
   provider: Provider,
-  model?: Model
+  model?: Model,
 ): ProviderConfig | Promise<ProviderConfig> {
-
   // 1. 根据 provider.id 路由到具体实现
   switch (provider.id) {
-    case 'openai':
+    case "openai":
       return {
-        providerId: 'openai',
+        providerId: "openai",
         providerSettings: {
           apiKey: provider.apiKey,
           baseURL: provider.apiHost,
           organization: provider.apiOrganization,
-          headers: provider.apiHeaders
-        }
-      }
+          headers: provider.apiHeaders,
+        },
+      };
 
-    case 'anthropic':
+    case "anthropic":
       return {
-        providerId: 'anthropic',
+        providerId: "anthropic",
         providerSettings: {
           apiKey: provider.apiKey,
-          baseURL: provider.apiHost
-        }
-      }
+          baseURL: provider.apiHost,
+        },
+      };
 
-    case 'openai-compatible':
+    case "openai-compatible":
       return {
-        providerId: 'openai-compatible',
+        providerId: "openai-compatible",
         providerSettings: {
           baseURL: provider.apiHost,
           apiKey: provider.apiKey,
-          name: provider.name
-        }
-      }
+          name: provider.name,
+        },
+      };
 
-    case 'gateway':
+    case "gateway":
       // 特殊处理：gateway 需要异步创建
-      return createGatewayConfig(provider, model)
+      return createGatewayConfig(provider, model);
 
     // ... 其他 providers
   }
@@ -794,33 +798,32 @@ export function providerToAiSdkConfig(
 ```typescript
 async function createGatewayConfig(
   provider: Provider,
-  model?: Model
+  model?: Model,
 ): Promise<ProviderConfig> {
-
   // 1. 从 gateway 获取模型列表
-  const gatewayModels = await fetchGatewayModels(provider)
+  const gatewayModels = await fetchGatewayModels(provider);
 
   // 2. 标准化模型格式
-  const normalizedModels = normalizeGatewayModels(gatewayModels)
+  const normalizedModels = normalizeGatewayModels(gatewayModels);
 
   // 3. 使用 AI SDK 的 gateway() 函数
   const gatewayProvider = gateway({
     provider: {
       languageModel: (modelId) => {
-        const targetModel = normalizedModels.find(m => m.id === modelId)
+        const targetModel = normalizedModels.find((m) => m.id === modelId);
         if (!targetModel) {
-          throw new Error(`Model ${modelId} not found in gateway`)
+          throw new Error(`Model ${modelId} not found in gateway`);
         }
         // 动态创建对应的 provider
-        return createLanguageModel(targetModel)
-      }
-    }
-  })
+        return createLanguageModel(targetModel);
+      },
+    },
+  });
 
   return {
-    providerId: 'gateway',
-    provider: gatewayProvider
-  }
+    providerId: "gateway",
+    provider: gatewayProvider,
+  };
 }
 ```
 
@@ -836,84 +839,83 @@ export class ProviderExtension<
   TStorage extends ExtensionStorage = ExtensionStorage,
   TProvider extends ProviderV3 = ProviderV3,
   TConfig extends ProviderExtensionConfig<TSettings, TStorage, TProvider> =
-    ProviderExtensionConfig<TSettings, TStorage, TProvider>
+    ProviderExtensionConfig<TSettings, TStorage, TProvider>,
 > {
-
   // 1. LRU 缓存（settings hash → provider 实例）
-  private instances: LRUCache<string, TProvider>
+  private instances: LRUCache<string, TProvider>;
 
   constructor(public readonly config: TConfig) {
     this.instances = new LRUCache<string, TProvider>({
-      max: 10,                // 最多缓存 10 个实例
-      updateAgeOnGet: true    // LRU 行为
-    })
+      max: 10, // 最多缓存 10 个实例
+      updateAgeOnGet: true, // LRU 行为
+    });
   }
 
   // 2. 创建 provider（带缓存）
   async createProvider(
     settings?: TSettings,
-    variantSuffix?: string
+    variantSuffix?: string,
   ): Promise<TProvider> {
-
     // 2.1 合并默认配置
-    const mergedSettings = this.mergeSettings(settings)
+    const mergedSettings = this.mergeSettings(settings);
 
     // 2.2 计算 hash（包含 variantSuffix）
-    const hash = this.computeHash(mergedSettings, variantSuffix)
+    const hash = this.computeHash(mergedSettings, variantSuffix);
 
     // 2.3 LRU 缓存查找
-    const cachedInstance = this.instances.get(hash)
+    const cachedInstance = this.instances.get(hash);
     if (cachedInstance) {
-      return cachedInstance
+      return cachedInstance;
     }
 
     // 2.4 缓存未命中，创建新实例
-    const provider = await this.factory(mergedSettings, variantSuffix)
+    const provider = await this.factory(mergedSettings, variantSuffix);
 
     // 2.5 执行生命周期钩子
-    await this.lifecycle.onCreate?.(provider, mergedSettings)
+    await this.lifecycle.onCreate?.(provider, mergedSettings);
 
     // 2.6 存入 LRU 缓存
-    this.instances.set(hash, provider)
+    this.instances.set(hash, provider);
 
-    return provider
+    return provider;
   }
 
   // 3. Hash 计算（保证相同配置得到相同 hash）
   private computeHash(settings?: TSettings, variantSuffix?: string): string {
     const baseHash = (() => {
       if (settings === undefined || settings === null) {
-        return 'default'
+        return "default";
       }
 
       // 稳定序列化（对象键排序）
       const stableStringify = (obj: any): string => {
-        if (obj === null || obj === undefined) return 'null'
-        if (typeof obj !== 'object') return JSON.stringify(obj)
-        if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
+        if (obj === null || obj === undefined) return "null";
+        if (typeof obj !== "object") return JSON.stringify(obj);
+        if (Array.isArray(obj))
+          return `[${obj.map(stableStringify).join(",")}]`;
 
-        const keys = Object.keys(obj).sort()
-        const pairs = keys.map(key =>
-          `${JSON.stringify(key)}:${stableStringify(obj[key])}`
-        )
-        return `{${pairs.join(',')}}`
-      }
+        const keys = Object.keys(obj).sort();
+        const pairs = keys.map(
+          (key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`,
+        );
+        return `{${pairs.join(",")}}`;
+      };
 
-      const serialized = stableStringify(settings)
+      const serialized = stableStringify(settings);
 
       // 简单哈希函数
-      let hash = 0
+      let hash = 0;
       for (let i = 0; i < serialized.length; i++) {
-        const char = serialized.charCodeAt(i)
-        hash = (hash << 5) - hash + char
-        hash = hash & hash
+        const char = serialized.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
       }
 
-      return `${Math.abs(hash).toString(36)}`
-    })()
+      return `${Math.abs(hash).toString(36)}`;
+    })();
 
     // 附加 variantSuffix
-    return variantSuffix ? `${baseHash}:${variantSuffix}` : baseHash
+    return variantSuffix ? `${baseHash}:${variantSuffix}` : baseHash;
   }
 }
 ```
@@ -924,21 +926,21 @@ export class ProviderExtension<
 // packages/aiCore/src/core/providers/extensions/openai.ts
 
 export const OpenAIExtension = new ProviderExtension({
-  name: 'openai',
-  aliases: ['oai'],
+  name: "openai",
+  aliases: ["oai"],
   variants: [
     {
-      suffix: 'chat',
-      name: 'OpenAI Chat',
+      suffix: "chat",
+      name: "OpenAI Chat",
       transform: (baseProvider, settings) => {
         return customProvider({
           fallbackProvider: {
             ...baseProvider,
-            languageModel: (modelId) => baseProvider.chat(modelId)
-          }
-        })
-      }
-    }
+            languageModel: (modelId) => baseProvider.chat(modelId),
+          },
+        });
+      },
+    },
   ],
 
   // Factory 函数
@@ -947,22 +949,22 @@ export const OpenAIExtension = new ProviderExtension({
       apiKey: settings.apiKey,
       baseURL: settings.baseURL,
       organization: settings.organization,
-      headers: settings.headers
-    })
+      headers: settings.headers,
+    });
   },
 
   // 默认配置
   defaultSettings: {
-    baseURL: 'https://api.openai.com/v1'
+    baseURL: "https://api.openai.com/v1",
   },
 
   // 生命周期钩子
   lifecycle: {
     onCreate: async (provider, settings) => {
-      console.log(`OpenAI provider created with baseURL: ${settings.baseURL}`)
-    }
-  }
-})
+      console.log(`OpenAI provider created with baseURL: ${settings.baseURL}`);
+    },
+  },
+});
 ```
 
 ### 4.3 Extension Registry
@@ -971,107 +973,106 @@ export const OpenAIExtension = new ProviderExtension({
 
 ```typescript
 export class ExtensionRegistry {
-  private extensions: Map<string, ProviderExtension<any, any, any>> = new Map()
-  private aliasMap: Map<string, string> = new Map()
+  private extensions: Map<string, ProviderExtension<any, any, any>> = new Map();
+  private aliasMap: Map<string, string> = new Map();
 
   // 1. 注册 extension
   register(extension: ProviderExtension<any, any, any>): this {
-    const { name, aliases, variants } = extension.config
+    const { name, aliases, variants } = extension.config;
 
     // 注册主 ID
-    this.extensions.set(name, extension)
+    this.extensions.set(name, extension);
 
     // 注册别名
     if (aliases) {
       for (const alias of aliases) {
-        this.aliasMap.set(alias, name)
+        this.aliasMap.set(alias, name);
       }
     }
 
     // 注册变体 ID
     if (variants) {
       for (const variant of variants) {
-        const variantId = `${name}-${variant.suffix}`
-        this.aliasMap.set(variantId, name)
+        const variantId = `${name}-${variant.suffix}`;
+        this.aliasMap.set(variantId, name);
       }
     }
 
-    return this
+    return this;
   }
 
   // 2. 创建 provider（类型安全）
   async createProvider<T extends RegisteredProviderId>(
     id: T,
-    settings: CoreProviderSettingsMap[T]
-  ): Promise<ProviderV3>
+    settings: CoreProviderSettingsMap[T],
+  ): Promise<ProviderV3>;
 
-  async createProvider(id: string, settings?: any): Promise<ProviderV3>
+  async createProvider(id: string, settings?: any): Promise<ProviderV3>;
 
   async createProvider(id: string, settings?: any): Promise<ProviderV3> {
     // 2.1 解析 ID（支持别名和变体）
-    const parsed = this.parseProviderId(id)
+    const parsed = this.parseProviderId(id);
     if (!parsed) {
-      throw new Error(`Provider extension "${id}" not found`)
+      throw new Error(`Provider extension "${id}" not found`);
     }
 
-    const { baseId, mode: variantSuffix } = parsed
+    const { baseId, mode: variantSuffix } = parsed;
 
     // 2.2 获取 extension
-    const extension = this.get(baseId)
+    const extension = this.get(baseId);
     if (!extension) {
-      throw new Error(`Provider extension "${baseId}" not found`)
+      throw new Error(`Provider extension "${baseId}" not found`);
     }
 
     // 2.3 委托给 extension 创建
     try {
-      return await extension.createProvider(settings, variantSuffix)
+      return await extension.createProvider(settings, variantSuffix);
     } catch (error) {
       throw new ProviderCreationError(
         `Failed to create provider "${id}"`,
         id,
-        error instanceof Error ? error : new Error(String(error))
-      )
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
   }
 
   // 3. 解析 providerId
   parseProviderId(providerId: string): {
-    baseId: RegisteredProviderId
-    mode?: string
-    isVariant: boolean
+    baseId: RegisteredProviderId;
+    mode?: string;
+    isVariant: boolean;
   } | null {
-
     // 3.1 检查是否是基础 ID 或别名
-    const extension = this.get(providerId)
+    const extension = this.get(providerId);
     if (extension) {
       return {
         baseId: extension.config.name as RegisteredProviderId,
-        isVariant: false
-      }
+        isVariant: false,
+      };
     }
 
     // 3.2 查找变体
     for (const ext of this.extensions.values()) {
-      if (!ext.config.variants) continue
+      if (!ext.config.variants) continue;
 
       for (const variant of ext.config.variants) {
-        const variantId = `${ext.config.name}-${variant.suffix}`
+        const variantId = `${ext.config.name}-${variant.suffix}`;
         if (variantId === providerId) {
           return {
             baseId: ext.config.name as RegisteredProviderId,
             mode: variant.suffix,
-            isVariant: true
-          }
+            isVariant: true,
+          };
         }
       }
     }
 
-    return null
+    return null;
   }
 }
 
 // 全局单例
-export const extensionRegistry = new ExtensionRegistry()
+export const extensionRegistry = new ExtensionRegistry();
 ```
 
 ---
@@ -1087,40 +1088,31 @@ export const extensionRegistry = new ExtensionRegistry()
 ```typescript
 export interface AiPlugin {
   /** 插件名称 */
-  name: string
+  name: string;
 
   /** 请求开始前 */
-  onRequestStart?: (context: PluginContext) => void | Promise<void>
+  onRequestStart?: (context: PluginContext) => void | Promise<void>;
 
   /** 转换参数（链式调用） */
-  transformParams?: (
-    params: any,
-    context: PluginContext
-  ) => any | Promise<any>
+  transformParams?: (params: any, context: PluginContext) => any | Promise<any>;
 
   /** 转换结果 */
-  transformResult?: (
-    result: any,
-    context: PluginContext
-  ) => any | Promise<any>
+  transformResult?: (result: any, context: PluginContext) => any | Promise<any>;
 
   /** 请求结束后 */
-  onRequestEnd?: (context: PluginContext) => void | Promise<void>
+  onRequestEnd?: (context: PluginContext) => void | Promise<void>;
 
   /** 错误处理 */
-  onError?: (
-    error: Error,
-    context: PluginContext
-  ) => void | Promise<void>
+  onError?: (error: Error, context: PluginContext) => void | Promise<void>;
 }
 
 export interface PluginContext {
-  providerId: string
-  model?: string
-  messages?: any[]
-  tools?: any
+  providerId: string;
+  model?: string;
+  messages?: any[];
+  tools?: any;
   // experimental_context 中的自定义数据
-  [key: string]: any
+  [key: string]: any;
 }
 ```
 
@@ -1132,79 +1124,79 @@ export interface PluginContext {
 export class PluginEngine {
   constructor(
     private providerId: string,
-    private plugins: AiPlugin[]
+    private plugins: AiPlugin[],
   ) {}
 
   // 1. 执行 onRequestStart
   async executeOnRequestStart(params: any): Promise<void> {
-    const context = this.createContext(params)
+    const context = this.createContext(params);
 
     for (const plugin of this.plugins) {
       if (plugin.onRequestStart) {
-        await plugin.onRequestStart(context)
+        await plugin.onRequestStart(context);
       }
     }
   }
 
   // 2. 链式执行 transformParams
   async executeTransformParams(params: any): Promise<any> {
-    let transformedParams = params
-    const context = this.createContext(params)
+    let transformedParams = params;
+    const context = this.createContext(params);
 
     for (const plugin of this.plugins) {
       if (plugin.transformParams) {
         transformedParams = await plugin.transformParams(
           transformedParams,
-          context
-        )
+          context,
+        );
       }
     }
 
-    return transformedParams
+    return transformedParams;
   }
 
   // 3. 执行 transformResult
   async executeTransformResult(result: any, params: any): Promise<any> {
-    let transformedResult = result
-    const context = this.createContext(params)
+    let transformedResult = result;
+    const context = this.createContext(params);
 
     // 反向执行
     for (let i = this.plugins.length - 1; i >= 0; i--) {
-      const plugin = this.plugins[i]
+      const plugin = this.plugins[i];
       if (plugin.transformResult) {
         transformedResult = await plugin.transformResult(
           transformedResult,
-          context
-        )
+          context,
+        );
       }
     }
 
-    return transformedResult
+    return transformedResult;
   }
 
   // 4. 执行 onRequestEnd
   async executeOnRequestEnd(params: any): Promise<void> {
-    const context = this.createContext(params)
+    const context = this.createContext(params);
 
     // 反向执行
     for (let i = this.plugins.length - 1; i >= 0; i--) {
-      const plugin = this.plugins[i]
+      const plugin = this.plugins[i];
       if (plugin.onRequestEnd) {
-        await plugin.onRequestEnd(context)
+        await plugin.onRequestEnd(context);
       }
     }
   }
 
   // 5. 执行 onError
   async executeOnError(error: Error, params: any): Promise<void> {
-    const context = this.createContext(params)
+    const context = this.createContext(params);
 
     for (const plugin of this.plugins) {
       if (plugin.onError) {
         try {
-          await plugin.onError(error, context)
+          await plugin.onError(error, context);
         } catch (pluginError) {
-          console.error(`Error in plugin ${plugin.name}:`, pluginError)
+          console.error(`Error in plugin ${plugin.name}:`, pluginError);
         }
       }
     }
@@ -1216,8 +1208,8 @@ export class PluginEngine {
       model: params.model,
       messages: params.messages,
       tools: params.tools,
-      ...params.experimental_context
-    }
+      ...params.experimental_context,
+    };
   }
 }
 ```
@@ -1230,42 +1222,42 @@ export class PluginEngine {
 
 ```typescript
 export const ReasoningPlugin: AiPlugin = {
-  name: 'ReasoningPlugin',
+  name: "ReasoningPlugin",
 
   transformParams: async (params, context) => {
     if (!context.enableReasoning) {
-      return params
+      return params;
     }
 
     // 根据模型类型添加 reasoning 配置
-    if (context.model?.includes('o1') || context.model?.includes('o3')) {
+    if (context.model?.includes("o1") || context.model?.includes("o3")) {
       // OpenAI o1/o3 系列
       return {
         ...params,
-        reasoning_effort: context.reasoningEffort || 'medium'
-      }
-    } else if (context.model?.includes('claude')) {
+        reasoning_effort: context.reasoningEffort || "medium",
+      };
+    } else if (context.model?.includes("claude")) {
       // Anthropic Claude 系列
       return {
         ...params,
         thinking: {
-          type: 'enabled',
-          budget_tokens: context.thinkingBudget || 2000
-        }
-      }
-    } else if (context.model?.includes('qwen')) {
+          type: "enabled",
+          budget_tokens: context.thinkingBudget || 2000,
+        },
+      };
+    } else if (context.model?.includes("qwen")) {
       // Qwen 系列
       return {
         ...params,
         experimental_providerMetadata: {
-          qwen: { think_mode: true }
-        }
-      }
+          qwen: { think_mode: true },
+        },
+      };
     }
 
-    return params
-  }
-}
+    return params;
+  },
+};
 ```
 
 #### 5.2.2 ToolUsePlugin
@@ -1274,48 +1266,48 @@ export const ReasoningPlugin: AiPlugin = {
 
 ```typescript
 export const ToolUsePlugin: AiPlugin = {
-  name: 'ToolUsePlugin',
+  name: "ToolUsePlugin",
 
   transformParams: async (params, context) => {
     if (!context.isSupportedToolUse && !context.isPromptToolUse) {
-      return params
+      return params;
     }
 
     // 1. 收集所有工具
-    const tools: Record<string, CoreTool> = {}
+    const tools: Record<string, CoreTool> = {};
 
     // 1.1 MCP 工具
     if (context.mcpTools && context.mcpTools.length > 0) {
       for (const mcpTool of context.mcpTools) {
-        tools[mcpTool.name] = convertMcpToolToCoreTool(mcpTool)
+        tools[mcpTool.name] = convertMcpToolToCoreTool(mcpTool);
       }
     }
 
     // 1.2 内置工具（WebSearch, GenerateImage, etc.）
     if (context.enableWebSearch) {
-      tools['web_search'] = webSearchTool
+      tools["web_search"] = webSearchTool;
     }
 
     if (context.enableGenerateImage) {
-      tools['generate_image'] = generateImageTool
+      tools["generate_image"] = generateImageTool;
     }
 
     // 2. Prompt Tool Use 模式特殊处理
     if (context.isPromptToolUse) {
       return {
         ...params,
-        messages: injectToolsIntoPrompt(params.messages, tools)
-      }
+        messages: injectToolsIntoPrompt(params.messages, tools),
+      };
     }
 
     // 3. 标准 Function Calling 模式
     return {
       ...params,
       tools,
-      toolChoice: 'auto'
-    }
-  }
-}
+      toolChoice: "auto",
+    };
+  },
+};
 ```
 
 #### 5.2.3 WebSearchPlugin
@@ -1324,44 +1316,44 @@ export const ToolUsePlugin: AiPlugin = {
 
 ```typescript
 export const WebSearchPlugin: AiPlugin = {
-  name: 'WebSearchPlugin',
+  name: "WebSearchPlugin",
 
   transformParams: async (params, context) => {
     if (!context.enableWebSearch) {
-      return params
+      return params;
     }
 
     // 添加 web search 工具
     const webSearchTool = {
-      type: 'function' as const,
+      type: "function" as const,
       function: {
-        name: 'web_search',
-        description: 'Search the web for current information',
+        name: "web_search",
+        description: "Search the web for current information",
         parameters: {
-          type: 'object',
+          type: "object",
           properties: {
             query: {
-              type: 'string',
-              description: 'Search query'
-            }
+              type: "string",
+              description: "Search query",
+            },
           },
-          required: ['query']
-        }
+          required: ["query"],
+        },
       },
       execute: async ({ query }: { query: string }) => {
-        return await executeWebSearch(query, context.webSearchProviderId)
-      }
-    }
+        return await executeWebSearch(query, context.webSearchProviderId);
+      },
+    };
 
     return {
       ...params,
       tools: {
         ...params.tools,
-        web_search: webSearchTool
-      }
-    }
-  }
-}
+        web_search: webSearchTool,
+      },
+    };
+  },
+};
 ```
 
 ### 5.3 插件构建器
@@ -1370,34 +1362,34 @@ export const WebSearchPlugin: AiPlugin = {
 
 ```typescript
 export function buildPlugins(config: AiSdkMiddlewareConfig): AiPlugin[] {
-  const plugins: AiPlugin[] = []
+  const plugins: AiPlugin[] = [];
 
   // 1. Reasoning Plugin
   if (config.enableReasoning) {
-    plugins.push(ReasoningPlugin)
+    plugins.push(ReasoningPlugin);
   }
 
   // 2. Tool Use Plugin
   if (config.isSupportedToolUse || config.isPromptToolUse) {
-    plugins.push(ToolUsePlugin)
+    plugins.push(ToolUsePlugin);
   }
 
   // 3. Web Search Plugin
   if (config.enableWebSearch) {
-    plugins.push(WebSearchPlugin)
+    plugins.push(WebSearchPlugin);
   }
 
   // 4. Image Generation Plugin
   if (config.enableGenerateImage) {
-    plugins.push(ImageGenerationPlugin)
+    plugins.push(ImageGenerationPlugin);
   }
 
   // 5. URL Context Plugin
   if (config.enableUrlContext) {
-    plugins.push(UrlContextPlugin)
+    plugins.push(UrlContextPlugin);
   }
 
-  return plugins
+  return plugins;
 }
 ```
 
@@ -1411,7 +1403,6 @@ export function buildPlugins(config: AiSdkMiddlewareConfig): AiPlugin[] {
 
 ```typescript
 export class ConversationService {
-
   /**
    * 准备消息用于 LLM 调用
    *
@@ -1422,45 +1413,44 @@ export class ConversationService {
    */
   static async prepareMessagesForModel(
     messages: Message[],
-    assistant: Assistant
+    assistant: Assistant,
   ): Promise<{
-    modelMessages: CoreMessage[]
-    uiMessages: Message[]
+    modelMessages: CoreMessage[];
+    uiMessages: Message[];
   }> {
-
     // 1. 过滤消息
     let filteredMessages = messages
-      .filter(m => !m.isDeleted)
-      .filter(m => m.role !== 'system')
+      .filter((m) => !m.isDeleted)
+      .filter((m) => m.role !== "system");
 
     // 2. 应用上下文窗口限制
-    const contextLimit = assistant.settings?.contextLimit || 10
+    const contextLimit = assistant.settings?.contextLimit || 10;
     if (contextLimit > 0) {
-      filteredMessages = takeRight(filteredMessages, contextLimit)
+      filteredMessages = takeRight(filteredMessages, contextLimit);
     }
 
     // 3. 转换为 AI SDK 格式
-    const modelMessages: CoreMessage[] = []
+    const modelMessages: CoreMessage[] = [];
 
     for (const msg of filteredMessages) {
-      const converted = await this.convertMessageToAiSdk(msg, assistant)
+      const converted = await this.convertMessageToAiSdk(msg, assistant);
       if (converted) {
-        modelMessages.push(converted)
+        modelMessages.push(converted);
       }
     }
 
     // 4. 添加 system message
     if (assistant.prompt) {
       modelMessages.unshift({
-        role: 'system',
-        content: assistant.prompt
-      })
+        role: "system",
+        content: assistant.prompt,
+      });
     }
 
     return {
       modelMessages,
-      uiMessages: filteredMessages
-    }
+      uiMessages: filteredMessages,
+    };
   }
 
   /**
@@ -1468,25 +1458,24 @@ export class ConversationService {
    */
   static async convertMessageToAiSdk(
     message: Message,
-    assistant: Assistant
+    assistant: Assistant,
   ): Promise<CoreMessage | null> {
-
     switch (message.role) {
-      case 'user':
-        return await this.convertUserMessage(message)
+      case "user":
+        return await this.convertUserMessage(message);
 
-      case 'assistant':
-        return await this.convertAssistantMessage(message)
+      case "assistant":
+        return await this.convertAssistantMessage(message);
 
-      case 'tool':
+      case "tool":
         return {
-          role: 'tool',
+          role: "tool",
           content: message.content,
-          toolCallId: message.toolCallId
-        }
+          toolCallId: message.toolCallId,
+        };
 
       default:
-        return null
+        return null;
     }
   }
 
@@ -1494,77 +1483,74 @@ export class ConversationService {
    * 转换用户消息（处理多模态内容）
    */
   static async convertUserMessage(message: Message): Promise<CoreMessage> {
-    const parts: Array<TextPart | ImagePart | FilePart> = []
+    const parts: Array<TextPart | ImagePart | FilePart> = [];
 
     // 1. 处理文本内容
-    const textContent = getMainTextContent(message)
+    const textContent = getMainTextContent(message);
     if (textContent) {
       parts.push({
-        type: 'text',
-        text: textContent
-      })
+        type: "text",
+        text: textContent,
+      });
     }
 
     // 2. 处理图片
-    const imageBlocks = findImageBlocks(message)
+    const imageBlocks = findImageBlocks(message);
     for (const block of imageBlocks) {
-      const imageData = await this.loadImageData(block.image.url)
+      const imageData = await this.loadImageData(block.image.url);
       parts.push({
-        type: 'image',
-        image: imageData
-      })
+        type: "image",
+        image: imageData,
+      });
     }
 
     // 3. 处理文件
-    const fileBlocks = findFileBlocks(message)
+    const fileBlocks = findFileBlocks(message);
     for (const block of fileBlocks) {
-      const fileData = await this.loadFileData(block.file)
+      const fileData = await this.loadFileData(block.file);
       parts.push({
-        type: 'file',
+        type: "file",
         data: fileData,
-        mimeType: block.file.mime_type
-      })
+        mimeType: block.file.mime_type,
+      });
     }
 
     return {
-      role: 'user',
-      content: parts
-    }
+      role: "user",
+      content: parts,
+    };
   }
 
   /**
    * 转换助手消息（处理工具调用）
    */
-  static async convertAssistantMessage(
-    message: Message
-  ): Promise<CoreMessage> {
-
-    const parts: Array<TextPart | ToolCallPart> = []
+  static async convertAssistantMessage(message: Message): Promise<CoreMessage> {
+    const parts: Array<TextPart | ToolCallPart> = [];
 
     // 1. 处理文本内容
-    const textContent = getMainTextContent(message)
+    const textContent = getMainTextContent(message);
     if (textContent) {
       parts.push({
-        type: 'text',
-        text: textContent
-      })
+        type: "text",
+        text: textContent,
+      });
     }
 
     // 2. 处理工具调用
-    const toolCallBlocks = findToolCallBlocks(message)
+    const toolCallBlocks = findToolCallBlocks(message);
     for (const block of toolCallBlocks) {
       parts.push({
-        type: 'tool-call',
+        type: "tool-call",
         toolCallId: block.toolCallId,
         toolName: block.toolName,
-        args: block.args
-      })
+        args: block.args,
+      });
     }
 
     return {
-      role: 'assistant',
-      content: parts
-    }
+      role: "assistant",
+      content: parts,
+    };
   }
 }
 ```
@@ -1575,66 +1561,65 @@ export class ConversationService {
 
 ```typescript
 export default class AiSdkToChunkAdapter {
-
   constructor(
     private onChunk: (chunk: Chunk) => void,
     private mcpTools?: MCPTool[],
     private accumulate: boolean = true,
-    private enableWebSearch: boolean = false
+    private enableWebSearch: boolean = false,
   ) {}
 
   /**
    * 处理 AI SDK 流式结果
    */
   async processStream(streamResult: StreamTextResult<any>): Promise<string> {
-    const startTime = Date.now()
-    let fullText = ''
-    let firstTokenTime = 0
+    const startTime = Date.now();
+    let fullText = "";
+    let firstTokenTime = 0;
 
     try {
       // 1. 监听 textStream
       for await (const textDelta of streamResult.textStream) {
         if (!firstTokenTime) {
-          firstTokenTime = Date.now()
+          firstTokenTime = Date.now();
         }
 
         if (this.accumulate) {
-          fullText += textDelta
+          fullText += textDelta;
 
           // 发送文本增量 chunk
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
-            text: textDelta
-          })
+            text: textDelta,
+          });
         } else {
           // 不累积，直接发送完整文本
           this.onChunk({
             type: ChunkType.TEXT,
-            text: textDelta
-          })
+            text: textDelta,
+          });
         }
       }
 
       // 2. 处理工具调用
-      const toolCalls = streamResult.toolCalls
+      const toolCalls = streamResult.toolCalls;
       if (toolCalls && toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
-          await this.handleToolCall(toolCall)
+          await this.handleToolCall(toolCall);
         }
       }
 
       // 3. 处理 reasoning/thinking
-      const reasoning = streamResult.experimental_providerMetadata?.reasoning
+      const reasoning = streamResult.experimental_providerMetadata?.reasoning;
       if (reasoning) {
         this.onChunk({
           type: ChunkType.REASONING,
-          content: reasoning
-        })
+          content: reasoning,
+        });
       }
 
       // 4. 发送完成 chunk
-      const usage = await streamResult.usage
-      const finishReason = await streamResult.finishReason
+      const usage = await streamResult.usage;
+      const finishReason = await streamResult.finishReason;
 
       this.onChunk({
         type: ChunkType.BLOCK_COMPLETE,
@@ -1642,16 +1627,16 @@ export default class AiSdkToChunkAdapter {
           usage: {
             prompt_tokens: usage.promptTokens,
             completion_tokens: usage.completionTokens,
-            total_tokens: usage.totalTokens
+            total_tokens: usage.totalTokens,
           },
           metrics: {
             completion_tokens: usage.completionTokens,
             time_first_token_millsec: firstTokenTime - startTime,
-            time_completion_millsec: Date.now() - startTime
+            time_completion_millsec: Date.now() - startTime,
           },
-          finish_reason: finishReason
-        }
-      })
+          finish_reason: finishReason,
+        },
+      });
 
       this.onChunk({
         type: ChunkType.LLM_RESPONSE_COMPLETE,
@@ -1659,19 +1644,18 @@ export default class AiSdkToChunkAdapter {
           usage: {
             prompt_tokens: usage.promptTokens,
             completion_tokens: usage.completionTokens,
-            total_tokens: usage.totalTokens
-          }
-        }
-      })
+            total_tokens: usage.totalTokens,
+          },
+        },
+      });
 
-      return fullText
-
+      return fullText;
     } catch (error) {
       this.onChunk({
         type: ChunkType.ERROR,
-        error: error as Error
-      })
-      throw error
+        error: error as Error,
+      });
+      throw error;
     }
   }
 
@@ -1685,29 +1669,29 @@ export default class AiSdkToChunkAdapter {
       toolCall: {
         id: toolCall.toolCallId,
         name: toolCall.toolName,
-        arguments: toolCall.args
-      }
-    })
+        arguments: toolCall.args,
+      },
+    });
 
     // 2. 查找工具定义
-    const mcpTool = this.mcpTools?.find(t => t.name === toolCall.toolName)
+    const mcpTool = this.mcpTools?.find((t) => t.name === toolCall.toolName);
 
     // 3. 执行工具
     try {
-      let result: any
+      let result: any;
 
       if (mcpTool) {
         // MCP 工具
         result = await window.api.mcp.callTool(
           mcpTool.serverName,
           toolCall.toolName,
-          toolCall.args
-        )
-      } else if (toolCall.toolName === 'web_search' && this.enableWebSearch) {
+          toolCall.args,
+        );
+      } else if (toolCall.toolName === "web_search" && this.enableWebSearch) {
         // Web Search 工具
-        result = await executeWebSearch(toolCall.args.query)
+        result = await executeWebSearch(toolCall.args.query);
       } else {
-        result = { error: `Unknown tool: ${toolCall.toolName}` }
+        result = { error: `Unknown tool: ${toolCall.toolName}` };
       }
 
       // 4. 发送工具结果 chunk
@@ -1716,10 +1700,9 @@ export default class AiSdkToChunkAdapter {
         toolResult: {
           toolCallId: toolCall.toolCallId,
           toolName: toolCall.toolName,
-          result
-        }
-      })
-
+          result,
+        },
+      });
     } catch (error) {
       // 5. 发送工具错误 chunk
       this.onChunk({
@@ -1727,9 +1710,9 @@ export default class AiSdkToChunkAdapter {
         toolError: {
           toolCallId: toolCall.toolCallId,
           toolName: toolCall.toolName,
-          error: error as Error
-        }
-      })
+          error: error as Error,
+        },
+      });
     }
   }
 }
@@ -1751,15 +1734,15 @@ export default class AiSdkToChunkAdapter {
  * 使用 Extract 实现简洁的类型推断
  * @example StringKeys<{ foo: 1, 0: 2 }> = 'foo'
  */
-export type StringKeys<T> = Extract<keyof T, string>
+export type StringKeys<T> = Extract<keyof T, string>;
 
 // 在泛型约束中使用：
 export interface RuntimeConfig<
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
-  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>,
 > {
-  providerId: T
-  providerSettings: TSettingsMap[T]
+  providerId: T;
+  providerSettings: TSettingsMap[T];
 }
 ```
 
@@ -1769,44 +1752,49 @@ export interface RuntimeConfig<
 
 ```typescript
 // 别名 → 基础名（规范化）
-appProviderIds['claude']           // → 'anthropic'
-appProviderIds['vertexai']         // → 'google-vertex'
+appProviderIds["claude"]; // → 'anthropic'
+appProviderIds["vertexai"]; // → 'google-vertex'
 
 // 变体 → 自身（自反映射）
-appProviderIds['openai-chat']      // → 'openai-chat'
-appProviderIds['azure-responses']  // → 'azure-responses'
+appProviderIds["openai-chat"]; // → 'openai-chat'
+appProviderIds["azure-responses"]; // → 'azure-responses'
 ```
 
 **设计原理**：
 
-| 类型 | 语义 | 映射行为 |
-|------|------|---------|
-| 别名 (Alias) | 同一事物的另一个名字 | 规范化到基础名 ✓ |
-| 变体 (Variant) | 同一 provider 的不同模式 | 自反映射 ✓ |
+| 类型           | 语义                     | 映射行为         |
+| -------------- | ------------------------ | ---------------- |
+| 别名 (Alias)   | 同一事物的另一个名字     | 规范化到基础名 ✓ |
+| 变体 (Variant) | 同一 provider 的不同模式 | 自反映射 ✓       |
 
 **类型定义**：
 
 ```typescript
 // 辅助类型：提取变体 ID
 type ExtractVariantIds<TConfig, TName extends string> = TConfig extends {
-  variants: readonly { suffix: infer TSuffix extends string }[]
+  variants: readonly { suffix: infer TSuffix extends string }[];
 }
   ? `${TName}-${TSuffix}`
-  : never
+  : never;
 
 // 带条件自反映射的类型映射
-export type ExtensionConfigToIdResolutionMap<TConfig> =
-  TConfig extends { name: infer TName extends string }
-    ? {
-        readonly [K in
-          | TName
-          | (TConfig extends { aliases: readonly (infer TAlias extends string)[] } ? TAlias : never)
-          | ExtractVariantIds<TConfig, TName>
-        ]: K extends ExtractVariantIds<TConfig, TName>
-          ? K      // 变体 → 自身
-          : TName  // 基础名和别名 → TName
-      }
-    : never
+export type ExtensionConfigToIdResolutionMap<TConfig> = TConfig extends {
+  name: infer TName extends string;
+}
+  ? {
+      readonly [K in
+        | TName
+        | (TConfig extends { aliases: readonly (infer TAlias extends string)[] }
+            ? TAlias
+            : never)
+        | ExtractVariantIds<TConfig, TName>]: K extends ExtractVariantIds<
+        TConfig,
+        TName
+      >
+        ? K // 变体 → 自身
+        : TName; // 基础名和别名 → TName
+    }
+  : never;
 ```
 
 ### 7.3 Provider Settings 类型映射
@@ -1820,7 +1808,7 @@ export type ExtensionConfigToIdResolutionMap<TConfig> =
  */
 export type CoreProviderSettingsMap = UnionToIntersection<
   ExtensionToSettingsMap<(typeof coreExtensions)[number]>
->
+>;
 
 /**
  * 结果类型（示例）：
@@ -1838,35 +1826,29 @@ export type CoreProviderSettingsMap = UnionToIntersection<
 
 ```typescript
 // 1. 已知 provider（类型安全）
-const executor = await createExecutor('openai', {
-  apiKey: 'sk-xxx',      // ✅ 类型推断为 string
-  baseURL: 'https://...' // ✅ 类型推断为 string | undefined
+const executor = await createExecutor("openai", {
+  apiKey: "sk-xxx", // ✅ 类型推断为 string
+  baseURL: "https://...", // ✅ 类型推断为 string | undefined
   // wrongField: 123     // ❌ 编译错误：不存在的字段
-})
+});
 
 // 2. 动态 provider（any）
-const executor = await createExecutor('custom-provider', {
-  anyField: 'value'      // ✅ any 类型
-})
+const executor = await createExecutor("custom-provider", {
+  anyField: "value", // ✅ any 类型
+});
 ```
 
 ### 7.3 Extension Registry 类型安全
 
 ```typescript
 export class ExtensionRegistry {
-
   // 类型安全的函数重载
-  async createProvider<
-    T extends RegisteredProviderId
-  >(
+  async createProvider<T extends RegisteredProviderId>(
     id: T,
-    settings: CoreProviderSettingsMap[T]
-  ): Promise<ProviderV3>
+    settings: CoreProviderSettingsMap[T],
+  ): Promise<ProviderV3>;
 
-  async createProvider(
-    id: string,
-    settings?: any
-  ): Promise<ProviderV3>
+  async createProvider(id: string, settings?: any): Promise<ProviderV3>;
 
   async createProvider(id: string, settings?: any): Promise<ProviderV3> {
     // 实现
@@ -1874,10 +1856,10 @@ export class ExtensionRegistry {
 }
 
 // 使用：
-const provider = await extensionRegistry.createProvider('openai', {
-  apiKey: 'sk-xxx',      // ✅ 类型检查
-  baseURL: 'https://...'
-})
+const provider = await extensionRegistry.createProvider("openai", {
+  apiKey: "sk-xxx", // ✅ 类型检查
+  baseURL: "https://...",
+});
 ```
 
 ---
@@ -1892,31 +1874,31 @@ const provider = await extensionRegistry.createProvider('openai', {
 
 ```typescript
 export function addSpan(params: StartSpanParams): Span | null {
-  const { name, tag, topicId, modelName, inputs } = params
+  const { name, tag, topicId, modelName, inputs } = params;
 
   // 1. 获取或创建 tracer
-  const tracer = getTracer(topicId)
-  if (!tracer) return null
+  const tracer = getTracer(topicId);
+  if (!tracer) return null;
 
   // 2. 创建 span
   const span = tracer.startSpan(name, {
     kind: SpanKind.CLIENT,
     attributes: {
-      'llm.tag': tag,
-      'llm.model': modelName,
-      'llm.topic_id': topicId,
-      'llm.input_messages': JSON.stringify(inputs.messages),
-      'llm.temperature': inputs.temperature,
-      'llm.max_tokens': inputs.maxTokens
-    }
-  })
+      "llm.tag": tag,
+      "llm.model": modelName,
+      "llm.topic_id": topicId,
+      "llm.input_messages": JSON.stringify(inputs.messages),
+      "llm.temperature": inputs.temperature,
+      "llm.max_tokens": inputs.maxTokens,
+    },
+  });
 
   // 3. 设置 span context 为 active
   context.with(trace.setSpan(context.active(), span), () => {
     // 后续的 AI SDK 调用会自动继承这个 span
-  })
+  });
 
-  return span
+  return span;
 }
 ```
 
@@ -1924,27 +1906,27 @@ export function addSpan(params: StartSpanParams): Span | null {
 
 ```typescript
 export function endSpan(params: EndSpanParams): void {
-  const { topicId, span, outputs, error, modelName } = params
+  const { topicId, span, outputs, error, modelName } = params;
 
   if (outputs) {
     // 成功情况
     span.setAttributes({
-      'llm.output_text': outputs.getText(),
-      'llm.finish_reason': outputs.finishReason,
-      'llm.usage.prompt_tokens': outputs.usage.promptTokens,
-      'llm.usage.completion_tokens': outputs.usage.completionTokens
-    })
-    span.setStatus({ code: SpanStatusCode.OK })
+      "llm.output_text": outputs.getText(),
+      "llm.finish_reason": outputs.finishReason,
+      "llm.usage.prompt_tokens": outputs.usage.promptTokens,
+      "llm.usage.completion_tokens": outputs.usage.completionTokens,
+    });
+    span.setStatus({ code: SpanStatusCode.OK });
   } else if (error) {
     // 错误情况
-    span.recordException(error)
+    span.recordException(error);
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: error.message
-    })
+      message: error.message,
+    });
   }
 
-  span.end()
+  span.end();
 }
 ```
 
@@ -1984,29 +1966,29 @@ Parent Span: fetchChatCompletion
 ```typescript
 // 配置 OTLP Exporter
 const exporter = new OTLPTraceExporter({
-  url: 'http://localhost:4318/v1/traces',
+  url: "http://localhost:4318/v1/traces",
   headers: {
-    'Authorization': 'Bearer xxx'
-  }
-})
+    Authorization: "Bearer xxx",
+  },
+});
 
 // 配置 Trace Provider
 const provider = new WebTracerProvider({
   resource: new Resource({
-    'service.name': 'cherry-studio',
-    'service.version': app.getVersion()
-  })
-})
+    "service.name": "cherry-studio",
+    "service.version": app.getVersion(),
+  }),
+});
 
 provider.addSpanProcessor(
   new BatchSpanProcessor(exporter, {
     maxQueueSize: 100,
     maxExportBatchSize: 10,
-    scheduledDelayMillis: 500
-  })
-)
+    scheduledDelayMillis: 500,
+  }),
+);
 
-provider.register()
+provider.register();
 ```
 
 ---
@@ -2022,18 +2004,18 @@ export class ProviderError extends Error {
     message: string,
     public providerId: string,
     public code?: string,
-    public cause?: Error
+    public cause?: Error,
   ) {
-    super(message)
-    this.name = 'ProviderError'
+    super(message);
+    this.name = "ProviderError";
   }
 }
 
 // 2. Provider Creation Error
 export class ProviderCreationError extends ProviderError {
   constructor(message: string, providerId: string, cause: Error) {
-    super(message, providerId, 'PROVIDER_CREATION_FAILED', cause)
-    this.name = 'ProviderCreationError'
+    super(message, providerId, "PROVIDER_CREATION_FAILED", cause);
+    this.name = "ProviderCreationError";
   }
 }
 
@@ -2042,10 +2024,10 @@ export class ModelResolutionError extends ProviderError {
   constructor(
     message: string,
     public modelId: string,
-    providerId: string
+    providerId: string,
   ) {
-    super(message, providerId, 'MODEL_RESOLUTION_FAILED')
-    this.name = 'ModelResolutionError'
+    super(message, providerId, "MODEL_RESOLUTION_FAILED");
+    this.name = "ModelResolutionError";
   }
 }
 
@@ -2055,10 +2037,10 @@ export class ApiError extends ProviderError {
     message: string,
     providerId: string,
     public statusCode?: number,
-    public response?: any
+    public response?: any,
   ) {
-    super(message, providerId, 'API_REQUEST_FAILED')
-    this.name = 'ApiError'
+    super(message, providerId, "API_REQUEST_FAILED");
+    this.name = "ApiError";
   }
 }
 ```
@@ -2167,11 +2149,13 @@ try {
 ### 10.1 Provider 实例缓存（LRU）
 
 **优势**:
+
 - ✅ 避免重复创建相同配置的 provider
 - ✅ 自动清理最久未使用的实例
 - ✅ 内存可控（max: 10 per extension）
 
 **性能指标**:
+
 ```
 Cache Hit:  <1ms  (直接从 Map 获取)
 Cache Miss: ~50ms (创建新 AI SDK provider)
@@ -2198,17 +2182,17 @@ const [mcpTools, params, plugins] = await Promise.all([
 ```typescript
 // 1. 使用 textStream 而非 fullStream
 for await (const textDelta of streamResult.textStream) {
-  onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
+  onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta });
 }
 
 // 2. 批量发送 chunks（减少 IPC 开销）
-const chunkBuffer: Chunk[] = []
+const chunkBuffer: Chunk[] = [];
 for await (const textDelta of streamResult.textStream) {
-  chunkBuffer.push({ type: ChunkType.TEXT_DELTA, text: textDelta })
+  chunkBuffer.push({ type: ChunkType.TEXT_DELTA, text: textDelta });
 
   if (chunkBuffer.length >= 10) {
-    onChunk({ type: ChunkType.BATCH, chunks: chunkBuffer })
-    chunkBuffer.length = 0
+    onChunk({ type: ChunkType.BATCH, chunks: chunkBuffer });
+    chunkBuffer.length = 0;
   }
 }
 ```
@@ -2245,20 +2229,26 @@ async processStream(streamResult: StreamTextResult) {
 
 // 创建完整的 mock provider（方法是 vi.fn() spies）
 export function createMockProviderV3(overrides?: {
-  provider?: string
-  languageModel?: (modelId: string) => LanguageModelV3
-  imageModel?: (modelId: string) => ImageModelV3
-  embeddingModel?: (modelId: string) => EmbeddingModelV3
-}): ProviderV3
+  provider?: string;
+  languageModel?: (modelId: string) => LanguageModelV3;
+  imageModel?: (modelId: string) => ImageModelV3;
+  embeddingModel?: (modelId: string) => EmbeddingModelV3;
+}): ProviderV3;
 
 // 创建 mock 语言模型（包含完整的 doGenerate/doStream 实现）
-export function createMockLanguageModel(overrides?: Partial<LanguageModelV3>): LanguageModelV3
+export function createMockLanguageModel(
+  overrides?: Partial<LanguageModelV3>,
+): LanguageModelV3;
 
 // 创建 mock 图像模型
-export function createMockImageModel(overrides?: Partial<ImageModelV3>): ImageModelV3
+export function createMockImageModel(
+  overrides?: Partial<ImageModelV3>,
+): ImageModelV3;
 
 // 创建 mock 嵌入模型
-export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>): EmbeddingModelV3
+export function createMockEmbeddingModel(
+  overrides?: Partial<EmbeddingModelV3>,
+): EmbeddingModelV3;
 ```
 
 ### 11.2 集成测试
@@ -2268,39 +2258,40 @@ export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>):
 ```typescript
 // packages/aiCore/src/core/providers/__tests__/ExtensionRegistry.test.ts
 
-describe('ExtensionRegistry', () => {
-  describe('Provider Creation', () => {
-    it('should create providers through registered extensions')
-    it('should resolve aliases to base provider')
-    it('should resolve variants with correct suffix')
-    it('should leverage LRU cache for identical settings')
-  })
+describe("ExtensionRegistry", () => {
+  describe("Provider Creation", () => {
+    it("should create providers through registered extensions");
+    it("should resolve aliases to base provider");
+    it("should resolve variants with correct suffix");
+    it("should leverage LRU cache for identical settings");
+  });
 
-  describe('Error Handling', () => {
-    it('should throw error for unregistered provider')
-    it('should handle concurrent creation requests')
-  })
-})
+  describe("Error Handling", () => {
+    it("should throw error for unregistered provider");
+    it("should handle concurrent creation requests");
+  });
+});
 
 // packages/aiCore/src/core/providers/__tests__/ProviderExtension.test.ts
 
-describe('ProviderExtension', () => {
-  describe('LRU Cache', () => {
-    it('should cache provider instances by settings hash')
-    it('should create new instances for different settings')
-    it('should deduplicate concurrent creation of same settings')
-  })
+describe("ProviderExtension", () => {
+  describe("LRU Cache", () => {
+    it("should cache provider instances by settings hash");
+    it("should create new instances for different settings");
+    it("should deduplicate concurrent creation of same settings");
+  });
 
-  describe('Variants', () => {
-    it('should create variant providers with transform')
-    it('should cache variants independently')
-  })
-})
+  describe("Variants", () => {
+    it("should create variant providers with transform");
+    it("should cache variants independently");
+  });
+});
 ```
 
 ### 11.3 测试覆盖率
 
 当前测试覆盖：
+
 - **ExtensionRegistry**: 68+ 个测试用例
 - **ProviderExtension**: 50+ 个测试用例
 - **PluginEngine**: 38 个测试用例
@@ -2312,17 +2303,20 @@ describe('ProviderExtension', () => {
 ## 附录 A: 关键文件索引
 
 ### Service Layer
+
 - `src/renderer/src/services/ApiService.ts` - 主要 API 服务
 - `src/renderer/src/services/ConversationService.ts` - 消息准备
 - `src/renderer/src/services/SpanManagerService.ts` - Trace 管理
 
 ### AI Provider Layer
-- `src/renderer/src/aiCore/index_new.ts` - ModernAiProvider
+
+- `src/renderer/src/aiCore/index_new.ts` - AiProvider
 - `src/renderer/src/aiCore/provider/providerConfig.ts` - Provider 配置
 - `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts` - 流式适配
 - `src/renderer/src/aiCore/plugins/PluginBuilder.ts` - 插件构建
 
 ### Core Package
+
 - `packages/aiCore/src/core/runtime/executor.ts` - RuntimeExecutor
 - `packages/aiCore/src/core/runtime/index.ts` - createExecutor
 - `packages/aiCore/src/core/providers/core/ProviderExtension.ts` - Extension 基类
@@ -2331,10 +2325,12 @@ describe('ProviderExtension', () => {
 - `packages/aiCore/src/core/plugins/PluginEngine.ts` - 插件引擎
 
 ### 应用层 Extensions
+
 - `src/renderer/src/aiCore/provider/extensions/index.ts` - 应用层 Provider Extensions
 - `src/renderer/src/aiCore/types/merged.ts` - 合并类型（核心 + 应用层 extensions）
 
 ### Test Utilities
+
 - `packages/aiCore/test_utils/helpers/model.ts` - Mock 模型创建工具
 - `packages/aiCore/test_utils/helpers/provider.ts` - Provider 测试辅助
 - `packages/aiCore/test_utils/mocks/providers.ts` - Mock Provider 实例
@@ -2344,18 +2340,24 @@ describe('ProviderExtension', () => {
 ## 附录 B: 常见问题
 
 ### Q1: 为什么要用 LRU 缓存？
+
 **A**: 避免为相同配置重复创建 provider，同时自动控制内存（最多 10 个实例/extension）。
 
 ### Q2: Plugin 和 Middleware 有什么区别？
+
 **A**:
+
 - **Plugin**: Cherry Studio 层面的功能扩展（Reasoning, ToolUse, WebSearch）
 - **Middleware**: AI SDK 层面的请求/响应拦截器
 
 ### Q3: 什么时候用 Legacy Provider？
+
 **A**: 仅在图像生成端点且非 gateway 时使用，因为需要图片编辑等高级功能。
 
 ### Q4: 如何添加新的 Provider？
+
 **A**:
+
 1. 在 `packages/aiCore/src/core/providers/extensions/` 创建 Extension
 2. 注册到 `coreExtensions` 数组
 3. 在 `providerConfig.ts` 添加配置转换逻辑
