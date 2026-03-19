@@ -2026,11 +2026,11 @@
       "excel": {
         "export": "Failed to export Excel"
       },
+      "fetchTopicName": "Failed to name the topic",
       "file": {
         "process_failed": "File {{name}} could not be processed",
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
-      "fetchTopicName": "Failed to name the topic",
       "get_embedding_dimensions": "Failed to get embedding dimensions",
       "invalid": {
         "api": {

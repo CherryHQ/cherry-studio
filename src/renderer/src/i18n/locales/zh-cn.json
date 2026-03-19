@@ -2026,11 +2026,11 @@
       "excel": {
         "export": "导出 Excel 失败"
       },
+      "fetchTopicName": "话题命名失败",
       "file": {
         "process_failed": "文件 {{name}} 无法处理",
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
-      "fetchTopicName": "话题命名失败",
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
         "api": {
