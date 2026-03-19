@@ -27,7 +27,6 @@ import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
-  LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS,
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
@@ -91,13 +90,9 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
-        // Allow local services (LMStudio, Ollama) that support Anthropic API endpoints
-        if (LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS.includes(m.provider)) {
-          return true
-        }
-        // Check if model belongs to an anthropic type provider (including custom providers)
-        const anthropicProvider = providers.find((p) => p.id === m.provider)
-        if (anthropicProvider?.type === 'anthropic') {
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
           return true
         }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)

@@ -43,19 +43,11 @@ export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'che
 
 export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
-// Local services that support Anthropic API endpoints (LMStudio, Ollama)
-// These providers share the same host for both OpenAI and Anthropic APIs
-export const LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS = ['lmstudio', 'ollama']
-
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeTools.claudeCode]: (providers) =>
     providers.filter(
-      (p) =>
-        p.type === 'anthropic' ||
-        CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) ||
-        LOCAL_ANTHROPIC_COMPATIBLE_PROVIDERS.includes(p.id) ||
-        p.type === 'ollama'
+      (p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || !!p.anthropicApiHost
     ),
   [codeTools.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
