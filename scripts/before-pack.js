@@ -49,6 +49,14 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
+  // Download rtk and jq binaries for the target platform
+  try {
+    console.log(`Downloading rtk/jq binaries for ${platform}-${arch}...`)
+    execSync(`node "${path.join(__dirname, 'download-rtk-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })
+  } catch (error) {
+    console.warn(`Warning: rtk binary download failed (non-fatal): ${error.message}`)
+  }
+
   const downloadPackages = async () => {
     // Skip if target platform and architecture match current system
     if (platform === process.platform && arch === process.arch) {
