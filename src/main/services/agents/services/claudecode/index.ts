@@ -306,7 +306,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       return {}
     }
 
-    const rtkRewriteHook: HookCallback = async (input, _toolUseID, _options) => {
+    const rtkRewriteHook: HookCallback = async (input) => {
       if (input.hook_event_name !== 'PreToolUse') {
         return {}
       }
