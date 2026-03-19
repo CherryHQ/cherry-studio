@@ -124,9 +124,19 @@ export function normalizeCitationMarks(
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
       // Gemini 格式: 根据 startIndex/endIndex 精确插入 [cite:N]
+      // 注意: Gemini API 的 endIndex 是 UTF-8 字节偏移，需要转换为字符偏移
       const firstCitation = Array.from(citationMap.values())[0]
       if (firstCitation?.metadata) {
-        // 收集所有需要插入的位置和标签，按 endIndex 降序排列以避免偏移
+        const encoder = new TextEncoder()
+        const contentBytes = encoder.encode(content)
+
+        // 将 UTF-8 字节偏移转换为 JS 字符偏移
+        const byteOffsetToCharOffset = (byteOffset: number): number => {
+          const decoder = new TextDecoder()
+          return decoder.decode(contentBytes.slice(0, byteOffset)).length
+        }
+
+        // 收集所有需要插入的位置和标签
         const insertions: Array<{ position: number; tag: string }> = []
 
         firstCitation.metadata.forEach((support: GroundingSupport) => {
@@ -143,7 +153,8 @@ export function normalizeCitationMarks(
             .join('')
 
           if (tag) {
-            insertions.push({ position: endIndex, tag })
+            const charPos = byteOffsetToCharOffset(endIndex)
+            insertions.push({ position: charPos, tag })
           }
         })
 

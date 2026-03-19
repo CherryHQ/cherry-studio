@@ -319,6 +319,26 @@ Numbered list:
         expect(result).toBe('**[cite:1]二氧化硫（$SO_2$）不能燃烧。**\n\n1. **自身不可燃**：说明')
       })
 
+      it('should correctly convert UTF-8 byte offsets to char offsets for CJK text', () => {
+        // Gemini API endIndex is in UTF-8 bytes, not JS characters
+        // Chinese chars are 3 bytes each in UTF-8 but 1 char in JS
+        // "你好world" = 你(3) + 好(3) + w(1) + o(1) + r(1) + l(1) + d(1) = 11 bytes
+        const content = '你好world end'
+        const metadata: GroundingSupport[] = [
+          {
+            segment: { startIndex: 0, endIndex: 11, text: '你好world' },
+            groundingChunkIndices: [0]
+          }
+        ]
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test', metadata }]
+        const citationMap = createCitationMap(citations)
+
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+        // endIndex=11 bytes → char offset 7 ("你好world".length === 7)
+        expect(result).toBe('你好world[cite:1] end')
+      })
+
       it('should handle Gemini citations without metadata', () => {
         const content = 'Content without metadata'
         const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
