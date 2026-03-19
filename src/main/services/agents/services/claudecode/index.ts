@@ -329,7 +329,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         return {}
       }
 
-      logger.debug('rtk rewrote Bash command', { original: command, rewritten })
+      logger.info('rtk rewrote Bash command', { original: command, rewritten })
 
       return {
         hookSpecificOutput: {

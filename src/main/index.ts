@@ -165,14 +165,12 @@ if (!app.requestSingleInstanceLock()) {
     powerMonitorService.init()
     analyticsService.init()
 
-    // Extract bundled rtk/jq binaries to ~/.cherrystudio/bin/ on first run
-    try {
-      extractRtkBinaries()
-    } catch (error) {
+    // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
+    extractRtkBinaries().catch((error) => {
       logger.warn('Failed to extract rtk binaries (non-fatal)', {
         error: error instanceof Error ? error.message : String(error)
       })
-    }
+    })
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
