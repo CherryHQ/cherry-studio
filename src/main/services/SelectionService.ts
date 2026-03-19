@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
-import { isDev, isMac, isWin } from '@main/constant'
+import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -18,14 +18,11 @@ import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
 
-const isSupportedOS = isWin || isMac
-
 let SelectionHook: SelectionHookConstructor | null = null
 try {
   //since selection-hook v1.0.0, it supports macOS
-  if (isSupportedOS) {
-    SelectionHook = require('selection-hook')
-  }
+  //since selection-hook v1.1.0, it supports Linux
+  SelectionHook = require('selection-hook')
 } catch (error) {
   logger.error('Failed to load selection-hook:', error as Error)
 }
@@ -123,8 +120,6 @@ export class SelectionService {
   }
 
   public static getInstance(): SelectionService | null {
-    if (!isSupportedOS) return null
-
     if (!SelectionService.instance) {
       SelectionService.instance = new SelectionService()
     }
@@ -273,11 +268,6 @@ export class SelectionService {
    * @returns {boolean} Success status of service start
    */
   public start(): boolean {
-    if (!isSupportedOS) {
-      this.logError('SelectionService start(): not supported on this OS')
-      return false
-    }
-
     if (!this.selectionHook) {
       this.logError('SelectionService start(): instance is null')
       return false
@@ -422,7 +412,9 @@ export class SelectionService {
       //   [macOS] `panel` conflicts with other settings ,
       //           and log will show `NSWindow does not support nonactivating panel styleMask 0x80`
       //           but it seems still work on fullscreen apps, so we set this anyway
-      ...(isWin ? { type: 'toolbar', focusable: false } : { type: 'panel' }),
+      //   [windows/linux] set focusable to false to prevent toolbar blur other windows.
+      //   [linux]         note that focusable: false will cause the toolbar unmovable.
+      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: false }),
       hiddenInMissionControl: true, // [macOS only]
       acceptFirstMouse: true, // [macOS only]
 
@@ -703,6 +695,21 @@ export class SelectionService {
     //use original point to get the display
     const display = screen.getDisplayNearestPoint(refPoint)
 
+    // [DEBUG] Log display info and positioning calculation
+    if (isLinux) {
+      logger.info('[Wayland Debug] calculateToolbarPosition:', {
+        input: { refPoint, orientation },
+        toolbarSize: { toolbarWidth, toolbarHeight },
+        posPointBeforeClamp: { ...posPoint },
+        display: {
+          id: display.id,
+          bounds: display.bounds,
+          workArea: display.workArea,
+          scaleFactor: display.scaleFactor
+        }
+      })
+    }
+
     //check if the toolbar exceeds the top or bottom of the screen
     const exceedsTop = posPoint.y < display.workArea.y
     const exceedsBottom = posPoint.y > display.workArea.y + display.workArea.height - toolbarHeight
@@ -721,6 +728,15 @@ export class SelectionService {
     }
     if (exceedsBottom) {
       posPoint.y = posPoint.y - 32
+    }
+
+    // [DEBUG] Log final toolbar position
+    if (isLinux) {
+      logger.info('[Wayland Debug] Final toolbar position:', {
+        posPoint,
+        exceedsTop,
+        exceedsBottom
+      })
     }
 
     return posPoint
@@ -795,6 +811,20 @@ export class SelectionService {
     let refPoint: { x: number; y: number } = { x: 0, y: 0 }
     let isLogical = false
     let refOrientation: RelativeOrientation = 'bottomRight'
+
+    // [DEBUG] Log selection data for Wayland positioning investigation
+    if (isLinux) {
+      const cursorPoint = screen.getCursorScreenPoint()
+      logger.info('[Wayland Debug] Selection data:', {
+        posLevel: selectionData.posLevel,
+        method: selectionData.method,
+        mousePosStart: selectionData.mousePosStart,
+        mousePosEnd: selectionData.mousePosEnd,
+        startTop: selectionData.startTop,
+        endBottom: selectionData.endBottom,
+        cursorScreenPoint: cursorPoint
+      })
+    }
 
     switch (selectionData.posLevel) {
       case SelectionHook?.PositionLevel.NONE:
@@ -911,13 +941,27 @@ export class SelectionService {
         break
     }
 
+    // [DEBUG] Log refPoint before DIP conversion
+    if (isLinux) {
+      logger.info('[Wayland Debug] Before DIP conversion:', {
+        refPoint,
+        refOrientation,
+        isLogical
+      })
+    }
+
     if (!isLogical) {
-      // [macOS] don't need to convert by screenToDipPoint
-      if (!isMac) {
+      // [macOS/Linux] don't need to convert by screenToDipPoint
+      if (isWin) {
         refPoint = screen.screenToDipPoint(refPoint)
       }
       //screenToDipPoint can be float, so we need to round it
       refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
+    }
+
+    // [DEBUG] Log final refPoint passed to showToolbarAtPosition
+    if (isLinux) {
+      logger.info('[Wayland Debug] Final refPoint:', { refPoint, refOrientation })
     }
 
     // [macOS] isFullscreen is only available on macOS
@@ -975,8 +1019,15 @@ export class SelectionService {
       return
     }
 
-    //data point is physical coordinates, convert to logical coordinates(only for windows/linux)
-    const mousePoint = isMac ? { x: data.x, y: data.y } : screen.screenToDipPoint({ x: data.x, y: data.y })
+    // [Linux/Wayland] selection-hook coordinates and Electron getBounds() use different
+    // coordinate spaces on Wayland. Use screen.getCursorScreenPoint() instead, which
+    // is guaranteed to be in the same coordinate space as getBounds().
+    // [Windows] selection-hook coordinates need screenToDipPoint conversion.
+    const mousePoint = isLinux
+      ? screen.getCursorScreenPoint()
+      : isWin
+        ? screen.screenToDipPoint({ x: data.x, y: data.y })
+        : { x: data.x, y: data.y }
 
     const bounds = this.toolbarWindow!.getBounds()
 
@@ -1502,6 +1553,15 @@ export class SelectionService {
   }
 
   public writeToClipboard(text: string): boolean {
+    if (isLinux) {
+      try {
+        clipboard.writeText(text)
+        return true
+      } catch (error) {
+        logger.error('Failed to write to clipboard on Linux:', error as Error)
+        return false
+      }
+    }
     if (!this.selectionHook || !this.started) return false
     return this.selectionHook.writeToClipboard(text)
   }
@@ -1607,8 +1667,6 @@ export class SelectionService {
  * @returns {boolean} Success status of initialization
  */
 export function initSelectionService(): boolean {
-  if (!isSupportedOS) return false
-
   configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean): void => {
     //avoid closure
     const ss = SelectionService.getInstance()

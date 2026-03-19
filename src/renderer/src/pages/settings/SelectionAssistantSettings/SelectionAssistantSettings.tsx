@@ -1,4 +1,4 @@
-import { isMac, isWin } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
@@ -53,7 +53,7 @@ const SelectionAssistantSettings: FC = () => {
     setFilterList
   } = useSelectionAssistant()
 
-  const isSupportedOS = isWin || isMac
+  const isSupportedOS = isWin || isMac || isLinux
 
   const [isFilterListModalOpen, setIsFilterListModalOpen] = useState(false)
   const [isMacTrustModalOpen, setIsMacTrustModalOpen] = useState(false)
