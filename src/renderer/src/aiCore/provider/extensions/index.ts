@@ -12,6 +12,7 @@ import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/hug
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { type AihubmixProviderSettings, createAihubmix } from '@aihubmix/ai-sdk-provider'
 import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
@@ -21,7 +22,6 @@ import {
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 
-import { type AiHubMixProviderSettings, createAiHubMix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
 /**
@@ -142,8 +142,8 @@ export const OllamaExtension = ProviderExtension.create({
 export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
   supportsImageGeneration: true,
-  create: createAiHubMix
-} as const satisfies ProviderExtensionConfig<AiHubMixProviderSettings, ExtensionStorage, ProviderV3, 'aihubmix'>)
+  create: createAihubmix
+} as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ExtensionStorage, ProviderV3, 'aihubmix'>)
 
 /**
  * NewAPI Extension - multi-backend gateway routed by endpoint_type
