@@ -2015,6 +2015,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Mimo V2 Flash',
       provider: 'mimo',
       group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-pro',
+      name: 'Mimo V2 Pro',
+      provider: 'mimo',
+      group: 'Mimo'
+    },
+    {
+      id: 'mimo-v2-omni',
+      name: 'Mimo V2 Omni',
+      provider: 'mimo',
+      group: 'Mimo'
     }
   ],
   zai: [
