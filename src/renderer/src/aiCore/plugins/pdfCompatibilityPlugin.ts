@@ -2,16 +2,19 @@
  * PDF Compatibility Plugin
  *
  * Converts PDF FileParts to TextParts for providers that don't support native PDF input.
- * Uses pre-extracted text content attached in providerOptions.cherryStudio.pdfTextContent.
+ * Extracts text directly from the FilePart's base64 data using pdf-parse.
  */
-import type { LanguageModelV3Message } from '@ai-sdk/provider'
+import type { LanguageModelV3FilePart, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
 import { loggerService } from '@logger'
 import type { Provider, ProviderType } from '@renderer/types'
+import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
+
+type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
 /**
  * Provider types whose API protocol supports native PDF file input.
@@ -32,12 +35,14 @@ const PDF_NATIVE_PROVIDER_TYPES = new Set<ProviderType>([
   'gateway' // Gateway aggregator (OpenAI-compatible)
 ])
 
+function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
+  return part.type === 'file' && part.mediaType === 'application/pdf'
+}
+
 function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     transformParams: async ({ params }) => {
-      // Check provider.type (API protocol), not AI SDK provider ID,
-      // because aggregator providers speak standard protocols that support PDF.
       if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
         return params
       }
@@ -46,38 +51,40 @@ function pdfCompatibilityMiddleware(provider: Provider): LanguageModelMiddleware
         return params
       }
 
-      const messages = params.prompt.map((msg) => {
-        const message = msg as LanguageModelV3Message
+      const messages: LanguageModelV3Message[] = []
+      for (const message of params.prompt) {
         if (!Array.isArray(message.content)) {
-          return message
+          messages.push(message)
+          continue
         }
 
-        const newContent = message.content.flatMap((part: any) => {
-          // Only convert PDF file parts
-          if (part.type !== 'file' || part.mediaType !== 'application/pdf') {
-            return [part]
+        const hasPdf = message.content.some((part: (typeof message.content)[number]) => isPdfFilePart(part))
+        if (!hasPdf) {
+          messages.push(message)
+          continue
+        }
+
+        const newContent: ContentPart[] = []
+        for (const part of message.content) {
+          if (!isPdfFilePart(part)) {
+            newContent.push(part)
+            continue
           }
 
-          // Extract pre-extracted text from providerOptions
-          const pdfTextContent = part.providerOptions?.cherryStudio?.pdfTextContent as string | undefined
+          const fileName = part.filename || 'PDF'
 
-          if (pdfTextContent) {
+          try {
+            const textContent = await extractPdfText(part.data)
             logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
-            return [{ type: 'text' as const, text: pdfTextContent }]
+            newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
+          } catch (error) {
+            logger.warn(`Failed to extract text from PDF ${fileName}:`, error instanceof Error ? error : undefined)
+            window.toast.warning(i18n.t('message.warning.file.pdf_text_extraction_failed', { name: fileName }))
           }
+        }
 
-          // No pre-extracted text available — drop the part and warn user
-          logger.warn(
-            `PDF file dropped for provider ${provider.id} (type: ${provider.type}): no pre-extracted text available`
-          )
-          window.toast.warning(
-            i18n.t('message.warning.file.pdf_text_extraction_failed', { name: part.filename || 'PDF' })
-          )
-          return []
-        })
-
-        return { ...message, content: newContent } as LanguageModelV3Message
-      })
+        messages.push(Object.assign({}, message, { content: newContent }))
+      }
 
       return { ...params, prompt: messages }
     }

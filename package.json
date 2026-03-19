@@ -356,7 +356,7 @@
     "pako": "1.0.11",
     "partial-json": "0.1.7",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^2.4.5",
     "prosemirror-model": "1.25.2",
     "proxy-agent": "^6.5.0",
     "rc-input": "1.8.0",

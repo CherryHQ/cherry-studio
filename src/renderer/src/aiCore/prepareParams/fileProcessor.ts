@@ -232,21 +232,11 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
 
       const base64Data = await window.api.file.base64File(file.id + file.ext)
 
-      // Pre-extract text for providers that don't support native PDF
-      let pdfTextContent: string | undefined
-      try {
-        const textContent = await window.api.file.read(file.id + file.ext, true)
-        pdfTextContent = `${file.origin_name}\n${textContent.trim()}`
-      } catch (error) {
-        logger.warn(`Failed to pre-extract text from PDF ${file.origin_name}:`, error as Error)
-      }
-
       return {
         type: 'file',
         data: base64Data.data,
         mediaType: base64Data.mime,
-        filename: file.origin_name,
-        providerOptions: pdfTextContent ? { cherryStudio: { pdfTextContent } } : undefined
+        filename: file.origin_name
       }
     }
 
