@@ -513,6 +513,47 @@ export function mcpToolCallResponseToOpenAICompatibleMessage(
   return message
 }
 
+/**
+ * Builds the `output` payload for OpenAI Responses API `function_call_output`, or the non-prefix
+ * body for a user message. Matches multimodal handling in {@link mcpToolCallResponseToOpenAIMessage}.
+ */
+export function mcpToolCallResponseToOpenAIResponsesOutput(
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean
+): string | OpenAI.Responses.ResponseInputContent[] {
+  if (resp.isError) {
+    return JSON.stringify(resp.content)
+  }
+  if (isVisionModel) {
+    const content: OpenAI.Responses.ResponseInputContent[] = []
+    for (const item of resp.content) {
+      switch (item.type) {
+        case 'text':
+          content.push({
+            type: 'input_text',
+            text: item.text || 'no content'
+          })
+          break
+        case 'image':
+          content.push({
+            type: 'input_image',
+            image_url: `data:${item.mimeType};base64,${item.data}`,
+            detail: 'auto'
+          })
+          break
+        default:
+          content.push({
+            type: 'input_text',
+            text: `Unsupported type: ${item.type}`
+          })
+          break
+      }
+    }
+    return content
+  }
+  return JSON.stringify(resp.content)
+}
+
 export function mcpToolCallResponseToOpenAIMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
@@ -525,42 +566,20 @@ export function mcpToolCallResponseToOpenAIMessage(
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
   } else {
+    const output = mcpToolCallResponseToOpenAIResponsesOutput(resp, isVisionModel)
     const content: OpenAI.Responses.ResponseInputContent[] = [
       {
         type: 'input_text',
         text: `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:`
       }
     ]
-
-    if (isVisionModel) {
-      for (const item of resp.content) {
-        switch (item.type) {
-          case 'text':
-            content.push({
-              type: 'input_text',
-              text: item.text || 'no content'
-            })
-            break
-          case 'image':
-            content.push({
-              type: 'input_image',
-              image_url: `data:${item.mimeType};base64,${item.data}`,
-              detail: 'auto'
-            })
-            break
-          default:
-            content.push({
-              type: 'input_text',
-              text: `Unsupported type: ${item.type}`
-            })
-            break
-        }
-      }
-    } else {
+    if (typeof output === 'string') {
       content.push({
         type: 'input_text',
-        text: JSON.stringify(resp.content)
+        text: output
       })
+    } else {
+      content.push(...output)
     }
 
     message.content = content
