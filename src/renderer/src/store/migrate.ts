@@ -3369,14 +3369,14 @@ const migrateConfig = {
       return state
     }
   },
-  '204': (state: RootState) => {
+  '205': (state: RootState) => {
     try {
       addProvider(state, 'volcano-coding')
       addProvider(state, 'byteplus-coding')
-      logger.info('migrate 204 success')
+      logger.info('migrate 205 success')
       return state
     } catch (error) {
-      logger.error('migrate 204 error', error as Error)
+      logger.error('migrate 205 error', error as Error)
       return state
     }
   }
