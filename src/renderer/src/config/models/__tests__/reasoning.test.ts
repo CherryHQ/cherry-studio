@@ -480,6 +480,16 @@ describe('GPT-5.1 Series Models', () => {
     it('should not support GPT-5.1 chat models', () => {
       expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
     })
+
+    it('should support future GPT-5.x sub-version models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-mini' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.9' }))).toBe(true)
+    })
+
+    it('should not support future GPT-5.x chat models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.4-chat' }))).toBe(false)
+    })
   })
 
   describe('isOpenAIReasoningModel', () => {
@@ -630,9 +640,13 @@ describe('Thinking model classification', () => {
 })
 
 describe('Reasoning option configuration', () => {
-  it('allows GPT-5.1 series models to disable reasoning', () => {
+  it('allows GPT-5.1 base models to disable reasoning', () => {
     expect(MODEL_SUPPORTED_OPTIONS.gpt5_1).toContain('none')
-    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).toContain('none')
+  })
+
+  it('does not allow GPT-5.1 codex models to disable reasoning', () => {
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).not.toContain('none')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex_max).not.toContain('none')
   })
 
   it('restricts GPT-5 Pro reasoning to high effort only', () => {
@@ -663,7 +677,46 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
   })
 
-  describe('GPT-5 series models', () => {
+  describe('GPT-5.2 series models', () => {
+    it('should return gpt5_2 for GPT-5.2 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-preview' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-mini' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for GPT-5.2 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-pro-preview' }))).toBe('gpt52pro')
+    })
+
+    it('should return gpt5_2_codex for GPT-5.2 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex' }))).toBe('gpt5_2_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.2-codex-mini' }))).toBe('gpt5_2_codex')
+    })
+  })
+
+  describe('GPT-5.x future sub-version fallback', () => {
+    it('should return gpt5_2 for future GPT-5.x models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-mini' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt5_2 for future GPT-5.x codex models (5.3+, supports none)', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-codex' }))).toBe('gpt5_2')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-codex' }))).toBe('gpt5_2')
+    })
+
+    it('should return gpt52pro for future GPT-5.x Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.3-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.4-pro-preview' }))).toBe('gpt52pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.9-pro' }))).toBe('gpt52pro')
+    })
+  })
+
+  describe('GPT-5 base series models', () => {
     it('should return gpt5_codex for GPT-5 codex models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex' }))).toBe('gpt5_codex')
       expect(getThinkModelType(createModel({ id: 'gpt-5-codex-mini' }))).toBe('gpt5_codex')
@@ -719,7 +772,10 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     })
     it('should return gemini3_pro for Gemini 3 Pro models', () => {
       expect(getThinkModelType(createModel({ id: 'gemini-3-pro-preview' }))).toBe('gemini3_pro')
-      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_pro')
+    })
+    it('should return gemini3_1_pro for Gemini 3.1 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe('gemini3_1_pro')
+      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_1_pro')
     })
   })
 
@@ -1892,13 +1948,11 @@ describe('getModelSupportedReasoningEffortOptions', () => {
     it('should return correct options for GPT-5.1 Codex models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gpt-5.1-codex-mini' }))).toEqual([
         'default',
-        'none',
         'medium',
         'high'
       ])
@@ -1963,6 +2017,7 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'gemini-pro-latest' }))).toEqual([
         'default',
         'low',
+        'medium',
         'high'
       ])
     })
@@ -2379,26 +2434,27 @@ describe('isInterleavedThinkingModel', () => {
 })
 
 describe('Claude Models', () => {
-  describe('getThinkModelType for Opus 4.6', () => {
-    it('should return opus46 for Opus 4.6 models', () => {
-      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('opus46')
-      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('opus46')
+  describe('getThinkModelType for Claude 4.6 series models', () => {
+    it('should return claude46 for Claude 4.6 models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-6' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-6' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
   })
 
-  describe('MODEL_SUPPORTED_OPTIONS for Opus 4.6', () => {
-    it('should have correct options for opus46', () => {
-      expect(MODEL_SUPPORTED_OPTIONS.opus46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
+  describe('MODEL_SUPPORTED_OPTIONS for Claude 4.6', () => {
+    it('should have correct options for claude46', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.claude46).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('MODEL_SUPPORTED_REASONING_EFFORT for Opus 4.6', () => {
-    it('should have correct effort levels for opus46', () => {
-      expect(MODEL_SUPPORTED_REASONING_EFFORT.opus46).toEqual(['low', 'medium', 'high', 'xhigh'])
+  describe('MODEL_SUPPORTED_REASONING_EFFORT for Claude 4.6', () => {
+    it('should have correct effort levels for claude46', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.claude46).toEqual(['low', 'medium', 'high', 'xhigh'])
     })
   })
 
-  describe('getModelSupportedReasoningEffortOptions for Opus 4.6', () => {
+  describe('getModelSupportedReasoningEffortOptions for Claude 4.6', () => {
     it('should return correct options for Opus 4.6 models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-opus-4-6' }))).toEqual([
         'default',
@@ -2409,14 +2465,30 @@ describe('Claude Models', () => {
         'xhigh'
       ])
     })
+    it('should return correct options for Sonnet 4.6 models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'claude-sonnet-4-6' }))).toEqual([
+        'default',
+        'none',
+        'low',
+        'medium',
+        'high',
+        'xhigh'
+      ])
+    })
   })
 
-  describe('findTokenLimit for Opus 4.6', () => {
+  describe('findTokenLimit for Claude 4.6', () => {
     it('should return 128K max tokens for Opus 4.6 models', () => {
       expect(findTokenLimit('claude-opus-4-6')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4.6')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('anthropic.claude-opus-4-6-v1')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4-6@20251201')).toEqual({ min: 1024, max: 128_000 })
+    })
+
+    it('should return 64K max tokens for Sonnet 4.6 models', () => {
+      expect(findTokenLimit('claude-sonnet-4-6')).toEqual({ min: 1024, max: 64_000 })
+      expect(findTokenLimit('claude-sonnet-4.6')).toEqual({ min: 1024, max: 64_000 })
+      expect(findTokenLimit('anthropic.claude-sonnet-4-6')).toEqual({ min: 1024, max: 64_000 })
     })
 
     it('should distinguish Opus 4.6 from other Claude models', () => {

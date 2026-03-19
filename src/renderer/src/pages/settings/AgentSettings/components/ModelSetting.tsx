@@ -1,5 +1,5 @@
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
-import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
+import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
 import type { AgentBaseWithId, ApiModel, UpdateAgentFunctionUnion } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 

@@ -46,6 +46,6 @@ export const googleToolsPlugin = (config?: ToolConfig): AiPlugin<StreamTextParam
         }
       })
 
-      return { tools }
+      return { tools: { ...params.tools, ...tools } }
     }
   })

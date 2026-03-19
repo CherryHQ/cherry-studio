@@ -33,6 +33,7 @@ function isLanguageModelUsage(usage: unknown): usage is LanguageModelUsage {
 /**
  * 类型守卫：检查 usage 是否是 ImageModelUsage
  * ImageModelUsage 包含 inputTokens, outputTokens, totalTokens 字段
+ * but lacks inputTokenDetails/outputTokenDetails which are present in LanguageModelUsage
  */
 function isImageModelUsage(usage: unknown): usage is ImageModelUsage {
   return (
@@ -40,8 +41,8 @@ function isImageModelUsage(usage: unknown): usage is ImageModelUsage {
     usage !== null &&
     'inputTokens' in usage &&
     'outputTokens' in usage &&
-    // 确保不是 LanguageModelUsage（LanguageModelUsage 可能有 reasoningTokens 等额外字段）
-    !('reasoningTokens' in usage)
+    !('inputTokenDetails' in usage) &&
+    !('outputTokenDetails' in usage)
   )
 }
 
@@ -199,6 +200,34 @@ export class StreamEventManager {
       target.totalTokens = (target.totalTokens || 0) + (source.totalTokens || 0)
       target.inputTokens = (target.inputTokens || 0) + (source.inputTokens || 0)
       target.outputTokens = (target.outputTokens || 0) + (source.outputTokens || 0)
+
+      // Accumulate inputTokenDetails (cacheReadTokens, cacheWriteTokens, noCacheTokens)
+      if (source.inputTokenDetails) {
+        if (!target.inputTokenDetails) {
+          target.inputTokenDetails = {
+            noCacheTokens: undefined,
+            cacheReadTokens: undefined,
+            cacheWriteTokens: undefined
+          }
+        }
+        target.inputTokenDetails.cacheReadTokens =
+          (target.inputTokenDetails.cacheReadTokens || 0) + (source.inputTokenDetails.cacheReadTokens || 0)
+        target.inputTokenDetails.cacheWriteTokens =
+          (target.inputTokenDetails.cacheWriteTokens || 0) + (source.inputTokenDetails.cacheWriteTokens || 0)
+        target.inputTokenDetails.noCacheTokens =
+          (target.inputTokenDetails.noCacheTokens || 0) + (source.inputTokenDetails.noCacheTokens || 0)
+      }
+
+      // Accumulate outputTokenDetails (reasoningTokens, textTokens)
+      if (source.outputTokenDetails) {
+        if (!target.outputTokenDetails) {
+          target.outputTokenDetails = { textTokens: undefined, reasoningTokens: undefined }
+        }
+        target.outputTokenDetails.reasoningTokens =
+          (target.outputTokenDetails.reasoningTokens || 0) + (source.outputTokenDetails.reasoningTokens || 0)
+        target.outputTokenDetails.textTokens =
+          (target.outputTokenDetails.textTokens || 0) + (source.outputTokenDetails.textTokens || 0)
+      }
       return
     }
     if (isImageModelUsage(target) && isImageModelUsage(source)) {

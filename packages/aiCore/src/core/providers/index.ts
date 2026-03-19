@@ -7,7 +7,6 @@
 // Provider 核心功能
 export {
   coreExtensions,
-  getSupportedProviders,
   hasProviderConfig,
   ProviderInitializationError,
   registeredProviderIds
@@ -34,15 +33,6 @@ export type {
 
 // 工具函数和错误类
 export { formatPrivateKey, ProviderCreationError } from './core/utils'
-
-// ==================== 扩展功能 ====================
-
-// Hub Provider 功能
-export {
-  createHubProviderAsync,
-  type HubProviderConfig,
-  HubProviderError
-} from './features/HubProvider'
 
 // ==================== Provider Extension 系统 ====================
 

@@ -12,7 +12,7 @@ import type {
   LanHandshakeAckMessage,
   LocalTransferConnectPayload,
   LocalTransferState,
-  NodeCheckResult,
+  OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
@@ -71,8 +71,6 @@ type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 interface OpenClawHealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-  uptime?: number
-  version?: string
 }
 
 interface OpenClawChannelInfo {
@@ -146,6 +144,7 @@ const api = {
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
+  getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
   mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.APP_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
@@ -240,7 +239,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
-    saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
+    saveImage: (name: string, data: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
       ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
@@ -415,6 +415,8 @@ const api = {
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
+    resolveHubTool: (nameOrId: string): Promise<{ serverId: string; toolName: string } | null> =>
+      ipcRenderer.invoke(IpcChannel.Mcp_ResolveHubTool, nameOrId),
     getServerVersion: (server: MCPServer): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
     getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
@@ -671,28 +673,27 @@ const api = {
     cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LocalTransfer_CancelTransfer)
   },
   openclaw: {
-    checkInstalled: (): Promise<{ installed: boolean; path: string | null }> =>
+    checkInstalled: (): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_CheckInstalled),
-    checkNodeVersion: (): Promise<NodeCheckResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckNodeVersion),
-    checkGitAvailable: (): Promise<{ available: boolean; path: string | null }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_CheckGitAvailable),
-    getNodeDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetNodeDownloadUrl),
-    getGitDownloadUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetGitDownloadUrl),
-    install: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
-    uninstall: (): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
-    startGateway: (port?: number): Promise<{ success: boolean; message: string }> =>
+    install: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Install),
+    uninstall: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_Uninstall),
+    startGateway: (port?: number): Promise<OperationResult> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_StartGateway, port),
-    stopGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
-    restartGateway: (): Promise<{ success: boolean; message: string }> =>
-      ipcRenderer.invoke(IpcChannel.OpenClaw_RestartGateway),
+    stopGateway: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_StopGateway),
     getStatus: (): Promise<{ status: OpenClawGatewayStatus; port: number }> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_GetStatus),
     checkHealth: (): Promise<OpenClawHealthInfo> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckHealth),
     getDashboardUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetDashboardUrl),
-    syncConfig: (provider: Provider, primaryModel: Model): Promise<{ success: boolean; message: string }> =>
+    syncConfig: (provider: Provider, primaryModel: Model): Promise<OperationResult> =>
       ipcRenderer.invoke(IpcChannel.OpenClaw_SyncConfig, provider, primaryModel),
-    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels)
+    getChannels: (): Promise<OpenClawChannelInfo[]> => ipcRenderer.invoke(IpcChannel.OpenClaw_GetChannels),
+    checkUpdate: (): Promise<{
+      hasUpdate: boolean
+      currentVersion: string | null
+      latestVersion: string | null
+      message?: string
+    }> => ipcRenderer.invoke(IpcChannel.OpenClaw_CheckUpdate),
+    performUpdate: (): Promise<OperationResult> => ipcRenderer.invoke(IpcChannel.OpenClaw_PerformUpdate)
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)

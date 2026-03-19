@@ -67,13 +67,13 @@ function buildAppProviderIds(): ProviderIdsMap {
     const name = config.name
     ;(map as Record<string, KnownAppProviderId>)[name] = name
 
-    if ('aliases' in config && config.aliases) {
+    if (config.aliases) {
       config.aliases.forEach((alias) => {
         ;(map as Record<string, KnownAppProviderId>)[alias] = name
       })
     }
 
-    if ('variants' in config && config.variants) {
+    if (config.variants) {
       config.variants.forEach((variant) => {
         // 变体自反映射：'azure-responses' -> 'azure-responses'
         const variantId = `${name}-${variant.suffix}` as KnownAppProviderId

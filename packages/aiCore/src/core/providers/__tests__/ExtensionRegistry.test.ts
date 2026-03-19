@@ -9,13 +9,6 @@ import { ExtensionRegistry } from '../core/ExtensionRegistry'
 import { ProviderExtension } from '../core/ProviderExtension'
 import { ProviderCreationError } from '../core/utils'
 
-// Mock RegistryManagement
-vi.mock('../RegistryManagement', () => ({
-  globalRegistryManagement: {
-    registerProvider: vi.fn()
-  }
-}))
-
 describe('ExtensionRegistry', () => {
   let registry: ExtensionRegistry
 
@@ -54,7 +47,7 @@ describe('ExtensionRegistry', () => {
       expect(registry.get('open-router')).toBe(extension)
     })
 
-    it('should throw error if name already registered', () => {
+    it('should be idempotent when name already registered', () => {
       const ext1 = new ProviderExtension({
         name: 'test-provider',
         create: createMockProviderV3
@@ -66,8 +59,10 @@ describe('ExtensionRegistry', () => {
       })
 
       registry.register(ext1)
+      registry.register(ext2) // should not throw
 
-      expect(() => registry.register(ext2)).toThrow('already registered')
+      // original extension is preserved
+      expect(registry.get('test-provider')).toBe(ext1)
     })
 
     it('should throw error if alias already registered', () => {

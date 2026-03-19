@@ -275,6 +275,7 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
  */
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   const headers: ProviderConfig<'ollama'>['providerSettings']['headers'] = {
+    ...defaultAppHeaders(),
     ...ctx.actualProvider.extra_headers
   }
 
@@ -414,7 +415,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           method: 'POST',
           path: '/chat/completions',
           query: '',
-          body: init?.body ? JSON.parse(init.body as string) : undefined
+          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
         return fetch(input, {
           ...init,

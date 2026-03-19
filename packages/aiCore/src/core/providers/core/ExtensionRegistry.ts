@@ -52,8 +52,9 @@ export class ExtensionRegistry {
   register(extension: ProviderExtension<any, any, any>): this {
     const { name, aliases, variants } = extension.config
 
+    // Idempotent: skip if already registered (supports HMR / re-import)
     if (this.extensions.has(name)) {
-      throw new Error(`Provider extension "${name}" is already registered`)
+      return this
     }
 
     this.extensions.set(name, extension)
@@ -102,11 +103,18 @@ export class ExtensionRegistry {
       return false
     }
 
+    extension.clearCache()
     this.extensions.delete(name)
 
     if (extension.config.aliases) {
       for (const alias of extension.config.aliases) {
         this.aliasMap.delete(alias)
+      }
+    }
+
+    if (extension.config.variants) {
+      for (const variant of extension.config.variants) {
+        this.aliasMap.delete(`${name}-${variant.suffix}`)
       }
     }
 

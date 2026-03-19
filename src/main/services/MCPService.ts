@@ -37,6 +37,7 @@ import type { MCPServerLogEntry } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import { defaultAppHeaders } from '@shared/utils'
+import { safeSerialize } from '@shared/utils/serialize'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
@@ -52,7 +53,6 @@ import {
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
@@ -690,13 +690,15 @@ class McpService {
 
       // Set up logging message notification handler
       client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
-        logger.debug(`Message from server ${server.name}:`, notification.params)
-        const msg = notification.params?.message
-        if (msg) {
+        const data = notification.params?.data
+        const message = safeSerialize(notification.params.data) ?? 'No data'
+        logger.debug(`Message from server ${server.name}: ${message}`)
+        if (data) {
           this.emitServerLog(server, {
             timestamp: Date.now(),
+            // FIXME: as MCPServerLogEntry['level'] not type safe
             level: (notification.params?.level as MCPServerLogEntry['level']) || 'info',
-            message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+            message,
             data: redactSensitive(notification.params?.data),
             source: notification.params?.logger || 'server'
           })
@@ -845,8 +847,8 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
-          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
+          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,

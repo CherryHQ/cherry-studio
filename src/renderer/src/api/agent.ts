@@ -55,6 +55,8 @@ const processError = (error: unknown, fallbackMessage: string) => {
   return new Error(fallbackMessage, { cause: error })
 }
 
+export const DEFAULT_SESSION_PAGE_SIZE = 20
+
 export class AgentApiClient {
   private axios: Axios
   private apiVersion: ApiVersion = 'v1'
@@ -96,6 +98,15 @@ export class AgentApiClient {
       return `${base}?${params}`
     } else {
       return base
+    }
+  }
+
+  public async reorderAgents(orderedIds: string[]): Promise<void> {
+    const url = `${this.agentPaths.base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder agents.')
     }
   }
 
@@ -172,10 +183,19 @@ export class AgentApiClient {
     }
   }
 
-  public async listSessions(agentId: string): Promise<ListAgentSessionsResponse> {
+  public async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const url = `${this.getSessionPaths(agentId).base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder sessions.')
+    }
+  }
+
+  public async listSessions(agentId: string, options?: ListOptions): Promise<ListAgentSessionsResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
-      const response = await this.axios.get(url)
+      const response = await this.axios.get(url, { params: options })
       const result = ListAgentSessionsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Sessions array.')

@@ -149,9 +149,9 @@ export default class ModernAiProvider {
         ...middlewareConfig,
         topicId: middlewareConfig.topicId
       }
-      return await this._completionsForTrace(modelId, params, traceConfig, this.config)
+      return await this._completionsForTrace(modelId, params, traceConfig, this.config!)
     } else {
-      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, this.config)
+      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, this.config!)
     }
   }
 
@@ -253,13 +253,21 @@ export default class ModernAiProvider {
   /**
    * 使用现代化AI SDK的completions实现
    */
+  /**
+   * Note: This implementation always uses `executor.streamText` and never
+   * calls `generateText`, even when `onChunk` is not provided.
+   */
   private async modernCompletions(
     modelId: string,
     params: StreamTextParams,
     middlewareConfig: ModernAiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
-    const plugins = buildPlugins(middlewareConfig)
+    const plugins = buildPlugins({
+      provider: this.actualProvider,
+      model: this.model!,
+      config: middlewareConfig
+    })
 
     // 用构建好的插件数组创建executor
     const executor = await createExecutor<AppProviderSettingsMap>(
@@ -275,7 +283,10 @@ export default class ModernAiProvider {
         middlewareConfig.onChunk,
         middlewareConfig.mcpTools,
         accumulate,
-        middlewareConfig.enableWebSearch
+        middlewareConfig.enableWebSearch,
+        undefined,
+        undefined,
+        providerConfig.providerId
       )
 
       const streamResult = await executor.streamText({
@@ -290,20 +301,45 @@ export default class ModernAiProvider {
         getText: () => finalText
       }
     } else {
+      // Since no onChunk is provided, the external consumer would not handle error chunk.
+      // So we need to capture the actual stream error so we can throw it instead of the
+      // generic NoTextGeneratedError ("No output generated. Check the stream
+      // for errors.") that AI SDK raises when streamResult.text is accessed
+      // after a failed stream.
+      let streamError: unknown = undefined
+
       const streamResult = await executor.streamText({
         ...params,
-        model: modelId
+        model: modelId,
+        onError({ error }) {
+          streamError = error
+        }
       })
 
       // 强制消费流,不然await streamResult.text会阻塞
-      await streamResult?.consumeStream()
+      await streamResult?.consumeStream({
+        onError(error) {
+          if (!streamError) {
+            streamError = error
+          }
+        }
+      })
 
-      const finalText = await streamResult.text
-      const usage = await streamResult.totalUsage
+      try {
+        const finalText = await streamResult.text
+        const usage = await streamResult.totalUsage
 
-      return {
-        getText: () => finalText,
-        usage
+        return {
+          getText: () => finalText,
+          usage
+        }
+      } catch (error) {
+        // If we captured the real stream error, throw that instead of the
+        // generic NoTextGeneratedError so callers get actionable diagnostics.
+        if (streamError) {
+          throw streamError
+        }
+        throw error
       }
     }
   }

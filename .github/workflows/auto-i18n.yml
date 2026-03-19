@@ -15,6 +15,7 @@ on:
 
 jobs:
   auto-i18n:
+    if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     name: Auto I18N
     permissions:
@@ -30,7 +31,7 @@ jobs:
       - name: 📦 Setting Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: 📦 Install pnpm
         uses: pnpm/action-setup@v4

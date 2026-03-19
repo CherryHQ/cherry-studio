@@ -8,7 +8,11 @@ import { extensions } from './extensions'
 
 const logger = loggerService.withContext('ProviderFactory')
 
-extensionRegistry.registerAll([...extensions])
+for (const extension of extensions) {
+  if (!extensionRegistry.has(extension.config.name)) {
+    extensionRegistry.register(extension)
+  }
+}
 
 /**
  * 获取 AI SDK Provider ID

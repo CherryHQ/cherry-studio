@@ -1,15 +1,15 @@
 import type {
   AnthropicSearchConfig,
   OpenAISearchConfig,
-  WebSearchPluginConfig
+  WebSearchPluginConfig,
+  XAIWebSearchConfig,
+  XAIXSearchConfig
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
 import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
-
-const X_AI_MAX_SEARCH_RESULT = 30
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
@@ -21,6 +21,15 @@ export function getWebSearchParams(model: Model): Record<string, any> {
       enable_search: true,
       search_options: {
         forced_search: true
+      }
+    }
+  }
+
+  // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
+  if (model.provider === 'poe') {
+    return {
+      extra_body: {
+        web_search: true
       }
     }
   }
@@ -82,20 +91,18 @@ export function buildProviderBuiltinWebSearchConfig(
     }
     case 'xai': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const xaiWebConfig: XAIWebSearchConfig = {
+        enableImageUnderstanding: true
+      }
+      if (excludeDomains.length > 0) {
+        xaiWebConfig.excludedDomains = excludeDomains.slice(0, 5)
+      }
+      const xaiXSearchConfig: XAIXSearchConfig = {
+        enableImageUnderstanding: true
+      }
       return {
-        xai: {
-          maxSearchResults: Math.min(webSearchConfig.maxResults, X_AI_MAX_SEARCH_RESULT),
-          returnCitations: true,
-          sources: [
-            {
-              type: 'web',
-              excludedWebsites: excludeDomains.slice(0, Math.min(excludeDomains.length, 5))
-            },
-            { type: 'news' },
-            { type: 'x' }
-          ],
-          mode: 'on'
-        }
+        xai: xaiWebConfig,
+        'xai-xsearch': xaiXSearchConfig
       }
     }
     case 'openrouter': {

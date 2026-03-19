@@ -50,8 +50,8 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
       if (thinkingBlockId) {
         const blockChanges: Partial<MessageBlock> = {
           content: text,
-          status: MessageBlockStatus.STREAMING
-          // thinking_millsec: performance.now() - thinking_millsec_now
+          status: MessageBlockStatus.STREAMING,
+          thinking_millsec: performance.now() - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MessageBlockType.THINKING)
       }

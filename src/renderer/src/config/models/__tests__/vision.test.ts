@@ -287,6 +287,35 @@ describe('isVisionModel', () => {
       ).toBe(true)
     })
 
+    it('should return true for gemini 3.1 models', () => {
+      // Preview versions
+      expect(
+        isVisionModel({
+          id: 'gemini-3.1-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Stable versions
+      expect(
+        isVisionModel({
+          id: 'gemini-3.1-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-3.1-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
     it('should return true for gemini exp models', () => {
       expect(
         isVisionModel({

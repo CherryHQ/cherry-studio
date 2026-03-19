@@ -23,7 +23,7 @@ import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/a
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider, wrapProvider } from 'ai'
+import { customProvider } from 'ai'
 
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -144,6 +144,7 @@ const OpenAIExtension = ProviderExtension.create({
   /**
    * Provider 变体 - openai-chat
    * 使用 provider.chat() 而不是默认的 languageModel()
+   * 注：openai 默认的 languageModel() 已经是 Responses API，所以 openai-response 只需作为别名
    */
   variants: [
     {
@@ -166,10 +167,7 @@ const OpenRouterExtension = ProviderExtension.create({
   aliases: ['tokenflux'] as const,
   // OpenRouter 没有原生图像生成 API，图像模型通过 chat completions 处理
   supportsImageGeneration: false,
-  create: (options?: OpenRouterProviderSettings) => {
-    const provider = createOpenRouter(options)
-    return wrapProvider({ provider, languageModelMiddleware: [] })
-  }
+  create: createOpenRouter
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 
 const XaiExtension = ProviderExtension.create({
@@ -212,13 +210,13 @@ export const registeredProviderIds: ProviderIdsMap = (() => {
     const name = config.name
     ;(map as Record<string, CoreProviderId>)[name] = name
 
-    if ('aliases' in config && config.aliases) {
+    if (config.aliases) {
       config.aliases.forEach((alias) => {
         ;(map as Record<string, CoreProviderId>)[alias] = name
       })
     }
 
-    if ('variants' in config && config.variants) {
+    if (config.variants) {
       config.variants.forEach((variant) => {
         ;(map as Record<string, CoreProviderId>)[`${name}-${variant.suffix}`] = name
       })
@@ -237,14 +235,8 @@ export const registeredProviderIds: ProviderIdsMap = (() => {
  * 注意：只注册通用的 provider extensions（OpenAI, Anthropic, Google 等）
  * 项目特定的 extensions 应该在应用层单独注册
  */
-;(() => {
-  try {
-    extensionRegistry.registerAll(coreExtensions)
-    console.log(`[ProviderRegistry] Registered ${coreExtensions.length} core provider extensions`)
-  } catch (error) {
-    console.error('[ProviderRegistry] Failed to register core extensions:', error)
-  }
-})()
+// register() is idempotent — safe to call on HMR / re-import
+extensionRegistry.registerAll(coreExtensions)
 
 /**
  * Provider 初始化错误类型
@@ -258,22 +250,6 @@ class ProviderInitializationError extends Error {
     super(message)
     this.name = 'ProviderInitializationError'
   }
-}
-
-// ==================== 工具函数 ====================
-
-/**
- * 获取支持的 Providers 列表
- * 从 Extension Registry 获取所有已注册的 provider IDs
- */
-export function getSupportedProviders(): Array<{
-  id: string
-  name: string
-}> {
-  return extensionRegistry.getAllProviderIds().map((id) => ({
-    id,
-    name: id
-  }))
 }
 
 /**

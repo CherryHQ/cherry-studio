@@ -8,18 +8,22 @@ import { ImageGenerationError, ImageModelResolutionError } from '../errors'
 import { RuntimeExecutor } from '../executor'
 
 // Mock dependencies
-vi.mock('ai', () => ({
-  experimental_generateImage: vi.fn(),
-  generateImage: vi.fn(),
-  jsonSchema: vi.fn((schema) => schema),
-  NoImageGeneratedError: class NoImageGeneratedError extends Error {
-    static isInstance = vi.fn()
-    constructor() {
-      super('No image generated')
-      this.name = 'NoImageGeneratedError'
+vi.mock('ai', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    experimental_generateImage: vi.fn(),
+    generateImage: vi.fn(),
+    jsonSchema: vi.fn((schema) => schema),
+    NoImageGeneratedError: class NoImageGeneratedError extends Error {
+      static isInstance = vi.fn()
+      constructor() {
+        super('No image generated')
+        this.name = 'NoImageGeneratedError'
+      }
     }
   }
-}))
+})
 
 describe('RuntimeExecutor.generateImage', () => {
   let executor: RuntimeExecutor

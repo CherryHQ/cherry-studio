@@ -7,9 +7,9 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
+import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
-  checkGitAvailable,
   getBinaryPath,
   getGitBashPathInfo,
   isBinaryExists,
@@ -305,6 +305,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       logger.error('Failed to get system fonts:', error as Error)
       return []
     }
+  })
+
+  // Get IP Country
+  ipcMain.handle(IpcChannel.App_GetIpCountry, async () => {
+    return getIpCountry()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -816,6 +821,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
   ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
   ipcMain.handle(IpcChannel.Mcp_AbortTool, mcpService.abortTool)
+  ipcMain.handle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
+    const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
+    return resolveHubToolName(nameOrId)
+  })
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
 
@@ -1150,20 +1159,17 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // OpenClaw
   ipcMain.handle(IpcChannel.OpenClaw_CheckInstalled, openClawService.checkInstalled)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckNodeVersion, openClawService.checkNodeVersion)
-  ipcMain.handle(IpcChannel.OpenClaw_CheckGitAvailable, checkGitAvailable)
-  ipcMain.handle(IpcChannel.OpenClaw_GetNodeDownloadUrl, openClawService.getNodeDownloadUrl)
-  ipcMain.handle(IpcChannel.OpenClaw_GetGitDownloadUrl, openClawService.getGitDownloadUrl)
   ipcMain.handle(IpcChannel.OpenClaw_Install, openClawService.install)
   ipcMain.handle(IpcChannel.OpenClaw_Uninstall, openClawService.uninstall)
   ipcMain.handle(IpcChannel.OpenClaw_StartGateway, openClawService.startGateway)
   ipcMain.handle(IpcChannel.OpenClaw_StopGateway, openClawService.stopGateway)
-  ipcMain.handle(IpcChannel.OpenClaw_RestartGateway, openClawService.restartGateway)
   ipcMain.handle(IpcChannel.OpenClaw_GetStatus, openClawService.getStatus)
   ipcMain.handle(IpcChannel.OpenClaw_CheckHealth, openClawService.checkHealth)
   ipcMain.handle(IpcChannel.OpenClaw_GetDashboardUrl, openClawService.getDashboardUrl)
   ipcMain.handle(IpcChannel.OpenClaw_SyncConfig, openClawService.syncProviderConfig)
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
+  ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
+  ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
 
   // Analytics
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>

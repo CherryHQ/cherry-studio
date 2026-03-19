@@ -3,17 +3,15 @@ import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
-import { hasProviderConfig } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
   isAnthropicModel,
   isGeminiModel,
   isGrokModel,
-  isInterleavedThinkingModel,
   isOpenAIModel,
-  isOpenAIOpenWeightModel,
   isQwenMTModel,
+  isReasoningModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
@@ -41,16 +39,19 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
-import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
+import { merge } from 'lodash'
+import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
+import type { ProviderCapabilities } from '../types'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
   getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
+  getOllamaReasoningParams,
   getOpenAIReasoningParams,
   getReasoningEffort,
   getXAIReasoningParams
@@ -154,11 +155,7 @@ export function buildProviderOptions(
   assistant: Assistant,
   model: Model,
   actualProvider: Provider,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
@@ -243,6 +240,16 @@ export function buildProviderOptions(
   const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
 
+  // For openai-compatible providers, auto-convert reasoning_effort (snake_case) to reasoningEffort (camelCase).
+  // The AI SDK's openai-compatible provider overwrites reasoning_effort to undefined,
+  // but accepts reasoningEffort. See: https://github.com/CherryHQ/cherry-studio/issues/11987
+  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
+    if (!('reasoningEffort' in providerParams)) {
+      providerParams.reasoningEffort = providerParams.reasoning_effort
+    }
+    delete providerParams.reasoning_effort
+  }
+
   /**
    * Merge custom parameters into providerSpecificOptions.
    * Simple logic:
@@ -316,11 +323,7 @@ export function buildProviderOptions(
 function buildOpenAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<string, OpenAIResponsesProviderOptions> {
@@ -331,7 +334,12 @@ function buildOpenAIProviderOptions(
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
-      ...reasoningParams
+      ...reasoningParams,
+      // TODO: Remove this workaround after migrating to @ai-sdk/open-responses (#13462)
+      // Bypass @ai-sdk/openai's model ID allowlist for reasoning detection.
+      // Third-party providers often use non-canonical model IDs (e.g., "openai/gpt-5.2")
+      // that fail the SDK's startsWith() checks, causing reasoning params to be silently dropped.
+      ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
   const provider = getProviderById(model.provider)
@@ -375,11 +383,7 @@ function buildOpenAIProviderOptions(
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
@@ -406,11 +410,7 @@ function buildAnthropicProviderOptions(
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {}
@@ -441,11 +441,7 @@ function buildGeminiProviderOptions(
 function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, XaiProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
@@ -468,11 +464,7 @@ function buildXAIProviderOptions(
 function buildCherryInProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   actualProvider: Provider,
   serviceTier: OpenAIServiceTier,
   textVerbosity: OpenAIVerbosity
@@ -498,11 +490,7 @@ function buildCherryInProviderOptions(
 function buildBedrockProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, BedrockProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: BedrockProviderOptions = {}
@@ -528,28 +516,19 @@ function buildBedrockProviderOptions(
 function buildOllamaProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
-): Record<string, OllamaCompletionProviderOptions> {
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+): Record<string, OllamaProviderOptions> {
   const { enableReasoning } = capabilities
-  const providerOptions: OllamaCompletionProviderOptions = {}
-  const reasoningEffort = assistant.settings?.reasoning_effort
+  let options = {}
+
   if (enableReasoning) {
-    if (isOpenAIOpenWeightModel(model)) {
-      // For gpt-oss models, Ollama accepts: 'low' | 'medium' | 'high'
-      if (reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high') {
-        providerOptions.think = reasoningEffort
-      }
-    } else {
-      providerOptions.think = !['none', undefined].includes(reasoningEffort)
+    options = {
+      ...options,
+      ...getOllamaReasoningParams(assistant, model)
     }
   }
-  return {
-    ollama: providerOptions
-  }
+
+  return { ollama: options }
 }
 
 /**
@@ -559,13 +538,9 @@ function buildGenericProviderOptions(
   providerId: string,
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  }
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, any> {
-  const { enableWebSearch, enableReasoning } = capabilities
+  const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
 
   const reasoningParams = getReasoningEffort(assistant, model)
@@ -573,26 +548,10 @@ function buildGenericProviderOptions(
     ...providerOptions,
     ...reasoningParams
   }
-  if (enableReasoning) {
-    if (isInterleavedThinkingModel(model)) {
-      // sendReasoning is a patch specific to @ai-sdk/openai-compatible
-      // Only apply when provider will actually use openai-compatible SDK
-      // (i.e., no dedicated SDK registered OR explicitly openai-compatible)
-      if (!hasProviderConfig(providerId) || providerId === 'openai-compatible') {
-        providerOptions = {
-          ...providerOptions,
-          sendReasoning: true
-        }
-      }
-    }
-  }
 
   if (enableWebSearch) {
     const webSearchParams = getWebSearchParams(model)
-    providerOptions = {
-      ...providerOptions,
-      ...webSearchParams
-    }
+    providerOptions = merge({}, providerOptions, webSearchParams)
   }
 
   // 特殊处理 Qwen MT
@@ -612,10 +571,6 @@ function buildGenericProviderOptions(
     }
   }
 
-  if (isOpenAIModel(model)) {
-    providerOptions.strictJsonSchema = false
-  }
-
   return {
     [providerId]: providerOptions
   }
@@ -624,11 +579,7 @@ function buildGenericProviderOptions(
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: {
-    enableReasoning: boolean
-    enableWebSearch: boolean
-    enableGenerateImage: boolean
-  },
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
 ): Record<

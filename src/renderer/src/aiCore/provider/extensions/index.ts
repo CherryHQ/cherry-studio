@@ -58,7 +58,6 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
  */
 export const AzureAnthropicExtension = ProviderExtension.create({
   name: 'azure-anthropic',
-  aliases: ['azure-anthropic'] as const,
   supportsImageGeneration: false,
   create: createAnthropic
 } as const satisfies ProviderExtensionConfig<
@@ -110,7 +109,6 @@ export const PerplexityExtension = ProviderExtension.create({
  */
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
-  aliases: ['mistral'] as const,
   supportsImageGeneration: false,
   create: createMistral
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ExtensionStorage, ProviderV3, 'mistral'>)
@@ -150,10 +148,7 @@ export const CerebrasExtension = ProviderExtension.create({
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: false,
-  create: (options?: OllamaProviderSettings) => {
-    const provider = createOllama(options) as ProviderV2
-    return wrapProvider({ provider, languageModelMiddleware: [] })
-  }
+  create: (options?: OllamaProviderSettings) => createOllama(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ExtensionStorage, ProviderV3, 'ollama'>)
 
 /**

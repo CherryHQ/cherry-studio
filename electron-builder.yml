@@ -140,28 +140,44 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.7.19 - Bug Fixes & Improvements
+    Cherry Studio 1.8.0 - Agents & Performance
+
+    ✨ New Features
+    - [Agents] Added drag-and-drop manual sorting for agent and session lists
+    - [Models] Added MiniMax M2.5 highspeed model support
+    - [OpenClaw] Switch to binary installation to optimize the installation experience
 
     🐛 Bug Fixes
-    - [Settings] Fixed provider name input removing spaces during typing
-    - [Data] Fixed factory reset not clearing agents, memories, knowledge base and notes data
-    - [Data] Fixed backup restore failure on Windows (EBUSY error)
-    - [MCP] Fixed MCP tools returning images exceeding API message size limits
+    - [Agents] Fixed deleting last accessible directory bug - delete button now disabled when only one remains
+    - [UI] Fixed web search providers not showing for local models (e.g., Ollama) in chat toolbar
+    - [Models] Fixed reasoning effort and summary mode not applying for some OpenAI-compatible providers
+    - [OpenClaw] Fixed OpenClaw gateway status detection for crashed/externally-stopped OpenClaw gateways
+    - [Gateway] Improved gateway startup error messages with detailed diagnostics
+    - [Poe] Fixed web_search parameter not being passed correctly when built-in search is enabled
 
     💄 Improvements
-    - [Agent] Improved settings popup UI with better permission mode selection
-    - [Models] Updated MiniMax models to the latest M2.x series
+    - [Agents] Added configurable maximum tool calls setting (1-100) in assistant settings
+    - [UI] Added Windows Mica effect for better visual integration
+    - [Performance] Increased default request timeout from 10 to 30 minutes for slow local models
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.19 - 问题修复与改进
+    Cherry Studio 1.8.0 - 智能体与性能
+
+    ✨ 新功能
+    - [智能体] 新增智能体和会话列表的拖拽排序功能
+    - [模型] 新增 MiniMax M2.5 高速模型支持
+    - [OpenClaw] 改为二进制安装优化安装体验
 
     🐛 问题修复
-    - [设置] 修复服务商名称输入时空格被立即移除的问题
-    - [数据] 修复重置数据时未清除智能体、记忆、知识库和笔记数据的问题
-    - [数据] 修复 Windows 上恢复备份失败的问题（EBUSY 错误）
-    - [MCP] 修复 MCP 工具返回图片时超出 API 消息大小限制的问题
+    - [智能体] 修复删除最后一个可访问目录的漏洞 - 只剩一个目录时禁用删除按钮
+    - [UI] 修复本地模型（如 Ollama）聊天工具栏中不显示网络搜索选项的问题
+    - [模型] 修复部分 OpenAI 兼容服务商的推理努力和摘要模式设置不生效的问题
+    - [OpenClaw] 修复OpenClaw网关状态检测无法识别崩溃/外部停止的OpenClaw网关的问题
+    - [网关] 改进网关启动错误消息，提供详细诊断信息
+    - [Poe] 修复启用内置搜索时 web_search 参数未正确传递的问题
 
     💄 改进
-    - [智能体] 优化设置弹窗界面，改进权限模式选择体验
-    - [模型] 更新 MiniMax 模型至最新的 M2.x 系列
+    - [智能体] 新增助手设置中的最大工具调用次数配置（1-100）
+    - [UI] 新增 Windows Mica 效果以提升视觉体验
+    - [性能] 将默认请求超时从 10 分钟增加到 30 分钟，优化慢速本地模型体验
     <!--LANG:END-->

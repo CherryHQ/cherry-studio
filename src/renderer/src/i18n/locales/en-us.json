@@ -7,7 +7,9 @@
         "invalid_agent": "Invalid Agent"
       },
       "model": {
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+        "supported_providers": "Supported Providers",
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "view_providers": "View supported providers"
       },
       "title": "Add Agent",
       "type": {
@@ -35,6 +37,10 @@
     },
     "edit": {
       "title": "Edit Agent"
+    },
+    "empty": {
+      "description": "Create an agent to handle complex tasks with AI-powered tools",
+      "title": "No agents yet"
     },
     "get": {
       "error": {
@@ -77,6 +83,11 @@
         "failed": "Failed to list agents."
       }
     },
+    "reorder": {
+      "error": {
+        "failed": "Failed to reorder agents"
+      }
+    },
     "server": {
       "error": {
         "not_running": "The API server is enabled but not running properly."
@@ -85,6 +96,7 @@
     "session": {
       "accessible_paths": {
         "add": "Add directory",
+        "default_hint": "A default workspace will be created automatically if not specified.",
         "duplicate": "This directory is already included.",
         "empty": "Select at least one directory that the agent can access.",
         "error": {
@@ -126,6 +138,11 @@
       },
       "label_one": "Session",
       "label_other": "Sessions",
+      "reorder": {
+        "error": {
+          "failed": "Failed to reorder sessions"
+        }
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -134,6 +151,11 @@
     },
     "settings": {
       "advance": {
+        "envVars": {
+          "description": "Set custom environment variables for the agent runtime.",
+          "helper": "Enter custom environment variables (one per line, format: KEY=value)",
+          "label": "Environment Variables"
+        },
         "maxTurns": {
           "description": "Define how many request/response cycles the agent may complete automatically.",
           "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
@@ -283,10 +305,11 @@
         },
         "tab": "Tools",
         "tools": {
-          "title": "Tools"
+          "title": "Pre-approved Tools"
         }
       }
     },
+    "sidebar_title": "Agents",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tasks completed"
@@ -320,7 +343,7 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Pending ({{seconds}}s)",
+      "pending": "Waiting for approval",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -387,7 +410,11 @@
       }
     },
     "warning": {
-      "enable_server": "Enable API Server to use agents."
+      "enable_and_start": "Enable & Start",
+      "enable_server": "Enable API Server to use agents.",
+      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
   "apiServer": {
@@ -613,6 +640,10 @@
           "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
         }
       },
+      "max_tool_calls": {
+        "label": "Max Tool Calls",
+        "tip": "Maximum number of tool calls allowed in a single conversation. Higher values allow more complex multi-step operations but may increase token usage and response time."
+      },
       "mcp": {
         "description": "Default enabled MCP servers",
         "enableFirst": "Enable this server in MCP settings first",
@@ -741,6 +772,7 @@
       }
     },
     "alerts": {
+      "create_agent": "Create an agent to get started",
       "create_session": "Create a session",
       "select_agent": "Select an agent"
     },
@@ -856,7 +888,11 @@
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
-        "expand": "Expand"
+        "expand": "Expand",
+        "file_not_found": "File not found: {{path}}",
+        "open_file": "Open File",
+        "open_file_error": "Failed to open file: {{path}}",
+        "reveal_in_finder": "Reveal in Finder"
       },
       "topics": " Topics ",
       "translate": "Translate to {{target_language}}",
@@ -1100,6 +1136,7 @@
       },
       "export": {
         "image": "Export as image",
+        "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
           "label": "Export as markdown",
@@ -1349,6 +1386,7 @@
     "off": "Off",
     "on": "On",
     "open": "Open",
+    "open_in": "Open in {{name}}",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -1376,6 +1414,7 @@
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
+    "sessions": "Sessions",
     "settings": "Settings",
     "sort": {
       "pinyin": {
@@ -1485,7 +1524,6 @@
     "originalError": "Original Error",
     "originalMessage": "Original Message",
     "parameter": "Parameter",
-    "pause_placeholder": "Paused",
     "prompt": "Prompt",
     "provider": "Provider",
     "providerId": "Provider ID",
@@ -1499,6 +1537,7 @@
     "requestBody": "Request Body",
     "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "request_timeout": "Request timed out",
     "response": "Response",
     "responseBody": "Response Body",
     "responseHeaders": "Response Header",
@@ -1508,6 +1547,7 @@
     "status": "Status Code",
     "statusCode": "Status Code",
     "statusText": "Status Text",
+    "stream_paused": "Paused",
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
@@ -2145,6 +2185,7 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",
@@ -2280,8 +2321,11 @@
     "chatglm": "ChatGLM",
     "dangbei": "Dangbei",
     "doubao": "Doubao",
-    "hailuo": "MINIMAX",
+    "hailuo": "Hailuo",
+    "ima": "ima",
     "metaso": "Metaso",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "Minimax Agent",
     "nami-ai": "Nami AI",
     "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
@@ -2519,6 +2563,9 @@
   "notification": {
     "assistant": "Assistant Response",
     "knowledge": {
+      "batch_error": "{{failed}} items failed to process",
+      "batch_mixed": "{{succeeded}} items succeeded, {{failed}} items failed",
+      "batch_success": "{{succeeded}} items processed successfully",
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
@@ -2578,6 +2625,11 @@
     },
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
+    "migration": {
+      "description": "An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "install_button": "Reinstall OpenClaw",
+      "title": "OpenClaw Needs Update"
+    },
     "model_config": {
       "auth_token": "Auth Token",
       "auth_token_hint": "Token for gateway authentication (required). Will be auto-generated if empty.",
@@ -2613,6 +2665,7 @@
       "windows_title": "Windows"
     },
     "quick_actions": {
+      "check_update": "Check for Updates",
       "open_dashboard": "Open Dashboard",
       "title": "Quick Actions",
       "uninstall": "Uninstall",
@@ -2639,6 +2692,16 @@
     "uninstalling": {
       "description": "Please wait while OpenClaw is being uninstalled...",
       "title": "Uninstalling OpenClaw"
+    },
+    "update": {
+      "available": "New version available: v{{latest}} (current: v{{current}})",
+      "checking": "Checking for updates...",
+      "confirm_button": "Update Now",
+      "failed": "Failed to check for updates",
+      "modal_title": "OpenClaw Update",
+      "success": "Update completed successfully!",
+      "up_to_date": "Already up to date (v{{current}})",
+      "updating": "Updating..."
     }
   },
   "ovms": {
@@ -2956,7 +3019,9 @@
     "no_description": "No description available",
     "no_installed_plugins": "No plugins installed yet",
     "no_results": "No plugins found",
+    "no_results_skills": "No skills found",
     "search_placeholder": "Search plugins...",
+    "search_placeholder_skills": "Search skills...",
     "showing_results": "Showing {{count}} plugin",
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",
@@ -3037,7 +3102,8 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
-    "minimax": "MiniMax",
+    "minimax": "MiniMax CN",
+    "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
     "moonshot": "Moonshot",
@@ -3065,6 +3131,7 @@
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
+    "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
@@ -4651,6 +4718,13 @@
       "open_link_external": {
         "title": "Open new-window links in browser"
       },
+      "region": {
+        "auto": "Auto detect",
+        "cn": "China",
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
+      },
       "reset_tooltip": "Reset to default",
       "sidebar_description": "Show active mini apps in the sidebar",
       "sidebar_title": "Sidebar Active Mini Apps Display",
@@ -4842,6 +4916,7 @@
         "logout_failed": "Logout failed, please try again",
         "logout_success": "Successfully logged out of Anthropic",
         "oauth": "Web OAuth",
+        "oauth_disabled_warning": "Anthropic has temporarily suspended the use of Claude via OAuth. This authentication method is currently unavailable. Please use an API key for now.",
         "start_auth": "Start authorization",
         "submit_code": "Complete login"
       },
@@ -5002,6 +5077,11 @@
       },
       "docs_check": "Check",
       "docs_more_details": "for more details",
+      "filter": {
+        "agent": "Agent Supported",
+        "all": "All Providers"
+      },
+      "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
@@ -5129,6 +5209,7 @@
       "reset_to_default": "Reset to Default",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
+      "select_model": "Select Model",
       "selection_assistant_select_text": "Selection Assistant: Select Text",
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
@@ -5520,6 +5601,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "stop": "Stop Translation",
     "success": {
       "custom": {
         "delete": "Deleted successfully",

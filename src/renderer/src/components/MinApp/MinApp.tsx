@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -34,9 +35,14 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
+  // Pinned apps should always be visible regardless of region/locale filtering
+  const shouldShow = isVisible || isPinned
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
+
+  // Calculate display name
+  const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
     if (isTopNavbar) {
@@ -107,7 +113,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       : [])
   ]
 
-  if (!isVisible) {
+  if (!shouldShow) {
     return null
   }
 
@@ -122,7 +128,9 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name}</AppTitle>
+        <AppTitle>
+          <MarqueeText>{displayName}</MarqueeText>
+        </AppTitle>
       </Container>
     </Dropdown>
   )
@@ -160,7 +168,8 @@ const AppTitle = styled.div`
   color: var(--color-text-soft);
   text-align: center;
   user-select: none;
-  white-space: nowrap;
+  width: 100%;
+  max-width: 80px;
 `
 
 export default MinApp

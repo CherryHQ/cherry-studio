@@ -20,12 +20,11 @@ on:
   push:
     tags:
       - v*.*.*
-  pull_request:
+  pull_request_target:
     branches:
       - main
     types:
-      - opened
-      - synchronize
+      - closed
 
 permissions:
   contents: write
@@ -36,14 +35,14 @@ jobs:
     if: |
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/v'))
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: ${{ fromJSON(
           github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event_name == 'pull_request' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
           github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
@@ -57,6 +56,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
 
       - name: Get release tag
         id: get-tag
@@ -64,9 +64,9 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
             # Extract version from branch name (release/v1.0.0 -> v1.0.0)
-            BRANCH="${{ github.head_ref }}"
+            BRANCH="${{ github.event.pull_request.head.ref }}"
             echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
           else
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
@@ -82,7 +82,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: '.node-version'
 
       - name: macos-latest dependencies fix
         if: matrix.os == 'macos-latest'
@@ -128,6 +128,7 @@ jobs:
           sudo -H pip install setuptools
           pnpm build:mac
         env:
+          CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}

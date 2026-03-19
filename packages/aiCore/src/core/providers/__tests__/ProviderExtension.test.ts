@@ -867,10 +867,8 @@ describe('ProviderExtension', () => {
       )
     })
 
-    it('should handle concurrent requests with same settings', async () => {
-      let createCount = 0
+    it('should deduplicate concurrent requests with same settings', async () => {
       const createFn = vi.fn(async () => {
-        createCount++
         // Simulate async delay
         await new Promise((resolve) => setTimeout(resolve, 10))
         return createMockProviderV3()
@@ -884,21 +882,47 @@ describe('ProviderExtension', () => {
       const settings = { apiKey: 'test-key' }
 
       // Fire multiple concurrent requests
+      const [instance1, instance2, instance3] = await Promise.all([
+        extension.createProvider(settings),
+        extension.createProvider(settings),
+        extension.createProvider(settings)
+      ])
+
+      // All concurrent requests should return the same instance
+      expect(instance1).toBe(instance2)
+      expect(instance2).toBe(instance3)
+      // Creator should only be called once
+      expect(createFn).toHaveBeenCalledTimes(1)
+
+      // Verify subsequent sequential calls also use cache
+      const instance4 = await extension.createProvider(settings)
+      expect(instance4).toBe(instance1)
+      expect(createFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should run lifecycle hooks exactly once for concurrent requests', async () => {
+      const onBeforeCreate = vi.fn()
+      const onAfterCreate = vi.fn()
+
+      const extension = new ProviderExtension<TestSettings>({
+        name: 'test-provider',
+        create: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          return createMockProviderV3()
+        },
+        hooks: { onBeforeCreate, onAfterCreate }
+      })
+
+      const settings = { apiKey: 'test-key' }
+
       await Promise.all([
         extension.createProvider(settings),
         extension.createProvider(settings),
         extension.createProvider(settings)
       ])
 
-      // Note: Due to current implementation, concurrent requests might create multiple instances
-      // This is acceptable for Phase 1, but we should verify caching works for sequential calls
-      expect(createFn).toHaveBeenCalled()
-
-      // Verify subsequent sequential calls use cache
-      const instance4 = await extension.createProvider(settings)
-      const previousCreateCount = createCount
-      expect(instance4).toBeDefined()
-      expect(createCount).toBe(previousCreateCount) // Should not create again
+      expect(onBeforeCreate).toHaveBeenCalledTimes(1)
+      expect(onAfterCreate).toHaveBeenCalledTimes(1)
     })
 
     it('should handle arrays in settings', async () => {
@@ -933,6 +957,140 @@ describe('ProviderExtension', () => {
 
       expect(instance1).not.toBe(instance2)
       expect(createFn).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('Cache Key Correctness (no hash collisions)', () => {
+    it('should differentiate settings with different API keys', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      const instance1 = await extension.createProvider({ apiKey: 'sk-key-A', baseURL: 'https://api.example.com' })
+      const instance2 = await extension.createProvider({ apiKey: 'sk-key-B', baseURL: 'https://api.example.com' })
+
+      expect(instance1).not.toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(2)
+    })
+
+    it('should differentiate settings with different base URLs', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      const instance1 = await extension.createProvider({ apiKey: 'same-key', baseURL: 'https://api-a.example.com' })
+      const instance2 = await extension.createProvider({ apiKey: 'same-key', baseURL: 'https://api-b.example.com' })
+
+      expect(instance1).not.toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(2)
+    })
+
+    it('should treat structurally identical settings as the same regardless of construction', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      // Construct settings in completely different ways
+      const base = { apiKey: 'key', baseURL: 'url' }
+      const settings1 = { ...base, headers: { Authorization: 'Bearer tok' } }
+      const settings2 = JSON.parse(JSON.stringify(settings1))
+
+      const instance1 = await extension.createProvider(settings1)
+      const instance2 = await extension.createProvider(settings2)
+
+      expect(instance1).toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should differentiate same-base-provider with different variant suffixes', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'azure',
+        create: createFn as any,
+        variants: [
+          { suffix: 'chat', name: 'Chat', transform: (p: any) => p },
+          { suffix: 'responses', name: 'Responses', transform: (p: any) => p }
+        ]
+      })
+
+      const settings = { apiKey: 'key' }
+
+      const chatInstance = await extension.createProvider(settings, 'chat')
+      const responsesInstance = await extension.createProvider(settings, 'responses')
+      const baseInstance = await extension.createProvider(settings)
+
+      // All three should be different cached instances
+      expect(chatInstance).not.toBe(responsesInstance)
+      expect(chatInstance).not.toBe(baseInstance)
+      expect(responsesInstance).not.toBe(baseInstance)
+      expect(createFn).toHaveBeenCalledTimes(3)
+    })
+
+    it('should handle settings with functions by treating them uniformly', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      const fetchFn = () => Promise.resolve(new Response())
+      const settings1 = { apiKey: 'key', fetch: fetchFn }
+      const settings2 = { apiKey: 'key', fetch: fetchFn }
+
+      const instance1 = await extension.createProvider(settings1)
+      const instance2 = await extension.createProvider(settings2)
+
+      // Same function reference → same serialization → same cache hit
+      expect(instance1).toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(1)
+    })
+
+    it('should distinguish settings with null vs missing keys', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      // null/undefined serialize identically via stableStringify, so same cache key
+      const instance1 = await extension.createProvider({ apiKey: 'key', extra: null })
+      const instance2 = await extension.createProvider({ apiKey: 'key', extra: null })
+
+      expect(instance1).toBe(instance2)
+      expect(createFn).toHaveBeenCalledTimes(1)
+
+      // But a truly different value should create a new instance
+      const instance3 = await extension.createProvider({ apiKey: 'key', extra: 'value' })
+      expect(instance3).not.toBe(instance1)
+      expect(createFn).toHaveBeenCalledTimes(2)
+    })
+
+    it('should not collide on similarly-structured but different settings', async () => {
+      const createFn = vi.fn(createMockProviderV3)
+      const extension = new ProviderExtension<any>({
+        name: 'test-provider',
+        create: createFn as any
+      })
+
+      // These have similar structure but different values - old DJB2 hash could collide
+      const settingsA = { apiKey: 'aaaa1111', baseURL: 'https://host-a.com', timeout: 3000 }
+      const settingsB = { apiKey: 'bbbb2222', baseURL: 'https://host-b.com', timeout: 3000 }
+      const settingsC = { apiKey: 'cccc3333', baseURL: 'https://host-c.com', timeout: 3000 }
+
+      const instanceA = await extension.createProvider(settingsA)
+      const instanceB = await extension.createProvider(settingsB)
+      const instanceC = await extension.createProvider(settingsC)
+
+      expect(instanceA).not.toBe(instanceB)
+      expect(instanceB).not.toBe(instanceC)
+      expect(instanceA).not.toBe(instanceC)
+      expect(createFn).toHaveBeenCalledTimes(3)
     })
   })
 

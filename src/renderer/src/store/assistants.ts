@@ -31,6 +31,7 @@ export interface AssistantsState {
   tagsOrder: string[]
   collapsedTags: Record<string, boolean>
   presets: AssistantPreset[]
+  /** @deprecated should be removed in v2 */
   unifiedListOrder: Array<{ type: 'agent' | 'assistant'; id: string }>
 }
 
