@@ -109,7 +109,7 @@ describe('citation', () => {
       const content = 'Test content from Gemini'
       const metadata: GroundingSupport[] = [
         {
-          segment: { text: 'Test content' },
+          segment: { startIndex: 0, endIndex: 12, text: 'Test content' },
           groundingChunkIndices: [0]
         }
       ]
@@ -285,7 +285,7 @@ Numbered list:
         const content = 'This is test content from Gemini'
         const metadata: GroundingSupport[] = [
           {
-            segment: { text: 'test content' },
+            segment: { startIndex: 8, endIndex: 20, text: 'test content' },
             groundingChunkIndices: [0, 1]
           }
         ]
@@ -298,6 +298,25 @@ Numbered list:
         const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
 
         expect(result).toBe('This is test content[cite:1][cite:2] from Gemini')
+      })
+
+      it('should not over-match short text segments like ** (issue #8880)', () => {
+        // Gemini API can return groundingSupports with very short text like "**"
+        // which previously caused all "**" in the content to get citation tags
+        const content = '**二氧化硫（$SO_2$）不能燃烧。**\n\n1. **自身不可燃**：说明'
+        const metadata: GroundingSupport[] = [
+          {
+            segment: { startIndex: 0, endIndex: 2, text: '**' },
+            groundingChunkIndices: [0]
+          }
+        ]
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test', metadata }]
+        const citationMap = createCitationMap(citations)
+
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+        // Only the position at endIndex=2 should get the citation tag
+        expect(result).toBe('**[cite:1]二氧化硫（$SO_2$）不能燃烧。**\n\n1. **自身不可燃**：说明')
       })
 
       it('should handle Gemini citations without metadata', () => {

@@ -123,18 +123,18 @@ export function normalizeCitationMarks(
       break
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
-      // Gemini 格式: 根据metadata添加 [cite:N]
+      // Gemini 格式: 根据 startIndex/endIndex 精确插入 [cite:N]
       const firstCitation = Array.from(citationMap.values())[0]
       if (firstCitation?.metadata) {
-        const textReplacements = new Map<string, string>()
+        // 收集所有需要插入的位置和标签，按 endIndex 降序排列以避免偏移
+        const insertions: Array<{ position: number; tag: string }> = []
 
-        // 收集所有需要替换的文本
         firstCitation.metadata.forEach((support: GroundingSupport) => {
-          if (!support.groundingChunkIndices || !support.segment?.text) return
+          if (!support.groundingChunkIndices || !support.segment) return
+          const { endIndex } = support.segment
+          if (endIndex == null) return
 
-          const citationNums = support.groundingChunkIndices
-          const text = support.segment.text
-          const basicTag = citationNums
+          const tag = support.groundingChunkIndices
             .map((citationNum) => {
               const citation = citationMap.get(citationNum + 1)
               return citation ? `[cite:${citationNum + 1}]` : ''
@@ -142,16 +142,19 @@ export function normalizeCitationMarks(
             .filter(Boolean)
             .join('')
 
-          if (basicTag) {
-            textReplacements.set(text, `${text}${basicTag}`)
+          if (tag) {
+            insertions.push({ position: endIndex, tag })
           }
         })
 
-        // 一次性应用所有替换
-        textReplacements.forEach((replacement, originalText) => {
-          const escapedText = originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          applyReplacements(new RegExp(escapedText, 'g'), () => replacement)
-        })
+        // 按位置降序排列，从后往前插入避免偏移
+        insertions.sort((a, b) => b.position - a.position)
+
+        for (const { position, tag } of insertions) {
+          if (!shouldSkip(position)) {
+            content = content.slice(0, position) + tag + content.slice(position)
+          }
+        }
       }
       break
     }
