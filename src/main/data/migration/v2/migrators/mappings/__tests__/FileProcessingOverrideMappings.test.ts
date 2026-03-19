@@ -62,7 +62,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
 
       expect(result).toEqual({
-        'file_processing.overrides': {
+        'feature.file_processing.overrides': {
           mineru: {
             apiKeys: ['mineru-key'],
             capabilities: {
@@ -126,7 +126,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
 
       expect(result).toEqual({
-        'file_processing.overrides': {
+        'feature.file_processing.overrides': {
           paddleocr: {
             apiKeys: ['paddle-doc-key', 'paddle-ocr-token']
           }
@@ -149,7 +149,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
 
       expect(result).toEqual({
-        'file_processing.overrides': {
+        'feature.file_processing.overrides': {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
@@ -187,7 +187,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
 
       expect(result).toEqual({
-        'file_processing.overrides': {}
+        'feature.file_processing.overrides': {}
       })
     })
   })

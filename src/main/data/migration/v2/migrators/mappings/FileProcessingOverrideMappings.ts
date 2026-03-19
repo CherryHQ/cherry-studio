@@ -235,6 +235,6 @@ export function mergeFileProcessingOverrides(sources: {
   pruneEmptyOverrides(overrides)
 
   return {
-    'file_processing.overrides': overrides
+    'feature.file_processing.overrides': overrides
   }
 }

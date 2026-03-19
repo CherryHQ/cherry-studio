@@ -118,7 +118,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       preprocessProviders: { source: 'redux', category: 'preprocess', key: 'providers' },
       ocrProviders: { source: 'redux', category: 'ocr', key: 'providers' }
     },
-    targetKeys: ['file_processing.overrides'],
+    targetKeys: ['feature.file_processing.overrides'],
     transform: mergeFileProcessingOverrides
   }
 ]

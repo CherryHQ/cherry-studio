@@ -338,6 +338,8 @@ export interface PreferenceSchemas {
     'feature.file_processing.default.markdown_conversion': PreferenceTypes.FileProcessorId
     // redux/ocr/imageProviderId
     'feature.file_processing.default.text_extraction': PreferenceTypes.FileProcessorId | null
+    // target-key-definitions/complex/complex
+    'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/memory/memoryConfig.isAutoDimensions
     'feature.memory.auto_dimensions': boolean
     // redux/memory/currentUserId
@@ -408,8 +410,6 @@ export interface PreferenceSchemas {
     'feature.translate.model_prompt': string
     // redux/settings/targetLanguage
     'feature.translate.target_language': string
-    // target-key-definitions/complex/complex
-    'file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/shortcuts/shortcuts.exit_fullscreen
     'shortcut.app.exit_fullscreen': Record<string, unknown>
     // redux/shortcuts/shortcuts.search_message
@@ -629,6 +629,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.port': 23333,
     'feature.file_processing.default.markdown_conversion': 'mineru',
     'feature.file_processing.default.text_extraction': null,
+    'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',
     'feature.memory.embedder_dimensions': 1536,
@@ -691,7 +692,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.selection.trigger_mode': PreferenceTypes.SelectionTriggerMode.Selected,
     'feature.translate.model_prompt': TRANSLATE_PROMPT,
     'feature.translate.target_language': 'en-us',
-    'file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'shortcut.app.exit_fullscreen': { editable: false, enabled: true, key: ['Escape'], system: true },
     'shortcut.app.search_message': {
       editable: true,

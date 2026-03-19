@@ -18,7 +18,7 @@ describe('FileProcessingService', () => {
 
   describe('getProcessors', () => {
     it('should return all processors with merged overrides', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
         paddleocr: {
           apiKeys: ['test-key'],
           options: {
@@ -62,7 +62,7 @@ describe('FileProcessingService', () => {
 
   describe('updateProcessor', () => {
     it('should merge processor overrides and preserve existing feature-specific capability fields', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
         paddleocr: {
           capabilities: {
             markdown_conversion: {
@@ -98,7 +98,7 @@ describe('FileProcessingService', () => {
         timeout: 30000
       })
 
-      expect(MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')).toMatchObject({
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')).toMatchObject({
         paddleocr: {
           capabilities: {
             markdown_conversion: {
@@ -126,7 +126,7 @@ describe('FileProcessingService', () => {
         }
       }
 
-      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', existingOverrides)
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', existingOverrides)
 
       await expect(
         fileProcessingService.updateProcessor('missing-processor' as never, {
@@ -134,7 +134,9 @@ describe('FileProcessingService', () => {
         })
       ).rejects.toThrow("File processor with id 'missing-processor' not found")
 
-      expect(MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')).toEqual(existingOverrides)
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')).toEqual(
+        existingOverrides
+      )
     })
 
     it('should not persist empty options when updates do not include options', async () => {
@@ -142,7 +144,7 @@ describe('FileProcessingService', () => {
         apiKeys: ['new-key']
       })
 
-      const storedOverrides = MockMainPreferenceServiceUtils.getPreferenceValue('file_processing.overrides')
+      const storedOverrides = MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.overrides')
 
       expect(storedOverrides.paddleocr).toMatchObject({
         apiKeys: ['new-key']
@@ -151,7 +153,7 @@ describe('FileProcessingService', () => {
     })
 
     it('should ignore unknown capability override fields in merged configs', async () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('file_processing.overrides', {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
         paddleocr: {
           capabilities: {
             text_extraction: {

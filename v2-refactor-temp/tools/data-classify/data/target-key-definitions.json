@@ -34,7 +34,7 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
-      "targetKey": "file_processing.overrides",
+      "targetKey": "feature.file_processing.overrides",
       "type": "PreferenceTypes.FileProcessorOverrides",
       "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
       "status": "classified",

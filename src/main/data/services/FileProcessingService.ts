@@ -104,7 +104,7 @@ export class FileProcessingService {
       [id]: mergeProcessorOverrides(overrides[id], updates)
     }
 
-    await preferenceService.set('file_processing.overrides', nextOverrides)
+    await preferenceService.set('feature.file_processing.overrides', nextOverrides)
 
     logger.info('Updated file processor overrides', {
       processorId: id,
@@ -116,7 +116,7 @@ export class FileProcessingService {
   }
 
   private getOverrides(): FileProcessorOverrides {
-    return preferenceService.get('file_processing.overrides') ?? {}
+    return preferenceService.get('feature.file_processing.overrides') ?? {}
   }
 
   private getPresetById(processorId: FileProcessorId) {
