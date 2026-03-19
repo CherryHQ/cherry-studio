@@ -15,7 +15,8 @@ import {
   getAwsBedrockApiKey,
   getAwsBedrockAuthType,
   getAwsBedrockRegion,
-  getAwsBedrockSecretAccessKey
+  getAwsBedrockSecretAccessKey,
+  getAwsBedrockSSOCredentialProvider
 } from '@renderer/hooks/useAwsBedrock'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -102,6 +103,14 @@ export class AwsBedrockAPIClient extends BaseApiClient<
           accessKeyId,
           secretAccessKey
         }
+      }
+    } else if (authType === 'sso') {
+      // SSO authentication
+      const credentialProvider = getAwsBedrockSSOCredentialProvider()
+
+      clientConfig = {
+        region,
+        credentials: credentialProvider
       }
     } else {
       // API Key authentication

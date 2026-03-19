@@ -241,7 +241,11 @@ vi.mock('@renderer/store/llm.ts', () => {
         accessKeyId: '',
         secretAccessKey: '',
         apiKey: '',
-        region: ''
+        region: '',
+        ssoStartUrl: '',
+        ssoRegion: '',
+        ssoAccountId: '',
+        ssoRoleName: ''
       },
       cherryIn: {
         accessToken: '',

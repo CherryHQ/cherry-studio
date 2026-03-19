@@ -3368,6 +3368,21 @@ const migrateConfig = {
       logger.error('migrate 204 error', error as Error)
       return state
     }
+  },
+  '205': (state: RootState) => {
+    try {
+      if (state.llm?.settings?.awsBedrock) {
+        state.llm.settings.awsBedrock.ssoStartUrl = state.llm.settings.awsBedrock.ssoStartUrl ?? ''
+        state.llm.settings.awsBedrock.ssoRegion = state.llm.settings.awsBedrock.ssoRegion ?? ''
+        state.llm.settings.awsBedrock.ssoAccountId = state.llm.settings.awsBedrock.ssoAccountId ?? ''
+        state.llm.settings.awsBedrock.ssoRoleName = state.llm.settings.awsBedrock.ssoRoleName ?? ''
+      }
+      logger.info('migrate 205 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 205 error', error as Error)
+      return state
+    }
   }
 }
 

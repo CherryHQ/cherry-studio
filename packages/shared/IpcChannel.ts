@@ -149,6 +149,10 @@ export enum IpcChannel {
   VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
+  // AWS Bedrock SSO
+  AwsBedrock_SSOLogin = 'aws-bedrock:sso-login',
+  AwsBedrock_ResolveSSOCredentials = 'aws-bedrock:resolve-sso-credentials',
+
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
   Windows_Resize = 'window:resize',

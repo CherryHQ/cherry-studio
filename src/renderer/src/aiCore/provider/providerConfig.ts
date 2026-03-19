@@ -5,7 +5,8 @@ import {
   getAwsBedrockApiKey,
   getAwsBedrockAuthType,
   getAwsBedrockRegion,
-  getAwsBedrockSecretAccessKey
+  getAwsBedrockSecretAccessKey,
+  getAwsBedrockSSOCredentialProvider
 } from '@renderer/hooks/useAwsBedrock'
 import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
@@ -165,7 +166,12 @@ interface BedrockAccessKeyExtraOptions extends BaseExtraOptions {
   secretAccessKey: string
 }
 
-type BedrockExtraOptions = BedrockApiKeyExtraOptions | BedrockAccessKeyExtraOptions
+interface BedrockSSOExtraOptions extends BaseExtraOptions {
+  region: string
+  credentialProvider: () => Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }>
+}
+
+type BedrockExtraOptions = BedrockApiKeyExtraOptions | BedrockAccessKeyExtraOptions | BedrockSSOExtraOptions
 
 interface VertexExtraOptions extends BaseExtraOptions {
   project: string
@@ -311,6 +317,12 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
         region,
         apiKey: getAwsBedrockApiKey()
       } satisfies BedrockApiKeyExtraOptions
+    } else if (authType === 'sso') {
+      extraOptions = {
+        ...baseExtraOptions,
+        region,
+        credentialProvider: getAwsBedrockSSOCredentialProvider()
+      } satisfies BedrockSSOExtraOptions
     } else {
       extraOptions = {
         ...baseExtraOptions,

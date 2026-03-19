@@ -46,6 +46,10 @@ type LlmSettings = {
     secretAccessKey: string
     apiKey: string
     region: string
+    ssoStartUrl: string
+    ssoRegion: string
+    ssoAccountId: string
+    ssoRoleName: string
   }
   cherryIn: {
     accessToken: string
@@ -94,7 +98,11 @@ export const initialState: LlmState = {
       accessKeyId: '',
       secretAccessKey: '',
       apiKey: '',
-      region: ''
+      region: '',
+      ssoStartUrl: '',
+      ssoRegion: '',
+      ssoAccountId: '',
+      ssoRoleName: ''
     },
     cherryIn: {
       accessToken: '',
@@ -240,6 +248,18 @@ const llmSlice = createSlice({
     setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.region = action.payload
     },
+    setAwsBedrockSSOStartUrl: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.ssoStartUrl = action.payload
+    },
+    setAwsBedrockSSORegion: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.ssoRegion = action.payload
+    },
+    setAwsBedrockSSOAccountId: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.ssoAccountId = action.payload
+    },
+    setAwsBedrockSSORoleName: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.ssoRoleName = action.payload
+    },
     setCherryInTokens: (state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) => {
       if (!state.settings.cherryIn) {
         state.settings.cherryIn = {
@@ -299,6 +319,10 @@ export const {
   setAwsBedrockSecretAccessKey,
   setAwsBedrockApiKey,
   setAwsBedrockRegion,
+  setAwsBedrockSSOStartUrl,
+  setAwsBedrockSSORegion,
+  setAwsBedrockSSOAccountId,
+  setAwsBedrockSSORoleName,
   setCherryInTokens,
   clearCherryInTokens,
   updateModel
