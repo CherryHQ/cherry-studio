@@ -5632,12 +5632,8 @@
     "show_window": "Show Window"
   },
   "update": {
-    "download": "Download",
     "install": "Install",
     "later": "Later",
-    "manualDownload": "Download",
-    "manualInstallError": "Installation failed, please download manually from the official website.",
-    "manualInstallInfo": "This version does not support automatic updates. Click download to complete the update.",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
