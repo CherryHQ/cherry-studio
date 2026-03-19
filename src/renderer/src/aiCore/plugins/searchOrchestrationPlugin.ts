@@ -355,8 +355,8 @@ export const searchOrchestrationPlugin = (
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
               analysisResult.knowledge,
-              getMessageContent(userMessage),
-              topicId
+              topicId,
+              getMessageContent(userMessage)
             )
           }
         }
