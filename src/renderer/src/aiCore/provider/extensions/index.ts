@@ -195,6 +195,5 @@ export const extensions = [
   AiHubMixExtension,
   NewApiExtension,
   VoyageExtension,
-  CohereExtension,
   TogetherAIExtension
 ] as const
