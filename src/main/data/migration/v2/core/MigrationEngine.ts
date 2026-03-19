@@ -5,6 +5,7 @@
 
 import { dbService } from '@data/db/DbService'
 import { appStateTable } from '@data/db/schemas/appState'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
@@ -28,7 +29,6 @@ import { createMigrationContext } from './MigrationContext'
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
 // import { fileTable } from '../../db/schemas/file'
-// import { knowledgeBaseTable } from '../../db/schemas/knowledgeBase'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -210,11 +210,12 @@ export class MigrationEngine {
     const tables = [
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
       { table: topicTable, name: 'topic' },
-      { table: preferenceTable, name: 'preference' }
+      { table: preferenceTable, name: 'preference' },
+      { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
+      { table: knowledgeBaseTable, name: 'knowledge_base' }
       // TODO: Add these when tables are created
       // { table: assistantTable, name: 'assistant' },
-      // { table: fileTable, name: 'file' },
-      // { table: knowledgeBaseTable, name: 'knowledge_base' }
+      // { table: fileTable, name: 'file' }
     ]
 
     // Check if tables have data (safety check)
@@ -231,9 +232,11 @@ export class MigrationEngine {
     await db.delete(messageTable)
     await db.delete(topicTable)
     await db.delete(preferenceTable)
+    // Knowledge items reference knowledge bases
+    await db.delete(knowledgeItemTable)
+    await db.delete(knowledgeBaseTable)
     // TODO: Add these when tables are created (in correct order)
     // await db.delete(fileTable)
-    // await db.delete(knowledgeBaseTable)
     // await db.delete(assistantTable)
 
     logger.info('All new architecture tables cleared successfully')
