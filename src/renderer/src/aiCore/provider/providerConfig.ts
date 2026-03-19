@@ -11,7 +11,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getProviderById } from '@renderer/services/ProviderService'
 import store from '@renderer/store'
-import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import {
   formatApiHost,
   formatAzureOpenAIApiHost,
@@ -25,7 +25,6 @@ import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
-  isNewApiProvider,
   isOllamaProvider,
   isPerplexityProvider,
   isSupportStreamOptionsProvider,
@@ -35,7 +34,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
-import { aihubmixProviderCreator, newApiResolverCreator } from './config'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -52,23 +50,6 @@ interface BuilderContext {
   baseConfig: BaseConfig
   endpoint?: string
   aiSdkProviderId: AppProviderId
-}
-
-type ProviderAdapter = {
-  match: (provider: Provider) => boolean
-  adapt: (model: Model, provider: Provider) => Provider
-}
-
-function handleSpecialProviders(model: Model, provider: Provider): Provider {
-  const adapters: ProviderAdapter[] = [
-    { match: isNewApiProvider, adapt: (m, p) => newApiResolverCreator(m, p) },
-    {
-      match: (p) => isSystemProvider(p) && p.id === 'aihubmix',
-      adapt: (m, p) => aihubmixProviderCreator(m, p)
-    }
-  ]
-  const adapter = adapters.find((a) => a.match(provider))
-  return adapter ? adapter.adapt(model, provider) : provider
 }
 
 // === Host Formatting ===
@@ -148,7 +129,9 @@ export function providerToAiSdkConfig(
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
-    { match: (_, id) => id === 'cherryin', build: buildCherryinConfig }
+    { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
+    { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
 
   const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
@@ -169,12 +152,8 @@ export function getActualProvider(model: Model): Provider {
   return adaptProvider({ provider: getProviderByModel(model), model })
 }
 
-export function adaptProvider({ provider, model }: { provider: Provider; model?: Model }): Provider {
-  let adapted = cloneDeep(provider)
-  if (model) {
-    adapted = handleSpecialProviders(model, adapted)
-  }
-  return formatProviderApiHost(adapted)
+export function adaptProvider({ provider }: { provider: Provider; model?: Model }): Provider {
+  return formatProviderApiHost(cloneDeep(provider))
 }
 
 export function isModernSdkSupported(provider: Provider): boolean {
@@ -381,5 +360,29 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
     providerId: ctx.aiSdkProviderId as StringKeys<AppProviderSettingsMap>,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
+  }
+}
+
+function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
+  return {
+    providerId: 'aihubmix',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      geminiBaseURL: 'https://aihubmix.com/gemini',
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+  return {
+    providerId: 'newapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      endpointType: ctx.model.endpoint_type,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
   }
 }

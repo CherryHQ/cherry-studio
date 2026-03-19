@@ -21,6 +21,9 @@ import {
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 
+import { type AiHubMixProviderSettings, createAiHubMix } from '../custom/aihubmix-provider'
+import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
+
 /**
  * Google Vertex AI Extension
  */
@@ -134,6 +137,25 @@ export const OllamaExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ExtensionStorage, ProviderV3, 'ollama'>)
 
 /**
+ * AiHubMix Extension - multi-backend gateway (claude->anthropic, gemini->google, gpt->openai-responses)
+ */
+export const AiHubMixExtension = ProviderExtension.create({
+  name: 'aihubmix',
+  supportsImageGeneration: true,
+  create: createAiHubMix
+} as const satisfies ProviderExtensionConfig<AiHubMixProviderSettings, ExtensionStorage, ProviderV3, 'aihubmix'>)
+
+/**
+ * NewAPI Extension - multi-backend gateway routed by endpoint_type
+ */
+export const NewApiExtension = ProviderExtension.create({
+  name: 'newapi',
+  aliases: ['new-api'] as const,
+  supportsImageGeneration: true,
+  create: createNewApi
+} as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ExtensionStorage, ProviderV3, 'newapi'>)
+
+/**
  * 所有项目特定的 Extensions
  */
 export const extensions = [
@@ -146,5 +168,7 @@ export const extensions = [
   HuggingFaceExtension,
   GatewayExtension,
   CerebrasExtension,
-  OllamaExtension
+  OllamaExtension,
+  AiHubMixExtension,
+  NewApiExtension
 ] as const
