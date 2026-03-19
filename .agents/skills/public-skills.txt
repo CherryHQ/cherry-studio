@@ -5,6 +5,7 @@ prepare-release
 create-skill
 gh-create-issue
 gh-pr-review
+vercel-react-best-practices
 v2-migrator
 v2-data-api
 v2-renderer

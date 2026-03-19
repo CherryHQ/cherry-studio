@@ -16,11 +16,18 @@
       "when": 1767455592181
     },
     {
-      "breakpoints": true,
       "idx": 2,
-      "tag": "0002_optimal_callisto",
       "version": "6",
-      "when": 1773898343003
+      "when": 1772954746790,
+      "tag": "0002_tired_glorian",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1773898343003,
+      "tag": "0003_optimal_callisto",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -1,11 +1,11 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -499,7 +499,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
                   {t('paintings.learn_more')}
                   {(() => {
-                    const Icon = getProviderLogo(ovmsProvider.id)
+                    const Icon = resolveProviderIcon(ovmsProvider.id)
                     return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
                   })()}
                 </SettingHelpLink>
@@ -513,7 +513,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Select.Option value={provider.value} key={provider.value}>
                     <SelectOptionContainer>
                       {(() => {
-                        const Icon = getProviderLogo(provider.value || '')
+                        const Icon = resolveProviderIcon(provider.value || '')
                         return Icon ? <Icon.Avatar size={16} /> : null
                       })()}
                       {provider.label}

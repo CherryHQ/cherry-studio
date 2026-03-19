@@ -55,6 +55,8 @@ const processError = (error: unknown, fallbackMessage: string) => {
   return new Error(fallbackMessage, { cause: error })
 }
 
+export const DEFAULT_SESSION_PAGE_SIZE = 20
+
 export class AgentApiClient {
   private axios: Axios
   private apiVersion: ApiVersion = 'v1'
@@ -96,6 +98,15 @@ export class AgentApiClient {
       return `${base}?${params}`
     } else {
       return base
+    }
+  }
+
+  public async reorderAgents(orderedIds: string[]): Promise<void> {
+    const url = `${this.agentPaths.base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder agents.')
     }
   }
 
@@ -169,6 +180,15 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to updateAgent.')
+    }
+  }
+
+  public async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+    const url = `${this.getSessionPaths(agentId).base}/reorder`
+    try {
+      await this.axios.put(url, { ordered_ids: orderedIds })
+    } catch (error) {
+      throw processError(error, 'Failed to reorder sessions.')
     }
   }
 

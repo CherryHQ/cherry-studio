@@ -20,3 +20,5 @@
 !v2-migrator/**
 !v2-renderer/
 !v2-renderer/**
+!vercel-react-best-practices/
+!vercel-react-best-practices/**

@@ -58,6 +58,12 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
     websites: {
       official: 'https://www.baidu.com'
     }
+  },
+  querit: {
+    websites: {
+      official: 'https://querit.ai',
+      apiKey: 'https://www.querit.ai/en/dashboard/api-keys'
+    }
   }
 }
 
@@ -112,6 +118,12 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     id: 'local-baidu',
     name: 'Baidu',
     url: 'https://www.baidu.com/s?wd=%s'
+  },
+  {
+    id: 'querit',
+    name: 'Querit',
+    apiHost: 'https://api.querit.ai',
+    apiKey: ''
   }
 ] as const
 
@@ -138,6 +150,9 @@ export function getWebSearchProviderLogo(providerId: WebSearchProviderId): Compo
       return Bing
     case 'local-baidu':
       return Baidu
+    // TODO: [v2] Add Querit CompoundIcon to @cherrystudio/ui/icons, then return it here
+    case 'querit':
+      return undefined
     default:
       return undefined
   }

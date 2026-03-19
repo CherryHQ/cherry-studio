@@ -1,12 +1,12 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -348,7 +348,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.paint_course')}
               </SettingHelpLink>
               {(() => {
-                const Icon = getProviderLogo(zhipuProvider.id)
+                const Icon = resolveProviderIcon(zhipuProvider.id)
                 return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
               })()}
             </div>
