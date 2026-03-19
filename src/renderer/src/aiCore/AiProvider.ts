@@ -1,12 +1,3 @@
-/**
- * Cherry Studio AI Core - 新版本入口
- * 集成 @cherrystudio/ai-core 库的渐进式重构方案
- *
- * 融合方案：简化实现，专注于核心功能
- * 1. 优先使用新AI SDK
- * 2. 暂时保持接口兼容性
- */
-
 import { createExecutor } from '@cherrystudio/ai-core'
 import type { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
 import { loggerService } from '@logger'
@@ -151,19 +142,8 @@ export default class ModernAiProvider {
       }
       return await this._completionsForTrace(modelId, params, traceConfig, this.config!)
     } else {
-      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, this.config!)
+      return await this.modernCompletions(modelId, params, middlewareConfig, this.config)
     }
-  }
-
-  private async _completionsOrImageGeneration(
-    modelId: string,
-    params: StreamTextParams,
-    middlewareConfig: ModernAiProviderConfig,
-    providerConfig: ProviderConfig
-  ): Promise<CompletionsResult> {
-    // 专用图像生成模型已在 ApiService 层分流到 fetchImageGeneration
-    // 这里只处理普通的 completions
-    return await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
   }
 
   /**
@@ -200,7 +180,7 @@ export default class ModernAiProvider {
         modelId,
         traceName
       })
-      return await this._completionsOrImageGeneration(modelId, params, middlewareConfig, providerConfig)
+      return await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
     }
 
     try {
@@ -212,7 +192,7 @@ export default class ModernAiProvider {
         parentSpanCreated: true
       })
 
-      const result = await this._completionsOrImageGeneration(modelId, params, middlewareConfig, providerConfig)
+      const result = await this.modernCompletions(modelId, params, middlewareConfig, providerConfig)
 
       logger.info('Completions finished, ending parent span', {
         spanId: span.spanContext().spanId,
