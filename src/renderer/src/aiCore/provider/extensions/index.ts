@@ -12,14 +12,13 @@ import { createVertex, type GoogleVertexProviderSettings } from '@ai-sdk/google-
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
-import type { ProviderV2, ProviderV3 } from '@ai-sdk/provider'
+import type { ProviderV3 } from '@ai-sdk/provider'
 import type { ExtensionStorage } from '@cherrystudio/ai-core/provider'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
-import { wrapProvider } from 'ai'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 
@@ -74,10 +73,8 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   name: 'github-copilot-openai-compatible',
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
-  create: (options?: GitHubCopilotProviderSettings) => {
-    const provider = createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV2
-    return wrapProvider({ provider, languageModelMiddleware: [] })
-  }
+  create: (options?: GitHubCopilotProviderSettings) =>
+    createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
   ExtensionStorage,
