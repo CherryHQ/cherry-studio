@@ -179,7 +179,59 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0].embeddingModelId).toBe('silicon::BAAI/bge-m3')
     expect(migrator.preparedBases[0].rerankModelId).toBe('silicon::Qwen/Qwen3-Reranker-8B')
+    expect(migrator.preparedBases[0].searchMode).toBe('default')
     expect(migrator.skippedCount).toBe(0)
+  })
+
+  it('prepare infers item status from legacy uniqueId', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-status',
+                name: 'KB status',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                items: [
+                  { id: 'i-no-unique-id', type: 'note', content: 'n1' },
+                  { id: 'i-with-unique-id', type: 'note', content: 'n2', uniqueId: 'local_loader_1' },
+                  { id: 'i-with-empty-unique-id', type: 'note', content: 'n3', uniqueId: '   ' },
+                  { id: 'i-processing-but-no-unique-id', type: 'note', content: 'n4', processingStatus: 'processing' },
+                  {
+                    id: 'i-failed-with-unique-id',
+                    type: 'note',
+                    content: 'n5',
+                    processingStatus: 'failed',
+                    uniqueId: 'x'
+                  }
+                ]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+    const statusById = new Map(migrator.preparedItems.map((item: any) => [item.id, item.status]))
+
+    expect(result.success).toBe(true)
+    expect(statusById.get('i-no-unique-id')).toBe('idle')
+    expect(statusById.get('i-with-unique-id')).toBe('completed')
+    expect(statusById.get('i-with-empty-unique-id')).toBe('idle')
+    expect(statusById.get('i-processing-but-no-unique-id')).toBe('idle')
+    expect(statusById.get('i-failed-with-unique-id')).toBe('completed')
   })
 
   it('prepare skips base and items when embedding model is missing', async () => {

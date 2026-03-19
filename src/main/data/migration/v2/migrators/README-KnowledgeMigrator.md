@@ -19,6 +19,7 @@
 
 1. Base metadata migration
    - Legacy base model/rerank model are transformed to `embeddingModelId`/`embeddingModelMeta` and `rerankModelId`/`rerankModelMeta`.
+   - Migrated base `searchMode` is set to `default`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
 
 2. Unified item payload migration
@@ -29,12 +30,10 @@
    - Fall back to Redux item `content` when note export is missing.
 
 4. Processing status normalization
-   - Legacy `processingStatus`:
-     - `pending` -> `pending`
-     - `processing` -> `pending`
-     - `completed` -> `completed`
-     - `failed` -> `failed`
-     - empty/unknown -> `idle`
+   - Legacy `processingStatus` is treated as runtime-only and not trusted for migration.
+   - Item status is inferred from `uniqueId`:
+     - `uniqueId` present and non-empty -> `completed`
+     - otherwise -> `idle`
 
 ## Field Mappings
 
@@ -55,6 +54,7 @@
 | `chunkOverlap` | `chunkOverlap` | Direct copy |
 | `threshold` | `threshold` | Direct copy |
 | `documentCount` | `documentCount` | Direct copy |
+| _constant_ | `searchMode` | Always `default` during v1 migration |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
 
@@ -67,7 +67,7 @@
 | `parentId` | `parentId` | Ignored in v1 migration, always stored as `null` |
 | `type` | `type` | Supported: file/url/note/sitemap/directory |
 | `content` + Dexie lookups | `data` | Type-specific transform |
-| `processingStatus` | `status` | Normalized enum |
+| `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
 | `processingError` | `error` | Direct copy |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |

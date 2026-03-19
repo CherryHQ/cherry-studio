@@ -65,6 +65,7 @@ interface LegacyKnowledgeItem {
   updated_at?: unknown
   processingStatus?: string
   processingError?: string
+  uniqueId?: string
   parentId?: string | null
   sourceUrl?: string
 }
@@ -136,13 +137,8 @@ const toTimestamp = (value: unknown): number | undefined => {
   return undefined
 }
 
-const toItemStatus = (status: string | undefined): ItemStatus => {
-  if (status === 'pending') return 'pending'
-  if (status === 'processing') return 'pending'
-  if (status === 'completed') return 'completed'
-  if (status === 'failed') return 'failed'
-  return 'idle'
-}
+const toItemStatus = (item: LegacyKnowledgeItem): ItemStatus =>
+  typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
 const isFileMetadata = (value: unknown): value is FileMetadata =>
   isRecord(value) &&
@@ -384,6 +380,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           chunkOverlap: base.chunkOverlap,
           threshold: base.threshold,
           documentCount: base.documentCount,
+          searchMode: 'default',
           createdAt: toTimestamp(base.created_at),
           updatedAt: toTimestamp(base.updated_at)
         })
@@ -475,7 +472,7 @@ export class KnowledgeMigrator extends BaseMigrator {
             parentId: null,
             type,
             data,
-            status: toItemStatus(item.processingStatus),
+            status: toItemStatus(item),
             error: item.processingError ?? null,
             createdAt: toTimestamp(item.created_at),
             updatedAt: toTimestamp(item.updated_at)
