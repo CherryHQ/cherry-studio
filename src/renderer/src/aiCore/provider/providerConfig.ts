@@ -35,7 +35,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
-import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { aihubmixProviderCreator, newApiResolverCreator } from './config'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -65,10 +65,6 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
     {
       match: (p) => isSystemProvider(p) && p.id === 'aihubmix',
       adapt: (m, p) => aihubmixProviderCreator(m, p)
-    },
-    {
-      match: (p) => isSystemProvider(p) && p.id === 'vertexai',
-      adapt: (m, p) => vertexAnthropicProviderCreator(m, p)
     }
   ]
   const adapter = adapters.find((a) => a.match(provider))
@@ -151,7 +147,7 @@ export function providerToAiSdkConfig(
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
-    { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
+    { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig }
   ]
 
@@ -261,7 +257,8 @@ function buildVertexConfig(
   }
 
   const { project, location, googleCredentials } = createVertexProvider(ctx.actualProvider)
-  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic'
+  // Vertex 上的 Claude 模型走 google-vertex-anthropic variant
+  const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || ctx.model.id.startsWith('claude')
   const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
   const creds = { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey) }
 
