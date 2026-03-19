@@ -7,9 +7,11 @@ export enum IpcChannel {
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
+  App_ManualInstallUpdate = 'app:manual-install-update',
   App_Reload = 'app:reload',
   App_Quit = 'app:quit',
   App_Info = 'app:info',
+  App_GetSigningInfo = 'app:get-signing-info',
   App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
@@ -246,7 +248,7 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteTempBackup = 'backup:deleteTempBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Compress = 'zip:compress',

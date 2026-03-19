@@ -348,6 +348,8 @@ describe('Claude & regional providers', () => {
     expect(isZhipuReasoningModel(createModel({ id: 'glm-z1' }))).toBe(true)
     expect(isStepReasoningModel(createModel({ id: 'step-r1-v-mini' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
   })
 })
 

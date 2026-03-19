@@ -65,7 +65,7 @@ import type { AtLeast, SystemProvider, SystemProviderId } from '@renderer/types'
 import { OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { qwen3Next80BModel, qwen38bModel, SYSTEM_MODELS } from './models'
+import { qwenModel, SYSTEM_MODELS } from './models'
 
 export const CHERRYAI_PROVIDER: SystemProvider = {
   id: 'cherryai' as SystemProviderId,
@@ -73,7 +73,7 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
   type: 'openai',
   apiKey: '',
   apiHost: 'https://api.cherry-ai.com',
-  models: [qwen38bModel, qwen3Next80BModel],
+  models: [qwenModel],
   isSystem: true,
   enabled: true
 }
@@ -278,6 +278,50 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  dashscope: {
+    id: 'dashscope',
+    name: 'Bailian',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+    anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
+    models: SYSTEM_MODELS.dashscope,
+    isSystem: true,
+    enabled: false
+  },
+  minimax: {
+    id: 'minimax',
+    name: 'MiniMax',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.minimaxi.com/v1/',
+    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
+    models: SYSTEM_MODELS.minimax,
+    isSystem: true,
+    enabled: false
+  },
+  'minimax-global': {
+    id: 'minimax-global',
+    name: 'MiniMax Global',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.minimax.io/v1/',
+    anthropicApiHost: 'https://api.minimax.io/anthropic',
+    models: SYSTEM_MODELS['minimax-global'],
+    isSystem: true,
+    enabled: false
+  },
+  moonshot: {
+    id: 'moonshot',
+    name: 'Moonshot AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.moonshot.cn',
+    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
+    models: SYSTEM_MODELS.moonshot,
+    isSystem: true,
+    enabled: false
+  },
   qiniu: {
     id: 'qiniu',
     name: 'Qiniu',
@@ -299,17 +343,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  ollama: {
-    id: 'ollama',
-    name: 'Ollama',
-    type: 'ollama',
-    apiKey: '',
-    apiHost: 'http://localhost:11434',
-    anthropicApiHost: 'http://localhost:11434',
-    models: SYSTEM_MODELS.ollama,
-    isSystem: true,
-    enabled: false
-  },
   'new-api': {
     id: 'new-api',
     name: 'New API',
@@ -318,6 +351,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'http://localhost:3000',
     anthropicApiHost: 'http://localhost:3000',
     models: SYSTEM_MODELS['new-api'],
+    isSystem: true,
+    enabled: false
+  },
+  ollama: {
+    id: 'ollama',
+    name: 'Ollama',
+    type: 'ollama',
+    apiKey: '',
+    apiHost: 'http://localhost:11434',
+    anthropicApiHost: 'http://localhost:11434',
+    models: SYSTEM_MODELS.ollama,
     isSystem: true,
     enabled: false
   },
@@ -406,24 +450,13 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     enabled: false,
     isAuthed: false
   },
-  yi: {
-    id: 'yi',
-    name: 'Yi',
+  doubao: {
+    id: 'doubao',
+    name: 'doubao',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.lingyiwanwu.com',
-    models: SYSTEM_MODELS.yi,
-    isSystem: true,
-    enabled: false
-  },
-  moonshot: {
-    id: 'moonshot',
-    name: 'Moonshot AI',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.moonshot.cn',
-    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
-    models: SYSTEM_MODELS.moonshot,
+    apiHost: 'https://ark.cn-beijing.volces.com/api/v3/',
+    models: SYSTEM_MODELS.doubao,
     isSystem: true,
     enabled: false
   },
@@ -437,17 +470,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  dashscope: {
-    id: 'dashscope',
-    name: 'Bailian',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-    anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
-    models: SYSTEM_MODELS.dashscope,
-    isSystem: true,
-    enabled: false
-  },
   stepfun: {
     id: 'stepfun',
     name: 'StepFun',
@@ -458,13 +480,13 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  doubao: {
-    id: 'doubao',
-    name: 'doubao',
+  yi: {
+    id: 'yi',
+    name: 'Yi',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://ark.cn-beijing.volces.com/api/v3/',
-    models: SYSTEM_MODELS.doubao,
+    apiHost: 'https://api.lingyiwanwu.com',
+    models: SYSTEM_MODELS.yi,
     isSystem: true,
     enabled: false
   },
@@ -475,28 +497,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://cloud.infini-ai.com/maas',
     models: SYSTEM_MODELS.infini,
-    isSystem: true,
-    enabled: false
-  },
-  minimax: {
-    id: 'minimax',
-    name: 'MiniMax',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.minimaxi.com/v1/',
-    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
-    models: SYSTEM_MODELS.minimax,
-    isSystem: true,
-    enabled: false
-  },
-  'minimax-global': {
-    id: 'minimax-global',
-    name: 'MiniMax Global',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.minimax.io/v1/',
-    anthropicApiHost: 'https://api.minimax.io/anthropic',
-    models: SYSTEM_MODELS['minimax-global'],
     isSystem: true,
     enabled: false
   },
