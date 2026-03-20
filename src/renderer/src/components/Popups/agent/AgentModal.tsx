@@ -7,7 +7,7 @@ import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
+import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
 import type {
   AddAgentForm,
   AgentEntity,

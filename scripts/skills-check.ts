@@ -34,52 +34,31 @@ function checkGitignore(filePath: string, expected: string, displayPath: string,
 }
 
 /**
- * Verifies `.claude/skills/<skillName>/SKILL.md` is correctly synced with
- * `.agents/skills/<skillName>/SKILL.md`.
- * Requires regular files (symlinks are disallowed for cross-platform compatibility).
+ * Verifies `.claude/skills/<skillName>` is a symlink pointing to
+ * `../../.agents/skills/<skillName>`.
  */
-function checkClaudeSkillFile(skillName: string, errors: string[]) {
-  const skillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
-  const skillFile = path.join(skillDir, 'SKILL.md')
-  const agentsSkillFile = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
-
-  if (!fs.existsSync(skillDir)) {
-    errors.push(`.claude/skills/${skillName} is missing`)
-    return
-  }
-
-  if (!fs.statSync(skillDir).isDirectory()) {
-    errors.push(`.claude/skills/${skillName} is not a directory`)
-    return
-  }
+function checkClaudeSkillSymlink(skillName: string, errors: string[]) {
+  const claudeSkillDir = path.join(CLAUDE_SKILLS_DIR, skillName)
+  const expectedTarget = path.join('..', '..', '.agents', 'skills', skillName)
 
   let stat: fs.Stats
   try {
-    stat = fs.lstatSync(skillFile)
+    stat = fs.lstatSync(claudeSkillDir)
   } catch {
-    errors.push(`.claude/skills/${skillName}/SKILL.md is missing`)
+    errors.push(`.claude/skills/${skillName} is missing (run pnpm skills:sync)`)
     return
   }
 
-  if (stat.isSymbolicLink()) {
-    errors.push(`.claude/skills/${skillName}/SKILL.md must be a regular file, not a symlink`)
+  if (!stat.isSymbolicLink()) {
+    errors.push(
+      `.claude/skills/${skillName} must be a symlink, not a ${stat.isDirectory() ? 'directory' : 'file'} (run pnpm skills:sync)`
+    )
     return
   }
 
-  if (!stat.isFile()) {
-    errors.push(`.claude/skills/${skillName}/SKILL.md is not a regular file`)
-    return
-  }
-
-  const expectedContent = readFileSafe(agentsSkillFile)
-  const actualContent = readFileSafe(skillFile)
-  if (expectedContent === null || actualContent === null) {
-    errors.push(`failed to read .claude/skills/${skillName}/SKILL.md for content verification`)
-    return
-  }
-
-  if (actualContent !== expectedContent) {
-    errors.push(`.claude/skills/${skillName}/SKILL.md content differs from .agents/skills/${skillName}/SKILL.md`)
+  const actualTarget = fs.readlinkSync(claudeSkillDir)
+  if (actualTarget !== expectedTarget) {
+    errors.push(`.claude/skills/${skillName} symlink points to '${actualTarget}', expected '${expectedTarget}'`)
   }
 }
 
@@ -87,6 +66,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
   const sharedAgentsFiles = new Set(['.agents/skills/.gitignore', '.agents/skills/public-skills.txt'])
   const sharedClaudeFiles = new Set(['.claude/skills/.gitignore'])
   const allowedAgentsPrefixes = skillNames.map((skillName) => `.agents/skills/${skillName}/`)
+  const allowedClaudeSymlinks = new Set(skillNames.map((skillName) => `.claude/skills/${skillName}`))
   const allowedClaudePrefixes = skillNames.map((skillName) => `.claude/skills/${skillName}/`)
 
   let trackedFiles: string[]
@@ -121,7 +101,7 @@ function checkTrackedFilesAgainstWhitelist(skillNames: string[], errors: string[
       if (sharedClaudeFiles.has(file) || isClaudeReadmeFile(file)) {
         continue
       }
-      if (allowedClaudePrefixes.some((prefix) => file.startsWith(prefix))) {
+      if (allowedClaudeSymlinks.has(file) || allowedClaudePrefixes.some((prefix) => file.startsWith(prefix))) {
         continue
       }
       errors.push(`tracked file is outside public skill whitelist: ${file}`)
@@ -151,13 +131,13 @@ function main() {
   checkGitignore(CLAUDE_SKILLS_GITIGNORE, buildClaudeSkillsGitignore(skillNames), '.claude/skills/.gitignore', errors)
 
   for (const skillName of skillNames) {
-    const agentSkillPath = path.join(AGENTS_SKILLS_DIR, skillName, 'SKILL.md')
-    if (!fs.existsSync(agentSkillPath)) {
-      errors.push(`.agents/skills/${skillName}/SKILL.md is missing`)
+    const agentSkillDir = path.join(AGENTS_SKILLS_DIR, skillName)
+    if (!fs.existsSync(agentSkillDir)) {
+      errors.push(`.agents/skills/${skillName} is missing`)
       continue
     }
 
-    checkClaudeSkillFile(skillName, errors)
+    checkClaudeSkillSymlink(skillName, errors)
   }
   checkTrackedFilesAgainstWhitelist(skillNames, errors)
 

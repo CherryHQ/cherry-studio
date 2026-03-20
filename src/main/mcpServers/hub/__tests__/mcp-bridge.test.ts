@@ -8,7 +8,7 @@ vi.mock('@main/services/MCPService', () => ({
   }
 }))
 
-import { clearToolMap, resolveHubToolName, syncToolMapFromTools } from '../mcp-bridge'
+import { clearToolMap, resolveHubToolName, resolveHubToolNameAsync, syncToolMapFromTools } from '../mcp-bridge'
 
 describe('resolveHubToolName', () => {
   beforeEach(() => {
@@ -98,5 +98,62 @@ describe('resolveHubToolName', () => {
 
     const result = resolveHubToolName('my_server__do_thing')
     expect(result).toEqual({ serverId: 'my_server', toolName: 'do_thing' })
+  })
+})
+
+describe('resolveHubToolNameAsync', () => {
+  beforeEach(() => {
+    clearToolMap()
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    clearToolMap()
+  })
+
+  it('lazily refreshes mapping when null', async () => {
+    const mcpService = (await import('@main/services/MCPService')).default
+    vi.mocked(mcpService.listAllActiveServerTools).mockResolvedValue([
+      {
+        id: 'github__search_repos',
+        name: 'search_repos',
+        serverId: 'github',
+        serverName: 'GitHub',
+        description: '',
+        inputSchema: { type: 'object' as const },
+        type: 'mcp'
+      }
+    ])
+
+    // Mapping is null, sync version returns null
+    expect(resolveHubToolName('githubSearchRepos')).toBeNull()
+
+    // Async version should refresh and resolve
+    const result = await resolveHubToolNameAsync('githubSearchRepos')
+    expect(result).toEqual({ serverId: 'github', toolName: 'search_repos' })
+    expect(mcpService.listAllActiveServerTools).toHaveBeenCalled()
+  })
+
+  it('retries resolution after refresh when tool not found in stale mapping', async () => {
+    const mcpService = (await import('@main/services/MCPService')).default
+
+    // Initialize with an empty tool list
+    syncToolMapFromTools([])
+
+    // Mock listAllActiveServerTools to return the tool on refresh
+    vi.mocked(mcpService.listAllActiveServerTools).mockResolvedValue([
+      {
+        id: 'tavily__tavily_search',
+        name: 'tavily_search',
+        serverId: 'tavily',
+        serverName: 'Tavily',
+        description: '',
+        inputSchema: { type: 'object' as const },
+        type: 'mcp'
+      }
+    ])
+
+    const result = await resolveHubToolNameAsync('tavilyTavilySearch')
+    expect(result).toEqual({ serverId: 'tavily', toolName: 'tavily_search' })
   })
 })

@@ -1,11 +1,13 @@
 import { useCache } from '@data/hooks/useCache'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { uuid } from '@renderer/utils'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
 export const useAppUpdateState = () => {
   const [appUpdateState, setAppUpdateState] = useCache('app.dist.update_state')
 
@@ -24,6 +26,13 @@ export function useAppUpdateHandler() {
   const { t } = useTranslation()
   const { updateAppUpdateState } = useAppUpdateState()
   const notificationService = NotificationService.getInstance()
+  const { appUpdateState } = useAppUpdateState()
+  const manualCheckRef = useRef(appUpdateState.manualCheck)
+
+  // Keep ref in sync with current state
+  useEffect(() => {
+    manualCheckRef.current = appUpdateState.manualCheck
+  }, [appUpdateState.manualCheck])
 
   useEffect(() => {
     if (!window.electron) return
@@ -32,7 +41,7 @@ export function useAppUpdateHandler() {
 
     const removers = [
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
-        updateAppUpdateState({ checking: false })
+        updateAppUpdateState({ checking: false, manualCheck: false })
         if (window.location.hash.includes('settings/about')) {
           window.toast.success(t('settings.about.updateNotAvailable'))
         }
@@ -72,12 +81,17 @@ export function useAppUpdateHandler() {
           info: releaseInfo,
           downloaded: true
         })
+        // Auto show update dialog when download completes (only if user manually triggered the check)
+        if (manualCheckRef.current) {
+          UpdateDialogPopup.show({ releaseInfo })
+        }
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
         updateAppUpdateState({
           checking: false,
           downloading: false,
-          downloadProgress: 0
+          downloadProgress: 0,
+          manualCheck: false
         })
         if (window.location.hash.includes('settings/about')) {
           window.modal.info({

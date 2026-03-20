@@ -5,10 +5,13 @@
 import { dbService } from '@data/db/DbService'
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
+import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 import Store from 'electron-store'
+import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
+import { LocalStorageReader } from '../utils/LocalStorageReader'
 import { ReduxStateReader } from '../utils/ReduxStateReader'
 
 // Logger type for migration context (using actual LoggerService type)
@@ -27,6 +30,7 @@ export interface MigrationContext {
     reduxState: ReduxStateReader
     dexieExport: DexieFileReader
     dexieSettings: DexieSettingsReader
+    localStorage: LocalStorageReader
   }
 
   // Target database
@@ -46,7 +50,8 @@ export interface MigrationContext {
  */
 export async function createMigrationContext(
   reduxData: Record<string, unknown>,
-  dexieExportPath: string
+  dexieExportPath: string,
+  localStorageExportPath?: string
 ): Promise<MigrationContext> {
   const db = dbService.getDb()
   const logger = loggerService.withContext('Migration')
@@ -62,12 +67,31 @@ export async function createMigrationContext(
     logger.warn('Dexie settings table export not found, skipping')
   }
 
+  // Pre-load localStorage data into memory
+  let localStorageRecords: LocalStorageRecord[] = []
+  if (localStorageExportPath) {
+    try {
+      const raw = await fs.readFile(localStorageExportPath, 'utf-8')
+      localStorageRecords = JSON.parse(raw) as LocalStorageRecord[]
+      logger.info(`Loaded ${localStorageRecords.length} localStorage records`)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        logger.warn('localStorage export file not found, skipping')
+      } else {
+        logger.error('Failed to load localStorage export', error as Error)
+      }
+    }
+  } else {
+    logger.warn('No localStorage export path provided, skipping')
+  }
+
   return {
     sources: {
       electronStore,
       reduxState: new ReduxStateReader(reduxData),
       dexieExport: dexieFileReader,
-      dexieSettings: new DexieSettingsReader(dexieSettingsRecords)
+      dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
+      localStorage: new LocalStorageReader(localStorageRecords)
     },
     db,
     sharedData: new Map(),

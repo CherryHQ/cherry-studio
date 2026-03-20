@@ -1,5 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -17,6 +17,7 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
+import { useLocation } from '@tanstack/react-router'
 import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
@@ -35,8 +36,8 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return AppLogo
+const getAvatarIcon = (isLocalAi: boolean, modelId: string | undefined) => {
+  if (isLocalAi) return undefined
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -46,9 +47,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const [userName] = usePreference('app.user.name')
   const showMinappIcon = useSidebarIconShow('minapp')
   const [activeAgentId] = useCache('agent.active_id')
-  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent } = useAgent(activeAgentId)
-  const isAgentView = activeTopicOrSession === 'session'
+  const { pathname } = useLocation()
+  const isAgentView = pathname.startsWith('/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -57,7 +58,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
+  const ModelIcon = useMemo(() => getAvatarIcon(isLocalAi, getMessageModelId(message)), [message])
 
   const getUserName = useCallback(() => {
     if (isLocalAi && message.role !== 'user') {
@@ -96,18 +97,26 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   return (
     <Container className="message-header">
       {isAssistantMessage ? (
-        <Avatar
-          src={avatarSource}
-          className="h-[35px] w-[35px]"
-          style={{
-            borderRadius: '25%',
-            cursor: showMinappIcon ? 'pointer' : 'default',
-            border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-            filter: theme === 'dark' ? 'invert(0.05)' : undefined
-          }}
-          onClick={showMiniApp}>
-          {avatarName}
-        </Avatar>
+        ModelIcon ? (
+          <div onClick={showMiniApp} className="cursor-pointer">
+            <ModelIcon.Avatar size={35} className="rounded-[25%]" />
+          </div>
+        ) : (
+          <Avatar
+            className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
+            style={{
+              cursor: showMinappIcon ? 'pointer' : 'default',
+              border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+              filter: theme === 'dark' ? 'invert(0.05)' : undefined
+            }}
+            onClick={showMiniApp}>
+            {isLocalAi ? (
+              <AvatarImage src={AppLogo} />
+            ) : (
+              <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
+            )}
+          </Avatar>
+        )
       ) : (
         <>
           {isEmoji(avatar) ? (
@@ -115,12 +124,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               {avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar
-              src={avatar}
-              className="h-[35px] w-[35px]"
-              style={{ borderRadius: '25%', cursor: 'pointer' }}
-              onClick={() => UserPopup.show()}
-            />
+            <Avatar className="h-[35px] w-[35px] cursor-pointer rounded-[25%]" onClick={() => UserPopup.show()}>
+              <AvatarImage src={avatar} />
+            </Avatar>
           )}
         </>
       )}

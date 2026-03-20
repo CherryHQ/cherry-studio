@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { MigratorProgressList } from './components'
-import { DexieExporter, ReduxExporter } from './exporters'
+import { DexieExporter, LocalStorageExporter, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
 
 const logger = loggerService.withContext('MigrationApp')
@@ -48,8 +48,17 @@ const MigrationApp: React.FC = () => {
 
       logger.info('Dexie data exported', { exportPath })
 
+      // Export localStorage data
+      const localStorageExportPath = `${userDataPath}/migration_temp/localstorage_export`
+      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
+      const localStorageFilePath = await localStorageExporter.export()
+      logger.info('localStorage data exported', {
+        entryCount: localStorageExporter.getEntryCount(),
+        filePath: localStorageFilePath
+      })
+
       // Start migration with exported data
-      await actions.startMigration(reduxResult.data, exportPath)
+      await actions.startMigration(reduxResult.data, exportPath, localStorageFilePath)
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
     } finally {
