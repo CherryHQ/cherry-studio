@@ -535,16 +535,30 @@ export function mcpToolCallResponseToOpenAIResponsesOutput(
           })
           break
         case 'image':
+          if (item.data) {
+            content.push({
+              type: 'input_image',
+              image_url: `data:${item.mimeType || 'image/png'};base64,${item.data}`,
+              detail: 'auto'
+            })
+          } else {
+            content.push({
+              type: 'input_text',
+              text: '[Image result omitted: missing image data]'
+            })
+          }
+          break
+        case 'audio':
+        case 'resource':
           content.push({
-            type: 'input_image',
-            image_url: `data:${item.mimeType};base64,${item.data}`,
-            detail: 'auto'
+            type: 'input_text',
+            text: summarizeMcpToolResultItem(item)
           })
           break
         default:
           content.push({
             type: 'input_text',
-            text: `Unsupported type: ${item.type}`
+            text: summarizeMcpToolResultItem(item)
           })
           break
       }
@@ -552,6 +566,27 @@ export function mcpToolCallResponseToOpenAIResponsesOutput(
     return content
   }
   return JSON.stringify(resp.content)
+}
+
+function summarizeMcpToolResultItem(item: MCPToolResultContent): string {
+  switch (item.type) {
+    case 'audio':
+      return `[Audio result: ${item.mimeType || 'audio/unknown'}${item.data ? ', base64 payload present' : ', no audio data'}]`
+    case 'resource':
+      if (item.resource?.text) {
+        return item.resource.text
+      }
+      if (item.resource?.uri) {
+        return `[Resource result: ${item.resource.uri}${item.resource.mimeType ? ` (${item.resource.mimeType})` : ''}]`
+      }
+      return '[Resource result]'
+    case 'image':
+      return `[Image result: ${item.mimeType || 'image/png'}${item.data ? ', base64 payload present' : ', no image data'}]`
+    case 'text':
+      return item.text || 'no content'
+    default:
+      return JSON.stringify(item)
+  }
 }
 
 export function mcpToolCallResponseToOpenAIMessage(
