@@ -211,13 +211,7 @@ const OpenAIExtension = ProviderExtension.create({
     {
       suffix: 'chat',
       name: 'OpenAI Chat',
-      transform: (provider: OpenAIProvider) =>
-        customProvider({
-          fallbackProvider: {
-            ...provider,
-            languageModel: (modelId: string) => provider.chat(modelId)
-          }
-        }),
+      // 无 transform：suffix 'chat' 作为方法名 → provider.chat(modelId)
       toolFactories: {
         webSearch:
           (provider: OpenAIProvider) =>
@@ -259,13 +253,8 @@ const XaiExtension = ProviderExtension.create({
     {
       suffix: 'responses',
       name: 'xAI Responses',
-      transform: (provider: XaiProvider) =>
-        customProvider({
-          fallbackProvider: {
-            ...provider,
-            languageModel: (modelId: string) => provider.responses(modelId)
-          }
-        }),
+      // 无 transform：suffix 'responses' 作为方法名 → provider.responses(modelId)
+      // provider 不被包装，.tools 天然保留
       toolFactories: {
         webSearch:
           (provider: XaiProvider) =>

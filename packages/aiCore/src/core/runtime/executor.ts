@@ -191,10 +191,19 @@ export class RuntimeExecutor<
 
   /**
    * 解析模型：将字符串 modelId 解析为 model 对象
-   * middleware 的应用由 pluginEngine 统一处理
+   *
+   * 对于有 variantMode 的配置（如 'responses', 'chat'），
+   * 直接调用 provider[variantMode](modelId) 而不是通过 registry.languageModel()。
+   * 这样 provider 不需要被 customProvider 包装，保留 .tools 等属性。
    */
   private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
+      const { variantMode, provider } = this.config
+      if (variantMode && typeof (provider as any)[variantMode] === 'function') {
+        // Variant mode: use provider[suffix](modelId) directly
+        // e.g., provider.responses('grok-4'), provider.chat('gpt-4o')
+        return (provider as any)[variantMode](modelOrId) as LanguageModelV3
+      }
       return this.registry.languageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
     } else {
       if (!isV3Model(modelOrId)) {
@@ -238,13 +247,15 @@ export class RuntimeExecutor<
     providerId: T,
     provider: ProviderV3,
     options: TSettingsMap[T],
-    plugins?: AiPlugin[]
+    plugins?: AiPlugin[],
+    variantMode?: string
   ): RuntimeExecutor<TSettingsMap, T> {
     return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
       provider,
       providerSettings: options,
-      plugins
+      plugins,
+      variantMode
     })
   }
 

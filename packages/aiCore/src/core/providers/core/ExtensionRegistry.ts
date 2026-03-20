@@ -346,6 +346,27 @@ export class ExtensionRegistry {
   }
 
   /**
+   * 获取 suffix-as-method 模式的变体后缀
+   *
+   * 仅当变体没有 transform 时返回 suffix（用于 provider[suffix](modelId) 解析）。
+   * 有 transform 的变体由 transform 处理模型解析，不需要 suffix-as-method。
+   *
+   * @returns suffix 或 null
+   */
+  getVariantMethodMode(variantId: string): string | null {
+    const parsed = this.parseProviderId(variantId)
+    if (!parsed?.mode || !parsed.isVariant) return null
+
+    const extension = this.get(parsed.baseId)
+    if (!extension) return null
+
+    const variant = extension.getVariant(parsed.mode)
+    if (!variant || variant.transform) return null // 有 transform → 不需要 method mode
+
+    return parsed.mode
+  }
+
+  /**
    * 获取某个基础 provider 的所有变体 IDs
    *
    * @param baseId - 基础 provider ID（可以是别名）

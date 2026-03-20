@@ -426,19 +426,24 @@ export class ProviderExtension<
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
-    // When creating a variant, also cache the base provider under non-variant hash
-    // so it's accessible for .tools (which only lives on the unwrapped provider)
-    if (variantSuffix) {
-      const baseHash = this.computeHash(mergedSettings)
-      if (!this.instances.has(baseHash)) {
-        this.instances.set(baseHash, baseProvider as TProvider)
-      }
-    }
-
     let finalProvider: TProvider
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
-      finalProvider = (await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))) as TProvider
+      if (variant.transform) {
+        // 有 transform：创建完全不同的 provider（如 azure-anthropic）
+        // 同时缓存 base provider（用于 .tools 提取）
+        const baseHash = this.computeHash(mergedSettings)
+        if (!this.instances.has(baseHash)) {
+          this.instances.set(baseHash, baseProvider as TProvider)
+        }
+        finalProvider = (await Promise.resolve(
+          variant.transform(baseProvider as TProvider, mergedSettings)
+        )) as TProvider
+      } else {
+        // 无 transform：suffix 作为模型解析方法名（如 'responses', 'chat'）
+        // provider 不包装，保留 .tools
+        finalProvider = baseProvider as TProvider
+      }
     } else {
       finalProvider = baseProvider as TProvider
     }
@@ -528,18 +533,17 @@ export class ProviderExtension<
    * @param variantSuffix - 可选的变体后缀
    * @returns 缓存的 provider 实例，或 undefined
    */
-  getCachedProvider(variantSuffix?: string): TProvider | undefined {
-    // LRU cache keys: base = "abc123", variant = "abc123:suffix"
-    // We don't know the settings hash, so iterate and match by key pattern.
-    // O(n) over cache size (max 10), acceptable.
+  getCachedProvider(): TProvider | undefined {
+    // For tool descriptor extraction, any cached instance works:
+    // - Method-only variants (no transform): same unwrapped provider, has .tools
+    // - Transform variants: base provider is also cached (in _doCreateProvider)
+    // Prefer non-variant keys (no ':') to get the unwrapped base
     for (const [key, value] of this.instances.entries()) {
-      if (variantSuffix) {
-        // Looking for a specific variant: key must end with `:${variantSuffix}`
-        if (key.endsWith(`:${variantSuffix}`)) return value
-      } else {
-        // Looking for base provider: key must NOT contain ':' (no variant suffix)
-        if (!key.includes(':')) return value
-      }
+      if (!key.includes(':')) return value
+    }
+    // Fall back to any cached instance
+    for (const [, value] of this.instances.entries()) {
+      return value
     }
     return undefined
   }

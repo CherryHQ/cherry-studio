@@ -129,8 +129,16 @@ export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 =
   /** 变体显示名称 */
   name: string
 
-  /** 变体转换函数：将基础 provider 转换为变体 */
-  transform: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
+  /**
+   * 变体转换函数：将基础 provider 转换为变体（可选）
+   *
+   * 不提供时，suffix 作为 provider 上的方法名用于模型解析：
+   * - suffix: 'responses' → provider.responses(modelId)
+   * - suffix: 'chat' → provider.chat(modelId)
+   *
+   * 提供时，用于创建完全不同的 provider（如 azure-anthropic）
+   */
+  transform?: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
 
   /** Tool factory overrides for this variant */
   toolFactories?: ToolFactoryMap<TProvider>
