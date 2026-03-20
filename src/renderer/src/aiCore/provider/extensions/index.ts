@@ -6,8 +6,8 @@
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
-import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
-import { createVertex, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
+import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
 import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
@@ -34,11 +34,23 @@ export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
   aliases: ['vertexai'] as const,
   supportsImageGeneration: true,
-  create: createVertex
+  create: createVertex,
+  toolFactories: {
+    webSearch:
+      (provider: GoogleVertexProvider) =>
+      (config: NonNullable<Parameters<GoogleVertexProvider['tools']['googleSearch']>[0]>) => ({
+        tools: { webSearch: provider.tools.googleSearch(config) }
+      }),
+    urlContext:
+      (provider: GoogleVertexProvider) =>
+      (config: NonNullable<Parameters<GoogleVertexProvider['tools']['urlContext']>[0]>) => ({
+        tools: { urlContext: provider.tools.urlContext(config) }
+      })
+  }
 } as const satisfies ProviderExtensionConfig<
   GoogleVertexProviderSettings,
   ExtensionStorage,
-  ProviderV3,
+  GoogleVertexProvider,
   'google-vertex'
 >)
 
@@ -49,11 +61,18 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: createVertexAnthropic
+  create: createVertexAnthropic,
+  toolFactories: {
+    webSearch:
+      (provider: GoogleVertexAnthropicProvider) =>
+      (config: NonNullable<Parameters<GoogleVertexAnthropicProvider['tools']['webSearch_20250305']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch_20250305(config) }
+      })
+  }
 } as const satisfies ProviderExtensionConfig<
   GoogleVertexProviderSettings,
   ExtensionStorage,
-  ProviderV3,
+  GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
 >)
 

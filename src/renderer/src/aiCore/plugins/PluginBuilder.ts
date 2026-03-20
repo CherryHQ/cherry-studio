@@ -1,5 +1,5 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
-import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { isGemini3Model, isQwen35Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
@@ -99,9 +99,12 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }
 
-  // 1. 模型内置搜索
+  // 1. Provider 工具注入 — providerToolPlugin 自动按 provider 分发工具
   if (config.enableWebSearch && config.webSearchPluginConfig) {
-    plugins.push(webSearchPlugin(config.webSearchPluginConfig))
+    plugins.push(providerToolPlugin('webSearch', config.webSearchPluginConfig))
+  }
+  if (config.enableUrlContext) {
+    plugins.push(providerToolPlugin('urlContext', config.urlContextConfig))
   }
   // 2. 支持工具调用时添加搜索插件
   if (config.isSupportedToolUse || config.isPromptToolUse) {
@@ -122,10 +125,6 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
       })
     )
   }
-
-  // if (config.enableUrlContext && config.) {
-  //   plugins.push(googleToolsPlugin({ urlContext: true }))
-  // }
 
   logger.debug(
     'Final plugin list:',

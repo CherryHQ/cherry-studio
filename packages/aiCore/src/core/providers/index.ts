@@ -56,4 +56,13 @@ export type {
   ProviderVariant,
   StorageAccessor
 } from './types'
-export type { RegisteredProviderId } from './types'
+export type {
+  ExtractToolConfig,
+  ExtractToolConfigMap,
+  RegisteredProviderId,
+  ToolCapability,
+  ToolFactory,
+  ToolFactoryMap,
+  ToolFactoryPatch,
+  WebSearchToolConfigMap
+} from './types'

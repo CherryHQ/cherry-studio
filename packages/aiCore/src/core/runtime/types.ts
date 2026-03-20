@@ -19,6 +19,7 @@ export interface RuntimeConfig<
 > {
   providerId: T
   provider: ProviderV3
+  baseProvider?: ProviderV3
   providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
 }

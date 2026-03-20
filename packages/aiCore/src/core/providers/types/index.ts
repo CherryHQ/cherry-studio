@@ -12,6 +12,7 @@ import type {
 
 import type { coreExtensions } from '../core/initialization'
 import type { ProviderExtension } from '../core/ProviderExtension'
+import type { ToolFactoryMap } from './toolFactory'
 
 // ============================================================================
 // Type Utilities
@@ -115,7 +116,7 @@ export type StorageAccessor<T extends ExtensionStorage = ExtensionStorage> = {
  *   transform: (provider, settings) => customProvider({
  *     fallbackProvider: {
  *       ...provider,
- *       languageModel: (modelId) => provider.chat(modelId) // ✅ TypeScript 知道 provider 有 .chat()
+ *       languageModel: (modelId) => provider.chat(modelId)
  *     }
  *   })
  * }
@@ -130,6 +131,9 @@ export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 =
 
   /** 变体转换函数：将基础 provider 转换为变体 */
   transform: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
+
+  /** Tool factory overrides for this variant */
+  toolFactories?: ToolFactoryMap<TProvider>
 }
 
 /**
@@ -279,3 +283,85 @@ export type ExtensionConfigToIdResolutionMap<TConfig> = TConfig extends { name: 
  * Provider IDs Map Type with Literal Type Inference
  */
 export type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never
+
+export type { ToolCapability, ToolFactory, ToolFactoryMap, ToolFactoryPatch } from './toolFactory'
+
+// ============================================================================
+// Tool Config Type Extraction Utilities
+// ============================================================================
+
+/**
+ * 从 extension 的 toolFactories 声明中提取指定 capability 的 config 类型
+ *
+ * 依赖 `as const satisfies` 保留的具体函数签名。
+ * 如果 extension 未声明该 capability 或 config 类型无法推断，返回 never。
+ *
+ * @example
+ * ```typescript
+ * type OpenAIWebSearchConfig = ExtractToolConfig<typeof OpenAIExtension, 'webSearch'>
+ * // = { searchContextSize?: 'low' | 'medium' | 'high', ... }  ← 从 SDK 推导
+ * ```
+ */
+export type ExtractToolConfig<TExt, K extends string> = TExt extends {
+  config: { toolFactories?: { [P in K]?: (provider: any) => (config: infer C) => any } }
+}
+  ? C
+  : never
+
+/**
+ * 从 extension 的 variant toolFactories 中提取指定 capability 的 config 类型
+ *
+ * 用于 openai-chat 等 variant 覆盖了 base extension 的 toolFactory 的情况。
+ */
+type ExtractVariantToolConfig<TExt, K extends string> = TExt extends {
+  config: {
+    name: infer TName extends string
+    variants?: readonly (infer V)[]
+  }
+}
+  ? V extends {
+      suffix: infer TSuffix extends string
+      toolFactories?: { [P in K]?: (provider: any) => (config: infer C) => any }
+    }
+    ? { id: `${TName}-${TSuffix}`; config: C }
+    : never
+  : never
+
+/**
+ * 从所有 extensions 中提取指定 capability 的 config map
+ *
+ * 自动生成 { [providerId]: ConfigType } 映射，和 CoreProviderSettingsMap 同一模式。
+ * 包含 base extension 和 variant 的 config。
+ *
+ * @example
+ * ```typescript
+ * type WebSearchConfigs = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>
+ * // = { openai?: {...}, 'openai-chat'?: {...}, anthropic?: {...}, google?: {...}, openrouter?: {...} }
+ * ```
+ */
+export type ExtractToolConfigMap<TExtUnion, K extends string> = UnionToIntersection<
+  // Base extension configs: name → config
+  | (TExtUnion extends any
+      ? ExtractToolConfig<TExtUnion, K> extends never
+        ? never
+        : TExtUnion extends { config: { name: infer TName extends string } }
+          ? { [P in TName]?: ExtractToolConfig<TExtUnion, K> }
+          : never
+      : never)
+  // Variant configs: name-suffix → config
+  | (TExtUnion extends any
+      ? ExtractVariantToolConfig<TExtUnion, K> extends never
+        ? never
+        : ExtractVariantToolConfig<TExtUnion, K> extends { id: infer TId extends string; config: infer C }
+          ? { [P in TId]?: C }
+          : never
+      : never)
+>
+
+/**
+ * Web Search 的自动提取 config map
+ *
+ * 从 coreExtensions 声明中自动提取每个 provider 的 webSearch config 类型。
+ * 不需要手动维护 — 新增 extension 的 toolFactories.webSearch 自动出现在这个 map 中。
+ */
+export type WebSearchToolConfigMap = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>

@@ -4,13 +4,13 @@
  * 使用新的 Extension 系统
  */
 
-import type { AnthropicProviderSettings } from '@ai-sdk/anthropic'
+import type { AnthropicProvider, AnthropicProviderSettings } from '@ai-sdk/anthropic'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import type { AzureOpenAIProvider, AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import { createAzure } from '@ai-sdk/azure'
 import type { DeepSeekProviderSettings } from '@ai-sdk/deepseek'
 import { createDeepSeek } from '@ai-sdk/deepseek'
-import type { GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
+import type { GoogleGenerativeAIProvider, GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -24,6 +24,9 @@ import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider } from 'ai'
+
+import { createOpenRouterOptions } from '../../options'
+import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin/openrouter'
 
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -44,8 +47,23 @@ const AnthropicExtension = ProviderExtension.create({
   name: 'anthropic',
   aliases: ['claude'] as const,
   supportsImageGeneration: false,
-  create: createAnthropic
-} as const satisfies ProviderExtensionConfig<AnthropicProviderSettings, ExtensionStorage, ProviderV3, 'anthropic'>)
+  create: createAnthropic,
+  toolFactories: {
+    webSearch:
+      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webSearch_20250305']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch_20250305(config) }
+      }),
+    urlContext:
+      (provider) => (config: NonNullable<Parameters<AnthropicProvider['tools']['webFetch_20260209']>[0]>) => ({
+        tools: { webSearch: provider.tools.webFetch_20260209(config) }
+      })
+  }
+} as const satisfies ProviderExtensionConfig<
+  AnthropicProviderSettings,
+  ExtensionStorage,
+  AnthropicProvider,
+  'anthropic'
+>)
 
 /**
  * Azure Extension
@@ -63,6 +81,13 @@ const AzureExtension = ProviderExtension.create({
         languageModel: (modelId: string) => provider.chat(modelId)
       }
     })
+  },
+  toolFactories: {
+    webSearch:
+      (provider: AzureOpenAIProvider) =>
+      (config: NonNullable<Parameters<AzureOpenAIProvider['tools']['webSearchPreview']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearchPreview(config) }
+      })
   },
   variants: [
     {
@@ -126,11 +151,23 @@ const GoogleExtension = ProviderExtension.create({
   name: 'google',
   aliases: ['google-ai', 'gemini', 'google-gemini'] as const,
   supportsImageGeneration: true,
-  create: createGoogleGenerativeAI
+  create: createGoogleGenerativeAI,
+  toolFactories: {
+    webSearch:
+      (provider: GoogleGenerativeAIProvider) =>
+      (config: NonNullable<Parameters<GoogleGenerativeAIProvider['tools']['googleSearch']>[0]>) => ({
+        tools: { webSearch: provider.tools.googleSearch(config) }
+      }),
+    urlContext: (provider) => (config) => ({
+      tools: {
+        urlContext: provider.tools.urlContext(config)
+      }
+    })
+  }
 } as const satisfies ProviderExtensionConfig<
   GoogleGenerativeAIProviderSettings,
   ExtensionStorage,
-  ProviderV3,
+  GoogleGenerativeAIProvider,
   'google'
 >)
 
@@ -158,6 +195,12 @@ const OpenAIExtension = ProviderExtension.create({
   aliases: ['openai-response'] as const,
   supportsImageGeneration: true,
   create: createOpenAI,
+  toolFactories: {
+    webSearch:
+      (provider: OpenAIProvider) => (config: NonNullable<Parameters<OpenAIProvider['tools']['webSearch']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch(config) }
+      })
+  },
 
   /**
    * Provider 变体 - openai-chat
@@ -174,7 +217,14 @@ const OpenAIExtension = ProviderExtension.create({
             ...provider,
             languageModel: (modelId: string) => provider.chat(modelId)
           }
-        })
+        }),
+      toolFactories: {
+        webSearch:
+          (provider: OpenAIProvider) =>
+          (config: NonNullable<Parameters<OpenAIProvider['tools']['webSearchPreview']>[0]>) => ({
+            tools: { webSearch: provider.tools.webSearchPreview(config) }
+          })
+      }
     }
   ] as const
 } as const satisfies ProviderExtensionConfig<OpenAIProviderSettings, ExtensionStorage, OpenAIProvider, 'openai'>)
@@ -184,9 +234,20 @@ const OpenRouterExtension = ProviderExtension.create({
   // TODO: 实现注册后修改拓展配置
   aliases: ['tokenflux'] as const,
   supportsImageGeneration: true,
-  create: createOpenRouter
+  create: createOpenRouter,
+  toolFactories: {
+    webSearch: () => (config: OpenRouterSearchConfig) => ({
+      providerOptions: createOpenRouterOptions(config)
+    })
+  }
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 
+// TODO: xAI toolFactories (webSearch, xSearch) cannot be declared here yet because
+// the `create` function wraps the XaiProvider with `customProvider()`, so the cached
+// provider instance loses the `.tools` property. To fix this, refactor xAI to use
+// `create: createXai` with a `variants` entry for responses mode (similar to Azure).
+// That way `getBaseProvider()` returns the unwrapped `XaiProvider` with `.tools`.
+// See: XaiProvider.tools.webSearch, XaiProvider.tools.xSearch
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,

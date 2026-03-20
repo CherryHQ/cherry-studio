@@ -1,4 +1,4 @@
-import type { JSONObject, JSONValue } from '@ai-sdk/provider'
+import type { JSONObject, JSONValue, ProviderV3 } from '@ai-sdk/provider'
 import type { generateText, LanguageModelMiddleware, streamText, TextStreamPart, ToolSet } from 'ai'
 
 import type { AiSdkModel, RegisteredProviderId } from '../providers/types'
@@ -34,6 +34,23 @@ export interface AiRequestMetadata {
 export type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult>
 
 /**
+ * 类型安全的插件状态存储
+ * 每个插件通过声明的 key 存取自己的状态
+ */
+export interface PluginStateSlots {
+  'prompt-tool-use'?: {
+    accumulatedUsage: {
+      inputTokens: number
+      outputTokens: number
+      totalTokens: number
+      reasoningTokens: number
+      cachedInputTokens: number
+    }
+    hasExecutedToolsInCurrentStep: boolean
+  }
+}
+
+/**
  * AI 请求上下文
  * 使用泛型参数以支持不同类型的请求
  */
@@ -53,9 +70,19 @@ export interface AiRequestContext<TParams = unknown, TResult = unknown> {
 
   mcpTools?: ToolSet
 
+  // Base provider instance (unwrapped, with .tools)
+  // For non-variants: same as the main provider
+  // For variants: the unwrapped provider before variant.transform()
+  baseProvider?: ProviderV3
+
   extensions: Map<string, JSONValue>
 
   middlewares?: LanguageModelMiddleware[]
+
+  pluginState: PluginStateSlots
+
+  // Runtime executor reference (temporary, to be refactored)
+  executor?: any
 
   // 向后兼容：允许插件动态添加属性（临时保留）
   [key: string]: any

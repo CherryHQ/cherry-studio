@@ -23,6 +23,7 @@ export interface AiSdkMiddlewareConfig {
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
   webSearchPluginConfig?: WebSearchPluginConfig
+  urlContextConfig?: Record<string, any>
   knowledgeRecognition?: 'off' | 'on'
   mcpMode?: string
 }

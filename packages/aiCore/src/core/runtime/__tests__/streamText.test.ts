@@ -525,11 +525,12 @@ describe('RuntimeExecutor.streamText', () => {
       ).rejects.toThrow('Stream error')
 
       // onError receives the original error and context with core fields
+      // context.model is the resolved LanguageModel (updated after resolveModel hook)
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'gpt-4'
+          model: expect.objectContaining({ modelId: 'gpt-4' })
         })
       )
     })

@@ -2,7 +2,14 @@ import type { ProviderV3 } from '@ai-sdk/provider'
 import { LRUCache } from 'lru-cache'
 
 import { deepMergeObjects } from '../../utils'
-import type { ExtensionContext, ExtensionStorage, LifecycleHooks, ProviderVariant, StorageAccessor } from '../types'
+import type {
+  ExtensionContext,
+  ExtensionStorage,
+  LifecycleHooks,
+  ProviderVariant,
+  StorageAccessor,
+  ToolFactoryMap
+} from '../types'
 
 export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
 
@@ -58,6 +65,13 @@ interface ProviderExtensionConfigBase<
    * 这样 transform 函数就能正确识别 provider 的方法
    */
   variants?: readonly ProviderVariant<TSettings, TProvider>[]
+
+  /**
+   * Tool factory 映射
+   * 声明该 provider 支持的工具能力（如 webSearch）
+   * 工具工厂从 provider 实例的 .tools 属性提取
+   */
+  toolFactories?: ToolFactoryMap<TProvider>
 }
 
 /**
@@ -378,6 +392,14 @@ export class ProviderExtension<
     }
   }
 
+  /**
+   * 获取基础 provider 实例（无变体转换）
+   * 用于访问 provider 的 .tools 属性
+   */
+  async getBaseProvider(settings?: TSettings): Promise<TProvider> {
+    return this.createProvider(settings) // No variant suffix = base provider
+  }
+
   private async _doCreateProvider(
     mergedSettings: TSettings,
     variantSuffix: string | undefined,
@@ -402,6 +424,15 @@ export class ProviderExtension<
       baseProvider = await Promise.resolve(creatorFn(mergedSettings))
     } else {
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
+    }
+
+    // When creating a variant, also cache the base provider under non-variant hash
+    // so it's accessible for .tools (which only lives on the unwrapped provider)
+    if (variantSuffix) {
+      const baseHash = this.computeHash(mergedSettings)
+      if (!this.instances.has(baseHash)) {
+        this.instances.set(baseHash, baseProvider as TProvider)
+      }
     }
 
     let finalProvider: TProvider
@@ -486,6 +517,28 @@ export class ProviderExtension<
   clearCache(): void {
     this.instances.clear()
     this.pendingCreations.clear()
+  }
+
+  /**
+   * 获取已缓存的 provider 实例（如果存在）
+   *
+   * 从 LRU 缓存中查找任意匹配的实例。
+   * 用于 tool descriptor 提取 — 优先复用已有实例，避免创建新的。
+   *
+   * @param variantSuffix - 可选的变体后缀
+   * @returns 缓存的 provider 实例，或 undefined
+   */
+  getCachedProvider(variantSuffix?: string): TProvider | undefined {
+    // LRU cache is keyed by hash(settings + variant).
+    // We don't know the settings, so iterate to find any cached instance.
+    // This is O(n) over cache size (max 10), acceptable.
+    for (const [, value] of this.instances.entries()) {
+      if (!variantSuffix) {
+        return value
+      }
+      return value
+    }
+    return undefined
   }
 
   /**

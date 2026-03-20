@@ -351,6 +351,9 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
           throw new ModelResolutionError(modelId, this.providerId)
         }
         resolvedModel = resolved
+        // 更新 context.model 为已解析的 LanguageModel 实例
+        // 后续 plugin（如 providerToolPlugin）需要 model.provider 来识别聚合供应商的协议
+        context.model = resolvedModel
       }
 
       if (!resolvedModel) {

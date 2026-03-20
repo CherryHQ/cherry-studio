@@ -58,7 +58,8 @@ export function createMockContext(overrides?: ContextOverrides): AiRequestContex
     isRecursiveCall: false,
     recursiveDepth: 0,
     maxRecursiveDepth: 10,
-    extensions: new Map()
+    extensions: new Map(),
+    pluginState: {}
   }
 
   if (overrides) {

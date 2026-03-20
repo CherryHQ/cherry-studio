@@ -5,7 +5,7 @@
 
 import type { ProviderV3 } from '@ai-sdk/provider'
 
-import type { CoreProviderSettingsMap, RegisteredProviderId } from '../index'
+import type { CoreProviderSettingsMap, RegisteredProviderId, ToolCapability, ToolFactory } from '../index'
 import { type ProviderExtension } from './ProviderExtension'
 import { ProviderCreationError } from './utils'
 
@@ -367,6 +367,122 @@ export class ExtensionRegistry {
     }
 
     return extension.config.variants.map((v) => `${extension.config.name}-${v.suffix}`)
+  }
+
+  /**
+   * 获取指定 provider 的工具工厂
+   *
+   * 对于变体，优先检查变体的 toolFactories，然后回退到基础 extension 的
+   *
+   * @param providerId - Provider ID（可以是变体ID或基础ID）
+   * @param capability - 工具能力标识（ToolCapability union，如 'webSearch'）
+   * @returns ToolFactory 函数或 undefined
+   *
+   * @example
+   * ```typescript
+   * const factory = extensionRegistry.getToolFactory('anthropic', 'webSearch')
+   * if (factory && baseProvider) {
+   *   const tool = factory(baseProvider)(config ?? {})
+   *   params.tools['webSearch'] = tool
+   * }
+   * ```
+   */
+  getToolFactory(providerId: string, capability: ToolCapability): ToolFactory | undefined {
+    const parsed = this.parseProviderId(providerId)
+    if (!parsed) return undefined
+
+    const { baseId, mode, isVariant } = parsed
+    const extension = this.get(baseId)
+    if (!extension) return undefined
+
+    // For variants, check variant-level toolFactories first
+    if (isVariant && mode) {
+      const variant = extension.getVariant(mode)
+      if (variant?.toolFactories?.[capability]) {
+        return variant.toolFactories[capability]
+      }
+    }
+
+    // Fall back to base extension's toolFactories
+    return extension.config.toolFactories?.[capability]
+  }
+
+  /**
+   * 解析工具能力：返回 factory + 可用的 provider 实例
+   *
+   * 封装了所有查找逻辑：
+   * 1. Direct — provider 自己声明了 toolFactories
+   * 2. Aggregator fallback — 从 model.provider 段解析真实 provider
+   *    （如 "aihubmix.anthropic" → "anthropic" → Anthropic extension）
+   *
+   * 对于聚合供应商，会创建真实 provider 实例（仅用于提取 .tools 描述符，不走网络）。
+   * 内部处理 API key 校验绕过和错误吞没，plugin 层无需关心。
+   *
+   * @param providerId - 当前 provider ID
+   * @param capability - 工具能力标识
+   * @param baseProvider - 当前 context 的 baseProvider（直接查找时使用）
+   * @param modelProvider - LanguageModel 上的 provider 字符串（聚合供应商 fallback）
+   * @returns { factory, provider } 或 undefined
+   *
+   * @example
+   * ```typescript
+   * const resolved = extensionRegistry.resolveToolCapability('aihubmix', 'webSearch', baseProvider, 'aihubmix.google')
+   * if (resolved) {
+   *   const patch = resolved.factory(resolved.provider)(config)
+   *   // merge patch into params
+   * }
+   * ```
+   */
+  async resolveToolCapability(
+    providerId: string,
+    capability: ToolCapability,
+    baseProvider: ProviderV3 | undefined,
+    modelProvider?: string
+  ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
+    // 1. Direct: provider 自己有 toolFactories
+    const directFactory = this.getToolFactory(providerId, capability)
+    if (directFactory && baseProvider) {
+      return { factory: directFactory, provider: baseProvider }
+    }
+
+    // 2. Aggregator fallback: 从 model.provider 段解析真实 provider
+    //    e.g., "aihubmix.google" → try "google" → found via google extension
+    //    e.g., "cherryin.gemini" → try "gemini" → found via alias → google extension
+    if (typeof modelProvider === 'string') {
+      const segments = modelProvider.split('.')
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const factory = this.getToolFactory(segments[i], capability)
+        if (factory) {
+          const provider = await this.getToolProvider(segments[i])
+          if (provider) return { factory, provider }
+        }
+      }
+    }
+
+    return undefined
+  }
+
+  /**
+   * 获取用于 .tools 描述符提取的 provider 实例
+   *
+   * Tool 对象是纯描述符（不走网络），所以不需要真实 API key。
+   * 优先使用已有缓存实例，否则创建 tool-only 实例。
+   */
+  private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined> {
+    const parsed = this.parseProviderId(providerId)
+    if (!parsed) return undefined
+
+    const extension = this.get(parsed.baseId)
+    if (!extension) return undefined
+
+    const cached = extension.getCachedProvider(parsed.mode)
+    if (cached) return cached
+
+    try {
+      return await extension.createProvider({ apiKey: '_tool_descriptor' }, parsed.mode)
+    } catch {
+      return undefined
+    }
   }
 
   /**

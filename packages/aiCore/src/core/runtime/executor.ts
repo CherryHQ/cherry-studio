@@ -80,6 +80,7 @@ export class RuntimeExecutor<
       name: '_internal_configureContext',
       configureContext: async (context: AiRequestContext) => {
         context.executor = this
+        context.baseProvider = this.config.baseProvider ?? this.config.provider
       }
     })
   }
@@ -237,11 +238,13 @@ export class RuntimeExecutor<
     providerId: T,
     provider: ProviderV3,
     options: TSettingsMap[T],
-    plugins?: AiPlugin[]
+    plugins?: AiPlugin[],
+    baseProvider?: ProviderV3
   ): RuntimeExecutor<TSettingsMap, T> {
     return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
       provider,
+      baseProvider,
       providerSettings: options,
       plugins
     })

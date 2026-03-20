@@ -1014,8 +1014,8 @@ describe('ProviderExtension', () => {
         name: 'azure',
         create: createFn as any,
         variants: [
-          { suffix: 'chat', name: 'Chat', transform: (p: any) => p },
-          { suffix: 'responses', name: 'Responses', transform: (p: any) => p }
+          { suffix: 'chat', name: 'Chat', transform: (p: any) => ({ ...p, _variant: 'chat' }) },
+          { suffix: 'responses', name: 'Responses', transform: (p: any) => ({ ...p, _variant: 'responses' }) }
         ]
       })
 
@@ -1025,11 +1025,15 @@ describe('ProviderExtension', () => {
       const responsesInstance = await extension.createProvider(settings, 'responses')
       const baseInstance = await extension.createProvider(settings)
 
-      // All three should be different cached instances
+      // Variant instances should be different from each other
       expect(chatInstance).not.toBe(responsesInstance)
+      // Base provider is cached when first variant is created, so baseInstance
+      // is the same object as the unwrapped base (reused across variants)
       expect(chatInstance).not.toBe(baseInstance)
       expect(responsesInstance).not.toBe(baseInstance)
-      expect(createFn).toHaveBeenCalledTimes(3)
+      // createFn called once for 'chat' variant (also caches base), once for 'responses' (reuses cached base)
+      // base provider request reuses the cached instance from the first variant creation
+      expect(createFn).toHaveBeenCalledTimes(2)
     })
 
     it('should handle settings with functions by treating them uniformly', async () => {

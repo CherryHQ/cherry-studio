@@ -30,6 +30,7 @@ export type {
   GenerateTextResult,
   HookResult,
   PluginManagerConfig,
+  PluginStateSlots,
   RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
@@ -38,7 +39,16 @@ export { createContext, definePlugin, PluginManager } from './core/plugins'
 export { PluginEngine } from './core/runtime/pluginEngine'
 
 // ==================== 类型工具 ====================
-export type { AiSdkModel } from './core/providers'
+export type {
+  AiSdkModel,
+  ExtractToolConfig,
+  ExtractToolConfigMap,
+  ToolCapability,
+  ToolFactory,
+  ToolFactoryMap,
+  ToolFactoryPatch,
+  WebSearchToolConfigMap
+} from './core/providers'
 
 // ==================== 选项 ====================
 export {
