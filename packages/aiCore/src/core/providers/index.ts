@@ -59,6 +59,7 @@ export type {
 export type {
   ExtractToolConfig,
   ExtractToolConfigMap,
+  ProviderId,
   RegisteredProviderId,
   ToolCapability,
   ToolFactory,

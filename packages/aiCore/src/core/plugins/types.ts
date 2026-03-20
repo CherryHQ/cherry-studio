@@ -1,7 +1,7 @@
 import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import type { generateText, LanguageModelMiddleware, streamText, TextStreamPart, ToolSet } from 'ai'
 
-import type { AiSdkModel, RegisteredProviderId } from '../providers/types'
+import type { AiSdkModel, ProviderId } from '../providers/types'
 
 /**
  * 常用的 AI SDK 参数类型（完整版，用于插件泛型）
@@ -38,7 +38,7 @@ export type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: 
  * 使用泛型参数以支持不同类型的请求
  */
 export interface AiRequestContext<TParams = unknown, TResult = unknown> {
-  providerId: RegisteredProviderId | (string & {})
+  providerId: ProviderId
   model: AiSdkModel
   originalParams: TParams
   metadata: AiRequestMetadata

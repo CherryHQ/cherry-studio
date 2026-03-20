@@ -24,15 +24,11 @@ import type { ToolFactoryMap } from './toolFactory'
  */
 export type StringKeys<T> = Extract<keyof T, string>
 
-/**
- * 已注册的 Provider ID
- * 从 coreExtensions 数组自动提取所有 Provider IDs
- * 类型安全的 literal union
- *
- * 如果需要支持动态/未注册的 provider，使用：
- * RegisteredProviderId | (string & {})
- */
+/** 从 coreExtensions 自动提取的 Provider ID literal union */
 export type RegisteredProviderId = StringKeys<CoreProviderSettingsMap>
+
+/** 允许已注册 ID（有自动补全）和任意字符串（动态 provider） */
+export type ProviderId = RegisteredProviderId | (string & {})
 
 // 错误类型
 export class ProviderError extends Error {

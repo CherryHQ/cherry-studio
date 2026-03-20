@@ -42,6 +42,7 @@ export type {
   AiSdkModel,
   ExtractToolConfig,
   ExtractToolConfigMap,
+  ProviderId,
   ToolCapability,
   ToolFactory,
   ToolFactoryMap,

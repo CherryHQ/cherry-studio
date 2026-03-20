@@ -3,7 +3,7 @@
  */
 import type { JSONObject, LanguageModelV3Middleware } from '@ai-sdk/provider'
 
-import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers/types'
+import type { CoreProviderSettingsMap, ProviderId } from '../providers/types'
 
 /**
  * 模型配置
@@ -12,7 +12,7 @@ import type { CoreProviderSettingsMap, RegisteredProviderId } from '../providers
  * @typeParam TSettingsMap - Provider Settings Map（默认 CoreProviderSettingsMap）
  */
 export interface ModelConfig<
-  T extends RegisteredProviderId | (string & {}) = RegisteredProviderId,
+  T extends ProviderId = ProviderId,
   TSettingsMap extends Record<string, any> = CoreProviderSettingsMap
 > {
   providerId: T
