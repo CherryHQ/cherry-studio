@@ -17,7 +17,7 @@ export interface MiniApp {
   bordered?: boolean
   background?: string
   supportedRegions?: ('CN' | 'Global')[]
-  configuration?: Record<string, any>
+  configuration?: unknown
   nameKey?: string
   addedAt?: number
   createdAt: string

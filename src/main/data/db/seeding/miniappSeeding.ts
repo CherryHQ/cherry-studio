@@ -9,7 +9,7 @@ const presetToDbRow = (preset: MiniappPreset, sortOrder: number) => ({
   name: preset.name,
   nameKey: preset.nameKey || null,
   url: preset.url,
-  logo: preset.appId,
+  logo: preset.icon,
   type: 'default' as const,
   status: 'enabled' as const,
   sortOrder,
