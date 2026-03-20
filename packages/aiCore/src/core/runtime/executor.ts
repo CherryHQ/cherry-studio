@@ -192,17 +192,14 @@ export class RuntimeExecutor<
   /**
    * 解析模型：将字符串 modelId 解析为 model 对象
    *
-   * 对于有 variantMode 的配置（如 'responses', 'chat'），
-   * 直接调用 provider[variantMode](modelId) 而不是通过 registry.languageModel()。
-   * 这样 provider 不需要被 customProvider 包装，保留 .tools 等属性。
+   * 对于有 modelResolver 的配置（如 xAI responses, OpenAI chat），
+   * 使用 resolver 函数解析模型，而不是通过 registry.languageModel()。
+   * resolver 在 extension 声明处类型安全地捕获了具体 provider 方法。
    */
   private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      const { variantMode, provider } = this.config
-      if (variantMode && typeof (provider as any)[variantMode] === 'function') {
-        // Variant mode: use provider[suffix](modelId) directly
-        // e.g., provider.responses('grok-4'), provider.chat('gpt-4o')
-        return (provider as any)[variantMode](modelOrId) as LanguageModelV3
+      if (this.config.modelResolver) {
+        return this.config.modelResolver(modelOrId)
       }
       return this.registry.languageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
     } else {
@@ -248,14 +245,14 @@ export class RuntimeExecutor<
     provider: ProviderV3,
     options: TSettingsMap[T],
     plugins?: AiPlugin[],
-    variantMode?: string
+    modelResolver?: (modelId: string) => any
   ): RuntimeExecutor<TSettingsMap, T> {
     return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
       provider,
       providerSettings: options,
       plugins,
-      variantMode
+      modelResolver
     })
   }
 

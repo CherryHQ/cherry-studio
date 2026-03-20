@@ -130,13 +130,27 @@ export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 =
   name: string
 
   /**
-   * 变体转换函数：将基础 provider 转换为变体（可选）
+   * 类型安全的模型解析函数（可选）
    *
-   * 不提供时，suffix 作为 provider 上的方法名用于模型解析：
-   * - suffix: 'responses' → provider.responses(modelId)
-   * - suffix: 'chat' → provider.chat(modelId)
+   * 在 extension 声明处捕获具体 provider 类型的方法调用，
+   * 避免在 executor 层做动态属性访问（provider[string]）。
    *
-   * 提供时，用于创建完全不同的 provider（如 azure-anthropic）
+   * @example
+   * ```typescript
+   * // xAI responses — TypeScript 校验 XaiProvider 有 .responses()
+   * resolveModel: (provider, modelId) => provider.responses(modelId)
+   *
+   * // OpenAI chat — TypeScript 校验 OpenAIProvider 有 .chat()
+   * resolveModel: (provider, modelId) => provider.chat(modelId)
+   * ```
+   */
+  resolveModel?: (provider: TProvider, modelId: string) => LanguageModel
+
+  /**
+   * 变体转换函数：将基础 provider 替换为完全不同的 provider（可选）
+   *
+   * 仅用于 provider 类型完全改变的场景（如 azure-anthropic）。
+   * 对于简单的模型解析方法切换（chat → responses），使用 resolveModel。
    */
   transform?: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
 

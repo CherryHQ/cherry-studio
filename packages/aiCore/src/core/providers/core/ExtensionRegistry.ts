@@ -346,24 +346,28 @@ export class ExtensionRegistry {
   }
 
   /**
-   * 获取 suffix-as-method 模式的变体后缀
+   * 获取模型解析函数
    *
-   * 仅当变体没有 transform 时返回 suffix（用于 provider[suffix](modelId) 解析）。
-   * 有 transform 的变体由 transform 处理模型解析，不需要 suffix-as-method。
+   * 从 variant 的 resolveModel 或 base extension 的 defaultModelMethod 中提取。
+   * 返回一个 (provider, modelId) => LanguageModel 的函数，
+   * 类型安全在 extension 声明处保证。
    *
-   * @returns suffix 或 null
+   * @returns 解析函数或 undefined（使用 AI SDK 默认的 provider.languageModel()）
    */
-  getVariantMethodMode(variantId: string): string | null {
-    const parsed = this.parseProviderId(variantId)
-    if (!parsed?.mode || !parsed.isVariant) return null
+  getModelResolver(providerId: string): ((provider: ProviderV3, modelId: string) => any) | undefined {
+    const parsed = this.parseProviderId(providerId)
+    if (!parsed) return undefined
 
     const extension = this.get(parsed.baseId)
-    if (!extension) return null
+    if (!extension) return undefined
 
-    const variant = extension.getVariant(parsed.mode)
-    if (!variant || variant.transform) return null // 有 transform → 不需要 method mode
+    // Variant resolveModel（类型安全，在 extension 声明处校验）
+    if (parsed.isVariant && parsed.mode) {
+      const variant = extension.getVariant(parsed.mode)
+      if (variant?.resolveModel) return variant.resolveModel
+    }
 
-    return parsed.mode
+    return undefined
   }
 
   /**

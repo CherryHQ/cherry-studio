@@ -30,11 +30,11 @@ export async function createExecutor<
 
   const provider = await extensionRegistry.createProvider(providerId, options || {})
 
-  // For variants without transform, pass the variant mode so the executor
-  // can resolve models via provider[mode](modelId) instead of provider.languageModel()
-  const variantMode = extensionRegistry.getVariantMethodMode(providerId as string) ?? undefined
+  // Extract model resolver from variant's resolveModel declaration (type-safe at extension level)
+  const resolver = extensionRegistry.getModelResolver(providerId as string)
+  const modelResolver = resolver ? (modelId: string) => resolver(provider, modelId) : undefined
 
-  return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins, variantMode)
+  return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins, modelResolver)
 }
 
 /**

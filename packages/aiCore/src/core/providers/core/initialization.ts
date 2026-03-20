@@ -211,7 +211,7 @@ const OpenAIExtension = ProviderExtension.create({
     {
       suffix: 'chat',
       name: 'OpenAI Chat',
-      // 无 transform：suffix 'chat' 作为方法名 → provider.chat(modelId)
+      resolveModel: (provider: OpenAIProvider, modelId: string) => provider.chat(modelId),
       toolFactories: {
         webSearch:
           (provider: OpenAIProvider) =>
@@ -253,8 +253,7 @@ const XaiExtension = ProviderExtension.create({
     {
       suffix: 'responses',
       name: 'xAI Responses',
-      // 无 transform：suffix 'responses' 作为方法名 → provider.responses(modelId)
-      // provider 不被包装，.tools 天然保留
+      resolveModel: (provider: XaiProvider, modelId: string) => provider.responses(modelId),
       toolFactories: {
         webSearch:
           (provider: XaiProvider) =>

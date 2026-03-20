@@ -22,11 +22,11 @@ export interface RuntimeConfig<
   providerSettings: TSettingsMap[T]
   plugins?: AiPlugin[]
   /**
-   * Variant 模式名（如 'responses', 'chat'）
-   * 无 transform 的 variant 用 suffix 作为 provider 上的模型解析方法名：
-   * provider[variantMode](modelId)
+   * 模型解析函数
+   * 从 variant 的 resolveModel 声明中提取（类型安全在 extension 声明处保证）。
+   * 不提供时使用 AI SDK 默认的 provider.languageModel()。
    */
-  variantMode?: string
+  modelResolver?: (modelId: string) => any
 }
 
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
