@@ -14,7 +14,7 @@ const NEWAPI_RULES: RuleSet = {
         return {
           ...provider,
           type: 'anthropic'
-        } as T
+        }
       }
     },
     {
@@ -23,7 +23,7 @@ const NEWAPI_RULES: RuleSet = {
         return {
           ...provider,
           type: 'gemini'
-        } as T
+        }
       }
     },
     {
@@ -32,7 +32,7 @@ const NEWAPI_RULES: RuleSet = {
         return {
           ...provider,
           type: 'openai-response'
-        } as T
+        }
       }
     },
     {
@@ -41,7 +41,7 @@ const NEWAPI_RULES: RuleSet = {
         return {
           ...provider,
           type: 'openai'
-        } as T
+        }
       }
     }
   ],
