@@ -1,6 +1,6 @@
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import type { Provider } from '@renderer/types'
+import { SystemProviderIds, type Provider } from '@renderer/types'
 import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -30,7 +30,7 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
   }
 
   // 2. xAI 默认使用 responses 模式
-  if (provider.id === 'xai') {
+  if (provider.id === SystemProviderIds.grok) {
     return appProviderIds['xai-responses']
   }
 

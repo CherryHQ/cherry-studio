@@ -474,11 +474,14 @@ export class ExtensionRegistry {
     const extension = this.get(parsed.baseId)
     if (!extension) return undefined
 
-    const cached = extension.getCachedProvider(parsed.mode)
+    // Always use base provider (no variant suffix) —
+    // toolFactories are declared on the base extension and expect
+    // the unwrapped provider with .tools (e.g., XaiProvider, OpenAIProvider)
+    const cached = extension.getCachedProvider()
     if (cached) return cached
 
     try {
-      return await extension.createProvider({ apiKey: '_tool_descriptor' }, parsed.mode)
+      return await extension.createProvider({ apiKey: '_tool_descriptor' })
     } catch {
       return undefined
     }
