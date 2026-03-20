@@ -1,24 +1,14 @@
 /**
- * Provider Tool Plugin
- * 通用的 provider 工具注入插件
+ * 通用 provider 工具注入插件
  *
- * 通过 extensionRegistry.resolveToolCapability 查找 provider 声明的 toolFactory，
- * factory 返回 ToolFactoryPatch（tools 或 providerOptions），plugin 统一合并到 params。
- *
- * webSearchPlugin 和 urlContextPlugin 都是它的特化。
+ * 查找 extensionRegistry 中声明的 toolFactory，
+ * 将返回的 ToolFactoryPatch（tools / providerOptions）合并到 params。
  */
 
 import { mergeProviderOptions } from '../../options'
 import { extensionRegistry } from '../../providers'
 import type { ToolCapability } from '../../providers/types/toolFactory'
 import { definePlugin } from '../'
-
-/**
- * 通用 provider 工具插件
- *
- * @param capability - 工具能力标识（如 'webSearch', 'urlContext'）
- * @param config - 按 providerId 索引的配置，传给 factory
- */
 export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
   definePlugin({
     name: capability,

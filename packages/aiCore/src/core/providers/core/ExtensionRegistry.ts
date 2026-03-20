@@ -345,15 +345,7 @@ export class ExtensionRegistry {
     return parsed?.mode ?? null
   }
 
-  /**
-   * 获取模型解析函数
-   *
-   * 从 variant 的 resolveModel 或 base extension 的 defaultModelMethod 中提取。
-   * 返回一个 (provider, modelId) => LanguageModel 的函数，
-   * 类型安全在 extension 声明处保证。
-   *
-   * @returns 解析函数或 undefined（使用 AI SDK 默认的 provider.languageModel()）
-   */
+  /** 获取 variant 的 resolveModel 函数（类型安全在 extension 声明处保证） */
   getModelResolver(providerId: string): ((provider: ProviderV3, modelId: string) => any) | undefined {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
@@ -394,24 +386,7 @@ export class ExtensionRegistry {
     return extension.config.variants.map((v) => `${extension.config.name}-${v.suffix}`)
   }
 
-  /**
-   * 获取指定 provider 的工具工厂
-   *
-   * 对于变体，优先检查变体的 toolFactories，然后回退到基础 extension 的
-   *
-   * @param providerId - Provider ID（可以是变体ID或基础ID）
-   * @param capability - 工具能力标识（ToolCapability union，如 'webSearch'）
-   * @returns ToolFactory 函数或 undefined
-   *
-   * @example
-   * ```typescript
-   * const factory = extensionRegistry.getToolFactory('anthropic', 'webSearch')
-   * if (factory && baseProvider) {
-   *   const tool = factory(baseProvider)(config ?? {})
-   *   params.tools['webSearch'] = tool
-   * }
-   * ```
-   */
+  /** 获取指定 provider 的工具工厂（变体优先，回退到 base） */
   getToolFactory(providerId: string, capability: ToolCapability): ToolFactory | undefined {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
@@ -433,29 +408,10 @@ export class ExtensionRegistry {
   }
 
   /**
-   * 解析工具能力：返回 factory + 可用的 provider 实例
+   * 解析工具能力：返回 factory + provider 实例
    *
-   * 封装了所有查找逻辑：
-   * 1. Direct — provider 自己声明了 toolFactories
-   * 2. Aggregator fallback — 从 model.provider 段解析真实 provider
-   *    （如 "aihubmix.anthropic" → "anthropic" → Anthropic extension）
-   *
-   * 对于聚合供应商，会创建真实 provider 实例（仅用于提取 .tools 描述符，不走网络）。
-   * 内部处理 API key 校验绕过和错误吞没，plugin 层无需关心。
-   *
-   * @param providerId - 当前 provider ID
-   * @param capability - 工具能力标识
-   * @param modelProvider - LanguageModel 上的 provider 字符串（聚合供应商 fallback）
-   * @returns { factory, provider } 或 undefined
-   *
-   * @example
-   * ```typescript
-   * const resolved = await extensionRegistry.resolveToolCapability('aihubmix', 'webSearch', 'aihubmix.google')
-   * if (resolved) {
-   *   const patch = resolved.factory(resolved.provider)(config)
-   *   // merge patch into params
-   * }
-   * ```
+   * 1. Direct — provider 自己有 toolFactories
+   * 2. Aggregator fallback — 从 model.provider 段解析（如 "aihubmix.google" → google extension）
    */
   async resolveToolCapability(
     providerId: string,
@@ -486,12 +442,7 @@ export class ExtensionRegistry {
     return undefined
   }
 
-  /**
-   * 获取用于 .tools 描述符提取的 provider 实例
-   *
-   * Tool 对象是纯描述符（不走网络），所以不需要真实 API key。
-   * 优先使用已有缓存实例，否则创建 tool-only 实例。
-   */
+  /** Get base provider for .tools extraction (cached or dummy instance) */
   private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined> {
     const parsed = this.parseProviderId(providerId)
     if (!parsed) return undefined
@@ -499,9 +450,6 @@ export class ExtensionRegistry {
     const extension = this.get(parsed.baseId)
     if (!extension) return undefined
 
-    // Always use base provider (no variant suffix) —
-    // toolFactories are declared on the base extension and expect
-    // the unwrapped provider with .tools (e.g., XaiProvider, OpenAIProvider)
     const cached = extension.getCachedProvider()
     if (cached) return cached
 

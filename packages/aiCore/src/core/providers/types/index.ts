@@ -99,62 +99,17 @@ export type StorageAccessor<T extends ExtensionStorage = ExtensionStorage> = {
   has<K extends keyof T>(key: K): boolean
 }
 
-/**
- * Provider 变体配置
- * 用于支持同一 provider 的不同模式（如 Azure 的 chat 和 responses）
- *
- * @typeParam TSettings - Provider 配置类型
- * @typeParam TProvider - 实际 provider 类型（默认 ProviderV3）
- *
- * @example
- * ```typescript
- * import type { OpenAIProvider } from '@ai-sdk/openai'
- *
- * const chatVariant: ProviderVariant<OpenAIProviderSettings, OpenAIProvider> = {
- *   suffix: 'chat',
- *   name: 'OpenAI Chat',
- *   transform: (provider, settings) => customProvider({
- *     fallbackProvider: {
- *       ...provider,
- *       languageModel: (modelId) => provider.chat(modelId)
- *     }
- *   })
- * }
- * ```
- */
+/** Provider 变体配置 */
 export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 = ProviderV3> {
-  /** 变体 ID 后缀，如 'chat', 'responses' */
   suffix: string
-
-  /** 变体显示名称 */
   name: string
 
-  /**
-   * 类型安全的模型解析函数（可选）
-   *
-   * 在 extension 声明处捕获具体 provider 类型的方法调用，
-   * 避免在 executor 层做动态属性访问（provider[string]）。
-   *
-   * @example
-   * ```typescript
-   * // xAI responses — TypeScript 校验 XaiProvider 有 .responses()
-   * resolveModel: (provider, modelId) => provider.responses(modelId)
-   *
-   * // OpenAI chat — TypeScript 校验 OpenAIProvider 有 .chat()
-   * resolveModel: (provider, modelId) => provider.chat(modelId)
-   * ```
-   */
+  /** 类型安全的模型解析：provider.responses(modelId) / provider.chat(modelId) */
   resolveModel?: (provider: TProvider, modelId: string) => LanguageModel
 
-  /**
-   * 变体转换函数：将基础 provider 替换为完全不同的 provider（可选）
-   *
-   * 仅用于 provider 类型完全改变的场景（如 azure-anthropic）。
-   * 对于简单的模型解析方法切换（chat → responses），使用 resolveModel。
-   */
+  /** 替换整个 provider（如 azure-anthropic），简单方法切换用 resolveModel */
   transform?: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
 
-  /** Tool factory overrides for this variant */
   toolFactories?: ToolFactoryMap<TProvider>
 }
 
@@ -309,32 +264,17 @@ export type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) ex
 export type { ToolCapability, ToolFactory, ToolFactoryMap, ToolFactoryPatch } from './toolFactory'
 
 // ============================================================================
-// Tool Config Type Extraction Utilities
+// Tool Config Type Extraction (from extension declarations via as const)
 // ============================================================================
 
-/**
- * 从 extension 的 toolFactories 声明中提取指定 capability 的 config 类型
- *
- * 依赖 `as const satisfies` 保留的具体函数签名。
- * 如果 extension 未声明该 capability 或 config 类型无法推断，返回 never。
- *
- * @example
- * ```typescript
- * type OpenAIWebSearchConfig = ExtractToolConfig<typeof OpenAIExtension, 'webSearch'>
- * // = { searchContextSize?: 'low' | 'medium' | 'high', ... }  ← 从 SDK 推导
- * ```
- */
+/** Extract a capability's config type from an extension's toolFactories */
 export type ExtractToolConfig<TExt, K extends string> = TExt extends {
   config: { toolFactories?: { [P in K]?: (provider: any) => (config: infer C) => any } }
 }
   ? C
   : never
 
-/**
- * 从 extension 的 variant toolFactories 中提取指定 capability 的 config 类型
- *
- * 用于 openai-chat 等 variant 覆盖了 base extension 的 toolFactory 的情况。
- */
+/** Extract config from variant-level toolFactories (e.g., openai-chat) */
 type ExtractVariantToolConfig<TExt, K extends string> = TExt extends {
   config: {
     name: infer TName extends string
@@ -349,20 +289,8 @@ type ExtractVariantToolConfig<TExt, K extends string> = TExt extends {
     : never
   : never
 
-/**
- * 从所有 extensions 中提取指定 capability 的 config map
- *
- * 自动生成 { [providerId]: ConfigType } 映射，和 CoreProviderSettingsMap 同一模式。
- * 包含 base extension 和 variant 的 config。
- *
- * @example
- * ```typescript
- * type WebSearchConfigs = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>
- * // = { openai?: {...}, 'openai-chat'?: {...}, anthropic?: {...}, google?: {...}, openrouter?: {...} }
- * ```
- */
+/** Extract { [providerId]: ConfigType } map from all extensions for a capability */
 export type ExtractToolConfigMap<TExtUnion, K extends string> = UnionToIntersection<
-  // Base extension configs: name → config
   | (TExtUnion extends any
       ? ExtractToolConfig<TExtUnion, K> extends never
         ? never
@@ -380,10 +308,5 @@ export type ExtractToolConfigMap<TExtUnion, K extends string> = UnionToIntersect
       : never)
 >
 
-/**
- * Web Search 的自动提取 config map
- *
- * 从 coreExtensions 声明中自动提取每个 provider 的 webSearch config 类型。
- * 不需要手动维护 — 新增 extension 的 toolFactories.webSearch 自动出现在这个 map 中。
- */
+/** Auto-extracted from coreExtensions' toolFactories.webSearch declarations */
 export type WebSearchToolConfigMap = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>

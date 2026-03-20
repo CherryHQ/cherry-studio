@@ -40,9 +40,6 @@ import { ProviderExtension } from './ProviderExtension'
 
 // ==================== Core Extensions ====================
 
-/**
- * Anthropic Extension
- */
 const AnthropicExtension = ProviderExtension.create({
   name: 'anthropic',
   aliases: ['claude'] as const,
@@ -187,9 +184,6 @@ const OpenAICompatibleExtension = ProviderExtension.create({
   'openai-compatible'
 >)
 
-/**
- * OpenAI Extension 配置
- */
 const OpenAIExtension = ProviderExtension.create({
   name: 'openai',
   aliases: ['openai-response'] as const,
@@ -202,11 +196,6 @@ const OpenAIExtension = ProviderExtension.create({
       })
   },
 
-  /**
-   * Provider 变体 - openai-chat
-   * 使用 provider.chat() 而不是默认的 languageModel()
-   * 注：openai 默认的 languageModel() 已经是 Responses API，所以 openai-response 只需作为别名
-   */
   variants: [
     {
       suffix: 'chat',
@@ -236,14 +225,6 @@ const OpenRouterExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 
-/**
- * xAI Extension
- *
- * Base: createXai() — defaults to chat mode, has .tools (webSearch, xSearch)
- * Default usage: 'xai-responses' variant wraps to use provider.responses()
- *
- * 和 OpenAI 同一模式：base 保留 .tools，variant 包装 languageModel
- */
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,
