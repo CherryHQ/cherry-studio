@@ -3,7 +3,7 @@
  */
 import type { MinimalModel, MinimalProvider } from '@shared/types'
 
-import { isOpenAILLMModel, provider2Provider, startsWith } from './helper'
+import { isOpenAILLMModel, modelIdStartsWith, provider2Provider } from './helper'
 import type { RuleSet } from './types'
 
 const extraProviderConfig = <P extends MinimalProvider>(provider: P) => {
@@ -19,7 +19,7 @@ const extraProviderConfig = <P extends MinimalProvider>(provider: P) => {
 const AIHUBMIX_RULES: RuleSet = {
   rules: [
     {
-      match: startsWith('claude'),
+      match: modelIdStartsWith('claude'),
       provider: <T extends MinimalProvider>(provider: T): T => {
         return extraProviderConfig({
           ...provider,
@@ -29,7 +29,7 @@ const AIHUBMIX_RULES: RuleSet = {
     },
     {
       match: (model) =>
-        (startsWith('gemini')(model) || startsWith('imagen')(model)) &&
+        (modelIdStartsWith('gemini')(model) || modelIdStartsWith('imagen')(model)) &&
         !model.id.endsWith('-nothink') &&
         !model.id.endsWith('-search') &&
         !model.id.includes('embedding'),

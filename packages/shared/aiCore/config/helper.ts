@@ -3,7 +3,7 @@ import { getLowerBaseModelName } from '@shared/utils/naming'
 
 import type { RuleSet } from './types'
 
-export const startsWith =
+export const modelIdStartsWith =
   (prefix: string) =>
   <M extends MinimalModel>(model: M) =>
     model.id.toLowerCase().startsWith(prefix.toLowerCase())

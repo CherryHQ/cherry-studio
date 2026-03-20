@@ -1,13 +1,13 @@
 import type { MinimalModel, MinimalProvider } from '@shared/types'
 
-import { provider2Provider, startsWith } from './helper'
+import { modelIdStartsWith, provider2Provider } from './helper'
 import type { RuleSet } from './types'
 
 // https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry
 const AZURE_ANTHROPIC_RULES: RuleSet = {
   rules: [
     {
-      match: startsWith('claude'),
+      match: modelIdStartsWith('claude'),
       provider: <T extends MinimalProvider>(provider: T): T =>
         ({
           ...provider,
