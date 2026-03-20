@@ -4900,6 +4900,7 @@
       "edit": "Modifier le prompt",
       "global": "Prompts globaux",
       "locationLabel": "Emplacement d'ajout",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
       "rollback": "Restaurer",
       "rollbackConfirm": "Confirmer la restauration de cette version ? Une nouvelle version sera créée avec ce contenu.",
       "title": "Gestion des prompts",

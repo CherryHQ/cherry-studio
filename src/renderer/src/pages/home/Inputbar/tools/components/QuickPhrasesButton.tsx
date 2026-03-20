@@ -11,6 +11,7 @@ import {
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Radio, Space } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
@@ -214,7 +215,12 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     }
 
     const versionItems: QuickPanelListItem[] = versionMenuVersions.map((version) => ({
-      label: `v${version.version}`,
+      label:
+        getPromptVersionRollbackMarker(
+          version.rollbackFrom,
+          (rollbackFrom) =>
+            `v${version.version} (${t('settings.prompts.restoredFromVersion', { version: rollbackFrom })})`
+        ) ?? `v${version.version}`,
       description: version.content,
       icon: <Zap />,
       isSelected: version.version === versionMenuPrompt.currentVersion,

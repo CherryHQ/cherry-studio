@@ -4889,6 +4889,25 @@
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
     },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "assistant": "[to be translated]:Assistant Prompts",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Use ${variable} for template variables.\nExample: Help me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "current": "[to be translated]:current",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt and all its versions will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "global": "[to be translated]:Global Prompts",
+      "locationLabel": "[to be translated]:Add Location",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
+      "rollback": "[to be translated]:Rollback",
+      "rollbackConfirm": "[to be translated]:Rollback to this version? A new version will be created with this content.",
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title",
+      "versionHistory": "[to be translated]:Version History"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5449,6 +5468,9 @@
       "reset": "Resetează",
       "title": "Zoom pagină"
     }
+  },
+  "tab": {
+    "new": "[to be translated]:New Tab"
   },
   "title": {
     "apps": "Aplicații",

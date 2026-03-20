@@ -4900,6 +4900,7 @@
       "edit": "Επεξεργασία Prompt",
       "global": "Καθολικά Prompts",
       "locationLabel": "Θέση Προσθήκης",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
       "rollback": "Επαναφορά",
       "rollbackConfirm": "Επιβεβαίωση επαναφοράς σε αυτή την έκδοση; Θα δημιουργηθεί μια νέα έκδοση με αυτό το περιεχόμενο.",
       "title": "Διαχείριση Prompts",

@@ -4900,6 +4900,7 @@
       "edit": "プロンプトを編集",
       "global": "グローバルプロンプト",
       "locationLabel": "挿入位置",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
       "rollback": "ロールバック",
       "rollbackConfirm": "このバージョンにロールバックしますか？この内容で新しいバージョンが作成されます。",
       "title": "プロンプト管理",

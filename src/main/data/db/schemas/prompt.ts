@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * Prompt table - stores user prompt templates (replaces legacy QuickPhrase)
@@ -19,8 +19,13 @@ export const promptTable = sqliteTable(
     currentVersion: integer().notNull().default(1),
     // Sort order
     sortOrder: integer().notNull().default(0),
-
-    ...createUpdateTimestamps
+    createdAt: integer()
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    updatedAt: integer()
+      .notNull()
+      .$defaultFn(() => Date.now())
+      .$onUpdateFn(() => Date.now())
   },
   (t) => [index('prompt_sort_order_idx').on(t.sortOrder), index('prompt_updated_at_idx').on(t.updatedAt)]
 )
@@ -43,8 +48,12 @@ export const promptVersionTable = sqliteTable(
     version: integer().notNull(),
     // Snapshot of content at this version
     content: text().notNull(),
+    // If this version was created by a rollback, records the source version number
+    rollbackFrom: integer(),
 
-    createdAt: integer().$defaultFn(() => Date.now())
+    createdAt: integer()
+      .notNull()
+      .$defaultFn(() => Date.now())
   },
   (t) => [uniqueIndex('prompt_version_prompt_id_version_idx').on(t.promptId, t.version)]
 )

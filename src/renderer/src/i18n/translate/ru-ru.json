@@ -4900,6 +4900,7 @@
       "edit": "Редактировать промпт",
       "global": "Глобальные промпты",
       "locationLabel": "Место добавления",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
       "rollback": "Откатить",
       "rollbackConfirm": "Вы уверены, что хотите откатиться к этой версии? Будет создана новая версия с этим содержанием.",
       "title": "Управление промптами",

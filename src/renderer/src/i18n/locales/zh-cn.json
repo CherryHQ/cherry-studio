@@ -4900,6 +4900,7 @@
       "edit": "编辑提示词",
       "global": "全局提示词",
       "locationLabel": "添加位置",
+      "restoredFromVersion": "从 v{{version}} 恢复",
       "rollback": "回滚",
       "rollbackConfirm": "确定回滚到此版本？将以该版本内容创建新版本。",
       "title": "提示词管理",

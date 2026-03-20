@@ -4900,6 +4900,7 @@
       "edit": "Edit Prompt",
       "global": "Global Prompts",
       "locationLabel": "Add Location",
+      "restoredFromVersion": "restored from v{{version}}",
       "rollback": "Rollback",
       "rollbackConfirm": "Rollback to this version? A new version will be created with this content.",
       "title": "Prompt Management",

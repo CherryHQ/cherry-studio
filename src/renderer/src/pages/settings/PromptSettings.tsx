@@ -5,6 +5,7 @@ import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
+import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
 import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
 import { Input, Modal, Popconfirm, Space } from 'antd'
 import { HistoryIcon, PlusIcon, RotateCcwIcon } from 'lucide-react'
@@ -46,7 +47,8 @@ const PromptSettings: FC = () => {
   const {
     data: versionsRaw,
     isLoading: isVersionsLoading,
-    error: versionsError
+    error: versionsError,
+    refetch: refetchVersions
   } = useQuery(versionsPath, {
     enabled: isVersionModalOpen && !!editingPrompt
   })
@@ -73,7 +75,7 @@ const PromptSettings: FC = () => {
   })
 
   const { trigger: rollbackPrompt, isLoading: isRollingBack } = useMutation('POST', rollbackPath, {
-    refresh: ['/prompts'],
+    refresh: ['/prompts', promptPath, versionsPath],
     onError: () => window.toast.error(t('message.error.unknown'))
   })
 
@@ -177,6 +179,12 @@ const PromptSettings: FC = () => {
     setIsVersionModalOpen(true)
   }
 
+  useEffect(() => {
+    if (isVersionModalOpen && editingPrompt) {
+      void refetchVersions()
+    }
+  }, [editingPrompt, isVersionModalOpen, refetchVersions])
+
   const handleRollback = async (version: number) => {
     if (!editingPrompt) return
 
@@ -195,6 +203,10 @@ const PromptSettings: FC = () => {
 
   const reversedPrompts = useMemo(() => [...promptsList].reverse(), [promptsList])
   const isSavingPrompt = isCreatingPrompt || isUpdatingPrompt
+  const getRollbackMarker = (version: Pick<PromptVersion, 'rollbackFrom'>) =>
+    getPromptVersionRollbackMarker(version.rollbackFrom, (rollbackFrom) =>
+      t('settings.prompts.restoredFromVersion', { version: rollbackFrom })
+    )
 
   return (
     <SettingContainer theme={theme}>
@@ -317,7 +329,7 @@ const PromptSettings: FC = () => {
         width={600}
         transitionName="animation-move-down"
         centered>
-        <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
+        <div className="max-h-[420px] overflow-y-auto pr-4" style={{ scrollbarGutter: 'stable' }}>
           {isVersionsLoading ? (
             <div className="flex min-h-40 items-center justify-center">
               <Spinner text={t('common.loading')} />
@@ -327,44 +339,58 @@ const PromptSettings: FC = () => {
               {t('message.error.unknown')}
             </div>
           ) : (
-            versions.map((version) => (
-              <div
-                key={version.id}
-                className="flex flex-col gap-1.5 rounded-lg border-[0.5px] border-[var(--color-border)] p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-semibold text-sm">
-                    v{version.version}
-                    {editingPrompt?.currentVersion === version.version && (
-                      <span className="rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 font-normal text-[11px] text-[var(--color-primary)]">
-                        {t('settings.prompts.current')}
+            <div className="divide-y divide-[var(--color-border)]">
+              {versions.map((version) => (
+                <div key={version.id} className="flex gap-3 py-4 first:pt-1 last:pb-1">
+                  <div
+                    className={`mt-1 h-10 w-1 shrink-0 rounded-full ${
+                      editingPrompt?.currentVersion === version.version
+                        ? 'bg-[var(--color-primary)]'
+                        : 'bg-[var(--color-border)]'
+                    }`}
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-[var(--color-text)]">
+                        <span className="font-semibold">v{version.version}</span>
+                        {getRollbackMarker(version) && (
+                          <span className="text-[12px] text-[var(--color-text-3)]">({getRollbackMarker(version)})</span>
+                        )}
+                        {editingPrompt?.currentVersion === version.version && (
+                          <span className="rounded bg-[var(--color-primary-bg)] px-1.5 py-0.5 text-[11px] text-[var(--color-primary)]">
+                            {t('settings.prompts.current')}
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-text-3)]">
+                        {new Date(version.createdAt).toLocaleString()}
                       </span>
+                    </div>
+                    <div className="text-[13px] text-[var(--color-text-2)] leading-[1.6]">
+                      {version.content.slice(0, 100)}
+                      {version.content.length > 100 ? '...' : ''}
+                    </div>
+                    {editingPrompt?.currentVersion !== version.version && (
+                      <div className="flex justify-end">
+                        <Popconfirm
+                          title={t('settings.prompts.rollbackConfirm')}
+                          okText={t('common.confirm')}
+                          cancelText={t('common.cancel')}
+                          onConfirm={() => handleRollback(version.version)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            loading={isRollingBack && pendingRollbackVersion === version.version}>
+                            <RotateCcwIcon size={14} />
+                            {t('settings.prompts.rollback')}
+                          </Button>
+                        </Popconfirm>
+                      </div>
                     )}
                   </div>
-                  <span className="text-[var(--color-text-3)] text-xs">
-                    {new Date(version.createdAt).toLocaleString()}
-                  </span>
                 </div>
-                <div className="text-[13px] text-[var(--color-text-2)] leading-[1.5]">
-                  {version.content.slice(0, 100)}
-                  {version.content.length > 100 ? '...' : ''}
-                </div>
-                {editingPrompt?.currentVersion !== version.version && (
-                  <Popconfirm
-                    title={t('settings.prompts.rollbackConfirm')}
-                    okText={t('common.confirm')}
-                    cancelText={t('common.cancel')}
-                    onConfirm={() => handleRollback(version.version)}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      loading={isRollingBack && pendingRollbackVersion === version.version}>
-                      <RotateCcwIcon size={14} />
-                      {t('settings.prompts.rollback')}
-                    </Button>
-                  </Popconfirm>
-                )}
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </Modal>
