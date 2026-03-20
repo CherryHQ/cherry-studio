@@ -16,17 +16,26 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { createClient } from '@libsql/client'
+import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
-import type { ItemStatus, KnowledgeItemData, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
+import {
+  type LegacyKnowledgeBase,
+  type LegacyKnowledgeBaseWithIdentity,
+  type LegacyKnowledgeNote,
+  type LegacyKnowledgeState,
+  type NewKnowledgeBase,
+  type NewKnowledgeItem,
+  transformKnowledgeBase,
+  transformKnowledgeItem
+} from './mappings/KnowledgeMappings'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
 
@@ -34,8 +43,6 @@ const ITEM_INSERT_BATCH_SIZE = 200
 const MAX_WARNING_COUNT = 50
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 
-type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
-type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
 type DimensionResolutionReason =
   | 'ok'
   | 'vector_db_missing'
@@ -44,122 +51,8 @@ type DimensionResolutionReason =
   | 'vector_db_invalid_path'
   | 'vector_db_error'
 
-interface LegacyModel {
-  id: string
-  name: string
-  provider: string
-  group?: string
-}
-
-interface LegacyPreprocessProvider {
-  provider?: {
-    id?: string
-  }
-}
-
-interface LegacyKnowledgeItem {
-  id: string
-  type: string
-  content: unknown
-  created_at?: unknown
-  updated_at?: unknown
-  processingStatus?: string
-  processingError?: string
-  uniqueId?: string
-  parentId?: string | null
-  sourceUrl?: string
-}
-
-interface LegacyKnowledgeBase {
-  id: string
-  name: string
-  description?: string
-  dimensions?: number
-  model?: LegacyModel | null
-  rerankModel?: LegacyModel | null
-  preprocessProvider?: LegacyPreprocessProvider
-  chunkSize?: number
-  chunkOverlap?: number
-  threshold?: number
-  documentCount?: number
-  created_at?: unknown
-  updated_at?: unknown
-  items?: LegacyKnowledgeItem[]
-}
-
-interface LegacyKnowledgeState {
-  bases?: LegacyKnowledgeBase[]
-}
-
-interface LegacyKnowledgeNote {
-  id: string
-  content?: string
-  sourceUrl?: string
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const isLegacyModel = (value: unknown): value is LegacyModel =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.name === 'string' &&
-  typeof value.provider === 'string'
-
-const toTimestamp = (value: unknown): number | undefined => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === 'string' && value.trim() !== '') {
-    const numeric = Number(value)
-    if (Number.isFinite(numeric)) {
-      return numeric
-    }
-    const parsed = Date.parse(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return undefined
-}
-
-const toItemStatus = (item: LegacyKnowledgeItem): ItemStatus =>
-  typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
-
-const isFileMetadata = (value: unknown): value is FileMetadata =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.name === 'string' &&
-  typeof value.origin_name === 'string' &&
-  typeof value.path === 'string' &&
-  typeof value.size === 'number' &&
-  typeof value.ext === 'string' &&
-  typeof value.type === 'string' &&
-  typeof value.created_at === 'string' &&
-  typeof value.count === 'number'
-
-const isPositiveInteger = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isInteger(value) && value > 0
-
-const toCompositeModelId = (model: LegacyModel | null | undefined): string | null => {
-  if (!model) {
-    return null
-  }
-
-  const providerId = model.provider?.trim()
-  const modelId = model.id?.trim()
-  if (!providerId || !modelId) {
-    return null
-  }
-
-  if (modelId.includes('::')) {
-    return modelId
-  }
-
-  return `${providerId}::${modelId}`
-}
+const hasKnowledgeBaseIdentity = (base: LegacyKnowledgeBase): base is LegacyKnowledgeBaseWithIdentity =>
+  typeof base.id === 'string' && base.id !== '' && typeof base.name === 'string' && base.name !== ''
 
 export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
@@ -179,28 +72,8 @@ export class KnowledgeMigrator extends BaseMigrator {
       this.warnings.push(message)
       return
     }
+
     this.warningOverflowCount += 1
-  }
-
-  private resolveFileMetadata(content: unknown, filesById: Map<string, FileMetadata>): FileMetadata | null {
-    if (isFileMetadata(content)) {
-      return content
-    }
-
-    if (typeof content === 'string') {
-      return filesById.get(content) ?? null
-    }
-
-    if (isRecord(content) && typeof content.id === 'string') {
-      const fallback = filesById.get(content.id)
-      if (!fallback) {
-        return null
-      }
-      const merged = { ...fallback, ...content }
-      return isFileMetadata(merged) ? merged : null
-    }
-
-    return null
   }
 
   private getLegacyKnowledgeDbPath(baseId: string): string | null {
@@ -217,7 +90,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     return resolvedDbPath
   }
 
-  private toFiniteNumber(value: unknown): number | null {
+  private toFiniteNumber(value: LibsqlValue): number | null {
     if (value === null || value === undefined) {
       return null
     }
@@ -231,7 +104,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     return Number.isFinite(numeric) ? numeric : null
   }
 
-  private parseDimensionsFromBlobLength(blobLengthValue: unknown, baseId: string): number | null {
+  private parseDimensionsFromBlobLength(blobLengthValue: LibsqlValue, baseId: string): number | null {
     const blobLength = this.toFiniteNumber(blobLengthValue)
     if (blobLength === null || !Number.isInteger(blobLength) || blobLength <= 0) {
       return null
@@ -245,11 +118,11 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     const dimensions = blobLength / Float32Array.BYTES_PER_ELEMENT
-    return isPositiveInteger(dimensions) ? dimensions : null
+    return Number.isInteger(dimensions) && dimensions > 0 ? dimensions : null
   }
 
   private async resolveDimensionsForBase(
-    base: LegacyKnowledgeBase
+    base: LegacyKnowledgeBaseWithIdentity
   ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
     const dbPath = this.getLegacyKnowledgeDbPath(base.id)
     if (!dbPath) {
@@ -261,6 +134,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
 
     const client = createClient({ url: pathToFileURL(dbPath).toString() })
+
     try {
       const countResult = await client.execute(
         `SELECT count(*) AS total, sum(CASE WHEN vector IS NOT NULL THEN 1 ELSE 0 END) AS with_vector FROM ${LEGACY_VECTOR_TABLE_NAME}`
@@ -275,9 +149,9 @@ export class KnowledgeMigrator extends BaseMigrator {
       const vectorLengthResult = await client.execute(
         `SELECT length(vector) AS bytes FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE vector IS NOT NULL LIMIT 1`
       )
-      const blobDimensions = this.parseDimensionsFromBlobLength(vectorLengthResult.rows?.[0]?.bytes, base.id)
-      if (blobDimensions !== null) {
-        return { dimensions: blobDimensions, reason: 'ok' }
+      const dimensions = this.parseDimensionsFromBlobLength(vectorLengthResult.rows?.[0]?.bytes, base.id)
+      if (dimensions !== null) {
+        return { dimensions, reason: 'ok' }
       }
 
       return { dimensions: null, reason: 'invalid_vector_dimensions' }
@@ -290,9 +164,37 @@ export class KnowledgeMigrator extends BaseMigrator {
       try {
         client.close()
       } catch {
-        // libsql client close errors should not block migration fallback
+        // Ignore close errors from libsql client during best-effort inspection.
       }
     }
+  }
+
+  private formatItemWarning(baseId: string, item: { id?: string; type?: string }, reason: string): string {
+    if (reason === 'missing_id_or_type') {
+      return `Skipped invalid knowledge item in base ${baseId}: missing id or type`
+    }
+
+    if (reason === 'unsupported_type') {
+      return `Skipped unsupported knowledge item type '${item.type}' (itemId=${item.id})`
+    }
+
+    if (reason === 'invalid_file') {
+      return `Skipped file item with invalid metadata (itemId=${item.id})`
+    }
+
+    if (reason === 'invalid_url') {
+      return `Skipped url item with invalid content (itemId=${item.id})`
+    }
+
+    if (reason === 'invalid_sitemap') {
+      return `Skipped sitemap item with invalid content (itemId=${item.id})`
+    }
+
+    if (reason === 'invalid_directory') {
+      return `Skipped directory item with invalid content (itemId=${item.id})`
+    }
+
+    return `Skipped invalid knowledge item in base ${baseId} (itemId=${item.id})`
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -342,141 +244,49 @@ export class KnowledgeMigrator extends BaseMigrator {
       for (const base of bases) {
         this.sourceCount += 1
 
-        if (!base?.id || !base?.name) {
+        if (!hasKnowledgeBaseIdentity(base)) {
           this.skippedCount += 1
-          this.pushWarning(`Skipped invalid knowledge base: missing id or name`)
+          this.pushWarning('Skipped invalid knowledge base: missing id or name')
           continue
         }
 
-        const items = Array.isArray(base.items) ? base.items : []
-        const model = isLegacyModel(base.model) ? base.model : null
-        const rerankModel = isLegacyModel(base.rerankModel) ? base.rerankModel : null
-        const resolvedDimensions = await this.resolveDimensionsForBase(base)
+        const validBase = base
+
+        const items = Array.isArray(validBase.items) ? validBase.items : []
+        const resolvedDimensions = await this.resolveDimensionsForBase(validBase)
 
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
-          this.pushWarning(`Skipped knowledge base ${base.id}: ${resolvedDimensions.reason}`)
+          this.pushWarning(`Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`)
           continue
         }
 
-        const embeddingModelId = toCompositeModelId(model)
-        if (!embeddingModelId) {
+        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        if (!baseResult.ok) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
-          this.pushWarning(`Skipped knowledge base ${base.id}: embedding_model_missing`)
+          this.pushWarning(`Skipped knowledge base ${validBase.id}: ${baseResult.reason}`)
           continue
         }
 
-        this.preparedBases.push({
-          id: base.id,
-          name: base.name,
-          description: base.description,
-          dimensions: resolvedDimensions.dimensions,
-          embeddingModelId,
-          rerankModelId: toCompositeModelId(rerankModel),
-          fileProcessorId: base.preprocessProvider?.provider?.id,
-          chunkSize: base.chunkSize,
-          chunkOverlap: base.chunkOverlap,
-          threshold: base.threshold,
-          documentCount: base.documentCount,
-          searchMode: 'default',
-          createdAt: toTimestamp(base.created_at),
-          updatedAt: toTimestamp(base.updated_at)
-        })
+        this.preparedBases.push(baseResult.value)
 
         for (const item of items) {
           this.sourceCount += 1
 
-          if (!item?.id || !item?.type) {
-            this.skippedCount += 1
-            this.pushWarning(`Skipped invalid knowledge item in base ${base.id}: missing id or type`)
-            continue
-          }
-
-          if (item.type === 'video' || item.type === 'memory') {
-            this.skippedCount += 1
-            this.pushWarning(`Skipped unsupported knowledge item type '${item.type}' (itemId=${item.id})`)
-            continue
-          }
-
-          let type: KnowledgeItemType
-          let data: KnowledgeItemData
-
-          if (item.type === 'file') {
-            const file = this.resolveFileMetadata(item.content, filesById)
-            if (!file) {
-              this.skippedCount += 1
-              this.pushWarning(`Skipped file item with invalid metadata (itemId=${item.id})`)
-              continue
-            }
-
-            type = 'file'
-            data = { file }
-          } else if (item.type === 'url') {
-            if (typeof item.content !== 'string' || item.content.trim() === '') {
-              this.skippedCount += 1
-              this.pushWarning(`Skipped url item with invalid content (itemId=${item.id})`)
-              continue
-            }
-
-            type = 'url'
-            data = {
-              url: item.content,
-              name: item.content
-            }
-          } else if (item.type === 'sitemap') {
-            if (typeof item.content !== 'string' || item.content.trim() === '') {
-              this.skippedCount += 1
-              this.pushWarning(`Skipped sitemap item with invalid content (itemId=${item.id})`)
-              continue
-            }
-
-            type = 'sitemap'
-            data = {
-              url: item.content,
-              name: item.content
-            }
-          } else if (item.type === 'directory') {
-            if (typeof item.content !== 'string' || item.content.trim() === '') {
-              this.skippedCount += 1
-              this.pushWarning(`Skipped directory item with invalid content (itemId=${item.id})`)
-              continue
-            }
-
-            type = 'directory'
-            data = {
-              path: item.content,
-              recursive: true
-            }
-          } else if (item.type === 'note') {
-            const note = noteById.get(item.id)
-            const noteContent = note?.content ?? (typeof item.content === 'string' ? item.content : '')
-
-            type = 'note'
-            data = {
-              content: noteContent,
-              sourceUrl: note?.sourceUrl ?? item.sourceUrl
-            }
-          } else {
-            this.skippedCount += 1
-            this.pushWarning(`Skipped unsupported knowledge item type '${item.type}' (itemId=${item.id})`)
-            continue
-          }
-
-          this.preparedItems.push({
-            id: item.id,
-            baseId: base.id,
-            // v1 knowledge items do not have stable tree semantics for v2 directory hierarchy.
-            // Keep all migrated items at root level; v2 directory processing builds its own structure.
-            parentId: null,
-            type,
-            data,
-            status: toItemStatus(item),
-            error: item.processingError ?? null,
-            createdAt: toTimestamp(item.created_at),
-            updatedAt: toTimestamp(item.updated_at)
+          const itemResult = transformKnowledgeItem(validBase.id, item, {
+            noteById,
+            filesById
           })
+
+          if (!itemResult.ok) {
+            this.skippedCount += 1
+            this.pushWarning(this.formatItemWarning(validBase.id, item, itemResult.reason))
+            continue
+          }
+
+          this.preparedItems.push(itemResult.value)
         }
       }
 
@@ -520,7 +330,6 @@ export class KnowledgeMigrator extends BaseMigrator {
     let processed = 0
 
     try {
-      const db = ctx.db
       const baseIdSet = new Set<string>()
       for (const base of this.preparedBases) {
         if (!base.id) {
@@ -532,7 +341,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       const itemsByBaseId = new Map<string, NewKnowledgeItem[]>()
       for (const item of this.preparedItems) {
         if (!item.baseId) {
-          throw new Error(`Prepared knowledge item '${item.id ?? 'unknown'}' is missing baseId`)
+          throw new Error(`Prepared knowledge item '${item.id ?? 'missing-id'}' is missing baseId`)
         }
         if (!item.id) {
           throw new Error(`Prepared knowledge item for base '${item.baseId}' is missing id`)
@@ -541,9 +350,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           throw new Error(`Prepared knowledge item '${item.id}' references missing base '${item.baseId}'`)
         }
 
-        const existing = itemsByBaseId.get(item.baseId)
-        if (existing) {
-          existing.push(item)
+        const items = itemsByBaseId.get(item.baseId)
+        if (items) {
+          items.push(item)
         } else {
           itemsByBaseId.set(item.baseId, [item])
         }
@@ -557,7 +366,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         const baseItems = itemsByBaseId.get(base.id) ?? []
         let transactionProcessed = 0
 
-        await db.transaction(async (tx) => {
+        await ctx.db.transaction(async (tx) => {
           await tx.insert(knowledgeBaseTable).values(base)
           transactionProcessed += 1
 
@@ -600,16 +409,14 @@ export class KnowledgeMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const db = ctx.db
-
-      const baseResult = await db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
-      const itemResult = await db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
+      const baseResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
+      const itemResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
 
       const targetBaseCount = baseResult?.count ?? 0
       const targetItemCount = itemResult?.count ?? 0
       const targetCount = targetBaseCount + targetItemCount
 
-      const orphanItems = await db
+      const orphanItems = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(knowledgeItemTable)
         .where(sql`${knowledgeItemTable.baseId} NOT IN (SELECT id FROM ${knowledgeBaseTable})`)
