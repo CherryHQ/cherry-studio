@@ -34,23 +34,6 @@ export interface AiRequestMetadata {
 export type RecursiveCallFn<TParams = unknown, TResult = unknown> = (newParams: Partial<TParams>) => Promise<TResult>
 
 /**
- * 类型安全的插件状态存储
- * 每个插件通过声明的 key 存取自己的状态
- */
-export interface PluginStateSlots {
-  'prompt-tool-use'?: {
-    accumulatedUsage: {
-      inputTokens: number
-      outputTokens: number
-      totalTokens: number
-      reasoningTokens: number
-      cachedInputTokens: number
-    }
-    hasExecutedToolsInCurrentStep: boolean
-  }
-}
-
-/**
  * AI 请求上下文
  * 使用泛型参数以支持不同类型的请求
  */
@@ -78,8 +61,6 @@ export interface AiRequestContext<TParams = unknown, TResult = unknown> {
   extensions: Map<string, JSONValue>
 
   middlewares?: LanguageModelMiddleware[]
-
-  pluginState: PluginStateSlots
 
   // Runtime executor reference (temporary, to be refactored)
   executor?: any

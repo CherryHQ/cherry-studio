@@ -30,7 +30,6 @@ export type {
   GenerateTextResult,
   HookResult,
   PluginManagerConfig,
-  PluginStateSlots,
   RecursiveCallFn,
   StreamTextParams,
   StreamTextResult

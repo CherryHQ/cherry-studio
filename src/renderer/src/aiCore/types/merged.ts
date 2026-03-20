@@ -9,7 +9,6 @@ import type {
   ExtensionConfigToIdResolutionMap,
   ExtensionToSettingsMap,
   ExtractProviderIds,
-  ExtractToolConfigMap,
   ProviderExtensionConfig,
   StringKeys,
   UnionToIntersection
@@ -38,14 +37,6 @@ export type AppProviderId = KnownAppProviderId | (string & {})
  * 使用 UnionToIntersection 将所有 extension 的 settings map 合并为单一对象类型
  */
 export type AppProviderSettingsMap = UnionToIntersection<ExtensionToSettingsMap<(typeof allExtensions)[number]>>
-
-/**
- * Application Web Search Tool Config Map
- * 从所有 extensions（core + renderer）的 toolFactories 中自动提取 webSearch config 类型
- * 和 AppProviderSettingsMap 同一模式
- */
-export type AppWebSearchToolConfigMap = ExtractToolConfigMap<(typeof allExtensions)[number], 'webSearch'>
-
 // ==================== Runtime Utilities ====================
 
 /**

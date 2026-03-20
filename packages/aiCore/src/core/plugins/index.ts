@@ -7,7 +7,6 @@ export type {
   GenerateTextResult,
   HookResult,
   PluginManagerConfig,
-  PluginStateSlots,
   RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
@@ -37,7 +36,6 @@ export function createContext<T extends RegisteredProviderId | (string & {}), TP
     recursiveDepth: 0, // 初始化递归深度为 0
     maxRecursiveDepth: 10, // 默认最大递归深度为 10
     extensions: new Map(),
-    pluginState: {},
     middlewares: [],
     // 占位递归调用函数，实际使用时会被 PluginEngine 替换
     recursiveCall: () => Promise.resolve(null as any)
