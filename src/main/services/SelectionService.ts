@@ -21,7 +21,7 @@ const logger = loggerService.withContext('SelectionService')
 let SelectionHook: SelectionHookConstructor | null = null
 try {
   //since selection-hook v1.0.0, it supports macOS
-  //since selection-hook v1.1.0, it supports Linux
+  //since selection-hook v2.0.0, it supports Linux
   SelectionHook = require('selection-hook')
 } catch (error) {
   logger.error('Failed to load selection-hook:', error as Error)
@@ -90,10 +90,12 @@ export class SelectionService {
   private lastCtrlkeyDownTime: number = 0
 
   //Linux wayland specific
-  //isWaylandDisplay: true when running under Wayland
-  //isXWaylandMode: true when running under XWayland
-  private isWaylandDisplay: boolean = false
-  private isXWaylandMode: boolean = false
+  //isLinuxWaylandDisplay: true when running under Wayland
+  //isLinuxXWaylandMode: true when running under XWayland
+  //hasLinuxInputDeviceAccess: true when the process has access to input devices
+  private isLinuxWaylandDisplay: boolean = false
+  private isLinuxXWaylandMode: boolean = false
+  private hasLinuxInputDeviceAccess: boolean = false
 
   private zoomFactor: number = 1
 
@@ -124,16 +126,14 @@ export class SelectionService {
         // Several workarounds are applied when isWaylandDisplay is true.
         if (isLinux) {
           const envInfo = this.selectionHook.linuxGetEnvInfo()
-          if (envInfo && envInfo.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND) {
-            this.isWaylandDisplay = true
-          }
+          this.isLinuxWaylandDisplay = envInfo?.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND
+          this.hasLinuxInputDeviceAccess = envInfo?.hasInputDeviceAccess ?? false
 
           // Detect if Electron is running under XWayland (not native Wayland).
           // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
           // When --ozone-platform=x11 is set, Electron runs via XWayland instead.
-          if (this.isWaylandDisplay) {
-            this.isXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
-            this.logInfo(`Wayland mode: ${this.isXWaylandMode ? 'XWayland' : 'native Wayland'}`, true)
+          if (this.isLinuxWaylandDisplay) {
+            this.isLinuxXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
           }
         }
 
@@ -157,6 +157,18 @@ export class SelectionService {
 
   public getSelectionHook(): SelectionHookInstance | null {
     return this.selectionHook
+  }
+
+  public getLinuxEnvInfo(): {
+    isLinuxWaylandDisplay: boolean
+    isLinuxXWaylandMode: boolean
+    hasLinuxInputDeviceAccess: boolean
+  } {
+    return {
+      isLinuxWaylandDisplay: this.isLinuxWaylandDisplay,
+      isLinuxXWaylandMode: this.isLinuxXWaylandMode,
+      hasLinuxInputDeviceAccess: this.hasLinuxInputDeviceAccess
+    }
   }
 
   /**
@@ -443,7 +455,7 @@ export class SelectionService {
       //           With focusable: false on XWayland, blur never fires and there is no reliable
       //           way to detect outside clicks (selection-hook coordinates use a different
       //           coordinate space than Electron's getBounds on Wayland).
-      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: this.isWaylandDisplay }),
+      ...(isMac ? { type: 'panel' } : { type: 'toolbar', focusable: this.isLinuxWaylandDisplay }),
       hiddenInMissionControl: true, // [macOS only]
       acceptFirstMouse: true, // [macOS only]
 
@@ -812,7 +824,7 @@ export class SelectionService {
     // This acts as a safety net: if blur fails to hide the toolbar on some compositors,
     // selecting new text will still dismiss and reposition it instead of getting stuck.
     if (this.isToolbarAlive() && this.toolbarWindow!.isVisible()) {
-      if (this.isWaylandDisplay) {
+      if (this.isLinuxWaylandDisplay) {
         this.hideToolbar()
       } else {
         return
@@ -968,7 +980,7 @@ export class SelectionService {
       // coordinates while Electron getBounds() uses XWayland coordinates. This mismatch
       // makes isInsideToolbar hit-testing unreliable, so outside-click hiding on Wayland
       // is handled by blur (focusable: true) instead.
-      if (!this.isWaylandDisplay) {
+      if (!this.isLinuxWaylandDisplay) {
         this.selectionHook!.on('mouse-down', this.handleMouseDownHide)
       }
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelHide)
@@ -984,7 +996,7 @@ export class SelectionService {
     if (!this.isHideByMouseKeyListenerActive) return
 
     try {
-      if (!this.isWaylandDisplay) {
+      if (!this.isLinuxWaylandDisplay) {
         this.selectionHook!.off('mouse-down', this.handleMouseDownHide)
       }
       this.selectionHook!.off('mouse-wheel', this.handleMouseWheelHide)
@@ -1641,6 +1653,18 @@ export class SelectionService {
         }
       }
     )
+
+    if (isLinux) {
+      ipcMain.handle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
+        return (
+          selectionService?.getLinuxEnvInfo() ?? {
+            isLinuxWaylandDisplay: false,
+            isLinuxXWaylandMode: false,
+            hasLinuxInputDeviceAccess: false
+          }
+        )
+      })
+    }
 
     this.isIpcHandlerRegistered = true
   }

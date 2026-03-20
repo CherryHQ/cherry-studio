@@ -317,6 +317,7 @@ export enum IpcChannel {
   Selection_ActionWindowResize = 'selection:action-window-resize',
   Selection_ProcessAction = 'selection:process-action',
   Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
 
   // Memory
   Memory_Add = 'memory:add',
