@@ -360,6 +360,17 @@ const api = {
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
   },
+  awsBedrock: {
+    ssoLogin: (config: { startUrl: string; ssoRegion: string; accountId: string; roleName: string }) =>
+      ipcRenderer.invoke(IpcChannel.AwsBedrock_SSOLogin, config),
+    resolveSSOCredentials: (config: {
+      startUrl: string
+      ssoRegion: string
+      accountId: string
+      roleName: string
+    }): Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken: string; expiration?: number }> =>
+      ipcRenderer.invoke(IpcChannel.AwsBedrock_ResolveSSOCredentials, config)
+  },
   ovms: {
     isSupported: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Ovms_IsSupported),
     addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>

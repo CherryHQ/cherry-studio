@@ -44,6 +44,7 @@ import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
+import awsSSOService from './services/AwsSSOService'
 import BackupManager from './services/BackupManager'
 import CherryINOAuthService from './services/CherryINOAuthService'
 import { codeToolsService } from './services/CodeToolsService'
@@ -783,6 +784,10 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
+
+  // AWS Bedrock SSO
+  ipcMain.handle(IpcChannel.AwsBedrock_SSOLogin, awsSSOService.ssoLogin.bind(awsSSOService))
+  ipcMain.handle(IpcChannel.AwsBedrock_ResolveSSOCredentials, awsSSOService.resolveSSOCredentials.bind(awsSSOService))
 
   // mini window
   ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())

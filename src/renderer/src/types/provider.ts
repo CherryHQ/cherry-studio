@@ -91,7 +91,8 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
 
 export const AwsBedrockAuthTypes = {
   iam: 'iam',
-  apiKey: 'apiKey'
+  apiKey: 'apiKey',
+  sso: 'sso'
 } as const
 
 export type AwsBedrockAuthType = keyof typeof AwsBedrockAuthTypes

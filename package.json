@@ -124,6 +124,8 @@
     "@aws-sdk/client-bedrock": "^3.998.0",
     "@aws-sdk/client-bedrock-runtime": "^3.998.0",
     "@aws-sdk/client-s3": "^3.998.0",
+    "@aws-sdk/client-sso": "^3.998.0",
+    "@aws-sdk/client-sso-oidc": "^3.998.0",
     "@biomejs/biome": "2.2.4",
     "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/analytics-client": "^1.1.3",
