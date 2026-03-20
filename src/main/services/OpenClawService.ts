@@ -63,15 +63,18 @@ export interface OpenClawConfig {
   }
 }
 
+export interface OpenClawModelConfig {
+  id: string
+  name: string
+  contextWindow?: number
+  [key: string]: unknown
+}
+
 export interface OpenClawProviderConfig {
   baseUrl: string
   apiKey: string
   api: string
-  models: Array<{
-    id: string
-    name: string
-    contextWindow?: number
-  }>
+  models: OpenClawModelConfig[]
 }
 
 /**
@@ -95,6 +98,48 @@ const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic
  * These are values from model.endpoint_type field
  */
 const ANTHROPIC_ENDPOINT_TYPES = ['anthropic']
+
+/**
+ * Known context window sizes for common models.
+ * Used as defaults when syncing to OpenClaw config.
+ * Values aligned with OpenClaw's MODEL_CONTEXT_WINDOWS in opencode-zen-models.ts.
+ */
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  'claude-opus-4': 1000000,
+  'claude-sonnet-4': 200000,
+  'claude-haiku-4': 200000,
+  'claude-3.5': 200000,
+  'claude-3-opus': 200000,
+  'claude-3-sonnet': 200000,
+  'claude-3-haiku': 200000,
+  'gpt-5': 400000,
+  'gpt-4.1': 1047576,
+  'gpt-4.5': 128000,
+  'gpt-4o': 128000,
+  'gpt-4-turbo': 128000,
+  o1: 200000,
+  o3: 200000,
+  o4: 200000,
+  'gemini-3': 1048576,
+  'gemini-2.5': 1048576,
+  'gemini-2.0': 1048576,
+  'gemini-1.5-pro': 2097152,
+  'gemini-1.5-flash': 1048576,
+  'deepseek-r1': 65536,
+  'deepseek-v3': 65536,
+  'deepseek-chat': 65536,
+  qwen3: 131072,
+  'qwen2.5': 131072,
+  'glm-4': 131072
+}
+
+function getContextWindow(modelId: string): number {
+  const lower = modelId.toLowerCase()
+  for (const [prefix, size] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
+    if (lower.startsWith(prefix)) return size
+  }
+  return 128000
+}
 
 /**
  * Check if a model should use Anthropic API based on endpoint_type
@@ -781,17 +826,27 @@ class OpenClawService {
         }
       }
 
-      // Build OpenClaw provider config
+      // Preserve existing model-level config that users may have modified in OpenClaw
+      // (e.g., vision, custom context window, extra parameters)
+      config.models = config.models || { mode: 'merge', providers: {} }
+      config.models.providers = config.models.providers || {}
+      const existingModels = config.models.providers[providerKey]?.models || []
+      const existingModelMap = new Map(existingModels.map((m) => [m.id, m]))
+
+      // Build OpenClaw provider config with merge strategy
       const openclawProvider: OpenClawProviderConfig = {
         baseUrl,
         apiKey,
         api: apiType,
-        models: provider.models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          // FIXME: in v2
-          contextWindow: 128000
-        }))
+        models: provider.models.map((m) => {
+          const existing = existingModelMap.get(m.id)
+          return {
+            ...existing,
+            id: m.id,
+            name: m.name,
+            contextWindow: existing?.contextWindow ?? getContextWindow(m.id)
+          }
+        })
       }
 
       // Set gateway mode to local (required for gateway to start)
@@ -804,8 +859,6 @@ class OpenClawService {
       this.gatewayAuthToken = token
 
       // Update config
-      config.models = config.models || { mode: 'merge', providers: {} }
-      config.models.providers = config.models.providers || {}
       config.models.providers[providerKey] = openclawProvider
 
       // Set primary model
