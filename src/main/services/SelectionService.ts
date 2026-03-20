@@ -89,7 +89,11 @@ export class SelectionService {
    */
   private lastCtrlkeyDownTime: number = 0
 
+  //Linux wayland specific
+  //isWaylandDisplay: true when running under Wayland
+  //isXWaylandMode: true when running under XWayland
   private isWaylandDisplay: boolean = false
+  private isXWaylandMode: boolean = false
 
   private zoomFactor: number = 1
 
@@ -122,6 +126,14 @@ export class SelectionService {
           const envInfo = this.selectionHook.linuxGetEnvInfo()
           if (envInfo && envInfo.displayProtocol === SelectionHook!.DisplayProtocol.WAYLAND) {
             this.isWaylandDisplay = true
+          }
+
+          // Detect if Electron is running under XWayland (not native Wayland).
+          // Since Electron 38+, native Wayland is the default when XDG_SESSION_TYPE=wayland.
+          // When --ozone-platform=x11 is set, Electron runs via XWayland instead.
+          if (this.isWaylandDisplay) {
+            this.isXWaylandMode = app.commandLine.getSwitchValue('ozone-platform').toLowerCase() === 'x11'
+            this.logInfo(`Wayland mode: ${this.isXWaylandMode ? 'XWayland' : 'native Wayland'}`, true)
           }
         }
 
