@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createFetchPreservingHeadersOnRedirect } from '../preserveHeadersOnRedirectFetch'
 
 describe('createFetchPreservingHeadersOnRedirect', () => {
-  it('re-sends Authorization and custom headers after a 307 redirect', async () => {
+  it('re-sends Authorization and custom headers after a same-host http-to-https 307 redirect', async () => {
     const inner = vi.fn()
     inner
       .mockResolvedValueOnce(
@@ -43,6 +43,35 @@ describe('createFetchPreservingHeadersOnRedirect', () => {
     expect(second.method).toBe('POST')
   })
 
+  it('drops Authorization on cross-origin redirects', async () => {
+    const inner = vi.fn()
+    inner
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 307,
+          headers: { Location: 'https://evil.example.net/v1/chat/completions' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+
+    const fetchWrapped = createFetchPreservingHeadersOnRedirect(inner as unknown as typeof fetch)
+
+    await fetchWrapped('http://api.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer secret',
+        'X-Custom': '1'
+      },
+      body: '{"x":1}'
+    })
+
+    const second = inner.mock.calls[1][1] as RequestInit
+    const h2 = new Headers(second.headers as HeadersInit)
+    expect(h2.get('Authorization')).toBeNull()
+    expect(h2.get('X-Custom')).toBe('1')
+    expect(inner.mock.calls[1][0]).toBe('https://evil.example.net/v1/chat/completions')
+  })
+
   it('uses GET without body after 303', async () => {
     const inner = vi.fn()
     inner
@@ -67,5 +96,37 @@ describe('createFetchPreservingHeadersOnRedirect', () => {
     expect(second.body).toBeUndefined()
     const h2 = new Headers(second.headers as HeadersInit)
     expect(h2.has('content-type')).toBe(false)
+  })
+
+  it('uses GET and strips content headers after a 302 POST redirect', async () => {
+    const inner = vi.fn()
+    inner
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: 'https://api.example.com/done' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+
+    const fetchWrapped = createFetchPreservingHeadersOnRedirect(inner as unknown as typeof fetch)
+
+    await fetchWrapped('https://api.example.com/start', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer secret',
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip'
+      },
+      body: '{}'
+    })
+
+    const second = inner.mock.calls[1][1] as RequestInit
+    const h2 = new Headers(second.headers as HeadersInit)
+    expect(second.method).toBe('GET')
+    expect(second.body).toBeUndefined()
+    expect(h2.has('content-type')).toBe(false)
+    expect(h2.has('content-encoding')).toBe(false)
+    expect(h2.get('Authorization')).toBe('Bearer secret')
   })
 })

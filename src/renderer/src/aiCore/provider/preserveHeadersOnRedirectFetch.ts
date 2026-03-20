@@ -1,4 +1,12 @@
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const SENSITIVE_HEADER_PATTERNS = [
+  /^authorization$/i,
+  /^proxy-authorization$/i,
+  /^x-api-key$/i,
+  /^api-key$/i,
+  /^anthropic-api-key$/i,
+  /^openai-api-key$/i
+]
 
 /**
  * Wraps fetch to follow redirects manually so Authorization and custom headers are not dropped
@@ -30,20 +38,38 @@ export function createFetchPreservingHeadersOnRedirect(originalFetch: typeof fet
         return response
       }
 
-      url = new URL(location, url).toString()
+      const currentUrl = new URL(url)
+      const nextUrl = new URL(location, url)
+      const preserveSensitiveHeaders = isSafeHeaderPreservingRedirect(currentUrl, nextUrl)
+      url = nextUrl.toString()
 
-      if (response.status === 303) {
+      if (response.status === 301 || response.status === 302 || response.status === 303) {
+        const method = (reqInit.method ?? 'GET').toUpperCase()
+        if (method !== 'GET' && method !== 'HEAD') {
+          reqInit = {
+            ...reqInit,
+            method: 'GET',
+            body: undefined
+          }
+        }
+      }
+
+      if (!preserveSensitiveHeaders || reqInit.body === undefined) {
+        const h = sanitizeHeadersForRedirect(reqInit.headers, {
+          preserveSensitiveHeaders,
+          dropContentHeaders: reqInit.body === undefined
+        })
         reqInit = {
           ...reqInit,
-          method: 'GET',
-          body: undefined
+          headers: h
         }
-        const h = new Headers(reqInit.headers as HeadersInit)
-        h.delete('content-type')
-        h.delete('Content-Type')
-        h.delete('content-length')
-        h.delete('Content-Length')
-        reqInit.headers = h
+      }
+
+      if (response.status === 303 && reqInit.body === undefined) {
+        reqInit = {
+          ...reqInit,
+          method: 'GET'
+        }
       }
 
       void response.body?.cancel()
@@ -88,4 +114,42 @@ async function toRedirectableArgs(
 
   const url = typeof input === 'string' ? input : input.href
   return { url, reqInit: { ...init } }
+}
+
+function isSafeHeaderPreservingRedirect(from: URL, to: URL): boolean {
+  if (from.origin === to.origin) {
+    return true
+  }
+
+  return (
+    from.protocol === 'http:' &&
+    to.protocol === 'https:' &&
+    from.hostname === to.hostname &&
+    (from.port === to.port || (from.port === '' && to.port === ''))
+  )
+}
+
+function sanitizeHeadersForRedirect(
+  headersInit: HeadersInit | undefined,
+  opts: { preserveSensitiveHeaders: boolean; dropContentHeaders: boolean }
+): Headers {
+  const headers = new Headers(headersInit as HeadersInit | undefined)
+  const keysToDelete: string[] = []
+
+  headers.forEach((_, key) => {
+    const lower = key.toLowerCase()
+
+    if (!opts.preserveSensitiveHeaders && SENSITIVE_HEADER_PATTERNS.some((pattern) => pattern.test(lower))) {
+      keysToDelete.push(key)
+      return
+    }
+
+    if (opts.dropContentHeaders && lower.startsWith('content-')) {
+      keysToDelete.push(key)
+    }
+  })
+
+  keysToDelete.forEach((key) => headers.delete(key))
+
+  return headers
 }
