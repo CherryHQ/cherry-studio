@@ -17,19 +17,25 @@ export const CreatePromptDtoSchema = z.object({
   assistantId: z.string().optional()
 })
 
-export const UpdatePromptDtoSchema = z.object({
-  title: z.string().min(1).optional(),
-  content: z.string().min(1).optional()
-})
+export const UpdatePromptDtoSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    content: z.string().min(1).optional()
+  })
+  .refine((dto) => dto.title !== undefined || dto.content !== undefined, {
+    message: 'At least one field is required'
+  })
 
 export const ReorderPromptsDtoSchema = z.object({
   assistantId: z.string().optional(),
-  items: z.array(
-    z.object({
-      id: z.string(),
-      sortOrder: z.number().int().min(0)
-    })
-  )
+  items: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        sortOrder: z.number().int().min(0)
+      })
+    )
+    .min(1)
 })
 
 export const RollbackPromptDtoSchema = z.object({

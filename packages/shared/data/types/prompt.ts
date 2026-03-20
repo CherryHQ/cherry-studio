@@ -27,6 +27,7 @@ export const PromptVersionSchema = z.object({
   promptId: z.string().uuid(),
   version: z.number().int().min(1),
   content: z.string(),
+  rollbackFrom: z.number().int().min(1).nullable(),
   createdAt: z.iso.datetime()
 })
 

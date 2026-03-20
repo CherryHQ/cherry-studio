@@ -5273,6 +5273,7 @@
       "edit": "Editar Prompt",
       "global": "Prompts globales",
       "locationLabel": "Ubicación de inserción",
+      "restoredFromVersion": "[to be translated]:restored from v{{version}}",
       "rollback": "Revertir",
       "rollbackConfirm": "¿Confirmas que quieres revertir a esta versión? Se creará una nueva versión con este contenido.",
       "title": "Gestión de Prompts",

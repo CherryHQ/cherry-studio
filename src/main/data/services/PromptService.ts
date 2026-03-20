@@ -33,8 +33,8 @@ function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
     content: row.content,
     currentVersion: row.currentVersion,
     sortOrder: row.sortOrder,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString()
   }
 }
 
@@ -47,7 +47,8 @@ function rowToVersion(row: typeof promptVersionTable.$inferSelect): PromptVersio
     promptId: row.promptId,
     version: row.version,
     content: row.content,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
+    rollbackFrom: row.rollbackFrom,
+    createdAt: new Date(row.createdAt).toISOString()
   }
 }
 
@@ -129,12 +130,33 @@ export class PromptService {
     const db = dbService.getDb()
 
     return db.transaction(async (tx) => {
+      const [lastPrompt] = await tx
+        .select({ sortOrder: promptTable.sortOrder })
+        .from(promptTable)
+        .orderBy(desc(promptTable.sortOrder))
+        .limit(1)
+
+      const nextPromptSortOrder = (lastPrompt?.sortOrder ?? -1) + 1
+
+      let nextAssistantSortOrder = 0
+      if (dto.assistantId) {
+        const [lastAssistantPrompt] = await tx
+          .select({ sortOrder: assistantPromptTable.sortOrder })
+          .from(assistantPromptTable)
+          .where(eq(assistantPromptTable.assistantId, dto.assistantId))
+          .orderBy(desc(assistantPromptTable.sortOrder))
+          .limit(1)
+
+        nextAssistantSortOrder = (lastAssistantPrompt?.sortOrder ?? -1) + 1
+      }
+
       const [row] = await tx
         .insert(promptTable)
         .values({
           title: dto.title,
           content: dto.content,
-          currentVersion: 1
+          currentVersion: 1,
+          sortOrder: nextPromptSortOrder
         })
         .returning()
 
@@ -149,7 +171,8 @@ export class PromptService {
       if (dto.assistantId) {
         await tx.insert(assistantPromptTable).values({
           assistantId: dto.assistantId,
-          promptId: row.id
+          promptId: row.id,
+          sortOrder: nextAssistantSortOrder
         })
       }
 
@@ -172,6 +195,10 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
+      if (dto.title === undefined && dto.content === undefined) {
+        return rowToPrompt(existing)
+      }
+
       const updates: Partial<typeof promptTable.$inferInsert> = {}
       if (dto.title !== undefined) updates.title = dto.title
       if (dto.content !== undefined) updates.content = dto.content
@@ -186,7 +213,8 @@ export class PromptService {
         await tx.insert(promptVersionTable).values({
           promptId: id,
           version: newVersion,
-          content: dto.content!
+          content: dto.content!,
+          rollbackFrom: null
         })
 
         logger.info('Created prompt version', { id, version: newVersion })
@@ -276,9 +304,12 @@ export class PromptService {
       }
 
       // Find the target version
-      const versions = await tx.select().from(promptVersionTable).where(eq(promptVersionTable.promptId, promptId))
+      const [targetVersion] = await tx
+        .select()
+        .from(promptVersionTable)
+        .where(and(eq(promptVersionTable.promptId, promptId), eq(promptVersionTable.version, dto.version)))
+        .limit(1)
 
-      const targetVersion = versions.find((v) => v.version === dto.version)
       if (!targetVersion) {
         throw DataApiErrorFactory.notFound('PromptVersion', `${promptId}@v${dto.version}`)
       }
@@ -289,7 +320,8 @@ export class PromptService {
       await tx.insert(promptVersionTable).values({
         promptId,
         version: newVersion,
-        content: targetVersion.content
+        content: targetVersion.content,
+        rollbackFrom: dto.version
       })
 
       // Update prompt to the rolled-back content
