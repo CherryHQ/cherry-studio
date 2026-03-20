@@ -124,6 +124,9 @@ importers:
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
+      pdf-parse:
+        specifier: ^2.4.5
+        version: 2.4.5
       selection-hook:
         specifier: 1.0.12
         version: 1.0.12
@@ -914,9 +917,6 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
-      pdf-parse:
-        specifier: ^2.4.5
-        version: 2.4.5
       prosemirror-model:
         specifier: 1.25.2
         version: 1.25.2

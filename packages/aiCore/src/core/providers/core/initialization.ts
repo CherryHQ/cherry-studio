@@ -17,7 +17,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
-import type { XaiProviderSettings } from '@ai-sdk/xai'
+import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
@@ -242,26 +242,31 @@ const OpenRouterExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ExtensionStorage, ProviderV3, 'openrouter'>)
 
-// TODO: xAI toolFactories (webSearch, xSearch) cannot be declared here yet because
-// the `create` function wraps the XaiProvider with `customProvider()`, so the cached
-// provider instance loses the `.tools` property. To fix this, refactor xAI to use
-// `create: createXai` with a `variants` entry for responses mode (similar to Azure).
-// That way `getBaseProvider()` returns the unwrapped `XaiProvider` with `.tools`.
-// See: XaiProvider.tools.webSearch, XaiProvider.tools.xSearch
+/**
+ * xAI Extension
+ *
+ * createXai() defaults to chat mode and has .tools (webSearch, xSearch).
+ * No variant needed — xAI's API uses chat completions format.
+ */
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,
   supportsImageGeneration: true,
-  create: (settings) => {
-    const provider = createXai(settings)
-    return customProvider({
-      fallbackProvider: {
-        ...provider,
-        languageModel: (modelId: string) => provider.responses(modelId)
-      }
-    })
+  create: createXai,
+  toolFactories: {
+    webSearch:
+      (provider: XaiProvider) =>
+      (config: {
+        webSearch?: Parameters<XaiProvider['tools']['webSearch']>[0]
+        xSearch?: Parameters<XaiProvider['tools']['xSearch']>[0]
+      }) => ({
+        tools: {
+          webSearch: provider.tools.webSearch(config?.webSearch ?? {}),
+          xSearch: provider.tools.xSearch(config?.xSearch ?? {})
+        }
+      })
   }
-} as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, ProviderV3, 'xai'>)
+} as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, XaiProvider, 'xai'>)
 
 /**
  * 核心 provider extensions 列表
