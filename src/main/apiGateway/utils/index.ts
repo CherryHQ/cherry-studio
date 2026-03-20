@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import { isOpenAILLMModel } from '@shared/aiCore/config/aihubmix'
 import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import type { ApiModel, Model, Provider } from '@types'
+import type { ApiModel, Model, Provider, ProviderType } from '@types'
 
 const logger = loggerService.withContext('ApiGatewayUtils')
 
@@ -29,9 +29,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Support all provider types that AI SDK can handle
-    // The ProxyStreamService uses AI SDK which supports many providers
-    const supportedProviders = providers.filter((p: Provider) => p.enabled)
+    // Support OpenAI-compatible and Anthropic-compatible providers for API server
+    const supportedTypes: ProviderType[] = ['openai', 'anthropic', 'ollama', 'new-api']
+    const supportedProviders = providers.filter((p: Provider) => p.enabled && supportedTypes.includes(p.type))
 
     // Cache the filtered results
     cacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
@@ -281,8 +281,6 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
     case 'cherryin':
     case 'new-api':
       return (m: Model) => m.endpoint_type === 'anthropic'
-    case 'aihubmix':
-      return (m: Model) => m.id.includes('claude')
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     case 'ppio':
@@ -290,7 +288,7 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
     case 'openrouter':
       return (m: Model) => !m.id.includes('gemini-3') // gemini-3 需要客户端自己维护thinkingSignature
     default:
-      // allow all models when checker not configured
+      // allow all models when checker not configured (aihubmix, ollama, etc.)
       return () => true
   }
 }

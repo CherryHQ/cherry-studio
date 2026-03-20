@@ -29,18 +29,18 @@ const logger = loggerService.withContext('GatewayMiddleware')
 export const gatewayMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const gatewayConfig = await config.get()
-    const groupName = req.params.groupId // URL param is named groupId for backward compat
+    const groupId = req.params.groupId
 
-    // If groupName is provided, look up the model group by name
-    if (groupName) {
-      const group = gatewayConfig.modelGroups.find((g) => g.name === groupName)
+    // If groupId is provided, look up the model group by id
+    if (groupId) {
+      const group = gatewayConfig.modelGroups.find((g) => g.id === groupId)
 
       if (!group) {
-        logger.warn('Model group not found', { groupName })
+        logger.warn('Model group not found', { groupId })
         res.status(404).json({
           error: {
             type: 'not_found',
-            message: `Model group '${groupName}' not found`
+            message: `Model group '${groupId}' not found`
           }
         })
         return
@@ -53,7 +53,7 @@ export const gatewayMiddleware = async (req: Request, res: Response, next: NextF
         }
 
         logger.debug('Using assistant mode', {
-          groupName,
+          groupId,
           assistantId: group.assistantId
         })
       } else {
@@ -64,20 +64,19 @@ export const gatewayMiddleware = async (req: Request, res: Response, next: NextF
         }
 
         logger.debug('Injected model from group', {
-          groupName,
+          groupId,
           model: `${group.providerId}:${group.modelId}`
         })
       }
     }
 
-    // Get the endpoint path (for group routes, use the part after groupName)
-    const endpoint = groupName ? req.path.replace(`/${groupName}`, '') : req.path
+    const endpoint = req.path
     let normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
 
     // Non-group routes are mounted under /v1, but req.path here is router-relative
     // (e.g. /messages instead of /v1/messages). Restore the external path shape
     // so it can be compared against enabledEndpoints config.
-    if (!groupName && !normalizedEndpoint.startsWith('/v1')) {
+    if (!normalizedEndpoint.startsWith('/v1')) {
       normalizedEndpoint = `/v1${normalizedEndpoint}`
     }
 

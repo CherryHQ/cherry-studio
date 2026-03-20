@@ -1,5 +1,6 @@
 import type { CollapseProps } from 'antd'
 
+import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader } from './GenericTools'
 import type { EditToolInput, EditToolOutput } from './types'
 import { AgentToolsType } from './types'
@@ -39,7 +40,7 @@ export function EditTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Edit}
-        params={input?.file_path}
+        params={input?.file_path ? <ClickableFilePath path={input.file_path} /> : undefined}
         variant="collapse-label"
         showStatus={false}
       />

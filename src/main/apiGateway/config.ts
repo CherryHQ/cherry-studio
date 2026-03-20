@@ -40,6 +40,16 @@ class ConfigManager {
       return this._config
     } catch (error: any) {
       logger.warn('Failed to load config from Redux, using defaults', { error })
+
+      if (this._config) {
+        logger.warn('Falling back to cached API Gateway config after Redux load failure', {
+          enabled: this._config.enabled,
+          port: this._config.port,
+          host: this._config.host
+        })
+        return this._config
+      }
+
       this._config = {
         enabled: false,
         port: API_GATEWAY_DEFAULTS.PORT,

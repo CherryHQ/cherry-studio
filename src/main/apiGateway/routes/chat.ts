@@ -10,6 +10,17 @@ const logger = loggerService.withContext('ApiGatewayChatRoutes')
 
 const router = express.Router()
 
+const asyncHandler =
+  (handler: (req: Request, res: Response) => Promise<void | Response>) =>
+  (req: Request, res: Response): void => {
+    void handler(req, res).catch((error) => {
+      const { status, body } = mapChatCompletionError(error)
+      if (!res.headersSent) {
+        res.status(status).json(body)
+      }
+    })
+  }
+
 interface ErrorResponseBody {
   error: {
     message: string
@@ -150,74 +161,77 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/completions', async (req: Request, res: Response) => {
-  try {
-    const request = req.body as ExtendedChatCompletionCreateParams
+router.post(
+  '/completions',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const request = req.body as ExtendedChatCompletionCreateParams
 
-    if (!request) {
-      return res.status(400).json({
-        error: {
-          message: 'Request body is required',
-          type: 'invalid_request_error',
-          code: 'missing_body'
-        }
+      if (!request) {
+        return res.status(400).json({
+          error: {
+            message: 'Request body is required',
+            type: 'invalid_request_error',
+            code: 'missing_body'
+          }
+        })
+      }
+
+      if (!request.model) {
+        return res.status(400).json({
+          error: {
+            message: 'Model is required',
+            type: 'invalid_request_error',
+            code: 'missing_model'
+          }
+        })
+      }
+
+      if (!request.messages || request.messages.length === 0) {
+        return res.status(400).json({
+          error: {
+            message: 'Messages are required',
+            type: 'invalid_request_error',
+            code: 'missing_messages'
+          }
+        })
+      }
+
+      logger.debug('Chat completion request', {
+        model: request.model,
+        messageCount: request.messages?.length || 0,
+        stream: request.stream,
+        temperature: request.temperature
       })
-    }
 
-    if (!request.model) {
-      return res.status(400).json({
-        error: {
-          message: 'Model is required',
-          type: 'invalid_request_error',
-          code: 'missing_model'
-        }
+      // Validate model and get provider
+      const modelValidation = await validateModelId(request.model)
+      if (!modelValidation.valid) {
+        return res.status(400).json({
+          error: {
+            message: modelValidation.error?.message || 'Model not found',
+            type: 'invalid_request_error',
+            code: modelValidation.error?.code || 'model_not_found'
+          }
+        })
+      }
+
+      const provider = modelValidation.provider!
+      const modelId = modelValidation.modelId!
+
+      return processMessage({
+        response: res,
+        provider,
+        modelId,
+        params: request,
+        inputFormat: 'openai',
+        outputFormat: 'openai'
       })
+    } catch (error: unknown) {
+      const { status, body } = mapChatCompletionError(error)
+      return res.status(status).json(body)
     }
-
-    if (!request.messages || request.messages.length === 0) {
-      return res.status(400).json({
-        error: {
-          message: 'Messages are required',
-          type: 'invalid_request_error',
-          code: 'missing_messages'
-        }
-      })
-    }
-
-    logger.debug('Chat completion request', {
-      model: request.model,
-      messageCount: request.messages?.length || 0,
-      stream: request.stream,
-      temperature: request.temperature
-    })
-
-    // Validate model and get provider
-    const modelValidation = await validateModelId(request.model)
-    if (!modelValidation.valid) {
-      return res.status(400).json({
-        error: {
-          message: modelValidation.error?.message || 'Model not found',
-          type: 'invalid_request_error',
-          code: modelValidation.error?.code || 'model_not_found'
-        }
-      })
-    }
-
-    const provider = modelValidation.provider!
-    const modelId = modelValidation.modelId!
-
-    return processMessage({
-      response: res,
-      provider,
-      modelId,
-      params: request,
-      inputFormat: 'openai',
-      outputFormat: 'openai'
-    })
-  } catch (error: unknown) {
-    const { status, body } = mapChatCompletionError(error)
-    return res.status(status).json(body)
-  }
-})
+  })
+)
 
 export { router as chatRoutes }

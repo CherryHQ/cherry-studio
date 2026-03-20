@@ -26,7 +26,7 @@ export const globToolDefinition = {
 - Patterns with "/" (e.g., "src/*.ts") match relative to the search path
 - Pattern syntax: * (any chars), ** (any path), {a,b} (alternatives), ? (single char)
 - Results are limited to 100 files
-- The path parameter must be an absolute path if specified
+- The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory
 - IMPORTANT: Omit the path field for the default directory (don't use "undefined" or "null")`,
   inputSchema: z.toJSONSchema(GlobToolSchema)
@@ -106,6 +106,8 @@ export async function handleGlobTool(args: unknown, baseDir: string) {
       const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(validPath, filePath)
 
       try {
+        // Re-validate each result to filter out symlink escapes (--follow traverses symlinks)
+        await validatePath(absolutePath, baseDir)
         const stats = await fs.stat(absolutePath)
         files.push({
           path: absolutePath,
@@ -114,7 +116,7 @@ export async function handleGlobTool(args: unknown, baseDir: string) {
           modified: stats.mtime
         })
       } catch (error) {
-        logger.debug('Failed to stat file from ripgrep output, skipping', { file: absolutePath, error })
+        logger.debug('Failed to stat or validate file from ripgrep output, skipping', { file: absolutePath, error })
       }
     }
   }

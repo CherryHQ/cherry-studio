@@ -43,6 +43,18 @@ const logger = loggerService.withContext('ApiGatewayMessagesRoutes')
 const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })
 
+const asyncHandler =
+  (handler: (req: Request, res: Response) => Promise<void | Response>) =>
+  (req: Request, res: Response): void => {
+    void handler(req, res).catch((error: any) => {
+      logger.error('Message route unhandled async error', { error })
+      const { statusCode, errorResponse } = messagesService.transformError(error)
+      if (!res.headersSent) {
+        res.status(statusCode).json(errorResponse)
+      }
+    })
+  }
+
 /**
  * Estimate token count from messages
  * Uses tokenx library for accurate token estimation and supports images, tools
@@ -485,86 +497,92 @@ async function handleMessageProcessing({
  *       500:
  *         description: Internal server error
  */
-router.post('/', async (req: Request, res: Response) => {
-  // Validate request body
-  const bodyValidation = await validateRequestBody(req)
-  if (!bodyValidation.valid) {
-    return res.status(400).json(bodyValidation.error)
-  }
-
-  try {
-    const request: MessageCreateParams = req.body
-
-    // Validate model ID and get provider
-    const modelValidation = await validateModelId(request.model)
-    if (!modelValidation.valid) {
-      const error = modelValidation.error!
-      logger.warn('Model validation failed', {
-        model: request.model,
-        error
-      })
-      return res.status(400).json({
-        type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: error.message
-        }
-      })
+router.post(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    // Validate request body
+    const bodyValidation = await validateRequestBody(req)
+    if (!bodyValidation.valid) {
+      return res.status(400).json(bodyValidation.error)
     }
 
-    const provider = modelValidation.provider!
-    const modelId = modelValidation.modelId!
+    try {
+      const request: MessageCreateParams = req.body
 
-    return handleMessageProcessing({ res, provider, request, modelId })
-  } catch (error: any) {
-    logger.error('Message processing error', { error })
-    const { statusCode, errorResponse } = messagesService.transformError(error)
-    return res.status(statusCode).json(errorResponse)
-  }
-})
+      // Validate model ID and get provider
+      const modelValidation = await validateModelId(request.model)
+      if (!modelValidation.valid) {
+        const error = modelValidation.error!
+        logger.warn('Model validation failed', {
+          model: request.model,
+          error
+        })
+        return res.status(400).json({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: error.message
+          }
+        })
+      }
+
+      const provider = modelValidation.provider!
+      const modelId = modelValidation.modelId!
+
+      return handleMessageProcessing({ res, provider, request, modelId })
+    } catch (error: any) {
+      logger.error('Message processing error', { error })
+      const { statusCode, errorResponse } = messagesService.transformError(error)
+      return res.status(statusCode).json(errorResponse)
+    }
+  })
+)
 
 // Provider-specific messages endpoint (internal use)
-providerRouter.post('/', async (req: Request, res: Response) => {
-  // Validate request body
-  const bodyValidation = await validateRequestBody(req)
-  if (!bodyValidation.valid) {
-    return res.status(400).json(bodyValidation.error)
-  }
-
-  try {
-    const providerId = req.params.provider
-
-    if (!providerId) {
-      return res.status(400).json({
-        type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: 'Provider ID is required in URL path'
-        }
-      })
+providerRouter.post(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    // Validate request body
+    const bodyValidation = await validateRequestBody(req)
+    if (!bodyValidation.valid) {
+      return res.status(400).json(bodyValidation.error)
     }
 
-    // Get provider directly by ID from URL path
-    const provider = await getProviderById(providerId)
-    if (!provider) {
-      return res.status(400).json({
-        type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: `Provider '${providerId}' not found or not enabled`
-        }
-      })
+    try {
+      const providerId = req.params.provider
+
+      if (!providerId) {
+        return res.status(400).json({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: 'Provider ID is required in URL path'
+          }
+        })
+      }
+
+      // Get provider directly by ID from URL path
+      const provider = await getProviderById(providerId)
+      if (!provider) {
+        return res.status(400).json({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: `Provider '${providerId}' not found or not enabled`
+          }
+        })
+      }
+
+      const request: MessageCreateParams = req.body
+
+      return handleMessageProcessing({ res, provider, request })
+    } catch (error: any) {
+      logger.error('Message processing error', { error })
+      const { statusCode, errorResponse } = messagesService.transformError(error)
+      return res.status(statusCode).json(errorResponse)
     }
-
-    const request: MessageCreateParams = req.body
-
-    return handleMessageProcessing({ res, provider, request })
-  } catch (error: any) {
-    logger.error('Message processing error', { error })
-    const { statusCode, errorResponse } = messagesService.transformError(error)
-    return res.status(statusCode).json(errorResponse)
-  }
-})
+  })
+)
 
 /**
  * @swagger
@@ -606,18 +624,24 @@ providerRouter.post('/', async (req: Request, res: Response) => {
  *       400:
  *         description: Bad request
  */
-router.post('/count_tokens', async (req: Request, res: Response) => {
-  return handleCountTokens(req, res, { requireModel: true })
-})
+router.post(
+  '/count_tokens',
+  asyncHandler(async (req: Request, res: Response) => {
+    return handleCountTokens(req, res, { requireModel: true })
+  })
+)
 
 /**
  * Provider-specific count_tokens endpoint
  */
-providerRouter.post('/count_tokens', async (req: Request, res: Response) => {
-  return handleCountTokens(req, res, {
-    requireModel: false,
-    logContext: { providerId: req.params.provider }
+providerRouter.post(
+  '/count_tokens',
+  asyncHandler(async (req: Request, res: Response) => {
+    return handleCountTokens(req, res, {
+      requireModel: false,
+      logContext: { providerId: req.params.provider }
+    })
   })
-})
+)
 
 export { providerRouter as messagesProviderRoutes, router as messagesRoutes }

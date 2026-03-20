@@ -1,5 +1,9 @@
-import type { Tool } from '@types'
+import path from 'node:path'
+
+import type { AgentType, Tool } from '@types'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { AgentModelField } from '../errors'
 
 vi.mock('@main/apiGateway/services/mcp', () => ({
   mcpApiService: {
@@ -7,11 +11,18 @@ vi.mock('@main/apiGateway/services/mcp', () => ({
   }
 }))
 
+vi.mock('@main/utils', () => ({
+  getDataPath: () => '/mock/data'
+}))
+
+const mockValidateModelId = vi.fn()
+
 vi.mock('@main/apiGateway/utils', () => ({
-  validateModelId: vi.fn()
+  validateModelId: (...args: unknown[]) => mockValidateModelId(...args)
 }))
 
 import { BaseService } from '../BaseService'
+import { AgentModelValidationError } from '../errors'
 
 class TestBaseService extends BaseService {
   public normalize(
@@ -20,6 +31,17 @@ class TestBaseService extends BaseService {
     legacyIdMap?: Map<string, string>
   ): string[] | undefined {
     return this.normalizeAllowedTools(allowedTools, tools, legacyIdMap)
+  }
+
+  public async validateModels(
+    agentType: AgentType,
+    models: Partial<Record<AgentModelField, string | undefined>>
+  ): Promise<void> {
+    return this.validateAgentModels(agentType, models)
+  }
+
+  public resolve(paths: string[] | undefined, id: string): string[] {
+    return this.resolveAccessiblePaths(paths, id)
   }
 }
 
@@ -87,5 +109,71 @@ describe('BaseService.normalizeAllowedTools', () => {
     const tools: Tool[] = [{ id: 'custom_tool', name: 'custom_tool', type: 'custom' }]
 
     expect(service.normalize(allowedTools, tools)).toEqual(allowedTools)
+  })
+})
+
+describe('BaseService.validateAgentModels', () => {
+  const service = new TestBaseService()
+
+  it('throws error when regular provider is missing API key', async () => {
+    mockValidateModelId.mockResolvedValue({
+      valid: true,
+      provider: { id: 'openai', apiKey: '' }
+    })
+
+    await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).rejects.toThrow(
+      AgentModelValidationError
+    )
+  })
+
+  it('does not throw for ollama provider without API key and sets placeholder', async () => {
+    const provider = { id: 'ollama', apiKey: '' }
+    mockValidateModelId.mockResolvedValue({
+      valid: true,
+      provider
+    })
+
+    await expect(service.validateModels('claude-code', { model: 'ollama:llama3' })).resolves.not.toThrow()
+    expect(provider.apiKey).toBe('ollama')
+  })
+
+  it('does not throw for lmstudio provider without API key and sets placeholder', async () => {
+    const provider = { id: 'lmstudio', apiKey: '' }
+    mockValidateModelId.mockResolvedValue({
+      valid: true,
+      provider
+    })
+
+    await expect(service.validateModels('claude-code', { model: 'lmstudio:model' })).resolves.not.toThrow()
+    expect(provider.apiKey).toBe('lmstudio')
+  })
+
+  it('does not modify API key when provider already has one', async () => {
+    const provider = { id: 'openai', apiKey: 'sk-existing-key' }
+    mockValidateModelId.mockResolvedValue({
+      valid: true,
+      provider
+    })
+
+    await expect(service.validateModels('claude-code', { model: 'openai:gpt-4' })).resolves.not.toThrow()
+    expect(provider.apiKey).toBe('sk-existing-key')
+  })
+})
+
+describe('BaseService.resolveAccessiblePaths', () => {
+  const service = new TestBaseService()
+  const testId = 'agent_1234567890_abcdefghi'
+  const defaultPath = path.join('/mock/data', 'Agents', 'abcdefghi')
+
+  it('assigns a default path when paths is undefined', () => {
+    expect(service.resolve(undefined, testId)).toEqual([defaultPath])
+  })
+
+  it('assigns a default path when paths is empty array', () => {
+    expect(service.resolve([], testId)).toEqual([defaultPath])
+  })
+
+  it('passes through provided paths unchanged', () => {
+    expect(service.resolve(['/some/path'], testId)).toEqual(['/some/path'])
   })
 })

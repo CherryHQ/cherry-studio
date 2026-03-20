@@ -28,7 +28,14 @@
       "env": {
         "node": true
       },
-      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts", "packages/ui/scripts/**"]
+      "files": [
+        "src/main/**",
+        "resources/scripts/**",
+        "scripts/**",
+        "playwright.config.ts",
+        "electron.vite.config.ts",
+        "packages/ui/scripts/**"
+      ]
     },
     {
       "env": {

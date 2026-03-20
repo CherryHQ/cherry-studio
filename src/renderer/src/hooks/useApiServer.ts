@@ -1,5 +1,7 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setApiServerRunningAction } from '@renderer/store/runtime'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,9 +38,18 @@ export const useApiServer = () => {
     apiKey: 'feature.csaas.api_key'
   })
 
-  // Initial state - no longer optimistic, wait for actual status
-  const [apiServerRunning, setApiServerRunning] = useState(false)
+  const dispatch = useAppDispatch()
+
+  const apiServerRunning = useAppSelector((state) => state.runtime.apiServerRunning)
+  // Is checking the API server status
   const [apiServerLoading, setApiServerLoading] = useState(true)
+
+  const setApiServerRunning = useCallback(
+    (running: boolean) => {
+      dispatch(setApiServerRunningAction(running))
+    },
+    [dispatch]
+  )
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
@@ -53,15 +64,15 @@ export const useApiServer = () => {
     try {
       const status = await window.api.apiGateway.getStatus()
       setApiServerRunning(status.running)
-      // if (status.running && !apiServerConfig.enabled) {
-      //   setApiServerEnabled(true)
-      // }
+      if (status.running && !apiServerConfig.enabled) {
+        setApiServerEnabled(true)
+      }
     } catch (error: any) {
       logger.error('Failed to check API server status:', error)
     } finally {
       setApiServerLoading(false)
     }
-  }, [])
+  }, [apiServerConfig.enabled, setApiServerEnabled, setApiServerLoading, setApiServerRunning])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -80,7 +91,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
 
   const stopApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -99,7 +110,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, setApiServerEnabled, t])
+  }, [apiServerLoading, setApiServerEnabled, setApiServerLoading, setApiServerRunning, t])
 
   const restartApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -118,7 +129,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
+  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, setApiServerLoading, t])
 
   useEffect(() => {
     checkApiServerStatus()

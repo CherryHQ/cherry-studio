@@ -17,6 +17,18 @@ const logger = loggerService.withContext('ApiGatewayResponsesRoutes')
 
 const router = express.Router()
 
+const asyncHandler =
+  (handler: (req: Request, res: Response) => Promise<void | Response>) =>
+  (req: Request, res: Response): void => {
+    void handler(req, res).catch((error: unknown) => {
+      logger.error('Responses route unhandled async error', { error })
+      const { statusCode, errorResponse } = responsesService.transformError(error)
+      if (!res.headersSent) {
+        res.status(statusCode).json(errorResponse)
+      }
+    })
+  }
+
 /**
  * Check if provider+model should use direct OpenAI Responses API SDK
  *
@@ -233,74 +245,77 @@ async function handleResponseProcessing(options: HandleResponseProcessingOptions
  *       500:
  *         description: Internal server error
  */
-router.post('/', async (req: Request, res: Response) => {
-  try {
-    const request = req.body as ResponseCreateParams
+router.post(
+  '/',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const request = req.body as ResponseCreateParams
 
-    if (!request) {
-      return res.status(400).json({
-        error: {
-          message: 'Request body is required',
-          type: 'invalid_request_error',
-          code: 'missing_body'
-        }
+      if (!request) {
+        return res.status(400).json({
+          error: {
+            message: 'Request body is required',
+            type: 'invalid_request_error',
+            code: 'missing_body'
+          }
+        })
+      }
+
+      if (!request.model) {
+        return res.status(400).json({
+          error: {
+            message: 'Model is required',
+            type: 'invalid_request_error',
+            code: 'missing_model'
+          }
+        })
+      }
+
+      // Responses API uses 'input' instead of 'messages'
+      if (request.input === undefined || request.input === null) {
+        return res.status(400).json({
+          error: {
+            message: 'Input is required',
+            type: 'invalid_request_error',
+            code: 'missing_input'
+          }
+        })
+      }
+
+      logger.debug('Responses API request', {
+        model: request.model,
+        inputType: typeof request.input,
+        stream: request.stream,
+        temperature: request.temperature
       })
-    }
 
-    if (!request.model) {
-      return res.status(400).json({
-        error: {
-          message: 'Model is required',
-          type: 'invalid_request_error',
-          code: 'missing_model'
-        }
+      // Validate model and get provider
+      const modelValidation = await validateModelId(request.model)
+      if (!modelValidation.valid) {
+        return res.status(400).json({
+          error: {
+            message: modelValidation.error?.message || 'Model not found',
+            type: 'invalid_request_error',
+            code: modelValidation.error?.code || 'model_not_found'
+          }
+        })
+      }
+
+      const provider = modelValidation.provider!
+      const modelId = modelValidation.modelId!
+
+      return handleResponseProcessing({
+        res,
+        provider,
+        request,
+        modelId
       })
+    } catch (error: unknown) {
+      logger.error('Responses API error', { error })
+      const { statusCode, errorResponse } = responsesService.transformError(error)
+      return res.status(statusCode).json(errorResponse)
     }
-
-    // Responses API uses 'input' instead of 'messages'
-    if (request.input === undefined || request.input === null) {
-      return res.status(400).json({
-        error: {
-          message: 'Input is required',
-          type: 'invalid_request_error',
-          code: 'missing_input'
-        }
-      })
-    }
-
-    logger.debug('Responses API request', {
-      model: request.model,
-      inputType: typeof request.input,
-      stream: request.stream,
-      temperature: request.temperature
-    })
-
-    // Validate model and get provider
-    const modelValidation = await validateModelId(request.model)
-    if (!modelValidation.valid) {
-      return res.status(400).json({
-        error: {
-          message: modelValidation.error?.message || 'Model not found',
-          type: 'invalid_request_error',
-          code: modelValidation.error?.code || 'model_not_found'
-        }
-      })
-    }
-
-    const provider = modelValidation.provider!
-    const modelId = modelValidation.modelId!
-
-    return handleResponseProcessing({
-      res,
-      provider,
-      request,
-      modelId
-    })
-  } catch (error: unknown) {
-    logger.error('Responses API error', { error })
-    const { statusCode, errorResponse } = responsesService.transformError(error)
-    return res.status(statusCode).json(errorResponse)
-  }
-})
+  })
+)
 
 export { router as responsesRoutes }

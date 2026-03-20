@@ -5,14 +5,14 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setIsBunInstalled } from '@renderer/store/mcp'
+import { useAppSelector } from '@renderer/store'
 import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
@@ -38,8 +38,7 @@ const logger = loggerService.withContext('CodeToolsPage')
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const dispatch = useAppDispatch()
-  const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
+  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
     selectedModel,
@@ -183,12 +182,12 @@ const CodeToolsPage: FC = () => {
   const checkBunInstallation = useCallback(async () => {
     try {
       const bunExists = await window.api.isBinaryExist('bun')
-      dispatch(setIsBunInstalled(bunExists))
+      setIsBunInstalled(bunExists)
     } catch (error) {
       logger.error('Failed to check bun installation status:', error as Error)
-      dispatch(setIsBunInstalled(false))
+      // IPC failure — leave previous value unchanged
     }
-  }, [dispatch])
+  }, [setIsBunInstalled])
 
   // 获取可用终端
   const loadAvailableTerminals = useCallback(async () => {
@@ -215,7 +214,7 @@ const CodeToolsPage: FC = () => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
-      dispatch(setIsBunInstalled(true))
+      setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error: any) {
       logger.error('Failed to install bun:', error as Error)

@@ -52,6 +52,7 @@ vi.mock('@renderer/store/thunk/messageThunk', () => ({
 
 vi.mock('@renderer/utils/error', () => ({
   isAbortError: vi.fn(),
+  isTimeoutError: vi.fn(),
   formatErrorMessage: vi.fn()
 }))
 
@@ -481,7 +482,8 @@ describe('processMessages', () => {
         'assistant-message-1',
         expect.objectContaining({
           name: 'Error',
-          message: 'pause_placeholder'
+          message: 'AbortError',
+          i18nKey: 'stream_paused'
         }),
         { status: MessageBlockStatus.PAUSED }
       )

@@ -55,6 +55,7 @@
     "test:main": "vitest run --project main",
     "test:renderer": "vitest run --project renderer",
     "test:aicore": "vitest run --project aiCore",
+    "test:pkg:ui": "vitest run --project ui",
     "test:shared": "vitest run --project shared",
     "test:update": "pnpm test:renderer --update",
     "test:coverage": "vitest run --coverage --silent",
