@@ -7,14 +7,15 @@ const VERTEX_ANTHROPIC_RULES: RuleSet = {
   rules: [
     {
       match: startsWith('claude'),
-      provider: (provider: MinimalProvider) => ({
-        ...provider,
-        id: 'google-vertex-anthropic'
-      })
+      provider: <T extends MinimalProvider>(provider: T): T =>
+        ({
+          ...provider,
+          id: 'google-vertex-anthropic'
+        }) as T
     }
   ],
-  fallbackRule: (provider: MinimalProvider) => provider
+  fallbackRule: <T extends MinimalProvider>(provider: T): T => provider
 }
 
 export const vertexAnthropicProviderCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
-  provider2Provider<MinimalModel, MinimalProvider, P>(VERTEX_ANTHROPIC_RULES, model, provider)
+  provider2Provider(VERTEX_ANTHROPIC_RULES, model, provider)

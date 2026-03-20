@@ -8,16 +8,17 @@ const AZURE_ANTHROPIC_RULES: RuleSet = {
   rules: [
     {
       match: startsWith('claude'),
-      provider: (provider: MinimalProvider) => ({
-        ...provider,
-        type: 'anthropic',
-        apiHost: provider.apiHost + 'anthropic/v1',
-        id: 'azure-anthropic'
-      })
+      provider: <T extends MinimalProvider>(provider: T): T =>
+        ({
+          ...provider,
+          type: 'anthropic',
+          apiHost: provider.apiHost + 'anthropic/v1',
+          id: 'azure-anthropic'
+        }) as T
     }
   ],
-  fallbackRule: (provider: MinimalProvider) => provider
+  fallbackRule: <T extends MinimalProvider>(provider: T): T => provider
 }
 
 export const azureAnthropicProviderCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
-  provider2Provider<MinimalModel, MinimalProvider, P>(AZURE_ANTHROPIC_RULES, model, provider)
+  provider2Provider(AZURE_ANTHROPIC_RULES, model, provider)

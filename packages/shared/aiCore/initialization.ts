@@ -5,7 +5,7 @@ type ProviderInitializationLogger = {
   error?: (message: string, error: Error) => void
 }
 
-export const SHARED_PROVIDER_CONFIGS: ProviderConfig[] = [
+export const SHARED_PROVIDER_CONFIGS = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
@@ -100,7 +100,7 @@ export const SHARED_PROVIDER_CONFIGS: ProviderConfig[] = [
     creatorFunctionName: 'createOllama',
     supportsImageGeneration: false
   }
-] as const
+] satisfies ProviderConfig[]
 
 export function initializeSharedProviders(logger?: ProviderInitializationLogger): void {
   try {

@@ -2,9 +2,8 @@
  * AiHubMix规则集
  */
 import type { MinimalModel, MinimalProvider } from '@shared/types'
-import { getLowerBaseModelName } from '@shared/utils/naming'
 
-import { provider2Provider, startsWith } from './helper'
+import { isOpenAILLMModel, provider2Provider, startsWith } from './helper'
 import type { RuleSet } from './types'
 
 const extraProviderConfig = <P extends MinimalProvider>(provider: P) => {
@@ -17,27 +16,15 @@ const extraProviderConfig = <P extends MinimalProvider>(provider: P) => {
   }
 }
 
-export function isOpenAILLMModel<M extends MinimalModel>(model: M): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  const reasonings = ['o1', 'o3', 'o4', 'gpt-oss']
-  if (reasonings.some((r) => modelId.includes(r))) {
-    return true
-  }
-  if (modelId.includes('gpt')) {
-    return true
-  }
-  return false
-}
-
 const AIHUBMIX_RULES: RuleSet = {
   rules: [
     {
       match: startsWith('claude'),
-      provider: (provider) => {
+      provider: <T extends MinimalProvider>(provider: T): T => {
         return extraProviderConfig({
           ...provider,
           type: 'anthropic'
-        })
+        }) as T
       }
     },
     {
@@ -46,26 +33,28 @@ const AIHUBMIX_RULES: RuleSet = {
         !model.id.endsWith('-nothink') &&
         !model.id.endsWith('-search') &&
         !model.id.includes('embedding'),
-      provider: (provider) => {
+      provider: <T extends MinimalProvider>(provider: T): T => {
         return extraProviderConfig({
           ...provider,
           type: 'gemini',
           apiHost: 'https://aihubmix.com/gemini'
-        })
+        }) as T
       }
     },
     {
       match: isOpenAILLMModel,
-      provider: (provider) => {
+      provider: <T extends MinimalProvider>(provider: T): T => {
         return extraProviderConfig({
           ...provider,
           type: 'openai-response'
-        })
+        }) as T
       }
     }
   ],
-  fallbackRule: (provider) => extraProviderConfig(provider)
+  fallbackRule: <T extends MinimalProvider>(provider: T): T => extraProviderConfig(provider)
 }
 
 export const aihubmixProviderCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
-  provider2Provider<MinimalModel, MinimalProvider, P>(AIHUBMIX_RULES, model, provider)
+  provider2Provider(AIHUBMIX_RULES, model, provider)
+
+export { isOpenAILLMModel }
