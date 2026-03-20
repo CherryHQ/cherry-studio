@@ -29,23 +29,28 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     return isAzureResponsesEndpoint(provider) ? appProviderIds['azure-responses'] : appProviderIds.azure
   }
 
-  // 2. 尝试直接使用 provider.id（运行时验证）
+  // 2. xAI 默认使用 responses 模式
+  if (provider.id === 'xai') {
+    return appProviderIds['xai-responses']
+  }
+
+  // 3. 尝试直接使用 provider.id（运行时验证）
   if (provider.id in appProviderIds) {
     return appProviderIds[provider.id]
   }
 
-  // 3. 尝试从 provider.type 解析（非 openai 类型）
+  // 4. 尝试从 provider.type 解析（非 openai 类型）
   // 会把所有类型为 openai 的自定义 provider 解析到 AI SDK 的 openai provider 上
   if (provider.type !== 'openai' && provider.type in appProviderIds) {
     return appProviderIds[provider.type]
   }
 
-  // 4. OpenAI API 域名检测
+  // 5. OpenAI API 域名检测
   if (provider.apiHost.includes('api.openai.com')) {
     return appProviderIds['openai-chat']
   }
 
-  // 5. Fallback：使用 provider 本身的 id（带警告）
+  // 6. Fallback：使用 provider 本身的 id（带警告）
   logger.warn('Provider ID not found in registered extensions, using as-is', {
     providerId: provider.id,
     providerType: provider.type,

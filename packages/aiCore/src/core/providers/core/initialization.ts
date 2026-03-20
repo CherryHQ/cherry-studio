@@ -245,8 +245,10 @@ const OpenRouterExtension = ProviderExtension.create({
 /**
  * xAI Extension
  *
- * createXai() defaults to chat mode and has .tools (webSearch, xSearch).
- * No variant needed — xAI's API uses chat completions format.
+ * Base: createXai() — defaults to chat mode, has .tools (webSearch, xSearch)
+ * Default usage: 'xai-responses' variant wraps to use provider.responses()
+ *
+ * 和 OpenAI 同一模式：base 保留 .tools，variant 包装 languageModel
  */
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
@@ -265,7 +267,20 @@ const XaiExtension = ProviderExtension.create({
           xSearch: provider.tools.xSearch(config?.xSearch ?? {})
         }
       })
-  }
+  },
+  variants: [
+    {
+      suffix: 'responses',
+      name: 'xAI Responses',
+      transform: (provider: XaiProvider) =>
+        customProvider({
+          fallbackProvider: {
+            ...provider,
+            languageModel: (modelId: string) => provider.responses(modelId)
+          }
+        })
+    }
+  ] as const
 } as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, XaiProvider, 'xai'>)
 
 /**
