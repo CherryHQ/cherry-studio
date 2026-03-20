@@ -4,35 +4,158 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
+import type OpenAI from '@cherrystudio/openai'
 import { dbService } from '@data/db/DbService'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import type { ItemStatus, KnowledgeItem, KnowledgeItemData, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
+import { type FileMetadata, FileTypes } from '@shared/data/types/file'
+import type { KnowledgeItem, KnowledgeItemDataMap, KnowledgeItemTreeNode } from '@shared/data/types/knowledge'
 import { desc, eq, inArray } from 'drizzle-orm'
+import * as z from 'zod'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 
-function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
-  const parseJson = <T>(value: T | string | null | undefined): T | undefined => {
-    if (value == null) return undefined
-    if (typeof value === 'string') return JSON.parse(value) as T
-    return value
-  }
+const fileMetadataSchema: z.ZodType<FileMetadata> = z.object({
+  id: z.string(),
+  name: z.string(),
+  origin_name: z.string(),
+  path: z.string(),
+  size: z.number(),
+  ext: z.string(),
+  type: z.enum(FileTypes),
+  created_at: z.string(),
+  count: z.number(),
+  tokens: z.number().optional(),
+  purpose: z.custom<OpenAI.FilePurpose>((value) => typeof value === 'string').optional()
+})
 
-  return {
+const fileItemDataSchema: z.ZodType<KnowledgeItemDataMap['file']> = z.object({
+  file: fileMetadataSchema
+})
+
+const urlItemDataSchema: z.ZodType<KnowledgeItemDataMap['url']> = z.object({
+  url: z.string(),
+  name: z.string()
+})
+
+const noteItemDataSchema: z.ZodType<KnowledgeItemDataMap['note']> = z.object({
+  content: z.string(),
+  sourceUrl: z.string().optional()
+})
+
+const sitemapItemDataSchema: z.ZodType<KnowledgeItemDataMap['sitemap']> = z.object({
+  url: z.string(),
+  name: z.string()
+})
+
+const directoryContainerSchema: z.ZodType<Extract<KnowledgeItemDataMap['directory'], { path: string }>> = z.object({
+  path: z.string(),
+  recursive: z.boolean()
+})
+
+const directoryFileEntrySchema: z.ZodType<Extract<KnowledgeItemDataMap['directory'], { groupId: string }>> = z.object({
+  groupId: z.string(),
+  groupName: z.string(),
+  file: fileMetadataSchema
+})
+
+const directoryDataSchema: z.ZodType<KnowledgeItemDataMap['directory']> = z.union([
+  directoryContainerSchema,
+  directoryFileEntrySchema
+])
+
+const parseJsonValue = (value: unknown, itemId: string): unknown => {
+  if (value === null || value === undefined) return undefined
+  if (typeof value !== 'string') return value
+
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON knowledge item data (id=${itemId}): ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
+
+function parseKnowledgeItemData(type: 'file', value: unknown, itemId: string): KnowledgeItemDataMap['file']
+function parseKnowledgeItemData(type: 'url', value: unknown, itemId: string): KnowledgeItemDataMap['url']
+function parseKnowledgeItemData(type: 'note', value: unknown, itemId: string): KnowledgeItemDataMap['note']
+function parseKnowledgeItemData(type: 'sitemap', value: unknown, itemId: string): KnowledgeItemDataMap['sitemap']
+function parseKnowledgeItemData(type: 'directory', value: unknown, itemId: string): KnowledgeItemDataMap['directory']
+function parseKnowledgeItemData(
+  type: keyof KnowledgeItemDataMap,
+  value: unknown,
+  itemId: string
+): KnowledgeItemDataMap[keyof KnowledgeItemDataMap] {
+  switch (type) {
+    case 'file': {
+      const result = fileItemDataSchema.safeParse(value)
+      if (result.success) return result.data
+      throw new Error(`Invalid knowledge item data for type=file (id=${itemId}): ${result.error.message}`)
+    }
+    case 'url': {
+      const result = urlItemDataSchema.safeParse(value)
+      if (result.success) return result.data
+      throw new Error(`Invalid knowledge item data for type=url (id=${itemId}): ${result.error.message}`)
+    }
+    case 'note': {
+      const result = noteItemDataSchema.safeParse(value)
+      if (result.success) return result.data
+      throw new Error(`Invalid knowledge item data for type=note (id=${itemId}): ${result.error.message}`)
+    }
+    case 'sitemap': {
+      const result = sitemapItemDataSchema.safeParse(value)
+      if (result.success) return result.data
+      throw new Error(`Invalid knowledge item data for type=sitemap (id=${itemId}): ${result.error.message}`)
+    }
+    case 'directory': {
+      const result = directoryDataSchema.safeParse(value)
+      if (result.success) return result.data
+      throw new Error(`Invalid knowledge item data for type=directory (id=${itemId}): ${result.error.message}`)
+    }
+    default: {
+      const neverType: never = type
+      throw new Error(`Unsupported knowledge item type: ${String(neverType)}`)
+    }
+  }
+}
+
+function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
+  const base = {
     id: row.id,
     baseId: row.baseId,
     parentId: row.parentId ?? null,
-    type: row.type,
-    data: parseJson(row.data) as KnowledgeItemData,
     status: row.status ?? 'idle',
     error: row.error ?? undefined,
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+  }
+
+  const rawData = parseJsonValue(row.data, row.id)
+  switch (row.type) {
+    case 'file':
+      const fileData = parseKnowledgeItemData('file', rawData, row.id)
+      return { ...base, type: 'file', data: fileData }
+    case 'url':
+      const urlData = parseKnowledgeItemData('url', rawData, row.id)
+      return { ...base, type: 'url', data: urlData }
+    case 'note':
+      const noteData = parseKnowledgeItemData('note', rawData, row.id)
+      return { ...base, type: 'note', data: noteData }
+    case 'sitemap':
+      const sitemapData = parseKnowledgeItemData('sitemap', rawData, row.id)
+      return { ...base, type: 'sitemap', data: sitemapData }
+    case 'directory':
+      const directoryData = parseKnowledgeItemData('directory', rawData, row.id)
+      return { ...base, type: 'directory', data: directoryData }
+    default: {
+      const neverType: never = row.type
+      throw new Error(`Unsupported knowledge item type: ${String(neverType)}`)
+    }
   }
 }
 
@@ -132,12 +255,12 @@ export class KnowledgeItemService {
       }
     }
 
-    const values = dto.items.map((item) => ({
+    const values: Array<typeof knowledgeItemTable.$inferInsert> = dto.items.map((item) => ({
       baseId,
       parentId: item.parentId ?? null,
       type: item.type,
       data: item.data,
-      status: 'idle' as ItemStatus,
+      status: 'idle',
       error: null
     }))
 

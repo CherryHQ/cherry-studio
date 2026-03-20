@@ -14,13 +14,6 @@ export type ItemStatus = 'idle' | 'pending' | 'ocr' | 'read' | 'embed' | 'comple
 export type KnowledgeSearchMode = 'default' | 'bm25' | 'hybrid'
 
 /**
- * Embedding model metadata.
- */
-export interface EmbeddingModelMeta extends ModelMeta {
-  dimensions?: number
-}
-
-/**
  * Knowledge base metadata stored in SQLite.
  */
 export interface KnowledgeBase {
@@ -29,7 +22,7 @@ export interface KnowledgeBase {
   description?: string
   dimensions: number
   embeddingModelId: string
-  embeddingModelMeta?: EmbeddingModelMeta | null
+  embeddingModelMeta?: ModelMeta | null
   rerankModelId?: string
   rerankModelMeta?: ModelMeta | null
   fileProcessorId?: string
@@ -91,31 +84,39 @@ export interface DirectoryItemData {
   file: FileMetadata
 }
 
+export type DirectoryData = DirectoryContainerData | DirectoryItemData
+
+export interface KnowledgeItemDataMap {
+  file: FileItemData
+  url: UrlItemData
+  note: NoteItemData
+  sitemap: SitemapItemData
+  directory: DirectoryData
+}
+
 /**
  * JSON payload stored in `knowledge_item.data`.
  */
-export type KnowledgeItemData =
-  | FileItemData
-  | UrlItemData
-  | NoteItemData
-  | SitemapItemData
-  | DirectoryContainerData
-  | DirectoryItemData
+export type KnowledgeItemData = KnowledgeItemDataMap[KnowledgeItemType]
 
 /**
  * Knowledge item record stored in SQLite.
  */
-export interface KnowledgeItem {
+export type KnowledgeItemOf<T extends KnowledgeItemType> = {
   id: string
   baseId: string
   parentId?: string | null
-  type: KnowledgeItemType
-  data: KnowledgeItemData
+  type: T
+  data: KnowledgeItemDataMap[T]
   status: ItemStatus
   error?: string | null
   createdAt: string
   updatedAt: string
 }
+
+export type KnowledgeItem = {
+  [T in KnowledgeItemType]: KnowledgeItemOf<T>
+}[KnowledgeItemType]
 
 /**
  * Tree node for hierarchical knowledge items.

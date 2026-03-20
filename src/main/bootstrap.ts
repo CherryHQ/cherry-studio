@@ -7,13 +7,6 @@ import { initAppDataDir } from './utils/init'
 
 app.isPackaged && initAppDataDir()
 
-if (process.env.NODE_ENV === 'development') {
-  const current = app.getPath('userData')
-  if (!current.endsWith('Dev')) {
-    app.setPath('userData', `${current}Dev`)
-  }
-}
-
 // 在主进程中复制 appData 中某些一直被占用的文件
 // 在renderer进程还没有启动时，主进程可以复制这些文件到新的appData中
 function copyOccupiedDirsInMainProcess() {

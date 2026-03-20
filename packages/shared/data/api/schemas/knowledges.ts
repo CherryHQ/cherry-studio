@@ -3,11 +3,11 @@
  */
 
 import type {
-  EmbeddingModelMeta,
   ItemStatus,
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeItemData,
+  KnowledgeItemDataMap,
   KnowledgeItemTreeNode,
   KnowledgeItemType,
   KnowledgeSearchMode
@@ -23,7 +23,7 @@ export interface CreateKnowledgeBaseDto {
   description?: string
   dimensions: number
   embeddingModelId: string
-  embeddingModelMeta?: EmbeddingModelMeta
+  embeddingModelMeta?: ModelMeta
   rerankModelId?: string
   rerankModelMeta?: ModelMeta
   fileProcessorId?: string
@@ -37,11 +37,13 @@ export interface CreateKnowledgeBaseDto {
 
 export interface UpdateKnowledgeBaseDto extends Partial<CreateKnowledgeBaseDto> {}
 
-export interface CreateKnowledgeItemDto {
-  type: KnowledgeItemType
-  data: KnowledgeItemData
-  parentId?: string
-}
+export type CreateKnowledgeItemDto = {
+  [T in KnowledgeItemType]: {
+    type: T
+    data: KnowledgeItemDataMap[T]
+    parentId?: string
+  }
+}[KnowledgeItemType]
 
 export interface CreateKnowledgeItemsDto {
   items: CreateKnowledgeItemDto[]

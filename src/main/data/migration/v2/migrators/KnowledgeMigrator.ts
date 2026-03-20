@@ -13,6 +13,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { createClient } from '@libsql/client'
@@ -30,7 +31,6 @@ import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
 
-const BASE_INSERT_BATCH_SIZE = 50
 const ITEM_INSERT_BATCH_SIZE = 200
 const MAX_WARNING_COUNT = 50
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
@@ -42,6 +42,7 @@ type DimensionResolutionReason =
   | 'vector_db_missing'
   | 'vector_db_empty'
   | 'invalid_vector_dimensions'
+  | 'vector_db_invalid_path'
   | 'vector_db_error'
 
 interface LegacyModel {
@@ -215,8 +216,18 @@ export class KnowledgeMigrator extends BaseMigrator {
     return null
   }
 
-  private getLegacyKnowledgeDbPath(baseId: string): string {
-    return path.join(getDataPath(), 'KnowledgeBase', sanitizeFilename(baseId, '_'))
+  private getLegacyKnowledgeDbPath(baseId: string): string | null {
+    const rootPath = path.resolve(getDataPath(), 'KnowledgeBase')
+    const sanitizedBaseId = sanitizeFilename(baseId, '_')
+    const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
+    const relativePath = path.relative(rootPath, resolvedDbPath)
+
+    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      this.pushWarning(`Skipped knowledge base ${baseId}: invalid legacy vector DB path`)
+      return null
+    }
+
+    return resolvedDbPath
   }
 
   private toFiniteNumber(value: unknown): number | null {
@@ -254,11 +265,15 @@ export class KnowledgeMigrator extends BaseMigrator {
     base: LegacyKnowledgeBase
   ): Promise<{ dimensions: number | null; reason: DimensionResolutionReason }> {
     const dbPath = this.getLegacyKnowledgeDbPath(base.id)
+    if (!dbPath) {
+      return { dimensions: null, reason: 'vector_db_invalid_path' }
+    }
+
     if (!fs.existsSync(dbPath)) {
       return { dimensions: null, reason: 'vector_db_missing' }
     }
 
-    const client = createClient({ url: `file:${dbPath}` })
+    const client = createClient({ url: pathToFileURL(dbPath).toString() })
     try {
       const countResult = await client.execute(
         `SELECT count(*) AS total, sum(CASE WHEN vector IS NOT NULL THEN 1 ELSE 0 END) AS with_vector FROM ${LEGACY_VECTOR_TABLE_NAME}`
@@ -521,31 +536,60 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     try {
       const db = ctx.db
-      await db.transaction(async (tx) => {
-        for (let i = 0; i < this.preparedBases.length; i += BASE_INSERT_BATCH_SIZE) {
-          const batch = this.preparedBases.slice(i, i + BASE_INSERT_BATCH_SIZE)
-          await tx.insert(knowledgeBaseTable).values(batch)
-          processed += batch.length
+      const baseIdSet = new Set<string>()
+      for (const base of this.preparedBases) {
+        if (!base.id) {
+          throw new Error('Prepared knowledge base is missing id')
+        }
+        baseIdSet.add(base.id)
+      }
 
-          const progress = Math.round((processed / total) * 100)
-          this.reportProgress(progress, `Migrated ${processed}/${total} knowledge records`, {
-            key: 'migration.progress.migrated_knowledge',
-            params: { processed, total }
-          })
+      const itemsByBaseId = new Map<string, NewKnowledgeItem[]>()
+      for (const item of this.preparedItems) {
+        if (!item.baseId) {
+          throw new Error(`Prepared knowledge item '${item.id ?? 'unknown'}' is missing baseId`)
+        }
+        if (!item.id) {
+          throw new Error(`Prepared knowledge item for base '${item.baseId}' is missing id`)
+        }
+        if (!baseIdSet.has(item.baseId)) {
+          throw new Error(`Prepared knowledge item '${item.id}' references missing base '${item.baseId}'`)
         }
 
-        for (let i = 0; i < this.preparedItems.length; i += ITEM_INSERT_BATCH_SIZE) {
-          const batch = this.preparedItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
-          await tx.insert(knowledgeItemTable).values(batch)
-          processed += batch.length
-
-          const progress = Math.round((processed / total) * 100)
-          this.reportProgress(progress, `Migrated ${processed}/${total} knowledge records`, {
-            key: 'migration.progress.migrated_knowledge',
-            params: { processed, total }
-          })
+        const existing = itemsByBaseId.get(item.baseId)
+        if (existing) {
+          existing.push(item)
+        } else {
+          itemsByBaseId.set(item.baseId, [item])
         }
-      })
+      }
+
+      for (const base of this.preparedBases) {
+        if (!base.id) {
+          throw new Error('Prepared knowledge base is missing id')
+        }
+
+        const baseItems = itemsByBaseId.get(base.id) ?? []
+        let transactionProcessed = 0
+
+        await db.transaction(async (tx) => {
+          await tx.insert(knowledgeBaseTable).values(base)
+          transactionProcessed += 1
+
+          for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
+            const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
+            await tx.insert(knowledgeItemTable).values(batch)
+            transactionProcessed += batch.length
+          }
+        })
+
+        processed += transactionProcessed
+        const progress = Math.round((processed / total) * 100)
+        this.reportProgress(progress, `Migrated ${processed}/${total} knowledge records`, {
+          key: 'migration.progress.migrated_knowledge',
+          params: { processed, total }
+        })
+      }
 
       logger.info('KnowledgeMigrator.execute completed', {
         processed,

@@ -103,6 +103,19 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(close).toHaveBeenCalledTimes(1)
   })
 
+  it('returns vector_db_invalid_path when resolved legacy vector DB path is invalid', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue(null)
+
+    const result = await migrator.resolveDimensionsForBase({
+      id: 'kb-invalid-path',
+      name: 'Invalid path KB'
+    })
+
+    expect(result).toEqual({ dimensions: null, reason: 'vector_db_invalid_path' })
+    expect(createClient).not.toHaveBeenCalled()
+  })
+
   it('prepare skips base and items when vector DB is empty', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
@@ -355,6 +368,111 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.success).toBe(false)
     expect(result.processedCount).toBe(0)
     expect(result.error).toContain('insert failed')
+  })
+
+  it('execute uses one transaction per prepared knowledge base', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: 'kb-1',
+        name: 'KB 1',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      },
+      {
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: 'item-1',
+        baseId: 'kb-1',
+        parentId: null,
+        type: 'note',
+        data: { content: 'n1' },
+        status: 'idle'
+      },
+      {
+        id: 'item-2',
+        baseId: 'kb-2',
+        parentId: null,
+        type: 'note',
+        data: { content: 'n2' },
+        status: 'idle'
+      }
+    ]
+
+    const values = vi.fn().mockResolvedValue(undefined)
+    const insert = vi.fn().mockReturnValue({ values })
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert })
+    })
+
+    const result = await migrator.execute({
+      db: { transaction }
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(result.processedCount).toBe(4)
+    expect(transaction).toHaveBeenCalledTimes(2)
+  })
+
+  it('execute failure keeps processedCount to already committed base groups only', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: 'kb-1',
+        name: 'KB 1',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      },
+      {
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: 'item-1',
+        baseId: 'kb-1',
+        parentId: null,
+        type: 'note',
+        data: { content: 'n1' },
+        status: 'idle'
+      },
+      {
+        id: 'item-2',
+        baseId: 'kb-2',
+        parentId: null,
+        type: 'note',
+        data: { content: 'n2' },
+        status: 'idle'
+      }
+    ]
+
+    const values = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('second base failed'))
+    const insert = vi.fn().mockReturnValue({ values })
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert })
+    })
+
+    const result = await migrator.execute({
+      db: { transaction }
+    } as any)
+
+    expect(result.success).toBe(false)
+    expect(result.processedCount).toBe(2)
+    expect(result.error).toContain('second base failed')
+    expect(transaction).toHaveBeenCalledTimes(2)
   })
 
   it('validate reports orphan knowledge items', async () => {
