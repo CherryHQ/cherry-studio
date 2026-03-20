@@ -529,14 +529,17 @@ export class ProviderExtension<
    * @returns 缓存的 provider 实例，或 undefined
    */
   getCachedProvider(variantSuffix?: string): TProvider | undefined {
-    // LRU cache is keyed by hash(settings + variant).
-    // We don't know the settings, so iterate to find any cached instance.
-    // This is O(n) over cache size (max 10), acceptable.
-    for (const [, value] of this.instances.entries()) {
-      if (!variantSuffix) {
-        return value
+    // LRU cache keys: base = "abc123", variant = "abc123:suffix"
+    // We don't know the settings hash, so iterate and match by key pattern.
+    // O(n) over cache size (max 10), acceptable.
+    for (const [key, value] of this.instances.entries()) {
+      if (variantSuffix) {
+        // Looking for a specific variant: key must end with `:${variantSuffix}`
+        if (key.endsWith(`:${variantSuffix}`)) return value
+      } else {
+        // Looking for base provider: key must NOT contain ':' (no variant suffix)
+        if (!key.includes(':')) return value
       }
-      return value
     }
     return undefined
   }
