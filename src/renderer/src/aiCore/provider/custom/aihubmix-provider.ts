@@ -69,7 +69,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     const headers = authHeaders()
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
-      baseURL: baseURL + '/gemini',
+      baseURL: 'https://aihubmix.com/gemini/v1beta',
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
       fetch: customFetch,
       generateId: () => `${AIHUBMIX_PROVIDER_NAME}-${Date.now()}`,
