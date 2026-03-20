@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f283d5d9-7eaa-40ff-8f9f-fbad46e536fd",
-  "prevId": "a433b120-0ab8-4f3f-9d1d-766b48c216c8",
+  "id": "2bf42269-6c0d-4ae2-888e-4d88f52b8fae",
+  "prevId": "f283d5d9-7eaa-40ff-8f9f-fbad46e536fd",
   "tables": {
     "app_state": {
       "name": "app_state",
@@ -345,7 +345,16 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "mcp_server_type_check": {
+          "name": "mcp_server_type_check",
+          "value": "\"mcp_server\".\"type\" IS NULL OR \"mcp_server\".\"type\" IN ('stdio', 'sse', 'streamableHttp', 'inMemory')"
+        },
+        "mcp_server_install_source_check": {
+          "name": "mcp_server_install_source_check",
+          "value": "\"mcp_server\".\"install_source\" IS NULL OR \"mcp_server\".\"install_source\" IN ('builtin', 'manual', 'protocol', 'unknown')"
+        }
+      }
     },
     "message": {
       "name": "message",
@@ -520,6 +529,160 @@
           "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
         }
       }
+    },
+    "miniapp": {
+      "name": "miniapp",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "logo": {
+          "name": "logo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'default'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'enabled'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
+        },
+        "bordered": {
+          "name": "bordered",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": true
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supported_regions": {
+          "name": "supported_regions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "added_at": {
+          "name": "added_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "miniapp_status_sort_idx": {
+          "name": "miniapp_status_sort_idx",
+          "columns": ["status", "sort_order"],
+          "isUnique": false
+        },
+        "miniapp_app_id_idx": {
+          "name": "miniapp_app_id_idx",
+          "columns": ["app_id"],
+          "isUnique": false
+        },
+        "miniapp_type_idx": {
+          "name": "miniapp_type_idx",
+          "columns": ["type"],
+          "isUnique": false
+        },
+        "miniapp_status_type_idx": {
+          "name": "miniapp_status_type_idx",
+          "columns": ["status", "type"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "preference": {
       "name": "preference",
