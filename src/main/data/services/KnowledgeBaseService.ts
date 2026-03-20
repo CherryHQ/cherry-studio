@@ -15,21 +15,13 @@ import { desc, eq } from 'drizzle-orm'
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
-  const parseJson = <T>(value: T | string | null | undefined): T | null => {
-    if (value == null) return null
-    if (typeof value === 'string') return JSON.parse(value)
-    return value as T
-  }
-
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
     dimensions: row.dimensions,
     embeddingModelId: row.embeddingModelId,
-    embeddingModelMeta: parseJson(row.embeddingModelMeta),
     rerankModelId: row.rerankModelId ?? undefined,
-    rerankModelMeta: parseJson(row.rerankModelMeta),
     fileProcessorId: row.fileProcessorId ?? undefined,
     chunkSize: row.chunkSize ?? undefined,
     chunkOverlap: row.chunkOverlap ?? undefined,
@@ -91,9 +83,7 @@ export class KnowledgeBaseService {
         description: dto.description,
         dimensions: dto.dimensions,
         embeddingModelId: dto.embeddingModelId.trim(),
-        embeddingModelMeta: dto.embeddingModelMeta,
         rerankModelId: dto.rerankModelId,
-        rerankModelMeta: dto.rerankModelMeta,
         fileProcessorId: dto.fileProcessorId,
         chunkSize: dto.chunkSize,
         chunkOverlap: dto.chunkOverlap,
@@ -121,9 +111,7 @@ export class KnowledgeBaseService {
     if (dto.description !== undefined) updates.description = dto.description
     if (dto.dimensions !== undefined) updates.dimensions = dto.dimensions
     if (dto.embeddingModelId !== undefined) updates.embeddingModelId = dto.embeddingModelId
-    if (dto.embeddingModelMeta !== undefined) updates.embeddingModelMeta = dto.embeddingModelMeta
     if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
-    if (dto.rerankModelMeta !== undefined) updates.rerankModelMeta = dto.rerankModelMeta
     if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
     if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap

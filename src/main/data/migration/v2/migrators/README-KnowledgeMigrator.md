@@ -18,7 +18,7 @@
 ## Key Transformations
 
 1. Base metadata migration
-   - Legacy base model/rerank model are transformed to `embeddingModelId`/`embeddingModelMeta` and `rerankModelId`/`rerankModelMeta`.
+   - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
    - Migrated base `searchMode` is set to `default`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
 
@@ -46,9 +46,7 @@
 | `description` | `description` | Direct copy |
 | `dimensions` | `dimensions` | Read from legacy vector DB `vectors.vector` blob length (`length(vector)/4`) |
 | `model` | `embeddingModelId` | Converted to `provider::modelId` |
-| `model` | `embeddingModelMeta` | Model snapshot |
 | `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId` |
-| `rerankModel` | `rerankModelMeta` | Optional snapshot |
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
 | `chunkSize` | `chunkSize` | Direct copy |
 | `chunkOverlap` | `chunkOverlap` | Direct copy |

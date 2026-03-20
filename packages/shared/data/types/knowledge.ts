@@ -1,5 +1,4 @@
 import type { FileMetadata } from './file'
-import type { ModelMeta } from './meta'
 
 /**
  * Shared knowledge domain types.
@@ -22,9 +21,7 @@ export interface KnowledgeBase {
   description?: string
   dimensions: number
   embeddingModelId: string
-  embeddingModelMeta?: ModelMeta | null
   rerankModelId?: string
-  rerankModelMeta?: ModelMeta | null
   fileProcessorId?: string
   chunkSize?: number
   chunkOverlap?: number

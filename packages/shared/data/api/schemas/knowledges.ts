@@ -12,7 +12,6 @@ import type {
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
-import type { ModelMeta } from '@shared/data/types/meta'
 
 // ============================================================================
 // DTOs
@@ -23,9 +22,7 @@ export interface CreateKnowledgeBaseDto {
   description?: string
   dimensions: number
   embeddingModelId: string
-  embeddingModelMeta?: ModelMeta
   rerankModelId?: string
-  rerankModelMeta?: ModelMeta
   fileProcessorId?: string
   chunkSize?: number
   chunkOverlap?: number

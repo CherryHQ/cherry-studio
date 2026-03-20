@@ -4,7 +4,6 @@ import type {
   KnowledgeItemType,
   KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
-import type { ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -23,11 +22,9 @@ export const knowledgeBaseTable = sqliteTable(
 
     // Embedding model configuration
     embeddingModelId: text().notNull(),
-    embeddingModelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
 
     // Rerank model configuration
     rerankModelId: text(),
-    rerankModelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
 
     // File processing processor ID
     fileProcessorId: text(),

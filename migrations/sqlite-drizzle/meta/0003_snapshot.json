@@ -875,22 +875,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "embedding_model_meta": {
-          "name": "embedding_model_meta",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "rerank_model_id": {
           "name": "rerank_model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "rerank_model_meta": {
-          "name": "rerank_model_meta",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -23,7 +23,6 @@ import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { ItemStatus, KnowledgeItemData, KnowledgeItemType } from '@shared/data/types/knowledge'
-import type { ModelMeta } from '@shared/data/types/meta'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -106,18 +105,6 @@ const isLegacyModel = (value: unknown): value is LegacyModel =>
   typeof value.id === 'string' &&
   typeof value.name === 'string' &&
   typeof value.provider === 'string'
-
-const toModelMeta = (model: LegacyModel | null | undefined): ModelMeta | null => {
-  if (!model) {
-    return null
-  }
-  return {
-    id: model.id,
-    name: model.name,
-    provider: model.provider,
-    group: model.group
-  }
-}
 
 const toTimestamp = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -387,9 +374,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           description: base.description,
           dimensions: resolvedDimensions.dimensions,
           embeddingModelId,
-          embeddingModelMeta: toModelMeta(model),
           rerankModelId: toCompositeModelId(rerankModel),
-          rerankModelMeta: toModelMeta(rerankModel),
           fileProcessorId: base.preprocessProvider?.provider?.id,
           chunkSize: base.chunkSize,
           chunkOverlap: base.chunkOverlap,
