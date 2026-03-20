@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
-import { isOpenAILLMModel } from '@shared/aiCore/config/aihubmix'
+import { isOpenAILLMModel } from '@shared/aiCore/config'
 import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider, ProviderType } from '@types'
 

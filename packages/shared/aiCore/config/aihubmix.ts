@@ -56,5 +56,3 @@ const AIHUBMIX_RULES: RuleSet = {
 
 export const aihubmixProviderCreator = <P extends MinimalProvider>(model: MinimalModel, provider: P): P =>
   provider2Provider(AIHUBMIX_RULES, model, provider)
-
-export { isOpenAILLMModel }
