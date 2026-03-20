@@ -1,6 +1,6 @@
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { SystemProviderIds, type Provider } from '@renderer/types'
+import { type Provider, SystemProviderIds } from '@renderer/types'
 import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -8,9 +8,14 @@ import { extensions } from './extensions'
 
 const logger = loggerService.withContext('ProviderFactory')
 
-for (const extension of extensions) {
-  if (!extensionRegistry.has(extension.config.name)) {
-    extensionRegistry.register(extension)
+let _extensionsRegistered = false
+function ensureExtensionsRegistered() {
+  if (_extensionsRegistered) return
+  _extensionsRegistered = true
+  for (const extension of extensions) {
+    if (!extensionRegistry.has(extension.config.name)) {
+      extensionRegistry.register(extension)
+    }
   }
 }
 
@@ -24,6 +29,7 @@ for (const extension of extensions) {
  * @returns AI SDK 标准 provider ID
  */
 export function getAiSdkProviderId(provider: Provider): AppProviderId {
+  ensureExtensionsRegistered()
   // 1. 特殊处理：Azure 的 responses 端点检测（必须在别名解析之前）
   if (isAzureOpenAIProvider(provider)) {
     return isAzureResponsesEndpoint(provider) ? appProviderIds['azure-responses'] : appProviderIds.azure

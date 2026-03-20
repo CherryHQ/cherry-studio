@@ -40,7 +40,8 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
       const topic = await getTopicById(_topic.id)
       setTopic(topic)
     })
-  }, [_topic, topic])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_topic?.id])
 
   const isEmpty = (topic?.messages || []).length === 0
 
