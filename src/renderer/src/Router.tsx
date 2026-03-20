@@ -2,7 +2,7 @@ import '@renderer/databases'
 
 import type { FC } from 'react'
 import { useMemo } from 'react'
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 
 import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -52,19 +52,19 @@ const Router: FC = () => {
 
   if (navbarPosition === 'left') {
     return (
-      <HashRouter>
+      <>
         <Sidebar />
         {routes}
         <NavigationHandler />
-      </HashRouter>
+      </>
     )
   }
 
   return (
-    <HashRouter>
+    <>
       <NavigationHandler />
       <TabsContainer>{routes}</TabsContainer>
-    </HashRouter>
+    </>
   )
 }
 

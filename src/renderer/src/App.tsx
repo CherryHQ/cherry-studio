@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
+import { HashRouter } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import TopViewContainer from './components/TopView'
@@ -38,9 +39,11 @@ function App(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
+                    <HashRouter>
+                      <TopViewContainer>
+                        <Router />
+                      </TopViewContainer>
+                    </HashRouter>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>
