@@ -1,8 +1,8 @@
 # Cherry Studio AI Core 架构文档
 
-> **版本**: v3.0 (移除 ModelResolver/HubProvider，内部插件模型解析)
-> **更新日期**: 2026-02-28
-> **适用范围**: Cherry Studio v1.7.7+
+> **版本**: v4.0 (ToolFactory + providerToolPlugin 统一工具注入)
+> **更新日期**: 2026-03-20
+> **适用范围**: Cherry Studio v1.8.1+
 
 本文档详细描述了 Cherry Studio 从用户交互到 AI SDK 调用的完整数据流和架构设计，是理解应用核心功能的关键文档。
 
@@ -920,159 +920,174 @@ export class ProviderExtension<
 }
 ```
 
+#### ToolFactory 系统
+
+每个 Extension 可以声明 `toolFactories`，将 AI SDK 工具能力（如 web search、URL context）内化到 Provider 实例中。
+Plugin 只需查询 registry，无需知道具体 SDK 工具名。
+
+```typescript
+// toolFactory.ts — 核心类型
+type ToolCapability = 'webSearch' | 'fileSearch' | 'codeExecution' | 'urlContext'
+
+interface ToolFactoryPatch {
+  tools?: ToolSet           // 要合并到 params.tools 的工具
+  providerOptions?: Record<string, any>  // 要合并到 params.providerOptions 的选项
+}
+
+// 工厂函数：provider 实例 → config → patch
+type ToolFactory<TProvider> = (provider: TProvider) => (...args: any[]) => ToolFactoryPatch
+
+type ToolFactoryMap<TProvider> = {
+  [K in ToolCapability]?: ToolFactory<TProvider>
+}
+```
+
+**设计要点**：
+- 返回 `ToolFactoryPatch` 而非单个 Tool，支持多工具（如 xAI 的 webSearch + xSearch）和非工具场景（如 OpenRouter 的 providerOptions）
+- `ToolFactory` 使用 `...args: any[]` 而非 `config: Record<string, any>`，配合 `as const satisfies` 保留具体 config 类型
+- `ExtractToolConfig<TExt, K>` 从声明中提取 config 类型，`WebSearchToolConfigMap` 从 `coreExtensions` 自动生成
+
 #### OpenAI Extension 示例
 
 ```typescript
-// packages/aiCore/src/core/providers/extensions/openai.ts
+// packages/aiCore/src/core/providers/core/initialization.ts
 
-export const OpenAIExtension = new ProviderExtension({
-  name: "openai",
-  aliases: ["oai"],
-  variants: [
-    {
-      suffix: "chat",
-      name: "OpenAI Chat",
-      transform: (baseProvider, settings) => {
-        return customProvider({
-          fallbackProvider: {
-            ...baseProvider,
-            languageModel: (modelId) => baseProvider.chat(modelId),
-          },
-        });
-      },
-    },
-  ],
+const OpenAIExtension = ProviderExtension.create({
+  name: 'openai',
+  aliases: ['openai-response'] as const,
+  create: createOpenAI,
 
-  // Factory 函数
-  create: async (settings: OpenAIProviderSettings) => {
-    return createOpenAI({
-      apiKey: settings.apiKey,
-      baseURL: settings.baseURL,
-      organization: settings.organization,
-      headers: settings.headers,
-    });
+  // 工具能力声明 — config 类型由 TypeScript 从 SDK 推导
+  toolFactories: {
+    webSearch: (p: OpenAIProvider) =>
+      (config: NonNullable<Parameters<OpenAIProvider['tools']['webSearch']>[0]>) => ({
+        tools: { webSearch: p.tools.webSearch(config) }
+      })
   },
 
-  // 默认配置
-  defaultSettings: {
-    baseURL: "https://api.openai.com/v1",
-  },
+  variants: [{
+    suffix: 'chat',
+    name: 'OpenAI Chat',
+    transform: (provider: OpenAIProvider) => customProvider({
+      fallbackProvider: {
+        ...provider,
+        languageModel: (modelId) => provider.chat(modelId)
+      }
+    }),
+    // 变体可覆盖基础的 toolFactories
+    toolFactories: {
+      webSearch: (p: OpenAIProvider) =>
+        (config) => ({ tools: { webSearch: p.tools.webSearchPreview(config) } })
+    }
+  }] as const
+} as const satisfies ProviderExtensionConfig<OpenAIProviderSettings, ExtensionStorage, OpenAIProvider, 'openai'>)
 
-  // 生命周期钩子
-  lifecycle: {
-    onCreate: async (provider, settings) => {
-      console.log(`OpenAI provider created with baseURL: ${settings.baseURL}`);
-    },
-  },
-});
+// OpenRouter — 使用 providerOptions 而非 tools
+const OpenRouterExtension = ProviderExtension.create({
+  name: 'openrouter',
+  create: createOpenRouter,
+  toolFactories: {
+    webSearch: () => (config) => ({
+      providerOptions: createOpenRouterOptions(config)  // 不是 tools，是 providerOptions
+    })
+  }
+} as const satisfies ProviderExtensionConfig<...>)
+```
+
+#### Config 类型自动提取
+
+```typescript
+// 从 extension 声明中提取 webSearch 的 config 类型
+type ExtractToolConfig<TExt, K extends string> = TExt extends {
+  config: { toolFactories?: { [P in K]?: (provider: any) => (config: infer C) => any } }
+} ? C : never
+
+// 从所有 coreExtensions 自动生成 { openai?: OpenAISearchConfig, anthropic?: ..., ... }
+type WebSearchToolConfigMap = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>
+
+// WebSearchPluginConfig 直接使用，无需手动维护
+type WebSearchPluginConfig = WebSearchToolConfigMap & {
+  openrouter?: OpenRouterSearchConfig
+  xai?: XAISearchConfig
+}
 ```
 
 ### 4.3 Extension Registry
 
 **文件**: `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts`
 
+除了注册、查询、创建 provider 之外，现在还负责**工具能力解析**：
+
 ```typescript
 export class ExtensionRegistry {
-  private extensions: Map<string, ProviderExtension<any, any, any>> = new Map();
-  private aliasMap: Map<string, string> = new Map();
+  // ... register(), get(), createProvider(), parseProviderId() 等方法不变
 
-  // 1. 注册 extension
-  register(extension: ProviderExtension<any, any, any>): this {
-    const { name, aliases, variants } = extension.config;
+  // ==================== 工具能力解析 ====================
 
-    // 注册主 ID
-    this.extensions.set(name, extension);
+  /**
+   * 获取指定 provider 的工具工厂
+   * 变体优先检查自己的 toolFactories，然后回退到 base
+   */
+  getToolFactory(providerId: string, capability: ToolCapability): ToolFactory | undefined
 
-    // 注册别名
-    if (aliases) {
-      for (const alias of aliases) {
-        this.aliasMap.set(alias, name);
-      }
+  /**
+   * 解析工具能力 — plugin 层的唯一入口
+   *
+   * 1. Direct: provider 自己有 toolFactories → 用缓存的 provider 实例
+   * 2. Aggregator fallback: 从 model.provider 段解析真实 provider
+   *    e.g., "aihubmix.google" → "google" → Google extension
+   *
+   * 对于聚合供应商，内部创建 tool-only provider（描述符不走网络）
+   */
+  async resolveToolCapability(
+    providerId: string,
+    capability: ToolCapability,
+    modelProvider?: string
+  ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
+    // 1. Direct lookup
+    const directFactory = this.getToolFactory(providerId, capability)
+    if (directFactory) {
+      const provider = await this.getToolProvider(providerId)
+      if (provider) return { factory: directFactory, provider }
     }
 
-    // 注册变体 ID
-    if (variants) {
-      for (const variant of variants) {
-        const variantId = `${name}-${variant.suffix}`;
-        this.aliasMap.set(variantId, name);
-      }
-    }
-
-    return this;
-  }
-
-  // 2. 创建 provider（类型安全）
-  async createProvider<T extends RegisteredProviderId>(
-    id: T,
-    settings: CoreProviderSettingsMap[T],
-  ): Promise<ProviderV3>;
-
-  async createProvider(id: string, settings?: any): Promise<ProviderV3>;
-
-  async createProvider(id: string, settings?: any): Promise<ProviderV3> {
-    // 2.1 解析 ID（支持别名和变体）
-    const parsed = this.parseProviderId(id);
-    if (!parsed) {
-      throw new Error(`Provider extension "${id}" not found`);
-    }
-
-    const { baseId, mode: variantSuffix } = parsed;
-
-    // 2.2 获取 extension
-    const extension = this.get(baseId);
-    if (!extension) {
-      throw new Error(`Provider extension "${baseId}" not found`);
-    }
-
-    // 2.3 委托给 extension 创建
-    try {
-      return await extension.createProvider(settings, variantSuffix);
-    } catch (error) {
-      throw new ProviderCreationError(
-        `Failed to create provider "${id}"`,
-        id,
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
-  }
-
-  // 3. 解析 providerId
-  parseProviderId(providerId: string): {
-    baseId: RegisteredProviderId;
-    mode?: string;
-    isVariant: boolean;
-  } | null {
-    // 3.1 检查是否是基础 ID 或别名
-    const extension = this.get(providerId);
-    if (extension) {
-      return {
-        baseId: extension.config.name as RegisteredProviderId,
-        isVariant: false,
-      };
-    }
-
-    // 3.2 查找变体
-    for (const ext of this.extensions.values()) {
-      if (!ext.config.variants) continue;
-
-      for (const variant of ext.config.variants) {
-        const variantId = `${ext.config.name}-${variant.suffix}`;
-        if (variantId === providerId) {
-          return {
-            baseId: ext.config.name as RegisteredProviderId,
-            mode: variant.suffix,
-            isVariant: true,
-          };
+    // 2. Aggregator fallback
+    if (typeof modelProvider === 'string') {
+      const segments = modelProvider.split('.')
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const factory = this.getToolFactory(segments[i], capability)
+        if (factory) {
+          const provider = await this.getToolProvider(segments[i])
+          if (provider) return { factory, provider }
         }
       }
     }
 
-    return null;
+    return undefined
   }
-}
 
-// 全局单例
-export const extensionRegistry = new ExtensionRegistry();
+  /**
+   * 获取 tool-only provider 实例（内部方法）
+   * 优先用已有缓存，否则创建 dummy 实例（描述符不需要真实 API key）
+   */
+  private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined>
+}
+```
+
+#### 聚合供应商工作原理
+
+```
+用户请求: aihubmix + claude-opus-4-6
+  │
+  ├─ model.provider = "aihubmix.anthropic"  (由 aihubmix provider 设置)
+  │
+  ├─ resolveToolCapability('aihubmix', 'webSearch', 'aihubmix.anthropic')
+  │   ├─ Direct: getToolFactory('aihubmix', 'webSearch') → undefined (aihubmix 无 toolFactories)
+  │   └─ Fallback: split "aihubmix.anthropic" → try "anthropic"
+  │       ├─ getToolFactory('anthropic', 'webSearch') → found!
+  │       └─ getToolProvider('anthropic') → 创建/缓存 Anthropic provider
+  │
+  └─ factory(anthropicProvider)(config) → { tools: { webSearch: ... } }
 ```
 
 ---
@@ -1216,145 +1231,62 @@ export class PluginEngine {
 
 ### 5.2 内置插件
 
-#### 5.2.1 ReasoningPlugin
+#### 5.2.1 providerToolPlugin — 通用工具注入
 
-**文件**: `src/renderer/src/aiCore/plugins/ReasoningPlugin.ts`
+**文件**: `packages/aiCore/src/core/plugins/built-in/providerToolPlugin.ts`
 
-```typescript
-export const ReasoningPlugin: AiPlugin = {
-  name: "ReasoningPlugin",
-
-  transformParams: async (params, context) => {
-    if (!context.enableReasoning) {
-      return params;
-    }
-
-    // 根据模型类型添加 reasoning 配置
-    if (context.model?.includes("o1") || context.model?.includes("o3")) {
-      // OpenAI o1/o3 系列
-      return {
-        ...params,
-        reasoning_effort: context.reasoningEffort || "medium",
-      };
-    } else if (context.model?.includes("claude")) {
-      // Anthropic Claude 系列
-      return {
-        ...params,
-        thinking: {
-          type: "enabled",
-          budget_tokens: context.thinkingBudget || 2000,
-        },
-      };
-    } else if (context.model?.includes("qwen")) {
-      // Qwen 系列
-      return {
-        ...params,
-        experimental_providerMetadata: {
-          qwen: { think_mode: true },
-        },
-      };
-    }
-
-    return params;
-  },
-};
-```
-
-#### 5.2.2 ToolUsePlugin
-
-**文件**: `src/renderer/src/aiCore/plugins/ToolUsePlugin.ts`
+所有 provider-defined 工具注入（webSearch、urlContext 等）由统一的 `providerToolPlugin` 处理。
+它是纯编排逻辑 — 查询 registry，获取 factory，应用 patch：
 
 ```typescript
-export const ToolUsePlugin: AiPlugin = {
-  name: "ToolUsePlugin",
+export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
+  definePlugin({
+    name: capability,
+    enforce: 'pre',
 
-  transformParams: async (params, context) => {
-    if (!context.isSupportedToolUse && !context.isPromptToolUse) {
-      return params;
+    transformParams: async (params: any, context) => {
+      const { providerId } = context
+
+      // 从 context.model 获取 model.provider（用于聚合供应商 fallback）
+      const modelProvider =
+        context.model && typeof context.model !== 'string' && 'provider' in context.model
+          ? (context.model.provider as string)
+          : undefined
+
+      // Registry 统一处理：direct lookup + aggregator fallback + provider 获取
+      const resolved = await extensionRegistry.resolveToolCapability(providerId, capability, modelProvider)
+      if (!resolved) return params
+
+      const userConfig = config[providerId] ?? {}
+      const patch = resolved.factory(resolved.provider)(userConfig)
+
+      // 统一合并 — 一个 if，没有 provider 特殊分支
+      if (patch.tools) params.tools = { ...params.tools, ...patch.tools }
+      if (patch.providerOptions) params.providerOptions = mergeProviderOptions(...)
+
+      return params
     }
-
-    // 1. 收集所有工具
-    const tools: Record<string, CoreTool> = {};
-
-    // 1.1 MCP 工具
-    if (context.mcpTools && context.mcpTools.length > 0) {
-      for (const mcpTool of context.mcpTools) {
-        tools[mcpTool.name] = convertMcpToolToCoreTool(mcpTool);
-      }
-    }
-
-    // 1.2 内置工具（WebSearch, GenerateImage, etc.）
-    if (context.enableWebSearch) {
-      tools["web_search"] = webSearchTool;
-    }
-
-    if (context.enableGenerateImage) {
-      tools["generate_image"] = generateImageTool;
-    }
-
-    // 2. Prompt Tool Use 模式特殊处理
-    if (context.isPromptToolUse) {
-      return {
-        ...params,
-        messages: injectToolsIntoPrompt(params.messages, tools),
-      };
-    }
-
-    // 3. 标准 Function Calling 模式
-    return {
-      ...params,
-      tools,
-      toolChoice: "auto",
-    };
-  },
-};
+  })
 ```
 
-#### 5.2.3 WebSearchPlugin
-
-**文件**: `src/renderer/src/aiCore/plugins/WebSearchPlugin.ts`
+**使用方式**（在 PluginBuilder 中）：
 
 ```typescript
-export const WebSearchPlugin: AiPlugin = {
-  name: "WebSearchPlugin",
-
-  transformParams: async (params, context) => {
-    if (!context.enableWebSearch) {
-      return params;
-    }
-
-    // 添加 web search 工具
-    const webSearchTool = {
-      type: "function" as const,
-      function: {
-        name: "web_search",
-        description: "Search the web for current information",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Search query",
-            },
-          },
-          required: ["query"],
-        },
-      },
-      execute: async ({ query }: { query: string }) => {
-        return await executeWebSearch(query, context.webSearchProviderId);
-      },
-    };
-
-    return {
-      ...params,
-      tools: {
-        ...params.tools,
-        web_search: webSearchTool,
-      },
-    };
-  },
-};
+// webSearch 和 urlContext 都是 providerToolPlugin 的特化
+if (config.enableWebSearch) {
+  plugins.push(providerToolPlugin('webSearch', config.webSearchPluginConfig))
+}
+if (config.enableUrlContext) {
+  plugins.push(providerToolPlugin('urlContext'))
+}
 ```
+
+#### 5.2.2 Reasoning / ToolUse / Logging 等
+
+其他内置插件保持不变，参见：
+- `packages/aiCore/src/core/plugins/built-in/reasoning/` — 推理模式
+- `packages/aiCore/src/core/plugins/built-in/toolUsePlugin/` — Prompt Tool Use
+- `packages/aiCore/src/core/plugins/built-in/logging.ts` — 请求日志
 
 ### 5.3 插件构建器
 
@@ -1362,34 +1294,21 @@ export const WebSearchPlugin: AiPlugin = {
 
 ```typescript
 export function buildPlugins(config: AiSdkMiddlewareConfig): AiPlugin[] {
-  const plugins: AiPlugin[] = [];
+  const plugins: AiPlugin[] = []
 
-  // 1. Reasoning Plugin
-  if (config.enableReasoning) {
-    plugins.push(ReasoningPlugin);
-  }
+  if (config.enableReasoning) plugins.push(reasoningPlugin(config))
+  if (config.isPromptToolUse) plugins.push(createPromptToolUsePlugin(config))
 
-  // 2. Tool Use Plugin
-  if (config.isSupportedToolUse || config.isPromptToolUse) {
-    plugins.push(ToolUsePlugin);
-  }
-
-  // 3. Web Search Plugin
+  // 工具注入统一由 providerToolPlugin 处理
   if (config.enableWebSearch) {
-    plugins.push(WebSearchPlugin);
+    plugins.push(providerToolPlugin('webSearch', config.webSearchPluginConfig))
   }
-
-  // 4. Image Generation Plugin
-  if (config.enableGenerateImage) {
-    plugins.push(ImageGenerationPlugin);
-  }
-
-  // 5. URL Context Plugin
   if (config.enableUrlContext) {
-    plugins.push(UrlContextPlugin);
+    plugins.push(providerToolPlugin('urlContext'))
   }
 
-  return plugins;
+  plugins.push(loggingPlugin)
+  return plugins
 }
 ```
 
@@ -2364,6 +2283,6 @@ describe("ProviderExtension", () => {
 
 ---
 
-**文档版本**: v3.0
-**最后更新**: 2026-02-28
+**文档版本**: v4.0
+**最后更新**: 2026-03-20
 **维护者**: Cherry Studio Team

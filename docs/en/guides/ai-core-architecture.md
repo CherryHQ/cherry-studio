@@ -1,8 +1,8 @@
 # Cherry Studio AI Core Architecture Documentation
 
-> **Version**: v3.0 (Remove ModelResolver/HubProvider, Internal Plugin Model Resolution)
-> **Updated**: 2026-02-28
-> **Applicable to**: Cherry Studio v1.7.7+
+> **Version**: v4.0 (ToolFactory + providerToolPlugin unified tool injection)
+> **Updated**: 2026-03-20
+> **Applicable to**: Cherry Studio v1.8.1+
 
 This document describes the complete data flow and architectural design from user interaction to AI SDK calls in Cherry Studio. It serves as the key documentation for understanding the application's core functionality.
 
@@ -836,78 +836,135 @@ export class ProviderExtension<
 }
 ```
 
+#### ToolFactory System
+
+Each Extension can declare `toolFactories`, internalizing AI SDK tool capabilities (web search, URL context, etc.) into the Provider instance. Plugins only query the registry — no need to know specific SDK tool names.
+
+```typescript
+// toolFactory.ts — Core types
+type ToolCapability = 'webSearch' | 'fileSearch' | 'codeExecution' | 'urlContext'
+
+interface ToolFactoryPatch {
+  tools?: ToolSet           // Tools to merge into params.tools
+  providerOptions?: Record<string, any>  // Options to merge into params.providerOptions
+}
+
+// Factory: provider instance → config → patch
+type ToolFactory<TProvider> = (provider: TProvider) => (...args: any[]) => ToolFactoryPatch
+
+type ToolFactoryMap<TProvider> = {
+  [K in ToolCapability]?: ToolFactory<TProvider>
+}
+```
+
+**Design points**:
+- Returns `ToolFactoryPatch` instead of a single Tool, supporting multi-tool (xAI's webSearch + xSearch) and non-tool (OpenRouter's providerOptions) cases
+- `ToolFactory` uses `...args: any[]` instead of `config: Record<string, any>`, preserving concrete config types with `as const satisfies`
+- `ExtractToolConfig<TExt, K>` extracts config types from declarations, `WebSearchToolConfigMap` is auto-generated from `coreExtensions`
+
+#### OpenAI Extension Example
+
+```typescript
+// packages/aiCore/src/core/providers/core/initialization.ts
+
+const OpenAIExtension = ProviderExtension.create({
+  name: 'openai',
+  aliases: ['openai-response'] as const,
+  create: createOpenAI,
+
+  // Tool capability declaration — config types inferred from SDK by TypeScript
+  toolFactories: {
+    webSearch: (p: OpenAIProvider) =>
+      (config: NonNullable<Parameters<OpenAIProvider['tools']['webSearch']>[0]>) => ({
+        tools: { webSearch: p.tools.webSearch(config) }
+      })
+  },
+
+  variants: [{
+    suffix: 'chat',
+    name: 'OpenAI Chat',
+    transform: (provider: OpenAIProvider) => customProvider({
+      fallbackProvider: {
+        ...provider,
+        languageModel: (modelId) => provider.chat(modelId)
+      }
+    }),
+    // Variants can override base toolFactories
+    toolFactories: {
+      webSearch: (p: OpenAIProvider) =>
+        (config) => ({ tools: { webSearch: p.tools.webSearchPreview(config) } })
+    }
+  }] as const
+} as const satisfies ProviderExtensionConfig<OpenAIProviderSettings, ExtensionStorage, OpenAIProvider, 'openai'>)
+```
+
+#### Config Type Auto-Extraction
+
+```typescript
+// Extract webSearch config type from extension declaration
+type ExtractToolConfig<TExt, K extends string> = TExt extends {
+  config: { toolFactories?: { [P in K]?: (provider: any) => (config: infer C) => any } }
+} ? C : never
+
+// Auto-generate { openai?: OpenAISearchConfig, anthropic?: ..., ... } from coreExtensions
+type WebSearchToolConfigMap = ExtractToolConfigMap<(typeof coreExtensions)[number], 'webSearch'>
+```
+
 ### 4.3 Extension Registry
 
 **File**: `packages/aiCore/src/core/providers/core/ExtensionRegistry.ts`
 
+In addition to registration, lookup, and provider creation, the registry now handles **tool capability resolution**:
+
 ```typescript
 export class ExtensionRegistry {
-  private extensions: Map<string, ProviderExtension<any, any, any>> = new Map();
-  private aliasMap: Map<string, string> = new Map();
+  // ... register(), get(), createProvider(), parseProviderId() unchanged
 
-  // 1. Register extension
-  register(extension: ProviderExtension<any, any, any>): this {
-    const { name, aliases, variants } = extension.config;
+  // ==================== Tool Capability Resolution ====================
 
-    // Register primary ID
-    this.extensions.set(name, extension);
+  /**
+   * Get tool factory for a specific provider
+   * Variants check their own toolFactories first, then fall back to base
+   */
+  getToolFactory(providerId: string, capability: ToolCapability): ToolFactory | undefined
 
-    // Register aliases
-    if (aliases) {
-      for (const alias of aliases) {
-        this.aliasMap.set(alias, name);
-      }
-    }
+  /**
+   * Resolve tool capability — the single entry point for plugins
+   *
+   * 1. Direct: provider has its own toolFactories → use cached provider instance
+   * 2. Aggregator fallback: resolve real provider from model.provider segments
+   *    e.g., "aihubmix.google" → "google" → Google extension
+   *
+   * For aggregator providers, internally creates tool-only provider (descriptors don't make network calls)
+   */
+  async resolveToolCapability(
+    providerId: string,
+    capability: ToolCapability,
+    modelProvider?: string
+  ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined>
 
-    // Register variant IDs
-    if (variants) {
-      for (const variant of variants) {
-        const variantId = `${name}-${variant.suffix}`;
-        this.aliasMap.set(variantId, name);
-      }
-    }
-
-    return this;
-  }
-
-  // 2. Create provider (type-safe)
-  async createProvider<T extends RegisteredProviderId>(
-    id: T,
-    settings: CoreProviderSettingsMap[T],
-  ): Promise<ProviderV3>;
-
-  async createProvider(id: string, settings?: any): Promise<ProviderV3>;
-
-  async createProvider(id: string, settings?: any): Promise<ProviderV3> {
-    // 2.1 Parse ID (supports aliases and variants)
-    const parsed = this.parseProviderId(id);
-    if (!parsed) {
-      throw new Error(`Provider extension "${id}" not found`);
-    }
-
-    const { baseId, mode: variantSuffix } = parsed;
-
-    // 2.2 Get extension
-    const extension = this.get(baseId);
-    if (!extension) {
-      throw new Error(`Provider extension "${baseId}" not found`);
-    }
-
-    // 2.3 Delegate to extension for creation
-    try {
-      return await extension.createProvider(settings, variantSuffix);
-    } catch (error) {
-      throw new ProviderCreationError(
-        `Failed to create provider "${id}"`,
-        id,
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
-  }
+  /**
+   * Get tool-only provider instance (internal)
+   * Prefers existing cached instance, otherwise creates dummy (descriptors don't need real API key)
+   */
+  private async getToolProvider(providerId: string): Promise<ProviderV3 | undefined>
 }
+```
 
-// Global singleton
-export const extensionRegistry = new ExtensionRegistry();
+#### Aggregator Provider Flow
+
+```
+User request: aihubmix + claude-opus-4-6
+  │
+  ├─ model.provider = "aihubmix.anthropic"  (set by aihubmix provider)
+  │
+  ├─ resolveToolCapability('aihubmix', 'webSearch', 'aihubmix.anthropic')
+  │   ├─ Direct: getToolFactory('aihubmix', 'webSearch') → undefined (no toolFactories)
+  │   └─ Fallback: split "aihubmix.anthropic" → try "anthropic"
+  │       ├─ getToolFactory('anthropic', 'webSearch') → found!
+  │       └─ getToolProvider('anthropic') → create/cache Anthropic provider
+  │
+  └─ factory(anthropicProvider)(config) → { tools: { webSearch: ... } }
 ```
 
 ---
@@ -1026,99 +1083,61 @@ export class PluginEngine {
 
 ### 5.2 Built-in Plugins
 
-#### 5.2.1 ReasoningPlugin
+#### 5.2.1 providerToolPlugin — Unified Tool Injection
 
-**File**: `src/renderer/src/aiCore/plugins/ReasoningPlugin.ts`
+**File**: `packages/aiCore/src/core/plugins/built-in/providerToolPlugin.ts`
 
-```typescript
-export const ReasoningPlugin: AiPlugin = {
-  name: "ReasoningPlugin",
-
-  transformParams: async (params, context) => {
-    if (!context.enableReasoning) {
-      return params;
-    }
-
-    // Add reasoning configuration based on model type
-    if (context.model?.includes("o1") || context.model?.includes("o3")) {
-      // OpenAI o1/o3 series
-      return {
-        ...params,
-        reasoning_effort: context.reasoningEffort || "medium",
-      };
-    } else if (context.model?.includes("claude")) {
-      // Anthropic Claude series
-      return {
-        ...params,
-        thinking: {
-          type: "enabled",
-          budget_tokens: context.thinkingBudget || 2000,
-        },
-      };
-    } else if (context.model?.includes("qwen")) {
-      // Qwen series
-      return {
-        ...params,
-        experimental_providerMetadata: {
-          qwen: { think_mode: true },
-        },
-      };
-    }
-
-    return params;
-  },
-};
-```
-
-#### 5.2.2 ToolUsePlugin
-
-**File**: `src/renderer/src/aiCore/plugins/ToolUsePlugin.ts`
+All provider-defined tool injection (webSearch, urlContext, etc.) is handled by the unified `providerToolPlugin`. It is pure orchestration — query the registry, get the factory, apply the patch:
 
 ```typescript
-export const ToolUsePlugin: AiPlugin = {
-  name: "ToolUsePlugin",
+export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
+  definePlugin({
+    name: capability,
+    enforce: 'pre',
 
-  transformParams: async (params, context) => {
-    if (!context.isSupportedToolUse && !context.isPromptToolUse) {
-      return params;
+    transformParams: async (params: any, context) => {
+      const { providerId } = context
+
+      // Get model.provider from context.model (for aggregator provider fallback)
+      const modelProvider =
+        context.model && typeof context.model !== 'string' && 'provider' in context.model
+          ? (context.model.provider as string)
+          : undefined
+
+      // Registry handles everything: direct lookup + aggregator fallback + provider acquisition
+      const resolved = await extensionRegistry.resolveToolCapability(providerId, capability, modelProvider)
+      if (!resolved) return params
+
+      const userConfig = config[providerId] ?? {}
+      const patch = resolved.factory(resolved.provider)(userConfig)
+
+      // Unified merge — one if, no provider-specific branches
+      if (patch.tools) params.tools = { ...params.tools, ...patch.tools }
+      if (patch.providerOptions) params.providerOptions = mergeProviderOptions(...)
+
+      return params
     }
-
-    // 1. Collect all tools
-    const tools: Record<string, CoreTool> = {};
-
-    // 1.1 MCP tools
-    if (context.mcpTools && context.mcpTools.length > 0) {
-      for (const mcpTool of context.mcpTools) {
-        tools[mcpTool.name] = convertMcpToolToCoreTool(mcpTool);
-      }
-    }
-
-    // 1.2 Built-in tools (WebSearch, GenerateImage, etc.)
-    if (context.enableWebSearch) {
-      tools["web_search"] = webSearchTool;
-    }
-
-    if (context.enableGenerateImage) {
-      tools["generate_image"] = generateImageTool;
-    }
-
-    // 2. Prompt Tool Use mode special handling
-    if (context.isPromptToolUse) {
-      return {
-        ...params,
-        messages: injectToolsIntoPrompt(params.messages, tools),
-      };
-    }
-
-    // 3. Standard Function Calling mode
-    return {
-      ...params,
-      tools,
-      toolChoice: "auto",
-    };
-  },
-};
+  })
 ```
+
+**Usage** (in PluginBuilder):
+
+```typescript
+// webSearch and urlContext are both specializations of providerToolPlugin
+if (config.enableWebSearch) {
+  plugins.push(providerToolPlugin('webSearch', config.webSearchPluginConfig))
+}
+if (config.enableUrlContext) {
+  plugins.push(providerToolPlugin('urlContext'))
+}
+```
+
+#### 5.2.2 Reasoning / ToolUse / Logging
+
+Other built-in plugins remain unchanged. See:
+- `packages/aiCore/src/core/plugins/built-in/reasoning/` — Reasoning mode
+- `packages/aiCore/src/core/plugins/built-in/toolUsePlugin/` — Prompt Tool Use
+- `packages/aiCore/src/core/plugins/built-in/logging.ts` — Request logging
 
 ---
 
@@ -1725,6 +1744,6 @@ Current test coverage:
 
 ---
 
-**Document Version**: v3.0
-**Last Updated**: 2026-02-28
+**Document Version**: v4.0
+**Last Updated**: 2026-03-20
 **Maintainer**: Cherry Studio Team
