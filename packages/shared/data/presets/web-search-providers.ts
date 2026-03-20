@@ -79,6 +79,13 @@ export const PRESETS_WEB_SEARCH_PROVIDERS = [
     defaultApiHost: 'https://api.bochaai.com'
   },
   {
+    id: 'querit',
+    name: 'Querit',
+    type: 'api',
+    usingBrowser: false,
+    defaultApiHost: 'https://api.querit.ai'
+  },
+  {
     id: 'local-google',
     name: 'Google',
     type: 'local',
