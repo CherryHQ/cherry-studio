@@ -1,5 +1,4 @@
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -11,7 +10,7 @@ import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords } from '@renderer/utils'
-import { apiModelAdapter, getModelTags } from '@renderer/utils/model'
+import { apiModelAdapter, getDuplicateModelNames, getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal } from 'antd'
 import { first, groupBy, sortBy } from 'lodash'
 import React, {
@@ -99,7 +98,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: AdaptedApiModel): FlatListApiModel => {
+    (model: AdaptedApiModel, showIdentifier: boolean): FlatListApiModel => {
       const modelId = getModelUniqId(model)
       const isCherryAi = model.provider === 'cherryai'
 
@@ -108,7 +107,10 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">{model.name}</HStack>
+            <ModelTextRow>
+              <ModelPrimaryName>{model.name}</ModelPrimaryName>
+              {showIdentifier && <ModelIdentifier title={model.id}>{model.id}</ModelIdentifier>}
+            </ModelTextRow>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -140,6 +142,11 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
 
     // 筛选模型
     const filteredModels = searchFilter(adaptedModels).filter(finalModelFilter)
+    const duplicateNamesByProvider = new Map<string, Set<string>>(
+      objectEntries(groupBy(filteredModels, (model) => model.provider) as Record<string, AdaptedApiModel[]>).map(
+        ([providerId, models]) => [providerId, getDuplicateModelNames(models)]
+      )
+    )
 
     // 按 provider 分组
     const groups = groupBy(filteredModels, (model) => model.provider) as Record<string, AdaptedApiModel[]>
@@ -158,7 +165,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         name: getProviderNameById(key ?? 'Unknown'),
         isSelected: false
       })
-      items.push(...models.map((m) => createModelItem(m)))
+      items.push(...models.map((m) => createModelItem(m, duplicateNamesByProvider.get(key)?.has(m.name) ?? false)))
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
@@ -474,15 +481,38 @@ const ModelItemLeft = styled.div`
 
 const ModelName = styled.div`
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
   gap: 5px;
+`
+
+const ModelTextRow = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+`
+
+const ModelPrimaryName = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const ModelIdentifier = styled.span`
+  flex-shrink: 1;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-3);
+  font-family: monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const TagsContainer = styled.div`

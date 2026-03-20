@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ManageModelsList from './ManageModelsList'
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import { getDuplicateModelNames, isModelInProvider, isValidNewApiModel } from './utils'
 
 const logger = loggerService.withContext('ManageModelsPopup')
 
@@ -76,6 +76,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
   const systemModels = SYSTEM_MODELS[provider.id] || []
   const allModels = uniqBy([...systemModels, ...listModels, ...models], 'id')
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(allModels), [allModels])
 
   const isLoading = useMemo(
     () => loadingModels || isFilterTypePending || isSearchPending,
@@ -334,6 +335,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           ) : (
             <ManageModelsList
               modelGroups={modelGroups}
+              duplicateModelNames={duplicateModelNames}
               provider={provider}
               onAddModel={onAddModel}
               onRemoveModel={onRemoveModel}

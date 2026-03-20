@@ -1,6 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -11,7 +10,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model, ModelType, Provider } from '@renderer/types'
 import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { getModelTags } from '@renderer/utils/model'
+import { getDuplicateModelNames, getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
@@ -101,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
+    (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
       const isCherryAi = provider.id === 'cherryai'
@@ -111,10 +110,11 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">
-              {model.name}
-              {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
-            </HStack>
+            <ModelTextRow>
+              <ModelPrimaryName>{model.name}</ModelPrimaryName>
+              {showIdentifier && <ModelIdentifier title={model.id}>{model.id}</ModelIdentifier>}
+              {isPinned && <ModelProviderName>| {groupName}</ModelProviderName>}
+            </ModelTextRow>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -145,6 +145,12 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
       const _baseFilter = baseFilter === undefined || baseFilter(model)
       return _tagFilter && _baseFilter
     }
+    const duplicateNamesByProvider = new Map<string, Set<string>>(
+      providers.map((provider) => [
+        provider.id,
+        getDuplicateModelNames(searchFilter(provider).filter(finalModelFilter))
+      ])
+    )
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && pinnedModelIds.size > 0) {
@@ -152,7 +158,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         p.models
           .filter((m) => pinnedModelIds.has(getModelUniqId(m)))
           .filter(finalModelFilter)
-          .map((m) => createModelItem(m, p, true))
+          .map((m) => createModelItem(m, p, true, duplicateNamesByProvider.get(p.id)?.has(m.name) ?? false))
       )
 
       if (pinnedItems.length > 0) {
@@ -199,7 +205,16 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         isSelected: false
       })
 
-      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModelIds.has(getModelUniqId(m)))))
+      items.push(
+        ...filteredModels.map((m) =>
+          createModelItem(
+            m,
+            p,
+            pinnedModelIds.has(getModelUniqId(m)),
+            duplicateNamesByProvider.get(p.id)?.has(m.name) ?? false
+          )
+        )
+      )
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
@@ -545,15 +560,43 @@ const ModelItemLeft = styled.div`
 
 const ModelName = styled.div`
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
   gap: 5px;
+`
+
+const ModelTextRow = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+`
+
+const ModelPrimaryName = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const ModelIdentifier = styled.span`
+  flex-shrink: 1;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-3);
+  font-family: monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const ModelProviderName = styled.span`
+  color: var(--color-text-3);
+  white-space: nowrap;
 `
 
 const TagsContainer = styled.div`

@@ -19,12 +19,21 @@ interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
   modelStatus: ModelWithStatus | undefined
+  showIdentifier?: boolean
   disabled?: boolean
   onEdit: (model: Model) => void
   onRemove: (model: Model) => void
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, disabled, onEdit, onRemove }) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({
+  ref,
+  model,
+  modelStatus,
+  showIdentifier = false,
+  disabled,
+  onEdit,
+  onRemove
+}) => {
   const { t } = useTranslation()
   const isChecking = modelStatus?.checking === true
   const [showErrorModal, setShowErrorModal] = useState(false)
@@ -75,6 +84,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
           </Avatar>
           <ModelIdWithTags
             model={model}
+            showIdentifier={showIdentifier}
             style={{
               flex: 1,
               width: 0,

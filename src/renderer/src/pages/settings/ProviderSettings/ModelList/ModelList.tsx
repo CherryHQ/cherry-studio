@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import ModelListGroup from './ModelListGroup'
 import { useHealthCheck } from './useHealthCheck'
+import { getDuplicateModelNames } from './utils'
 
 interface ModelListProps {
   providerId: string
@@ -65,6 +66,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
+  const duplicateModelNames = useMemo(() => getDuplicateModelNames(models), [models])
 
   // 将 modelStatuses 数组转换为 Map，实现 O(1) 查找
   const modelStatusMap = useMemo(() => {
@@ -146,6 +148,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 key={group}
                 groupName={group}
                 models={displayedModelGroups[group]}
+                duplicateModelNames={duplicateModelNames}
                 modelStatusMap={modelStatusMap}
                 defaultOpen={i <= 5}
                 onEditModel={handleEditModel}
