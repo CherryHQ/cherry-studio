@@ -255,19 +255,6 @@ const XaiExtension = ProviderExtension.create({
   aliases: ['grok'] as const,
   supportsImageGeneration: true,
   create: createXai,
-  toolFactories: {
-    webSearch:
-      (provider: XaiProvider) =>
-      (config: {
-        webSearch?: Parameters<XaiProvider['tools']['webSearch']>[0]
-        xSearch?: Parameters<XaiProvider['tools']['xSearch']>[0]
-      }) => ({
-        tools: {
-          webSearch: provider.tools.webSearch(config?.webSearch ?? {}),
-          xSearch: provider.tools.xSearch(config?.xSearch ?? {})
-        }
-      })
-  },
   variants: [
     {
       suffix: 'responses',
@@ -278,7 +265,20 @@ const XaiExtension = ProviderExtension.create({
             ...provider,
             languageModel: (modelId: string) => provider.responses(modelId)
           }
-        })
+        }),
+      toolFactories: {
+        webSearch:
+          (provider: XaiProvider) =>
+          (config: {
+            webSearch?: Parameters<XaiProvider['tools']['webSearch']>[0]
+            xSearch?: Parameters<XaiProvider['tools']['xSearch']>[0]
+          }) => ({
+            tools: {
+              webSearch: provider.tools.webSearch(config?.webSearch ?? {}),
+              xSearch: provider.tools.xSearch(config?.xSearch ?? {})
+            }
+          })
+      }
     }
   ] as const
 } as const satisfies ProviderExtensionConfig<XaiProviderSettings, ExtensionStorage, XaiProvider, 'xai'>)

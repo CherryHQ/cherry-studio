@@ -186,6 +186,7 @@ export function buildProviderOptions(
       providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
       break
     case 'xai':
+    case 'xai-responses':
       providerSpecificOptions = buildXAIProviderOptions(assistant, model, capabilities)
       break
     case 'bedrock':

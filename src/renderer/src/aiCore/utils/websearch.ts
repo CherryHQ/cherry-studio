@@ -85,16 +85,17 @@ export function buildProviderBuiltinWebSearchConfig(
         anthropic: anthropicSearchOptions
       }
     }
-    case 'xai': {
+    case 'xai':
+    case 'xai-responses': {
       const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-      const xaiWebConfig: NonNullable<NonNullable<WebSearchPluginConfig['xai']>['webSearch']> = {
+      const xaiWebConfig: NonNullable<NonNullable<WebSearchPluginConfig['xai-responses']>['webSearch']> = {
         enableImageUnderstanding: true
       }
       if (excludeDomains.length > 0) {
         xaiWebConfig.excludedDomains = excludeDomains.slice(0, 5)
       }
       return {
-        xai: {
+        'xai-responses': {
           webSearch: xaiWebConfig,
           xSearch: { enableImageUnderstanding: true }
         }

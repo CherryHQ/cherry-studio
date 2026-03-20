@@ -21,7 +21,7 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   google: {},
   openai: {},
   'openai-chat': {},
-  xai: {
+  'xai-responses': {
     webSearch: { enableImageUnderstanding: true },
     xSearch: { enableImageUnderstanding: true }
   },

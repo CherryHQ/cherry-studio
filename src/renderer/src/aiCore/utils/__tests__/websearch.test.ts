@@ -270,11 +270,11 @@ describe('websearch utils', () => {
     })
 
     describe('xai provider', () => {
-      it('should return xai search options with enableImageUnderstanding when no excludeDomains', () => {
+      it('should return xai-responses search options with enableImageUnderstanding when no excludeDomains', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', defaultWebSearchConfig)
 
         expect(result).toEqual({
-          xai: {
+          'xai-responses': {
             webSearch: { enableImageUnderstanding: true },
             xSearch: { enableImageUnderstanding: true }
           }
@@ -291,7 +291,7 @@ describe('websearch utils', () => {
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
         expect(result).toEqual({
-          xai: {
+          'xai-responses': {
             webSearch: {
               enableImageUnderstanding: true,
               excludedDomains: ['site1.com', 'site2.com']
@@ -310,7 +310,7 @@ describe('websearch utils', () => {
 
         const result = buildProviderBuiltinWebSearchConfig('xai', config)
 
-        expect(result?.xai?.webSearch?.excludedDomains).toHaveLength(5)
+        expect(result?.['xai-responses']?.webSearch?.excludedDomains).toHaveLength(5)
       })
     })
 
