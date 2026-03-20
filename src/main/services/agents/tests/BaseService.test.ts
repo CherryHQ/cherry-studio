@@ -173,6 +173,7 @@ describe('BaseService.resolveAccessiblePaths', () => {
   })
 
   it('passes through provided paths unchanged', () => {
-    expect(service.resolve(['/some/path'], testId)).toEqual(['/some/path'])
+    // Use path.normalize to get platform-appropriate path format for comparison
+    expect(service.resolve(['/some/path'], testId)).toEqual([path.normalize('/some/path')])
   })
 })

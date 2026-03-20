@@ -9,7 +9,7 @@ import type { Request, Response } from 'express'
 import type { IncomingMessage, ServerResponse } from 'http'
 
 import { loggerService } from '../../services/LoggerService'
-import { getMcpServerById, getMCPServersFromRedux } from '../utils/mcp'
+import { createMcpServerForTransport, getMCPServersFromRedux } from '../utils/mcp'
 
 const logger = loggerService.withContext('MCPApiService')
 const transports: Record<string, StreamableHTTPServerTransport> = {}
@@ -139,10 +139,8 @@ class MCPApiService extends EventEmitter {
           delete transports[transport.sessionId]
         }
       }
-      const mcpServer = await getMcpServerById(server.id)
-      if (mcpServer) {
-        await mcpServer.connect(transport)
-      }
+      const mcpServer = await createMcpServerForTransport(server.id)
+      await mcpServer.connect(transport)
     }
     const jsonpayload = req.body
     const messages: JSONRPCMessage[] = []

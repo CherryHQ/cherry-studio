@@ -2027,6 +2027,10 @@
         "export": "Αποτυχία εξαγωγής Excel"
       },
       "fetchTopicName": "Αποτυχία ονομασίας θέματος",
+      "file": {
+        "process_failed": "[to be translated]:File {{name}} could not be processed",
+        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Υπερβολική συχνότητα στείλατε παρακαλώ περιμένετε {{seconds}} δευτερόλεπτα και προσπαθήστε ξανά"
       }
@@ -5632,12 +5641,8 @@
     "show_window": "Εμφάνιση παραθύρου"
   },
   "update": {
-    "download": "Λήψη",
     "install": "Εγκατάσταση",
     "later": "Μετά",
-    "manualDownload": "Λήψη",
-    "manualInstallError": "Η εγκατάσταση απέτυχε, παρακαλώ κατεβάστε χειροκίνητα από την επίσημη ιστοσελίδα.",
-    "manualInstallInfo": "Αυτή η έκδοση δεν υποστηρίζει αυτόματες ενημερώσεις. Κάντε κλικ στη λήψη για να ολοκληρώσετε την ενημέρωση.",
     "message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
     "noReleaseNotes": "Χωρίς σημειώσεις",
     "saveDataError": "Η αποθήκευση των δεδομένων απέτυχε, δοκιμάστε ξανά",

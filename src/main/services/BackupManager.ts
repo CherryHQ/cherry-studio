@@ -600,7 +600,7 @@ class BackupManager {
 
       //  Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
-      const dataDest = path.join(getDataPath(), restoreSuffix)
+      const dataDest = path.join(userDataPath, 'Data' + restoreSuffix)
       const dataExists = await fs.pathExists(dataSource)
       const dataFiles = dataExists ? await fs.readdir(dataSource) : []
 
@@ -658,8 +658,9 @@ class BackupManager {
 
       // Restore Data directory
       const restoreSuffix = isWin ? '.restore' : ''
+      const userDataPath = app.getPath('userData')
       const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(getDataPath(), restoreSuffix)
+      const dataDestPath = path.join(userDataPath, 'Data' + restoreSuffix)
 
       const dataExists = await fs.pathExists(dataSourcePath)
       const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []

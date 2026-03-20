@@ -12,6 +12,7 @@ import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
+import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
 import { createReasoningExtractionPlugin } from './reasoningExtractionPlugin'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
@@ -49,6 +50,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
       })
     )
   }
+
+  // === PDF Compatibility ===
+  // Must run before other plugins (e.g., Anthropic cache token estimation)
+  // so that PDF FileParts are converted to TextParts for unsupported providers.
+  plugins.push(createPdfCompatibilityPlugin(provider))
 
   // === AI SDK Middleware Plugins ===
   // 注意：wrapLanguageModel 会 .reverse() middleware 数组，

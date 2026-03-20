@@ -101,8 +101,6 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
-  getSigningInfo: (): Promise<{ teamId: string | null; bundleId: string | null; authority: string | null }> =>
-    ipcRenderer.invoke(IpcChannel.App_GetSigningInfo),
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
@@ -111,8 +109,6 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
-  manualInstallUpdate: (): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(IpcChannel.App_ManualInstallUpdate),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
@@ -283,6 +279,10 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  pdf: {
+    extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)

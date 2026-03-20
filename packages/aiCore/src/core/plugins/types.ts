@@ -1,4 +1,4 @@
-import type { JSONObject, JSONValue, ProviderV3 } from '@ai-sdk/provider'
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 import type { generateText, LanguageModelMiddleware, streamText, TextStreamPart, ToolSet } from 'ai'
 
 import type { AiSdkModel, RegisteredProviderId } from '../providers/types'
@@ -53,17 +53,9 @@ export interface AiRequestContext<TParams = unknown, TResult = unknown> {
 
   mcpTools?: ToolSet
 
-  // Base provider instance (unwrapped, with .tools)
-  // For non-variants: same as the main provider
-  // For variants: the unwrapped provider before variant.transform()
-  baseProvider?: ProviderV3
-
   extensions: Map<string, JSONValue>
 
   middlewares?: LanguageModelMiddleware[]
-
-  // Runtime executor reference (temporary, to be refactored)
-  executor?: any
 
   // 向后兼容：允许插件动态添加属性（临时保留）
   [key: string]: any

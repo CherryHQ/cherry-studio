@@ -30,13 +30,7 @@ export async function createExecutor<
 
   const provider = await extensionRegistry.createProvider(providerId, options || {})
 
-  // For variants, also resolve the base provider (has .tools)
-  // For non-variants, base provider is the same instance (cached)
-  const baseProviderId = extensionRegistry.getBaseProviderId(providerId as string) ?? (providerId as string)
-  const baseProvider =
-    baseProviderId !== providerId ? await extensionRegistry.createProvider(baseProviderId, options || {}) : provider
-
-  return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins, baseProvider)
+  return RuntimeExecutor.create<TSettingsMap, T>(providerId, provider, options, plugins)
 }
 
 /**

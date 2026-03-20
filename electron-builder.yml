@@ -140,34 +140,30 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.1 - Quick Fixes
+    Cherry Studio 1.8.2 - Bug Fixes and Model Updates
 
     🐛 Bug Fixes
-    - [Agents] Fix thinking mode 400 error on non-Anthropic providers
-    - [Windows] Fix Windows Terminal launch failing on non-English systems
-    - [Windows] Fix CLI tools (qwen-code, Copilot CLI) failing to start on Windows
-    - [Azure] Fix dated API versions routing to wrong transport
-    - [Editor] Fix Zed editor unable to open directories from agent workspace
+    - [Knowledge Base] Fix knowledge base content not being delivered to the model when selected in conversation
+    - [Search] Fix crash when clicking topic title in message search results
+    - [Backup] Fix backup restoration path issue
 
     ✨ New Features
-    - [Agents] Clickable file paths in tool outputs — click to open files, with dropdown to reveal in Finder or open in external editors
+    - [Models] Add support for Xiaomi MiMo-V2-Pro and MiMo-V2-Omni models with reasoning control and tool use capabilities
 
     💄 Improvements
-    - [Backup] Enhanced backup system with new format (v6), improved security, and config.json now included in backups
+    - [Models] Upgrade MiniMax default model to M2.7 with enhanced reasoning and coding capabilities
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.1 - 快速修复
+    Cherry Studio 1.8.2 - 错误修复和模型更新
 
     🐛 问题修复
-    - [智能体] 修复非 Anthropic 服务商思考模式 400 错误
-    - [Windows] 修复 Windows Terminal 在非英语系统上启动失败的问题
-    - [Windows] 修复 CLI 工具（qwen-code、Copilot CLI）在 Windows 上启动失败的问题
-    - [Azure] 修复特定版本的 API 路由到错误传输方式的问题
-    - [编辑器] 修复 Zed 编辑器无法从智能体工作区打开目录的问题
+    - [知识库] 修复选中知识库时内容未传递给模型的问题
+    - [搜索] 修复点击消息搜索结果中的主题标题时崩溃的问题
+    - [备份] 修复备份恢复路径问题
 
     ✨ 新功能
-    - [智能体] 工具输出中的文件路径可点击 — 点击打开文件，下拉菜单可显示在访达中或在外部编辑器中打开
+    - [模型] 新增小米 MiMo-V2-Pro 和 MiMo-V2-Omni 模型支持，支持推理控制和工具调用功能
 
     💄 改进
-    - [备份] 增强备份系统，新增格式（v6）、改进安全性，config.json 现已包含在备份中
+    - [模型] 升级 MiniMax 默认模型至 M2.7，增强推理和代码能力
     <!--LANG:END-->

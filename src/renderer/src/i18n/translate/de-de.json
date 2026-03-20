@@ -2027,6 +2027,10 @@
         "export": "Excel-Export fehlgeschlagen"
       },
       "fetchTopicName": "Themenname generieren fehlgeschlagen",
+      "file": {
+        "process_failed": "[to be translated]:File {{name}} could not be processed",
+        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Zu viele Anfragen. Bitte warten Sie {{seconds}} Sekunden, bevor Sie es erneut versuchen"
       }
@@ -5632,12 +5641,8 @@
     "show_window": "Fenster anzeigen"
   },
   "update": {
-    "download": "Herunterladen",
     "install": "Jetzt installieren",
     "later": "Später",
-    "manualDownload": "Herunterladen",
-    "manualInstallError": "Installation fehlgeschlagen, bitte manuell von der offiziellen Website herunterladen.",
-    "manualInstallInfo": "Diese Version unterstützt keine automatischen Updates. Klicken Sie auf Herunterladen, um das Update abzuschließen.",
     "message": "Neue Version {{version}} gefunden. Jetzt installieren?",
     "noReleaseNotes": "Kein Changelog verfügbar",
     "saveDataError": "Speichern fehlgeschlagen, bitte erneut versuchen",

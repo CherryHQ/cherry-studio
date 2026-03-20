@@ -32,12 +32,7 @@ export const providerToolPlugin = (capability: ToolCapability, config: Record<st
           ? (context.model.provider as string)
           : undefined
 
-      const resolved = await extensionRegistry.resolveToolCapability(
-        providerId,
-        capability,
-        context.baseProvider,
-        modelProvider
-      )
+      const resolved = await extensionRegistry.resolveToolCapability(providerId, capability, modelProvider)
       if (!resolved) return params
 
       const userConfig = config[providerId] ?? {}

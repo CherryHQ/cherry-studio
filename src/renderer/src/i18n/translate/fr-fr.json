@@ -2027,6 +2027,10 @@
         "export": "Échec de l'exportation Excel"
       },
       "fetchTopicName": "Échec de la nomination du sujet",
+      "file": {
+        "process_failed": "[to be translated]:File {{name}} could not be processed",
+        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
       }
@@ -5632,12 +5641,8 @@
     "show_window": "Afficher la fenêtre"
   },
   "update": {
-    "download": "Télécharger",
     "install": "Installer",
     "later": "Plus tard",
-    "manualDownload": "Télécharger",
-    "manualInstallError": "L'installation a échoué, veuillez télécharger manuellement depuis le site officiel.",
-    "manualInstallInfo": "Cette version ne prend pas en charge les mises à jour automatiques. Cliquez sur télécharger pour terminer la mise à jour.",
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
     "saveDataError": "Échec de la sauvegarde des données, veuillez réessayer",

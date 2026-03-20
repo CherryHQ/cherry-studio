@@ -420,13 +420,12 @@ export class ExtensionRegistry {
    *
    * @param providerId - 当前 provider ID
    * @param capability - 工具能力标识
-   * @param baseProvider - 当前 context 的 baseProvider（直接查找时使用）
    * @param modelProvider - LanguageModel 上的 provider 字符串（聚合供应商 fallback）
    * @returns { factory, provider } 或 undefined
    *
    * @example
    * ```typescript
-   * const resolved = extensionRegistry.resolveToolCapability('aihubmix', 'webSearch', baseProvider, 'aihubmix.google')
+   * const resolved = await extensionRegistry.resolveToolCapability('aihubmix', 'webSearch', 'aihubmix.google')
    * if (resolved) {
    *   const patch = resolved.factory(resolved.provider)(config)
    *   // merge patch into params
@@ -436,13 +435,13 @@ export class ExtensionRegistry {
   async resolveToolCapability(
     providerId: string,
     capability: ToolCapability,
-    baseProvider: ProviderV3 | undefined,
     modelProvider?: string
   ): Promise<{ factory: ToolFactory; provider: ProviderV3 } | undefined> {
     // 1. Direct: provider 自己有 toolFactories
     const directFactory = this.getToolFactory(providerId, capability)
-    if (directFactory && baseProvider) {
-      return { factory: directFactory, provider: baseProvider }
+    if (directFactory) {
+      const provider = await this.getToolProvider(providerId)
+      if (provider) return { factory: directFactory, provider }
     }
 
     // 2. Aggregator fallback: 从 model.provider 段解析真实 provider

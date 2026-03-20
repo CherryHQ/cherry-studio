@@ -2027,6 +2027,10 @@
         "export": "导出 Excel 失败"
       },
       "fetchTopicName": "话题命名失败",
+      "file": {
+        "process_failed": "文件 {{name}} 无法处理",
+        "text_extraction_failed": "无法从 {{name}} 中提取文本"
+      },
       "get_embedding_dimensions": "获取嵌入维度失败",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "PDF 文件 {{name}} 超出大小限制 ({{limit}})，将回退为文本提取",
+        "pdf_text_extraction_failed": "无法从 PDF {{name}} 中提取文本",
+        "pdf_upload_failed": "上传 PDF {{name}} 失败，将回退为文本提取"
+      },
       "rate": {
         "limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
       }
@@ -5632,12 +5641,8 @@
     "show_window": "显示窗口"
   },
   "update": {
-    "download": "前往下载",
     "install": "立即安装",
     "later": "稍后",
-    "manualDownload": "下载",
-    "manualInstallError": "安装失败，请前往官网手动下载安装。",
-    "manualInstallInfo": "该版本不支持自动更新，点击下载按钮完成更新。",
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
     "saveDataError": "保存数据失败，请重试",

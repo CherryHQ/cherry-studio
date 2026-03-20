@@ -78,9 +78,9 @@ export class RuntimeExecutor<
   private createConfigureContextPlugin() {
     return definePlugin({
       name: '_internal_configureContext',
-      configureContext: async (context: AiRequestContext) => {
-        context.executor = this
-        context.baseProvider = this.config.baseProvider ?? this.config.provider
+      configureContext: async (_context: AiRequestContext) => {
+        // Placeholder for future context configuration
+        // Previously set executor and baseProvider, now handled by registry
       }
     })
   }
@@ -238,13 +238,11 @@ export class RuntimeExecutor<
     providerId: T,
     provider: ProviderV3,
     options: TSettingsMap[T],
-    plugins?: AiPlugin[],
-    baseProvider?: ProviderV3
+    plugins?: AiPlugin[]
   ): RuntimeExecutor<TSettingsMap, T> {
     return new RuntimeExecutor<TSettingsMap, T>({
       providerId,
       provider,
-      baseProvider,
       providerSettings: options,
       plugins
     })

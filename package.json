@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -162,7 +162,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "^1.46.0",
     "@hello-pangea/dnd": "^18.0.1",
-    "@j178/prek": "^0.2.28",
+    "@j178/prek": "^0.3.4",
     "@kangfenmao/keyv-storage": "^0.1.3",
     "@langchain/community": "^1.0.0",
     "@langchain/core": "1.0.2",
@@ -356,7 +356,7 @@
     "pako": "1.0.11",
     "partial-json": "0.1.7",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^2.4.5",
     "prosemirror-model": "1.25.2",
     "proxy-agent": "^6.5.0",
     "rc-input": "1.8.0",
@@ -470,7 +470,9 @@
       "pdf-parse@1.1.1": "patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
       "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch",
       "@ai-sdk/openai-compatible@2.0.35": "patches/@ai-sdk__openai-compatible@2.0.35.patch",
-      "@ai-sdk/google@3.0.43": "patches/@ai-sdk__google@3.0.43.patch"
+      "@ai-sdk/google@3.0.43": "patches/@ai-sdk__google@3.0.43.patch",
+      "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
+      "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

@@ -30,6 +30,7 @@ import type {
   TextPart,
   UserModelMessage
 } from 'ai'
+import i18n from 'i18next'
 
 import { convertFileBlockToFilePart, convertFileBlockToTextPart } from './fileProcessor'
 
@@ -157,6 +158,7 @@ async function convertMessageToUserModelMessage(
         logger.debug(`File ${file.origin_name} processed as text content`)
       } else {
         logger.warn(`File ${file.origin_name} could not be processed in any format`)
+        window.toast.error(i18n.t('message.error.file.process_failed', { name: file.origin_name }))
       }
     }
   }

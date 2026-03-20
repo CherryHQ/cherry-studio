@@ -2027,6 +2027,10 @@
         "export": "Error al exportar a Excel"
       },
       "fetchTopicName": "Error al asignar nombre al tema",
+      "file": {
+        "process_failed": "[to be translated]:File {{name}} could not be processed",
+        "text_extraction_failed": "[to be translated]:Failed to extract text from {{name}}"
+      },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "invalid": {
         "api": {
@@ -2270,6 +2274,11 @@
       }
     },
     "warning": {
+      "file": {
+        "pdf_exceeds_limit": "[to be translated]:PDF file {{name}} exceeds size limit ({{limit}}), falling back to text extraction",
+        "pdf_text_extraction_failed": "[to be translated]:Failed to extract text from PDF {{name}}",
+        "pdf_upload_failed": "[to be translated]:Failed to upload PDF {{name}}, falling back to text extraction"
+      },
       "rate": {
         "limit": "Envío demasiado frecuente, espere {{seconds}} segundos antes de intentarlo de nuevo"
       }
@@ -5632,12 +5641,8 @@
     "show_window": "Mostrar ventana"
   },
   "update": {
-    "download": "Descargar",
     "install": "Instalar",
     "later": "Más tarde",
-    "manualDownload": "Descargar",
-    "manualInstallError": "La instalación falló, por favor descarga manualmente desde el sitio web oficial.",
-    "manualInstallInfo": "Esta versión no admite actualizaciones automáticas. Haz clic en descargar para completar la actualización.",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
     "saveDataError": "Error al guardar los datos, inténtalo de nuevo",
