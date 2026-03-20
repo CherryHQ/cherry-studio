@@ -419,110 +419,110 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "[to be translated]:Add Group",
-      "copy": "[to be translated]:Copy",
-      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
-      "regenerate": "[to be translated]:Regenerate",
+      "addGroup": "Agregar grupo",
+      "copy": "Copiar",
+      "copyEnvVars": "Copiar como variables de entorno",
+      "regenerate": "Regenerar",
       "restart": {
-        "button": "[to be translated]:Restart",
-        "tooltip": "[to be translated]:Restart Server"
+        "button": "Reiniciar",
+        "tooltip": "Reiniciar servidor"
       },
-      "start": "[to be translated]:Start",
-      "stop": "[to be translated]:Stop"
+      "start": "Iniciar",
+      "stop": "Detener"
     },
     "authHeader": {
-      "title": "[to be translated]:Authorization Header"
+      "title": "Encabezado de autorización"
     },
-    "authHeaderText": "[to be translated]:Use in Authorization header:",
-    "configuration": "[to be translated]:Configuration",
-    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "authHeaderText": "Usar en el encabezado Authorization:",
+    "configuration": "Configuración",
+    "description": "Expón las capacidades de IA de Cherry Studio mediante API HTTP compatibles con OpenAI",
     "documentation": {
-      "title": "[to be translated]:API Documentation"
+      "title": "Documentación de la API"
     },
     "endpoints": {
-      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API",
-      "responses": "[to be translated]:OpenAI Responses API (new format)"
+      "chatCompletions": "Chat completions compatibles con OpenAI",
+      "messages": "API de mensajes compatible con Anthropic",
+      "responses": "OpenAI Responses API (nuevo formato)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "[to be translated]:Copy API Key",
-        "description": "[to be translated]:Secure authentication token for API access",
-        "label": "[to be translated]:API Key",
-        "placeholder": "[to be translated]:API key will be auto-generated"
+        "copyTooltip": "Copiar clave API",
+        "description": "Token de autenticación seguro para acceder a la API",
+        "label": "Clave API",
+        "placeholder": "La clave API se generará automáticamente"
       },
       "baseUrl": {
-        "copyTooltip": "[to be translated]:Copy Base URL",
-        "description": "[to be translated]:Use this URL as your API base URL in external applications",
-        "label": "[to be translated]:Base URL"
+        "copyTooltip": "Copiar URL base",
+        "description": "Usa esta URL como URL base de la API en aplicaciones externas",
+        "label": "URL base"
       },
       "copyAsEnv": {
-        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
-        "format": "[to be translated]:Format",
-        "label": "[to be translated]:Environment Variables"
+        "description": "Copia la configuración como variables de entorno para una integración sencilla",
+        "format": "Formato",
+        "label": "Variables de entorno"
       },
       "defaultModel": {
-        "description": "[to be translated]:Select the default provider and model for external applications",
-        "label": "[to be translated]:Default Model",
-        "modelPlaceholder": "[to be translated]:Select model",
-        "providerPlaceholder": "[to be translated]:Select provider"
+        "description": "Selecciona el proveedor y el modelo predeterminados para aplicaciones externas",
+        "label": "Modelo predeterminado",
+        "modelPlaceholder": "Seleccionar modelo",
+        "providerPlaceholder": "Seleccionar proveedor"
       },
       "enabledEndpoints": {
-        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
-        "label": "[to be translated]:Enabled Endpoints"
+        "description": "Elige qué endpoints de API exponer para cada grupo de modelos",
+        "label": "Endpoints habilitados"
       },
       "modelGroups": {
-        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
-        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
-        "label": "[to be translated]:Model Groups",
+        "description": "Crea grupos de modelos con URL únicas para distintas combinaciones de proveedor/modelo",
+        "empty": "No hay grupos de modelos configurados. Haz clic en 'Agregar grupo' para crear uno.",
+        "label": "Grupos de modelos",
         "mode": {
-          "assistant": "[to be translated]:Assistant Preset",
-          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
-          "assistantPlaceholder": "[to be translated]:Select assistant",
-          "label": "[to be translated]:Mode",
-          "model": "[to be translated]:Direct Model"
+          "assistant": "Preajuste del asistente",
+          "assistantHint": "El preajuste del asistente sobrescribe los parámetros de la solicitud.",
+          "assistantPlaceholder": "Seleccionar asistente",
+          "label": "Modo",
+          "model": "Modelo directo"
         },
-        "namePlaceholder": "[to be translated]:Group name"
+        "namePlaceholder": "Nombre del grupo"
       },
       "networkAccess": {
-        "description": "[to be translated]:Allow connections from other devices on your network",
-        "label": "[to be translated]:Expose to Network",
-        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+        "description": "Permitir conexiones desde otros dispositivos de tu red",
+        "label": "Exponer en la red",
+        "warning": "Advertencia: esto hará que la API sea accesible desde otros dispositivos de tu red. Actívalo solo si confías en tu red."
       },
       "port": {
-        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
-        "helpText": "[to be translated]:Stop server to change port",
-        "label": "[to be translated]:Port"
+        "description": "Número de puerto TCP para el servidor HTTP (1000-65535)",
+        "helpText": "Detén el servidor para cambiar el puerto",
+        "label": "Puerto"
       },
       "url": {
-        "copyTooltip": "[to be translated]:Copy URL",
-        "label": "[to be translated]:URL"
+        "copyTooltip": "Copiar URL",
+        "label": "URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
-      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
-      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
-      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
-      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
-      "nameRequired": "[to be translated]:Group name cannot be empty",
-      "nameUpdated": "[to be translated]:Group name updated",
-      "notEnabled": "[to be translated]:The API Server is not enabled.",
-      "operationFailed": "[to be translated]:API Server operation failed: ",
-      "restartError": "[to be translated]:Failed to restart API Server: ",
-      "restartFailed": "[to be translated]:API Server restart failed: ",
-      "restartSuccess": "[to be translated]:API Server restarted successfully",
-      "startError": "[to be translated]:Failed to start API Server: ",
-      "startSuccess": "[to be translated]:API Server started successfully",
-      "stopError": "[to be translated]:Failed to stop API Server: ",
-      "stopSuccess": "[to be translated]:API Server stopped successfully",
-      "urlCopied": "[to be translated]:Server URL copied to clipboard"
+      "apiKeyCopied": "Clave API copiada al portapapeles",
+      "apiKeyRegenerated": "Clave API regenerada",
+      "baseUrlCopied": "URL base copiada al portapapeles",
+      "envVarsCopied": "Variables de entorno copiadas al portapapeles",
+      "nameDuplicate": "Ya existe un grupo con la misma ruta URL",
+      "nameRequired": "El nombre del grupo no puede estar vacío",
+      "nameUpdated": "Nombre del grupo actualizado",
+      "notEnabled": "El servidor API no está habilitado.",
+      "operationFailed": "La operación del servidor API falló: ",
+      "restartError": "No se pudo reiniciar el servidor API: ",
+      "restartFailed": "El reinicio del servidor API falló: ",
+      "restartSuccess": "Servidor API reiniciado correctamente",
+      "startError": "No se pudo iniciar el servidor API: ",
+      "startSuccess": "Servidor API iniciado correctamente",
+      "stopError": "No se pudo detener el servidor API: ",
+      "stopSuccess": "Servidor API detenido correctamente",
+      "urlCopied": "URL del servidor copiada al portapapeles"
     },
     "status": {
-      "running": "[to be translated]:Running",
-      "stopped": "[to be translated]:Stopped"
+      "running": "En ejecución",
+      "stopped": "Detenido"
     },
-    "title": "[to be translated]:API Server"
+    "title": "Servidor API"
   },
   "appMenu": {
     "about": "Acerca de",

@@ -419,9 +419,9 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "[to be translated]:Add Group",
+      "addGroup": "新增群組",
       "copy": "複製",
-      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
+      "copyEnvVars": "複製為環境變數",
       "regenerate": "重新產生",
       "restart": {
         "button": "重新啟動",
@@ -440,9 +440,9 @@
       "title": "API 文件"
     },
     "endpoints": {
-      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API",
-      "responses": "[to be translated]:OpenAI Responses API (new format)"
+      "chatCompletions": "OpenAI 相容的 chat completions",
+      "messages": "Anthropic 相容的 messages API",
+      "responses": "OpenAI Responses API（新格式）"
     },
     "fields": {
       "apiKey": {
@@ -452,42 +452,42 @@
         "placeholder": "API 金鑰會自動產生"
       },
       "baseUrl": {
-        "copyTooltip": "[to be translated]:Copy Base URL",
-        "description": "[to be translated]:Use this URL as your API base URL in external applications",
-        "label": "[to be translated]:Base URL"
+        "copyTooltip": "複製基礎 URL",
+        "description": "在外部應用程式中將此 URL 用作 API 基礎 URL",
+        "label": "基礎 URL"
       },
       "copyAsEnv": {
-        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
-        "format": "[to be translated]:Format",
-        "label": "[to be translated]:Environment Variables"
+        "description": "將設定複製為環境變數，方便整合使用",
+        "format": "格式",
+        "label": "環境變數"
       },
       "defaultModel": {
-        "description": "[to be translated]:Select the default provider and model for external applications",
-        "label": "[to be translated]:Default Model",
-        "modelPlaceholder": "[to be translated]:Select model",
-        "providerPlaceholder": "[to be translated]:Select provider"
+        "description": "選擇供外部應用程式使用的預設服務商與模型",
+        "label": "預設模型",
+        "modelPlaceholder": "選擇模型",
+        "providerPlaceholder": "選擇服務商"
       },
       "enabledEndpoints": {
-        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
-        "label": "[to be translated]:Enabled Endpoints"
+        "description": "選擇每個模型群組要公開哪些 API 端點",
+        "label": "已啟用的端點"
       },
       "modelGroups": {
-        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
-        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
-        "label": "[to be translated]:Model Groups",
+        "description": "為不同的服務商／模型組合建立具有唯一 URL 的模型群組",
+        "empty": "尚未設定任何模型群組。點擊「新增群組」來建立。",
+        "label": "模型群組",
         "mode": {
-          "assistant": "[to be translated]:Assistant Preset",
-          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
-          "assistantPlaceholder": "[to be translated]:Select assistant",
-          "label": "[to be translated]:Mode",
-          "model": "[to be translated]:Direct Model"
+          "assistant": "助理預設",
+          "assistantHint": "助理預設會覆寫請求參數。",
+          "assistantPlaceholder": "選擇助理",
+          "label": "模式",
+          "model": "直接模型"
         },
-        "namePlaceholder": "[to be translated]:Group name"
+        "namePlaceholder": "群組名稱"
       },
       "networkAccess": {
-        "description": "[to be translated]:Allow connections from other devices on your network",
-        "label": "[to be translated]:Expose to Network",
-        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+        "description": "允許來自你網路中其他裝置的連線",
+        "label": "對網路公開",
+        "warning": "警告：這會讓你的 API 可被網路中的其他裝置存取。僅在你信任目前網路時才啟用。"
       },
       "port": {
         "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
@@ -502,11 +502,11 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新產生",
-      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
-      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
-      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
-      "nameRequired": "[to be translated]:Group name cannot be empty",
-      "nameUpdated": "[to be translated]:Group name updated",
+      "baseUrlCopied": "基礎 URL 已複製到剪貼簿",
+      "envVarsCopied": "環境變數已複製到剪貼簿",
+      "nameDuplicate": "已存在相同 URL 路徑的群組",
+      "nameRequired": "群組名稱不能為空",
+      "nameUpdated": "群組名稱已更新",
       "notEnabled": "API 伺服器未啟用。",
       "operationFailed": "API 伺服器操作失敗：",
       "restartError": "重新啟動 API 伺服器失敗：",

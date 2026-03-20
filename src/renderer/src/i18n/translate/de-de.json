@@ -419,110 +419,110 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "[to be translated]:Add Group",
-      "copy": "[to be translated]:Copy",
-      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
-      "regenerate": "[to be translated]:Regenerate",
+      "addGroup": "Gruppe hinzufügen",
+      "copy": "Kopieren",
+      "copyEnvVars": "Als Umgebungsvariablen kopieren",
+      "regenerate": "Neu generieren",
       "restart": {
-        "button": "[to be translated]:Restart",
-        "tooltip": "[to be translated]:Restart Server"
+        "button": "Neu starten",
+        "tooltip": "Server neu starten"
       },
-      "start": "[to be translated]:Start",
-      "stop": "[to be translated]:Stop"
+      "start": "Starten",
+      "stop": "Stoppen"
     },
     "authHeader": {
-      "title": "[to be translated]:Authorization Header"
+      "title": "Autorisierungs-Header"
     },
-    "authHeaderText": "[to be translated]:Use in Authorization header:",
-    "configuration": "[to be translated]:Configuration",
-    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "authHeaderText": "Im Authorization-Header verwenden:",
+    "configuration": "Konfiguration",
+    "description": "Stellen Sie die KI-Funktionen von Cherry Studio über OpenAI-kompatible HTTP-APIs bereit",
     "documentation": {
-      "title": "[to be translated]:API Documentation"
+      "title": "API-Dokumentation"
     },
     "endpoints": {
-      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API",
-      "responses": "[to be translated]:OpenAI Responses API (new format)"
+      "chatCompletions": "OpenAI-kompatible Chat-Completions",
+      "messages": "Anthropic-kompatible Messages-API",
+      "responses": "OpenAI Responses API (neues Format)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "[to be translated]:Copy API Key",
-        "description": "[to be translated]:Secure authentication token for API access",
-        "label": "[to be translated]:API Key",
-        "placeholder": "[to be translated]:API key will be auto-generated"
+        "copyTooltip": "API-Schlüssel kopieren",
+        "description": "Sicheres Authentifizierungstoken für den API-Zugriff",
+        "label": "API-Schlüssel",
+        "placeholder": "API-Schlüssel wird automatisch generiert"
       },
       "baseUrl": {
-        "copyTooltip": "[to be translated]:Copy Base URL",
-        "description": "[to be translated]:Use this URL as your API base URL in external applications",
-        "label": "[to be translated]:Base URL"
+        "copyTooltip": "Basis-URL kopieren",
+        "description": "Verwenden Sie diese URL in externen Anwendungen als API-Basis-URL",
+        "label": "Basis-URL"
       },
       "copyAsEnv": {
-        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
-        "format": "[to be translated]:Format",
-        "label": "[to be translated]:Environment Variables"
+        "description": "Konfiguration zur einfachen Integration als Umgebungsvariablen kopieren",
+        "format": "Format",
+        "label": "Umgebungsvariablen"
       },
       "defaultModel": {
-        "description": "[to be translated]:Select the default provider and model for external applications",
-        "label": "[to be translated]:Default Model",
-        "modelPlaceholder": "[to be translated]:Select model",
-        "providerPlaceholder": "[to be translated]:Select provider"
+        "description": "Standardanbieter und -modell für externe Anwendungen auswählen",
+        "label": "Standardmodell",
+        "modelPlaceholder": "Modell auswählen",
+        "providerPlaceholder": "Anbieter auswählen"
       },
       "enabledEndpoints": {
-        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
-        "label": "[to be translated]:Enabled Endpoints"
+        "description": "Wählen Sie aus, welche API-Endpunkte für jede Modellgruppe bereitgestellt werden",
+        "label": "Aktivierte Endpunkte"
       },
       "modelGroups": {
-        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
-        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
-        "label": "[to be translated]:Model Groups",
+        "description": "Erstellen Sie Modellgruppen mit eindeutigen URLs für verschiedene Anbieter-/Modellkombinationen",
+        "empty": "Keine Modellgruppen konfiguriert. Klicken Sie auf „Gruppe hinzufügen“, um eine zu erstellen.",
+        "label": "Modellgruppen",
         "mode": {
-          "assistant": "[to be translated]:Assistant Preset",
-          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
-          "assistantPlaceholder": "[to be translated]:Select assistant",
-          "label": "[to be translated]:Mode",
-          "model": "[to be translated]:Direct Model"
+          "assistant": "Assistent-Voreinstellung",
+          "assistantHint": "Die Assistent-Voreinstellung überschreibt Anfrageparameter.",
+          "assistantPlaceholder": "Assistent auswählen",
+          "label": "Modus",
+          "model": "Direktes Modell"
         },
-        "namePlaceholder": "[to be translated]:Group name"
+        "namePlaceholder": "Gruppenname"
       },
       "networkAccess": {
-        "description": "[to be translated]:Allow connections from other devices on your network",
-        "label": "[to be translated]:Expose to Network",
-        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+        "description": "Verbindungen von anderen Geräten in Ihrem Netzwerk zulassen",
+        "label": "Im Netzwerk freigeben",
+        "warning": "Warnung: Dadurch wird die API für andere Geräte in Ihrem Netzwerk erreichbar. Aktivieren Sie dies nur, wenn Sie Ihrem Netzwerk vertrauen."
       },
       "port": {
-        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
-        "helpText": "[to be translated]:Stop server to change port",
-        "label": "[to be translated]:Port"
+        "description": "TCP-Portnummer für den HTTP-Server (1000–65535)",
+        "helpText": "Server anhalten, um den Port zu ändern",
+        "label": "Port"
       },
       "url": {
-        "copyTooltip": "[to be translated]:Copy URL",
-        "label": "[to be translated]:URL"
+        "copyTooltip": "URL kopieren",
+        "label": "URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
-      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
-      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
-      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
-      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
-      "nameRequired": "[to be translated]:Group name cannot be empty",
-      "nameUpdated": "[to be translated]:Group name updated",
-      "notEnabled": "[to be translated]:The API Server is not enabled.",
-      "operationFailed": "[to be translated]:API Server operation failed: ",
-      "restartError": "[to be translated]:Failed to restart API Server: ",
-      "restartFailed": "[to be translated]:API Server restart failed: ",
-      "restartSuccess": "[to be translated]:API Server restarted successfully",
-      "startError": "[to be translated]:Failed to start API Server: ",
-      "startSuccess": "[to be translated]:API Server started successfully",
-      "stopError": "[to be translated]:Failed to stop API Server: ",
-      "stopSuccess": "[to be translated]:API Server stopped successfully",
-      "urlCopied": "[to be translated]:Server URL copied to clipboard"
+      "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
+      "apiKeyRegenerated": "API-Schlüssel neu generiert",
+      "baseUrlCopied": "Basis-URL in die Zwischenablage kopiert",
+      "envVarsCopied": "Umgebungsvariablen in die Zwischenablage kopiert",
+      "nameDuplicate": "Eine Gruppe mit demselben URL-Pfad existiert bereits",
+      "nameRequired": "Der Gruppenname darf nicht leer sein",
+      "nameUpdated": "Gruppenname aktualisiert",
+      "notEnabled": "Der API-Server ist nicht aktiviert.",
+      "operationFailed": "API-Server-Vorgang fehlgeschlagen: ",
+      "restartError": "API-Server konnte nicht neu gestartet werden: ",
+      "restartFailed": "Neustart des API-Servers fehlgeschlagen: ",
+      "restartSuccess": "API-Server erfolgreich neu gestartet",
+      "startError": "API-Server konnte nicht gestartet werden: ",
+      "startSuccess": "API-Server erfolgreich gestartet",
+      "stopError": "API-Server konnte nicht gestoppt werden: ",
+      "stopSuccess": "API-Server erfolgreich gestoppt",
+      "urlCopied": "Server-URL in die Zwischenablage kopiert"
     },
     "status": {
-      "running": "[to be translated]:Running",
-      "stopped": "[to be translated]:Stopped"
+      "running": "Läuft",
+      "stopped": "Gestoppt"
     },
-    "title": "[to be translated]:API Server"
+    "title": "API-Server"
   },
   "appMenu": {
     "about": "Über",

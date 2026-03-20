@@ -419,110 +419,110 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "[to be translated]:Add Group",
-      "copy": "[to be translated]:Copy",
-      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
-      "regenerate": "[to be translated]:Regenerate",
+      "addGroup": "Добавить группу",
+      "copy": "Копировать",
+      "copyEnvVars": "Копировать как переменные окружения",
+      "regenerate": "Сгенерировать заново",
       "restart": {
-        "button": "[to be translated]:Restart",
-        "tooltip": "[to be translated]:Restart Server"
+        "button": "Перезапустить",
+        "tooltip": "Перезапустить сервер"
       },
-      "start": "[to be translated]:Start",
-      "stop": "[to be translated]:Stop"
+      "start": "Запустить",
+      "stop": "Остановить"
     },
     "authHeader": {
-      "title": "[to be translated]:Authorization Header"
+      "title": "Заголовок авторизации"
     },
-    "authHeaderText": "[to be translated]:Use in Authorization header:",
-    "configuration": "[to be translated]:Configuration",
-    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "authHeaderText": "Используйте в заголовке Authorization:",
+    "configuration": "Конфигурация",
+    "description": "Откройте возможности ИИ Cherry Studio через OpenAI-совместимые HTTP API",
     "documentation": {
-      "title": "[to be translated]:API Documentation"
+      "title": "Документация API"
     },
     "endpoints": {
-      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API",
-      "responses": "[to be translated]:OpenAI Responses API (new format)"
+      "chatCompletions": "OpenAI-совместимые chat completions",
+      "messages": "Anthropic-совместимый messages API",
+      "responses": "OpenAI Responses API (новый формат)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "[to be translated]:Copy API Key",
-        "description": "[to be translated]:Secure authentication token for API access",
-        "label": "[to be translated]:API Key",
-        "placeholder": "[to be translated]:API key will be auto-generated"
+        "copyTooltip": "Скопировать API-ключ",
+        "description": "Безопасный токен аутентификации для доступа к API",
+        "label": "API-ключ",
+        "placeholder": "API-ключ будет сгенерирован автоматически"
       },
       "baseUrl": {
-        "copyTooltip": "[to be translated]:Copy Base URL",
-        "description": "[to be translated]:Use this URL as your API base URL in external applications",
-        "label": "[to be translated]:Base URL"
+        "copyTooltip": "Скопировать базовый URL",
+        "description": "Используйте этот URL как базовый URL API во внешних приложениях",
+        "label": "Базовый URL"
       },
       "copyAsEnv": {
-        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
-        "format": "[to be translated]:Format",
-        "label": "[to be translated]:Environment Variables"
+        "description": "Скопировать конфигурацию как переменные окружения для удобной интеграции",
+        "format": "Формат",
+        "label": "Переменные окружения"
       },
       "defaultModel": {
-        "description": "[to be translated]:Select the default provider and model for external applications",
-        "label": "[to be translated]:Default Model",
-        "modelPlaceholder": "[to be translated]:Select model",
-        "providerPlaceholder": "[to be translated]:Select provider"
+        "description": "Выберите поставщика и модель по умолчанию для внешних приложений",
+        "label": "Модель по умолчанию",
+        "modelPlaceholder": "Выберите модель",
+        "providerPlaceholder": "Выберите поставщика"
       },
       "enabledEndpoints": {
-        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
-        "label": "[to be translated]:Enabled Endpoints"
+        "description": "Выберите, какие API-эндпоинты будут доступны для каждой группы моделей",
+        "label": "Включённые эндпоинты"
       },
       "modelGroups": {
-        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
-        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
-        "label": "[to be translated]:Model Groups",
+        "description": "Создавайте группы моделей с уникальными URL для разных комбинаций поставщик/модель",
+        "empty": "Группы моделей не настроены. Нажмите «Добавить группу», чтобы создать её.",
+        "label": "Группы моделей",
         "mode": {
-          "assistant": "[to be translated]:Assistant Preset",
-          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
-          "assistantPlaceholder": "[to be translated]:Select assistant",
-          "label": "[to be translated]:Mode",
-          "model": "[to be translated]:Direct Model"
+          "assistant": "Предустановка ассистента",
+          "assistantHint": "Предустановка ассистента переопределяет параметры запроса.",
+          "assistantPlaceholder": "Выберите ассистента",
+          "label": "Режим",
+          "model": "Прямая модель"
         },
-        "namePlaceholder": "[to be translated]:Group name"
+        "namePlaceholder": "Название группы"
       },
       "networkAccess": {
-        "description": "[to be translated]:Allow connections from other devices on your network",
-        "label": "[to be translated]:Expose to Network",
-        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+        "description": "Разрешить подключения с других устройств в вашей сети",
+        "label": "Открыть доступ в сети",
+        "warning": "Предупреждение: это сделает API доступным для других устройств в вашей сети. Включайте только если доверяете своей сети."
       },
       "port": {
-        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
-        "helpText": "[to be translated]:Stop server to change port",
-        "label": "[to be translated]:Port"
+        "description": "Номер TCP-порта для HTTP-сервера (1000-65535)",
+        "helpText": "Остановите сервер, чтобы изменить порт",
+        "label": "Порт"
       },
       "url": {
-        "copyTooltip": "[to be translated]:Copy URL",
-        "label": "[to be translated]:URL"
+        "copyTooltip": "Скопировать URL",
+        "label": "URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
-      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
-      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
-      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
-      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
-      "nameRequired": "[to be translated]:Group name cannot be empty",
-      "nameUpdated": "[to be translated]:Group name updated",
-      "notEnabled": "[to be translated]:The API Server is not enabled.",
-      "operationFailed": "[to be translated]:API Server operation failed: ",
-      "restartError": "[to be translated]:Failed to restart API Server: ",
-      "restartFailed": "[to be translated]:API Server restart failed: ",
-      "restartSuccess": "[to be translated]:API Server restarted successfully",
-      "startError": "[to be translated]:Failed to start API Server: ",
-      "startSuccess": "[to be translated]:API Server started successfully",
-      "stopError": "[to be translated]:Failed to stop API Server: ",
-      "stopSuccess": "[to be translated]:API Server stopped successfully",
-      "urlCopied": "[to be translated]:Server URL copied to clipboard"
+      "apiKeyCopied": "API-ключ скопирован в буфер обмена",
+      "apiKeyRegenerated": "API-ключ сгенерирован заново",
+      "baseUrlCopied": "Базовый URL скопирован в буфер обмена",
+      "envVarsCopied": "Переменные окружения скопированы в буфер обмена",
+      "nameDuplicate": "Группа с таким URL-путём уже существует",
+      "nameRequired": "Название группы не может быть пустым",
+      "nameUpdated": "Название группы обновлено",
+      "notEnabled": "API-сервер не включён.",
+      "operationFailed": "Ошибка операции API-сервера: ",
+      "restartError": "Не удалось перезапустить API-сервер: ",
+      "restartFailed": "Ошибка перезапуска API-сервера: ",
+      "restartSuccess": "API-сервер успешно перезапущен",
+      "startError": "Не удалось запустить API-сервер: ",
+      "startSuccess": "API-сервер успешно запущен",
+      "stopError": "Не удалось остановить API-сервер: ",
+      "stopSuccess": "API-сервер успешно остановлен",
+      "urlCopied": "URL сервера скопирован в буфер обмена"
     },
     "status": {
-      "running": "[to be translated]:Running",
-      "stopped": "[to be translated]:Stopped"
+      "running": "Запущен",
+      "stopped": "Остановлен"
     },
-    "title": "[to be translated]:API Server"
+    "title": "API-сервер"
   },
   "appMenu": {
     "about": "О",

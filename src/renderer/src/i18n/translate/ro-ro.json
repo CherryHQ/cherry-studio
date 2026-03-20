@@ -419,110 +419,110 @@
   },
   "apiGateway": {
     "actions": {
-      "addGroup": "[to be translated]:Add Group",
-      "copy": "[to be translated]:Copy",
-      "copyEnvVars": "[to be translated]:Copy as Environment Variables",
-      "regenerate": "[to be translated]:Regenerate",
+      "addGroup": "Adaugă grup",
+      "copy": "Copiază",
+      "copyEnvVars": "Copiază ca variabile de mediu",
+      "regenerate": "Regenerează",
       "restart": {
-        "button": "[to be translated]:Restart",
-        "tooltip": "[to be translated]:Restart Server"
+        "button": "Repornește",
+        "tooltip": "Repornește serverul"
       },
-      "start": "[to be translated]:Start",
-      "stop": "[to be translated]:Stop"
+      "start": "Pornește",
+      "stop": "Oprește"
     },
     "authHeader": {
-      "title": "[to be translated]:Authorization Header"
+      "title": "Antet de autorizare"
     },
-    "authHeaderText": "[to be translated]:Use in Authorization header:",
-    "configuration": "[to be translated]:Configuration",
-    "description": "[to be translated]:Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "authHeaderText": "Folosește în antetul Authorization:",
+    "configuration": "Configurare",
+    "description": "Expune capabilitățile AI ale Cherry Studio prin API-uri HTTP compatibile cu OpenAI",
     "documentation": {
-      "title": "[to be translated]:API Documentation"
+      "title": "Documentație API"
     },
     "endpoints": {
-      "chatCompletions": "[to be translated]:OpenAI-compatible chat completions",
-      "messages": "[to be translated]:Anthropic-compatible messages API",
-      "responses": "[to be translated]:OpenAI Responses API (new format)"
+      "chatCompletions": "Chat completions compatibile cu OpenAI",
+      "messages": "API de mesaje compatibil cu Anthropic",
+      "responses": "OpenAI Responses API (format nou)"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "[to be translated]:Copy API Key",
-        "description": "[to be translated]:Secure authentication token for API access",
-        "label": "[to be translated]:API Key",
-        "placeholder": "[to be translated]:API key will be auto-generated"
+        "copyTooltip": "Copiază cheia API",
+        "description": "Token sigur de autentificare pentru accesul la API",
+        "label": "Cheie API",
+        "placeholder": "Cheia API va fi generată automat"
       },
       "baseUrl": {
-        "copyTooltip": "[to be translated]:Copy Base URL",
-        "description": "[to be translated]:Use this URL as your API base URL in external applications",
-        "label": "[to be translated]:Base URL"
+        "copyTooltip": "Copiază URL-ul de bază",
+        "description": "Folosește acest URL ca URL de bază al API-ului în aplicațiile externe",
+        "label": "URL de bază"
       },
       "copyAsEnv": {
-        "description": "[to be translated]:Copy configuration as environment variables for easy integration",
-        "format": "[to be translated]:Format",
-        "label": "[to be translated]:Environment Variables"
+        "description": "Copiază configurația ca variabile de mediu pentru integrare ușoară",
+        "format": "Format",
+        "label": "Variabile de mediu"
       },
       "defaultModel": {
-        "description": "[to be translated]:Select the default provider and model for external applications",
-        "label": "[to be translated]:Default Model",
-        "modelPlaceholder": "[to be translated]:Select model",
-        "providerPlaceholder": "[to be translated]:Select provider"
+        "description": "Selectează furnizorul și modelul implicit pentru aplicațiile externe",
+        "label": "Model implicit",
+        "modelPlaceholder": "Selectează modelul",
+        "providerPlaceholder": "Selectează furnizorul"
       },
       "enabledEndpoints": {
-        "description": "[to be translated]:Choose which API endpoints to expose for each model group",
-        "label": "[to be translated]:Enabled Endpoints"
+        "description": "Alege ce endpoint-uri API să fie expuse pentru fiecare grup de modele",
+        "label": "Endpoint-uri activate"
       },
       "modelGroups": {
-        "description": "[to be translated]:Create model groups with unique URLs for different provider/model combinations",
-        "empty": "[to be translated]:No model groups configured. Click 'Add Group' to create one.",
-        "label": "[to be translated]:Model Groups",
+        "description": "Creează grupuri de modele cu URL-uri unice pentru combinații diferite furnizor/model",
+        "empty": "Nu există grupuri de modele configurate. Apasă pe „Adaugă grup” pentru a crea unul.",
+        "label": "Grupuri de modele",
         "mode": {
-          "assistant": "[to be translated]:Assistant Preset",
-          "assistantHint": "[to be translated]:Assistant preset overrides request parameters.",
-          "assistantPlaceholder": "[to be translated]:Select assistant",
-          "label": "[to be translated]:Mode",
-          "model": "[to be translated]:Direct Model"
+          "assistant": "Preset de asistent",
+          "assistantHint": "Presetul de asistent suprascrie parametrii cererii.",
+          "assistantPlaceholder": "Selectează asistentul",
+          "label": "Mod",
+          "model": "Model direct"
         },
-        "namePlaceholder": "[to be translated]:Group name"
+        "namePlaceholder": "Numele grupului"
       },
       "networkAccess": {
-        "description": "[to be translated]:Allow connections from other devices on your network",
-        "label": "[to be translated]:Expose to Network",
-        "warning": "[to be translated]:Warning: This will make the API accessible from other devices on your network. Only enable if you trust your network."
+        "description": "Permite conexiuni de la alte dispozitive din rețeaua ta",
+        "label": "Expune în rețea",
+        "warning": "Avertisment: acest lucru va face API-ul accesibil de pe alte dispozitive din rețeaua ta. Activează doar dacă ai încredere în rețeaua ta."
       },
       "port": {
-        "description": "[to be translated]:TCP port number for the HTTP server (1000-65535)",
-        "helpText": "[to be translated]:Stop server to change port",
-        "label": "[to be translated]:Port"
+        "description": "Numărul portului TCP pentru serverul HTTP (1000-65535)",
+        "helpText": "Oprește serverul pentru a schimba portul",
+        "label": "Port"
       },
       "url": {
-        "copyTooltip": "[to be translated]:Copy URL",
-        "label": "[to be translated]:URL"
+        "copyTooltip": "Copiază URL-ul",
+        "label": "URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "[to be translated]:API Key copied to clipboard",
-      "apiKeyRegenerated": "[to be translated]:API Key regenerated",
-      "baseUrlCopied": "[to be translated]:Base URL copied to clipboard",
-      "envVarsCopied": "[to be translated]:Environment variables copied to clipboard",
-      "nameDuplicate": "[to be translated]:A group with the same URL path already exists",
-      "nameRequired": "[to be translated]:Group name cannot be empty",
-      "nameUpdated": "[to be translated]:Group name updated",
-      "notEnabled": "[to be translated]:The API Server is not enabled.",
-      "operationFailed": "[to be translated]:API Server operation failed: ",
-      "restartError": "[to be translated]:Failed to restart API Server: ",
-      "restartFailed": "[to be translated]:API Server restart failed: ",
-      "restartSuccess": "[to be translated]:API Server restarted successfully",
-      "startError": "[to be translated]:Failed to start API Server: ",
-      "startSuccess": "[to be translated]:API Server started successfully",
-      "stopError": "[to be translated]:Failed to stop API Server: ",
-      "stopSuccess": "[to be translated]:API Server stopped successfully",
-      "urlCopied": "[to be translated]:Server URL copied to clipboard"
+      "apiKeyCopied": "Cheia API a fost copiată în clipboard",
+      "apiKeyRegenerated": "Cheia API a fost regenerată",
+      "baseUrlCopied": "URL-ul de bază a fost copiat în clipboard",
+      "envVarsCopied": "Variabilele de mediu au fost copiate în clipboard",
+      "nameDuplicate": "Există deja un grup cu aceeași cale URL",
+      "nameRequired": "Numele grupului nu poate fi gol",
+      "nameUpdated": "Numele grupului a fost actualizat",
+      "notEnabled": "Serverul API nu este activat.",
+      "operationFailed": "Operația serverului API a eșuat: ",
+      "restartError": "Nu s-a putut reporni serverul API: ",
+      "restartFailed": "Repornirea serverului API a eșuat: ",
+      "restartSuccess": "Serverul API a fost repornit cu succes",
+      "startError": "Nu s-a putut porni serverul API: ",
+      "startSuccess": "Serverul API a pornit cu succes",
+      "stopError": "Nu s-a putut opri serverul API: ",
+      "stopSuccess": "Serverul API a fost oprit cu succes",
+      "urlCopied": "URL-ul serverului a fost copiat în clipboard"
     },
     "status": {
-      "running": "[to be translated]:Running",
-      "stopped": "[to be translated]:Stopped"
+      "running": "În execuție",
+      "stopped": "Oprit"
     },
-    "title": "[to be translated]:API Server"
+    "title": "Server API"
   },
   "appMenu": {
     "about": "Despre",
