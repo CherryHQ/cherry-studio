@@ -472,7 +472,8 @@
       "@ai-sdk/openai-compatible@2.0.30": "patches/@ai-sdk__openai-compatible@2.0.30.patch",
       "@ai-sdk/google@3.0.33": "patches/@ai-sdk__google@3.0.33.patch",
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
-      "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch"
+      "ollama-ai-provider-v2@3.3.1": "patches/ollama-ai-provider-v2@3.3.1.patch",
+      "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
