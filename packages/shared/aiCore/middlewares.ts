@@ -7,6 +7,8 @@
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware } from 'ai'
 
+import { isGemini3ModelId } from './utils'
+
 /**
  * Configuration for building shared middlewares
  */
@@ -39,18 +41,6 @@ export interface SharedMiddlewareConfig {
    * e.g., 'google', 'google-vertex'
    */
   aiSdkProviderId?: string
-}
-
-/**
- * Check if model ID represents a Gemini 3 (2.5) model
- * that requires thought signature handling
- *
- * @param modelId - The model ID string (not Model object)
- */
-export function isGemini3ModelId(modelId?: string): boolean {
-  if (!modelId) return false
-  const lowerModelId = modelId.toLowerCase()
-  return lowerModelId.includes('gemini-3')
 }
 
 /**

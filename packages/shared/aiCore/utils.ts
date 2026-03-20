@@ -101,6 +101,18 @@ export function getAiSdkProviderId(provider: MinimalProvider): ProviderId {
   return provider.id
 }
 
+/**
+ * Check whether a model ID belongs to the Gemini 3 (2.5) family.
+ *
+ * @param modelId The model ID string.
+ * @returns True when the model ID represents a Gemini 3 family model.
+ */
+export function isGemini3ModelId(modelId?: string): boolean {
+  if (!modelId) return false
+  const lowerModelId = modelId.toLowerCase()
+  return lowerModelId.includes('gemini-3')
+}
+
 export interface ResolveActualProviderOptions<P extends MinimalProvider> {
   isSystemProvider?: (provider: P) => boolean
 }

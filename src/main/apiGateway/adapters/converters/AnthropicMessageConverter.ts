@@ -13,7 +13,7 @@ import type {
   TextBlockParam,
   Tool as AnthropicTool
 } from '@anthropic-ai/sdk/resources/messages'
-import { isGemini3ModelId } from '@shared/aiCore/middlewares'
+import { isGemini3ModelId } from '@shared/aiCore/utils'
 import type { Provider } from '@types'
 import type { ImagePart, JSONValue, ModelMessage, TextPart, Tool as AiSdkTool } from 'ai'
 import { tool, zodSchema } from 'ai'
