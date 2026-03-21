@@ -72,11 +72,13 @@ describe('MermaidPreview', () => {
     })
 
     // Mock MutationObserver
-    global.MutationObserver = vi.fn().mockImplementation(() => ({
-      observe: vi.fn(),
-      disconnect: vi.fn(),
-      takeRecords: vi.fn()
-    }))
+    global.MutationObserver = vi.fn().mockImplementation(function () {
+      return {
+        observe: vi.fn(),
+        disconnect: vi.fn(),
+        takeRecords: vi.fn()
+      }
+    })
   })
 
   afterEach(() => {

@@ -88,7 +88,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 // Mock dependencies
 vi.mock('@renderer/aiCore', () => ({
-  AiProvider: vi.fn().mockImplementation(() => ({
+  AiProvider: vi.fn().mockImplementation(function () => ({
     getEmbeddingDimensions: mocks.aiCore.getEmbeddingDimensions
   }))
 }))
