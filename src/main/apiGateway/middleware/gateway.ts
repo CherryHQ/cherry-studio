@@ -17,6 +17,21 @@ import { config } from '../config'
 
 const logger = loggerService.withContext('GatewayMiddleware')
 
+const normalizeEndpoint = (req: Request): string => {
+  const baseUrl = req.baseUrl || ''
+  const path = req.path.startsWith('/') ? req.path : `/${req.path}`
+  const fullPath = `${baseUrl}${path}` || '/'
+
+  if (req.params.groupId) {
+    const groupPrefix = `/${req.params.groupId}`
+    if (fullPath.startsWith(groupPrefix)) {
+      return fullPath.slice(groupPrefix.length) || '/'
+    }
+  }
+
+  return fullPath
+}
+
 /**
  * Gateway middleware for model group routing
  *
@@ -71,14 +86,7 @@ export const gatewayMiddleware = async (req: Request, res: Response, next: NextF
     }
 
     const endpoint = req.path
-    let normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-
-    // Non-group routes are mounted under /v1, but req.path here is router-relative
-    // (e.g. /messages instead of /v1/messages). Restore the external path shape
-    // so it can be compared against enabledEndpoints config.
-    if (!normalizedEndpoint.startsWith('/v1')) {
-      normalizedEndpoint = `/v1${normalizedEndpoint}`
-    }
+    const normalizedEndpoint = normalizeEndpoint(req)
 
     // Check if endpoint is enabled (skip for /v1/models which is always enabled)
     if (!normalizedEndpoint.startsWith('/v1/models')) {

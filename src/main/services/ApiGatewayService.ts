@@ -14,10 +14,6 @@ import { loggerService } from './LoggerService'
 const logger = loggerService.withContext('ApiGatewayService')
 
 export class ApiGatewayService {
-  constructor() {
-    // Use the new clean implementation
-  }
-
   async start(): Promise<void> {
     try {
       await apiGateway.start()
