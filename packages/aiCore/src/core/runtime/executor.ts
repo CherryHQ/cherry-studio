@@ -13,7 +13,7 @@ import {
 } from 'ai'
 
 import { isV3Model } from '../models/utils'
-import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
+import { type AiPlugin, definePlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
@@ -78,7 +78,7 @@ export class RuntimeExecutor<
   private createConfigureContextPlugin() {
     return definePlugin({
       name: '_internal_configureContext',
-      configureContext: async (_context: AiRequestContext) => {
+      configureContext: async () => {
         // Placeholder for future context configuration
         // Previously set executor and baseProvider, now handled by registry
       }
